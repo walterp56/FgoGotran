@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.ui.StartMediaProjection
+import com.fgogotran.R
 
 /**
  * Home screen with service status, "Start Service" flow, and navigation.
@@ -51,6 +52,7 @@ fun HomeScreen(
     val accessibilityRunning = FgoAccessibilityService.serviceStarted.value
     val accessibilityRunningStatusColor = if (accessibilityRunning) Color(0xFF4CAF50) else Color(0xFFFF9800) // Green vs Orange
     val accessibilityRunningStatusText = if (accessibilityRunning) "已啟用" else "未啟用"
+
     // Reactive state for permissions that change via system settings
     // (refreshed on Activity resume via LifecycleEventObserver)
     var canDrawOverlays by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
@@ -59,6 +61,8 @@ fun HomeScreen(
         mutableStateOf(pm.isIgnoringBatteryOptimizations(context.packageName))
     }
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // update permissions state
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -94,7 +98,7 @@ fun HomeScreen(
 
         // Check 1: Overlay permission
         if (!Settings.canDrawOverlays(context)) {
-            AlertDialog.Builder(context)
+            AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
                 .setTitle("需要覆蓋層權限")
                 .setMessage("FgoGotran 需要「顯示在其他應用程式上層」權限才能在FGO上顯示翻譯按鈕。")
                 .setPositiveButton("前往設定") { _, _ ->
@@ -116,7 +120,7 @@ fun HomeScreen(
 
         // Check 2: Accessibility service
         if (!accessibilityRunning) {
-            AlertDialog.Builder(context)
+            AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
                 .setTitle("需要無障礙服務")
                 .setMessage("FgoGotran 需要無障礙服務來檢測FGO中的點擊並擷取畫面。\n\n請在設定中開啟「FgoGotran」無障礙服務。")
                 .setPositiveButton("前往設定") { _, _ ->
@@ -177,36 +181,36 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            Text(
-                text = "FGO 日文故事 → 中文即時翻譯",
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center
-            )
+//            Text(
+//                text = "FGO 日文故事 → 中文即時翻譯",
+//                style = MaterialTheme.typography.bodyLarge,
+//                textAlign = TextAlign.Center
+//            )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // Service running notice bar
-            if (serviceRunning) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF4CAF50).copy(alpha = 0.15f),
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text("●", color = Color(0xFF4CAF50), style = MaterialTheme.typography.bodySmall)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "FgoGotran 服務中",
-                            color = Color(0xFF4CAF50),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            }
+//            if (serviceRunning) {
+//                Surface(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    color = Color(0xFF4CAF50).copy(alpha = 0.15f),
+//                    shape = MaterialTheme.shapes.small
+//                ) {
+//                    Row(
+//                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+//                        verticalAlignment = Alignment.CenterVertically,
+//                        horizontalArrangement = Arrangement.Center
+//                    ) {
+//                        Text("●", color = Color(0xFF4CAF50), style = MaterialTheme.typography.bodySmall)
+//                        Spacer(modifier = Modifier.width(8.dp))
+//                        Text(
+//                            "FgoGotran 服務中",
+//                            color = Color(0xFF4CAF50),
+//                            style = MaterialTheme.typography.bodyMedium
+//                        )
+//                    }
+//                }
+//            }
 
             // 1. Accessibility Service Card
             Card(
@@ -306,6 +310,7 @@ fun HomeScreen(
                     Text("翻譯歷史")
                 }
             }
+
         }
     }
 }
