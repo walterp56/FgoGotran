@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FgoGotran</string>
+    <string name="accessibility_description">Capture FGO story screens for Japanese-to-Chinese translation. Requires this permission to detect taps and capture the game screen silently.</string>
+</resources>

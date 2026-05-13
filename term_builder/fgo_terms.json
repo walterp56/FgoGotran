@@ -1,0 +1,182 @@
+[
+  {
+    "jp_name": "マスター",
+    "cn_name": "御主",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "サーヴァント",
+    "cn_name": "从者",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "宝具",
+    "cn_name": "宝具",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "令呪",
+    "cn_name": "令咒",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "聖晶石",
+    "cn_name": "圣晶石",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "カルデア",
+    "cn_name": "迦勒底",
+    "category": "location",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "人理",
+    "cn_name": "人理",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "特異点",
+    "cn_name": "特异点",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "異聞帯",
+    "cn_name": "异闻带",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "霊基",
+    "cn_name": "灵基",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "概念礼装",
+    "cn_name": "概念礼装",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "絆",
+    "cn_name": "羁绊",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "魔術回路",
+    "cn_name": "魔术回路",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "聖杯",
+    "cn_name": "圣杯",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "聖杯戦争",
+    "cn_name": "圣杯战争",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "クラス",
+    "cn_name": "职阶",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "セイバー",
+    "cn_name": "剑士",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アーチャー",
+    "cn_name": "弓兵",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ランサー",
+    "cn_name": "枪兵",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ライダー",
+    "cn_name": "骑兵",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "キャスター",
+    "cn_name": "魔术师",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アサシン",
+    "cn_name": "暗杀者",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "バーサーカー",
+    "cn_name": "狂战士",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ルーラー",
+    "cn_name": "裁定者",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アヴェンジャー",
+    "cn_name": "复仇者",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アルターエゴ",
+    "cn_name": "他人格",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ムーンキャンサー",
+    "cn_name": "月之癌",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "フォーリナー",
+    "cn_name": "降临者",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "プリテンダー",
+    "cn_name": "伪装者",
+    "category": "class",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "シールダー",
+    "cn_name": "盾兵",
+    "category": "class",
+    "aliases": "[]"
+  }
+]

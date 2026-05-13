@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Kotlin daemon
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+
+# Local machine-specific
+local.properties
+
+# Claude Code
+.claude/
+
+# Temp / doc files
+*.docx
+~$*.docx

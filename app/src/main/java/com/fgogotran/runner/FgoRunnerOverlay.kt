@@ -1,0 +1,201 @@
+package com.fgogotran.runner
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
+import android.provider.Settings
+import android.view.Gravity
+import android.view.WindowManager
+import com.fgogotran.R
+import com.fgogotran.data.SettingsRepository
+import com.fgogotran.ui.overlay.FloatingButton
+import com.fgogotran.ui.overlay.FloatingMenu
+import com.fgogotran.util.FakeComposeHost
+import com.fgogotran.util.FgoLogger
+import com.fgogotran.util.overlayType
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Manages the draggable floating button overlay window.
+ *
+ * Like FGA's [ScriptRunnerOverlay], this class:
+ * - Adds a [androidx.compose.ui.platform.ComposeView] to the WindowManager
+ * - Renders the [FloatingButton] composable inside it
+ * - Handles drag-to-reposition via [onDrag]
+ * - Shows/hides the popup [FloatingMenu] when the button is tapped
+ * - Persists button position via DataStore
+ *
+ * The overlay uses [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY]
+ * with FLAG_NOT_TOUCH_MODAL | FLAG_NOT_FOCUSABLE so that all touch events
+ * pass through to FGO underneath.
+ */
+@Singleton
+class FgoRunnerOverlay @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository
+) {
+    private var windowManager: WindowManager? = null
+    private var composeHost: FakeComposeHost? = null
+    private var floatingMenuDialog: androidx.appcompat.app.AlertDialog? = null
+    private var shown = false
+
+    /**
+     * Current position of the floating button (top-left origin).
+     * Saved to DataStore when the button is hidden, restored on show.
+     */
+    private var btnX = 0
+    private var btnY = 300  // Default: near top-left, offset down a bit
+
+    private val tag = "FgoRunnerOverlay"
+
+    /** Layout params for the floating button overlay. */
+    private val btnLayoutParams: WindowManager.LayoutParams
+        get() = WindowManager.LayoutParams().apply {
+            type = overlayType
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            gravity = Gravity.TOP or Gravity.START
+            x = btnX
+            y = btnY
+        }
+
+    /** Must be called before [show]. Initializes the WindowManager. */
+    fun init() {
+        windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        FgoLogger.info(tag, "Overlay initialized")
+    }
+
+    /** Shows the floating button on screen. No-op if already showing. */
+    fun show() {
+        if (shown) return
+        val wm = windowManager ?: return
+
+        if (!Settings.canDrawOverlays(context)) {
+            FgoLogger.warn(tag, "Overlay permission not granted, cannot show button")
+            return
+        }
+
+        // Create the ComposeView hosting the floating button
+        composeHost = FakeComposeHost(context) {
+            FloatingButton(
+                onClick = { onButtonClick() },
+                onDrag = { dx, dy -> onDrag(dx, dy) }
+            )
+        }
+
+        wm.addView(composeHost!!.view, btnLayoutParams)
+        shown = true
+        FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
+    }
+
+    /** Hides the floating button and saves its position. */
+    fun hide() {
+        if (!shown) return
+        val wm = windowManager ?: return
+
+        composeHost?.let {
+            try { wm.removeView(it.view) } catch (_: Exception) {}
+            it.close()
+        }
+        composeHost = null
+        shown = false
+        FgoLogger.info(tag, "Floating button hidden")
+    }
+
+    /** Cleans up everything (button + dialog). Called on service destroy. */
+    fun destroy() {
+        dismissMenu()
+        hide()
+        windowManager = null
+        FgoLogger.info(tag, "Overlay destroyed")
+    }
+
+    /** Whether the floating button is currently visible. */
+    fun isShowing(): Boolean = shown
+
+    // ─── Drag handling ────────────────────────────────────────────────
+
+    /**
+     * Moves the button by (dx, dy) and clamps to screen bounds.
+     * Called from [FloatingButton.onDrag].
+     */
+    private fun onDrag(dx: Float, dy: Float) {
+        val wm = windowManager ?: return
+        val view = composeHost?.view ?: return
+
+        btnX = (btnX + dx.toInt()).coerceAtLeast(0)
+        btnY = (btnY + dy.toInt()).coerceAtLeast(0)
+
+        // Clamp to screen bounds accounting for the button's measured size
+        val bounds = wm.currentWindowMetrics.bounds
+        val maxX = bounds.width() - (view.measuredWidth.coerceAtLeast(1))
+        val maxY = bounds.height() - (view.measuredHeight.coerceAtLeast(1))
+        btnX = btnX.coerceAtMost(maxX.coerceAtLeast(0))
+        btnY = btnY.coerceAtMost(maxY.coerceAtLeast(0))
+
+        btnLayoutParams.x = btnX
+        btnLayoutParams.y = btnY
+        wm.updateViewLayout(view, btnLayoutParams)
+    }
+
+    // ─── Menu handling ─────────────────────────────────────────────────
+
+    /** Called when the user taps the floating button (not drags). */
+    private fun onButtonClick() {
+        if (floatingMenuDialog?.isShowing == true) {
+            floatingMenuDialog?.dismiss()
+        }
+        floatingMenuDialog = showMenuDialog()
+    }
+
+    /**
+     * Creates and shows the white popup menu as an overlay AlertDialog.
+     *
+     * Uses [FakeComposeHost] to render the [FloatingMenu] composable
+     * inside the dialog, so it has the correct plain white style.
+     */
+    private fun showMenuDialog(): androidx.appcompat.app.AlertDialog {
+        val menuHost = FakeComposeHost(context) {
+            FloatingMenu(
+                onHistoryClick = {
+                    dismissMenu()
+                    // TODO: Launch history view (could open the app or show inline)
+                },
+                onDismiss = { dismissMenu() }
+            )
+        }
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
+            .setView(menuHost.view)
+            .create()
+
+        dialog.window?.setType(overlayType)
+        // Make the dialog background transparent so only our white card shows
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.show()
+
+        return dialog
+    }
+
+    private fun dismissMenu() {
+        floatingMenuDialog?.dismiss()
+        floatingMenuDialog = null
+    }
+
+    // ─── MediaProjection ───────────────────────────────────────────────
+
+    /** Called when a MediaProjection token becomes available. */
+    fun onMediaProjectionReady() {
+        FgoLogger.info(tag, "MediaProjection token received")
+        // The ScreenshotServiceHolder will be wired into FgoAccessibilityService
+        // to start using MediaProjection for screenshots
+    }
+}
