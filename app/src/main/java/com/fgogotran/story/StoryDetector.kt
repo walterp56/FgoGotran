@@ -45,7 +45,7 @@ class StoryDetector @Inject constructor() {
          * FGO places its dialogue box in the bottom ~30% of the screen.
          * The remaining 70% is character art, background, and UI chrome.
          */
-        private const val DIALOGUE_ZONE_BOTTOM_RATIO = 0.30f
+        private const val DIALOGUE_ZONE_BOTTOM_RATIO = 0.23f
 
         /** Minimum number of text lines that must be in the dialogue zone. */
         private const val MIN_LINES_IN_DIALOGUE_ZONE = 2

@@ -196,27 +196,27 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     // ─── Screenshot helper ────────────────────────────────────────────
-
-//    private suspend fun takeScreenshotCompat(): Bitmap? {
-//        return suspendCoroutine { cont ->
-//            takeScreenshot(
-//                Display.DEFAULT_DISPLAY,
-//                mainExecutor,
-//                object : TakeScreenshotCallback {
-//                    override fun onSuccess(result: ScreenshotResult) {
-//                        val bitmap = Bitmap.wrapHardwareBuffer(
-//                            result.hardwareBuffer, result.colorSpace
-//                        )
-//                        cont.resume(bitmap)
-//                    }
-//                    override fun onFailure(errorCode: Int) {
-//                        FgoLogger.warn(tag, "Screenshot failed, errorCode=$errorCode")
-//                        cont.resume(null)
-//                    }
-//                }
-//            )
-//        }
-//    }
+    @Suppress("NewApi")
+    private suspend fun takeScreenshotCompat(): Bitmap? {
+        return suspendCoroutine { cont ->
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                mainExecutor,
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(result: ScreenshotResult) {
+                        val bitmap = Bitmap.wrapHardwareBuffer(
+                            result.hardwareBuffer, result.colorSpace
+                        )
+                        cont.resume(bitmap)
+                    }
+                    override fun onFailure(errorCode: Int) {
+                        FgoLogger.warn(tag, "Screenshot failed, errorCode=$errorCode")
+                        cont.resume(null)
+                    }
+                }
+            )
+        }
+    }
 
     private fun initScreenSize() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager

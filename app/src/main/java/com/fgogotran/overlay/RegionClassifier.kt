@@ -58,7 +58,7 @@ class RegionClassifier @Inject constructor() {
 
     companion object {
         /** Bottom portion of screen reserved for the dialogue box. */
-        private const val DIALOGUE_ZONE_RATIO = 0.28f
+        private const val DIALOGUE_ZONE_RATIO = 0.23f
 
         /**
          * Name labels appear up to 120px above the dialogue box top edge.
