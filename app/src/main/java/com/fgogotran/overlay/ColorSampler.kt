@@ -23,8 +23,8 @@ import javax.inject.Singleton
  * ## Sampling strategy
  * - **Text color**: samples the center row of each OCR text bounding box,
  *   takes the brightest 20% of pixels (FGO renders light text on dark backgrounds)
- * - **Background color**: samples a row 5px above each region's bounding rect
- *   (avoids sampling text pixels)
+ * - **Background color**: samples a row near the top inside each panel
+ *   (avoids centered text while remaining on the UI surface)
  */
 @Singleton
 class ColorSampler @Inject constructor() {
@@ -91,19 +91,19 @@ class ColorSampler @Inject constructor() {
     }
 
     /**
-     * Samples the background color from just above the region's bounding rectangle.
+     * Samples the background color from near the top inside the panel rectangle.
      *
-     * Samples a horizontal row 5px above [regionRect.top].
-     * The 5px offset ensures we sample the game's dialogue box background
-     * rather than the text itself.
+     * Render bounds now describe the stable panel surface. Sampling above those
+     * bounds would read scene artwork instead of the panel background.
      *
      * @param bitmap the screenshot
      * @param regionRect the classified region's enclosing rectangle
      * @return the median background color, or a default dark blue if sampling fails
      */
     fun sampleBackgroundColor(bitmap: Bitmap, regionRect: Rect): Int {
-        // Sample from 5px above the region top — this is the dialogue box background
-        val sampleY = (regionRect.top - 5).coerceAtLeast(0)
+        // Sample inside the top edge, above centered text.
+        val inset = (regionRect.height() / 8).coerceIn(5, 14)
+        val sampleY = (regionRect.top + inset).coerceIn(0, bitmap.height - 1)
         val samples = mutableListOf<Int>()
 
         for (x in regionRect.left..regionRect.right step 5) {

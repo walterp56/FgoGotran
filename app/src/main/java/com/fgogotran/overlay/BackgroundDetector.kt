@@ -67,6 +67,66 @@ class BackgroundDetector @Inject constructor() {
         )
     }
 
+    /**
+     * Locates the repeated black choice panels inside the known story choice zone.
+     *
+     * The zone is viewport-aware and already excludes the SKIP control. Choices
+     * share horizontal bounds but form a variable number of dark vertical bands.
+     */
+    fun detectChoiceButtons(bitmap: Bitmap, searchRegion: Rect): List<Rect> {
+        val bounds = Rect(
+            searchRegion.left.coerceIn(0, bitmap.width),
+            searchRegion.top.coerceIn(0, bitmap.height),
+            searchRegion.right.coerceIn(0, bitmap.width),
+            searchRegion.bottom.coerceIn(0, bitmap.height)
+        )
+        if (bounds.width() <= 0 || bounds.height() <= 0) return emptyList()
+
+        val sampledColumns = ((bounds.width() + 1) / 2).coerceAtLeast(1)
+        val minHeight = (bitmap.height * 0.03f).toInt().coerceAtLeast(16)
+        val edgePadding = (bitmap.height * 0.006f).toInt().coerceAtLeast(3)
+        val buttons = mutableListOf<Rect>()
+        var darkRunStart: Int? = null
+
+        for (y in bounds.top until bounds.bottom) {
+            val darkPixels = countDarkPixelsInRow(bitmap, bounds.left, bounds.right, y)
+            val isPanelRow = darkPixels.toFloat() / sampledColumns > DARK_ROW_RATIO
+
+            if (isPanelRow && darkRunStart == null) {
+                darkRunStart = y
+            } else if (!isPanelRow && darkRunStart != null) {
+                addChoiceButton(buttons, bounds, darkRunStart, y, minHeight, edgePadding)
+                darkRunStart = null
+            }
+        }
+
+        darkRunStart?.let {
+            addChoiceButton(buttons, bounds, it, bounds.bottom, minHeight, edgePadding)
+        }
+
+        FgoLogger.info(tag, "Choice zone detected ${buttons.size} panels in $bounds")
+        return buttons
+    }
+
+    private fun addChoiceButton(
+        buttons: MutableList<Rect>,
+        searchRegion: Rect,
+        top: Int,
+        bottom: Int,
+        minHeight: Int,
+        edgePadding: Int
+    ) {
+        if (bottom - top < minHeight) return
+        buttons.add(
+            Rect(
+                searchRegion.left,
+                (top - edgePadding).coerceAtLeast(searchRegion.top),
+                searchRegion.right,
+                (bottom + edgePadding).coerceAtMost(searchRegion.bottom)
+            )
+        )
+    }
+
     // ─── Step 1: Find dialogue box top edge ─────────────────────────
 
     /**

@@ -16,14 +16,14 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrTextLine
+import com.fgogotran.overlay.BackgroundDetector
 import com.fgogotran.overlay.ClassifiedRegion
 import com.fgogotran.overlay.ColorSampler
+import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.overlay.OverlayRenderer
-import com.fgogotran.overlay.RegionClassifier
 import com.fgogotran.overlay.RenderInstruction
 import com.fgogotran.overlay.TextRegion
 import com.fgogotran.overlay.TranslationOverlay
-import com.fgogotran.overlay.UiRegionDetector
 import com.fgogotran.story.StoryDetector
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.translation.Translator
@@ -48,9 +48,8 @@ import kotlin.coroutines.suspendCoroutine
 class FgoAccessibilityService : AccessibilityService() {
 
     @Inject lateinit var ocrEngine: OcrEngine
-    @Inject lateinit var regionClassifier: RegionClassifier
+    @Inject lateinit var backgroundDetector: BackgroundDetector
     @Inject lateinit var translationOverlay: TranslationOverlay
-    @Inject lateinit var uiRegionDetector: UiRegionDetector
     @Inject lateinit var translator: Translator
     @Inject lateinit var overlayRenderer: OverlayRenderer
     @Inject lateinit var colorSampler: ColorSampler
@@ -202,7 +201,6 @@ class FgoAccessibilityService : AccessibilityService() {
         isProcessing = true
 
         var screenshot: Bitmap? = null
-        var cropped: Bitmap? = null
         try {
             if (translationOverlay.isShowing()) {
                 if (!forceRefresh) return
@@ -215,54 +213,38 @@ class FgoAccessibilityService : AccessibilityService() {
             val source = screenshot
             val currentScreenWidth = source.width
             val currentScreenHeight = source.height
+            val screenRegions = FgoViewportLayout.regionsForScreen(currentScreenWidth, currentScreenHeight)
+            FgoLogger.debug(tag, "FGO viewport=${screenRegions.viewport}, skip=${screenRegions.skip}")
 
-            val dialogRect = withContext(Dispatchers.Default) {
-                uiRegionDetector.detectDialog(source)
+            val choiceBounds = withContext(Dispatchers.Default) {
+                backgroundDetector.detectChoiceButtons(source, screenRegions.choiceSearch)
+            }
+            val choiceRegions = choiceBounds.mapNotNull { bounds ->
+                recognizeScreenRegion(source, bounds, TextRegion.CHOICE_BUTTON)
             }
 
-            if (dialogRect == null) {
-                FgoLogger.debug(tag, "No dialog detected")
+            val classifiedRegions = if (choiceRegions.isNotEmpty()) {
+                choiceRegions
+            } else {
+                listOfNotNull(
+                    recognizeScreenRegion(source, screenRegions.dialogue, TextRegion.DIALOGUE_BOX),
+                    recognizeScreenRegion(source, screenRegions.name, TextRegion.NAME_LABEL)
+                )
+            }
+            if (classifiedRegions.isEmpty()) {
+                FgoLogger.debug(tag, "No translatable story text detected in FGO regions")
                 translationOverlay.hide()
                 return
             }
 
-            cropped = Bitmap.createBitmap(
-                source,
-                dialogRect.left,
-                dialogRect.top,
-                dialogRect.width(),
-                dialogRect.height()
-            )
-
-            val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(cropped)
-            }
-
-            val absoluteLines = ocrResult.lines.toScreenCoordinates(dialogRect)
-            if (absoluteLines.isEmpty()) {
-                translationOverlay.hide()
-                return
-            }
-
-            val classifiedRegions = regionClassifier
-                .classify(absoluteLines, currentScreenWidth, currentScreenHeight)
-                .ifEmpty {
-                    listOf(
-                        ClassifiedRegion(
-                            region = TextRegion.DIALOGUE_BOX,
-                            lines = absoluteLines,
-                            boundingBox = dialogRect
-                        )
-                    )
-                }
-                .prioritizeUserRequestedRegions()
-
-            val storyResult = storyDetector.detect(absoluteLines, currentScreenWidth, currentScreenHeight)
+            val detectedLines = classifiedRegions.flatMap { it.lines }
+            val storyResult = storyDetector.detect(detectedLines, currentScreenWidth, currentScreenHeight)
             FgoLogger.debug(tag, "Story detection: ${storyResult.isStoryScene}, ${storyResult.reason}")
 
             val sourceFingerprint = classifiedRegions
                 .joinToString("\n\n") { region ->
-                    region.lines.joinToString("\n") { it.text }.trim()
+                    "${region.region}:${region.boundingBox.flattenToString()}\n" +
+                        region.lines.joinToString("\n") { it.text }.trim()
                 }
                 .trim()
             if (!forceRefresh && sourceFingerprint == lastRenderedSourceText) {
@@ -299,20 +281,40 @@ class FgoAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             FgoLogger.error(tag, "processScreen failed", e)
         } finally {
-            cropped?.recycle()
             screenshot?.recycle()
             isProcessing = false
         }
     }
 
-    private fun List<ClassifiedRegion>.prioritizeUserRequestedRegions(): List<ClassifiedRegion> {
-        val choiceRegions = filter { it.region == TextRegion.CHOICE_BUTTON }
-        if (choiceRegions.isNotEmpty()) return choiceRegions
-
-        val dialogueRegions = filter {
-            it.region == TextRegion.DIALOGUE_BOX || it.region == TextRegion.NAME_LABEL
+    private suspend fun recognizeScreenRegion(
+        source: Bitmap,
+        bounds: Rect,
+        region: TextRegion
+    ): ClassifiedRegion? {
+        val cropped = Bitmap.createBitmap(
+            source,
+            bounds.left,
+            bounds.top,
+            bounds.width(),
+            bounds.height()
+        )
+        return try {
+            val ocrResult = withContext(Dispatchers.Default) {
+                ocrEngine.recognize(cropped)
+            }
+            val lines = ocrResult.lines.toScreenCoordinates(bounds)
+            if (lines.isEmpty()) {
+                null
+            } else {
+                ClassifiedRegion(
+                    region = region,
+                    lines = lines,
+                    boundingBox = bounds
+                )
+            }
+        } finally {
+            cropped.recycle()
         }
-        return dialogueRegions.ifEmpty { this }
     }
 
     private fun List<OcrTextLine>.toScreenCoordinates(offset: Rect): List<OcrTextLine> {

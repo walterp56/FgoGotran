@@ -166,16 +166,15 @@ class OverlayRenderer @Inject constructor(
         instruction: RenderInstruction
     ) {
         val box = instruction.region.boundingBox
-        val padding = 4
 
-        // ── 1. Clear name label area ──
+        // The fixed layout bounds represent the name plate itself.
         val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = instruction.backgroundColor
             style = Paint.Style.FILL
         }
         canvas.drawRoundRect(
-            (box.left - padding).toFloat(), (box.top - padding).toFloat(),
-            (box.right + padding * 2).toFloat(), (box.bottom + padding).toFloat(),
+            box.left.toFloat(), box.top.toFloat(),
+            box.right.toFloat(), box.bottom.toFloat(),
             8f, 8f, clearPaint
         )
 
@@ -206,16 +205,15 @@ class OverlayRenderer @Inject constructor(
         instruction: RenderInstruction
     ) {
         val box = instruction.region.boundingBox
-        val padding = 8
 
-        // ── 1. Clear button area ──
+        // Choice detection supplies the panel bounds, not only OCR text bounds.
         val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = instruction.backgroundColor
             style = Paint.Style.FILL
         }
         canvas.drawRoundRect(
-            (box.left - padding).toFloat(), (box.top - padding).toFloat(),
-            (box.right + padding).toFloat(), (box.bottom + padding).toFloat(),
+            box.left.toFloat(), box.top.toFloat(),
+            box.right.toFloat(), box.bottom.toFloat(),
             10f, 10f, clearPaint
         )
 
