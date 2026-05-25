@@ -13,26 +13,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
 import com.fgogotran.MainActivity
 import com.fgogotran.R
+import com.fgogotran.terminology.GlossaryUpdateManager
+import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * Foreground service that hosts the floating translation button overlay.
- *
- * Like FGA's [ScriptRunnerService], this service:
- * - Runs in the foreground with a persistent notification (required for Android 8+)
- * - Hosts the [FgoRunnerOverlay] which manages the draggable floating button
- * - Stores the MediaProjection token for screenshot capture
- *
- * ## Lifecycle
- * 1. [startService] → service created → notification shown → floating button appears
- * 2. [stopService] → overlay destroyed → service stopped → notification removed
- */
 @AndroidEntryPoint
 class FgoRunnerService : Service() {
 
     @Inject lateinit var overlay: FgoRunnerOverlay
+    @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
         private val _serviceStarted = mutableStateOf(false)
@@ -44,7 +42,6 @@ class FgoRunnerService : Service() {
                 _serviceStarted.value = value != null
             }
 
-        /** The MediaProjection intent token obtained from the screen share dialog. */
         var mediaProjectionToken: Intent? = null
             set(value) {
                 field = value
@@ -77,8 +74,12 @@ class FgoRunnerService : Service() {
         super.onCreate()
         FgoLogger.info(tag, "Service created")
         instance = this
+        SessionTranslationHistory.clear()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
+        serviceScope.launch {
+            glossaryUpdateManager.updateIfNeeded()
+        }
         overlay.init()
         overlay.show()
     }
@@ -88,6 +89,7 @@ class FgoRunnerService : Service() {
     override fun onDestroy() {
         FgoLogger.info(tag, "Service destroyed")
         overlay.destroy()
+        serviceScope.cancel()
         instance = null
         super.onDestroy()
     }
@@ -96,8 +98,8 @@ class FgoRunnerService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "FgoGotran 翻譯服務",
-                NotificationManager.IMPORTANCE_LOW  // Low: no sound, just an icon in the tray
+                "FgoGotran Translation",
+                NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "FgoGotran translation service is running"
             }
@@ -116,7 +118,7 @@ class FgoRunnerService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("FgoGotran")
-            .setContentText("翻譯服務運行中")
+            .setContentText("Translation overlay is running")
             .setSmallIcon(R.drawable.ic_translate)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

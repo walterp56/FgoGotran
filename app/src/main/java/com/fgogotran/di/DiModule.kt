@@ -1,6 +1,8 @@
 package com.fgogotran.di
 
 import android.content.Context
+import com.fgogotran.terminology.TermDao
+import com.fgogotran.terminology.TermDatabase
 import com.fgogotran.translation.TranslationCacheDb
 import com.fgogotran.translation.TranslationCacheDao
 import com.fgogotran.util.FgoLogger
@@ -14,13 +16,24 @@ import javax.inject.Singleton
 /**
  * Hilt DI module providing singleton-scoped database instances.
  *
- * Translation pipeline providers (TermDatabase, TermDao) are removed while
- * the debug background-detection mode is active; only TranslationCache
- * remains because HistoryScreen reads from it.
+ * Provides the persistent stores used by the translation pipeline.
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object DiModule {
+
+    @Provides
+    @Singleton
+    fun provideTermDatabase(@ApplicationContext context: Context): TermDatabase {
+        FgoLogger.info("DI", "Providing TermDatabase")
+        return TermDatabase.create(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideTermDao(db: TermDatabase): TermDao {
+        return db.termDao()
+    }
 
     @Provides
     @Singleton

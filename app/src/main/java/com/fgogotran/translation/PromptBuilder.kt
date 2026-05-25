@@ -26,6 +26,8 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
+        const val PROMPT_VERSION = "jp-cn-fgo-v1"
+
         /**
          * System prompt with 7 translation rules.
          *
@@ -39,7 +41,7 @@ class PromptBuilder @Inject constructor() {
          *   hallucinating a creative translation for terms not in the glossary.
          */
         private val SYSTEM_PROMPT = """
-You are translating Fate/Grand Order game dialogue from Japanese to Simplified Chinese.
+You are translating Fate/Grand Order game dialogue from Japanese to Traditional Chinese.
 
 Rules (MUST follow):
 1. TERMINOLOGY: Use ONLY the official Chinese translations provided below for proper nouns. Never invent new translations.
@@ -49,6 +51,7 @@ Rules (MUST follow):
 5. FORMAT: Return ONLY the translated Chinese text. No explanations, no notes, no markdown.
 6. CONTEXT AWARENESS: If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear.
 7. UNKNOWN TERMS: If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
+8. SCRIPT: Use Traditional Chinese characters by default. If a supplied official term is Simplified Chinese, convert it to natural Traditional Chinese unless it is a fixed proper noun.
 """.trimIndent()
     }
 

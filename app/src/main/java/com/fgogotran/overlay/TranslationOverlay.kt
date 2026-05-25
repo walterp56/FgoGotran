@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
@@ -39,6 +40,7 @@ class TranslationOverlay @Inject constructor(
     private var isOverlayShowing = false
     private var screenWidth = 0
     private var screenHeight = 0
+    private var onOverlayTap: ((Float, Float) -> Unit)? = null
 
     private val tag = "Overlay"
 
@@ -50,7 +52,6 @@ class TranslationOverlay @Inject constructor(
         get() = WindowManager.LayoutParams().apply {
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
             format = PixelFormat.TRANSLUCENT
             width = screenWidth
@@ -84,9 +85,15 @@ class TranslationOverlay @Inject constructor(
      * @param screenWidth raw screen width in pixels
      * @param screenHeight raw screen height in pixels
      */
-    fun init(serviceContext: Context, screenWidth: Int, screenHeight: Int) {
+    fun init(
+        serviceContext: Context,
+        screenWidth: Int,
+        screenHeight: Int,
+        onOverlayTap: (Float, Float) -> Unit
+    ) {
         this.screenWidth = screenWidth
         this.screenHeight = screenHeight
+        this.onOverlayTap = onOverlayTap
         // Must use the service context — Application context has no valid window token
         windowManager = serviceContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         FgoLogger.info(tag, "Overlay initialized: ${screenWidth}x${screenHeight}")
@@ -123,10 +130,19 @@ class TranslationOverlay @Inject constructor(
         val wm = windowManager ?: return
 
         hide()
+        screenWidth = bitmap.width
+        screenHeight = bitmap.height
 
         val imageView = ImageView(context).apply {
             setImageBitmap(bitmap)
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            scaleType = ImageView.ScaleType.FIT_XY
+            setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_UP) {
+                    FgoLogger.debug(this@TranslationOverlay.tag, "Translated overlay tapped at ${event.rawX},${event.rawY}")
+                    onOverlayTap?.invoke(event.rawX, event.rawY)
+                }
+                true
+            }
         }
 
         wm.addView(imageView, overlayParams)
@@ -179,6 +195,7 @@ class TranslationOverlay @Inject constructor(
     /** Removes all overlays and releases the WindowManager reference. */
     fun destroy() {
         hideAll()
+        onOverlayTap = null
         windowManager = null
         FgoLogger.info(tag, "Overlay destroyed")
     }

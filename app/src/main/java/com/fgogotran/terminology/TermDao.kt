@@ -1,6 +1,8 @@
 package com.fgogotran.terminology
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 /**
@@ -33,4 +35,8 @@ interface TermDao {
     /** Returns the total number of terms in the glossary. */
     @Query("SELECT COUNT(*) FROM terms")
     suspend fun count(): Int
+
+    /** Inserts downloaded terms, replacing older rows with the same JP name. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(terms: List<TermEntity>)
 }

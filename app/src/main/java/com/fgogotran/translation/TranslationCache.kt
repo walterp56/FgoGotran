@@ -25,8 +25,17 @@ data class CachedTranslation(
     @ColumnInfo(name = "jp_text")
     val jpText: String,
 
+    @ColumnInfo(name = "normalized_jp_text", defaultValue = "")
+    val normalizedJpText: String = jpText,
+
     @ColumnInfo(name = "cn_text")
     val cnText: String,
+
+    @ColumnInfo(name = "backend", defaultValue = "")
+    val backend: String = "",
+
+    @ColumnInfo(name = "prompt_version", defaultValue = "")
+    val promptVersion: String = "",
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
@@ -40,6 +49,10 @@ interface TranslationCacheDao {
     /** Looks up a cached translation by SHA-256 hash of the JP text. */
     @Query("SELECT cn_text FROM translation_cache WHERE jp_text_hash = :hash LIMIT 1")
     suspend fun getCached(hash: String): String?
+
+    /** Returns newest cache entries for the history screen. */
+    @Query("SELECT * FROM translation_cache ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int = 100): List<CachedTranslation>
 
     /** Inserts or replaces a cached translation (upsert by hash). */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -61,7 +74,7 @@ interface TranslationCacheDao {
  */
 @Database(
     entities = [CachedTranslation::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class TranslationCacheDb : RoomDatabase() {
@@ -74,7 +87,9 @@ abstract class TranslationCacheDb : RoomDatabase() {
                 context,
                 TranslationCacheDb::class.java,
                 "translation_cache.db"
-            ).build()
+            )
+                .fallbackToDestructiveMigration()
+                .build()
         }
     }
 }

@@ -17,7 +17,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
-import com.fgogotran.translation.TranslationCacheDao
 import com.fgogotran.ui.screen.HistoryScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
@@ -42,7 +41,6 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
-    @Inject lateinit var cacheDao: TranslationCacheDao
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +48,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FgoGotranTheme {
-                MainScreen(settingsRepository, cacheDao)
+                MainScreen(settingsRepository)
             }
         }
     }
@@ -66,8 +64,7 @@ enum class Screen { HOME, SETTINGS, HISTORY }
  */
 @Composable
 fun MainScreen(
-    settingsRepository: SettingsRepository,
-    cacheDao: TranslationCacheDao
+    settingsRepository: SettingsRepository
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
@@ -89,7 +86,6 @@ fun MainScreen(
         )
 
         Screen.HISTORY -> HistoryScreen(
-            cacheDao = cacheDao,
             onBack = { currentScreen = Screen.HOME }
         )
     }

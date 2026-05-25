@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 private class FakeLifecycleOwner : SavedStateRegistryOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    private var restored = false
 
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
@@ -43,7 +44,9 @@ private class FakeLifecycleOwner : SavedStateRegistryOwner {
     }
 
     fun performRestore(savedState: Bundle?) {
+        if (restored) return
         savedStateRegistryController.performRestore(savedState)
+        restored = true
     }
 }
 
@@ -69,13 +72,11 @@ class FakeComposeHost(
     private val coroutineContext = AndroidUiDispatcher.CurrentThread
     private val runRecomposeScope = CoroutineScope(coroutineContext)
     private val recomposer = Recomposer(coroutineContext)
+    private var closed = false
 
     /** The [ComposeView] ready to be added to a WindowManager. */
-    val view: ComposeView
-        get() = ComposeView(context).also { composeView ->
-            composeView.setContent { content() }
-
-            // Simulate Activity lifecycle so Compose works
+    val view: ComposeView by lazy {
+        ComposeView(context).also { composeView ->
             lifecycleOwner.performRestore(null)
             lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
             composeView.setViewTreeLifecycleOwner(lifecycleOwner)
@@ -83,13 +84,19 @@ class FakeComposeHost(
             composeView.setViewTreeSavedStateRegistryOwner(lifecycleOwner)
 
             composeView.compositionContext = recomposer
+            composeView.setContent { content() }
+
             runRecomposeScope.launch {
                 recomposer.runRecomposeAndApplyChanges()
             }
         }
+    }
 
     override fun close() {
+        if (closed) return
+        closed = true
         lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         runRecomposeScope.cancel()
+        viewModelStore.clear()
     }
 }

@@ -21,7 +21,7 @@ data class RenderInstruction(
 )
 
 /**
- * Renders translated Chinese text onto a copy of the screenshot bitmap.
+ * Renders translated Chinese text onto a transparent overlay bitmap.
  *
  * ## Rendering process (per region)
  * 1. **Clear** the region with the sampled background color (erases original JP text)
@@ -67,7 +67,7 @@ class OverlayRenderer @Inject constructor(
     }
 
     /**
-     * Renders all [instructions] onto a copy of [bitmap].
+     * Renders all [instructions] onto a transparent bitmap matching [bitmap].
      *
      * @param bitmap the original screenshot (not modified — we work on a copy)
      * @param instructions one per classified region
@@ -83,8 +83,8 @@ class OverlayRenderer @Inject constructor(
     ): Bitmap {
         FgoLogger.info(tag, "Rendering ${instructions.size} instructions onto ${bitmap.width}x${bitmap.height}")
 
-        // Copy the bitmap so we don't modify the original (which may be a HardwareBuffer wrapper)
-        val result = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val result = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        result.eraseColor(Color.TRANSPARENT)
         val canvas = Canvas(result)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

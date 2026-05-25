@@ -10,6 +10,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
 import com.fgogotran.ui.overlay.FloatingMenu
 import com.fgogotran.util.FakeComposeHost
@@ -165,6 +166,10 @@ class FgoRunnerOverlay @Inject constructor(
     private fun showMenuDialog(): androidx.appcompat.app.AlertDialog {
         val menuHost = FakeComposeHost(context) {
             FloatingMenu(
+                onTranslateClick = {
+                    TranslationTrigger.requestTranslation()
+                    dismissMenu()
+                },
                 onHistoryClick = {
                     dismissMenu()
                     // TODO: Launch history view (could open the app or show inline)

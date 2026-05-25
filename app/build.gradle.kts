@@ -87,4 +87,7 @@ dependencies {
     // Core
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    //OpenCV
+    implementation("org.opencv:opencv:4.9.0")
 }
