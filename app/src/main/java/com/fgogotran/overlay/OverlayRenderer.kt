@@ -45,6 +45,7 @@ class OverlayRenderer @Inject constructor(
         private val NAME_BACKGROUND = Color.rgb(52, 89, 138)
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
         private val FGO_TEXT_COLOR = Color.rgb(232, 232, 228)
+        private const val MIN_NAME_PLATE_WIDTH = 500f
     }
 
     /** Shadow offset in pixels at the marked 1080px reference height. */
@@ -163,6 +164,17 @@ class OverlayRenderer @Inject constructor(
     ) {
         val box = instruction.region.boundingBox
         val scale = box.height() / 90f
+        val name = instruction.translatedText.trim()
+        val minimumRenderedWidth = MIN_NAME_PLATE_WIDTH * scale
+
+        paint.apply {
+            color = FGO_TEXT_COLOR
+            textSize = 48f * scale
+        }
+
+        val requiredWidth = 52f * scale + paint.measureText(name) + 28f * scale
+        val renderedRight = (box.left + maxOf(minimumRenderedWidth, requiredWidth))
+            .coerceAtMost(canvas.width.toFloat())
 
         // Preserve the plate's angled edge and border; replace its text surface.
         val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -171,7 +183,7 @@ class OverlayRenderer @Inject constructor(
         }
         canvas.drawRoundRect(
             box.left + 42f * scale, box.top + 8f * scale,
-            box.right - 10f * scale, box.bottom - 8f * scale,
+            renderedRight - 10f * scale, box.bottom - 8f * scale,
             8f, 8f, clearPaint
         )
 
@@ -179,13 +191,10 @@ class OverlayRenderer @Inject constructor(
         val textArea = RectF(
             box.left + 52f * scale,
             box.top + 8f * scale,
-            box.right - 20f * scale,
+            renderedRight - 20f * scale,
             box.bottom - 8f * scale
         )
-        paint.apply {
-            color = FGO_TEXT_COLOR
-        }
-        val name = fitSingleLine(
+        val fittedName = fitSingleLine(
             text = instruction.translatedText.trim(),
             paint = paint,
             initialTextSize = 48f * scale,
@@ -198,7 +207,7 @@ class OverlayRenderer @Inject constructor(
         drawLines(
             canvas = canvas,
             paint = paint,
-            lines = listOf(name),
+            lines = listOf(fittedName),
             x = textArea.left,
             firstBaseline = textArea.top - paint.fontMetrics.ascent,
             lineHeight = paint.textSize

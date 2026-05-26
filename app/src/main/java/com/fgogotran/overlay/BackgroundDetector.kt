@@ -45,6 +45,7 @@ class BackgroundDetector @Inject constructor() {
          */
         private const val MIN_SKIP_WHITE_RATIO = 0.08f
         private const val MAX_SKIP_WHITE_RATIO = 0.55f
+        private const val MIN_COMPLETE_MARKER_WHITE_RATIO = 0.02f
     }
 
     private val tag = "BackgroundDetector"
@@ -150,6 +151,40 @@ class BackgroundDetector @Inject constructor() {
         val whiteRatio = if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
         val visible = whiteRatio in MIN_SKIP_WHITE_RATIO..MAX_SKIP_WHITE_RATIO
         FgoLogger.debug(tag, "SKIP marker visible=$visible whiteRatio=$whiteRatio bounds=$bounds")
+        return visible
+    }
+
+    /**
+     * Detects FGO's bright continue diamond, which appears only after dialogue typing completes.
+     */
+    fun isDialogueCompleteMarkerVisible(bitmap: Bitmap, markerRegion: Rect): Boolean {
+        val bounds = Rect(
+            markerRegion.left.coerceIn(0, bitmap.width),
+            markerRegion.top.coerceIn(0, bitmap.height),
+            markerRegion.right.coerceIn(0, bitmap.width),
+            markerRegion.bottom.coerceIn(0, bitmap.height)
+        )
+        if (bounds.width() <= 0 || bounds.height() <= 0) return false
+
+        var whitePixels = 0
+        var totalPixels = 0
+        for (y in bounds.top until bounds.bottom step 2) {
+            for (x in bounds.left until bounds.right step 2) {
+                val pixel = bitmap.getPixel(x, y)
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                val channelSpread = maxOf(r, g, b) - minOf(r, g, b)
+                if (r >= 180 && g >= 180 && b >= 180 && channelSpread <= 45) {
+                    whitePixels++
+                }
+                totalPixels++
+            }
+        }
+
+        val whiteRatio = if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
+        val visible = whiteRatio >= MIN_COMPLETE_MARKER_WHITE_RATIO
+        FgoLogger.debug(tag, "Dialogue complete marker visible=$visible whiteRatio=$whiteRatio bounds=$bounds")
         return visible
     }
 

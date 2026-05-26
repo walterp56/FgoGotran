@@ -17,8 +17,10 @@ object FgoViewportLayout {
 
     // Reference-space bounds taken from marked 2340x1080 FGO story screenshots.
     private val choiceSearchRegion = RectF(220f, 0f, 1690f, 730f)
-    private val nameRegion = RectF(0f, 735f, 705f, 825f)
+    // OCR spans long speaker names; rendering treats the first 500 px as its minimum plate.
+    private val nameRegion = RectF(0f, 735f, 1085f, 825f)
     private val dialogueRegion = RectF(35f, 830f, 1810f, 1055f)
+    private val dialogueCompleteRegion = RectF(1785f, 950f, 1875f, 1055f)
     private val skipRegion = RectF(1690f, 10f, 1915f, 112f)
 
     fun regionsForScreen(screenWidth: Int, screenHeight: Int): FgoScreenRegions {
@@ -26,6 +28,7 @@ object FgoViewportLayout {
         return FgoScreenRegions(
             viewport = viewport.toRect(),
             dialogue = mapToScreen(dialogueRegion, viewport),
+            dialogueComplete = mapToScreen(dialogueCompleteRegion, viewport),
             name = mapToScreen(nameRegion, viewport),
             choiceSearch = mapToScreen(choiceSearchRegion, viewport),
             skip = mapToScreen(skipRegion, viewport)
@@ -69,6 +72,7 @@ object FgoViewportLayout {
 data class FgoScreenRegions(
     val viewport: Rect,
     val dialogue: Rect,
+    val dialogueComplete: Rect,
     val name: Rect,
     val choiceSearch: Rect,
     val skip: Rect
