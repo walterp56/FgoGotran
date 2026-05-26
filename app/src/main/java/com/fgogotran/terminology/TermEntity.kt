@@ -20,7 +20,7 @@ import androidx.room.PrimaryKey
 )
 data class TermEntity(
     @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    val id: Long? = null,
 
     @ColumnInfo(name = "jp_name")
     val jpName: String,

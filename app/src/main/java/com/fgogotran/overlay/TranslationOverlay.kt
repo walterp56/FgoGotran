@@ -3,6 +3,7 @@ package com.fgogotran.overlay
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -23,8 +24,8 @@ import javax.inject.Singleton
  *    Created/updated on each pipeline completion, removed when the user leaves FGO.
  *
  * ## Window flags
- * - FLAG_NOT_FOCUSABLE + FLAG_NOT_TOUCHABLE: the overlay is completely touch-transparent;
- *   all touch events pass through to FGO underneath.
+ * - The translated image receives a tap and asks the accessibility service to forward it to FGO.
+ * - The indicator remains touch-transparent.
  * - FLAG_LAYOUT_IN_SCREEN: overlay fills the entire screen, including behind status/nav bars.
  *
  * ## Lifecycle
@@ -40,6 +41,7 @@ class TranslationOverlay @Inject constructor(
     private var isOverlayShowing = false
     private var screenWidth = 0
     private var screenHeight = 0
+    private var latestTranslatedBitmap: Bitmap? = null
     private var onOverlayTap: ((Float, Float) -> Unit)? = null
 
     private val tag = "Overlay"
@@ -59,6 +61,10 @@ class TranslationOverlay @Inject constructor(
             gravity = Gravity.TOP or Gravity.START
             x = 0
             y = 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
 
     /**
@@ -127,9 +133,14 @@ class TranslationOverlay @Inject constructor(
      * Removes any previously showing overlay first.
      */
     fun showTranslatedImage(bitmap: Bitmap) {
+        latestTranslatedBitmap = bitmap
+        addTranslatedImage(bitmap)
+    }
+
+    private fun addTranslatedImage(bitmap: Bitmap) {
         val wm = windowManager ?: return
 
-        hide()
+        removeOverlayView()
         screenWidth = bitmap.width
         screenHeight = bitmap.height
 
@@ -138,7 +149,10 @@ class TranslationOverlay @Inject constructor(
             scaleType = ImageView.ScaleType.FIT_XY
             setOnTouchListener { _, event ->
                 if (event.action == MotionEvent.ACTION_UP) {
-                    FgoLogger.debug(this@TranslationOverlay.tag, "Translated overlay tapped at ${event.rawX},${event.rawY}")
+                    FgoLogger.debug(
+                        this@TranslationOverlay.tag,
+                        "Translated overlay tapped at ${event.rawX},${event.rawY}"
+                    )
                     onOverlayTap?.invoke(event.rawX, event.rawY)
                 }
                 true
@@ -156,6 +170,7 @@ class TranslationOverlay @Inject constructor(
      * This is the preferred method — it avoids removing/re-adding the window on every frame.
      */
     fun updateImage(bitmap: Bitmap) {
+        latestTranslatedBitmap = bitmap
         if (isOverlayShowing) {
             FgoLogger.debug(tag, "Updating overlay image")
             overlayView?.setImageBitmap(bitmap)
@@ -165,8 +180,30 @@ class TranslationOverlay @Inject constructor(
         }
     }
 
+    /** Removes the translated window during OCR while retaining its last rendered image. */
+    fun hideForCapture() {
+        if (isOverlayShowing) {
+            FgoLogger.debug(tag, "Temporarily hiding overlay for OCR capture")
+        }
+        removeOverlayView()
+    }
+
+    /** Restores the translated window after an OCR check found no source-text change. */
+    fun restoreAfterCapture() {
+        if (isOverlayShowing) return
+        latestTranslatedBitmap?.let {
+            FgoLogger.debug(tag, "Restoring unchanged translated overlay")
+            addTranslatedImage(it)
+        }
+    }
+
     /** Hides the full-screen overlay. Safe to call even if nothing is showing. */
     fun hide() {
+        removeOverlayView()
+        latestTranslatedBitmap = null
+    }
+
+    private fun removeOverlayView() {
         val wm = windowManager ?: return
         overlayView?.let {
             try {

@@ -10,23 +10,19 @@ import javax.inject.Singleton
 /**
  * Instruction to render translated text into one screen region.
  * @property translatedText the Chinese text to render
- * @property textColor sampled original text color from the screenshot
- * @property backgroundColor sampled background color for clearing the area
  */
 data class RenderInstruction(
     val region: ClassifiedRegion,
-    val translatedText: String,
-    val textColor: Int,
-    val backgroundColor: Int
+    val translatedText: String
 )
 
 /**
  * Renders translated Chinese text onto a transparent overlay bitmap.
  *
  * ## Rendering process (per region)
- * 1. **Clear** the region with the sampled background color (erases original JP text)
- * 2. **Measure** the CN text and adjust font size if it's too wide
- * 3. **Render** the CN text with a dark shadow for readability on any background
+ * 1. **Cover** the fixed FGO text surface with its matching UI color
+ * 2. **Wrap** translated text into the available fixed layout width
+ * 3. **Render** the Chinese text with FGO-like sizing, position, and shadow
  *
  * ## Shadow technique
  * Each text character is drawn twice:
@@ -44,15 +40,15 @@ class OverlayRenderer @Inject constructor(
 ) {
     private var typeface: Typeface? = null
 
-    /**
-     * Base font size in pixels.
-     * 32px is readable at FGO's typical dialogue line height on 1080p+ screens
-     * without overlapping adjacent lines.
-     */
-    private var baseFontSize = 32f
+    companion object {
+        private val DIALOGUE_BACKGROUND = Color.rgb(20, 34, 67)
+        private val NAME_BACKGROUND = Color.rgb(52, 89, 138)
+        private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
+        private val FGO_TEXT_COLOR = Color.rgb(232, 232, 228)
+    }
 
-    /** Shadow offset in pixels — small offset gives the best contrast-to-blur ratio. */
-    private val shadowOffset = 1f
+    /** Shadow offset in pixels at the marked 1080px reference height. */
+    private val shadowOffset = 2f
 
     private val tag = "OverlayRenderer"
 
@@ -113,48 +109,48 @@ class OverlayRenderer @Inject constructor(
     ) {
         val box = instruction.region.boundingBox
 
-        // ── 1. Clear the dialogue box area ──
+        // The rectangle is the fixed text surface inside FGO's dialogue panel.
         val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = instruction.backgroundColor
+            color = DIALOGUE_BACKGROUND
             style = Paint.Style.FILL
         }
-        // Rounded rect matches FGO's dialogue box corner radius
         canvas.drawRoundRect(
             box.left.toFloat(), box.top.toFloat(),
             box.right.toFloat(), box.bottom.toFloat(),
             12f, 12f, clearPaint
         )
 
-        // ── 2. Measure and size ──
-        val cnLines = instruction.translatedText.split("\n").filter { it.isNotBlank() }
-        val originalLines = instruction.region.lines
+        val scale = box.height() / 225f
+        val leftInset = 92f * scale
+        val textArea = RectF(
+            box.left + leftInset,
+            box.top + 24f * scale,
+            box.right - 46f * scale,
+            box.bottom - 18f * scale
+        )
 
-        paint.color = instruction.textColor
-        paint.textSize = baseFontSize
+        paint.color = FGO_TEXT_COLOR
+        val (lines, lineHeight) = fitWrappedText(
+            text = instruction.translatedText,
+            paint = paint,
+            initialTextSize = 50f * scale,
+            minimumTextSize = 28f * scale,
+            maxWidth = textArea.width(),
+            maxHeight = textArea.height()
+        )
+        val firstBaseline = textArea.top - paint.fontMetrics.ascent
 
-        val maxWidth = box.width() - 24  // 12px padding on each side
-        val lineHeight = paint.fontSpacing * 1.3f  // 30% extra for readability
-
-        // Shrink font if any line is too wide for the box
-        val adjustedSize = adjustFontSize(paint, cnLines, maxWidth.toFloat(), baseFontSize)
-        paint.textSize = adjustedSize
-
-        // ── 3. Render text (vertical center alignment within the box) ──
-        val totalTextHeight = cnLines.size * lineHeight
-        val startY = box.centerY() - totalTextHeight / 2f + lineHeight / 2f
-
-        for ((i, line) in cnLines.withIndex()) {
-            val y = startY + i * lineHeight
-            val x = box.left + 12f
-
-            // Shadow pass: dark semi-transparent offset for contrast on any background
-            paint.setShadowLayer(2f, shadowOffset, shadowOffset, Color.argb(128, 0, 0, 0))
-            canvas.drawText(line, x, y, paint)
-            // Main pass: the sampled text color
-            paint.clearShadowLayer()
-            paint.color = instruction.textColor
-            canvas.drawText(line, x, y, paint)
-        }
+        canvas.save()
+        canvas.clipRect(textArea)
+        drawLines(
+            canvas = canvas,
+            paint = paint,
+            lines = lines,
+            x = textArea.left,
+            firstBaseline = firstBaseline,
+            lineHeight = lineHeight
+        )
+        canvas.restore()
     }
 
     /**
@@ -166,34 +162,48 @@ class OverlayRenderer @Inject constructor(
         instruction: RenderInstruction
     ) {
         val box = instruction.region.boundingBox
+        val scale = box.height() / 90f
 
-        // The fixed layout bounds represent the name plate itself.
+        // Preserve the plate's angled edge and border; replace its text surface.
         val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = instruction.backgroundColor
+            color = NAME_BACKGROUND
             style = Paint.Style.FILL
         }
         canvas.drawRoundRect(
-            box.left.toFloat(), box.top.toFloat(),
-            box.right.toFloat(), box.bottom.toFloat(),
+            box.left + 42f * scale, box.top + 8f * scale,
+            box.right - 10f * scale, box.bottom - 8f * scale,
             8f, 8f, clearPaint
         )
 
-        // ── 2. Render CN name ──
-        // Name labels are slightly smaller than dialogue text (0.85x)
-        val name = instruction.translatedText.trim()
+        // FGO draws the speaker name inset from the arrow-shaped leading edge.
+        val textArea = RectF(
+            box.left + 52f * scale,
+            box.top + 8f * scale,
+            box.right - 20f * scale,
+            box.bottom - 8f * scale
+        )
         paint.apply {
-            color = instruction.textColor
-            textSize = baseFontSize * 0.85f
+            color = FGO_TEXT_COLOR
         }
+        val name = fitSingleLine(
+            text = instruction.translatedText.trim(),
+            paint = paint,
+            initialTextSize = 48f * scale,
+            minimumTextSize = 28f * scale,
+            maxWidth = textArea.width()
+        )
 
-        val x = box.left.toFloat()
-        val y = box.centerY() + paint.textSize / 3f
-
-        paint.setShadowLayer(2f, shadowOffset, shadowOffset, Color.argb(128, 0, 0, 0))
-        canvas.drawText(name, x, y, paint)
-        paint.clearShadowLayer()
-        paint.color = instruction.textColor
-        canvas.drawText(name, x, y, paint)
+        canvas.save()
+        canvas.clipRect(textArea)
+        drawLines(
+            canvas = canvas,
+            paint = paint,
+            lines = listOf(name),
+            x = textArea.left,
+            firstBaseline = textArea.top - paint.fontMetrics.ascent,
+            lineHeight = paint.textSize
+        )
+        canvas.restore()
     }
 
     /**
@@ -205,61 +215,139 @@ class OverlayRenderer @Inject constructor(
         instruction: RenderInstruction
     ) {
         val box = instruction.region.boundingBox
+        val scale = box.height() / 122f
 
-        // Choice detection supplies the panel bounds, not only OCR text bounds.
+        // Preserve the light border and clipped ends; replace the black interior.
         val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = instruction.backgroundColor
+            color = CHOICE_BACKGROUND
             style = Paint.Style.FILL
         }
         canvas.drawRoundRect(
-            box.left.toFloat(), box.top.toFloat(),
-            box.right.toFloat(), box.bottom.toFloat(),
+            box.left + 18f * scale, box.top + 8f * scale,
+            box.right - 18f * scale, box.bottom - 8f * scale,
             10f, 10f, clearPaint
         )
 
         // ── 2. Render CN choice text (center-aligned) ──
-        val text = instruction.translatedText.trim()
+        val textArea = RectF(
+            box.left + 52f * scale,
+            box.top + 12f * scale,
+            box.right - 52f * scale,
+            box.bottom - 12f * scale
+        )
         paint.apply {
-            color = instruction.textColor
-            textSize = baseFontSize * 0.9f  // Choices slightly smaller than dialogue
+            color = FGO_TEXT_COLOR
         }
+        val text = fitSingleLine(
+            text = instruction.translatedText.trim(),
+            paint = paint,
+            initialTextSize = 49f * scale,
+            minimumTextSize = 27f * scale,
+            maxWidth = textArea.width()
+        )
 
         // Center the text horizontally within the button bounding box
         val textWidth = paint.measureText(text)
         val x = box.centerX() - textWidth / 2f
         val y = box.centerY() + paint.textSize / 3f
 
-        paint.setShadowLayer(2f, shadowOffset, shadowOffset, Color.argb(128, 0, 0, 0))
+        canvas.save()
+        canvas.clipRect(textArea)
+        paint.setShadowLayer(2f * scale, shadowOffset * scale, shadowOffset * scale, Color.BLACK)
         canvas.drawText(text, x, y, paint)
         paint.clearShadowLayer()
-        paint.color = instruction.textColor
+        paint.color = FGO_TEXT_COLOR
         canvas.drawText(text, x, y, paint)
+        canvas.restore()
     }
 
-    /**
-     * Shrinks the font size if any [line] exceeds [maxWidth] pixels.
-     *
-     * Decrements size by 2px at a time (a good balance between precision and speed).
-     * The minimum font size is 14px — below that, Chinese characters become illegible
-     * on most device screens.
-     */
-    private fun adjustFontSize(
-        paint: Paint,
-        lines: List<String>,
-        maxWidth: Float,
-        baseSize: Float
-    ): Float {
-        var size = baseSize
-        for (line in lines) {
-            paint.textSize = size
-            while (paint.measureText(line) > maxWidth && size > 14f) {
-                size -= 2f
-                paint.textSize = size
+    private fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
+        val wrapped = mutableListOf<String>()
+        text.lines().filter { it.isNotBlank() }.forEach { paragraph ->
+            var remaining = paragraph.trim()
+            while (remaining.isNotEmpty()) {
+                val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                wrapped.add(remaining.take(count))
+                remaining = remaining.drop(count).trimStart()
             }
         }
-        if (size != baseSize) {
-            FgoLogger.debug(tag, "Font size adjusted: ${baseSize} → $size")
+        return wrapped
+    }
+
+    private fun fitWrappedText(
+        text: String,
+        paint: Paint,
+        initialTextSize: Float,
+        minimumTextSize: Float,
+        maxWidth: Float,
+        maxHeight: Float
+    ): Pair<List<String>, Float> {
+        var textSize = initialTextSize
+        while (true) {
+            paint.textSize = textSize
+            val lineHeight = textSize * 1.45f
+            val lines = wrapText(text, paint, maxWidth)
+            val maximumLines = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
+            if (lines.size <= maximumLines || textSize <= minimumTextSize) {
+                return limitLines(lines, maximumLines, paint, maxWidth) to lineHeight
+            }
+            textSize = (textSize - 2f).coerceAtLeast(minimumTextSize)
         }
-        return size
+    }
+
+    private fun fitSingleLine(
+        text: String,
+        paint: Paint,
+        initialTextSize: Float,
+        minimumTextSize: Float,
+        maxWidth: Float
+    ): String {
+        paint.textSize = initialTextSize
+        while (paint.measureText(text) > maxWidth && paint.textSize > minimumTextSize) {
+            paint.textSize = (paint.textSize - 2f).coerceAtLeast(minimumTextSize)
+        }
+        return ellipsize(text, paint, maxWidth)
+    }
+
+    private fun limitLines(
+        lines: List<String>,
+        maximumLines: Int,
+        paint: Paint,
+        maxWidth: Float
+    ): List<String> {
+        if (lines.size <= maximumLines) return lines
+        val visible = lines.take(maximumLines).toMutableList()
+        visible[visible.lastIndex] = ellipsize("${visible.last()}...", paint, maxWidth)
+        return visible
+    }
+
+    private fun ellipsize(text: String, paint: Paint, maxWidth: Float): String {
+        if (paint.measureText(text) <= maxWidth) return text
+        val suffix = "..."
+        val count = paint.breakText(
+            text,
+            true,
+            (maxWidth - paint.measureText(suffix)).coerceAtLeast(1f),
+            null
+        )
+        return text.take(count).trimEnd() + suffix
+    }
+
+    private fun drawLines(
+        canvas: Canvas,
+        paint: Paint,
+        lines: List<String>,
+        x: Float,
+        firstBaseline: Float,
+        lineHeight: Float
+    ) {
+        for ((index, line) in lines.withIndex()) {
+            val y = firstBaseline + index * lineHeight
+            paint.setShadowLayer(2f, shadowOffset, shadowOffset, Color.BLACK)
+            canvas.drawText(line, x, y, paint)
+            paint.clearShadowLayer()
+            paint.color = FGO_TEXT_COLOR
+            canvas.drawText(line, x, y, paint)
+        }
     }
 }

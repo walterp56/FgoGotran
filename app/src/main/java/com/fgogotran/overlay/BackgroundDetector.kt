@@ -38,6 +38,13 @@ class BackgroundDetector @Inject constructor() {
 
         /** Minimum height (px) for a dark band to be considered a choice button. */
         private const val MIN_CHOICE_HEIGHT = 30
+
+        /**
+         * The SKIP label and pill border occupy roughly 20% of the marked button
+         * region in the supplied captures. Keep margin for scaled/animated frames.
+         */
+        private const val MIN_SKIP_WHITE_RATIO = 0.08f
+        private const val MAX_SKIP_WHITE_RATIO = 0.55f
     }
 
     private val tag = "BackgroundDetector"
@@ -106,6 +113,44 @@ class BackgroundDetector @Inject constructor() {
 
         FgoLogger.info(tag, "Choice zone detected ${buttons.size} panels in $bounds")
         return buttons
+    }
+
+    /**
+     * Checks the stable top-right SKIP region before story OCR begins.
+     *
+     * SKIP is rendered as white text and a white pill border. A bounded bright
+     * neutral-pixel ratio avoids treating a solid bright scene background as the
+     * control while keeping this check cheaper than OCR.
+     */
+    fun isSkipButtonVisible(bitmap: Bitmap, skipRegion: Rect): Boolean {
+        val bounds = Rect(
+            skipRegion.left.coerceIn(0, bitmap.width),
+            skipRegion.top.coerceIn(0, bitmap.height),
+            skipRegion.right.coerceIn(0, bitmap.width),
+            skipRegion.bottom.coerceIn(0, bitmap.height)
+        )
+        if (bounds.width() <= 0 || bounds.height() <= 0) return false
+
+        var whitePixels = 0
+        var totalPixels = 0
+        for (y in bounds.top until bounds.bottom step 2) {
+            for (x in bounds.left until bounds.right step 2) {
+                val pixel = bitmap.getPixel(x, y)
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                val channelSpread = maxOf(r, g, b) - minOf(r, g, b)
+                if (r >= 190 && g >= 190 && b >= 190 && channelSpread <= 30) {
+                    whitePixels++
+                }
+                totalPixels++
+            }
+        }
+
+        val whiteRatio = if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
+        val visible = whiteRatio in MIN_SKIP_WHITE_RATIO..MAX_SKIP_WHITE_RATIO
+        FgoLogger.debug(tag, "SKIP marker visible=$visible whiteRatio=$whiteRatio bounds=$bounds")
+        return visible
     }
 
     private fun addChoiceButton(
