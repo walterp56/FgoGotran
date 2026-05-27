@@ -88,7 +88,11 @@ class FgoRunnerOverlay @Inject constructor(
         // Create the ComposeView hosting the floating button
         composeHost = FakeComposeHost(context) {
             FloatingButton(
-                onClick = { TranslationTrigger.requestTranslation() },
+                onClick = {
+                    if (!TranslationTrigger.isAutoTranslateEnabled()) {
+                        TranslationTrigger.requestTranslation()
+                    }
+                },
                 onLongClick = { onButtonLongClick() },
                 onDrag = { dx, dy -> onDrag(dx, dy) }
             )
@@ -168,13 +172,18 @@ class FgoRunnerOverlay @Inject constructor(
     private fun showMenuDialog(): androidx.appcompat.app.AlertDialog {
         val menuHost = FakeComposeHost(context) {
             FloatingMenu(
-                onTranslateClick = {
-                    TranslationTrigger.requestTranslation(afterMenuDismiss = true)
+                autoTranslateEnabled = TranslationTrigger.isAutoTranslateEnabled(),
+                onAutoTranslateChange = { enabled ->
+                    val accessibility = FgoAccessibilityService.instance
+                    if (accessibility != null) {
+                        accessibility.setAutoTranslationEnabled(enabled)
+                    } else {
+                        TranslationTrigger.setAutoTranslateEnabled(enabled)
+                    }
                     dismissMenu()
                 },
-                onStopTranslationClick = {
-                    TranslationTrigger.cancelPendingTranslation()
-                    FgoAccessibilityService.instance?.stopTranslation()
+                onTranslateClick = {
+                    TranslationTrigger.requestTranslation(afterMenuDismiss = true)
                     dismissMenu()
                 },
                 onHistoryClick = {

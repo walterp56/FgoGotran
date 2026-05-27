@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,8 +22,9 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun FloatingMenu(
+    autoTranslateEnabled: Boolean,
+    onAutoTranslateChange: (Boolean) -> Unit,
     onTranslateClick: () -> Unit,
-    onStopTranslationClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -47,15 +49,16 @@ fun FloatingMenu(
         MenuRow(
             icon = "T",
             label = "Translate now",
+            muted = autoTranslateEnabled,
+            enabled = !autoTranslateEnabled,
             onClick = onTranslateClick
         )
 
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
 
-        MenuRow(
-            icon = "S",
-            label = "Stop translation",
-            onClick = onStopTranslationClick
+        AutoTranslateRow(
+            enabled = autoTranslateEnabled,
+            onEnabledChange = onAutoTranslateChange
         )
 
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
@@ -82,13 +85,14 @@ private fun MenuRow(
     icon: String,
     label: String,
     muted: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val color = if (muted) Color(0xFF999999) else Color(0xFF333333)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -103,6 +107,30 @@ private fun MenuRow(
             text = label,
             fontSize = 15.sp,
             color = color
+        )
+    }
+}
+
+@Composable
+private fun AutoTranslateRow(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "Auto translate",
+            fontSize = 15.sp,
+            color = Color(0xFF333333)
+        )
+        Switch(
+            checked = enabled,
+            onCheckedChange = onEnabledChange
         )
     }
 }

@@ -71,6 +71,9 @@ class FgoAccessibilityService : AccessibilityService() {
     private var isFgoForeground = false
     private var lastRenderedSourceText = ""
     private var isSkipStoryActive = false
+    private var autoScanReadyAt = 0L
+    private var renderedChoiceBounds: List<Rect> = emptyList()
+    private var waitingForChoiceSelectionExit = false
 
     companion object {
         const val FGO_PACKAGE = "com.aniplex.fategrandorder"
@@ -109,6 +112,7 @@ class FgoAccessibilityService : AccessibilityService() {
         translationOverlay.init(this, screenWidth, screenHeight) { x, y ->
             handleTranslatedOverlayTap(x, y)
         }
+        TranslationTrigger.setAutoTranslateEnabled(false)
         startDetectionLoop()
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
         FgoLogger.info(tag, "Service connected: ${screenWidth}x${screenHeight}")
@@ -167,14 +171,27 @@ class FgoAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    fun stopTranslation() {
+    fun setAutoTranslationEnabled(enabled: Boolean) {
+        TranslationTrigger.setAutoTranslateEnabled(enabled)
+        cancelCurrentTranslation()
+        if (enabled) {
+            autoScanReadyAt = SystemClock.elapsedRealtime() + MANUAL_MENU_DISMISS_SETTLE_DELAY
+            FgoLogger.debug(tag, "Auto translate enabled")
+        } else {
+            autoScanReadyAt = 0L
+            FgoLogger.debug(tag, "Auto translate disabled")
+        }
+    }
+
+    private fun cancelCurrentTranslation() {
         stopVersion++
         TranslationTrigger.cancelPendingTranslation()
         translationJob?.cancel()
         translationJob = null
         lastRenderedSourceText = ""
+        renderedChoiceBounds = emptyList()
+        waitingForChoiceSelectionExit = false
         translationOverlay.hide()
-        FgoLogger.debug(tag, "Stop Translation requested; hidden overlay and cancelled current work")
     }
 
     private fun startDetectionLoop() {
@@ -182,8 +199,16 @@ class FgoAccessibilityService : AccessibilityService() {
             while (isActive) {
                 try {
                     if (isFgoForeground && !isProcessing) {
-                        val manualRequest = TranslationTrigger.consumeRequest()
-                        if (manualRequest) {
+                        val autoEnabled = TranslationTrigger.isAutoTranslateEnabled()
+                        val manualRequest = if (autoEnabled) false else TranslationTrigger.consumeRequest()
+                        if (autoEnabled &&
+                            !translationOverlay.isShowing() &&
+                            SystemClock.elapsedRealtime() >= autoScanReadyAt
+                        ) {
+                            translationJob = serviceScope.launch {
+                                processScreen(forceRefresh = false)
+                            }
+                        } else if (manualRequest) {
                             FgoLogger.debug(tag, "Translate Now requested")
                             val waitForMenuDismissal = TranslationTrigger.consumeMenuDismissSettleRequired()
                             translationJob = serviceScope.launch {
@@ -237,6 +262,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 restoreHiddenOverlay = false
                 isSkipStoryActive = false
                 lastRenderedSourceText = ""
+                renderedChoiceBounds = emptyList()
+                waitingForChoiceSelectionExit = false
                 FgoLogger.debug(tag, "SKIP marker not visible; skipping story OCR")
                 translationOverlay.hide()
                 return
@@ -259,6 +286,14 @@ class FgoAccessibilityService : AccessibilityService() {
             }
 
             val choiceRegions = recognizeChoiceRegions(source, screenRegions)
+            if (waitingForChoiceSelectionExit) {
+                if (choiceRegions.isNotEmpty()) {
+                    FgoLogger.debug(tag, "Choice selection is still leaving the screen; suppressing repeated choice translation")
+                    return
+                }
+                waitingForChoiceSelectionExit = false
+                FgoLogger.debug(tag, "Choice selection left the screen; resuming auto translation")
+            }
             val dialogueComplete = choiceRegions.isEmpty() &&
                 backgroundDetector.isDialogueCompleteMarkerVisible(
                     source,
@@ -325,6 +360,9 @@ class FgoAccessibilityService : AccessibilityService() {
                 screenHeight = currentScreenHeight
             )
             lastRenderedSourceText = sourceFingerprint
+            renderedChoiceBounds = instructions
+                .filter { it.region.region == TextRegion.CHOICE_BUTTON }
+                .map { Rect(it.region.boundingBox) }
             translationOverlay.updateImage(rendered)
         } catch (e: CancellationException) {
             FgoLogger.debug(tag, "Translation processing cancelled")
@@ -539,6 +577,13 @@ class FgoAccessibilityService : AccessibilityService() {
         if (isProcessing) {
             FgoLogger.debug(tag, "Ignoring translated overlay tap while processing")
             return
+        }
+
+        val tappedChoice = renderedChoiceBounds.any { it.contains(x.toInt(), y.toInt()) }
+        if (tappedChoice && TranslationTrigger.isAutoTranslateEnabled()) {
+            waitingForChoiceSelectionExit = true
+            renderedChoiceBounds = emptyList()
+            FgoLogger.debug(tag, "Translated choice tapped; suppressing choice OCR until selection closes")
         }
 
         serviceScope.launch {
