@@ -1,11 +1,12 @@
 package com.fgogotran.ui.overlay
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,14 +23,17 @@ import com.fgogotran.R
  * - Renders as a circle with a translate icon
  * - Semi-transparent (alpha = 0.6) so it doesn't fully obscure FGO content
  * - Supports drag gestures via [detectDragGestures]
- * - Calls [onClick] when tapped (without drag)
+ * - Calls [onClick] for a one-shot translation and [onLongClick] for the menu
  *
  * @param onClick called when the user taps the button (not drags)
+ * @param onLongClick called when the user holds the button
  * @param onDrag called with dx,dy pixel deltas while the user drags
  */
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun FloatingButton(
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onDrag: (Float, Float) -> Unit
 ) {
     Surface(
@@ -37,13 +41,17 @@ fun FloatingButton(
         contentColor = Color.White.copy(alpha = 0.9f),
         shape = CircleShape,
         shadowElevation = 8.dp,
-        onClick = onClick,
-        modifier = Modifier.pointerInput(Unit) {
-            detectDragGestures { change, dragAmount ->
-                change.consume()
-                onDrag(dragAmount.x, dragAmount.y)
+        modifier = Modifier
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    onDrag(dragAmount.x, dragAmount.y)
+                }
             }
-        }
     ) {
         // Translate icon (or text fallback if drawable not found)
         Icon(

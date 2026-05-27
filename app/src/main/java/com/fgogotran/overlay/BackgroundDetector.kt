@@ -46,6 +46,7 @@ class BackgroundDetector @Inject constructor() {
         private const val MIN_SKIP_WHITE_RATIO = 0.08f
         private const val MAX_SKIP_WHITE_RATIO = 0.55f
         private const val MIN_COMPLETE_MARKER_WHITE_RATIO = 0.02f
+        private const val MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO = 0.35f
     }
 
     private val tag = "BackgroundDetector"
@@ -186,6 +187,49 @@ class BackgroundDetector @Inject constructor() {
         val visible = whiteRatio >= MIN_COMPLETE_MARKER_WHITE_RATIO
         FgoLogger.debug(tag, "Dialogue complete marker visible=$visible whiteRatio=$whiteRatio bounds=$bounds")
         return visible
+    }
+
+    /**
+     * Detects the SKIP confirmation modal's paired white buttons, which must not be translated.
+     */
+    fun isSkipConfirmationVisible(bitmap: Bitmap, noButtonRegion: Rect, yesButtonRegion: Rect): Boolean {
+        val noButtonRatio = neutralWhiteRatio(bitmap, noButtonRegion)
+        val yesButtonRatio = neutralWhiteRatio(bitmap, yesButtonRegion)
+        val visible = noButtonRatio >= MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO &&
+            yesButtonRatio >= MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO
+        FgoLogger.debug(
+            tag,
+            "SKIP confirmation visible=$visible noRatio=$noButtonRatio yesRatio=$yesButtonRatio"
+        )
+        return visible
+    }
+
+    private fun neutralWhiteRatio(bitmap: Bitmap, region: Rect): Float {
+        val bounds = Rect(
+            region.left.coerceIn(0, bitmap.width),
+            region.top.coerceIn(0, bitmap.height),
+            region.right.coerceIn(0, bitmap.width),
+            region.bottom.coerceIn(0, bitmap.height)
+        )
+        if (bounds.width() <= 0 || bounds.height() <= 0) return 0f
+
+        var whitePixels = 0
+        var totalPixels = 0
+        for (y in bounds.top until bounds.bottom step 2) {
+            for (x in bounds.left until bounds.right step 2) {
+                val pixel = bitmap.getPixel(x, y)
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                val channelSpread = maxOf(r, g, b) - minOf(r, g, b)
+                if (r >= 190 && g >= 190 && b >= 190 && channelSpread <= 35) {
+                    whitePixels++
+                }
+                totalPixels++
+            }
+        }
+
+        return if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
     }
 
     private fun addChoiceButton(

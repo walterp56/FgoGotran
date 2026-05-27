@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
 import com.fgogotran.R
+import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
@@ -28,7 +29,7 @@ import javax.inject.Singleton
  * - Adds a [androidx.compose.ui.platform.ComposeView] to the WindowManager
  * - Renders the [FloatingButton] composable inside it
  * - Handles drag-to-reposition via [onDrag]
- * - Shows/hides the popup [FloatingMenu] when the button is tapped
+ * - Requests translation on tap and shows the popup [FloatingMenu] on long press
  * - Persists button position via DataStore
  *
  * The overlay uses [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY]
@@ -87,7 +88,8 @@ class FgoRunnerOverlay @Inject constructor(
         // Create the ComposeView hosting the floating button
         composeHost = FakeComposeHost(context) {
             FloatingButton(
-                onClick = { onButtonClick() },
+                onClick = { TranslationTrigger.requestTranslation() },
+                onLongClick = { onButtonLongClick() },
                 onDrag = { dx, dy -> onDrag(dx, dy) }
             )
         }
@@ -149,8 +151,8 @@ class FgoRunnerOverlay @Inject constructor(
 
     // ─── Menu handling ─────────────────────────────────────────────────
 
-    /** Called when the user taps the floating button (not drags). */
-    private fun onButtonClick() {
+    /** Called when the user holds the floating button (not drags). */
+    private fun onButtonLongClick() {
         if (floatingMenuDialog?.isShowing == true) {
             floatingMenuDialog?.dismiss()
         }
@@ -167,7 +169,12 @@ class FgoRunnerOverlay @Inject constructor(
         val menuHost = FakeComposeHost(context) {
             FloatingMenu(
                 onTranslateClick = {
-                    TranslationTrigger.requestTranslation()
+                    TranslationTrigger.requestTranslation(afterMenuDismiss = true)
+                    dismissMenu()
+                },
+                onStopTranslationClick = {
+                    TranslationTrigger.cancelPendingTranslation()
+                    FgoAccessibilityService.instance?.stopTranslation()
                     dismissMenu()
                 },
                 onHistoryClick = {

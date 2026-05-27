@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun FloatingMenu(
     onTranslateClick: () -> Unit,
+    onStopTranslationClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -47,6 +48,14 @@ fun FloatingMenu(
             icon = "T",
             label = "Translate now",
             onClick = onTranslateClick
+        )
+
+        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+
+        MenuRow(
+            icon = "S",
+            label = "Stop translation",
+            onClick = onStopTranslationClick
         )
 
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)

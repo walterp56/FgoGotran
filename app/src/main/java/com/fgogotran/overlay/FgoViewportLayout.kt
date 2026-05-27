@@ -21,6 +21,8 @@ object FgoViewportLayout {
     private val nameRegion = RectF(0f, 735f, 1085f, 825f)
     private val dialogueRegion = RectF(35f, 830f, 1810f, 1055f)
     private val dialogueCompleteRegion = RectF(1785f, 950f, 1875f, 1055f)
+    private val skipConfirmationNoButtonRegion = RectF(430f, 605f, 785f, 685f)
+    private val skipConfirmationYesButtonRegion = RectF(925f, 605f, 1280f, 685f)
     private val skipRegion = RectF(1690f, 10f, 1915f, 112f)
 
     fun regionsForScreen(screenWidth: Int, screenHeight: Int): FgoScreenRegions {
@@ -29,6 +31,8 @@ object FgoViewportLayout {
             viewport = viewport.toRect(),
             dialogue = mapToScreen(dialogueRegion, viewport),
             dialogueComplete = mapToScreen(dialogueCompleteRegion, viewport),
+            skipConfirmationNoButton = mapToScreen(skipConfirmationNoButtonRegion, viewport),
+            skipConfirmationYesButton = mapToScreen(skipConfirmationYesButtonRegion, viewport),
             name = mapToScreen(nameRegion, viewport),
             choiceSearch = mapToScreen(choiceSearchRegion, viewport),
             skip = mapToScreen(skipRegion, viewport)
@@ -73,6 +77,8 @@ data class FgoScreenRegions(
     val viewport: Rect,
     val dialogue: Rect,
     val dialogueComplete: Rect,
+    val skipConfirmationNoButton: Rect,
+    val skipConfirmationYesButton: Rect,
     val name: Rect,
     val choiceSearch: Rect,
     val skip: Rect
