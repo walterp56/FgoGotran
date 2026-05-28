@@ -67,6 +67,24 @@ class TranslationOverlay @Inject constructor(
             }
         }
 
+    private val overlayPassthroughParams: WindowManager.LayoutParams
+        get() = WindowManager.LayoutParams().apply {
+            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            format = PixelFormat.TRANSLUCENT
+            width = screenWidth
+            height = screenHeight
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+
     /**
      * Layout params for the small indicator dot (top-right corner).
      */
@@ -186,6 +204,18 @@ class TranslationOverlay @Inject constructor(
             FgoLogger.debug(tag, "Temporarily hiding overlay for OCR capture")
         }
         removeOverlayView()
+    }
+
+    fun setTranslatedOverlayTouchable(touchable: Boolean) {
+        val wm = windowManager ?: return
+        val view = overlayView ?: return
+        val params = if (touchable) overlayParams else overlayPassthroughParams
+        try {
+            wm.updateViewLayout(view, params)
+            FgoLogger.debug(tag, "Translated overlay touchable=$touchable")
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "Failed to update translated overlay touchable=$touchable", e)
+        }
     }
 
     /** Restores the translated window after an OCR check found no source-text change. */

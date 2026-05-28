@@ -23,13 +23,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +54,7 @@ fun HistoryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "No translations in this service session yet.\nUse the floating button and tap Translate now.",
+                    "No translations in this service session yet.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
@@ -84,32 +80,22 @@ private fun HistoryItem(translation: SessionTranslationEntry) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = translation.jpText,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = translation.cnText,
+                text = translation.speakerName
+                    ?: translation.choices.firstOrNull()
+                    ?: "",
                 style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = listOf(
-                    formatTimestamp(translation.createdAt),
-                    translation.backend,
-                    if (translation.cached) "cached" else "fresh"
-                ).joinToString(" | "),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-            )
+            translation.dialogueText?.let {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (translation.speakerName.isNullOrBlank()) it else "「$it」",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            translation.choices.drop(if (translation.speakerName == null) 1 else 0).forEach {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = it, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
-}
-
-private fun formatTimestamp(millis: Long): String {
-    val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
-    return sdf.format(Date(millis))
 }

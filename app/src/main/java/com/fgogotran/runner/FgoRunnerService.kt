@@ -89,6 +89,7 @@ class FgoRunnerService : Service() {
     override fun onDestroy() {
         FgoLogger.info(tag, "Service destroyed")
         overlay.destroy()
+        SessionTranslationHistory.clear()
         serviceScope.cancel()
         instance = null
         super.onDestroy()

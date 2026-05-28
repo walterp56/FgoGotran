@@ -13,6 +13,7 @@ import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
+import com.fgogotran.ui.overlay.HistoryOverlayPanel
 import com.fgogotran.ui.overlay.FloatingMenu
 import com.fgogotran.util.FakeComposeHost
 import com.fgogotran.util.FgoLogger
@@ -43,6 +44,7 @@ class FgoRunnerOverlay @Inject constructor(
 ) {
     private var windowManager: WindowManager? = null
     private var composeHost: FakeComposeHost? = null
+    private var historyHost: FakeComposeHost? = null
     private var floatingMenuDialog: androidx.appcompat.app.AlertDialog? = null
     private var shown = false
 
@@ -67,6 +69,23 @@ class FgoRunnerOverlay @Inject constructor(
             gravity = Gravity.TOP or Gravity.START
             x = btnX
             y = btnY
+        }
+
+    private val historyLayoutParams: WindowManager.LayoutParams
+        get() = WindowManager.LayoutParams().apply {
+            type = overlayType
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
 
     /** Must be called before [show]. Initializes the WindowManager. */
@@ -120,6 +139,7 @@ class FgoRunnerOverlay @Inject constructor(
     /** Cleans up everything (button + dialog). Called on service destroy. */
     fun destroy() {
         dismissMenu()
+        dismissHistoryPanel()
         hide()
         windowManager = null
         FgoLogger.info(tag, "Overlay destroyed")
@@ -170,6 +190,7 @@ class FgoRunnerOverlay @Inject constructor(
      * inside the dialog, so it has the correct plain white style.
      */
     private fun showMenuDialog(): androidx.appcompat.app.AlertDialog {
+        TranslationTrigger.setMenuVisible(true)
         val menuHost = FakeComposeHost(context) {
             FloatingMenu(
                 autoTranslateEnabled = TranslationTrigger.isAutoTranslateEnabled(),
@@ -182,13 +203,9 @@ class FgoRunnerOverlay @Inject constructor(
                     }
                     dismissMenu()
                 },
-                onTranslateClick = {
-                    TranslationTrigger.requestTranslation(afterMenuDismiss = true)
-                    dismissMenu()
-                },
                 onHistoryClick = {
                     dismissMenu()
-                    // TODO: Launch history view (could open the app or show inline)
+                    showHistoryPanel()
                 },
                 onDismiss = { dismissMenu() }
             )
@@ -201,6 +218,12 @@ class FgoRunnerOverlay @Inject constructor(
         dialog.window?.setType(overlayType)
         // Make the dialog background transparent so only our white card shows
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.setOnDismissListener {
+            TranslationTrigger.setMenuVisible(false)
+            if (floatingMenuDialog === dialog) {
+                floatingMenuDialog = null
+            }
+        }
         dialog.show()
 
         return dialog
@@ -209,6 +232,29 @@ class FgoRunnerOverlay @Inject constructor(
     private fun dismissMenu() {
         floatingMenuDialog?.dismiss()
         floatingMenuDialog = null
+        TranslationTrigger.setMenuVisible(false)
+    }
+
+    private fun showHistoryPanel() {
+        val wm = windowManager ?: return
+        dismissHistoryPanel()
+        TranslationTrigger.setHistoryVisible(true)
+
+        historyHost = FakeComposeHost(context) {
+            HistoryOverlayPanel(onDismiss = { dismissHistoryPanel() })
+        }
+        wm.addView(historyHost!!.view, historyLayoutParams)
+        FgoLogger.info(tag, "History panel shown")
+    }
+
+    private fun dismissHistoryPanel() {
+        val wm = windowManager
+        historyHost?.let {
+            try { wm?.removeView(it.view) } catch (_: Exception) {}
+            it.close()
+        }
+        historyHost = null
+        TranslationTrigger.setHistoryVisible(false)
     }
 
     // ─── MediaProjection ───────────────────────────────────────────────

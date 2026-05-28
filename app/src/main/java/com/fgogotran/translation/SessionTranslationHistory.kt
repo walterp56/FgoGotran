@@ -5,10 +5,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class SessionTranslationEntry(
-    val jpText: String,
-    val cnText: String,
-    val backend: String,
-    val cached: Boolean,
+    val speakerName: String? = null,
+    val dialogueText: String? = null,
+    val choices: List<String> = emptyList(),
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -20,10 +19,19 @@ object SessionTranslationHistory {
     val entries: StateFlow<List<SessionTranslationEntry>> = _entries.asStateFlow()
 
     fun add(entry: SessionTranslationEntry) {
-        _entries.value = (listOf(entry) + _entries.value).take(100)
+        if (_entries.value.lastOrNull()?.contentKey() == entry.contentKey()) return
+        _entries.value = (_entries.value + entry).takeLast(100)
     }
 
     fun clear() {
         _entries.value = emptyList()
+    }
+
+    private fun SessionTranslationEntry.contentKey(): String {
+        return listOf(
+            speakerName.orEmpty().trim(),
+            dialogueText.orEmpty().trim(),
+            choices.joinToString("\n") { it.trim() }
+        ).joinToString("\n").trim()
     }
 }

@@ -44,7 +44,7 @@ class OverlayRenderer @Inject constructor(
         private val DIALOGUE_BACKGROUND = Color.rgb(20, 34, 67)
         private val NAME_BACKGROUND = Color.rgb(52, 89, 138)
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
-        private val FGO_TEXT_COLOR = Color.rgb(232, 232, 228)
+        private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private const val MIN_NAME_PLATE_WIDTH = 500f
     }
 

@@ -9,6 +9,8 @@ object TranslationTrigger {
     private val pending = AtomicBoolean(false)
     private val menuDismissSettleRequired = AtomicBoolean(false)
     private val autoTranslateEnabled = AtomicBoolean(false)
+    private val historyVisible = AtomicBoolean(false)
+    private val menuVisible = AtomicBoolean(false)
 
     fun requestTranslation(afterMenuDismiss: Boolean = false) {
         if (autoTranslateEnabled.get()) return
@@ -38,5 +40,25 @@ object TranslationTrigger {
 
     fun isAutoTranslateEnabled(): Boolean {
         return autoTranslateEnabled.get()
+    }
+
+    fun setHistoryVisible(visible: Boolean) {
+        historyVisible.set(visible)
+    }
+
+    fun isHistoryVisible(): Boolean {
+        return historyVisible.get()
+    }
+
+    fun setMenuVisible(visible: Boolean) {
+        menuVisible.set(visible)
+    }
+
+    fun isMenuVisible(): Boolean {
+        return menuVisible.get()
+    }
+
+    fun isUiBlockingOcr(): Boolean {
+        return historyVisible.get() || menuVisible.get()
     }
 }

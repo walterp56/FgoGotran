@@ -102,14 +102,6 @@ class Translator @Inject constructor(
             val cached = cacheDao.getCached(hash)
             if (cached != null) {
                 FgoLogger.info(tag, "Cache HIT, hash=${hash.take(8)}...")
-                SessionTranslationHistory.add(
-                    SessionTranslationEntry(
-                        jpText = japaneseText,
-                        cnText = cached,
-                        backend = "cache",
-                        cached = true
-                    )
-                )
                 return TranslateResult(cached, "cache", true)
             }
         }
@@ -171,14 +163,6 @@ class Translator @Inject constructor(
         }
 
         FgoLogger.info(tag, "Translation complete: backend=$backend, chars=${result.length}")
-        SessionTranslationHistory.add(
-            SessionTranslationEntry(
-                jpText = japaneseText,
-                cnText = result,
-                backend = backend,
-                cached = false
-            )
-        )
         return TranslateResult(result, backend, false)
     }
 

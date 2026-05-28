@@ -26,6 +26,8 @@ import com.fgogotran.overlay.RenderInstruction
 import com.fgogotran.overlay.TextRegion
 import com.fgogotran.overlay.TranslationOverlay
 import com.fgogotran.story.StoryDetector
+import com.fgogotran.translation.SessionTranslationEntry
+import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.translation.Translator
 import com.fgogotran.util.FgoLogger
@@ -70,7 +72,6 @@ class FgoAccessibilityService : AccessibilityService() {
     private var screenHeight = 0
     private var isFgoForeground = false
     private var lastRenderedSourceText = ""
-    private var isSkipStoryActive = false
     private var autoScanReadyAt = 0L
     private var renderedChoiceBounds: List<Rect> = emptyList()
     private var waitingForChoiceSelectionExit = false
@@ -81,7 +82,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val DETECTION_INTERVAL = 150L
         private const val CAPTURE_SETTLE_DELAY = 16L
         private const val MANUAL_MENU_DISMISS_SETTLE_DELAY = 300L
-        private const val TAP_OVERLAY_REMOVAL_DELAY = 80L
+        private const val TAP_OVERLAY_REMOVAL_DELAY = 1000L
         private const val TAP_REPLAY_TIMEOUT = 500L
         private const val FRESHNESS_CHECK_TRANSLATION_DELAY = 400L
 
@@ -198,7 +199,7 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             while (isActive) {
                 try {
-                    if (isFgoForeground && !isProcessing) {
+                    if (isFgoForeground && !isProcessing && !TranslationTrigger.isUiBlockingOcr()) {
                         val autoEnabled = TranslationTrigger.isAutoTranslateEnabled()
                         val manualRequest = if (autoEnabled) false else TranslationTrigger.consumeRequest()
                         if (autoEnabled &&
@@ -212,10 +213,7 @@ class FgoAccessibilityService : AccessibilityService() {
                             FgoLogger.debug(tag, "Translate Now requested")
                             val waitForMenuDismissal = TranslationTrigger.consumeMenuDismissSettleRequired()
                             translationJob = serviceScope.launch {
-                                if (waitForMenuDismissal) {
-                                    // The popup dismissal animates over FGO and can obscure SKIP.
-                                    delay(MANUAL_MENU_DISMISS_SETTLE_DELAY)
-                                }
+                                if (waitForMenuDismissal) delay(MANUAL_MENU_DISMISS_SETTLE_DELAY)
                                 processScreen(forceRefresh = true)
                             }
                         }
@@ -230,6 +228,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun processScreen(forceRefresh: Boolean) {
         if (isProcessing) return
+        if (TranslationTrigger.isUiBlockingOcr()) {
+            FgoLogger.debug(tag, "Overlay UI visible; skipping OCR")
+            return
+        }
         isProcessing = true
         val processingVersion = stopVersion
 
@@ -249,41 +251,7 @@ class FgoAccessibilityService : AccessibilityService() {
             val currentScreenWidth = source.width
             val currentScreenHeight = source.height
             val screenRegions = FgoViewportLayout.regionsForScreen(currentScreenWidth, currentScreenHeight)
-            FgoLogger.debug(tag, "FGO viewport=${screenRegions.viewport}, skip=${screenRegions.skip}")
-
-            val isStoryScreen = if (isSkipStoryActive) {
-                withContext(Dispatchers.Default) {
-                    backgroundDetector.isSkipButtonVisible(source, screenRegions.skip)
-                }
-            } else {
-                confirmSkipMarker(source, screenRegions.skip)
-            }
-            if (!isStoryScreen) {
-                restoreHiddenOverlay = false
-                isSkipStoryActive = false
-                lastRenderedSourceText = ""
-                renderedChoiceBounds = emptyList()
-                waitingForChoiceSelectionExit = false
-                FgoLogger.debug(tag, "SKIP marker not visible; skipping story OCR")
-                translationOverlay.hide()
-                return
-            }
-            if (!isSkipStoryActive) {
-                isSkipStoryActive = true
-                FgoLogger.debug(tag, "SKIP marker appeared; monitoring story OCR text")
-            }
-            if (backgroundDetector.isSkipConfirmationVisible(
-                    source,
-                    screenRegions.skipConfirmationNoButton,
-                    screenRegions.skipConfirmationYesButton
-                )
-            ) {
-                restoreHiddenOverlay = false
-                lastRenderedSourceText = ""
-                FgoLogger.debug(tag, "SKIP confirmation modal visible; skipping translation")
-                translationOverlay.hide()
-                return
-            }
+            FgoLogger.debug(tag, "FGO viewport=${screenRegions.viewport}")
 
             val choiceRegions = recognizeChoiceRegions(source, screenRegions)
             if (waitingForChoiceSelectionExit) {
@@ -352,6 +320,10 @@ class FgoAccessibilityService : AccessibilityService() {
                 FgoLogger.debug(tag, "Translation was stopped; discarding completed result")
                 return
             }
+            if (TranslationTrigger.isUiBlockingOcr()) {
+                FgoLogger.debug(tag, "Overlay UI opened during translation; discarding result")
+                return
+            }
 
             val rendered = overlayRenderer.render(
                 bitmap = source,
@@ -363,6 +335,7 @@ class FgoAccessibilityService : AccessibilityService() {
             renderedChoiceBounds = instructions
                 .filter { it.region.region == TextRegion.CHOICE_BUTTON }
                 .map { Rect(it.region.boundingBox) }
+            addHistoryEntry(instructions)
             translationOverlay.updateImage(rendered)
         } catch (e: CancellationException) {
             FgoLogger.debug(tag, "Translation processing cancelled")
@@ -388,16 +361,37 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         }
 
-        val hasDialogueAndName = regions.any { it.region == TextRegion.DIALOGUE_BOX } &&
-            regions.any { it.region == TextRegion.NAME_LABEL }
-        return if (hasDialogueAndName) {
-            coroutineScope {
-                regions.map { region -> async { translateRegion(region) } }
-                    .awaitAll()
-                    .filterNotNull()
-            }
-        } else {
-            regions.mapNotNull { translateRegion(it) }
+        return coroutineScope {
+            regions.map { region -> async { translateRegion(region) } }
+                .awaitAll()
+                .filterNotNull()
+        }
+    }
+
+    private fun addHistoryEntry(instructions: List<RenderInstruction>) {
+        val name = instructions
+            .firstOrNull { it.region.region == TextRegion.NAME_LABEL }
+            ?.translatedText
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val dialogue = instructions
+            .firstOrNull { it.region.region == TextRegion.DIALOGUE_BOX }
+            ?.translatedText
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val choices = instructions
+            .filter { it.region.region == TextRegion.CHOICE_BUTTON }
+            .map { it.translatedText.trim() }
+            .filter { it.isNotBlank() }
+
+        if (name != null || dialogue != null || choices.isNotEmpty()) {
+            SessionTranslationHistory.add(
+                SessionTranslationEntry(
+                    speakerName = name,
+                    dialogueText = dialogue,
+                    choices = choices
+                )
+            )
         }
     }
 
@@ -477,15 +471,6 @@ class FgoAccessibilityService : AccessibilityService() {
                 currentScreenshot.width,
                 currentScreenshot.height
             )
-            if (!confirmSkipMarker(currentScreenshot, screenRegions.skip)) return false
-            if (backgroundDetector.isSkipConfirmationVisible(
-                    currentScreenshot,
-                    screenRegions.skipConfirmationNoButton,
-                    screenRegions.skipConfirmationYesButton
-                )
-            ) {
-                return false
-            }
             val currentRegions = if (expectedFingerprint.contains(TextRegion.DIALOGUE_BOX.name)) {
                 if (!backgroundDetector.isDialogueCompleteMarkerVisible(
                     currentScreenshot,
@@ -500,35 +485,6 @@ class FgoAccessibilityService : AccessibilityService() {
             currentRegions.isNotEmpty() && fingerprintFor(currentRegions) == expectedFingerprint
         } finally {
             currentScreenshot.recycle()
-        }
-    }
-
-    private suspend fun confirmSkipMarker(source: Bitmap, bounds: Rect): Boolean {
-        val visualCandidate = withContext(Dispatchers.Default) {
-            backgroundDetector.isSkipButtonVisible(source, bounds)
-        }
-        if (!visualCandidate) return false
-
-        val cropped = Bitmap.createBitmap(
-            source,
-            bounds.left,
-            bounds.top,
-            bounds.width(),
-            bounds.height()
-        )
-        return try {
-            val result = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(cropped)
-            }
-            val lettersOnly = result.fullText.uppercase().filter { it in 'A'..'Z' }
-            val confirmed = "SKIP" in lettersOnly
-            FgoLogger.debug(
-                tag,
-                "SKIP OCR confirmed=$confirmed detected='${result.fullText.replace("\n", " ")}'"
-            )
-            confirmed
-        } finally {
-            cropped.recycle()
         }
     }
 
@@ -592,8 +548,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 return@launch
             }
             FgoLogger.debug(tag, "Translated overlay tapped; forwarding to FGO at $x,$y")
-            translationOverlay.hideForCapture()
-            delay(TAP_OVERLAY_REMOVAL_DELAY)
+            translationOverlay.setTranslatedOverlayTouchable(false)
             val dispatched = try {
                 withTimeoutOrNull(TAP_REPLAY_TIMEOUT) {
                     dispatchTapToFgo(x, y)
@@ -607,9 +562,11 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             if (dispatched) {
                 FgoLogger.debug(tag, "Overlay tap replay completed; waiting for changed dialogue")
+                delay(TAP_OVERLAY_REMOVAL_DELAY)
+                translationOverlay.hideForCapture()
             } else {
                 FgoLogger.warn(tag, "Overlay tap replay failed; restoring current translation")
-                translationOverlay.restoreAfterCapture()
+                translationOverlay.setTranslatedOverlayTouchable(true)
             }
         }
     }

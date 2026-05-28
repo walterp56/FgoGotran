@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.sp
 fun FloatingMenu(
     autoTranslateEnabled: Boolean,
     onAutoTranslateChange: (Boolean) -> Unit,
-    onTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -42,16 +41,6 @@ fun FloatingMenu(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
-        )
-
-        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
-
-        MenuRow(
-            icon = "T",
-            label = "Translate now",
-            muted = autoTranslateEnabled,
-            enabled = !autoTranslateEnabled,
-            onClick = onTranslateClick
         )
 
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
