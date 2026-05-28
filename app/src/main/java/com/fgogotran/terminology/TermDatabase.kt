@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.fgogotran.util.FgoLogger
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Room database for the pre-built FGO terminology glossary.
@@ -20,7 +21,7 @@ import java.io.File
  * `term_builder/` scripts that fetch data from Atlas Academy API.
  */
 @Database(
-    entities = [TermEntity::class],
+    entities = [TermEntity::class, CharacterNameEntity::class],
     version = 1,
     exportSchema = false
 )
@@ -36,20 +37,18 @@ abstract class TermDatabase : RoomDatabase() {
         /**
          * Creates or opens the term database.
          *
-         * On first run: copies `assets/db/fgo_terms.db` to the app's database directory.
-         * If the asset doesn't exist, Room creates an empty database (no crash).
+         * Copies `assets/db/fgo_terms.db` to the app's database directory when missing
+         * or when the bundled asset has changed. This keeps installed apps from being
+         * stuck on an older glossary after an APK update.
          */
         fun create(context: Context): TermDatabase {
             val dbFile = context.getDatabasePath(DB_NAME)
-            if (!dbFile.exists()) {
-                try {
-                    copyFromAssets(context, dbFile)
-                    FgoLogger.info(TAG, "Copied term DB from assets, size=${dbFile.length()} bytes")
-                } catch (e: Exception) {
-                    FgoLogger.warn(TAG,
-                        "No pre-built term DB in assets, creating empty one. " +
-                        "Run term_builder scripts first for FGO terms.", e)
-                }
+            try {
+                refreshFromAssetsIfChanged(context, dbFile)
+            } catch (e: Exception) {
+                FgoLogger.warn(TAG,
+                    "No pre-built term DB in assets, creating empty one. " +
+                    "Run term_builder scripts first for FGO terms.", e)
             }
 
             val builder = Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
@@ -75,6 +74,42 @@ abstract class TermDatabase : RoomDatabase() {
                     input.copyTo(output)
                 }
             }
+        }
+
+        private fun refreshFromAssetsIfChanged(context: Context, dbFile: File) {
+            val tempFile = File(dbFile.parentFile, "$DB_NAME.asset")
+            copyFromAssets(context, tempFile)
+
+            val shouldReplace = !dbFile.exists() ||
+                dbFile.length() <= 0L ||
+                sha256(dbFile) != sha256(tempFile)
+
+            if (shouldReplace) {
+                dbFile.parentFile?.mkdirs()
+                if (dbFile.exists() && !dbFile.delete()) {
+                    throw IllegalStateException("Unable to delete stale term DB: ${dbFile.absolutePath}")
+                }
+                if (!tempFile.renameTo(dbFile)) {
+                    copyFromAssets(context, dbFile)
+                    tempFile.delete()
+                }
+                FgoLogger.info(TAG, "Term DB refreshed from assets, size=${dbFile.length()} bytes")
+            } else {
+                tempFile.delete()
+            }
+        }
+
+        private fun sha256(file: File): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    digest.update(buffer, 0, read)
+                }
+            }
+            return digest.digest().joinToString("") { "%02x".format(it) }
         }
     }
 }

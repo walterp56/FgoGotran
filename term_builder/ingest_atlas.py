@@ -28,6 +28,8 @@ HEADERS = {"Accept": "application/json", "User-Agent": "fgoGotran-term-builder/1
 ROOT = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = ROOT / "fgo_terms.json"
 DEFAULT_MOONCELL_TSV = ROOT / "mooncell_terms.tsv"
+DEFAULT_CHARACTER_TSV = ROOT / "character_names.tsv"
+DEFAULT_TERMS_TSV = ROOT / "terms.tsv"
 
 
 COMMON_TERMS = [
@@ -115,6 +117,26 @@ def clean_text(value: Any) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def validate_required_columns(
+    path: Path,
+    line_num: int,
+    row: dict[str, Any],
+    required: set[str],
+) -> None:
+    missing = [column for column in sorted(required) if not clean_text(row.get(column))]
+    if not missing:
+        return
+
+    first_value = clean_text(next((row.get(column) for column in required if row.get(column)), ""))
+    hint = ""
+    if "\t" not in first_value and "  " in first_value:
+        hint = " This row looks space-separated; use real tab characters between columns."
+    raise SystemExit(
+        f"{path}:{line_num} is missing required column(s): "
+        f"{', '.join(missing)}.{hint}"
+    )
 
 
 def by_key(rows: Any, key_name: str = "id") -> dict[Any, dict[str, Any]]:
@@ -208,6 +230,77 @@ def ingest_mooncell_tsv(terms: list[dict[str, Any]], path: Path) -> None:
             )
 
 
+def ingest_character_names_tsv(terms: list[dict[str, Any]], path: Path) -> None:
+    if not path.exists():
+        print(f"Character TSV not found, skipping: {path}")
+        return
+
+    with path.open("r", encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file, delimiter="\t")
+        required = {"jp_name", "cn_name"}
+        if not required.issubset(reader.fieldnames or []):
+            raise SystemExit(f"{path} must contain at least columns: jp_name, cn_name")
+        for row in reader:
+            if not any(clean_text(value) for value in row.values()):
+                continue
+            validate_required_columns(path, reader.line_num, row, required)
+            aliases = split_aliases(row.get("aliases") or "")
+            add_term(
+                terms,
+                row.get("jp_name"),
+                row.get("cn_name"),
+                "character",
+                aliases,
+                row.get("source") or "mooncell",
+            )
+
+
+def ingest_terms_tsv(terms: list[dict[str, Any]], path: Path) -> None:
+    if not path.exists():
+        print(f"Terms TSV not found, skipping: {path}")
+        return
+
+    with path.open("r", encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file, delimiter="\t")
+        required = {"jp_term", "cn_term", "category"}
+        if not required.issubset(reader.fieldnames or []):
+            raise SystemExit(f"{path} must contain columns: jp_term, cn_term, category")
+        for row in reader:
+            if not any(clean_text(value) for value in row.values()):
+                continue
+            validate_required_columns(path, reader.line_num, row, required)
+            aliases = split_aliases(row.get("aliases") or "")
+            add_term(
+                terms,
+                row.get("jp_term"),
+                row.get("cn_term"),
+                row.get("category") or "term",
+                aliases,
+                row.get("source") or "mooncell",
+            )
+
+
+def ingest_local_tsvs(
+    terms: list[dict[str, Any]],
+    character_tsv: Path,
+    terms_tsv: Path,
+    legacy_tsv: Path,
+) -> None:
+    if character_tsv.exists() or terms_tsv.exists():
+        ingest_character_names_tsv(terms, character_tsv)
+        ingest_terms_tsv(terms, terms_tsv)
+    else:
+        ingest_mooncell_tsv(terms, legacy_tsv)
+
+
+def split_aliases(value: str) -> list[str]:
+    return [
+        alias.strip()
+        for alias in value.split(",")
+        if alias.strip()
+    ]
+
+
 def dedupe_terms(terms: list[dict[str, Any]]) -> list[dict[str, Any]]:
     priority = {"manual": 0, "mooncell": 1, "atlas": 2}
     merged: dict[str, dict[str, Any]] = {}
@@ -225,13 +318,15 @@ def dedupe_terms(terms: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mooncell-tsv", type=Path, default=DEFAULT_MOONCELL_TSV)
+    parser.add_argument("--character-tsv", type=Path, default=DEFAULT_CHARACTER_TSV)
+    parser.add_argument("--terms-tsv", type=Path, default=DEFAULT_TERMS_TSV)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--skip-atlas", action="store_true")
     args = parser.parse_args()
 
     terms: list[dict[str, Any]] = []
     ingest_common_terms(terms)
-    ingest_mooncell_tsv(terms, args.mooncell_tsv)
+    ingest_local_tsvs(terms, args.character_tsv, args.terms_tsv, args.mooncell_tsv)
 
     if not args.skip_atlas:
         ingest_servants(terms)

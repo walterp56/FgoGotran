@@ -5,20 +5,32 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * Room entity representing a JP→CN FGO terminology pair.
- *
- * Each term maps a Japanese proper noun to its official Chinese translation,
- * optionally with alternative Japanese aliases (e.g., nickname, alternate reading).
- *
- * @property category FGO domain: "servant", "noble_phantasm", "skill", "location", "item", "ce"
- * @property aliases JSON array string of alternative JP names (e.g., `["盾兵","マシュ"]`)
- */
 @Entity(
     tableName = "terms",
-    indices = [Index(value = ["jp_name"], unique = true)]
+    indices = [Index(value = ["jp_term"], unique = true)]
 )
 data class TermEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long? = null,
+
+    @ColumnInfo(name = "jp_term")
+    val jpTerm: String,
+
+    @ColumnInfo(name = "cn_term")
+    val cnTerm: String,
+
+    @ColumnInfo(name = "category")
+    val category: String,
+
+    @ColumnInfo(name = "aliases")
+    val aliases: String? = null
+)
+
+@Entity(
+    tableName = "character_names",
+    indices = [Index(value = ["jp_name"], unique = true)]
+)
+data class CharacterNameEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long? = null,
 
@@ -27,9 +39,6 @@ data class TermEntity(
 
     @ColumnInfo(name = "cn_name")
     val cnName: String,
-
-    @ColumnInfo(name = "category")
-    val category: String,
 
     @ColumnInfo(name = "aliases")
     val aliases: String? = null

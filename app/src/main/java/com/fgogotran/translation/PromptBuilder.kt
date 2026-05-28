@@ -2,6 +2,7 @@ package com.fgogotran.translation
 
 import com.fgogotran.terminology.TermEntity
 import com.fgogotran.util.FgoLogger
+import java.text.Normalizer
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v3"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v7"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -78,7 +79,7 @@ Rules (MUST follow):
         if (matchedTerms.isNotEmpty()) {
             sb.append("\n\n=== OFFICIAL TERMINOLOGY ===\n")
             for (term in matchedTerms) {
-                sb.append("${term.jpName} → ${term.cnName} [${term.category}]\n")
+                sb.append("${term.jpTerm} -> ${term.cnTerm} [${term.category}]\n")
             }
         }
 
@@ -137,14 +138,24 @@ Rules (MUST follow):
             .sortedWith(
                 compareByDescending<Pair<TermEntity, Int>> { it.second }
                     .thenBy { it.first.category }
-                    .thenBy { it.first.jpName }
+                    .thenBy { it.first.jpTerm }
             )
             .map { it.first }
-            .distinctBy { it.jpName }
+            .distinctBy { it.jpTerm }
             .take(MAX_RAG_TERMS)
             .toList()
 
         FgoLogger.debug(tag, "Term matching: ${matches.size} of ${terms.size} terms matched")
+        if (matches.isNotEmpty()) {
+            FgoLogger.debug(
+                tag,
+                "Matched terms: ${
+                    matches.joinToString(limit = MAX_RAG_TERMS) {
+                        "${it.jpTerm}->${it.cnTerm}"
+                    }
+                }"
+            )
+        }
         return matches
     }
 
@@ -157,12 +168,12 @@ Rules (MUST follow):
 
     private fun candidateNeedles(term: TermEntity): List<String> {
         return buildList {
-            normalizeForTermMatch(term.jpName)
+            normalizeForTermMatch(term.jpTerm)
                 .takeIf { it.length >= MIN_TERM_MATCH_LENGTH }
                 ?.let(::add)
             term.aliases.orEmpty()
                 .split(',', '，', '\n')
-                .map { it.trim('"', '[', ']', ' ', '\t', '\r') }
+                .map { it.trim('"', '\'', '[', ']', ' ', '\t', '\r') }
                 .map(::normalizeForTermMatch)
                 .filter { it.length >= MIN_TERM_MATCH_LENGTH }
                 .forEach(::add)
@@ -170,12 +181,8 @@ Rules (MUST follow):
     }
 
     private fun normalizeForTermMatch(text: String): String {
-        return text
-            .trim()
+        return Normalizer.normalize(text.trim(), Normalizer.Form.NFKC)
             .replace(Regex("""[\s　]+"""), "")
-            .replace('（', '(')
-            .replace('）', ')')
-            .replace('・', '·')
-            .replace('＝', '=')
+            .replace(Regex("""[・･·•,，、。.!！?？:：;；\[\]（）()「」『』"“”'’‘=＝\-－—―_＿]"""), "")
     }
 }

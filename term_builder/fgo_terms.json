@@ -315,6 +315,13 @@
     "source": "mooncell"
   },
   {
+    "jp_name": "ホームズ",
+    "cn_name": "福尔摩斯",
+    "category": "character",
+    "aliases": "[\"シャーロック・ホームズ\"]",
+    "source": "mooncell"
+  },
+  {
     "jp_name": "マシュ・キリエライト",
     "cn_name": "玛修·基列莱特",
     "category": "character",
@@ -322,10 +329,24 @@
     "source": "mooncell"
   },
   {
+    "jp_name": "マリーン",
+    "cn_name": "水兵",
+    "category": "character",
+    "aliases": "[\"マリン\", \"マリ一ン\", \"マリ－ン\", \"マリｰン\"]",
+    "source": "mooncell"
+  },
+  {
     "jp_name": "マーリン",
     "cn_name": "梅林",
     "category": "character",
     "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ムニエル",
+    "cn_name": "穆尼尔",
+    "category": "character",
+    "aliases": "[\"ムニェル\", \"ムニ工ル\", \"ム二エル\", \"ム二工ル\"]",
     "source": "mooncell"
   },
   {
@@ -1041,6 +1062,13 @@
     "category": "place",
     "aliases": "[\"Chaldea\"]",
     "source": "manual"
+  },
+  {
+    "jp_name": "ストーム・ボーダー",
+    "cn_name": "Storm Border",
+    "category": "place",
+    "aliases": "[\"Storm Border\", \"ストームボーダー\"]",
+    "source": "mooncell"
   },
   {
     "jp_name": "ノウム・カルデア",

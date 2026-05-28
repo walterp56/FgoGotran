@@ -42,7 +42,7 @@ class GlossaryUpdateManager @Inject constructor(
                 FgoLogger.warn(tag, "Online glossary returned no terms; keeping bundled DB")
                 return
             }
-            termDao.upsertAll(terms)
+            termDao.upsertTerms(terms)
             FgoLogger.info(tag, "Online glossary updated: ${terms.size} terms")
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Online glossary update failed; using bundled DB", e)
@@ -65,8 +65,8 @@ class GlossaryUpdateManager @Inject constructor(
                     .joinToString(prefix = "[\"", postfix = "\"]", separator = "\",\"")
                 terms.add(
                     TermEntity(
-                        jpName = jpName,
-                        cnName = cnName,
+                        jpTerm = jpName,
+                        cnTerm = cnName,
                         category = "servant",
                         aliases = aliases.ifBlank { "[]" }
                     )
@@ -86,8 +86,8 @@ class GlossaryUpdateManager @Inject constructor(
         )
 
         return terms
-            .filter { it.jpName.isNotBlank() && it.cnName.isNotBlank() && it.jpName != it.cnName }
-            .distinctBy { it.jpName }
+            .filter { it.jpTerm.isNotBlank() && it.cnTerm.isNotBlank() && it.jpTerm != it.cnTerm }
+            .distinctBy { it.jpTerm }
     }
 
     private suspend fun pairedTerms(
@@ -103,8 +103,8 @@ class GlossaryUpdateManager @Inject constructor(
                 null
             } else {
                 TermEntity(
-                    jpName = jpName,
-                    cnName = cnName,
+                    jpTerm = jpName,
+                    cnTerm = cnName,
                     category = category,
                     aliases = "[]"
                 )

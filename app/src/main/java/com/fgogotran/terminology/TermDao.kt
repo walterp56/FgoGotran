@@ -5,38 +5,33 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
-/**
- * Room DAO for FGO terminology lookups.
- *
- * The terms table is populated from a pre-built SQLite database
- * shipped in assets (see [TermDatabase]).
- */
 @Dao
 interface TermDao {
 
-    /**
-     * Returns the official Chinese name for an exact JP term match.
-     * Used as the primary (fastest) lookup path.
-     */
-    @Query("SELECT cn_name FROM terms WHERE jp_name = :jpText LIMIT 1")
-    suspend fun findExactCn(jpText: String): String?
+    @Query("SELECT * FROM character_names")
+    suspend fun getAllCharacterNames(): List<CharacterNameEntity>
 
-    /**
-     * Fuzzy search: finds terms whose JP name contains [partial] as a substring.
-     * Limited to 10 results to avoid overwhelming the LLM prompt.
-     */
-    @Query("SELECT * FROM terms WHERE jp_name LIKE '%' || :partial || '%' LIMIT 10")
-    suspend fun findFuzzy(partial: String): List<TermEntity>
-
-    /** Returns all terms in the glossary (for full-text RAG matching in [com.fgogotran.translation.PromptBuilder]). */
     @Query("SELECT * FROM terms")
     suspend fun getAllTerms(): List<TermEntity>
 
-    /** Returns the total number of terms in the glossary. */
+    @Query("SELECT cn_name FROM character_names WHERE jp_name = :jpName LIMIT 1")
+    suspend fun findExactCharacterName(jpName: String): String?
+
+    @Query("SELECT cn_term FROM terms WHERE jp_term = :jpTerm LIMIT 1")
+    suspend fun findExactTerm(jpTerm: String): String?
+
+    @Query("SELECT COUNT(*) FROM character_names")
+    suspend fun characterNameCount(): Int
+
     @Query("SELECT COUNT(*) FROM terms")
+    suspend fun termCount(): Int
+
+    @Query("SELECT (SELECT COUNT(*) FROM character_names) + (SELECT COUNT(*) FROM terms)")
     suspend fun count(): Int
 
-    /** Inserts downloaded terms, replacing older rows with the same JP name. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(terms: List<TermEntity>)
+    suspend fun upsertTerms(terms: List<TermEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCharacterNames(names: List<CharacterNameEntity>)
 }

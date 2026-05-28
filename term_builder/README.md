@@ -1,42 +1,70 @@
 # FGO Terminology Builder
 
-Builds the bundled RAG glossary used by the Android app.
+Builds the bundled terminology database used by the Android app.
 
-## Sources
+## Editable TSV Files
 
-- Atlas Academy API: structured JP/CN game data when matching IDs exist.
-- `mooncell_terms.tsv`: curated Mooncell CN terms.
+Edit these files when adding or correcting translations:
 
-## TSV Format
+The TSV files are saved as UTF-8 with BOM so Excel can open Japanese and
+Chinese text correctly. If Excel asks during save, keep the file as UTF-8 text;
+do not save as ANSI/Big5/CP950, or Japanese text may become `??`.
 
-`mooncell_terms.tsv` must be UTF-8 tab-separated:
+### `character_names.tsv`
+
+Used for deterministic name-box translation. Exact JP name or alias matches are rendered directly without calling the LLM.
+
+Columns:
 
 ```tsv
-jp_name	cn_name	category	aliases	source
-カルデア	迦勒底	place	Chaldea	mooncell
+jp_name	cn_name	aliases	source
+ホームズ	福尔摩斯	シャーロック・ホームズ	mooncell
 ```
 
 `aliases` is optional and comma-separated.
 
-## Build
+### `terms.tsv`
 
-```powershell
-cd C:\mywork\fgoGotran
-python term_builder\ingest_atlas.py
-python term_builder\build_db.py
+Used for terminology RAG and exact term matches in dialogue/choices.
+
+Columns:
+
+```tsv
+jp_term	cn_term	category	aliases	source
+オリュンポス	奥林波斯	place		mooncell
 ```
 
-Offline / Mooncell TSV only:
+`category` examples: `place`, `game_term`, `class`, `item`, `organization`.
+
+## Build
+
+From the repo root:
 
 ```powershell
-python term_builder\ingest_atlas.py --skip-atlas
-python term_builder\build_db.py
+C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\ingest_atlas.py --skip-atlas
+C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\build_db.py
+```
+
+Then rebuild the APK:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat assembleDebug
 ```
 
 Output:
 
 ```text
 app/src/main/assets/db/fgo_terms.db
+app/build/outputs/apk/debug/app-debug.apk
 ```
 
-The Android app copies this DB on first launch.
+## Runtime DB Tables
+
+`build_db.py` creates one SQLite asset with two tables:
+
+- `character_names`: `jp_name`, `cn_name`, `aliases`
+- `terms`: `jp_term`, `cn_term`, `category`, `aliases`
+
+`source` is kept only in TSV/JSON builder data and is not included in the Android runtime DB.
+
+The app refreshes its copied runtime DB automatically when the bundled asset changes.
