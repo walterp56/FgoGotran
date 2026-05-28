@@ -39,6 +39,7 @@ class TranslationOverlay @Inject constructor(
     private var overlayView: ImageView? = null
     private var indicatorView: View? = null
     private var isOverlayShowing = false
+    private var overlayTouchable = true
     private var screenWidth = 0
     private var screenHeight = 0
     private var latestTranslatedBitmap: Bitmap? = null
@@ -152,15 +153,23 @@ class TranslationOverlay @Inject constructor(
      */
     fun showTranslatedImage(bitmap: Bitmap) {
         latestTranslatedBitmap = bitmap
-        addTranslatedImage(bitmap)
+        showOrUpdateTranslatedImage(bitmap)
     }
 
-    private fun addTranslatedImage(bitmap: Bitmap) {
+    private fun showOrUpdateTranslatedImage(bitmap: Bitmap) {
         val wm = windowManager ?: return
 
-        removeOverlayView()
         screenWidth = bitmap.width
         screenHeight = bitmap.height
+
+        overlayView?.let {
+            it.setImageBitmap(bitmap)
+            it.visibility = View.VISIBLE
+            isOverlayShowing = true
+            setTranslatedOverlayTouchable(true)
+            FgoLogger.info(tag, "Showing translated image: ${bitmap.width}x${bitmap.height}")
+            return
+        }
 
         val imageView = ImageView(context).apply {
             setImageBitmap(bitmap)
@@ -180,6 +189,7 @@ class TranslationOverlay @Inject constructor(
         wm.addView(imageView, overlayParams)
         overlayView = imageView
         isOverlayShowing = true
+        overlayTouchable = true
         FgoLogger.info(tag, "Showing translated image: ${bitmap.width}x${bitmap.height}")
     }
 
@@ -189,9 +199,9 @@ class TranslationOverlay @Inject constructor(
      */
     fun updateImage(bitmap: Bitmap) {
         latestTranslatedBitmap = bitmap
-        if (isOverlayShowing) {
+        if (overlayView != null) {
             FgoLogger.debug(tag, "Updating overlay image")
-            overlayView?.setImageBitmap(bitmap)
+            showOrUpdateTranslatedImage(bitmap)
         } else {
             FgoLogger.debug(tag, "No existing overlay, creating new")
             showTranslatedImage(bitmap)
@@ -203,15 +213,17 @@ class TranslationOverlay @Inject constructor(
         if (isOverlayShowing) {
             FgoLogger.debug(tag, "Temporarily hiding overlay for OCR capture")
         }
-        removeOverlayView()
+        hideOverlayView(clearBitmap = false)
     }
 
     fun setTranslatedOverlayTouchable(touchable: Boolean) {
         val wm = windowManager ?: return
         val view = overlayView ?: return
+        if (overlayTouchable == touchable) return
         val params = if (touchable) overlayParams else overlayPassthroughParams
         try {
             wm.updateViewLayout(view, params)
+            overlayTouchable = touchable
             FgoLogger.debug(tag, "Translated overlay touchable=$touchable")
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Failed to update translated overlay touchable=$touchable", e)
@@ -223,14 +235,28 @@ class TranslationOverlay @Inject constructor(
         if (isOverlayShowing) return
         latestTranslatedBitmap?.let {
             FgoLogger.debug(tag, "Restoring unchanged translated overlay")
-            addTranslatedImage(it)
+            showOrUpdateTranslatedImage(it)
         }
     }
 
     /** Hides the full-screen overlay. Safe to call even if nothing is showing. */
     fun hide() {
-        removeOverlayView()
-        latestTranslatedBitmap = null
+        hideOverlayView(clearBitmap = true)
+    }
+
+    private fun hideOverlayView(clearBitmap: Boolean) {
+        overlayView?.let {
+            it.visibility = View.INVISIBLE
+            if (clearBitmap) {
+                it.setImageBitmap(null)
+            }
+            FgoLogger.info(tag, "Overlay hidden")
+        }
+        isOverlayShowing = false
+        setTranslatedOverlayTouchable(true)
+        if (clearBitmap) {
+            latestTranslatedBitmap = null
+        }
     }
 
     private fun removeOverlayView() {
@@ -245,6 +271,7 @@ class TranslationOverlay @Inject constructor(
         }
         overlayView = null
         isOverlayShowing = false
+        overlayTouchable = true
     }
 
     /** Hides both the full-screen overlay and the indicator dot. */
@@ -252,7 +279,8 @@ class TranslationOverlay @Inject constructor(
         if (isOverlayShowing || indicatorView != null) {
             FgoLogger.info(tag, "Hiding all overlays")
         }
-        hide()
+        latestTranslatedBitmap = null
+        removeOverlayView()
         hideIndicator()
     }
 

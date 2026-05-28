@@ -39,6 +39,23 @@ class OverlayRenderer @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private var typeface: Typeface? = null
+    private var reusableBitmap: Bitmap? = null
+    private val reusableCanvas = Canvas()
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.LEFT
+    }
+    private val dialogueClearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = DIALOGUE_BACKGROUND
+        style = Paint.Style.FILL
+    }
+    private val nameClearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = NAME_BACKGROUND
+        style = Paint.Style.FILL
+    }
+    private val choiceClearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = CHOICE_BACKGROUND
+        style = Paint.Style.FILL
+    }
 
     companion object {
         private val DIALOGUE_BACKGROUND = Color.rgb(20, 34, 67)
@@ -61,6 +78,7 @@ class OverlayRenderer @Inject constructor(
             FgoLogger.warn(tag, "Font load failed, using system default", e)
             typeface = Typeface.DEFAULT
         }
+        textPaint.typeface = typeface ?: Typeface.DEFAULT
     }
 
     /**
@@ -70,7 +88,7 @@ class OverlayRenderer @Inject constructor(
      * @param instructions one per classified region
      * @param screenWidth screen width (unused currently, kept for future positioning)
      * @param screenHeight screen height (unused currently)
-     * @return a new bitmap with Chinese text rendered over cleared JP regions
+     * @return a reusable bitmap with Chinese text rendered over cleared JP regions
      */
     fun render(
         bitmap: Bitmap,
@@ -80,24 +98,36 @@ class OverlayRenderer @Inject constructor(
     ): Bitmap {
         FgoLogger.info(tag, "Rendering ${instructions.size} instructions onto ${bitmap.width}x${bitmap.height}")
 
-        val result = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val result = obtainReusableBitmap(bitmap.width, bitmap.height)
         result.eraseColor(Color.TRANSPARENT)
-        val canvas = Canvas(result)
-
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        reusableCanvas.setBitmap(result)
+        textPaint.apply {
             typeface = this@OverlayRenderer.typeface ?: Typeface.DEFAULT
             textAlign = Paint.Align.LEFT
+            clearShadowLayer()
         }
 
         for (instruction in instructions) {
             when (instruction.region.region) {
-                TextRegion.DIALOGUE_BOX -> renderDialogueBox(canvas, paint, instruction)
-                TextRegion.NAME_LABEL -> renderNameLabel(canvas, paint, instruction)
-                TextRegion.CHOICE_BUTTON -> renderChoiceButton(canvas, paint, instruction)
+                TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction)
+                TextRegion.NAME_LABEL -> renderNameLabel(reusableCanvas, textPaint, instruction)
+                TextRegion.CHOICE_BUTTON -> renderChoiceButton(reusableCanvas, textPaint, instruction)
             }
         }
 
         return result
+    }
+
+    private fun obtainReusableBitmap(width: Int, height: Int): Bitmap {
+        val current = reusableBitmap
+        if (current != null && !current.isRecycled && current.width == width && current.height == height) {
+            return current
+        }
+        reusableBitmap?.recycle()
+        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
+            reusableBitmap = it
+            FgoLogger.info(tag, "Allocated reusable overlay bitmap: ${width}x$height")
+        }
     }
 
     /**
@@ -110,15 +140,10 @@ class OverlayRenderer @Inject constructor(
     ) {
         val box = instruction.region.boundingBox
 
-        // The rectangle is the fixed text surface inside FGO's dialogue panel.
-        val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = DIALOGUE_BACKGROUND
-            style = Paint.Style.FILL
-        }
         canvas.drawRoundRect(
             box.left.toFloat(), box.top.toFloat(),
             box.right.toFloat(), box.bottom.toFloat(),
-            12f, 12f, clearPaint
+            12f, 12f, dialogueClearPaint
         )
 
         val scale = box.height() / 225f
@@ -176,15 +201,10 @@ class OverlayRenderer @Inject constructor(
         val renderedRight = (box.left + maxOf(minimumRenderedWidth, requiredWidth))
             .coerceAtMost(canvas.width.toFloat())
 
-        // Preserve the plate's angled edge and border; replace its text surface.
-        val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = NAME_BACKGROUND
-            style = Paint.Style.FILL
-        }
         canvas.drawRoundRect(
             box.left + 42f * scale, box.top + 8f * scale,
             renderedRight - 10f * scale, box.bottom - 8f * scale,
-            8f, 8f, clearPaint
+            8f, 8f, nameClearPaint
         )
 
         // FGO draws the speaker name inset from the arrow-shaped leading edge.
@@ -226,15 +246,10 @@ class OverlayRenderer @Inject constructor(
         val box = instruction.region.boundingBox
         val scale = box.height() / 122f
 
-        // Preserve the light border and clipped ends; replace the black interior.
-        val clearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = CHOICE_BACKGROUND
-            style = Paint.Style.FILL
-        }
         canvas.drawRoundRect(
             box.left + 18f * scale, box.top + 8f * scale,
             box.right - 18f * scale, box.bottom - 8f * scale,
-            10f, 10f, clearPaint
+            10f, 10f, choiceClearPaint
         )
 
         // ── 2. Render CN choice text (center-aligned) ──

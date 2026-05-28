@@ -26,6 +26,7 @@ import com.fgogotran.overlay.RenderInstruction
 import com.fgogotran.overlay.TextRegion
 import com.fgogotran.overlay.TranslationOverlay
 import com.fgogotran.story.StoryDetector
+import com.fgogotran.translation.SceneTranslateInput
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.translation.TranslationTrigger
@@ -352,19 +353,36 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun buildRenderInstructions(regions: List<ClassifiedRegion>): List<RenderInstruction> {
-        suspend fun translateRegion(region: ClassifiedRegion): RenderInstruction? {
+        val translatableRegions = regions.mapNotNull { region ->
             val sourceText = region.lines.joinToString("\n") { it.text }.trim()
-            if (sourceText.isBlank()) return null
-            return RenderInstruction(
-                region = region,
-                translatedText = translator.translate(sourceText).translatedText
-            )
+            if (sourceText.isBlank()) null else region to sourceText
         }
+        if (translatableRegions.isEmpty()) return emptyList()
 
-        return coroutineScope {
-            regions.map { region -> async { translateRegion(region) } }
-                .awaitAll()
-                .filterNotNull()
+        val nameRegion = translatableRegions.firstOrNull { it.first.region == TextRegion.NAME_LABEL }
+        val dialogueRegion = translatableRegions.firstOrNull { it.first.region == TextRegion.DIALOGUE_BOX }
+        val choiceRegions = translatableRegions.filter { it.first.region == TextRegion.CHOICE_BUTTON }
+        val sceneTranslation = translator.translateScene(
+            SceneTranslateInput(
+                name = nameRegion?.second,
+                dialogue = dialogueRegion?.second,
+                choices = choiceRegions.map { it.second }
+            )
+        )
+        val translatedChoicesByRegion = choiceRegions
+            .zip(sceneTranslation.choices)
+            .associate { (regionAndText, result) -> regionAndText.first to result.translatedText }
+
+        return translatableRegions.mapNotNull { regionAndText ->
+            val translatedText = when (regionAndText.first.region) {
+                TextRegion.NAME_LABEL -> sceneTranslation.name?.translatedText
+                TextRegion.DIALOGUE_BOX -> sceneTranslation.dialogue?.translatedText
+                TextRegion.CHOICE_BUTTON -> translatedChoicesByRegion[regionAndText.first]
+            } ?: return@mapNotNull null
+            RenderInstruction(
+                region = regionAndText.first,
+                translatedText = translatedText
+            )
         }
     }
 
