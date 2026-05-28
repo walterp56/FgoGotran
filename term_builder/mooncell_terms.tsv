@@ -1,0 +1,171 @@
+jp_name	cn_name	category	aliases	source
+藤丸立香	藤丸立香	character	立香,ぐだ男,ぐだ子	mooncell
+マシュ・キリエライト	玛修·基列莱特	character	マシュ,玛修	mooncell
+レオナルド・ダ・ヴィンチ	莱昂纳多·达·芬奇	character	ダ・ヴィンチ,达·芬奇,Da Vinci	mooncell
+ダ・ヴィンチ	达·芬奇	character	レオナルド・ダ・ヴィンチ,Da Vinci	mooncell
+ロマニ・アーキマン	罗马尼·阿其曼	character	ロマン,Dr.ロマン,罗曼	mooncell
+ソロモン	所罗门	character		mooncell
+ゲーティア	盖提亚	character		mooncell
+シャーロック・ホームズ	夏洛克·福尔摩斯	character	ホームズ	mooncell
+ゴルドルフ・ムジーク	戈尔德鲁夫·穆吉克	character	ゴルドルフ	mooncell
+ゴルドルフ	戈尔德鲁夫	character		mooncell
+シオン・エルトナム・ソカリス	希翁·艾尔特纳姆·索卡莉丝	character	シオン	mooncell
+ネモ	尼莫	character	キャプテン,船长	mooncell
+カドック・ゼムルプス	卡多克·泽姆露普斯	character	カドック	mooncell
+アナスタシア	阿纳斯塔西娅	character		mooncell
+オフェリア・ファムルソローネ	奥菲莉娅·法姆索罗涅	character	オフェリア	mooncell
+スカサハ＝スカディ	斯卡哈·斯卡蒂	character	スカディ	mooncell
+芥ヒナコ	芥雏子	character	ヒナコ	mooncell
+虞美人	虞美人	character		mooncell
+始皇帝	始皇帝	character		mooncell
+蘭陵王	兰陵王	character		mooncell
+アシュヴァッターマン	阿什瓦塔曼	character		mooncell
+アルジュナ	阿周那	character		mooncell
+アルジュナ〔オルタ〕	阿周那〔Alter〕	character	神たるアルジュナ	mooncell
+スカンジナビア・ペペロンチーノ	斯堪的纳维亚·佩佩隆奇诺	character	ペペ	mooncell
+キリシュタリア・ヴォーダイム	基尔什塔利亚·沃戴姆	character	キリシュタリア	mooncell
+カイニス	凯尼斯	character		mooncell
+オリュンポス	奥林波斯	place		mooncell
+ベリル・ガット	贝里尔·伽特	character	ベリル	mooncell
+モルガン	摩根	character		mooncell
+オベロン	奥伯龙	character		mooncell
+オベロン・ヴォーティガーン	奥伯龙·沃蒂根	character	ヴォーティガーン	mooncell
+妖精國	妖精国	place	妖精国,ブリテン	mooncell
+デイビット・ゼム・ヴォイド	戴比特·泽姆·沃伊德	character	デイビット	mooncell
+ORT	ORT	character		mooncell
+カルデア	迦勒底	place	Chaldea	mooncell
+カルデアス	迦勒底亚斯	game_term	CHALDEAS	mooncell
+ノウム・カルデア	新迦勒底	place		mooncell
+フィニス・カルデア	菲尼斯·迦勒底	place		mooncell
+人理	人理	game_term		mooncell
+人理修復	人理修复	game_term		mooncell
+人理継続保障機関	人理续存保障机构	organization		mooncell
+人理保障機関カルデア	人理保障机构迦勒底	organization		mooncell
+特異点	特异点	game_term		mooncell
+亜種特異点	亚种特异点	game_term		mooncell
+異聞帯	异闻带	game_term	Lostbelt	mooncell
+ロストベルト	异闻带	game_term	Lostbelt	mooncell
+空想樹	空想树	game_term		mooncell
+クリプター	隐匿者	game_term	Crypter	mooncell
+異星の神	异星之神	game_term		mooncell
+ビースト	Beast	class		mooncell
+グランド	冠位	game_term	Grand	mooncell
+グランドサーヴァント	冠位从者	game_term	Grand Servant	mooncell
+サーヴァント	从者	game_term	Servant	mooncell
+マスター	御主	game_term	Master	mooncell
+英霊	英灵	game_term		mooncell
+守護者	守护者	game_term		mooncell
+疑似サーヴァント	拟似从者	game_term		mooncell
+デミ・サーヴァント	亚从者	game_term	Demi-Servant	mooncell
+シャドウサーヴァント	影从者	game_term	Shadow Servant	mooncell
+宝具	宝具	game_term	Noble Phantasm	mooncell
+スキル	技能	game_term	Skill	mooncell
+クラススキル	职阶技能	game_term	Class Skill	mooncell
+アペンドスキル	追加技能	game_term	Append Skill	mooncell
+コマンドカード	指令卡	game_term	Command Card	mooncell
+コマンドコード	指令纹章	game_term	Command Code	mooncell
+概念礼装	概念礼装	game_term	Craft Essence,礼装	mooncell
+聖晶石	圣晶石	item		mooncell
+呼符	呼符	item		mooncell
+聖杯	圣杯	item		mooncell
+聖杯戦争	圣杯战争	game_term		mooncell
+令呪	令咒	game_term	Command Spell	mooncell
+魔術	魔术	game_term		mooncell
+魔術師	魔术师	game_term		mooncell
+魔力	魔力	game_term		mooncell
+魔眼	魔眼	game_term		mooncell
+魔術回路	魔术回路	game_term		mooncell
+霊基	灵基	game_term		mooncell
+霊核	灵核	game_term		mooncell
+霊脈	灵脉	game_term		mooncell
+霊子	灵子	game_term		mooncell
+霊子転移	灵子转移	game_term	レイシフト,Rayshift	mooncell
+レイシフト	灵子转移	game_term	Rayshift	mooncell
+霊衣	灵衣	game_term		mooncell
+聖杯探索	圣杯探索	game_term	Grand Order	mooncell
+グランドオーダー	冠位指定	game_term	Grand Order	mooncell
+冠位指定	冠位指定	game_term	Grand Order	mooncell
+抑止力	抑止力	game_term		mooncell
+根源	根源	game_term		mooncell
+アラヤ	阿赖耶	game_term		mooncell
+ガイア	盖亚	game_term		mooncell
+ムーンセル	月之圣杯	game_term	Moon Cell	mooncell
+聖剣	圣剑	game_term		mooncell
+円卓	圆桌	game_term		mooncell
+円卓の騎士	圆桌骑士	game_term		mooncell
+妖精	妖精	game_term		mooncell
+竜種	龙种	game_term		mooncell
+神霊	神灵	game_term		mooncell
+英霊召喚	英灵召唤	game_term		mooncell
+召喚	召唤	game_term		mooncell
+強化	强化	game_term		mooncell
+再臨	灵基再临	game_term	霊基再臨	mooncell
+霊基再臨	灵基再临	game_term	再臨	mooncell
+絆	牵绊	game_term		mooncell
+絆礼装	牵绊礼装	game_term		mooncell
+マナプリズム	魔力棱镜	item	绿方块	mooncell
+レアプリズム	稀有魔力棱镜	item	金方块	mooncell
+ピュアプリズム	纯净棱镜	item		mooncell
+QP	QP	item	量子	mooncell
+セイバー	剑士	class	Saber	mooncell
+アーチャー	弓兵	class	Archer	mooncell
+ランサー	枪兵	class	Lancer	mooncell
+ライダー	骑兵	class	Rider	mooncell
+キャスター	术士	class	Caster	mooncell
+アサシン	暗匿者	class	Assassin	mooncell
+バーサーカー	狂战士	class	Berserker	mooncell
+シールダー	盾兵	class	Shielder	mooncell
+ルーラー	裁定者	class	Ruler	mooncell
+アヴェンジャー	复仇者	class	Avenger	mooncell
+ムーンキャンサー	月之癌	class	MoonCancer	mooncell
+アルターエゴ	Alterego	class	Alter Ego	mooncell
+フォーリナー	Foreigner	class		mooncell
+プリテンダー	Pretender	class		mooncell
+ビースト	Beast	class		mooncell
+アルトリア・ペンドラゴン	阿尔托莉雅·潘德拉贡	character	アルトリア,Artoria	mooncell
+アーサー・ペンドラゴン	亚瑟·潘德拉贡	character	Arthur	mooncell
+エミヤ	卫宫	character		mooncell
+ギルガメッシュ	吉尔伽美什	character		mooncell
+エルキドゥ	恩奇都	character		mooncell
+クー・フーリン	库·丘林	character		mooncell
+メディア	美狄亚	character		mooncell
+メドゥーサ	美杜莎	character		mooncell
+ヘラクレス	赫拉克勒斯	character		mooncell
+ジャンヌ・ダルク	贞德	character	Jeanne d'Arc	mooncell
+ジャンヌ・ダルク〔オルタ〕	贞德〔Alter〕	character	ジャンヌ・オルタ,黑贞	mooncell
+ネロ・クラウディウス	尼禄·克劳狄乌斯	character	尼禄	mooncell
+玉藻の前	玉藻前	character		mooncell
+沖田総司	冲田总司	character		mooncell
+織田信長	织田信长	character		mooncell
+宮本武蔵	宫本武藏	character		mooncell
+マーリン	梅林	character		mooncell
+キングプロテア	帝王花	character		mooncell
+紅閻魔	红阎魔	character		mooncell
+スペース・イシュタル	宇宙伊什塔尔	character	Sイシュタル	mooncell
+イシュタル	伊什塔尔	character		mooncell
+エレシュキガル	埃列什基伽勒	character		mooncell
+BB	BB	character		mooncell
+殺生院キアラ	杀生院祈荒	character	キアラ	mooncell
+メルトリリス	梅尔特莉莉丝	character		mooncell
+パッションリップ	Passionlip	character		mooncell
+カーマ	迦摩	character		mooncell
+アルクェイド・ブリュンスタッド	爱尔奎特·布伦史塔德	character	アルクェイド	mooncell
+蒼崎青子	苍崎青子	character		mooncell
+久遠寺有珠	久远寺有珠	character		mooncell
+両儀式	两仪式	character		mooncell
+巌窟王	岩窟王	character	エドモン・ダンテス	mooncell
+エドモン・ダンテス	爱德蒙·唐泰斯	character	巌窟王	mooncell
+ナイチンゲール	南丁格尔	character		mooncell
+坂田金時	坂田金时	character		mooncell
+源頼光	源赖光	character		mooncell
+酒呑童子	酒吞童子	character		mooncell
+茨木童子	茨木童子	character		mooncell
+葛飾北斎	葛饰北斋	character		mooncell
+アビゲイル・ウィリアムズ	阿比盖尔·威廉姆斯	character	アビー	mooncell
+アスクレピオス	阿斯克勒庇俄斯	character		mooncell
+アキレウス	阿喀琉斯	character		mooncell
+オデュッセウス	奥德修斯	character		mooncell
+ロリンチ	小达·芬奇	character	少女ダ・ヴィンチ	mooncell
+謎のヒロインX	谜之女主角X	character	MHX	mooncell
+謎のヒロインXX	谜之女主角XX	character	MHXX	mooncell
+謎の蘭丸X	谜之兰丸X	character		mooncell

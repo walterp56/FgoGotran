@@ -93,6 +93,7 @@ class BackgroundDetector @Inject constructor() {
 
         val sampledColumns = ((bounds.width() + 1) / 2).coerceAtLeast(1)
         val minHeight = (bitmap.height * 0.03f).toInt().coerceAtLeast(16)
+        val maxHeight = (bitmap.height * 0.20f).toInt().coerceAtLeast(180)
         val edgePadding = (bitmap.height * 0.006f).toInt().coerceAtLeast(3)
         val buttons = mutableListOf<Rect>()
         var darkRunStart: Int? = null
@@ -104,13 +105,13 @@ class BackgroundDetector @Inject constructor() {
             if (isPanelRow && darkRunStart == null) {
                 darkRunStart = y
             } else if (!isPanelRow && darkRunStart != null) {
-                addChoiceButton(buttons, bounds, darkRunStart, y, minHeight, edgePadding)
+                addChoiceButton(buttons, bounds, darkRunStart, y, minHeight, maxHeight, edgePadding)
                 darkRunStart = null
             }
         }
 
         darkRunStart?.let {
-            addChoiceButton(buttons, bounds, it, bounds.bottom, minHeight, edgePadding)
+            addChoiceButton(buttons, bounds, it, bounds.bottom, minHeight, maxHeight, edgePadding)
         }
 
         FgoLogger.info(tag, "Choice zone detected ${buttons.size} panels in $bounds")
@@ -238,9 +239,18 @@ class BackgroundDetector @Inject constructor() {
         top: Int,
         bottom: Int,
         minHeight: Int,
+        maxHeight: Int,
         edgePadding: Int
     ) {
-        if (bottom - top < minHeight) return
+        val height = bottom - top
+        if (height < minHeight) return
+        if (height > maxHeight) {
+            FgoLogger.debug(
+                tag,
+                "Ignoring oversized choice-like panel height=$height max=$maxHeight bounds=Rect(${searchRegion.left}, $top - ${searchRegion.right}, $bottom)"
+            )
+            return
+        }
         buttons.add(
             Rect(
                 searchRegion.left,

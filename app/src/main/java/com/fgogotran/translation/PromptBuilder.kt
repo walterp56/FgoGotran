@@ -26,7 +26,9 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-v1"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v3"
+        private const val MAX_RAG_TERMS = 10
+        private const val MIN_TERM_MATCH_LENGTH = 2
 
         /**
          * System prompt with 7 translation rules.
@@ -41,7 +43,7 @@ class PromptBuilder @Inject constructor() {
          *   hallucinating a creative translation for terms not in the glossary.
          */
         private val SYSTEM_PROMPT = """
-You are translating Fate/Grand Order game dialogue from Japanese to Traditional Chinese.
+You are translating Fate/Grand Order game dialogue from Japanese to Simplified Chinese.
 
 Rules (MUST follow):
 1. TERMINOLOGY: Use ONLY the official Chinese translations provided below for proper nouns. Never invent new translations.
@@ -51,7 +53,7 @@ Rules (MUST follow):
 5. FORMAT: Return ONLY the translated Chinese text. No explanations, no notes, no markdown.
 6. CONTEXT AWARENESS: If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear.
 7. UNKNOWN TERMS: If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
-8. SCRIPT: Use Traditional Chinese characters by default. If a supplied official term is Simplified Chinese, convert it to natural Traditional Chinese unless it is a fixed proper noun.
+8. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
 """.trimIndent()
     }
 
@@ -124,18 +126,56 @@ Rules (MUST follow):
      * @return subset of terms that appear in the text
      */
     fun extractTermMatches(japaneseText: String, terms: List<TermEntity>): List<TermEntity> {
-        val matches = terms.filter { term ->
-            japaneseText.contains(term.jpName) ||
-            term.aliases?.let { aliases ->
-                // Aliases are stored as JSON array strings like ["alias1","alias2"]
-                // Strip JSON wrapper characters and split on comma
-                aliases.split(",").any { alias ->
-                    japaneseText.contains(alias.trim('"', '[', ']', ' '))
-                }
-            } ?: false
-        }
+        val normalizedText = normalizeForTermMatch(japaneseText)
+        if (normalizedText.isBlank()) return emptyList()
+
+        val matches = terms.asSequence()
+            .mapNotNull { term ->
+                val matchedLength = longestMatchedNeedleLength(normalizedText, term)
+                if (matchedLength > 0) term to matchedLength else null
+            }
+            .sortedWith(
+                compareByDescending<Pair<TermEntity, Int>> { it.second }
+                    .thenBy { it.first.category }
+                    .thenBy { it.first.jpName }
+            )
+            .map { it.first }
+            .distinctBy { it.jpName }
+            .take(MAX_RAG_TERMS)
+            .toList()
 
         FgoLogger.debug(tag, "Term matching: ${matches.size} of ${terms.size} terms matched")
         return matches
+    }
+
+    private fun longestMatchedNeedleLength(text: String, term: TermEntity): Int {
+        return candidateNeedles(term)
+            .filter { text.contains(it) }
+            .maxOfOrNull { it.length }
+            ?: 0
+    }
+
+    private fun candidateNeedles(term: TermEntity): List<String> {
+        return buildList {
+            normalizeForTermMatch(term.jpName)
+                .takeIf { it.length >= MIN_TERM_MATCH_LENGTH }
+                ?.let(::add)
+            term.aliases.orEmpty()
+                .split(',', '，', '\n')
+                .map { it.trim('"', '[', ']', ' ', '\t', '\r') }
+                .map(::normalizeForTermMatch)
+                .filter { it.length >= MIN_TERM_MATCH_LENGTH }
+                .forEach(::add)
+        }.distinct()
+    }
+
+    private fun normalizeForTermMatch(text: String): String {
+        return text
+            .trim()
+            .replace(Regex("""[\s　]+"""), "")
+            .replace('（', '(')
+            .replace('）', ')')
+            .replace('・', '·')
+            .replace('＝', '=')
     }
 }

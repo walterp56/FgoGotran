@@ -81,7 +81,8 @@ class Translator @Inject constructor(
     private val userProfile: UserProfile,
     private val termDao: TermDao,
     private val promptBuilder: PromptBuilder,
-    private val cacheDb: TranslationCacheDb
+    private val cacheDb: TranslationCacheDb,
+    private val translationMemory: TranslationMemory
 ) {
     private val httpClient = HttpClient {
         install(ContentNegotiation) {
@@ -123,6 +124,11 @@ class Translator @Inject constructor(
 
         if (normalizedText.isBlank()) {
             return TranslateResult("", "none", true)
+        }
+
+        translationMemory.lookupNormalized(normalizedText)?.let {
+            FgoLogger.info(tag, "Official CN memory HIT")
+            return TranslateResult(it, "official-cn", true)
         }
 
         val config = getRuntimeConfig()
@@ -227,6 +233,13 @@ class Translator @Inject constructor(
                 continue
             }
 
+            val officialMemory = translationMemory.lookupNormalized(normalizedText)
+            if (officialMemory != null) {
+                FgoLogger.info(tag, "Batch official CN memory HIT[$index]")
+                results[index] = TranslateResult(officialMemory, "official-cn", true)
+                continue
+            }
+
             if (cacheEnabled) {
                 val cached = cacheDao.getCached(hashes[index])
                 if (cached != null) {
@@ -323,24 +336,45 @@ class Translator @Inject constructor(
         var dialogueResult: TranslateResult? = null
         val choiceResults = MutableList<TranslateResult?>(input.choices.size) { null }
 
+        normalizedName?.let { normalized ->
+            translationMemory.lookupNormalized(normalized)?.let {
+                FgoLogger.info(tag, "Official CN memory HIT name")
+                nameResult = TranslateResult(it, "official-cn", true)
+            }
+        }
+        normalizedDialogue?.let { normalized ->
+            translationMemory.lookupNormalized(normalized)?.let {
+                FgoLogger.info(tag, "Official CN memory HIT dialogue")
+                dialogueResult = TranslateResult(it, "official-cn", true)
+            }
+        }
+        normalizedChoices.forEachIndexed { index, normalized ->
+            if (normalized == null) return@forEachIndexed
+            translationMemory.lookupNormalized(normalized)?.let {
+                FgoLogger.info(tag, "Official CN memory HIT choice[$index]")
+                choiceResults[index] = TranslateResult(it, "official-cn", true)
+            }
+        }
+
         val nameHash = normalizedName?.let { cacheKey(it, emptyList(), backend) }
         val dialogueHash = normalizedDialogue?.let { cacheKey(it, emptyList(), backend) }
         val choiceHashes = normalizedChoices.map { it?.let { text -> cacheKey(text, emptyList(), backend) } }
 
         if (cacheEnabled) {
-            if (normalizedName != null && nameHash != null) {
+            if (normalizedName != null && nameHash != null && nameResult == null) {
                 cacheDao.getCached(nameHash)?.let {
                     FgoLogger.info(tag, "Scene cache HIT name, hash=${nameHash.take(8)}...")
                     nameResult = TranslateResult(it, "cache", true)
                 }
             }
-            if (normalizedDialogue != null && dialogueHash != null) {
+            if (normalizedDialogue != null && dialogueHash != null && dialogueResult == null) {
                 cacheDao.getCached(dialogueHash)?.let {
                     FgoLogger.info(tag, "Scene cache HIT dialogue, hash=${dialogueHash.take(8)}...")
                     dialogueResult = TranslateResult(it, "cache", true)
                 }
             }
             for (index in normalizedChoices.indices) {
+                if (choiceResults[index] != null) continue
                 val hash = choiceHashes[index] ?: continue
                 cacheDao.getCached(hash)?.let {
                     FgoLogger.info(tag, "Scene cache HIT choice[$index], hash=${hash.take(8)}...")

@@ -1,71 +1,103 @@
 """
-Build fgo_terms.db from fgo_terms.json.
+Build the Android bundled Room database from term_builder/fgo_terms.json.
 
-Creates a Room-compatible SQLite database with FTS5 full-text search.
+Default output:
+  app/src/main/assets/db/fgo_terms.db
 """
+
+from __future__ import annotations
+
+import argparse
 import json
+import shutil
 import sqlite3
-import sys
+from pathlib import Path
+from typing import Any
 
 
-def build_db(json_path: str = "fgo_terms.json", db_path: str = "fgo_terms.db"):
-    with open(json_path, "r", encoding="utf-8") as f:
-        terms = json.load(f)
+ROOT = Path(__file__).resolve().parent
+REPO_ROOT = ROOT.parent
+DEFAULT_JSON = ROOT / "fgo_terms.json"
+DEFAULT_DB = REPO_ROOT / "app" / "src" / "main" / "assets" / "db" / "fgo_terms.db"
+
+
+def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None:
+    terms = json.loads(json_path.read_text(encoding="utf-8"))
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    if db_path.exists():
+        db_path.unlink()
+    for sidecar in (db_path.with_suffix(db_path.suffix + "-wal"), db_path.with_suffix(db_path.suffix + "-shm")):
+        if sidecar.exists():
+            sidecar.unlink()
 
     conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
-
-    # Main terms table (Room-compatible schema)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS terms (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            jp_name TEXT NOT NULL UNIQUE,
+    conn.execute("PRAGMA journal_mode=DELETE")
+    conn.execute("PRAGMA user_version=1")
+    conn.execute(
+        """
+        CREATE TABLE terms (
+            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+            jp_name TEXT NOT NULL,
             cn_name TEXT NOT NULL,
             category TEXT NOT NULL,
             aliases TEXT
         )
-    """)
+        """
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX index_terms_jp_name ON terms(jp_name)"
+    )
 
-    # FTS5 virtual table for fuzzy matching
-    conn.execute("""
-        CREATE VIRTUAL TABLE IF NOT EXISTS terms_fts USING fts5(
-            jp_name,
-            cn_name,
-            aliases,
-            category,
-            content=terms,
-            content_rowid=id
-        )
-    """)
-
-    # Insert data
-    for t in terms:
-        try:
-            conn.execute(
-                "INSERT OR IGNORE INTO terms (jp_name, cn_name, category, aliases) VALUES (?, ?, ?, ?)",
-                (t["jp_name"], t["cn_name"], t["category"], t.get("aliases", "[]"))
-            )
-        except Exception as e:
-            print(f"  skip: {t.get('jp_name', '?')} - {e}", file=sys.stderr)
+    for term in terms:
+        insert_term(conn, term)
 
     conn.commit()
-
-    # Populate FTS index
-    conn.execute("INSERT INTO terms_fts(terms_fts) VALUES('rebuild')")
-    conn.commit()
-
     count = conn.execute("SELECT COUNT(*) FROM terms").fetchone()[0]
-    print(f"Built {db_path} with {count} terms")
-
-    # Print category breakdown
-    cats = conn.execute(
+    categories = conn.execute(
         "SELECT category, COUNT(*) FROM terms GROUP BY category ORDER BY COUNT(*) DESC"
     ).fetchall()
-    for cat, cnt in cats:
-        print(f"  {cat}: {cnt}")
-
     conn.close()
+
+    print(f"Built {db_path} with {count} terms")
+    for category, category_count in categories:
+        print(f"  {category}: {category_count}")
+
+    local_copy = ROOT / "fgo_terms.db"
+    if local_copy.resolve() != db_path.resolve():
+        shutil.copy2(db_path, local_copy)
+        print(f"Copied local DB preview to {local_copy}")
+
+
+def insert_term(conn: sqlite3.Connection, term: dict[str, Any]) -> None:
+    jp_name = clean(term.get("jp_name"))
+    cn_name = clean(term.get("cn_name"))
+    category = clean(term.get("category")) or "term"
+    aliases = clean(term.get("aliases")) or "[]"
+    if not jp_name or not cn_name:
+        return
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO terms (jp_name, cn_name, category, aliases)
+        VALUES (?, ?, ?, ?)
+        """,
+        (jp_name, cn_name, category, aliases),
+    )
+
+
+def clean(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json", type=Path, default=DEFAULT_JSON)
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    args = parser.parse_args()
+    build_db(args.json, args.db)
 
 
 if __name__ == "__main__":
-    build_db()
+    main()

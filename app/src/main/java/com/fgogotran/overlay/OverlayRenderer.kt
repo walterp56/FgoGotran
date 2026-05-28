@@ -13,7 +13,8 @@ import javax.inject.Singleton
  */
 data class RenderInstruction(
     val region: ClassifiedRegion,
-    val translatedText: String
+    val translatedText: String,
+    val textColor: Int? = null
 )
 
 /**
@@ -31,8 +32,7 @@ data class RenderInstruction(
  * This works with light OR dark backgrounds without needing to detect background brightness.
  *
  * ## Font
- * Uses NotoSansCJKsc-Regular.otf (Noto Sans CJK SC) for proper Simplified Chinese rendering.
- * Falls back to the system default typeface if the font file is missing.
+ * Uses the configured FGO story font asset if present, then falls back to the bundled CJK font.
  */
 @Singleton
 class OverlayRenderer @Inject constructor(
@@ -71,13 +71,7 @@ class OverlayRenderer @Inject constructor(
     private val tag = "OverlayRenderer"
 
     init {
-        try {
-            typeface = Typeface.createFromAsset(context.assets, "fonts/NotoSansCJKsc-Regular.otf")
-            FgoLogger.info(tag, "CJK font loaded successfully")
-        } catch (e: Exception) {
-            FgoLogger.warn(tag, "Font load failed, using system default", e)
-            typeface = Typeface.DEFAULT
-        }
+        typeface = FgoTypefaceProvider.storyTypeface(context)
         textPaint.typeface = typeface ?: Typeface.DEFAULT
     }
 
@@ -104,6 +98,9 @@ class OverlayRenderer @Inject constructor(
         textPaint.apply {
             typeface = this@OverlayRenderer.typeface ?: Typeface.DEFAULT
             textAlign = Paint.Align.LEFT
+            isFakeBoldText = false
+            isSubpixelText = true
+            isLinearText = true
             clearShadowLayer()
         }
 
@@ -139,6 +136,7 @@ class OverlayRenderer @Inject constructor(
         instruction: RenderInstruction
     ) {
         val box = instruction.region.boundingBox
+        val scale = screenScale(canvas)
 
         canvas.drawRoundRect(
             box.left.toFloat(), box.top.toFloat(),
@@ -146,7 +144,6 @@ class OverlayRenderer @Inject constructor(
             12f, 12f, dialogueClearPaint
         )
 
-        val scale = box.height() / 225f
         val leftInset = 92f * scale
         val textArea = RectF(
             box.left + leftInset,
@@ -155,7 +152,8 @@ class OverlayRenderer @Inject constructor(
             box.bottom - 18f * scale
         )
 
-        paint.color = FGO_TEXT_COLOR
+        val textColor = instruction.textColor ?: FGO_TEXT_COLOR
+        paint.color = textColor
         val (lines, lineHeight) = fitWrappedText(
             text = instruction.translatedText,
             paint = paint,
@@ -174,7 +172,8 @@ class OverlayRenderer @Inject constructor(
             lines = lines,
             x = textArea.left,
             firstBaseline = firstBaseline,
-            lineHeight = lineHeight
+            lineHeight = lineHeight,
+            textColor = textColor
         )
         canvas.restore()
     }
@@ -188,12 +187,12 @@ class OverlayRenderer @Inject constructor(
         instruction: RenderInstruction
     ) {
         val box = instruction.region.boundingBox
-        val scale = box.height() / 90f
+        val scale = screenScale(canvas)
         val name = instruction.translatedText.trim()
         val minimumRenderedWidth = MIN_NAME_PLATE_WIDTH * scale
 
         paint.apply {
-            color = FGO_TEXT_COLOR
+            color = instruction.textColor ?: FGO_TEXT_COLOR
             textSize = 48f * scale
         }
 
@@ -230,7 +229,8 @@ class OverlayRenderer @Inject constructor(
             lines = listOf(fittedName),
             x = textArea.left,
             firstBaseline = textArea.top - paint.fontMetrics.ascent,
-            lineHeight = paint.textSize
+            lineHeight = paint.textSize,
+            textColor = instruction.textColor ?: FGO_TEXT_COLOR
         )
         canvas.restore()
     }
@@ -244,7 +244,7 @@ class OverlayRenderer @Inject constructor(
         instruction: RenderInstruction
     ) {
         val box = instruction.region.boundingBox
-        val scale = box.height() / 122f
+        val scale = screenScale(canvas)
 
         canvas.drawRoundRect(
             box.left + 18f * scale, box.top + 8f * scale,
@@ -259,8 +259,9 @@ class OverlayRenderer @Inject constructor(
             box.right - 52f * scale,
             box.bottom - 12f * scale
         )
+        val textColor = instruction.textColor ?: FGO_TEXT_COLOR
         paint.apply {
-            color = FGO_TEXT_COLOR
+            color = textColor
         }
         val text = fitSingleLine(
             text = instruction.translatedText.trim(),
@@ -280,7 +281,7 @@ class OverlayRenderer @Inject constructor(
         paint.setShadowLayer(2f * scale, shadowOffset * scale, shadowOffset * scale, Color.BLACK)
         canvas.drawText(text, x, y, paint)
         paint.clearShadowLayer()
-        paint.color = FGO_TEXT_COLOR
+        paint.color = textColor
         canvas.drawText(text, x, y, paint)
         canvas.restore()
     }
@@ -363,15 +364,21 @@ class OverlayRenderer @Inject constructor(
         lines: List<String>,
         x: Float,
         firstBaseline: Float,
-        lineHeight: Float
+        lineHeight: Float,
+        textColor: Int
     ) {
         for ((index, line) in lines.withIndex()) {
             val y = firstBaseline + index * lineHeight
             paint.setShadowLayer(2f, shadowOffset, shadowOffset, Color.BLACK)
+            paint.color = textColor
             canvas.drawText(line, x, y, paint)
             paint.clearShadowLayer()
-            paint.color = FGO_TEXT_COLOR
+            paint.color = textColor
             canvas.drawText(line, x, y, paint)
         }
+    }
+
+    private fun screenScale(canvas: Canvas): Float {
+        return (canvas.height / 1080f).coerceIn(0.6f, 1.4f)
     }
 }

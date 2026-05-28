@@ -1,178 +1,250 @@
 """
-Fetch FGO terminology data from Atlas Academy API.
+Fetch FGO terms from Atlas Academy and merge optional Mooncell CN TSV terms.
 
-Produces a JSON file with JP→CN term mappings for:
-- Servants (name + noble phantasms + skills)
-- Craft Essences
-- Items / Materials
+Outputs:
+  term_builder/fgo_terms.json
+
+Atlas is used for structured JP/CN game data where both regions expose the same
+stable IDs. Mooncell is intentionally ingested from a local TSV so you can curate
+or export CN terms without making the Android app depend on fragile wiki HTML.
 """
 
+from __future__ import annotations
+
+import argparse
+import csv
 import json
-import requests
 import sys
 import time
+from pathlib import Path
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
 
 ATLAS_BASE = "https://api.atlasacademy.io"
-HEADERS = {"Accept": "application/json"}
+HEADERS = {"Accept": "application/json", "User-Agent": "fgoGotran-term-builder/1.0"}
 
-def fetch_json(endpoint: str, retries: int = 3) -> dict | list:
+ROOT = Path(__file__).resolve().parent
+DEFAULT_OUTPUT = ROOT / "fgo_terms.json"
+DEFAULT_MOONCELL_TSV = ROOT / "mooncell_terms.tsv"
+
+
+COMMON_TERMS = [
+    ("カルデア", "迦勒底", "place", ["Chaldea"]),
+    ("マスター", "御主", "game_term", ["Master"]),
+    ("サーヴァント", "从者", "game_term", ["Servant"]),
+    ("英霊", "英灵", "game_term", []),
+    ("宝具", "宝具", "game_term", ["Noble Phantasm"]),
+    ("聖杯", "圣杯", "game_term", []),
+    ("聖杯戦争", "圣杯战争", "game_term", []),
+    ("令呪", "令咒", "game_term", []),
+    ("霊基", "灵基", "game_term", []),
+    ("霊衣", "灵衣", "game_term", []),
+    ("魔術", "魔术", "game_term", []),
+    ("魔術師", "魔术师", "game_term", []),
+    ("魔力", "魔力", "game_term", []),
+    ("特異点", "特异点", "game_term", []),
+    ("異聞帯", "异闻带", "game_term", []),
+    ("空想樹", "空想树", "game_term", []),
+    ("人理", "人理", "game_term", []),
+    ("人理修復", "人理修复", "game_term", []),
+    ("レイシフト", "灵子转移", "game_term", ["Rayshift"]),
+    ("シールダー", "盾兵", "class", ["Shielder"]),
+    ("セイバー", "剑士", "class", ["Saber"]),
+    ("アーチャー", "弓兵", "class", ["Archer"]),
+    ("ランサー", "枪兵", "class", ["Lancer"]),
+    ("ライダー", "骑兵", "class", ["Rider"]),
+    ("キャスター", "术师", "class", ["Caster"]),
+    ("アサシン", "暗匿者", "class", ["Assassin"]),
+    ("バーサーカー", "狂战士", "class", ["Berserker"]),
+    ("ルーラー", "裁定者", "class", ["Ruler"]),
+    ("アヴェンジャー", "复仇者", "class", ["Avenger"]),
+    ("ムーンキャンサー", "MoonCancer", "class", []),
+    ("アルターエゴ", "Alterego", "class", []),
+    ("フォーリナー", "Foreigner", "class", []),
+    ("プリテンダー", "Pretender", "class", []),
+]
+
+
+def fetch_json(endpoint: str, retries: int = 3) -> Any:
     url = f"{ATLAS_BASE}{endpoint}"
-    for attempt in range(retries):
+    for attempt in range(1, retries + 1):
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=30)
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            if attempt == retries - 1:
-                print(f"Failed to fetch {url}: {e}", file=sys.stderr)
-                return [] if "all" in endpoint else {}
-            time.sleep(1)
-    return []
+            request = Request(url, headers=HEADERS)
+            with urlopen(request, timeout=45) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+            if attempt == retries:
+                print(f"warning: failed to fetch {url}: {exc}", file=sys.stderr)
+                return [] if endpoint.endswith(".json") else {}
+            time.sleep(attempt)
 
 
-def main():
-    terms = []  # list of {jp_name, cn_name, category, aliases}
+def add_term(
+    terms: list[dict[str, Any]],
+    jp_name: str | None,
+    cn_name: str | None,
+    category: str,
+    aliases: list[str] | None = None,
+    source: str = "atlas",
+) -> None:
+    jp = clean_text(jp_name)
+    cn = clean_text(cn_name)
+    if not jp or not cn or jp == cn:
+        return
+    clean_aliases = sorted(
+        {
+            clean_text(alias)
+            for alias in (aliases or [])
+            if clean_text(alias) and clean_text(alias) != jp
+        }
+    )
+    terms.append(
+        {
+            "jp_name": jp,
+            "cn_name": cn,
+            "category": category,
+            "aliases": json.dumps(clean_aliases, ensure_ascii=False),
+            "source": source,
+        }
+    )
 
-    print("Fetching CN region servants...")
-    cn_servants_raw = fetch_json("/export/CN/servant/all.json")
-    cn_servants = {}
-    if isinstance(cn_servants_raw, list):
-        for s in cn_servants_raw:
-            sid = s.get("collectionNo") or s.get("id")
-            cn_servants[sid] = s.get("name", "")
 
-    print(f"  -> {len(cn_servants)} CN servant names loaded")
+def clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
 
-    print("Fetching JP region servants...")
-    jp_servants_raw = fetch_json("/export/JP/servant/all.json")
-    jp_servants = []
-    if isinstance(jp_servants_raw, list):
-        jp_servants = jp_servants_raw
 
-    print(f"  -> {len(jp_servants)} JP servants loaded")
+def by_key(rows: Any, key_name: str = "id") -> dict[Any, dict[str, Any]]:
+    if not isinstance(rows, list):
+        return {}
+    result = {}
+    for row in rows:
+        key = row.get(key_name)
+        if key is not None:
+            result[key] = row
+    return result
 
-    for s in jp_servants:
-        sid = s.get("collectionNo") or s.get("id")
-        jp_name = s.get("name", "")
-        cn_name = cn_servants.get(sid, "")
-        if jp_name and cn_name and jp_name != cn_name:
-            aliases = []
-            # Add ruby-free name if present
-            ruby = s.get("ruby", "")
-            if ruby and ruby != jp_name:
-                aliases.append(ruby)
-            terms.append({
-                "jp_name": jp_name,
-                "cn_name": cn_name,
-                "category": "servant",
-                "aliases": json.dumps(aliases, ensure_ascii=False)
-            })
 
-        # Noble Phantasms
-        for np in s.get("noblePhantasms", []):
-            np_jp = np.get("originalName", "") or np.get("name", "")
-            np_cn = np.get("name", "")
-            if np_jp and np_cn and np_jp != np_cn:
-                terms.append({
-                    "jp_name": np_jp,
-                    "cn_name": np_cn,
-                    "category": "noble_phantasm",
-                    "aliases": "[]"
-                })
+def ingest_common_terms(terms: list[dict[str, Any]]) -> None:
+    for jp, cn, category, aliases in COMMON_TERMS:
+        add_term(terms, jp, cn, category, aliases, "manual")
 
-        # Skills
-        for sk in s.get("skills", []):
-            sk_jp = sk.get("originalName", "") or sk.get("name", "")
-            sk_cn = sk.get("name", "")
-            if sk_jp and sk_cn and sk_jp != sk_cn:
-                terms.append({
-                    "jp_name": sk_jp,
-                    "cn_name": sk_cn,
-                    "category": "skill",
-                    "aliases": "[]"
-                })
 
-    print(f"  -> {len(terms)} terms extracted from servants")
+def ingest_servants(terms: list[dict[str, Any]]) -> None:
+    jp_servants = fetch_json("/export/JP/servant/all.json")
+    cn_servants = by_key(fetch_json("/export/CN/servant/all.json"), "collectionNo")
+    if not isinstance(jp_servants, list):
+        return
 
-    print("Fetching Craft Essences...")
-    ce_raw = fetch_json("/export/JP/nice_CE.json")
-    if isinstance(ce_raw, list):
-        for ce in ce_raw:
-            ce_jp = ce.get("originalName", "") or ce.get("name", "")
-            ce_cn = ce.get("name", "")
-            if ce_jp and ce_cn and ce_jp != ce_cn:
-                terms.append({
-                    "jp_name": ce_jp,
-                    "cn_name": ce_cn,
-                    "category": "craft_essence",
-                    "aliases": "[]"
-                })
-    print(f"  -> {len(terms)} total terms after Craft Essences")
+    for servant in jp_servants:
+        collection_no = servant.get("collectionNo")
+        cn_servant = cn_servants.get(collection_no, {})
+        aliases = [servant.get("ruby"), servant.get("battleName")]
+        add_term(terms, servant.get("name"), cn_servant.get("name"), "servant", aliases)
 
-    print("Fetching Items...")
-    items_raw = fetch_json("/export/JP/nice_item.json")
-    if isinstance(items_raw, list):
-        for item in items_raw:
-            item_jp = item.get("originalName", "") or item.get("name", "")
-            item_cn = item.get("name", "")
-            if item_jp and item_cn and item_jp != item_cn:
-                terms.append({
-                    "jp_name": item_jp,
-                    "cn_name": item_cn,
-                    "category": "item",
-                    "aliases": "[]"
-                })
-    print(f"  -> {len(terms)} total terms after Items")
+        jp_nps = servant.get("noblePhantasms") or []
+        cn_nps = by_key(cn_servant.get("noblePhantasms") or [], "id")
+        for jp_np in jp_nps:
+            cn_np = cn_nps.get(jp_np.get("id"), {})
+            jp_name = jp_np.get("originalName") or jp_np.get("name")
+            cn_name = cn_np.get("name")
+            add_term(terms, jp_name, cn_name, "noble_phantasm")
 
-    # Add common FGO gameplay terms (hardcoded)
-    common_terms = [
-        {"jp_name": "マスター", "cn_name": "御主", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "サーヴァント", "cn_name": "从者", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "宝具", "cn_name": "宝具", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "令呪", "cn_name": "令咒", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "聖晶石", "cn_name": "圣晶石", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "カルデア", "cn_name": "迦勒底", "category": "location", "aliases": "[]"},
-        {"jp_name": "人理", "cn_name": "人理", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "特異点", "cn_name": "特异点", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "異聞帯", "cn_name": "异闻带", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "霊基", "cn_name": "灵基", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "概念礼装", "cn_name": "概念礼装", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "絆", "cn_name": "羁绊", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "魔術回路", "cn_name": "魔术回路", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "聖杯", "cn_name": "圣杯", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "聖杯戦争", "cn_name": "圣杯战争", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "クラス", "cn_name": "职阶", "category": "game_term", "aliases": "[]"},
-        {"jp_name": "セイバー", "cn_name": "剑士", "category": "class", "aliases": "[]"},
-        {"jp_name": "アーチャー", "cn_name": "弓兵", "category": "class", "aliases": "[]"},
-        {"jp_name": "ランサー", "cn_name": "枪兵", "category": "class", "aliases": "[]"},
-        {"jp_name": "ライダー", "cn_name": "骑兵", "category": "class", "aliases": "[]"},
-        {"jp_name": "キャスター", "cn_name": "魔术师", "category": "class", "aliases": "[]"},
-        {"jp_name": "アサシン", "cn_name": "暗杀者", "category": "class", "aliases": "[]"},
-        {"jp_name": "バーサーカー", "cn_name": "狂战士", "category": "class", "aliases": "[]"},
-        {"jp_name": "ルーラー", "cn_name": "裁定者", "category": "class", "aliases": "[]"},
-        {"jp_name": "アヴェンジャー", "cn_name": "复仇者", "category": "class", "aliases": "[]"},
-        {"jp_name": "アルターエゴ", "cn_name": "他人格", "category": "class", "aliases": "[]"},
-        {"jp_name": "ムーンキャンサー", "cn_name": "月之癌", "category": "class", "aliases": "[]"},
-        {"jp_name": "フォーリナー", "cn_name": "降临者", "category": "class", "aliases": "[]"},
-        {"jp_name": "プリテンダー", "cn_name": "伪装者", "category": "class", "aliases": "[]"},
-        {"jp_name": "シールダー", "cn_name": "盾兵", "category": "class", "aliases": "[]"},
-    ]
-    terms.extend(common_terms)
+        jp_skills = servant.get("skills") or []
+        cn_skills = by_key(cn_servant.get("skills") or [], "id")
+        for jp_skill in jp_skills:
+            cn_skill = cn_skills.get(jp_skill.get("id"), {})
+            jp_name = jp_skill.get("originalName") or jp_skill.get("name")
+            cn_name = cn_skill.get("name")
+            add_term(terms, jp_name, cn_name, "skill")
 
-    # Deduplicate by jp_name, keeping first occurrence
-    seen = set()
-    unique_terms = []
-    for t in terms:
-        if t["jp_name"] not in seen:
-            seen.add(t["jp_name"])
-            unique_terms.append(t)
 
-    print(f"\nTotal unique terms: {len(unique_terms)}")
+def ingest_pair_export(
+    terms: list[dict[str, Any]],
+    endpoint_name: str,
+    category: str,
+    key_name: str = "id",
+) -> None:
+    jp_rows = fetch_json(f"/export/JP/{endpoint_name}.json")
+    cn_rows = by_key(fetch_json(f"/export/CN/{endpoint_name}.json"), key_name)
+    if not isinstance(jp_rows, list):
+        return
 
-    output_path = "fgo_terms.json"
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(unique_terms, f, ensure_ascii=False, indent=2)
-    print(f"Saved to {output_path}")
+    for jp_row in jp_rows:
+        cn_row = cn_rows.get(jp_row.get(key_name), {})
+        jp_name = jp_row.get("originalName") or jp_row.get("name")
+        cn_name = cn_row.get("name")
+        add_term(terms, jp_name, cn_name, category)
+
+
+def ingest_mooncell_tsv(terms: list[dict[str, Any]], path: Path) -> None:
+    if not path.exists():
+        print(f"Mooncell TSV not found, skipping: {path}")
+        return
+
+    with path.open("r", encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file, delimiter="\t")
+        required = {"jp_name", "cn_name"}
+        if not required.issubset(reader.fieldnames or []):
+            raise SystemExit(
+                f"{path} must contain at least columns: jp_name, cn_name"
+            )
+        for row in reader:
+            aliases = [
+                alias.strip()
+                for alias in (row.get("aliases") or "").replace("，", ",").split(",")
+                if alias.strip()
+            ]
+            add_term(
+                terms,
+                row.get("jp_name"),
+                row.get("cn_name"),
+                row.get("category") or "mooncell",
+                aliases,
+                row.get("source") or "mooncell",
+            )
+
+
+def dedupe_terms(terms: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    priority = {"manual": 0, "mooncell": 1, "atlas": 2}
+    merged: dict[str, dict[str, Any]] = {}
+    for term in sorted(terms, key=lambda item: priority.get(item.get("source"), 9)):
+        key = term["jp_name"]
+        if key not in merged:
+            merged[key] = term
+            continue
+        old_aliases = set(json.loads(merged[key].get("aliases") or "[]"))
+        new_aliases = set(json.loads(term.get("aliases") or "[]"))
+        merged[key]["aliases"] = json.dumps(sorted(old_aliases | new_aliases), ensure_ascii=False)
+    return sorted(merged.values(), key=lambda item: (item["category"], item["jp_name"]))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mooncell-tsv", type=Path, default=DEFAULT_MOONCELL_TSV)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--skip-atlas", action="store_true")
+    args = parser.parse_args()
+
+    terms: list[dict[str, Any]] = []
+    ingest_common_terms(terms)
+    ingest_mooncell_tsv(terms, args.mooncell_tsv)
+
+    if not args.skip_atlas:
+        ingest_servants(terms)
+        ingest_pair_export(terms, "nice_item", "item")
+        ingest_pair_export(terms, "nice_equip", "craft_essence")
+
+    unique_terms = dedupe_terms(terms)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(
+        json.dumps(unique_terms, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"Wrote {len(unique_terms)} terms to {args.output}")
 
 
 if __name__ == "__main__":

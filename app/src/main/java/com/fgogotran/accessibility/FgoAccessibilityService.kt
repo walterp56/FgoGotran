@@ -76,6 +76,9 @@ class FgoAccessibilityService : AccessibilityService() {
     private var autoScanReadyAt = 0L
     private var renderedChoiceBounds: List<Rect> = emptyList()
     private var waitingForChoiceSelectionExit = false
+    private var isForwardingOverlayTap = false
+    private var choiceOcrSuppressedUntil = 0L
+    private var suppressedChoiceBoundsKey = ""
 
     companion object {
         const val FGO_PACKAGE = "com.aniplex.fategrandorder"
@@ -84,7 +87,9 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val CAPTURE_SETTLE_DELAY = 16L
         private const val MANUAL_MENU_DISMISS_SETTLE_DELAY = 300L
         private const val TAP_OVERLAY_REMOVAL_DELAY = 1000L
+        private const val TAP_PASSTHROUGH_SETTLE_DELAY = 32L
         private const val TAP_REPLAY_TIMEOUT = 500L
+        private const val EMPTY_CHOICE_OCR_COOLDOWN = 250L
         private const val FRESHNESS_CHECK_TRANSLATION_DELAY = 400L
 
         private val _serviceStarted = mutableStateOf(false)
@@ -193,6 +198,9 @@ class FgoAccessibilityService : AccessibilityService() {
         lastRenderedSourceText = ""
         renderedChoiceBounds = emptyList()
         waitingForChoiceSelectionExit = false
+        isForwardingOverlayTap = false
+        choiceOcrSuppressedUntil = 0L
+        suppressedChoiceBoundsKey = ""
         translationOverlay.hide()
     }
 
@@ -301,7 +309,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
             restoreHiddenOverlay = false
             val translationStartedAt = SystemClock.elapsedRealtime()
-            val instructions = buildRenderInstructions(classifiedRegions)
+            val instructions = buildRenderInstructions(source, classifiedRegions)
             val translationDuration = SystemClock.elapsedRealtime() - translationStartedAt
 
             if (instructions.isEmpty()) {
@@ -352,7 +360,10 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private suspend fun buildRenderInstructions(regions: List<ClassifiedRegion>): List<RenderInstruction> {
+    private suspend fun buildRenderInstructions(
+        source: Bitmap,
+        regions: List<ClassifiedRegion>
+    ): List<RenderInstruction> {
         val translatableRegions = regions.mapNotNull { region ->
             val sourceText = region.lines.joinToString("\n") { it.text }.trim()
             if (sourceText.isBlank()) null else region to sourceText
@@ -381,33 +392,78 @@ class FgoAccessibilityService : AccessibilityService() {
             } ?: return@mapNotNull null
             RenderInstruction(
                 region = regionAndText.first,
-                translatedText = translatedText
+                translatedText = translatedText,
+                textColor = sampleOriginalTextColor(source, regionAndText.first)
             )
         }
     }
 
-    private fun addHistoryEntry(instructions: List<RenderInstruction>) {
-        val name = instructions
-            .firstOrNull { it.region.region == TextRegion.NAME_LABEL }
-            ?.translatedText
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-        val dialogue = instructions
-            .firstOrNull { it.region.region == TextRegion.DIALOGUE_BOX }
-            ?.translatedText
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-        val choices = instructions
-            .filter { it.region.region == TextRegion.CHOICE_BUTTON }
-            .map { it.translatedText.trim() }
-            .filter { it.isNotBlank() }
+    private fun sampleOriginalTextColor(source: Bitmap, region: ClassifiedRegion): Int? {
+        var redScore = 0
+        var cyanScore = 0
+        var whiteScore = 0
 
-        if (name != null || dialogue != null || choices.isNotEmpty()) {
+        for (line in region.lines) {
+            val bounds = Rect(line.boundingBox)
+            bounds.intersect(0, 0, source.width, source.height)
+            if (bounds.width() <= 0 || bounds.height() <= 0) continue
+
+            for (y in bounds.top until bounds.bottom step 2) {
+                for (x in bounds.left until bounds.right step 2) {
+                    val pixel = source.getPixel(x, y)
+                    val r = (pixel shr 16) and 0xFF
+                    val g = (pixel shr 8) and 0xFF
+                    val b = pixel and 0xFF
+                    val max = maxOf(r, g, b)
+                    val min = minOf(r, g, b)
+                    val spread = max - min
+
+                    if (r >= 180 && g <= 125 && b <= 125 && r - maxOf(g, b) >= 45) {
+                        redScore++
+                    } else if (g >= 150 && b >= 150 && r <= 130 && minOf(g, b) - r >= 45) {
+                        cyanScore++
+                    } else if (r >= 175 && g >= 175 && b >= 175 && spread <= 70) {
+                        whiteScore++
+                    }
+                }
+            }
+        }
+
+        return when {
+            cyanScore >= 8 && cyanScore >= redScore && cyanScore > whiteScore / 3 -> android.graphics.Color.rgb(80, 235, 235)
+            redScore >= 8 && redScore > whiteScore / 3 -> android.graphics.Color.rgb(255, 80, 80)
+            whiteScore > 0 -> android.graphics.Color.rgb(245, 245, 240)
+            else -> null
+        }
+    }
+
+    private fun addHistoryEntry(instructions: List<RenderInstruction>) {
+        val nameInstruction = instructions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
+        val dialogueInstruction = instructions.firstOrNull { it.region.region == TextRegion.DIALOGUE_BOX }
+        val choiceInstructions = instructions.filter { it.region.region == TextRegion.CHOICE_BUTTON }
+
+        val name = nameInstruction
+            ?.translatedText
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val dialogue = dialogueInstruction
+            ?.translatedText
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val choicePairs = choiceInstructions
+            .map { it.translatedText.trim() }
+            .zip(choiceInstructions.map { it.textColor })
+            .filter { it.first.isNotBlank() }
+
+        if (name != null || dialogue != null || choicePairs.isNotEmpty()) {
             SessionTranslationHistory.add(
                 SessionTranslationEntry(
                     speakerName = name,
                     dialogueText = dialogue,
-                    choices = choices
+                    choices = choicePairs.map { it.first },
+                    speakerNameColor = nameInstruction?.textColor,
+                    dialogueTextColor = dialogueInstruction?.textColor,
+                    choiceColors = choicePairs.map { it.second }
                 )
             )
         }
@@ -448,13 +504,33 @@ class FgoAccessibilityService : AccessibilityService() {
         source: Bitmap,
         screenRegions: FgoScreenRegions
     ): List<ClassifiedRegion> {
+        val now = SystemClock.elapsedRealtime()
         val choiceBounds = withContext(Dispatchers.Default) {
             backgroundDetector.detectChoiceButtons(source, screenRegions.choiceSearch)
         }
+        if (choiceBounds.isEmpty()) return emptyList()
+
+        val choiceBoundsKey = choiceBounds.joinToString("|") { it.flattenToString() }
+        if (now < choiceOcrSuppressedUntil && choiceBoundsKey == suppressedChoiceBoundsKey) {
+            FgoLogger.debug(tag, "Skipping same empty choice panel during cooldown")
+            return emptyList()
+        }
+
         val choiceRegions = coroutineScope {
             choiceBounds.map { bounds ->
                 async { recognizeScreenRegion(source, bounds, TextRegion.CHOICE_BUTTON) }
             }.awaitAll().filterNotNull()
+        }
+        if (choiceRegions.isEmpty()) {
+            choiceOcrSuppressedUntil = now + EMPTY_CHOICE_OCR_COOLDOWN
+            suppressedChoiceBoundsKey = choiceBoundsKey
+            FgoLogger.debug(
+                tag,
+                "Detected ${choiceBounds.size} choice panel(s) with no OCR text; briefly suppressing same panels"
+            )
+        } else {
+            choiceOcrSuppressedUntil = 0L
+            suppressedChoiceBoundsKey = ""
         }
         return choiceRegions
     }
@@ -548,6 +624,10 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun handleTranslatedOverlayTap(x: Float, y: Float) {
+        if (isForwardingOverlayTap) {
+            FgoLogger.debug(tag, "Ignoring duplicate translated overlay tap while replay is active")
+            return
+        }
         if (isProcessing) {
             FgoLogger.debug(tag, "Ignoring translated overlay tap while processing")
             return
@@ -561,30 +641,37 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         serviceScope.launch {
+            isForwardingOverlayTap = true
             if (!canPerformGestures()) {
                 FgoLogger.warn(tag, "Gesture injection is not granted; disable and re-enable accessibility service")
+                isForwardingOverlayTap = false
                 return@launch
             }
-            FgoLogger.debug(tag, "Translated overlay tapped; forwarding to FGO at $x,$y")
-            translationOverlay.setTranslatedOverlayTouchable(false)
-            val dispatched = try {
-                withTimeoutOrNull(TAP_REPLAY_TIMEOUT) {
-                    dispatchTapToFgo(x, y)
-                } ?: run {
-                    FgoLogger.warn(tag, "Overlay tap replay timed out")
+            try {
+                FgoLogger.debug(tag, "Translated overlay tapped; forwarding to FGO at $x,$y")
+                translationOverlay.setTranslatedOverlayTouchable(false)
+                delay(TAP_PASSTHROUGH_SETTLE_DELAY)
+                val dispatched = try {
+                    withTimeoutOrNull(TAP_REPLAY_TIMEOUT) {
+                        dispatchTapToFgo(x, y)
+                    } ?: run {
+                        FgoLogger.warn(tag, "Overlay tap replay timed out")
+                        false
+                    }
+                } catch (e: Exception) {
+                    FgoLogger.error(tag, "Overlay tap replay failed", e)
                     false
                 }
-            } catch (e: Exception) {
-                FgoLogger.error(tag, "Overlay tap replay failed", e)
-                false
-            }
-            if (dispatched) {
-                FgoLogger.debug(tag, "Overlay tap replay completed; waiting for changed dialogue")
-                delay(TAP_OVERLAY_REMOVAL_DELAY)
-                translationOverlay.hideForCapture()
-            } else {
-                FgoLogger.warn(tag, "Overlay tap replay failed; restoring current translation")
-                translationOverlay.setTranslatedOverlayTouchable(true)
+                if (dispatched) {
+                    FgoLogger.debug(tag, "Overlay tap replay completed; waiting for changed dialogue")
+                    delay(TAP_OVERLAY_REMOVAL_DELAY)
+                    translationOverlay.hideForCapture()
+                } else {
+                    FgoLogger.warn(tag, "Overlay tap replay failed; restoring current translation")
+                    translationOverlay.setTranslatedOverlayTouchable(true)
+                }
+            } finally {
+                isForwardingOverlayTap = false
             }
         }
     }

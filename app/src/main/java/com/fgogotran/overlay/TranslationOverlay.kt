@@ -165,6 +165,7 @@ class TranslationOverlay @Inject constructor(
         overlayView?.let {
             it.setImageBitmap(bitmap)
             it.visibility = View.VISIBLE
+            it.alpha = 1f
             isOverlayShowing = true
             setTranslatedOverlayTouchable(true)
             FgoLogger.info(tag, "Showing translated image: ${bitmap.width}x${bitmap.height}")
@@ -173,6 +174,7 @@ class TranslationOverlay @Inject constructor(
 
         val imageView = ImageView(context).apply {
             setImageBitmap(bitmap)
+            alpha = 1f
             scaleType = ImageView.ScaleType.FIT_XY
             setOnTouchListener { _, event ->
                 if (event.action == MotionEvent.ACTION_UP) {
@@ -246,14 +248,14 @@ class TranslationOverlay @Inject constructor(
 
     private fun hideOverlayView(clearBitmap: Boolean) {
         overlayView?.let {
-            it.visibility = View.INVISIBLE
+            it.alpha = 0f
             if (clearBitmap) {
                 it.setImageBitmap(null)
             }
             FgoLogger.info(tag, "Overlay hidden")
         }
         isOverlayShowing = false
-        setTranslatedOverlayTouchable(true)
+        setTranslatedOverlayTouchable(false)
         if (clearBitmap) {
             latestTranslatedBitmap = null
         }

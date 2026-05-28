@@ -8,6 +8,9 @@ data class SessionTranslationEntry(
     val speakerName: String? = null,
     val dialogueText: String? = null,
     val choices: List<String> = emptyList(),
+    val speakerNameColor: Int? = null,
+    val dialogueTextColor: Int? = null,
+    val choiceColors: List<Int?> = emptyList(),
     val createdAt: Long = System.currentTimeMillis()
 )
 

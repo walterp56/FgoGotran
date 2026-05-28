@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
 
@@ -143,7 +144,7 @@ private fun addHistoryEntryViews(
             historyTextView(
                 context = container.context,
                 text = it,
-                color = AndroidColor.rgb(80, 210, 255),
+                color = entry.speakerNameColor ?: AndroidColor.WHITE,
                 typeface = typeface
             )
         )
@@ -153,16 +154,18 @@ private fun addHistoryEntryViews(
             historyTextView(
                 context = container.context,
                 text = if (speakerName != null) "「$it」" else it,
+                color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                 typeface = typeface
             )
         )
     }
-    entry.choices.filter { it.isNotBlank() }.forEach { choice ->
+    entry.choices.forEachIndexed { index, choice ->
+        if (choice.isBlank()) return@forEachIndexed
         container.addView(
             historyTextView(
                 context = container.context,
                 text = "$choice\n",
-                color = AndroidColor.rgb(255, 80, 80),
+                color = entry.choiceColors.getOrNull(index) ?: AndroidColor.WHITE,
                 gravity = Gravity.CENTER,
                 typeface = typeface
             )
@@ -182,6 +185,9 @@ private fun historyTextView(
         setTextColor(color)
         textSize = 18f
         this.typeface = typeface
+        paint.isFakeBoldText = false
+        paint.isSubpixelText = true
+        paint.isLinearText = true
         includeFontPadding = false
         this.gravity = gravity
         layoutParams = LinearLayout.LayoutParams(
@@ -203,9 +209,7 @@ private fun spacerView(context: Context, heightDp: Int): View {
 }
 
 private fun historyTypeface(context: Context): Typeface {
-    return runCatching {
-        Typeface.createFromAsset(context.assets, "fonts/NotoSansCJKsc-Regular.otf")
-    }.getOrElse { Typeface.DEFAULT }
+    return FgoTypefaceProvider.storyTypeface(context)
 }
 
 private fun dp(context: Context, value: Int): Int {

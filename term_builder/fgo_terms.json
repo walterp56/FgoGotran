@@ -1,182 +1,1066 @@
 [
   {
-    "jp_name": "マスター",
-    "cn_name": "御主",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アキレウス",
+    "cn_name": "阿喀琉斯",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "サーヴァント",
-    "cn_name": "从者",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アシュヴァッターマン",
+    "cn_name": "阿什瓦塔曼",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "宝具",
-    "cn_name": "宝具",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アスクレピオス",
+    "cn_name": "阿斯克勒庇俄斯",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "令呪",
-    "cn_name": "令咒",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アナスタシア",
+    "cn_name": "阿纳斯塔西娅",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "聖晶石",
-    "cn_name": "圣晶石",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アビゲイル・ウィリアムズ",
+    "cn_name": "阿比盖尔·威廉姆斯",
+    "category": "character",
+    "aliases": "[\"アビー\"]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "カルデア",
-    "cn_name": "迦勒底",
-    "category": "location",
-    "aliases": "[]"
+    "jp_name": "アルクェイド・ブリュンスタッド",
+    "cn_name": "爱尔奎特·布伦史塔德",
+    "category": "character",
+    "aliases": "[\"アルクェイド\"]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "人理",
-    "cn_name": "人理",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アルジュナ",
+    "cn_name": "阿周那",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "特異点",
-    "cn_name": "特异点",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アルジュナ〔オルタ〕",
+    "cn_name": "阿周那〔Alter〕",
+    "category": "character",
+    "aliases": "[\"神たるアルジュナ\"]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "異聞帯",
-    "cn_name": "异闻带",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アルトリア・ペンドラゴン",
+    "cn_name": "阿尔托莉雅·潘德拉贡",
+    "category": "character",
+    "aliases": "[\"Artoria\", \"アルトリア\"]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "霊基",
-    "cn_name": "灵基",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "アーサー・ペンドラゴン",
+    "cn_name": "亚瑟·潘德拉贡",
+    "category": "character",
+    "aliases": "[\"Arthur\"]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "概念礼装",
-    "cn_name": "概念礼装",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "イシュタル",
+    "cn_name": "伊什塔尔",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "絆",
-    "cn_name": "羁绊",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "エドモン・ダンテス",
+    "cn_name": "爱德蒙·唐泰斯",
+    "category": "character",
+    "aliases": "[\"巌窟王\"]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "魔術回路",
-    "cn_name": "魔术回路",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "エミヤ",
+    "cn_name": "卫宫",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "聖杯",
-    "cn_name": "圣杯",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "エルキドゥ",
+    "cn_name": "恩奇都",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "聖杯戦争",
-    "cn_name": "圣杯战争",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "エレシュキガル",
+    "cn_name": "埃列什基伽勒",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "クラス",
-    "cn_name": "职阶",
-    "category": "game_term",
-    "aliases": "[]"
+    "jp_name": "オデュッセウス",
+    "cn_name": "奥德修斯",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "セイバー",
-    "cn_name": "剑士",
-    "category": "class",
-    "aliases": "[]"
+    "jp_name": "オフェリア・ファムルソローネ",
+    "cn_name": "奥菲莉娅·法姆索罗涅",
+    "category": "character",
+    "aliases": "[\"オフェリア\"]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "アーチャー",
-    "cn_name": "弓兵",
-    "category": "class",
-    "aliases": "[]"
+    "jp_name": "オベロン",
+    "cn_name": "奥伯龙",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "ランサー",
-    "cn_name": "枪兵",
-    "category": "class",
-    "aliases": "[]"
+    "jp_name": "オベロン・ヴォーティガーン",
+    "cn_name": "奥伯龙·沃蒂根",
+    "category": "character",
+    "aliases": "[\"ヴォーティガーン\"]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "ライダー",
-    "cn_name": "骑兵",
-    "category": "class",
-    "aliases": "[]"
+    "jp_name": "カイニス",
+    "cn_name": "凯尼斯",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
-    "jp_name": "キャスター",
-    "cn_name": "魔术师",
-    "category": "class",
-    "aliases": "[]"
+    "jp_name": "カドック・ゼムルプス",
+    "cn_name": "卡多克·泽姆露普斯",
+    "category": "character",
+    "aliases": "[\"カドック\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "カーマ",
+    "cn_name": "迦摩",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "キリシュタリア・ヴォーダイム",
+    "cn_name": "基尔什塔利亚·沃戴姆",
+    "category": "character",
+    "aliases": "[\"キリシュタリア\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "キングプロテア",
+    "cn_name": "帝王花",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ギルガメッシュ",
+    "cn_name": "吉尔伽美什",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "クー・フーリン",
+    "cn_name": "库·丘林",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ゲーティア",
+    "cn_name": "盖提亚",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ゴルドルフ",
+    "cn_name": "戈尔德鲁夫",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ゴルドルフ・ムジーク",
+    "cn_name": "戈尔德鲁夫·穆吉克",
+    "category": "character",
+    "aliases": "[\"ゴルドルフ\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "シオン・エルトナム・ソカリス",
+    "cn_name": "希翁·艾尔特纳姆·索卡莉丝",
+    "category": "character",
+    "aliases": "[\"シオン\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "シャーロック・ホームズ",
+    "cn_name": "夏洛克·福尔摩斯",
+    "category": "character",
+    "aliases": "[\"ホームズ\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ジャンヌ・ダルク",
+    "cn_name": "贞德",
+    "category": "character",
+    "aliases": "[\"Jeanne d'Arc\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ジャンヌ・ダルク〔オルタ〕",
+    "cn_name": "贞德〔Alter〕",
+    "category": "character",
+    "aliases": "[\"ジャンヌ・オルタ\", \"黑贞\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "スカサハ＝スカディ",
+    "cn_name": "斯卡哈·斯卡蒂",
+    "category": "character",
+    "aliases": "[\"スカディ\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "スカンジナビア・ペペロンチーノ",
+    "cn_name": "斯堪的纳维亚·佩佩隆奇诺",
+    "category": "character",
+    "aliases": "[\"ペペ\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "スペース・イシュタル",
+    "cn_name": "宇宙伊什塔尔",
+    "category": "character",
+    "aliases": "[\"Sイシュタル\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ソロモン",
+    "cn_name": "所罗门",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ダ・ヴィンチ",
+    "cn_name": "达·芬奇",
+    "category": "character",
+    "aliases": "[\"Da Vinci\", \"レオナルド・ダ・ヴィンチ\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "デイビット・ゼム・ヴォイド",
+    "cn_name": "戴比特·泽姆·沃伊德",
+    "category": "character",
+    "aliases": "[\"デイビット\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ナイチンゲール",
+    "cn_name": "南丁格尔",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ネモ",
+    "cn_name": "尼莫",
+    "category": "character",
+    "aliases": "[\"キャプテン\", \"船长\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ネロ・クラウディウス",
+    "cn_name": "尼禄·克劳狄乌斯",
+    "category": "character",
+    "aliases": "[\"尼禄\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "パッションリップ",
+    "cn_name": "Passionlip",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ヘラクレス",
+    "cn_name": "赫拉克勒斯",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ベリル・ガット",
+    "cn_name": "贝里尔·伽特",
+    "category": "character",
+    "aliases": "[\"ベリル\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "マシュ・キリエライト",
+    "cn_name": "玛修·基列莱特",
+    "category": "character",
+    "aliases": "[\"マシュ\", \"玛修\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "マーリン",
+    "cn_name": "梅林",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "メディア",
+    "cn_name": "美狄亚",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "メドゥーサ",
+    "cn_name": "美杜莎",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "メルトリリス",
+    "cn_name": "梅尔特莉莉丝",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "モルガン",
+    "cn_name": "摩根",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "レオナルド・ダ・ヴィンチ",
+    "cn_name": "莱昂纳多·达·芬奇",
+    "category": "character",
+    "aliases": "[\"Da Vinci\", \"ダ・ヴィンチ\", \"达·芬奇\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ロマニ・アーキマン",
+    "cn_name": "罗马尼·阿其曼",
+    "category": "character",
+    "aliases": "[\"Dr.ロマン\", \"ロマン\", \"罗曼\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ロリンチ",
+    "cn_name": "小达·芬奇",
+    "category": "character",
+    "aliases": "[\"少女ダ・ヴィンチ\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "両儀式",
+    "cn_name": "两仪式",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "久遠寺有珠",
+    "cn_name": "久远寺有珠",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "坂田金時",
+    "cn_name": "坂田金时",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "宮本武蔵",
+    "cn_name": "宫本武藏",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "巌窟王",
+    "cn_name": "岩窟王",
+    "category": "character",
+    "aliases": "[\"エドモン・ダンテス\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "殺生院キアラ",
+    "cn_name": "杀生院祈荒",
+    "category": "character",
+    "aliases": "[\"キアラ\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "沖田総司",
+    "cn_name": "冲田总司",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "源頼光",
+    "cn_name": "源赖光",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "玉藻の前",
+    "cn_name": "玉藻前",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "紅閻魔",
+    "cn_name": "红阎魔",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "織田信長",
+    "cn_name": "织田信长",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "芥ヒナコ",
+    "cn_name": "芥雏子",
+    "category": "character",
+    "aliases": "[\"ヒナコ\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "葛飾北斎",
+    "cn_name": "葛饰北斋",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "蒼崎青子",
+    "cn_name": "苍崎青子",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "蘭陵王",
+    "cn_name": "兰陵王",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "謎のヒロインX",
+    "cn_name": "谜之女主角X",
+    "category": "character",
+    "aliases": "[\"MHX\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "謎のヒロインXX",
+    "cn_name": "谜之女主角XX",
+    "category": "character",
+    "aliases": "[\"MHXX\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "謎の蘭丸X",
+    "cn_name": "谜之兰丸X",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "酒呑童子",
+    "cn_name": "酒吞童子",
+    "category": "character",
+    "aliases": "[]",
+    "source": "mooncell"
   },
   {
     "jp_name": "アサシン",
-    "cn_name": "暗杀者",
+    "cn_name": "暗匿者",
     "category": "class",
-    "aliases": "[]"
+    "aliases": "[\"Assassin\"]",
+    "source": "manual"
   },
   {
-    "jp_name": "バーサーカー",
-    "cn_name": "狂战士",
+    "jp_name": "アルターエゴ",
+    "cn_name": "Alterego",
     "category": "class",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "ルーラー",
-    "cn_name": "裁定者",
-    "category": "class",
-    "aliases": "[]"
+    "aliases": "[\"Alter Ego\"]",
+    "source": "manual"
   },
   {
     "jp_name": "アヴェンジャー",
     "cn_name": "复仇者",
     "category": "class",
-    "aliases": "[]"
+    "aliases": "[\"Avenger\"]",
+    "source": "manual"
   },
   {
-    "jp_name": "アルターエゴ",
-    "cn_name": "他人格",
+    "jp_name": "アーチャー",
+    "cn_name": "弓兵",
     "category": "class",
-    "aliases": "[]"
+    "aliases": "[\"Archer\"]",
+    "source": "manual"
   },
   {
-    "jp_name": "ムーンキャンサー",
-    "cn_name": "月之癌",
+    "jp_name": "キャスター",
+    "cn_name": "术师",
     "category": "class",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "フォーリナー",
-    "cn_name": "降临者",
-    "category": "class",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "プリテンダー",
-    "cn_name": "伪装者",
-    "category": "class",
-    "aliases": "[]"
+    "aliases": "[\"Caster\"]",
+    "source": "manual"
   },
   {
     "jp_name": "シールダー",
     "cn_name": "盾兵",
     "category": "class",
-    "aliases": "[]"
+    "aliases": "[\"Shielder\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "セイバー",
+    "cn_name": "剑士",
+    "category": "class",
+    "aliases": "[\"Saber\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "バーサーカー",
+    "cn_name": "狂战士",
+    "category": "class",
+    "aliases": "[\"Berserker\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ビースト",
+    "cn_name": "Beast",
+    "category": "class",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "フォーリナー",
+    "cn_name": "Foreigner",
+    "category": "class",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "プリテンダー",
+    "cn_name": "Pretender",
+    "category": "class",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ムーンキャンサー",
+    "cn_name": "MoonCancer",
+    "category": "class",
+    "aliases": "[\"MoonCancer\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ライダー",
+    "cn_name": "骑兵",
+    "category": "class",
+    "aliases": "[\"Rider\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ランサー",
+    "cn_name": "枪兵",
+    "category": "class",
+    "aliases": "[\"Lancer\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ルーラー",
+    "cn_name": "裁定者",
+    "category": "class",
+    "aliases": "[\"Ruler\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "アペンドスキル",
+    "cn_name": "追加技能",
+    "category": "game_term",
+    "aliases": "[\"Append Skill\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "アラヤ",
+    "cn_name": "阿赖耶",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "カルデアス",
+    "cn_name": "迦勒底亚斯",
+    "category": "game_term",
+    "aliases": "[\"CHALDEAS\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "ガイア",
+    "cn_name": "盖亚",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "クラススキル",
+    "cn_name": "职阶技能",
+    "category": "game_term",
+    "aliases": "[\"Class Skill\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "クリプター",
+    "cn_name": "隐匿者",
+    "category": "game_term",
+    "aliases": "[\"Crypter\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "グランド",
+    "cn_name": "冠位",
+    "category": "game_term",
+    "aliases": "[\"Grand\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "グランドオーダー",
+    "cn_name": "冠位指定",
+    "category": "game_term",
+    "aliases": "[\"Grand Order\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "グランドサーヴァント",
+    "cn_name": "冠位从者",
+    "category": "game_term",
+    "aliases": "[\"Grand Servant\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "コマンドカード",
+    "cn_name": "指令卡",
+    "category": "game_term",
+    "aliases": "[\"Command Card\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "コマンドコード",
+    "cn_name": "指令纹章",
+    "category": "game_term",
+    "aliases": "[\"Command Code\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "サーヴァント",
+    "cn_name": "从者",
+    "category": "game_term",
+    "aliases": "[\"Servant\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "シャドウサーヴァント",
+    "cn_name": "影从者",
+    "category": "game_term",
+    "aliases": "[\"Shadow Servant\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "スキル",
+    "cn_name": "技能",
+    "category": "game_term",
+    "aliases": "[\"Skill\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "デミ・サーヴァント",
+    "cn_name": "亚从者",
+    "category": "game_term",
+    "aliases": "[\"Demi-Servant\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "マスター",
+    "cn_name": "御主",
+    "category": "game_term",
+    "aliases": "[\"Master\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ムーンセル",
+    "cn_name": "月之圣杯",
+    "category": "game_term",
+    "aliases": "[\"Moon Cell\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "レイシフト",
+    "cn_name": "灵子转移",
+    "category": "game_term",
+    "aliases": "[\"Rayshift\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ロストベルト",
+    "cn_name": "异闻带",
+    "category": "game_term",
+    "aliases": "[\"Lostbelt\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "亜種特異点",
+    "cn_name": "亚种特异点",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "人理修復",
+    "cn_name": "人理修复",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "令呪",
+    "cn_name": "令咒",
+    "category": "game_term",
+    "aliases": "[\"Command Spell\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "円卓",
+    "cn_name": "圆桌",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "円卓の騎士",
+    "cn_name": "圆桌骑士",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "再臨",
+    "cn_name": "灵基再临",
+    "category": "game_term",
+    "aliases": "[\"霊基再臨\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "召喚",
+    "cn_name": "召唤",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "守護者",
+    "cn_name": "守护者",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "強化",
+    "cn_name": "强化",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "特異点",
+    "cn_name": "特异点",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "異星の神",
+    "cn_name": "异星之神",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "異聞帯",
+    "cn_name": "异闻带",
+    "category": "game_term",
+    "aliases": "[\"Lostbelt\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "疑似サーヴァント",
+    "cn_name": "拟似从者",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "神霊",
+    "cn_name": "神灵",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "空想樹",
+    "cn_name": "空想树",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "竜種",
+    "cn_name": "龙种",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "絆",
+    "cn_name": "牵绊",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "絆礼装",
+    "cn_name": "牵绊礼装",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "聖剣",
+    "cn_name": "圣剑",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "聖杯",
+    "cn_name": "圣杯",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "聖杯戦争",
+    "cn_name": "圣杯战争",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "聖杯探索",
+    "cn_name": "圣杯探索",
+    "category": "game_term",
+    "aliases": "[\"Grand Order\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "英霊",
+    "cn_name": "英灵",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "英霊召喚",
+    "cn_name": "英灵召唤",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "霊基",
+    "cn_name": "灵基",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "霊基再臨",
+    "cn_name": "灵基再临",
+    "category": "game_term",
+    "aliases": "[\"再臨\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "霊子",
+    "cn_name": "灵子",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "霊子転移",
+    "cn_name": "灵子转移",
+    "category": "game_term",
+    "aliases": "[\"Rayshift\", \"レイシフト\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "霊核",
+    "cn_name": "灵核",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "霊脈",
+    "cn_name": "灵脉",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "霊衣",
+    "cn_name": "灵衣",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "魔術",
+    "cn_name": "魔术",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "魔術回路",
+    "cn_name": "魔术回路",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "魔術師",
+    "cn_name": "魔术师",
+    "category": "game_term",
+    "aliases": "[]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ピュアプリズム",
+    "cn_name": "纯净棱镜",
+    "category": "item",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "マナプリズム",
+    "cn_name": "魔力棱镜",
+    "category": "item",
+    "aliases": "[\"绿方块\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "レアプリズム",
+    "cn_name": "稀有魔力棱镜",
+    "category": "item",
+    "aliases": "[\"金方块\"]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "聖晶石",
+    "cn_name": "圣晶石",
+    "category": "item",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "人理保障機関カルデア",
+    "cn_name": "人理保障机构迦勒底",
+    "category": "organization",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "人理継続保障機関",
+    "cn_name": "人理续存保障机构",
+    "category": "organization",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "オリュンポス",
+    "cn_name": "奥林波斯",
+    "category": "place",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "カルデア",
+    "cn_name": "迦勒底",
+    "category": "place",
+    "aliases": "[\"Chaldea\"]",
+    "source": "manual"
+  },
+  {
+    "jp_name": "ノウム・カルデア",
+    "cn_name": "新迦勒底",
+    "category": "place",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "フィニス・カルデア",
+    "cn_name": "菲尼斯·迦勒底",
+    "category": "place",
+    "aliases": "[]",
+    "source": "mooncell"
+  },
+  {
+    "jp_name": "妖精國",
+    "cn_name": "妖精国",
+    "category": "place",
+    "aliases": "[\"ブリテン\", \"妖精国\"]",
+    "source": "mooncell"
   }
 ]
