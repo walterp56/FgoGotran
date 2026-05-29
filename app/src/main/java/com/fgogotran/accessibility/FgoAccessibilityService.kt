@@ -365,7 +365,7 @@ class FgoAccessibilityService : AccessibilityService() {
         regions: List<ClassifiedRegion>
     ): List<RenderInstruction> {
         val translatableRegions = regions.mapNotNull { region ->
-            val sourceText = region.lines.joinToString("\n") { it.text }.trim()
+            val sourceText = sourceTextFor(region)
             if (sourceText.isBlank()) null else region to sourceText
         }
         if (translatableRegions.isEmpty()) return emptyList()
@@ -396,6 +396,98 @@ class FgoAccessibilityService : AccessibilityService() {
                 textColor = sampleOriginalTextColor(source, regionAndText.first)
             )
         }
+    }
+
+    private fun sourceTextFor(region: ClassifiedRegion): String {
+        return when (region.region) {
+            TextRegion.DIALOGUE_BOX -> formatDialogueWithRubyAnnotations(region.lines)
+            else -> region.lines
+                .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+                .joinToString("\n") { it.text }
+                .trim()
+        }
+    }
+
+    private fun formatDialogueWithRubyAnnotations(lines: List<OcrTextLine>): String {
+        if (lines.size < 2) {
+            return lines.joinToString("\n") { it.text }.trim()
+        }
+
+        val sorted = lines
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+        if (sorted.size < 2) return sorted.joinToString("\n") { it.text }.trim()
+
+        val heights = sorted.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
+        val medianHeight = heights[heights.size / 2]
+        val rubyLines = sorted.filter { line ->
+            val height = line.boundingBox.height().coerceAtLeast(1)
+            height <= medianHeight * 0.72f &&
+                line.text.length <= 12 &&
+                line.text.any { it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff' }
+        }.toSet()
+        if (rubyLines.isEmpty()) return sorted.joinToString("\n") { it.text }.trim()
+
+        val mainLines = sorted.filterNot { it in rubyLines }.toMutableList()
+        if (mainLines.isEmpty()) return sorted.joinToString("\n") { it.text }.trim()
+
+        val rubyByMain = mutableMapOf<OcrTextLine, MutableList<OcrTextLine>>()
+        for (ruby in rubyLines) {
+            val main = mainLines
+                .filter { it.boundingBox.top >= ruby.boundingBox.bottom - medianHeight / 3 }
+                .filter { horizontalOverlap(ruby.boundingBox, it.boundingBox) > 0 || ruby.boundingBox.centerX() in it.boundingBox.left..it.boundingBox.right }
+                .minByOrNull { it.boundingBox.top - ruby.boundingBox.bottom }
+            if (main != null) {
+                rubyByMain.getOrPut(main) { mutableListOf() }.add(ruby)
+            } else {
+                mainLines.add(ruby)
+            }
+        }
+
+        return mainLines
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+            .joinToString("\n") { main ->
+                val rubies = rubyByMain[main]
+                    ?.sortedBy { it.boundingBox.left }
+                    .orEmpty()
+                if (rubies.isEmpty()) {
+                    main.text
+                } else {
+                    rubies.fold(main.text) { text, ruby ->
+                        insertRubyAnnotation(text, main.boundingBox, ruby)
+                    }
+                }
+            }
+            .trim()
+    }
+
+    private fun horizontalOverlap(a: Rect, b: Rect): Int {
+        return (minOf(a.right, b.right) - maxOf(a.left, b.left)).coerceAtLeast(0)
+    }
+
+    private fun insertRubyAnnotation(mainText: String, mainBounds: Rect, ruby: OcrTextLine): String {
+        if (mainText.isBlank()) return mainText
+        val rubyText = ruby.text.trim()
+        if (rubyText.isBlank() || mainText.contains("($rubyText)")) return mainText
+
+        val approximateCharWidth = mainBounds.width().toFloat() / mainText.length.coerceAtLeast(1)
+        val rawIndex = ((ruby.boundingBox.centerX() - mainBounds.left) / approximateCharWidth)
+            .toInt()
+            .coerceIn(1, mainText.length)
+        val insertIndex = refineRubyInsertIndex(mainText, rawIndex)
+        return mainText.substring(0, insertIndex) + "($rubyText)" + mainText.substring(insertIndex)
+    }
+
+    private fun refineRubyInsertIndex(text: String, rawIndex: Int): Int {
+        val punctuation = setOf('、', '。', '，', ',', '！', '!', '？', '?', '…', '」', '』', ')', '）')
+        var index = rawIndex.coerceIn(1, text.length)
+        while (index < text.length && text[index] in setOf('は', 'が', 'を', 'に', 'へ', 'で', 'と', 'も')) {
+            break
+        }
+        while (index > 1 && text[index - 1] in punctuation) {
+            index--
+        }
+        return index.coerceIn(1, text.length)
     }
 
     private fun sampleOriginalTextColor(source: Bitmap, region: ClassifiedRegion): Int? {

@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v7"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v10"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -55,6 +55,8 @@ Rules (MUST follow):
 6. CONTEXT AWARENESS: If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear.
 7. UNKNOWN TERMS: If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
 8. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
+9. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
+10. RUBY: If the source contains main text with a parenthetical annotation like 彼女(オルガマリー), translate as main(annotation), e.g. 她(奥尔加玛丽).
 """.trimIndent()
     }
 

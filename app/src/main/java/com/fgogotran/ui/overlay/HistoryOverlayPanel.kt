@@ -32,6 +32,8 @@ import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
 
+private val FGO_CHOICE_HISTORY_RED = AndroidColor.rgb(246, 58, 60)
+
 @Composable
 fun HistoryOverlayPanel(onDismiss: () -> Unit) {
     val entries by SessionTranslationHistory.entries.collectAsState()
@@ -165,7 +167,7 @@ private fun addHistoryEntryViews(
             historyTextView(
                 context = container.context,
                 text = "$choice\n",
-                color = entry.choiceColors.getOrNull(index) ?: AndroidColor.WHITE,
+                color = FGO_CHOICE_HISTORY_RED,
                 gravity = Gravity.CENTER,
                 typeface = typeface
             )

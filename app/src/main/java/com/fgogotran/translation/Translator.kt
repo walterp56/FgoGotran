@@ -156,8 +156,11 @@ class Translator @Inject constructor(
         if (cacheEnabled) {
             val cached = cacheDao.getCached(hash)
             if (cached != null) {
-                FgoLogger.info(tag, "Cache HIT, hash=${hash.take(8)}...")
-                return TranslateResult(toSimplifiedChinese(cached), "cache", true)
+                val validCached = validateCachedTranslation(hash, normalizedText, cached)
+                if (validCached != null) {
+                    FgoLogger.info(tag, "Cache HIT, hash=${hash.take(8)}...")
+                    return TranslateResult(validCached, "cache", true)
+                }
             }
         }
         FgoLogger.debug(tag, "Cache miss, hash=${hash.take(8)}...")
@@ -203,20 +206,10 @@ class Translator @Inject constructor(
             )
         }
 
-        val simplifiedResult = toSimplifiedChinese(result)
+        val simplifiedResult = sanitizeTranslation(normalizedText, result)
 
         if (cacheEnabled) {
-            cacheDao.insert(
-                CachedTranslation(
-                    jpTextHash = hash,
-                    jpText = japaneseText,
-                    normalizedJpText = normalizedText,
-                    cnText = simplifiedResult,
-                    backend = backend,
-                    promptVersion = PromptBuilder.PROMPT_VERSION
-                )
-            )
-            FgoLogger.debug(tag, "Cached result, hash=${hash.take(8)}...")
+            cacheTranslatedText(hash, japaneseText, normalizedText, simplifiedResult, backend)
         }
 
         FgoLogger.info(tag, "Translation complete: backend=$backend, chars=${simplifiedResult.length}")
@@ -272,9 +265,12 @@ class Translator @Inject constructor(
             if (cacheEnabled) {
                 val cached = cacheDao.getCached(hashes[index])
                 if (cached != null) {
-                    FgoLogger.info(tag, "Batch cache HIT, hash=${hashes[index].take(8)}...")
-                    results[index] = TranslateResult(toSimplifiedChinese(cached), "cache", true)
-                    continue
+                    val validCached = validateCachedTranslation(hashes[index], normalizedText, cached)
+                    if (validCached != null) {
+                        FgoLogger.info(tag, "Batch cache HIT, hash=${hashes[index].take(8)}...")
+                        results[index] = TranslateResult(validCached, "cache", true)
+                        continue
+                    }
                 }
             }
             uncachedIndices.add(index)
@@ -328,20 +324,16 @@ class Translator @Inject constructor(
         }
 
         for ((batchIndex, originalIndex) in uncachedIndices.withIndex()) {
-            val translated = toSimplifiedChinese(translatedTexts[batchIndex])
+            val translated = sanitizeTranslation(normalizedTexts[originalIndex], translatedTexts[batchIndex])
             results[originalIndex] = TranslateResult(translated, backend, false)
             if (cacheEnabled) {
-                cacheDao.insert(
-                    CachedTranslation(
-                        jpTextHash = hashes[originalIndex],
-                        jpText = japaneseTexts[originalIndex],
-                        normalizedJpText = normalizedTexts[originalIndex],
-                        cnText = translated,
-                        backend = backend,
-                        promptVersion = PromptBuilder.PROMPT_VERSION
-                    )
+                cacheTranslatedText(
+                    hashes[originalIndex],
+                    japaneseTexts[originalIndex],
+                    normalizedTexts[originalIndex],
+                    translated,
+                    backend
                 )
-                FgoLogger.debug(tag, "Batch cached result, hash=${hashes[originalIndex].take(8)}...")
             }
         }
 
@@ -401,6 +393,12 @@ class Translator @Inject constructor(
                     choiceResults[index] = TranslateResult(toSimplifiedChinese(it), "glossary", true)
                 }
             }
+            if (choiceResults[index] == null) {
+                findCharacterNameTranslation(normalized)?.let {
+                    FgoLogger.info(tag, "Character exact HIT choice[$index]")
+                    choiceResults[index] = TranslateResult(toSimplifiedChinese(it), "character-db", true)
+                }
+            }
         }
 
         val nameHash = normalizedName?.let { cacheKey(it, emptyList(), backend) }
@@ -410,22 +408,29 @@ class Translator @Inject constructor(
         if (cacheEnabled) {
             if (normalizedName != null && nameHash != null && nameResult == null) {
                 cacheDao.getCached(nameHash)?.let {
-                    FgoLogger.info(tag, "Scene cache HIT name, hash=${nameHash.take(8)}...")
-                    nameResult = TranslateResult(toSimplifiedChinese(it), "cache", true)
+                    validateCachedTranslation(nameHash, normalizedName, it)?.let { validCached ->
+                        FgoLogger.info(tag, "Scene cache HIT name, hash=${nameHash.take(8)}...")
+                        nameResult = TranslateResult(validCached, "cache", true)
+                    }
                 }
             }
             if (normalizedDialogue != null && dialogueHash != null && dialogueResult == null) {
                 cacheDao.getCached(dialogueHash)?.let {
-                    FgoLogger.info(tag, "Scene cache HIT dialogue, hash=${dialogueHash.take(8)}...")
-                    dialogueResult = TranslateResult(toSimplifiedChinese(it), "cache", true)
+                    validateCachedTranslation(dialogueHash, normalizedDialogue, it)?.let { validCached ->
+                        FgoLogger.info(tag, "Scene cache HIT dialogue, hash=${dialogueHash.take(8)}...")
+                        dialogueResult = TranslateResult(validCached, "cache", true)
+                    }
                 }
             }
             for (index in normalizedChoices.indices) {
                 if (choiceResults[index] != null) continue
                 val hash = choiceHashes[index] ?: continue
+                val source = normalizedChoices[index] ?: continue
                 cacheDao.getCached(hash)?.let {
-                    FgoLogger.info(tag, "Scene cache HIT choice[$index], hash=${hash.take(8)}...")
-                    choiceResults[index] = TranslateResult(toSimplifiedChinese(it), "cache", true)
+                    validateCachedTranslation(hash, source, it)?.let { validCached ->
+                        FgoLogger.info(tag, "Scene cache HIT choice[$index], hash=${hash.take(8)}...")
+                        choiceResults[index] = TranslateResult(validCached, "cache", true)
+                    }
                 }
             }
         }
@@ -506,25 +511,30 @@ class Translator @Inject constructor(
         if (needsName) {
             val translatedName = translatedScene.name
                 ?: throw IllegalStateException("Structured scene response missing parsed name")
-            val simplifiedName = toSimplifiedChinese(translatedName)
+            val simplifiedName = sanitizeTranslation(normalizedName!!, translatedName)
             nameResult = TranslateResult(simplifiedName, backend, false)
             if (cacheEnabled) {
-                cacheTranslatedText(nameHash!!, input.name.orEmpty(), normalizedName!!, simplifiedName, backend)
+                cacheTranslatedText(nameHash!!, input.name.orEmpty(), normalizedName, simplifiedName, backend)
             }
         }
         if (needsDialogue) {
             val translatedDialogue = translatedScene.dialogue
                 ?: throw IllegalStateException("Structured scene response missing parsed dialogue")
-            val simplifiedDialogue = toSimplifiedChinese(translatedDialogue)
+            val simplifiedDialogue = sanitizeTranslation(normalizedDialogue!!, translatedDialogue)
             dialogueResult = TranslateResult(simplifiedDialogue, backend, false)
             if (cacheEnabled) {
-                cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue!!, simplifiedDialogue, backend)
+                cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue, simplifiedDialogue, backend)
             }
         }
         for ((batchIndex, originalIndex) in neededChoiceIndices.withIndex()) {
-            val translatedChoice = toSimplifiedChinese(translatedScene.choices[batchIndex])
             val normalizedChoice = normalizedChoices[originalIndex] ?: continue
             val hash = choiceHashes[originalIndex] ?: continue
+            val translatedChoice = sanitizeTranslation(normalizedChoice, translatedScene.choices[batchIndex])
+            if (looksUntranslated(normalizedChoice, translatedChoice)) {
+                FgoLogger.warn(tag, "Structured scene choice[$originalIndex] returned untranslated Japanese")
+                choiceResults[originalIndex] = TranslateResult("（翻译失败）", backend, false)
+                continue
+            }
             choiceResults[originalIndex] = TranslateResult(translatedChoice, backend, false)
             if (cacheEnabled) {
                 cacheTranslatedText(hash, input.choices[originalIndex], normalizedChoice, translatedChoice, backend)
@@ -585,12 +595,24 @@ class Translator @Inject constructor(
     private suspend fun findCharacterNameTranslation(normalizedText: String): String? {
         termDao.findExactCharacterName(normalizedText)?.let { return it }
         val lookupText = normalizeNameLookup(normalizedText)
-        return getCachedCharacterNames().firstOrNull { character ->
+        val names = getCachedCharacterNames()
+        names.firstOrNull { character ->
             lookupText == normalizeNameLookup(character.jpName) ||
                 aliases(character.aliases).any { alias ->
                     lookupText == normalizeNameLookup(alias)
                 }
-        }?.cnName
+        }?.let { return it.cnName }
+
+        names.firstOrNull { character ->
+            characterLookupKeys(character).any { key ->
+                isLikelyOcrNameMatch(lookupText, key)
+            }
+        }?.let {
+            FgoLogger.info(tag, "Character fuzzy HIT: $normalizedText -> ${it.jpName}")
+            return it.cnName
+        }
+
+        return null
     }
 
     private suspend fun findTermTranslation(normalizedText: String): String? {
@@ -611,6 +633,13 @@ class Translator @Inject constructor(
             .filter { it.isNotBlank() }
     }
 
+    private fun characterLookupKeys(character: CharacterNameEntity): List<String> {
+        return (listOf(character.jpName) + aliases(character.aliases))
+            .map(::normalizeNameLookup)
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+
     private fun normalizeNameLookup(text: String): String {
         return Normalizer.normalize(text, Normalizer.Form.NFKC)
             .replace(Regex("""[\s　]+"""), "")
@@ -619,6 +648,158 @@ class Translator @Inject constructor(
             .replace('工', 'エ')
             .replace('－', 'ー')
             .replace('-', 'ー')
+            .replace('ァ', 'ア')
+            .replace('ィ', 'イ')
+            .replace('ゥ', 'ウ')
+            .replace('ェ', 'エ')
+            .replace('ォ', 'オ')
+            .replace('ャ', 'ヤ')
+            .replace('ュ', 'ユ')
+            .replace('ョ', 'ヨ')
+    }
+
+    private fun isLikelyOcrNameMatch(input: String, candidate: String): Boolean {
+        if (input.length !in 3..8 || candidate.length !in 3..8) return false
+        if (kotlin.math.abs(input.length - candidate.length) > 1) return false
+        if (input.firstOrNull() != candidate.firstOrNull()) return false
+        return editDistanceAtMostOne(input, candidate)
+    }
+
+    private fun editDistanceAtMostOne(a: String, b: String): Boolean {
+        if (a == b) return true
+        if (kotlin.math.abs(a.length - b.length) > 1) return false
+
+        var i = 0
+        var j = 0
+        var edits = 0
+        while (i < a.length && j < b.length) {
+            if (a[i] == b[j]) {
+                i++
+                j++
+                continue
+            }
+            edits++
+            if (edits > 1) return false
+            when {
+                a.length > b.length -> i++
+                b.length > a.length -> j++
+                else -> {
+                    i++
+                    j++
+                }
+            }
+        }
+        if (i < a.length || j < b.length) edits++
+        return edits <= 1
+    }
+
+    private suspend fun validateCachedTranslation(
+        hash: String,
+        sourceText: String,
+        cachedText: String
+    ): String? {
+        val simplified = sanitizeTranslation(sourceText, cachedText)
+        if (!looksUntranslated(sourceText, simplified)) {
+            return simplified
+        }
+
+        FgoLogger.warn(tag, "Dropping untranslated cache entry, hash=${hash.take(8)}...")
+        cacheDao.deleteByHash(hash)
+        return null
+    }
+
+    private fun looksUntranslated(sourceText: String, translatedText: String): Boolean {
+        val source = TextNormalizer.normalizeForTranslation(sourceText)
+        val translated = TextNormalizer.normalizeForTranslation(translatedText)
+        if (source.isBlank() || translated.isBlank()) return false
+        if (source == translated) return true
+        return translated.count { it in '\u3040'..'\u30ff' } >= 2
+    }
+
+    private fun sanitizeTranslation(sourceText: String, translatedText: String): String {
+        val simplified = toSimplifiedChinese(translatedText)
+        val fixed = fixKnownBadTranslation(sourceText, simplified)
+        return preserveSourcePunctuation(sourceText, fixed)
+    }
+
+    private fun fixKnownBadTranslation(sourceText: String, translatedText: String): String {
+        val normalizedSource = normalizeNameLookup(sourceText)
+        if (isLikelyMunielSource(normalizedSource)) {
+            FgoLogger.info(tag, "Forced ムニエル deterministic translation")
+            return "穆尼尔"
+        }
+        return translatedText
+    }
+
+    private fun isLikelyMunielSource(source: String): Boolean {
+        val target = normalizeNameLookup("ムニエル")
+        return source == target ||
+            source in setOf("ムニエ儿", "ムニ工ル", "ムニェル", "ム二エル", "ム二工ル") ||
+            (source.length in 3..5 && source.firstOrNull() == 'ム' && editDistanceAtMostTwo(source, target))
+    }
+
+    private fun preserveSourcePunctuation(sourceText: String, translatedText: String): String {
+        var result = translatedText.trimEnd()
+        val source = sourceText.trimEnd()
+
+        val sourceEllipsis = trailingEllipsis(source)
+        if (sourceEllipsis != null && trailingEllipsis(result) == null) {
+            result += sourceEllipsis
+        }
+
+        val sourceTail = source.takeLastWhile { it.isPreservedTrailingSymbol() }
+        if (sourceTail.isNotBlank()) {
+            for (symbol in sourceTail) {
+                if (symbol !in result.takeLast(sourceTail.length + 2)) {
+                    result += symbol
+                }
+            }
+        }
+        return result
+    }
+
+    private fun trailingEllipsis(text: String): String? {
+        val trimmed = text.trimEnd()
+        return when {
+            trimmed.endsWith("……") -> "……"
+            trimmed.endsWith("...") -> "……"
+            trimmed.endsWith("…") -> "……"
+            trimmed.endsWith("・・・") -> "……"
+            else -> null
+        }
+    }
+
+    private fun Char.isPreservedTrailingSymbol(): Boolean {
+        return this in setOf(
+            '。', '、', '，', ',', '.', '！', '!', '？', '?', '…', '・',
+            '—', '-', '－', '〜', '~', '」', '』', '）', ')', '】', ']'
+        )
+    }
+
+    private fun editDistanceAtMostTwo(a: String, b: String): Boolean {
+        if (a == b) return true
+        if (kotlin.math.abs(a.length - b.length) > 2) return false
+
+        val previous = IntArray(b.length + 1) { it }
+        val current = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            current[0] = i
+            var rowMin = current[0]
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                current[j] = minOf(
+                    previous[j] + 1,
+                    current[j - 1] + 1,
+                    previous[j - 1] + cost
+                )
+                rowMin = minOf(rowMin, current[j])
+            }
+            if (rowMin > 2) return false
+            for (j in previous.indices) {
+                previous[j] = current[j]
+            }
+        }
+        return previous[b.length] <= 2
     }
 
     private fun toSimplifiedChinese(text: String): String {
@@ -627,6 +808,16 @@ class Translator @Inject constructor(
             .replace("庫霍姆斯", "福尔摩斯")
             .replace("福爾摩斯", "福尔摩斯")
             .replace("克尼莫", "尼莫")
+            .replace("卞木尼耶爾", "穆尼尔")
+            .replace("卞木尼耶尔", "穆尼尔")
+            .replace("木尼耶爾", "穆尼尔")
+            .replace("木尼耶尔", "穆尼尔")
+            .replace("穆尼耶爾", "穆尼尔")
+            .replace("穆尼耶尔", "穆尼尔")
+            .replace("穆尼埃爾", "穆尼尔")
+            .replace("穆尼埃尔", "穆尼尔")
+            .replace("穆尼艾爾", "穆尼尔")
+            .replace("穆尼艾尔", "穆尼尔")
             .replace("風暴之邊界", "Storm Border")
             .replace("风暴之边界", "Storm Border")
             .replace("風暴邊界", "Storm Border")
@@ -815,12 +1006,17 @@ class Translator @Inject constructor(
         translatedText: String,
         backend: String
     ) {
+        val simplified = toSimplifiedChinese(translatedText)
+        if (looksUntranslated(normalizedText, simplified)) {
+            FgoLogger.warn(tag, "Not caching untranslated result, hash=${hash.take(8)}...")
+            return
+        }
         cacheDao.insert(
             CachedTranslation(
                 jpTextHash = hash,
                 jpText = originalText,
                 normalizedJpText = normalizedText,
-                cnText = toSimplifiedChinese(translatedText),
+                cnText = simplified,
                 backend = backend,
                 promptVersion = PromptBuilder.PROMPT_VERSION
             )

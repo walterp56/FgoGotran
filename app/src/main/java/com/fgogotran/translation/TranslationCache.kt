@@ -50,6 +50,9 @@ interface TranslationCacheDao {
     @Query("SELECT cn_text FROM translation_cache WHERE jp_text_hash = :hash LIMIT 1")
     suspend fun getCached(hash: String): String?
 
+    @Query("DELETE FROM translation_cache WHERE jp_text_hash = :hash")
+    suspend fun deleteByHash(hash: String)
+
     /** Returns newest cache entries for the history screen. */
     @Query("SELECT * FROM translation_cache ORDER BY created_at DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 100): List<CachedTranslation>
