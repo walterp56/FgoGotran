@@ -79,6 +79,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var isForwardingOverlayTap = false
     private var choiceOcrSuppressedUntil = 0L
     private var suppressedChoiceBoundsKey = ""
+    private var tapAdvancePolling = false
 
     companion object {
         const val FGO_PACKAGE = "com.aniplex.fategrandorder"
@@ -86,7 +87,9 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val DETECTION_INTERVAL = 150L
         private const val CAPTURE_SETTLE_DELAY = 16L
         private const val MANUAL_MENU_DISMISS_SETTLE_DELAY = 300L
-        private const val TAP_OVERLAY_REMOVAL_DELAY = 1000L
+        private const val TAP_TRANSLATION_READ_HOLD_DELAY = 500L
+        private const val NEXT_DIALOGUE_POLL_INTERVAL = 150L
+        private const val NEXT_DIALOGUE_POLL_TIMEOUT = 2_500L
         private const val TAP_PASSTHROUGH_SETTLE_DELAY = 32L
         private const val TAP_REPLAY_TIMEOUT = 500L
         private const val EMPTY_CHOICE_OCR_COOLDOWN = 250L
@@ -208,7 +211,11 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             while (isActive) {
                 try {
-                    if (isFgoForeground && !isProcessing && !TranslationTrigger.isUiBlockingOcr()) {
+                    if (isFgoForeground &&
+                        !isProcessing &&
+                        !tapAdvancePolling &&
+                        !TranslationTrigger.isUiBlockingOcr()
+                    ) {
                         val autoEnabled = TranslationTrigger.isAutoTranslateEnabled()
                         val manualRequest = if (autoEnabled) false else TranslationTrigger.consumeRequest()
                         if (autoEnabled &&
@@ -755,9 +762,14 @@ class FgoAccessibilityService : AccessibilityService() {
                     false
                 }
                 if (dispatched) {
-                    FgoLogger.debug(tag, "Overlay tap replay completed; waiting for changed dialogue")
-                    delay(TAP_OVERLAY_REMOVAL_DELAY)
-                    translationOverlay.hideForCapture()
+                    if (TranslationTrigger.isAutoTranslateEnabled()) {
+                        FgoLogger.debug(tag, "Overlay tap replay completed; holding translation before polling next dialogue")
+                        pollNextCompletedDialogueAfterTap()
+                    } else {
+                        FgoLogger.debug(tag, "Overlay tap replay completed; holding translation before capture hide")
+                        delay(TAP_TRANSLATION_READ_HOLD_DELAY)
+                        translationOverlay.hideForCapture()
+                    }
                 } else {
                     FgoLogger.warn(tag, "Overlay tap replay failed; restoring current translation")
                     translationOverlay.setTranslatedOverlayTouchable(true)
@@ -765,6 +777,29 @@ class FgoAccessibilityService : AccessibilityService() {
             } finally {
                 isForwardingOverlayTap = false
             }
+        }
+    }
+
+    private suspend fun pollNextCompletedDialogueAfterTap() {
+        tapAdvancePolling = true
+        try {
+            delay(TAP_TRANSLATION_READ_HOLD_DELAY)
+            translationOverlay.hideForCapture()
+
+            val deadline = SystemClock.elapsedRealtime() + NEXT_DIALOGUE_POLL_TIMEOUT
+            while (SystemClock.elapsedRealtime() < deadline &&
+                TranslationTrigger.isAutoTranslateEnabled()
+            ) {
+                processScreen(forceRefresh = false)
+                if (translationOverlay.isShowing()) {
+                    FgoLogger.debug(tag, "Next dialogue translated during tap handoff")
+                    return
+                }
+                delay(NEXT_DIALOGUE_POLL_INTERVAL)
+            }
+            FgoLogger.debug(tag, "Next dialogue handoff polling ended; normal scan will continue")
+        } finally {
+            tapAdvancePolling = false
         }
     }
 
