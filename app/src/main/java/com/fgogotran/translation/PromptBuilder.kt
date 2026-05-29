@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v10"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v11"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -57,6 +57,20 @@ Rules (MUST follow):
 8. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
 9. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
 10. RUBY: If the source contains main text with a parenthetical annotation like 彼女(オルガマリー), translate as main(annotation), e.g. 她(奥尔加玛丽).
+
+Style examples:
+JP: ……そうか。君は、そう選ぶんだな。
+CN: ……这样啊。你，是这样选择的啊。
+JP: まったく、無茶をしてくれる。
+CN: 真是的，净会乱来。
+JP: それでも、ここで立ち止まるわけにはいかない。
+CN: 即便如此，也不能在这里停下脚步。
+JP: これは警告ではない。最後通告だ。
+CN: 这不是警告。而是最后通牒。
+JP: そんな顔をするな。まだ終わったわけじゃない。
+CN: 别露出那种表情。事情还没有结束。
+JP: ここから先は、私たちの戦いだ。
+CN: 从这里开始，就是我们的战斗了。
 """.trimIndent()
     }
 
