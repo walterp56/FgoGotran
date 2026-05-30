@@ -7,6 +7,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -53,6 +54,33 @@ class OcrEngine @Inject constructor() {
     )
 
     private val tag = "OCR"
+    @Volatile
+    private var warmedUp = false
+
+    /**
+     * Kicks ML Kit's lazy model initialization before the first user capture.
+     *
+     * The first OCR call can spend hundreds of milliseconds loading native
+     * recognizers. Running a tiny blank bitmap in the background moves that
+     * cost out of the manual tap path.
+     */
+    suspend fun warmUp() {
+        if (warmedUp) return
+        val bitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+        try {
+            FgoLogger.debug(tag, "OCR warm-up starting")
+            val image = InputImage.fromBitmap(bitmap, 0)
+            recognizer.processSuspending(image)
+            FgoLogger.info(tag, "OCR warm-up complete")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "OCR warm-up failed; first capture will initialize normally", e)
+        } finally {
+            bitmap.recycle()
+            warmedUp = true
+        }
+    }
 
     /**
      * Runs ML Kit OCR on [bitmap] and returns structured results.
