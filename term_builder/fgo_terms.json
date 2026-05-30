@@ -511,7 +511,7 @@
   },
   {
     "jp_name": "エンジン",
-    "cn_name": "尼莫引擎",
+    "cn_name": "引擎",
     "category": "character",
     "aliases": "[]"
   },
@@ -1405,7 +1405,7 @@
   },
   {
     "jp_name": "ナース",
-    "cn_name": "尼莫护士",
+    "cn_name": "护士",
     "category": "character",
     "aliases": "[]"
   },
@@ -1933,7 +1933,7 @@
   },
   {
     "jp_name": "マリーン",
-    "cn_name": "尼莫水兵",
+    "cn_name": "水兵",
     "category": "character",
     "aliases": "[]"
   },
@@ -4185,13 +4185,13 @@
     "jp_name": "シャドウ・ボーダー",
     "cn_name": "Shadow Border",
     "category": "place",
-    "aliases": "[\"Shadow Border\", \"シャドウボーダー\"]"
+    "aliases": "[\"Shadow Border\", \"ShadowBorder\", \"シャドウホーダー\", \"シャドウボーダー\", \"シャドウボーダ一\", \"シャドウポーダー\", \"シャドウ・ホーダー\", \"シャドウ・ボーダ一\", \"シャドウ・ポーダー\"]"
   },
   {
     "jp_name": "ストーム・ボーダー",
     "cn_name": "Storm Border",
     "category": "place",
-    "aliases": "[\"Storm Border\", \"ストームボーダー\"]"
+    "aliases": "[\"Storm Border\", \"StormBorder\", \"ストームホーダー\", \"ストームボーダー\", \"ストームボーダ一\", \"ストームポーダー\", \"ストーム・ホーダー\", \"ストーム・ボーダ一\", \"ストーム・ポーダー\"]"
   },
   {
     "jp_name": "ノウム・カルデア",
@@ -4206,6 +4206,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ボーダー",
+    "cn_name": "Border",
+    "category": "place",
+    "aliases": "[\"Border\", \"ホーダー\", \"ボーダ一\", \"ポーダー\"]"
+  },
+  {
     "jp_name": "冬木市",
     "cn_name": "冬木市",
     "category": "place",
@@ -4215,6 +4221,6 @@
     "jp_name": "妖精國",
     "cn_name": "妖精国",
     "category": "place",
-    "aliases": "[\"ブリテン\", \"妖精国\"]"
+    "aliases": "[\"妖精国\"]"
   }
 ]

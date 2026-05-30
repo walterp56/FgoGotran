@@ -420,7 +420,13 @@ def load_tsv(path: Path) -> tuple[list[dict[str, str]], list[str]]:
 
 def write_tsv(path: Path, rows: list[dict[str, str]], fieldnames: list[str]) -> None:
     with path.open("w", encoding="utf-8-sig", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter="\t", lineterminator="\n")
+        writer = csv.DictWriter(
+            file,
+            fieldnames=fieldnames,
+            delimiter="\t",
+            lineterminator="\n",
+            extrasaction="ignore",
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -463,7 +469,6 @@ def append_candidates(
                     "jp_name": jp_name,
                     "cn_name": extracted.title,
                     "aliases": merge_aliases("", aliases, jp_name),
-                    "type": "npc",
                 }
                 char_by_jp[jp_name] = row
                 char_rows.append(row)

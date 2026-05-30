@@ -36,6 +36,14 @@ class BackgroundDetector @Inject constructor() {
         /** Minimum fraction of dark pixels in a row for it to count as dark. */
         private const val DARK_ROW_RATIO = 0.6f
 
+        /** Choice text can break the center, so detect the stable dark left/right panel anchors. */
+        private const val CHOICE_LEFT_ANCHOR_START_RATIO = 0.02f
+        private const val CHOICE_LEFT_ANCHOR_END_RATIO = 0.22f
+        private const val CHOICE_RIGHT_ANCHOR_START_RATIO = 0.76f
+        private const val CHOICE_RIGHT_ANCHOR_END_RATIO = 0.98f
+        private const val MIN_CHOICE_LEFT_ANCHOR_DARK_RATIO = 0.58f
+        private const val MIN_CHOICE_RIGHT_ANCHOR_DARK_RATIO = 0.48f
+
         /** Minimum height (px) for a dark band to be considered a choice button. */
         private const val MIN_CHOICE_HEIGHT = 30
 
@@ -45,8 +53,7 @@ class BackgroundDetector @Inject constructor() {
          */
         private const val MIN_SKIP_WHITE_RATIO = 0.08f
         private const val MAX_SKIP_WHITE_RATIO = 0.55f
-        private const val MIN_COMPLETE_MARKER_WHITE_RATIO = 0.02f
-        private const val MIN_COMPLETE_MARKER_WHITE_PIXELS = 45
+        private const val MIN_COMPLETE_MARKER_WHITE_RATIO = 0.018f
         private const val MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO = 0.35f
     }
 
@@ -97,30 +104,66 @@ class BackgroundDetector @Inject constructor() {
         )
         if (bounds.width() <= 0 || bounds.height() <= 0) return emptyList()
 
-        val sampledColumns = ((bounds.width() + 1) / 2).coerceAtLeast(1)
-        val minHeight = (bitmap.height * 0.03f).toInt().coerceAtLeast(16)
-        val maxHeight = (bitmap.height * 0.20f).toInt().coerceAtLeast(180)
+        val minHeight = (bitmap.height * 0.055f).toInt().coerceAtLeast(MIN_CHOICE_HEIGHT)
+        val maxHeight = (bitmap.height * 0.15f).toInt().coerceAtLeast(120)
         val edgePadding = (bitmap.height * 0.006f).toInt().coerceAtLeast(3)
+        val width = bounds.width()
+        val leftAnchor = Rect(
+            bounds.left + (width * CHOICE_LEFT_ANCHOR_START_RATIO).toInt(),
+            bounds.top,
+            bounds.left + (width * CHOICE_LEFT_ANCHOR_END_RATIO).toInt(),
+            bounds.bottom
+        )
+        val rightAnchor = Rect(
+            bounds.left + (width * CHOICE_RIGHT_ANCHOR_START_RATIO).toInt(),
+            bounds.top,
+            bounds.left + (width * CHOICE_RIGHT_ANCHOR_END_RATIO).toInt(),
+            bounds.bottom
+        )
         val buttons = mutableListOf<Rect>()
         var darkRunStart: Int? = null
+        var lastDarkRow = bounds.top
+        var lightGapRows = 0
+
+        fun finishRun(bottom: Int) {
+            val top = darkRunStart ?: return
+            addChoiceButton(
+                buttons = buttons,
+                searchRegion = bounds,
+                left = bounds.left,
+                right = bounds.right,
+                top = top,
+                bottom = bottom,
+                minHeight = minHeight,
+                maxHeight = maxHeight,
+                edgePadding = edgePadding
+            )
+            darkRunStart = null
+            lightGapRows = 0
+        }
 
         for (y in bounds.top until bounds.bottom) {
-            val darkPixels = countDarkPixelsInRow(bitmap, bounds.left, bounds.right, y)
-            val isPanelRow = darkPixels.toFloat() / sampledColumns > DARK_ROW_RATIO
-
+            val isPanelRow = isChoicePanelAnchorRow(bitmap, y, leftAnchor, rightAnchor)
             if (isPanelRow && darkRunStart == null) {
                 darkRunStart = y
-            } else if (!isPanelRow && darkRunStart != null) {
-                addChoiceButton(buttons, bounds, darkRunStart, y, minHeight, maxHeight, edgePadding)
-                darkRunStart = null
+                lastDarkRow = y
+                lightGapRows = 0
+            } else if (isPanelRow) {
+                lastDarkRow = y
+                lightGapRows = 0
+            } else if (darkRunStart != null) {
+                lightGapRows++
+                if (lightGapRows > 3) {
+                    finishRun(lastDarkRow + 1)
+                }
             }
         }
 
-        darkRunStart?.let {
-            addChoiceButton(buttons, bounds, it, bounds.bottom, minHeight, maxHeight, edgePadding)
+        if (darkRunStart != null) {
+            finishRun(lastDarkRow + 1)
         }
 
-        FgoLogger.info(tag, "Choice zone detected ${buttons.size} panels in $bounds")
+        FgoLogger.info(tag, "Choice zone detected ${buttons.size} panels in $bounds ${buttons.map { it.flattenToString() }}")
         return buttons
     }
 
@@ -175,28 +218,83 @@ class BackgroundDetector @Inject constructor() {
         if (baseBounds.width() <= 0 || baseBounds.height() <= 0) return false
 
         val baseScore = completeMarkerWhiteScore(bitmap, baseBounds)
-        val expandedBounds = Rect(baseBounds).apply {
-            val horizontalSlack = (baseBounds.width() * 0.45f).toInt()
-            val topSlack = (baseBounds.height() * 0.85f).toInt()
-            val bottomSlack = (baseBounds.height() * 0.55f).toInt()
-            inset(-horizontalSlack, -topSlack)
-            bottom += bottomSlack
-            intersect(0, 0, bitmap.width, bitmap.height)
-        }
-        val expandedScore = if (expandedBounds == baseBounds) {
-            baseScore
-        } else {
-            completeMarkerWhiteScore(bitmap, expandedBounds)
-        }
-
-        val visible = baseScore.ratio >= MIN_COMPLETE_MARKER_WHITE_RATIO ||
-            expandedScore.whitePixels >= MIN_COMPLETE_MARKER_WHITE_PIXELS
+        val markerShapeVisible = hasCompleteMarkerShape(bitmap, baseBounds)
+        val visible = markerShapeVisible || baseScore.ratio >= MIN_COMPLETE_MARKER_WHITE_RATIO
         FgoLogger.debug(
             tag,
             "Dialogue complete marker visible=$visible whiteRatio=${baseScore.ratio} " +
-                "expandedWhite=${expandedScore.whitePixels} bounds=$baseBounds expanded=$expandedBounds"
+                "whitePixels=${baseScore.whitePixels} markerShape=$markerShapeVisible bounds=$baseBounds"
         )
         return visible
+    }
+
+    private fun hasCompleteMarkerShape(bitmap: Bitmap, bounds: Rect): Boolean {
+        val width = bounds.width()
+        val height = bounds.height()
+        if (width <= 0 || height <= 0) return false
+
+        val visited = BooleanArray(width * height)
+        val minPixels = maxOf(35, (width * height * 0.015f).toInt())
+        val minWidth = maxOf(10, (width * 0.16f).toInt())
+        val minHeight = maxOf(18, (height * 0.34f).toInt())
+        val maxWidth = maxOf(minWidth, (width * 0.78f).toInt())
+        val maxHeight = maxOf(minHeight, (height * 0.98f).toInt())
+
+        fun index(x: Int, y: Int): Int = y * width + x
+
+        for (localY in 0 until height) {
+            for (localX in 0 until width) {
+                val seedIndex = index(localX, localY)
+                if (visited[seedIndex]) continue
+                val screenX = bounds.left + localX
+                val screenY = bounds.top + localY
+                if (!isCompleteMarkerPixel(bitmap.getPixel(screenX, screenY))) {
+                    visited[seedIndex] = true
+                    continue
+                }
+
+                var count = 0
+                var minX = localX
+                var maxX = localX
+                var minY = localY
+                var maxY = localY
+                val queue = ArrayDeque<Pair<Int, Int>>()
+                queue.add(localX to localY)
+                visited[seedIndex] = true
+
+                while (queue.isNotEmpty()) {
+                    val (x, y) = queue.removeFirst()
+                    count++
+                    minX = minOf(minX, x)
+                    maxX = maxOf(maxX, x)
+                    minY = minOf(minY, y)
+                    maxY = maxOf(maxY, y)
+
+                    for (ny in maxOf(0, y - 1)..minOf(height - 1, y + 1)) {
+                        for (nx in maxOf(0, x - 1)..minOf(width - 1, x + 1)) {
+                            val nextIndex = index(nx, ny)
+                            if (visited[nextIndex]) continue
+                            visited[nextIndex] = true
+                            if (isCompleteMarkerPixel(bitmap.getPixel(bounds.left + nx, bounds.top + ny))) {
+                                queue.add(nx to ny)
+                            }
+                        }
+                    }
+                }
+
+                val componentWidth = maxX - minX + 1
+                val componentHeight = maxY - minY + 1
+                val aspect = componentWidth.toFloat() / componentHeight.coerceAtLeast(1)
+                if (count >= minPixels &&
+                    componentWidth in minWidth..maxWidth &&
+                    componentHeight in minHeight..maxHeight &&
+                    aspect in 0.32f..1.18f
+                ) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private fun completeMarkerWhiteScore(bitmap: Bitmap, bounds: Rect): WhiteScore {
@@ -204,12 +302,7 @@ class BackgroundDetector @Inject constructor() {
         var totalPixels = 0
         for (y in bounds.top until bounds.bottom step 2) {
             for (x in bounds.left until bounds.right step 2) {
-                val pixel = bitmap.getPixel(x, y)
-                val r = (pixel shr 16) and 0xFF
-                val g = (pixel shr 8) and 0xFF
-                val b = pixel and 0xFF
-                val channelSpread = maxOf(r, g, b) - minOf(r, g, b)
-                if (r >= 180 && g >= 180 && b >= 180 && channelSpread <= 45) {
+                if (isCompleteMarkerPixel(bitmap.getPixel(x, y))) {
                     whitePixels++
                 }
                 totalPixels++
@@ -219,6 +312,14 @@ class BackgroundDetector @Inject constructor() {
             whitePixels = whitePixels,
             ratio = if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
         )
+    }
+
+    private fun isCompleteMarkerPixel(pixel: Int): Boolean {
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        val channelSpread = maxOf(r, g, b) - minOf(r, g, b)
+        return r >= 176 && g >= 176 && b >= 176 && channelSpread <= 58
     }
 
     /**
@@ -264,9 +365,35 @@ class BackgroundDetector @Inject constructor() {
         return if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
     }
 
+    private fun isChoicePanelAnchorRow(
+        bitmap: Bitmap,
+        y: Int,
+        leftAnchor: Rect,
+        rightAnchor: Rect
+    ): Boolean {
+        return darkRatioInRow(bitmap, leftAnchor.left, leftAnchor.right, y) >= MIN_CHOICE_LEFT_ANCHOR_DARK_RATIO &&
+            darkRatioInRow(bitmap, rightAnchor.left, rightAnchor.right, y) >= MIN_CHOICE_RIGHT_ANCHOR_DARK_RATIO
+    }
+
+    private fun darkRatioInRow(bitmap: Bitmap, left: Int, right: Int, y: Int): Float {
+        var dark = 0
+        var total = 0
+        val actualLeft = left.coerceIn(0, bitmap.width)
+        val actualRight = right.coerceIn(0, bitmap.width)
+        for (x in actualLeft until actualRight step 2) {
+            if (getPixelLuminance(bitmap, x, y) < DARK_LUMINANCE_THRESHOLD) {
+                dark++
+            }
+            total++
+        }
+        return if (total == 0) 0f else dark.toFloat() / total
+    }
+
     private fun addChoiceButton(
         buttons: MutableList<Rect>,
         searchRegion: Rect,
+        left: Int,
+        right: Int,
         top: Int,
         bottom: Int,
         minHeight: Int,
@@ -284,9 +411,9 @@ class BackgroundDetector @Inject constructor() {
         }
         buttons.add(
             Rect(
-                searchRegion.left,
+                (left - edgePadding).coerceAtLeast(searchRegion.left),
                 (top - edgePadding).coerceAtLeast(searchRegion.top),
-                searchRegion.right,
+                (right + edgePadding).coerceAtMost(searchRegion.right),
                 (bottom + edgePadding).coerceAtMost(searchRegion.bottom)
             )
         )

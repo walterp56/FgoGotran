@@ -35,7 +35,14 @@ class TranslationMemory @Inject constructor(
 
     fun lookupNormalized(normalizedJapaneseText: String): String? {
         if (normalizedJapaneseText.isBlank()) return null
-        return entries()[normalizedJapaneseText]
+        val loadedEntries = entries()
+        loadedEntries[normalizedJapaneseText]?.let { return it }
+        val withoutRuby = TextNormalizer.stripRubyAnnotations(normalizedJapaneseText)
+        return if (withoutRuby != normalizedJapaneseText) {
+            loadedEntries[withoutRuby]
+        } else {
+            null
+        }
     }
 
     private fun entries(): Map<String, String> {

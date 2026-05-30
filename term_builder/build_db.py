@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sqlite3
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,7 @@ ROOT = Path(__file__).resolve().parent
 REPO_ROOT = ROOT.parent
 DEFAULT_JSON = ROOT / "fgo_terms.json"
 DEFAULT_DB = REPO_ROOT / "app" / "src" / "main" / "assets" / "db" / "fgo_terms.db"
+NAME_SEPARATOR_RE = re.compile(r"[\u30FB\uFF65\u00B7\uFF0F/\uFF06&\uFF1D=\s]+")
 
 
 def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None:
@@ -58,8 +61,9 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
     )
     conn.execute("CREATE UNIQUE INDEX index_terms_jp_term ON terms(jp_term)")
 
+    generated_character_parts = 0
     for term in terms:
-        insert_term(conn, term)
+        generated_character_parts += insert_term(conn, term)
 
     conn.commit()
     character_count = conn.execute("SELECT COUNT(*) FROM character_names").fetchone()[0]
@@ -71,6 +75,7 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
 
     print(f"Built {db_path}")
     print(f"  character_names: {character_count}")
+    print(f"  generated_character_parts: {generated_character_parts}")
     print(f"  terms: {term_count}")
     for category, category_count in categories:
         print(f"  {category}: {category_count}")
@@ -81,21 +86,19 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
         print(f"Copied local DB preview to {local_copy}")
 
 
-def insert_term(conn: sqlite3.Connection, term: dict[str, Any]) -> None:
+def insert_term(conn: sqlite3.Connection, term: dict[str, Any]) -> int:
     jp_name = clean(term.get("jp_name"))
     cn_name = clean(term.get("cn_name"))
     category = clean(term.get("category")) or "term"
     aliases = clean(term.get("aliases")) or "[]"
     if not jp_name or not cn_name:
-        return
+        return 0
     if category in {"character", "servant"}:
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO character_names (jp_name, cn_name, aliases)
-            VALUES (?, ?, ?)
-            """,
-            (jp_name, cn_name, aliases),
-        )
+        insert_character_name(conn, jp_name, cn_name, aliases, replace=True)
+        generated = 0
+        for jp_part, cn_part in character_name_components(jp_name, cn_name):
+            generated += insert_character_name(conn, jp_part, cn_part, "[]", replace=False)
+        return generated
     else:
         conn.execute(
             """
@@ -104,6 +107,67 @@ def insert_term(conn: sqlite3.Connection, term: dict[str, Any]) -> None:
             """,
             (jp_name, cn_name, category, aliases),
         )
+        return 0
+
+
+def insert_character_name(
+    conn: sqlite3.Connection,
+    jp_name: str,
+    cn_name: str,
+    aliases: str,
+    *,
+    replace: bool,
+) -> int:
+    conflict = "REPLACE" if replace else "IGNORE"
+    cursor = conn.execute(
+        f"""
+        INSERT OR {conflict} INTO character_names (jp_name, cn_name, aliases)
+        VALUES (?, ?, ?)
+        """,
+        (jp_name, cn_name, aliases),
+    )
+    return max(cursor.rowcount, 0)
+
+
+def character_name_components(jp_name: str, cn_name: str) -> list[tuple[str, str]]:
+    jp_parts = split_name_components(jp_name)
+    cn_parts = split_name_components(cn_name)
+    if len(jp_parts) < 2 or len(jp_parts) != len(cn_parts):
+        return []
+
+    components: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for jp_part, cn_part in zip(jp_parts, cn_parts):
+        jp_key = normalize_name_key(jp_part)
+        if len(jp_key) < 2 or jp_key in seen:
+            continue
+        if not has_japanese(jp_part):
+            continue
+        cn_part = clean(cn_part)
+        if not cn_part:
+            continue
+        seen.add(jp_key)
+        components.append((jp_part, cn_part))
+    return components
+
+
+def split_name_components(text: str) -> list[str]:
+    normalized = unicodedata.normalize("NFKC", text)
+    return [part.strip() for part in NAME_SEPARATOR_RE.split(normalized) if part.strip()]
+
+
+def normalize_name_key(text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", text)
+    return NAME_SEPARATOR_RE.sub("", normalized).strip()
+
+
+def has_japanese(text: str) -> bool:
+    return any(
+        "\u3040" <= char <= "\u30ff"
+        or "\uff66" <= char <= "\uff9d"
+        or "\u3400" <= char <= "\u9fff"
+        for char in text
+    )
 
 
 def clean(value: Any) -> str:

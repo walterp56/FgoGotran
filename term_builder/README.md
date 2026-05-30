@@ -17,12 +17,16 @@ Used for deterministic name-box translation. Exact JP name or alias matches are 
 Columns:
 
 ```tsv
-jp_name	cn_name	aliases	type
-ホームズ	福尔摩斯	シャーロック・ホームズ	npc
+jp_name	cn_name	aliases
+ホームズ	福尔摩斯	シャーロック・ホームズ
 ```
 
-`aliases` is optional and comma-separated. `type` is for maintenance, usually
-`servant` or `npc`.
+`aliases` is optional and comma-separated.
+
+Keep full character names here. `build_db.py` automatically adds component
+records for separator-based names, so `マシュ・キリエライト` keeps the full
+official row and also becomes searchable as `マシュ` and `キリエライト` in the
+bundled database.
 
 ### `term.tsv`
 

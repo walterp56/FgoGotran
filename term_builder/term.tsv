@@ -1,6 +1,6 @@
 ﻿jp_term	cn_term	category	aliases
 オリュンポス	奥林波斯	place	
-妖精國	妖精国	place	妖精国,ブリテン
+妖精國	妖精国	place	妖精国
 カルデア	迦勒底	place	Chaldea
 カルデアス	迦勒底亚斯	game_term	CHALDEAS
 ノウム・カルデア	新迦勒底	place	
@@ -89,9 +89,10 @@ QP	QP	item	量子
 アルターエゴ	Alterego	class	Alter Ego,他人格
 フォーリナー	Foreigner	class	降临者
 プリテンダー	Pretender	class	身披角色者
-ストーム・ボーダー	Storm Border	place	ストームボーダー,Storm Border
+ストーム・ボーダー	Storm Border	place	ストームボーダー,ストーム・ボーダ一,ストームボーダ一,ストーム・ホーダー,ストームホーダー,ストーム・ポーダー,ストームポーダー,Storm Border,StormBorder
+ボーダー	Border	place	ボーダ一,ホーダー,ポーダー,Border
 アンビースト	UnBeast	class	非兽
-シャドウ・ボーダー	Shadow Border	place	シャドウボーダー,Shadow Border
+シャドウ・ボーダー	Shadow Border	place	シャドウボーダー,シャドウ・ボーダ一,シャドウボーダ一,シャドウ・ホーダー,シャドウホーダー,シャドウ・ポーダー,シャドウポーダー,Shadow Border,ShadowBorder
 汎人類史	泛人类史	game_term	Proper Human History
 人理定礎	人理奠基	game_term	
 剪定事象	剪定事象	game_term	
@@ -111,7 +112,7 @@ QP	QP	item	量子
 空想具現化	空想具现化	game_term	
 無限の剣製	无限剑制	noble_phantasm	アンリミテッドブレイドワークス,Unlimited Blade Works
 エクスカリバー	誓约胜利之剑	noble_phantasm	約束された勝利の剣
-アヴァロン	遗世独立的理想乡	noble_phantasm	全て遠き理想郷
+アヴァロン	阿瓦隆	place	
 ロー・アイアス	覆盖炽天之七圆环	noble_phantasm	
 ルールブレイカー	万符必应破戒	noble_phantasm	破戒すべき全ての符
 ロンゴミニアド	伦戈米尼亚德	noble_phantasm	Rhongomyniad

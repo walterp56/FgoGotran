@@ -3,12 +3,15 @@ package com.fgogotran.ocr
 import android.graphics.Bitmap
 import android.graphics.Rect
 import com.fgogotran.util.FgoLogger
-import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
+import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * A single recognized text line with spatial position and confidence.
@@ -63,7 +66,7 @@ class OcrEngine @Inject constructor() {
 
         // InputImage.fromBitmap with rotation=0 (screenshot is already upright)
         val image = InputImage.fromBitmap(bitmap, 0)
-        val result = Tasks.await(recognizer.process(image))
+        val result = recognizer.processSuspending(image)
         val lines = mutableListOf<OcrTextLine>()
 
         // ML Kit returns TextBlock → TextLine hierarchy.
@@ -92,5 +95,17 @@ class OcrEngine @Inject constructor() {
             lines = lines,
             fullText = result.text
         )
+    }
+
+    private suspend fun com.google.mlkit.vision.text.TextRecognizer.processSuspending(
+        image: InputImage
+    ): Text = suspendCancellableCoroutine { continuation ->
+        process(image)
+            .addOnSuccessListener { result ->
+                if (continuation.isActive) continuation.resume(result)
+            }
+            .addOnFailureListener { error ->
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
     }
 }

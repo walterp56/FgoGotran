@@ -176,8 +176,8 @@ def main() -> None:
 
     source_cns = load_source_character_names()
     rows = list(csv.DictReader(CHARACTER_TSV.open(encoding="utf-8-sig"), delimiter="\t"))
-    servant_rows = [row for row in rows if row.get("type") == "servant"]
-    seen_jp = {row["jp_name"] for row in servant_rows}
+    existing_rows = [project_character_row(row) for row in rows if row.get("jp_name")]
+    seen_jp = {row["jp_name"] for row in existing_rows}
 
     npc_rows: list[dict[str, str]] = []
     skipped_not_on_page: list[str] = []
@@ -205,16 +205,15 @@ def main() -> None:
                 "jp_name": jp_name,
                 "cn_name": cn_name,
                 "aliases": ",".join(build_aliases(jp_name, extra_aliases)),
-                "type": "npc",
             }
         )
         seen_jp.add(jp_name)
 
-    write_character_tsv(servant_rows + npc_rows)
+    write_character_tsv(existing_rows + npc_rows)
     print(
         json.dumps(
             {
-                "servant_rows_preserved": len(servant_rows),
+                "existing_rows_preserved": len(existing_rows),
                 "npc_rows_added": len(npc_rows),
                 "source_cn_names_loaded": len(source_cns),
                 "skipped_not_on_page": skipped_not_on_page,
@@ -320,11 +319,19 @@ def build_aliases(jp_name: str, extra_aliases: list[str]) -> list[str]:
     return aliases
 
 
+def project_character_row(row: dict[str, str]) -> dict[str, str]:
+    return {
+        "jp_name": row.get("jp_name", ""),
+        "cn_name": row.get("cn_name", ""),
+        "aliases": row.get("aliases", ""),
+    }
+
+
 def write_character_tsv(rows: list[dict[str, str]]) -> None:
     with CHARACTER_TSV.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.DictWriter(
             file,
-            fieldnames=["jp_name", "cn_name", "aliases", "type"],
+            fieldnames=["jp_name", "cn_name", "aliases"],
             delimiter="\t",
             lineterminator="\n",
         )

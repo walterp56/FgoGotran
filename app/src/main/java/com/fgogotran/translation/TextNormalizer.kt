@@ -7,6 +7,8 @@ package com.fgogotran.translation
  * prevents repeated API calls for the same visible dialogue.
  */
 object TextNormalizer {
+    private val rubyAnnotationPattern = Regex("(?<=.)《[^》]{1,24}》")
+
     fun normalizeForTranslation(text: String): String {
         return text
             .replace("\r\n", "\n")
@@ -17,5 +19,9 @@ object TextNormalizer {
             .joinToString("\n")
             .replace(Regex("[ \\t]+"), " ")
             .trim()
+    }
+
+    fun stripRubyAnnotations(text: String): String {
+        return normalizeForTranslation(text).replace(rubyAnnotationPattern, "")
     }
 }

@@ -20,7 +20,7 @@ object FgoViewportLayout {
     // OCR spans long speaker names; rendering treats the first 500 px as its minimum plate.
     private val nameRegion = RectF(0f, 735f, 1085f, 825f)
     private val dialogueRegion = RectF(35f, 830f, 1810f, 1055f)
-    private val dialogueCompleteRegion = RectF(1785f, 950f, 1875f, 1055f)
+    private val dialogueCompleteRegion = RectF(1810f, 965f, 1888f, 1078f)
     private val skipConfirmationNoButtonRegion = RectF(430f, 605f, 785f, 685f)
     private val skipConfirmationYesButtonRegion = RectF(925f, 605f, 1280f, 685f)
     private val skipRegion = RectF(1690f, 10f, 1915f, 112f)

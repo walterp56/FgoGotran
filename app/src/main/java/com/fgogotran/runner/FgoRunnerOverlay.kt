@@ -109,7 +109,12 @@ class FgoRunnerOverlay @Inject constructor(
             FloatingButton(
                 onClick = {
                     if (!TranslationTrigger.isAutoTranslateEnabled()) {
-                        TranslationTrigger.requestTranslation()
+                        val requested = FgoAccessibilityService.instance
+                            ?.requestManualTranslation()
+                            ?: false
+                        if (!requested) {
+                            TranslationTrigger.requestTranslation()
+                        }
                     }
                 },
                 onLongClick = { onButtonLongClick() },

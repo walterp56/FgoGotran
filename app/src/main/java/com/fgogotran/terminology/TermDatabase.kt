@@ -1,6 +1,7 @@
 package com.fgogotran.terminology
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -43,26 +44,31 @@ abstract class TermDatabase : RoomDatabase() {
          */
         fun create(context: Context): TermDatabase {
             val dbFile = context.getDatabasePath(DB_NAME)
+            var assetAvailable = false
             try {
                 refreshFromAssetsIfChanged(context, dbFile)
+                assetAvailable = true
+                ensureBundledDbHasRows(context, dbFile)
             } catch (e: Exception) {
                 FgoLogger.warn(TAG,
-                    "No pre-built term DB in assets, creating empty one. " +
+                    "Term DB asset is missing or invalid, creating empty one if restore fails. " +
                     "Run term_builder scripts first for FGO terms.", e)
             }
 
-            val builder = Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
-            if (dbFile.exists() && dbFile.length() > 0) {
-                builder.createFromFile(dbFile)
-            }
             return try {
-                builder.build()
+                Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
+                    .build()
+                    .also { it.openHelper.readableDatabase }
             } catch (e: Exception) {
-                // Schema mismatch — delete old DB so Room creates a fresh one with correct schema
-                FgoLogger.warn(TAG, "Term DB schema mismatch, recreating. Rebuild with term_builder for RAG.", e)
-                dbFile.delete()
-                val fallbackBuilder = Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
-                fallbackBuilder.build()
+                FgoLogger.warn(TAG, "Term DB open failed, restoring bundled glossary.", e)
+                deleteDatabaseFiles(dbFile)
+                if (assetAvailable) {
+                    copyFromAssets(context, dbFile)
+                    ensureBundledDbHasRows(context, dbFile)
+                }
+                Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
+                    .build()
+                    .also { it.openHelper.readableDatabase }
             }
         }
 
@@ -86,9 +92,7 @@ abstract class TermDatabase : RoomDatabase() {
 
             if (shouldReplace) {
                 dbFile.parentFile?.mkdirs()
-                if (dbFile.exists() && !dbFile.delete()) {
-                    throw IllegalStateException("Unable to delete stale term DB: ${dbFile.absolutePath}")
-                }
+                deleteDatabaseFiles(dbFile)
                 if (!tempFile.renameTo(dbFile)) {
                     copyFromAssets(context, dbFile)
                     tempFile.delete()
@@ -96,6 +100,67 @@ abstract class TermDatabase : RoomDatabase() {
                 FgoLogger.info(TAG, "Term DB refreshed from assets, size=${dbFile.length()} bytes")
             } else {
                 tempFile.delete()
+            }
+        }
+
+        private fun ensureBundledDbHasRows(context: Context, dbFile: File) {
+            val stats = readDbStats(dbFile)
+            if (stats.total > 0) {
+                FgoLogger.info(
+                    TAG,
+                    "Term DB ready: character_names=${stats.characterNames}, terms=${stats.terms}, size=${dbFile.length()} bytes"
+                )
+                return
+            }
+
+            FgoLogger.warn(TAG, "Term DB at ${dbFile.absolutePath} has no rows; refreshing from assets")
+            deleteDatabaseFiles(dbFile)
+            copyFromAssets(context, dbFile)
+            val refreshedStats = readDbStats(dbFile)
+            require(refreshedStats.total > 0) {
+                "Bundled term DB is empty: ${dbFile.absolutePath}"
+            }
+            FgoLogger.info(
+                TAG,
+                "Term DB restored: character_names=${refreshedStats.characterNames}, terms=${refreshedStats.terms}, size=${dbFile.length()} bytes"
+            )
+        }
+
+        private data class DbStats(
+            val characterNames: Int,
+            val terms: Int
+        ) {
+            val total: Int get() = characterNames + terms
+        }
+
+        private fun readDbStats(dbFile: File): DbStats {
+            SQLiteDatabase.openDatabase(
+                dbFile.absolutePath,
+                null,
+                SQLiteDatabase.OPEN_READONLY
+            ).use { db ->
+                return DbStats(
+                    characterNames = countRows(db, "character_names"),
+                    terms = countRows(db, "terms")
+                )
+            }
+        }
+
+        private fun countRows(db: SQLiteDatabase, tableName: String): Int {
+            db.rawQuery("SELECT COUNT(*) FROM $tableName", null).use { cursor ->
+                return if (cursor.moveToFirst()) cursor.getInt(0) else 0
+            }
+        }
+
+        private fun deleteDatabaseFiles(dbFile: File) {
+            listOf(
+                dbFile,
+                File("${dbFile.absolutePath}-wal"),
+                File("${dbFile.absolutePath}-shm")
+            ).forEach { file ->
+                if (file.exists() && !file.delete()) {
+                    throw IllegalStateException("Unable to delete stale term DB file: ${file.absolutePath}")
+                }
             }
         }
 

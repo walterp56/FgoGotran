@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v13"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v17"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -50,14 +50,14 @@ Rules (MUST follow):
 1. TERMINOLOGY: Use ONLY the official Chinese translations provided below for proper nouns. Never invent new translations.
 2. STYLE: Maintain the original speaker's tone. Use natural conversational Chinese appropriate for game dialogue.
 3. NAMES: Never translate servant/character names creatively. Use ONLY the official Chinese names.
-4. PLAYER NAME: The player's name is "{player_name}". When this name appears (with or without honorifics like さん/殿/君), use "{player_name}" in Chinese.
+4. PLAYER NAME: The player's name is "{player_name}". It is fixed user text; keep it exactly when it appears, even if it contains Japanese kana. Remove honorifics like さん/殿/君 unless they are important to the tone.
 5. FORMAT: Return ONLY the translated Chinese text. No explanations, no notes, no markdown.
 6. CONTEXT AWARENESS: If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear.
 7. UNKNOWN TERMS: If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
 8. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
 9. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
-10. RUBY: If the source contains main text with a parenthetical annotation like 彼女(オルガマリー), translate as main(annotation), e.g. 她(奥尔加玛丽).
-11. PLACEHOLDERS: Keep tokens like __FGOTERM_1__ unchanged exactly.
+10. RUBY/FURIGANA: Source may contain OCR ruby as base《reading》, e.g. 大穴《クエスチョン》. Treat the reading as pronunciation/alternate-name context, not separate dialogue. Translate the base meaning naturally; include a concise Chinese parenthetical only when the reading is a proper noun, codename, or important alternate name.
+11. PLACEHOLDERS: Keep tokens like __FGOTERM_1__ and __FGOPLAYER_1__ unchanged exactly.
 
 Style examples:
 JP: ……そうか。君は、そう選ぶんだな。
@@ -124,8 +124,8 @@ CN: 从这里开始，就是我们的战斗了。
             sb.append("\nMain dialogue text:\n")
         }
 
-        if (japaneseText.contains("__FGOTERM_")) {
-            sb.append("Keep __FGOTERM_n__ placeholders unchanged exactly.\n\n")
+        if (japaneseText.contains("__FGOTERM_") || japaneseText.contains("__FGOPLAYER_")) {
+            sb.append("Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly.\n\n")
         }
 
         sb.append(japaneseText)
@@ -202,8 +202,13 @@ CN: 从这里开始，就是我们的战斗了。
     }
 
     private fun normalizeForTermMatch(text: String): String {
-        return Normalizer.normalize(text.trim(), Normalizer.Form.NFKC)
+        return normalizeOcrTermGlyphs(Normalizer.normalize(text.trim(), Normalizer.Form.NFKC))
             .replace(Regex("""[\s　]+"""), "")
             .replace(Regex("""[・･·•,，、。.!！?？:：;；\[\]（）()「」『』"“”'’‘=＝\-－—―_＿]"""), "")
+    }
+
+    private fun normalizeOcrTermGlyphs(text: String): String {
+        return text
+            .replace('一', 'ー')
     }
 }
