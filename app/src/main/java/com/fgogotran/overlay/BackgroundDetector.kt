@@ -46,10 +46,16 @@ class BackgroundDetector @Inject constructor() {
         private const val MIN_SKIP_WHITE_RATIO = 0.08f
         private const val MAX_SKIP_WHITE_RATIO = 0.55f
         private const val MIN_COMPLETE_MARKER_WHITE_RATIO = 0.02f
+        private const val MIN_COMPLETE_MARKER_WHITE_PIXELS = 45
         private const val MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO = 0.35f
     }
 
     private val tag = "BackgroundDetector"
+
+    private data class WhiteScore(
+        val whitePixels: Int,
+        val ratio: Float
+    )
 
     fun detect(bitmap: Bitmap): DetectedRegions {
         val w = bitmap.width
@@ -160,14 +166,40 @@ class BackgroundDetector @Inject constructor() {
      * Detects FGO's bright continue diamond, which appears only after dialogue typing completes.
      */
     fun isDialogueCompleteMarkerVisible(bitmap: Bitmap, markerRegion: Rect): Boolean {
-        val bounds = Rect(
+        val baseBounds = Rect(
             markerRegion.left.coerceIn(0, bitmap.width),
             markerRegion.top.coerceIn(0, bitmap.height),
             markerRegion.right.coerceIn(0, bitmap.width),
             markerRegion.bottom.coerceIn(0, bitmap.height)
         )
-        if (bounds.width() <= 0 || bounds.height() <= 0) return false
+        if (baseBounds.width() <= 0 || baseBounds.height() <= 0) return false
 
+        val baseScore = completeMarkerWhiteScore(bitmap, baseBounds)
+        val expandedBounds = Rect(baseBounds).apply {
+            val horizontalSlack = (baseBounds.width() * 0.45f).toInt()
+            val topSlack = (baseBounds.height() * 0.85f).toInt()
+            val bottomSlack = (baseBounds.height() * 0.55f).toInt()
+            inset(-horizontalSlack, -topSlack)
+            bottom += bottomSlack
+            intersect(0, 0, bitmap.width, bitmap.height)
+        }
+        val expandedScore = if (expandedBounds == baseBounds) {
+            baseScore
+        } else {
+            completeMarkerWhiteScore(bitmap, expandedBounds)
+        }
+
+        val visible = baseScore.ratio >= MIN_COMPLETE_MARKER_WHITE_RATIO ||
+            expandedScore.whitePixels >= MIN_COMPLETE_MARKER_WHITE_PIXELS
+        FgoLogger.debug(
+            tag,
+            "Dialogue complete marker visible=$visible whiteRatio=${baseScore.ratio} " +
+                "expandedWhite=${expandedScore.whitePixels} bounds=$baseBounds expanded=$expandedBounds"
+        )
+        return visible
+    }
+
+    private fun completeMarkerWhiteScore(bitmap: Bitmap, bounds: Rect): WhiteScore {
         var whitePixels = 0
         var totalPixels = 0
         for (y in bounds.top until bounds.bottom step 2) {
@@ -183,11 +215,10 @@ class BackgroundDetector @Inject constructor() {
                 totalPixels++
             }
         }
-
-        val whiteRatio = if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
-        val visible = whiteRatio >= MIN_COMPLETE_MARKER_WHITE_RATIO
-        FgoLogger.debug(tag, "Dialogue complete marker visible=$visible whiteRatio=$whiteRatio bounds=$bounds")
-        return visible
+        return WhiteScore(
+            whitePixels = whitePixels,
+            ratio = if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
+        )
     }
 
     /**

@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v11"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v13"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -57,6 +57,7 @@ Rules (MUST follow):
 8. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
 9. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
 10. RUBY: If the source contains main text with a parenthetical annotation like 彼女(オルガマリー), translate as main(annotation), e.g. 她(奥尔加玛丽).
+11. PLACEHOLDERS: Keep tokens like __FGOTERM_1__ unchanged exactly.
 
 Style examples:
 JP: ……そうか。君は、そう選ぶんだな。
@@ -121,6 +122,10 @@ CN: 从这里开始，就是我们的战斗了。
                 sb.append("[Choice ${i + 1}] $choice\n")
             }
             sb.append("\nMain dialogue text:\n")
+        }
+
+        if (japaneseText.contains("__FGOTERM_")) {
+            sb.append("Keep __FGOTERM_n__ placeholders unchanged exactly.\n\n")
         }
 
         sb.append(japaneseText)

@@ -79,6 +79,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var isForwardingOverlayTap = false
     private var choiceOcrSuppressedUntil = 0L
     private var suppressedChoiceBoundsKey = ""
+    private var emptyChoiceOcrStreak = 0
     private var tapAdvancePolling = false
 
     companion object {
@@ -92,8 +93,11 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NEXT_DIALOGUE_POLL_TIMEOUT = 2_500L
         private const val TAP_PASSTHROUGH_SETTLE_DELAY = 32L
         private const val TAP_REPLAY_TIMEOUT = 500L
-        private const val EMPTY_CHOICE_OCR_COOLDOWN = 250L
+        private const val EMPTY_CHOICE_OCR_BASE_COOLDOWN = 600L
+        private const val EMPTY_CHOICE_OCR_MAX_COOLDOWN = 1_200L
         private const val FRESHNESS_CHECK_TRANSLATION_DELAY = 400L
+        private const val VISUAL_FINGERPRINT_STEP = 3
+        private const val VISUAL_FINGERPRINT_MAX_DIFF_RATIO = 0.035f
 
         private val _serviceStarted = mutableStateOf(false)
         val serviceStarted: State<Boolean>
@@ -204,6 +208,7 @@ class FgoAccessibilityService : AccessibilityService() {
         isForwardingOverlayTap = false
         choiceOcrSuppressedUntil = 0L
         suppressedChoiceBoundsKey = ""
+        emptyChoiceOcrStreak = 0
         translationOverlay.hide()
     }
 
@@ -323,11 +328,12 @@ class FgoAccessibilityService : AccessibilityService() {
                 translationOverlay.hide()
                 return
             }
-            if (translationDuration >= FRESHNESS_CHECK_TRANSLATION_DELAY &&
-                !isSourceFingerprintCurrent(sourceFingerprint)
-            ) {
-                FgoLogger.debug(tag, "Dialogue changed during translation; discarding stale result")
-                return
+            if (translationDuration >= FRESHNESS_CHECK_TRANSLATION_DELAY) {
+                val sourceVisualFingerprint = visualFingerprintFor(source, classifiedRegions)
+                if (!isSourceVisuallyCurrent(sourceVisualFingerprint)) {
+                    FgoLogger.debug(tag, "Dialogue changed during translation; discarding stale result")
+                    return
+                }
             }
             if (translationDuration < FRESHNESS_CHECK_TRANSLATION_DELAY) {
                 FgoLogger.debug(tag, "Fast translation (${translationDuration}ms); rendering without OCR recheck")
@@ -621,15 +627,23 @@ class FgoAccessibilityService : AccessibilityService() {
             }.awaitAll().filterNotNull()
         }
         if (choiceRegions.isEmpty()) {
-            choiceOcrSuppressedUntil = now + EMPTY_CHOICE_OCR_COOLDOWN
+            emptyChoiceOcrStreak = if (choiceBoundsKey == suppressedChoiceBoundsKey) {
+                emptyChoiceOcrStreak + 1
+            } else {
+                1
+            }
+            val cooldown = (EMPTY_CHOICE_OCR_BASE_COOLDOWN * emptyChoiceOcrStreak)
+                .coerceAtMost(EMPTY_CHOICE_OCR_MAX_COOLDOWN)
+            choiceOcrSuppressedUntil = now + cooldown
             suppressedChoiceBoundsKey = choiceBoundsKey
             FgoLogger.debug(
                 tag,
-                "Detected ${choiceBounds.size} choice panel(s) with no OCR text; briefly suppressing same panels"
+                "Detected ${choiceBounds.size} choice panel(s) with no OCR text; suppressing same panels for ${cooldown}ms"
             )
         } else {
             choiceOcrSuppressedUntil = 0L
             suppressedChoiceBoundsKey = ""
+            emptyChoiceOcrStreak = 0
         }
         return choiceRegions
     }
@@ -657,29 +671,139 @@ class FgoAccessibilityService : AccessibilityService() {
         }.trim()
     }
 
-    private suspend fun isSourceFingerprintCurrent(expectedFingerprint: String): Boolean {
+    private suspend fun isSourceVisuallyCurrent(expected: VisualSourceFingerprint): Boolean {
         val currentScreenshot = takeScreenshotCompat() ?: return false
         return try {
             val screenRegions = FgoViewportLayout.regionsForScreen(
                 currentScreenshot.width,
                 currentScreenshot.height
             )
-            val currentRegions = if (expectedFingerprint.contains(TextRegion.DIALOGUE_BOX.name)) {
-                if (!backgroundDetector.isDialogueCompleteMarkerVisible(
+            if (expected.hasChoices) {
+                val currentChoices = backgroundDetector.detectChoiceButtons(currentScreenshot, screenRegions.choiceSearch)
+                if (currentChoices.size < expected.choiceRegionCount) return false
+            }
+            if (expected.hasDialogue) {
+                val markerVisible = backgroundDetector.isDialogueCompleteMarkerVisible(
                     currentScreenshot,
                     screenRegions.dialogueComplete
-                )) {
+                )
+                if (!markerVisible) {
+                    FgoLogger.debug(tag, "Dialogue marker not visible during visual freshness check; ignoring animated marker")
+                }
+                if (backgroundDetector.detectChoiceButtons(currentScreenshot, screenRegions.choiceSearch).isNotEmpty()) {
                     return false
                 }
-                recognizeDialogueRegions(currentScreenshot, screenRegions)
-            } else {
-                recognizeChoiceRegions(currentScreenshot, screenRegions)
             }
-            currentRegions.isNotEmpty() && fingerprintFor(currentRegions) == expectedFingerprint
+            if (expected.samples.isEmpty()) return false
+            expected.samples.all { sample ->
+                val currentMask = textMaskFor(currentScreenshot, sample.bounds)
+                val matches = currentMask != null && masksAreSimilar(sample.mask, currentMask)
+                if (!matches) {
+                    FgoLogger.debug(tag, "Visual freshness mismatch in ${sample.region}")
+                }
+                matches
+            }
         } finally {
             currentScreenshot.recycle()
         }
     }
+
+    private fun visualFingerprintFor(
+        source: Bitmap,
+        regions: List<ClassifiedRegion>
+    ): VisualSourceFingerprint {
+        val samples = regions.flatMap { region ->
+            region.lines.mapNotNull { line ->
+                textMaskFor(source, line.boundingBox)?.let { mask ->
+                    VisualTextSample(region.region, Rect(line.boundingBox), mask)
+                }
+            }
+        }
+        return VisualSourceFingerprint(
+            hasDialogue = regions.any {
+                it.region == TextRegion.DIALOGUE_BOX || it.region == TextRegion.NAME_LABEL
+            },
+            hasChoices = regions.any { it.region == TextRegion.CHOICE_BUTTON },
+            choiceRegionCount = regions.count { it.region == TextRegion.CHOICE_BUTTON },
+            samples = samples
+        )
+    }
+
+    private fun textMaskFor(bitmap: Bitmap, sourceBounds: Rect): VisualTextMask? {
+        val bounds = Rect(sourceBounds)
+        bounds.inset(-2, -2)
+        if (!bounds.intersect(0, 0, bitmap.width, bitmap.height)) return null
+        if (bounds.width() <= 0 || bounds.height() <= 0) return null
+
+        val columns = ((bounds.width() + VISUAL_FINGERPRINT_STEP - 1) / VISUAL_FINGERPRINT_STEP).coerceAtLeast(1)
+        val rows = ((bounds.height() + VISUAL_FINGERPRINT_STEP - 1) / VISUAL_FINGERPRINT_STEP).coerceAtLeast(1)
+        val sampleCount = columns * rows
+        val words = LongArray((sampleCount + 63) / 64)
+        var index = 0
+        var textPixels = 0
+
+        var y = bounds.top
+        while (y < bounds.bottom) {
+            var x = bounds.left
+            while (x < bounds.right) {
+                if (isLikelyTextPixel(bitmap.getPixel(x, y))) {
+                    words[index / 64] = words[index / 64] or (1L shl (index and 63))
+                    textPixels++
+                }
+                index++
+                x += VISUAL_FINGERPRINT_STEP
+            }
+            y += VISUAL_FINGERPRINT_STEP
+        }
+
+        return VisualTextMask(sampleCount = index, textPixels = textPixels, words = words)
+    }
+
+    private fun isLikelyTextPixel(pixel: Int): Boolean {
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        val max = maxOf(r, g, b)
+        val min = minOf(r, g, b)
+        val spread = max - min
+        val whiteText = r >= 170 && g >= 170 && b >= 170 && spread <= 95
+        val redText = r >= 165 && r - maxOf(g, b) >= 40
+        val cyanText = g >= 140 && b >= 140 && minOf(g, b) - r >= 35
+        return whiteText || redText || cyanText
+    }
+
+    private fun masksAreSimilar(expected: VisualTextMask, current: VisualTextMask): Boolean {
+        if (expected.sampleCount != current.sampleCount) return false
+        val textPixelDiff = kotlin.math.abs(expected.textPixels - current.textPixels)
+        val textPixelTolerance = maxOf(8, (expected.sampleCount * VISUAL_FINGERPRINT_MAX_DIFF_RATIO).toInt())
+        if (textPixelDiff > textPixelTolerance) return false
+
+        var bitDiff = 0
+        for (index in expected.words.indices) {
+            bitDiff += java.lang.Long.bitCount(expected.words[index] xor current.words[index])
+            if (bitDiff > textPixelTolerance) return false
+        }
+        return true
+    }
+
+    private data class VisualSourceFingerprint(
+        val hasDialogue: Boolean,
+        val hasChoices: Boolean,
+        val choiceRegionCount: Int,
+        val samples: List<VisualTextSample>
+    )
+
+    private data class VisualTextSample(
+        val region: TextRegion,
+        val bounds: Rect,
+        val mask: VisualTextMask
+    )
+
+    private data class VisualTextMask(
+        val sampleCount: Int,
+        val textPixels: Int,
+        val words: LongArray
+    )
 
     private fun List<OcrTextLine>.toScreenCoordinates(offset: Rect): List<OcrTextLine> {
         return map { line ->

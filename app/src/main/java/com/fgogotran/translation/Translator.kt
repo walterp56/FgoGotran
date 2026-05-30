@@ -183,10 +183,11 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
+        val protectedInput = protectOfficialTerms(normalizedText, matchedTerms)
 
         val messages = listOf(
             ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName)),
-            ChatMessage("user", promptBuilder.buildUserPrompt(normalizedText, normalizedChoices))
+            ChatMessage("user", promptBuilder.buildUserPrompt(protectedInput.text, normalizedChoices))
         )
 
         FgoLogger.info(tag, "Calling $backend API")
@@ -206,7 +207,10 @@ class Translator @Inject constructor(
             )
         }
 
-        val simplifiedResult = sanitizeTranslation(normalizedText, result)
+        val simplifiedResult = sanitizeTranslation(
+            normalizedText,
+            restoreProtectedTerms(result, protectedInput.terms)
+        )
 
         if (cacheEnabled) {
             cacheTranslatedText(hash, japaneseText, normalizedText, simplifiedResult, backend)
@@ -300,10 +304,11 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "Batch RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
+        val protectedTexts = uncachedTexts.map { protectOfficialTerms(it, matchedTerms) }
 
         val messages = listOf(
             ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName)),
-            ChatMessage("user", buildBatchUserPrompt(uncachedTexts))
+            ChatMessage("user", buildBatchUserPrompt(protectedTexts.map { it.text }))
         )
 
         FgoLogger.info(tag, "Calling $backend API for batch (${uncachedTexts.size} items)")
@@ -324,7 +329,11 @@ class Translator @Inject constructor(
         }
 
         for ((batchIndex, originalIndex) in uncachedIndices.withIndex()) {
-            val translated = sanitizeTranslation(normalizedTexts[originalIndex], translatedTexts[batchIndex])
+            val restored = restoreProtectedTerms(
+                translatedTexts[batchIndex],
+                protectedTexts[batchIndex].terms
+            )
+            val translated = sanitizeTranslation(normalizedTexts[originalIndex], restored)
             results[originalIndex] = TranslateResult(translated, backend, false)
             if (cacheEnabled) {
                 cacheTranslatedText(
@@ -476,10 +485,20 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "Scene RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
+        val protectedName = uncachedName?.let { protectOfficialTerms(it, matchedTerms) }
+        val protectedDialogue = uncachedDialogue?.let { protectOfficialTerms(it, matchedTerms) }
+        val protectedChoices = uncachedChoices.map { protectOfficialTerms(it, matchedTerms) }
 
         val messages = listOf(
             ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, config.playerName)),
-            ChatMessage("user", buildSceneUserPrompt(uncachedName, uncachedDialogue, uncachedChoices))
+            ChatMessage(
+                "user",
+                buildSceneUserPrompt(
+                    protectedName?.text,
+                    protectedDialogue?.text,
+                    protectedChoices.map { it.text }
+                )
+            )
         )
 
         FgoLogger.info(
@@ -511,7 +530,10 @@ class Translator @Inject constructor(
         if (needsName) {
             val translatedName = translatedScene.name
                 ?: throw IllegalStateException("Structured scene response missing parsed name")
-            val simplifiedName = sanitizeTranslation(normalizedName!!, translatedName)
+            val simplifiedName = sanitizeTranslation(
+                normalizedName!!,
+                restoreProtectedTerms(translatedName, protectedName?.terms.orEmpty())
+            )
             nameResult = TranslateResult(simplifiedName, backend, false)
             if (cacheEnabled) {
                 cacheTranslatedText(nameHash!!, input.name.orEmpty(), normalizedName, simplifiedName, backend)
@@ -520,7 +542,10 @@ class Translator @Inject constructor(
         if (needsDialogue) {
             val translatedDialogue = translatedScene.dialogue
                 ?: throw IllegalStateException("Structured scene response missing parsed dialogue")
-            val simplifiedDialogue = sanitizeTranslation(normalizedDialogue!!, translatedDialogue)
+            val simplifiedDialogue = sanitizeTranslation(
+                normalizedDialogue!!,
+                restoreProtectedTerms(translatedDialogue, protectedDialogue?.terms.orEmpty())
+            )
             dialogueResult = TranslateResult(simplifiedDialogue, backend, false)
             if (cacheEnabled) {
                 cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue, simplifiedDialogue, backend)
@@ -529,7 +554,11 @@ class Translator @Inject constructor(
         for ((batchIndex, originalIndex) in neededChoiceIndices.withIndex()) {
             val normalizedChoice = normalizedChoices[originalIndex] ?: continue
             val hash = choiceHashes[originalIndex] ?: continue
-            val translatedChoice = sanitizeTranslation(normalizedChoice, translatedScene.choices[batchIndex])
+            val restoredChoice = restoreProtectedTerms(
+                translatedScene.choices[batchIndex],
+                protectedChoices[batchIndex].terms
+            )
+            val translatedChoice = sanitizeTranslation(normalizedChoice, restoredChoice)
             if (looksUntranslated(normalizedChoice, translatedChoice)) {
                 FgoLogger.warn(tag, "Structured scene choice[$originalIndex] returned untranslated Japanese")
                 choiceResults[originalIndex] = TranslateResult("（翻译失败）", backend, false)
@@ -596,11 +625,15 @@ class Translator @Inject constructor(
         termDao.findExactCharacterName(normalizedText)?.let { return it }
         val lookupText = normalizeNameLookup(normalizedText)
         val names = getCachedCharacterNames()
+
         names.firstOrNull { character ->
-            lookupText == normalizeNameLookup(character.jpName) ||
-                aliases(character.aliases).any { alias ->
-                    lookupText == normalizeNameLookup(alias)
-                }
+            lookupText == normalizeNameLookup(character.jpName)
+        }?.let { return it.cnName }
+
+        names.firstOrNull { character ->
+            aliases(character.aliases).any { alias ->
+                lookupText == normalizeNameLookup(alias)
+            }
         }?.let { return it.cnName }
 
         names.firstOrNull { character ->
@@ -718,24 +751,147 @@ class Translator @Inject constructor(
 
     private fun sanitizeTranslation(sourceText: String, translatedText: String): String {
         val simplified = toSimplifiedChinese(translatedText)
-        val fixed = fixKnownBadTranslation(sourceText, simplified)
-        return preserveSourcePunctuation(sourceText, fixed)
+        return preserveSourcePunctuation(sourceText, simplified)
     }
 
-    private fun fixKnownBadTranslation(sourceText: String, translatedText: String): String {
-        val normalizedSource = normalizeNameLookup(sourceText)
-        if (isLikelyMunielSource(normalizedSource)) {
-            FgoLogger.info(tag, "Forced ムニエル deterministic translation")
-            return "穆尼尔"
+    private data class ProtectedText(
+        val text: String,
+        val terms: List<TermProtection>
+    )
+
+    private data class TermProtection(
+        val token: String,
+        val officialText: String
+    )
+
+    private fun protectOfficialTerms(sourceText: String, matchedTerms: List<TermEntity>): ProtectedText {
+        if (sourceText.isBlank() || matchedTerms.isEmpty()) {
+            return ProtectedText(sourceText, emptyList())
         }
-        return translatedText
+
+        var protectedText = sourceText
+        val protections = mutableListOf<TermProtection>()
+        var tokenIndex = 1
+
+        for (term in matchedTerms.distinctBy { it.jpTerm }) {
+            if (term.cnTerm.isBlank()) continue
+
+            val token = "__FGOTERM_${tokenIndex++}__"
+            var matched = false
+            for (candidate in termProtectionCandidates(term)) {
+                val before = protectedText
+                protectedText = replaceTermCandidate(protectedText, candidate, token)
+                matched = matched || protectedText != before
+            }
+
+            if (matched) {
+                protections += TermProtection(token, toSimplifiedChinese(term.cnTerm))
+                FgoLogger.debug(tag, "Protected DB term ${term.jpTerm} -> ${term.cnTerm} as $token")
+            } else {
+                tokenIndex--
+            }
+        }
+
+        return ProtectedText(protectedText, protections)
     }
 
-    private fun isLikelyMunielSource(source: String): Boolean {
-        val target = normalizeNameLookup("ムニエル")
-        return source == target ||
-            source in setOf("ムニエ儿", "ムニ工ル", "ムニェル", "ム二エル", "ム二工ル") ||
-            (source.length in 3..5 && source.firstOrNull() == 'ム' && editDistanceAtMostTwo(source, target))
+    private fun termProtectionCandidates(term: TermEntity): List<String> {
+        return buildList {
+            add(term.jpTerm)
+            term.aliases.orEmpty()
+                .split(',', '\n')
+                .map { it.trim('"', '\'', '[', ']', ' ', '\t', '\r') }
+                .filter { it.isNotBlank() }
+                .forEach(::add)
+        }
+            .map { TextNormalizer.normalizeForTranslation(it) }
+            .filter { it.length >= 2 }
+            .distinct()
+            .sortedByDescending { it.length }
+    }
+
+    private fun replaceTermCandidate(text: String, candidate: String, token: String): String {
+        val exact = if (candidate.any { it.isAsciiLetter() }) {
+            text.replace(candidate, token, ignoreCase = true)
+        } else {
+            text.replace(candidate, token)
+        }
+        if (exact != text) return exact
+
+        return replaceNormalizedTermCandidate(text, candidate, token)
+    }
+
+    private fun replaceNormalizedTermCandidate(text: String, candidate: String, token: String): String {
+        val normalizedCandidate = normalizeForTermProtection(candidate)
+        if (normalizedCandidate.length < 2) return text
+
+        var current = text
+        while (true) {
+            val replacement = replaceFirstNormalizedTermCandidate(current, normalizedCandidate, token)
+            if (replacement == current) return current
+            current = replacement
+        }
+    }
+
+    private fun replaceFirstNormalizedTermCandidate(
+        text: String,
+        normalizedCandidate: String,
+        token: String
+    ): String {
+        val normalizedText = StringBuilder()
+        val sourceIndices = mutableListOf<Int>()
+        for (index in text.indices) {
+            val normalizedChar = normalizeForTermProtection(text[index].toString())
+            for (char in normalizedChar) {
+                normalizedText.append(char)
+                sourceIndices += index
+            }
+        }
+
+        val matchStart = normalizedText.toString().indexOf(
+            normalizedCandidate,
+            ignoreCase = normalizedCandidate.any { it.isAsciiLetter() }
+        )
+        if (matchStart < 0) return text
+
+        val matchEnd = matchStart + normalizedCandidate.length - 1
+        val sourceStart = sourceIndices[matchStart]
+        val sourceEndExclusive = sourceIndices[matchEnd] + 1
+        return text.substring(0, sourceStart) + token + text.substring(sourceEndExclusive)
+    }
+
+    private fun normalizeForTermProtection(text: String): String {
+        return Normalizer.normalize(text, Normalizer.Form.NFKC)
+            .filterNot { it.isTermProtectionSeparator() }
+    }
+
+    private fun Char.isTermProtectionSeparator(): Boolean {
+        return isWhitespace() || this in setOf(
+            '・', '･', '·', '•', '.', ',', '，', '、', '。', '!',
+            '?', '！', '？', ':', '：', ';', '；', '"', '\'',
+            '“', '”', '‘', '’', '「', '」', '『', '』', '(',
+            ')', '（', '）', '[', ']', '【', '】', '{', '}',
+            '〈', '〉', '《', '》', '<', '>', '/', '\\', '|'
+        )
+    }
+
+    private fun restoreProtectedTerms(translatedText: String, protections: List<TermProtection>): String {
+        if (protections.isEmpty()) return translatedText
+
+        var restored = translatedText
+        for (protection in protections) {
+            restored = restored.replace(protection.token, protection.officialText)
+        }
+        for (protection in protections) {
+            if (restored.contains(protection.token)) {
+                FgoLogger.warn(tag, "LLM returned unresolved terminology token ${protection.token}")
+            }
+        }
+        return restored
+    }
+
+    private fun Char.isAsciiLetter(): Boolean {
+        return this in 'A'..'Z' || this in 'a'..'z'
     }
 
     private fun preserveSourcePunctuation(sourceText: String, translatedText: String): String {
@@ -776,55 +932,9 @@ class Translator @Inject constructor(
         )
     }
 
-    private fun editDistanceAtMostTwo(a: String, b: String): Boolean {
-        if (a == b) return true
-        if (kotlin.math.abs(a.length - b.length) > 2) return false
-
-        val previous = IntArray(b.length + 1) { it }
-        val current = IntArray(b.length + 1)
-        for (i in 1..a.length) {
-            current[0] = i
-            var rowMin = current[0]
-            for (j in 1..b.length) {
-                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
-                current[j] = minOf(
-                    previous[j] + 1,
-                    current[j - 1] + 1,
-                    previous[j - 1] + cost
-                )
-                rowMin = minOf(rowMin, current[j])
-            }
-            if (rowMin > 2) return false
-            for (j in previous.indices) {
-                previous[j] = current[j]
-            }
-        }
-        return previous[b.length] <= 2
-    }
-
     private fun toSimplifiedChinese(text: String): String {
-        val phraseFixed = text
-            .replace("庫爾霍斯", "福尔摩斯")
-            .replace("庫霍姆斯", "福尔摩斯")
-            .replace("福爾摩斯", "福尔摩斯")
-            .replace("克尼莫", "尼莫")
-            .replace("卞木尼耶爾", "穆尼尔")
-            .replace("卞木尼耶尔", "穆尼尔")
-            .replace("木尼耶爾", "穆尼尔")
-            .replace("木尼耶尔", "穆尼尔")
-            .replace("穆尼耶爾", "穆尼尔")
-            .replace("穆尼耶尔", "穆尼尔")
-            .replace("穆尼埃爾", "穆尼尔")
-            .replace("穆尼埃尔", "穆尼尔")
-            .replace("穆尼艾爾", "穆尼尔")
-            .replace("穆尼艾尔", "穆尼尔")
-            .replace("風暴之邊界", "Storm Border")
-            .replace("风暴之边界", "Storm Border")
-            .replace("風暴邊界", "Storm Border")
-            .replace("风暴边界", "Storm Border")
-
-        return buildString(phraseFixed.length) {
-            for (char in phraseFixed) {
+        return buildString(text.length) {
+            for (char in text) {
                 append(traditionalToSimplified[char] ?: char)
             }
         }
@@ -1043,6 +1153,7 @@ class Translator @Inject constructor(
             appendLine("- Translate name only if name is not null; otherwise return null.")
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
             appendLine("- Translate choices as an array in the same order.")
+            appendLine("- Keep __FGOTERM_n__ placeholders unchanged exactly; do not translate them.")
             appendLine("- No markdown, no explanations, no extra keys.")
             appendLine()
             appendLine("Scene:")
@@ -1105,6 +1216,7 @@ class Translator @Inject constructor(
             appendLine("Translate each Japanese item to Simplified Chinese.")
             appendLine("Return ONLY a JSON array of strings.")
             appendLine("The JSON array must contain exactly ${texts.size} items in the same order.")
+            appendLine("Keep __FGOTERM_n__ placeholders unchanged exactly; do not translate them.")
             appendLine("No markdown, no explanations, no extra keys.")
             appendLine()
             appendLine("Items:")

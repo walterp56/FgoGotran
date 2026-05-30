@@ -5,8 +5,8 @@ Outputs:
   term_builder/fgo_terms.json
 
 Atlas is used for structured JP/CN game data where both regions expose the same
-stable IDs. Mooncell is intentionally ingested from a local TSV so you can curate
-or export CN terms without making the Android app depend on fragile wiki HTML.
+stable IDs. Local TSVs are intentionally curated by hand so the Android app does
+not depend on fragile wiki HTML.
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ HEADERS = {"Accept": "application/json", "User-Agent": "fgoGotran-term-builder/1
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = ROOT / "fgo_terms.json"
-DEFAULT_MOONCELL_TSV = ROOT / "mooncell_terms.tsv"
 DEFAULT_CHARACTER_TSV = ROOT / "character_names.tsv"
-DEFAULT_TERMS_TSV = ROOT / "terms.tsv"
+DEFAULT_TERMS_TSV = ROOT / "term.tsv"
+DEFAULT_LEGACY_MOONCELL_TSV = ROOT / "mooncell_terms.tsv"
 
 
 COMMON_TERMS = [
@@ -90,10 +90,11 @@ def add_term(
     category: str,
     aliases: list[str] | None = None,
     source: str = "atlas",
+    allow_same_text: bool = False,
 ) -> None:
     jp = clean_text(jp_name)
     cn = clean_text(cn_name)
-    if not jp or not cn or jp == cn:
+    if not jp or not cn or (jp == cn and not allow_same_text):
         return
     clean_aliases = sorted(
         {
@@ -252,6 +253,7 @@ def ingest_character_names_tsv(terms: list[dict[str, Any]], path: Path) -> None:
                 "character",
                 aliases,
                 row.get("source") or "mooncell",
+                allow_same_text=True,
             )
 
 
@@ -277,6 +279,7 @@ def ingest_terms_tsv(terms: list[dict[str, Any]], path: Path) -> None:
                 row.get("category") or "term",
                 aliases,
                 row.get("source") or "mooncell",
+                allow_same_text=True,
             )
 
 
@@ -302,7 +305,7 @@ def split_aliases(value: str) -> list[str]:
 
 
 def dedupe_terms(terms: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    priority = {"manual": 0, "mooncell": 1, "atlas": 2}
+    priority = {"mooncell": 0, "manual": 1, "atlas": 2}
     merged: dict[str, dict[str, Any]] = {}
     for term in sorted(terms, key=lambda item: priority.get(item.get("source"), 9)):
         key = term["jp_name"]
@@ -317,7 +320,7 @@ def dedupe_terms(terms: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mooncell-tsv", type=Path, default=DEFAULT_MOONCELL_TSV)
+    parser.add_argument("--mooncell-tsv", type=Path, default=DEFAULT_LEGACY_MOONCELL_TSV)
     parser.add_argument("--character-tsv", type=Path, default=DEFAULT_CHARACTER_TSV)
     parser.add_argument("--terms-tsv", type=Path, default=DEFAULT_TERMS_TSV)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -335,8 +338,12 @@ def main() -> None:
 
     unique_terms = dedupe_terms(terms)
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    output_terms = [
+        {key: value for key, value in term.items() if key != "source"}
+        for term in unique_terms
+    ]
     args.output.write_text(
-        json.dumps(unique_terms, ensure_ascii=False, indent=2),
+        json.dumps(output_terms, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     print(f"Wrote {len(unique_terms)} terms to {args.output}")

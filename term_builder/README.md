@@ -17,21 +17,22 @@ Used for deterministic name-box translation. Exact JP name or alias matches are 
 Columns:
 
 ```tsv
-jp_name	cn_name	aliases	source
-ホームズ	福尔摩斯	シャーロック・ホームズ	mooncell
+jp_name	cn_name	aliases	type
+ホームズ	福尔摩斯	シャーロック・ホームズ	npc
 ```
 
-`aliases` is optional and comma-separated.
+`aliases` is optional and comma-separated. `type` is for maintenance, usually
+`servant` or `npc`.
 
-### `terms.tsv`
+### `term.tsv`
 
 Used for terminology RAG and exact term matches in dialogue/choices.
 
 Columns:
 
 ```tsv
-jp_term	cn_term	category	aliases	source
-オリュンポス	奥林波斯	place		mooncell
+jp_term	cn_term	category	aliases
+オリュンポス	奥林波斯	place	
 ```
 
 `category` examples: `place`, `game_term`, `class`, `item`, `organization`.
@@ -64,7 +65,5 @@ app/build/outputs/apk/debug/app-debug.apk
 
 - `character_names`: `jp_name`, `cn_name`, `aliases`
 - `terms`: `jp_term`, `cn_term`, `category`, `aliases`
-
-`source` is kept only in TSV/JSON builder data and is not included in the Android runtime DB.
 
 The app refreshes its copied runtime DB automatically when the bundled asset changes.
