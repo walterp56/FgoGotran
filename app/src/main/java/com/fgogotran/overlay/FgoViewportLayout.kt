@@ -16,7 +16,7 @@ object FgoViewportLayout {
     private const val REFERENCE_ASPECT = REFERENCE_WIDTH / REFERENCE_HEIGHT
 
     // Reference-space bounds taken from marked 2340x1080 FGO story screenshots.
-    // Choices start in the middle story area; excluding the upper strip avoids story/menu false positives.
+    // Common 1-2 choice screens start in the middle; rare tall lists expand upward on demand.
     private val choiceSearchRegion = RectF(220f, 220f, 1690f, 730f)
     // OCR spans long speaker names; rendering treats the first 500 px as its minimum plate.
     private val nameRegion = RectF(0f, 735f, 1085f, 825f)

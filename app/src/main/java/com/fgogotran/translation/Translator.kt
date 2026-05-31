@@ -110,6 +110,7 @@ class Translator @Inject constructor(
     private var cachedCharacterNames: List<CharacterNameEntity>? = null
     private var cachedTermLookup: Map<String, String>? = null
     private var cachedCharacterNameLookup: Map<String, String>? = null
+    private var cachedCharacterNameVariants: List<NormalizedCharacterNameVariant>? = null
     private val memoryCacheLock = Any()
     private val memoryTranslationCache = object : LinkedHashMap<String, String>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
@@ -129,6 +130,13 @@ class Translator @Inject constructor(
         val cnName: String
     )
 
+    private data class NormalizedCharacterNameVariant(
+        val jpName: String,
+        val cnName: String,
+        val lookupKey: String,
+        val cnLookupKey: String
+    )
+
     companion object {
         private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
@@ -140,6 +148,7 @@ class Translator @Inject constructor(
             getRuntimeConfig()
             getCachedTerms()
             getCachedTermLookup()
+            getCachedCharacterNameVariants()
             getCachedCharacterNameLookup()
             FgoLogger.info(tag, "Translator warm-up complete")
         } catch (e: CancellationException) {
@@ -466,7 +475,14 @@ class Translator @Inject constructor(
         if (cacheEnabled) {
             if (nameForLlm != null && nameHash != null && nameResult == null) {
                 lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name")?.let { cached ->
-                    nameResult = TranslateResult(cached, "cache", true)
+                    val cachedName = sanitizeNameTranslation(nameForLlm, cached)
+                    if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName)) {
+                        FgoLogger.warn(tag, "Dropping unsafe cached name translation, hash=${nameHash.take(8)}...")
+                        removeMemoryCachedTranslation(nameHash)
+                        cacheDao.deleteByHash(nameHash)
+                    } else {
+                        nameResult = TranslateResult(cachedName, "cache", true)
+                    }
                 }
             }
             if (normalizedDialogue != null && dialogueHash != null && dialogueResult == null) {
@@ -580,21 +596,32 @@ class Translator @Inject constructor(
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Structured scene translation failed, falling back to one batch call", e)
             val fallbackTexts = mutableListOf<String>()
-            val fallbackSetters = mutableListOf<(TranslateResult) -> Unit>()
+            var nameFallbackIndex: Int? = null
+            var dialogueFallbackIndex: Int? = null
+            val choiceFallbackIndices = mutableListOf<Pair<Int, Int>>()
             if (needsName) {
+                nameFallbackIndex = fallbackTexts.size
                 fallbackTexts += input.name.orEmpty()
-                fallbackSetters += { result -> nameResult = validateLlmNameResult(nameForLlm!!, result, playerName) }
             }
             if (needsDialogue) {
+                dialogueFallbackIndex = fallbackTexts.size
                 fallbackTexts += input.dialogue.orEmpty()
-                fallbackSetters += { result -> dialogueResult = result }
             }
             for (index in neededChoiceIndices) {
+                choiceFallbackIndices += fallbackTexts.size to index
                 fallbackTexts += input.choices[index]
-                fallbackSetters += { result -> choiceResults[index] = result }
             }
-            translateBatch(fallbackTexts).forEachIndexed { index, result ->
-                fallbackSetters.getOrNull(index)?.invoke(result)
+            val fallbackResults = translateBatch(fallbackTexts)
+            nameFallbackIndex?.let { index ->
+                fallbackResults.getOrNull(index)?.let { result ->
+                    nameResult = validateLlmNameResult(nameForLlm!!, result, playerName)
+                }
+            }
+            dialogueFallbackIndex?.let { index ->
+                dialogueResult = fallbackResults.getOrNull(index)
+            }
+            choiceFallbackIndices.forEach { (fallbackIndex, choiceIndex) ->
+                choiceResults[choiceIndex] = fallbackResults.getOrNull(fallbackIndex)
             }
             return SceneTranslateResult(
                 name = nameResult,
@@ -610,7 +637,7 @@ class Translator @Inject constructor(
             val sourceName = nameForLlm!!
             val simplifiedName = sanitizeNameTranslation(sourceName, restoredName)
             if (isBadLlmNameTranslation(sourceName, simplifiedName, playerName)) {
-                FgoLogger.warn(tag, "Structured scene name returned source/plain Japanese; skipping name render")
+                FgoLogger.warn(tag, "Structured scene name returned unsafe/wrong name; skipping name render")
                 nameResult = TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
             } else {
                 nameResult = TranslateResult(simplifiedName, backend, false)
@@ -732,16 +759,37 @@ class Translator @Inject constructor(
     private suspend fun getCachedCharacterNameLookup(): Map<String, String> {
         cachedCharacterNameLookup?.let { return it }
         val loaded = LinkedHashMap<String, String>()
-        getCachedCharacterNames().forEach { character ->
-            characterNameVariants(character).forEach { variant ->
-                val key = normalizeNameLookup(variant.jpName)
-                if (key.isNotBlank()) {
-                    loaded.putIfAbsent(key, variant.cnName)
-                }
+        getCachedCharacterNameVariants().forEach { variant ->
+            if (variant.lookupKey.isNotBlank()) {
+                loaded.putIfAbsent(variant.lookupKey, variant.cnName)
             }
         }
         cachedCharacterNameLookup = loaded
         FgoLogger.debug(tag, "Character name lookup cached: ${loaded.size}")
+        return loaded
+    }
+
+    private suspend fun getCachedCharacterNameVariants(): List<NormalizedCharacterNameVariant> {
+        cachedCharacterNameVariants?.let { return it }
+        val loaded = getCachedCharacterNames()
+            .flatMap(::characterNameVariants)
+            .mapNotNull { variant ->
+                val lookupKey = normalizeNameLookup(variant.jpName)
+                val cnLookupKey = normalizeNameLookup(variant.cnName)
+                if (lookupKey.isBlank() || variant.cnName.isBlank()) {
+                    null
+                } else {
+                    NormalizedCharacterNameVariant(
+                        jpName = variant.jpName,
+                        cnName = variant.cnName,
+                        lookupKey = lookupKey,
+                        cnLookupKey = cnLookupKey
+                    )
+                }
+            }
+            .distinctBy { it.lookupKey }
+        cachedCharacterNameVariants = loaded
+        FgoLogger.debug(tag, "Character name variants cached: ${loaded.size}")
         return loaded
     }
 
@@ -759,34 +807,25 @@ class Translator @Inject constructor(
         }
 
         val lookupText = lookupCandidates.firstOrNull() ?: return null
-        val names = getCachedCharacterNames()
+        val variants = getCachedCharacterNameVariants()
 
         if (allowOcrWrappedMatch) {
-            findOcrWrappedCharacterNameTranslation(lookupText, names)?.let { return it }
+            findOcrWrappedCharacterNameTranslation(lookupText, variants)?.let { return it }
         }
 
-        translateCharacterNameComponents(normalizedText, names)?.let { return it }
+        translateCharacterNameComponents(normalizedText, variants)?.let { return it }
 
-        names.asSequence()
-            .mapNotNull { character ->
-                characterLookupKeys(character).firstOrNull { key ->
-                    isLikelyOcrNameMatch(lookupText, key)
-                }?.let { character to it }
-            }
-            .firstOrNull()
-            ?.let {
-                FgoLogger.info(tag, "Character fuzzy HIT: $normalizedText -> ${it.first.jpName}")
-                return it.first.cnName
-            }
+        if (isShortKanaOnlyName(lookupText)) {
+            FgoLogger.info(tag, "Character fuzzy skipped for short kana name: $normalizedText")
+            return null
+        }
 
-        names.asSequence()
-            .flatMap { character -> characterNameVariants(character).asSequence().map { character to it } }
-            .firstOrNull { (_, variant) ->
-                isLikelyOcrNameMatch(lookupText, normalizeNameLookup(variant.jpName))
-            }
+        variants.firstOrNull { variant ->
+            isLikelyOcrNameMatch(lookupText, variant.lookupKey)
+        }
             ?.let {
-                FgoLogger.info(tag, "Character component fuzzy HIT: $normalizedText -> ${it.second.jpName}")
-                return it.second.cnName
+                FgoLogger.info(tag, "Character fuzzy HIT: $normalizedText -> ${it.jpName}")
+                return it.cnName
             }
 
         return null
@@ -794,17 +833,14 @@ class Translator @Inject constructor(
 
     private fun findOcrWrappedCharacterNameTranslation(
         lookupText: String,
-        names: List<CharacterNameEntity>
+        variants: List<NormalizedCharacterNameVariant>
     ): String? {
-        return names.asSequence()
-            .flatMap { character -> characterNameVariants(character).asSequence() }
-            .map { variant -> variant to normalizeNameLookup(variant.jpName) }
-            .filter { (_, key) -> isLikelyOcrWrappedName(lookupText, key) }
-            .maxByOrNull { (_, key) -> key.length }
-            ?.also { (variant, _) ->
+        return variants.asSequence()
+            .filter { variant -> isLikelyOcrWrappedName(lookupText, variant.lookupKey) }
+            .maxByOrNull { variant -> variant.lookupKey.length }
+            ?.also { variant ->
                 FgoLogger.info(tag, "Character OCR-wrapped HIT: $lookupText -> ${variant.jpName}")
             }
-            ?.first
             ?.cnName
     }
 
@@ -824,16 +860,14 @@ class Translator @Inject constructor(
 
     private fun translateCharacterNameComponents(
         normalizedText: String,
-        names: List<CharacterNameEntity>
+        variants: List<NormalizedCharacterNameVariant>
     ): String? {
         val parts = splitNameComponents(TextNormalizer.stripRubyAnnotations(normalizedText))
         if (parts.size < 2) return null
 
         val translatedParts = parts.map { part ->
             val lookupPart = normalizeNameLookup(part)
-            names.asSequence()
-                .flatMap { characterNameVariants(it).asSequence() }
-                .firstOrNull { variant -> lookupPart == normalizeNameLookup(variant.jpName) }
+            variants.firstOrNull { variant -> lookupPart == variant.lookupKey }
                 ?.cnName
                 ?: return null
         }
@@ -977,14 +1011,14 @@ class Translator @Inject constructor(
         return true
     }
 
-    private fun validateLlmNameResult(
+    private suspend fun validateLlmNameResult(
         normalizedName: String,
         result: TranslateResult,
         playerName: String
     ): TranslateResult {
         val simplifiedName = sanitizeNameTranslation(normalizedName, result.translatedText)
         return if (isBadLlmNameTranslation(normalizedName, simplifiedName, playerName)) {
-            FgoLogger.warn(tag, "LLM name fallback returned source/plain Japanese; skipping name render")
+            FgoLogger.warn(tag, "LLM name fallback returned unsafe/wrong name; skipping name render")
             result.copy(translatedText = UNTRANSLATED_FALLBACK)
         } else {
             result.copy(translatedText = simplifiedName)
@@ -1000,7 +1034,7 @@ class Translator @Inject constructor(
             .trimEnd { it.isNameTrailingPunctuation() }
     }
 
-    private fun isBadLlmNameTranslation(
+    private suspend fun isBadLlmNameTranslation(
         sourceText: String,
         translatedText: String,
         playerName: String
@@ -1013,8 +1047,30 @@ class Translator @Inject constructor(
         if (normalizeNameLookup(sourceText) == normalizeNameLookup(translated)) return true
 
         val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
-        return normalizedPlayerName.isNotBlank() &&
+        if (normalizedPlayerName.isNotBlank() &&
             normalizeNameLookup(sourceText) == normalizeNameLookup(normalizedPlayerName)
+        ) {
+            return true
+        }
+
+        return isKnownCharacterTranslationForDifferentName(sourceText, translated)
+    }
+
+    private suspend fun isKnownCharacterTranslationForDifferentName(
+        sourceText: String,
+        translatedText: String
+    ): Boolean {
+        val translatedKey = normalizeNameLookup(translatedText)
+        if (translatedKey.isBlank()) return false
+        val sourceKey = normalizeNameLookup(sourceText)
+        val matchingTranslatedNames = getCachedCharacterNameVariants()
+            .filter { variant -> variant.cnLookupKey == translatedKey }
+        return matchingTranslatedNames.isNotEmpty() &&
+            matchingTranslatedNames.none { variant -> variant.lookupKey == sourceKey }
+    }
+
+    private fun isShortKanaOnlyName(lookupText: String): Boolean {
+        return lookupText.length in 2..4 && lookupText.all(::isJapaneseKana)
     }
 
     private fun Char.isNameLookupPunctuation(): Boolean {
@@ -1624,6 +1680,7 @@ class Translator @Inject constructor(
             appendLine("Rules:")
             appendLine("- Translate name only if name is not null; otherwise return null.")
             appendLine("- If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order character name. Never return the original Japanese name unchanged.")
+            appendLine("- For short katakana names, transliterate the sound literally (example: レオン -> 莱昂). Do not replace it with another known FGO character.")
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
             appendLine("- Translate choices as an array in the same order.")
             appendLine("- Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly; do not translate them.")

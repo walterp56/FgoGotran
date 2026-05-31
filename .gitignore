@@ -19,3 +19,6 @@ local.properties
 # Temp / doc files
 *.docx
 ~$*.docx
+
+# Ignore the entire doc folder
+doc/

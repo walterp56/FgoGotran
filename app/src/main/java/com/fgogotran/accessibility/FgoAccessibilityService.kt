@@ -1019,9 +1019,27 @@ class FgoAccessibilityService : AccessibilityService() {
     ): ChoiceRecognitionResult {
         val now = SystemClock.elapsedRealtime()
         val useEmptyChoiceCooldown = mode == ProcessingMode.AUTO
-        val choiceBounds = withContext(Dispatchers.Default) {
+        val primaryChoiceBounds = withContext(Dispatchers.Default) {
             backgroundDetector.detectChoiceButtons(source, screenRegions.choiceSearch)
         }
+        val rawChoiceBounds = if (shouldExpandChoiceSearch(primaryChoiceBounds, screenRegions.choiceSearch)) {
+            val expandedSearch = Rect(
+                screenRegions.choiceSearch.left,
+                screenRegions.viewport.top,
+                screenRegions.choiceSearch.right,
+                screenRegions.choiceSearch.bottom
+            )
+            FgoLogger.debug(
+                tag,
+                "Expanding choice search upward for tall list candidate: ${primaryChoiceBounds.map { it.flattenToString() }}"
+            )
+            withContext(Dispatchers.Default) {
+                backgroundDetector.detectChoiceButtons(source, expandedSearch)
+            }
+        } else {
+            primaryChoiceBounds
+        }
+        val choiceBounds = filterChoiceBounds(rawChoiceBounds, screenRegions.choiceSearch)
         if (choiceBounds.isEmpty()) return ChoiceRecognitionResult(emptyList(), emptyList())
 
         val choiceBoundsKey = choiceBounds.joinToString("|") { it.flattenToString() }
@@ -1036,7 +1054,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val choiceRegions = recognizeScreenRegions(
             source = source,
             targets = choiceBounds.map { OcrRegionTarget(it, TextRegion.CHOICE_BUTTON) },
-            retryEmptyTargetsIndividually = true
+            retryEmptyTargetsIndividually = choiceBounds.size >= 2
         )
         if (choiceRegions.size != choiceBounds.size) {
             FgoLogger.debug(
@@ -1068,6 +1086,38 @@ class FgoAccessibilityService : AccessibilityService() {
             emptyChoiceOcrStreak = 0
         }
         return ChoiceRecognitionResult(choiceBounds, choiceRegions)
+    }
+
+    private fun shouldExpandChoiceSearch(
+        bounds: List<Rect>,
+        searchBounds: Rect
+    ): Boolean {
+        if (bounds.isEmpty()) return false
+        val topTolerance = (searchBounds.height() * 0.02f).toInt().coerceAtLeast(8)
+        val clippedAtTop = bounds.first().top <= searchBounds.top + topTolerance
+        return clippedAtTop || bounds.size >= 4
+    }
+
+    private fun filterChoiceBounds(
+        bounds: List<Rect>,
+        searchBounds: Rect
+    ): List<Rect> {
+        if (bounds.size != 1) return bounds
+
+        val only = bounds.single()
+        val bottomTolerance = (searchBounds.height() * 0.01f).toInt().coerceAtLeast(4)
+        val lowStartY = searchBounds.top + (searchBounds.height() * 0.70f).toInt()
+        val tallEnough = only.height() >= (searchBounds.height() * 0.14f).toInt()
+        val touchesSearchBottom = only.bottom >= searchBounds.bottom - bottomTolerance
+        if (only.top >= lowStartY && tallEnough && touchesSearchBottom) {
+            FgoLogger.debug(
+                tag,
+                "Ignoring lone bottom-edge choice-like panel ${only.flattenToString()}"
+            )
+            return emptyList()
+        }
+
+        return bounds
     }
 
     private suspend fun recognizeDialogueRegions(
