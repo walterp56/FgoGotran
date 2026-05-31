@@ -18,8 +18,9 @@ object FgoViewportLayout {
     // Reference-space bounds taken from marked 2340x1080 FGO story screenshots.
     // Common 1-2 choice screens start in the middle; rare tall lists expand upward on demand.
     private val choiceSearchRegion = RectF(220f, 220f, 1690f, 730f)
-    // OCR spans long speaker names; rendering treats the first 500 px as its minimum plate.
-    private val nameRegion = RectF(0f, 735f, 1085f, 825f)
+    // OCR starts inside the nameplate arrow; rendering keeps the original plate alignment.
+    private val nameOcrRegion = RectF(32f, 739f, 1172f, 821f)
+    private val nameRenderRegion = RectF(0f, 735f, 1085f, 825f)
     private val dialogueRegion = RectF(35f, 830f, 1810f, 1055f)
     private val dialogueCompleteRegion = RectF(1810f, 965f, 1888f, 1078f)
     private val skipConfirmationNoButtonRegion = RectF(430f, 605f, 785f, 685f)
@@ -34,7 +35,8 @@ object FgoViewportLayout {
             dialogueComplete = mapToScreen(dialogueCompleteRegion, viewport),
             skipConfirmationNoButton = mapToScreen(skipConfirmationNoButtonRegion, viewport),
             skipConfirmationYesButton = mapToScreen(skipConfirmationYesButtonRegion, viewport),
-            name = mapToScreen(nameRegion, viewport),
+            name = mapToScreen(nameOcrRegion, viewport),
+            nameRender = mapToScreen(nameRenderRegion, viewport),
             choiceSearch = mapToScreen(choiceSearchRegion, viewport),
             skip = mapToScreen(skipRegion, viewport)
         )
@@ -81,6 +83,7 @@ data class FgoScreenRegions(
     val skipConfirmationNoButton: Rect,
     val skipConfirmationYesButton: Rect,
     val name: Rect,
+    val nameRender: Rect,
     val choiceSearch: Rect,
     val skip: Rect
 )

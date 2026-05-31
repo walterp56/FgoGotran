@@ -245,18 +245,20 @@ class OverlayRenderer @Inject constructor(
     ) {
         val box = instruction.region.boundingBox
         val scale = screenScale(canvas)
+        val clearInsetX = 47f * scale
+        val textInsetX = 70f * scale
 
         canvas.drawRoundRect(
-            box.left + 18f * scale, box.top + 8f * scale,
-            box.right - 18f * scale, box.bottom - 8f * scale,
+            box.left + clearInsetX, box.top + 8f * scale,
+            box.right - clearInsetX, box.bottom - 8f * scale,
             10f, 10f, choiceClearPaint
         )
 
         // ── 2. Render CN choice text (center-aligned) ──
         val textArea = RectF(
-            box.left + 52f * scale,
+            box.left + textInsetX,
             box.top + 12f * scale,
-            box.right - 52f * scale,
+            box.right - textInsetX,
             box.bottom - 12f * scale
         )
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR

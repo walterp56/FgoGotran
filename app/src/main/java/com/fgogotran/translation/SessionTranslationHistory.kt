@@ -25,13 +25,25 @@ object SessionTranslationHistory {
     val entries: StateFlow<List<SessionTranslationEntry>> = _entries.asStateFlow()
 
     fun add(entry: SessionTranslationEntry) {
-        val key = entry.contentKey()
-        if (key.isBlank()) return
-        if (_entries.value.lastOrNull()?.contentKey() == key) {
+        val currentEntries = _entries.value
+        val originalKey = entry.contentKey()
+        if (originalKey.isBlank()) return
+        if (currentEntries.lastOrNull()?.contentKey() == originalKey) {
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
         }
-        _entries.value = (_entries.value + entry).takeLast(100)
+
+        val previousDialogueEntry = currentEntries
+            .asReversed()
+            .firstOrNull { it.dialogueKey().isNotBlank() }
+        val normalizedEntry = entry.withoutRepeatedDialogueAfter(previousDialogueEntry)
+        val key = normalizedEntry.contentKey()
+        if (key.isBlank()) return
+        if (currentEntries.lastOrNull()?.contentKey() == key) {
+            FgoLogger.debug(TAG, "History duplicate skipped")
+            return
+        }
+        _entries.value = (currentEntries + normalizedEntry).takeLast(100)
     }
 
     fun clear() {
@@ -55,5 +67,31 @@ object SessionTranslationHistory {
             .joinToString("\n")
             .replace(Regex("""[ \t　]+"""), " ")
             .trim()
+    }
+
+    private fun SessionTranslationEntry.withoutRepeatedDialogueAfter(
+        previous: SessionTranslationEntry?
+    ): SessionTranslationEntry {
+        if (previous == null || choices.isEmpty()) return this
+
+        val currentDialogueKey = dialogueKey()
+        if (currentDialogueKey.isBlank() || currentDialogueKey != previous.dialogueKey()) return this
+
+        FgoLogger.debug(TAG, "History repeated dialogue omitted from choice entry")
+        return copy(
+            speakerName = null,
+            dialogueText = null,
+            speakerNameColor = null,
+            dialogueTextColor = null
+        )
+    }
+
+    private fun SessionTranslationEntry.dialogueKey(): String {
+        return listOf(
+            speakerName.orEmpty(),
+            dialogueText.orEmpty()
+        )
+            .joinToString("\n")
+            .normalizeHistoryText()
     }
 }

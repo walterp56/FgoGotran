@@ -1130,7 +1130,13 @@ class FgoAccessibilityService : AccessibilityService() {
                 OcrRegionTarget(screenRegions.dialogue, TextRegion.DIALOGUE_BOX),
                 OcrRegionTarget(screenRegions.name, TextRegion.NAME_LABEL)
             )
-        )
+        ).map { region ->
+            if (region.region == TextRegion.NAME_LABEL) {
+                region.copy(boundingBox = screenRegions.nameRender)
+            } else {
+                region
+            }
+        }
     }
 
     private suspend fun recognizeScreenRegions(
