@@ -80,7 +80,7 @@ class FgoRunnerService : Service() {
         serviceScope.launch {
             glossaryUpdateManager.updateIfNeeded()
         }
-        overlay.init()
+        overlay.init(onCloseRequested = { stopFromOverlay() })
         overlay.show()
     }
 
@@ -93,6 +93,12 @@ class FgoRunnerService : Service() {
         serviceScope.cancel()
         instance = null
         super.onDestroy()
+    }
+
+    private fun stopFromOverlay() {
+        FgoLogger.info(tag, "Stop requested from floating menu")
+        mediaProjectionToken = null
+        stopSelf()
     }
 
     private fun createNotificationChannel() {

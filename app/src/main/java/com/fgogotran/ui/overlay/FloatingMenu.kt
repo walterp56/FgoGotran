@@ -25,7 +25,7 @@ fun FloatingMenu(
     autoTranslateEnabled: Boolean,
     onAutoTranslateChange: (Boolean) -> Unit,
     onHistoryClick: () -> Unit,
-    onDismiss: () -> Unit
+    onCloseClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -64,7 +64,7 @@ fun FloatingMenu(
             icon = "X",
             label = "Close",
             muted = true,
-            onClick = onDismiss
+            onClick = onCloseClick
         )
     }
 }

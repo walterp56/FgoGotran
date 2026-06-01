@@ -46,6 +46,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var composeHost: FakeComposeHost? = null
     private var historyHost: FakeComposeHost? = null
     private var floatingMenuDialog: androidx.appcompat.app.AlertDialog? = null
+    private var onCloseRequested: (() -> Unit)? = null
     private var shown = false
 
     /**
@@ -89,8 +90,9 @@ class FgoRunnerOverlay @Inject constructor(
         }
 
     /** Must be called before [show]. Initializes the WindowManager. */
-    fun init() {
+    fun init(onCloseRequested: () -> Unit) {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        this.onCloseRequested = onCloseRequested
         FgoLogger.info(tag, "Overlay initialized")
     }
 
@@ -147,6 +149,7 @@ class FgoRunnerOverlay @Inject constructor(
         dismissHistoryPanel()
         hide()
         windowManager = null
+        onCloseRequested = null
         FgoLogger.info(tag, "Overlay destroyed")
     }
 
@@ -212,7 +215,7 @@ class FgoRunnerOverlay @Inject constructor(
                     dismissMenu()
                     showHistoryPanel()
                 },
-                onDismiss = { dismissMenu() }
+                onCloseClick = { requestClose() }
             )
         }
 
@@ -238,6 +241,12 @@ class FgoRunnerOverlay @Inject constructor(
         floatingMenuDialog?.dismiss()
         floatingMenuDialog = null
         TranslationTrigger.setMenuVisible(false)
+    }
+
+    private fun requestClose() {
+        dismissMenu()
+        FgoLogger.info(tag, "Close requested from floating menu")
+        onCloseRequested?.invoke()
     }
 
     private fun showHistoryPanel() {

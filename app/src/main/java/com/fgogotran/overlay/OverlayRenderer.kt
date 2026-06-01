@@ -63,6 +63,10 @@ class OverlayRenderer @Inject constructor(
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private const val MIN_NAME_PLATE_WIDTH = 500f
+        private const val CHOICE_REFERENCE_WIDTH = 1470f
+        private const val CHOICE_REFERENCE_HEIGHT = 87f
+        private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
+        private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
     }
 
     /** Shadow offset in pixels at the marked 1080px reference height. */
@@ -243,10 +247,33 @@ class OverlayRenderer @Inject constructor(
         paint: Paint,
         instruction: RenderInstruction
     ) {
-        val box = instruction.region.boundingBox
         val scale = screenScale(canvas)
+        val box = fixedChoiceRenderBox(instruction.region.boundingBox, canvas, scale) ?: run {
+            FgoLogger.debug(
+                tag,
+                "Skipping choice render with unexpected bounds: ${instruction.region.boundingBox.flattenToString()}"
+            )
+            return
+        }
         val clearInsetX = 47f * scale
         val textInsetX = 70f * scale
+        val preflightTextArea = RectF(
+            box.left + textInsetX,
+            box.top + 12f * scale,
+            box.right - textInsetX,
+            box.bottom - 12f * scale
+        )
+        if (fitSingleLineOrNull(
+                text = instruction.translatedText.trim(),
+                paint = paint,
+                initialTextSize = 49f * scale,
+                minimumTextSize = 27f * scale,
+                maxWidth = preflightTextArea.width()
+            ) == null
+        ) {
+            FgoLogger.debug(tag, "Skipping choice render because text does not fit fixed box")
+            return
+        }
 
         canvas.drawRoundRect(
             box.left + clearInsetX, box.top + 8f * scale,
@@ -265,13 +292,16 @@ class OverlayRenderer @Inject constructor(
         paint.apply {
             color = textColor
         }
-        val text = fitSingleLine(
+        val text = fitSingleLineOrNull(
             text = instruction.translatedText.trim(),
             paint = paint,
             initialTextSize = 49f * scale,
             minimumTextSize = 27f * scale,
             maxWidth = textArea.width()
-        )
+        ) ?: run {
+            FgoLogger.debug(tag, "Skipping choice render because text does not fit fixed box")
+            return
+        }
 
         // Center the text horizontally within the button bounding box
         val textWidth = paint.measureText(text)
@@ -286,6 +316,21 @@ class OverlayRenderer @Inject constructor(
         paint.color = textColor
         canvas.drawText(text, x, y, paint)
         canvas.restore()
+    }
+
+    private fun fixedChoiceRenderBox(rawBox: Rect, canvas: Canvas, scale: Float): RectF? {
+        val expectedWidth = CHOICE_REFERENCE_WIDTH * scale
+        val expectedHeight = CHOICE_REFERENCE_HEIGHT * scale
+        val rawWidth = rawBox.width().toFloat()
+        if (rawWidth !in expectedWidth * CHOICE_MIN_WIDTH_RATIO..expectedWidth * CHOICE_MAX_WIDTH_RATIO) {
+            return null
+        }
+
+        val left = (rawBox.centerX() - expectedWidth / 2f)
+            .coerceIn(0f, (canvas.width - expectedWidth).coerceAtLeast(0f))
+        val top = (rawBox.centerY() - expectedHeight / 2f)
+            .coerceIn(0f, (canvas.height - expectedHeight).coerceAtLeast(0f))
+        return RectF(left, top, left + expectedWidth, top + expectedHeight)
     }
 
     private fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
@@ -334,6 +379,21 @@ class OverlayRenderer @Inject constructor(
             paint.textSize = (paint.textSize - 2f).coerceAtLeast(minimumTextSize)
         }
         return ellipsize(text, paint, maxWidth)
+    }
+
+    private fun fitSingleLineOrNull(
+        text: String,
+        paint: Paint,
+        initialTextSize: Float,
+        minimumTextSize: Float,
+        maxWidth: Float
+    ): String? {
+        if (text.isBlank() || maxWidth <= 0f) return null
+        paint.textSize = initialTextSize
+        while (paint.measureText(text) > maxWidth && paint.textSize > minimumTextSize) {
+            paint.textSize = (paint.textSize - 2f).coerceAtLeast(minimumTextSize)
+        }
+        return text.takeIf { paint.measureText(it) <= maxWidth }
     }
 
     private fun limitLines(
