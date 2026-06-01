@@ -502,6 +502,7 @@ class FgoAccessibilityService : AccessibilityService() {
             val layoutDuration = SystemClock.elapsedRealtime() - layoutStartedAt
 
             if (instructions.isEmpty()) {
+                addHistoryEntry(source, sceneSource, instructions)
                 translationOverlay.hide()
                 return
             }
@@ -543,7 +544,7 @@ class FgoAccessibilityService : AccessibilityService() {
             renderedChoiceBounds = instructions
                 .filter { it.region.region == TextRegion.CHOICE_BUTTON }
                 .map { Rect(it.region.boundingBox) }
-            addHistoryEntry(instructions)
+            addHistoryEntry(source, sceneSource, instructions)
             val overlayStartedAt = SystemClock.elapsedRealtime()
             translationOverlay.updateImage(rendered)
             val overlayDuration = SystemClock.elapsedRealtime() - overlayStartedAt
@@ -766,7 +767,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 TextRegion.NAME_LABEL -> renderableNameTranslation(
                     sourceText = regionAndText.text,
                     result = sceneTranslation.name
-                )
+                ) ?: regionAndText.text
                 TextRegion.DIALOGUE_BOX -> sceneTranslation.dialogue?.translatedText
                 TextRegion.CHOICE_BUTTON -> translatedChoicesByRegion[regionAndText.region]
             }
@@ -980,15 +981,25 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun addHistoryEntry(instructions: List<RenderInstruction>) {
+    private fun addHistoryEntry(
+        source: Bitmap,
+        sceneSource: SceneSource,
+        instructions: List<RenderInstruction>
+    ) {
+        val rawNameRegion = sceneSource.regions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
         val nameInstruction = instructions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
         val dialogueInstruction = instructions.firstOrNull { it.region.region == TextRegion.DIALOGUE_BOX }
         val choiceInstructions = instructions.filter { it.region.region == TextRegion.CHOICE_BUTTON }
 
-        val name = nameInstruction
+        val renderedName = nameInstruction
             ?.translatedText
             ?.trim()
             ?.takeIf { it.isNotBlank() }
+        val rawName = rawNameRegion
+            ?.text
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val name = renderedName ?: rawName
         val dialogue = dialogueInstruction
             ?.translatedText
             ?.trim()
@@ -1004,7 +1015,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     speakerName = name,
                     dialogueText = dialogue,
                     choices = choicePairs.map { it.first },
-                    speakerNameColor = nameInstruction?.textColor,
+                    speakerNameColor = nameInstruction?.textColor
+                        ?: rawNameRegion?.let { sampleOriginalTextColor(source, it.region) },
                     dialogueTextColor = dialogueInstruction?.textColor,
                     choiceColors = choicePairs.map { it.second }
                 )
