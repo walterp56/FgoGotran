@@ -10,7 +10,6 @@ import android.view.Gravity
 import android.view.WindowManager
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
-import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
 import com.fgogotran.ui.overlay.HistoryOverlayPanel
@@ -19,7 +18,6 @@ import com.fgogotran.util.FakeComposeHost
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.overlayType
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,8 +37,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class FgoRunnerOverlay @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val settingsRepository: SettingsRepository
+    @ApplicationContext private val context: Context
 ) {
     private var windowManager: WindowManager? = null
     private var composeHost: FakeComposeHost? = null

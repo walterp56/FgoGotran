@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.runner.FgoRunnerService
@@ -44,8 +43,7 @@ import com.fgogotran.R
 
 @Composable
 fun HomeScreen(
-    onSettings: () -> Unit,
-    onHistory: () -> Unit
+    onSettings: () -> Unit
 ) {
     val context = LocalContext.current
     val serviceRunning = FgoRunnerService.serviceStarted.value
@@ -292,23 +290,11 @@ fun HomeScreen(
                 }
             }
 
-            // Action buttons
-            Row(
+            OutlinedButton(
+                onClick = onSettings,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
-                    onClick = onSettings,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("設定")
-                }
-                OutlinedButton(
-                    onClick = onHistory,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("翻譯歷史")
-                }
+                Text("設定")
             }
 
         }

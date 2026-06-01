@@ -32,8 +32,6 @@ class SettingsRepository @Inject constructor(
         val KEY_TRANSLATION_BACKEND = stringPreferencesKey("translation_backend")
         val KEY_API_KEY = stringPreferencesKey("api_key")
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
-        val KEY_FONT_SIZE = stringPreferencesKey("font_size")
-        val KEY_OVERLAY_ENABLED = booleanPreferencesKey("overlay_enabled")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
 
         /** DeepSeek Chat API (default). */
@@ -61,16 +59,6 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_PLAYER_NAME] ?: ""
     }
 
-    /** Font size preference: "auto", "small", "medium", or "large". */
-    val fontSize: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_FONT_SIZE] ?: "auto"
-    }
-
-    /** Whether the translation overlay is enabled. */
-    val overlayEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_OVERLAY_ENABLED] ?: true
-    }
-
     /** Whether translation caching is enabled. */
     val cacheEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_CACHE_ENABLED] ?: true
@@ -90,16 +78,6 @@ class SettingsRepository @Inject constructor(
     suspend fun setPlayerName(name: String) {
         context.dataStore.edit { it[KEY_PLAYER_NAME] = name }
         FgoLogger.debug(tag, "Setting updated: player_name=$name")
-    }
-
-    suspend fun setFontSize(size: String) {
-        context.dataStore.edit { it[KEY_FONT_SIZE] = size }
-        FgoLogger.debug(tag, "Setting updated: font_size=$size")
-    }
-
-    suspend fun setOverlayEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_OVERLAY_ENABLED] = enabled }
-        FgoLogger.debug(tag, "Setting updated: overlay_enabled=$enabled")
     }
 
     suspend fun setCacheEnabled(enabled: Boolean) {

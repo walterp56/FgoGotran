@@ -17,7 +17,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
-import com.fgogotran.ui.screen.HistoryScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
@@ -57,7 +56,7 @@ class MainActivity : ComponentActivity() {
 /**
  * Top-level navigation state and routing.
  */
-enum class Screen { HOME, SETTINGS, HISTORY }
+enum class Screen { HOME, SETTINGS }
 
 /**
  * Root composable managing 3-screen navigation.
@@ -76,8 +75,7 @@ fun MainScreen(
 
     when (currentScreen) {
         Screen.HOME -> HomeScreen(
-            onSettings = { currentScreen = Screen.SETTINGS },
-            onHistory = { currentScreen = Screen.HISTORY }
+            onSettings = { currentScreen = Screen.SETTINGS }
         )
 
         Screen.SETTINGS -> SettingsScreen(
@@ -85,8 +83,5 @@ fun MainScreen(
             onBack = { currentScreen = Screen.HOME }
         )
 
-        Screen.HISTORY -> HistoryScreen(
-            onBack = { currentScreen = Screen.HOME }
-        )
     }
 }

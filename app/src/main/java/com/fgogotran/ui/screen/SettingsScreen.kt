@@ -20,8 +20,6 @@ import kotlinx.coroutines.launch
  * - Translation backend (DeepSeek / Claude / GPT via FilterChip row)
  * - API key (password-masked text field with save button)
  * - Player Master name (text field with save button)
- * - Font size (auto / small / medium / large via FilterChip row)
- * - Overlay display toggle
  * - Translation cache toggle
  *
  * All changes are saved immediately to [SettingsRepository] via DataStore.
@@ -39,8 +37,6 @@ fun SettingsScreen(
     var apiKey by remember { mutableStateOf("") }
     var playerName by remember { mutableStateOf("") }
     var selectedBackend by remember { mutableStateOf(SettingsRepository.BACKEND_DEEPSEEK) }
-    var fontSize by remember { mutableStateOf("auto") }
-    var overlayEnabled by remember { mutableStateOf(true) }
     var cacheEnabled by remember { mutableStateOf(true) }
 
     // Load persisted settings on first composition
@@ -48,8 +44,6 @@ fun SettingsScreen(
         apiKey = settingsRepository.apiKey.first()
         playerName = settingsRepository.playerName.first()
         selectedBackend = settingsRepository.translationBackend.first()
-        fontSize = settingsRepository.fontSize.first()
-        overlayEnabled = settingsRepository.overlayEnabled.first()
         cacheEnabled = settingsRepository.cacheEnabled.first()
     }
 
@@ -100,7 +94,7 @@ fun SettingsScreen(
                 }
             }
 
-            Divider()
+            HorizontalDivider()
 
             // ── API Key ──
             OutlinedTextField(
@@ -117,7 +111,7 @@ fun SettingsScreen(
                 Text("保存 API Key")
             }
 
-            Divider()
+            HorizontalDivider()
 
             // ── Player Name ──
             Text("玩家名稱 (Master名)", style = MaterialTheme.typography.titleMedium)
@@ -137,41 +131,9 @@ fun SettingsScreen(
                 Text("保存玩家名稱")
             }
 
-            Divider()
+            HorizontalDivider()
 
-            // ── Font Size ──
-            Text("字體大小", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("auto" to "自動", "small" to "小", "medium" to "中", "large" to "大").forEach { (value, label) ->
-                    FilterChip(
-                        selected = fontSize == value,
-                        onClick = {
-                            fontSize = value
-                            scope.launch { settingsRepository.setFontSize(value) }
-                        },
-                        label = { Text(label) }
-                    )
-                }
-            }
-
-            Divider()
-
-            // ── Toggles ──
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("覆蓋層顯示")
-                Switch(
-                    checked = overlayEnabled,
-                    onCheckedChange = {
-                        overlayEnabled = it
-                        scope.launch { settingsRepository.setOverlayEnabled(it) }
-                    }
-                )
-            }
-
+            // ── Translation Cache ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
