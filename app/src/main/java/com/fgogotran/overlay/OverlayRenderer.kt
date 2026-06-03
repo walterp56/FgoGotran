@@ -64,7 +64,7 @@ class OverlayRenderer @Inject constructor(
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private const val MIN_NAME_PLATE_WIDTH = 500f
         private const val CHOICE_REFERENCE_WIDTH = 1470f
-        private const val CHOICE_REFERENCE_HEIGHT = 87f
+        private const val CHOICE_REFERENCE_HEIGHT = 110f
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
     }
