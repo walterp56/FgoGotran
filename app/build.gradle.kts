@@ -67,8 +67,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // ML Kit OCR (Japanese)
-    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    // ML Kit OCR (Japanese, model delivered by Google Play services to avoid bundling native OCR libs)
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1")
 
     // Ktor HTTP client
     implementation("io.ktor:ktor-client-android:2.3.12")
@@ -79,7 +79,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
 
     // DataStore
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
 
     // AppCompat (for AlertDialog from Service context)
     implementation("androidx.appcompat:appcompat:1.7.0")
@@ -88,6 +88,4 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    //OpenCV
-    implementation("org.opencv:opencv:4.9.0")
 }
