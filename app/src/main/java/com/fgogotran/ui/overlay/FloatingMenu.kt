@@ -54,7 +54,7 @@ fun FloatingMenu(
 
         MenuRow(
             icon = "H",
-            label = "Session history",
+            label = "翻译LOG",
             onClick = onHistoryClick
         )
 
@@ -62,7 +62,7 @@ fun FloatingMenu(
 
         MenuRow(
             icon = "X",
-            label = "Close",
+            label = "关闭",
             muted = true,
             onClick = onCloseClick
         )
@@ -113,7 +113,7 @@ private fun AutoTranslateRow(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = "Auto translate",
+            text = "自动翻译",
             fontSize = 15.sp,
             color = Color(0xFF333333)
         )

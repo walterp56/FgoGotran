@@ -50,8 +50,8 @@ class FgoRunnerOverlay @Inject constructor(
      * Current position of the floating button (top-left origin).
      * Saved to DataStore when the button is hidden, restored on show.
      */
-    private var btnX = 0
-    private var btnY = 300  // Default: near top-left, offset down a bit
+    private var btnX = 8
+    private var btnY = 300  // Default: near the left edge, offset down a bit
 
     private val tag = "FgoRunnerOverlay"
 

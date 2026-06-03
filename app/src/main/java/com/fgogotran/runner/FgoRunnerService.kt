@@ -125,7 +125,7 @@ class FgoRunnerService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("FgoGotran")
-            .setContentText("Translation overlay is running")
+            .setContentText("翻译悬浮窗正在运行")
             .setSmallIcon(R.drawable.ic_translate)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

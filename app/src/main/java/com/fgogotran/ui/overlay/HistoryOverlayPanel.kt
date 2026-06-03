@@ -113,7 +113,7 @@ private fun HistoryScrollView(
                 container.addView(
                     historyTextView(
                         context = scrollView.context,
-                        text = "No translation history yet.",
+                        text = "暂无翻译LOG。",
                         typeface = typeface
                     )
                 )

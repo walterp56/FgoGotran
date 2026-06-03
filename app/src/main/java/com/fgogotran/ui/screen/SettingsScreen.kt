@@ -58,7 +58,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("設定") },
+                title = { Text("设置") },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
                         Text("返回", color = MaterialTheme.colorScheme.primary)
@@ -76,7 +76,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // ── Translation Backend ──
-            Text("翻譯後端", style = MaterialTheme.typography.titleMedium)
+            Text("翻译后端", style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
                     SettingsRepository.BACKEND_DEEPSEEK to "DeepSeek",
@@ -105,7 +105,7 @@ fun SettingsScreen(
                 // Mask the key — it's sensitive like a password
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                supportingText = { Text("用於翻譯 API 的密鑰") }
+                supportingText = { Text("用于翻译 API 的密钥") }
             )
             Button(onClick = { saveApiKey() }, modifier = Modifier.align(Alignment.End)) {
                 Text("保存 API Key")
@@ -114,21 +114,21 @@ fun SettingsScreen(
             HorizontalDivider()
 
             // ── Player Name ──
-            Text("玩家名稱 (Master名)", style = MaterialTheme.typography.titleMedium)
+            Text("玩家名称（Master名）", style = MaterialTheme.typography.titleMedium)
             Text(
-                "輸入您在FGO中的玩家名稱，翻譯時會正確處理對話中的玩家名稱。",
+                "输入您在 FGO 中的玩家名称，翻译时会正确处理对话中的玩家名称。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
             OutlinedTextField(
                 value = playerName,
                 onValueChange = { playerName = it },
-                label = { Text("玩家名稱") },
+                label = { Text("玩家名称") },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("例：藤丸立香") }
             )
             Button(onClick = { savePlayerName() }, modifier = Modifier.align(Alignment.End)) {
-                Text("保存玩家名稱")
+                Text("保存玩家名称")
             }
 
             HorizontalDivider()
@@ -140,9 +140,9 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("翻譯緩存")
+                    Text("翻译缓存")
                     Text(
-                        "快取過的翻譯可瞬間顯示",
+                        "缓存过的翻译可快速显示",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )

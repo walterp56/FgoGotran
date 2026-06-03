@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,9 +23,7 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.fgogotran.R
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -42,24 +39,26 @@ fun FloatingButton(
     onLongClick: () -> Unit,
     onDrag: (Float, Float) -> Unit
 ) {
+    val idleAlpha = 0.38f
+    val pressedAlpha = 0.62f
     var pressed by remember { mutableStateOf(false) }
     val buttonScale by animateFloatAsState(
         targetValue = if (pressed) 0.94f else 1f,
         label = "floatingButtonScale"
     )
     val buttonAlpha by animateFloatAsState(
-        targetValue = if (pressed) 0.72f else 0.60f,
+        targetValue = if (pressed) pressedAlpha else idleAlpha,
         label = "floatingButtonAlpha"
     )
     val hapticFeedback = LocalHapticFeedback.current
 
     Surface(
         color = Color(0xFF1E1E1E).copy(alpha = buttonAlpha),
-        contentColor = Color.White.copy(alpha = 0.9f),
+        contentColor = Color.White.copy(alpha = if (pressed) 0.9f else 0.68f),
         shape = CircleShape,
-        shadowElevation = if (pressed) 12.dp else 8.dp,
+        shadowElevation = if (pressed) 8.dp else 2.dp,
         modifier = Modifier
-            .size(56.dp)
+            .size(48.dp)
             .graphicsLayer {
                 scaleX = buttonScale
                 scaleY = buttonScale
@@ -157,12 +156,6 @@ fun FloatingButton(
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_translate),
-                contentDescription = "Translate",
-                modifier = Modifier.size(28.dp)
-            )
-        }
+        ) {}
     }
 }

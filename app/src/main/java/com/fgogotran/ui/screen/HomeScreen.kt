@@ -49,7 +49,7 @@ fun HomeScreen(
     val serviceRunning = FgoRunnerService.serviceStarted.value
     val accessibilityRunning = FgoAccessibilityService.serviceStarted.value
     val accessibilityRunningStatusColor = if (accessibilityRunning) Color(0xFF4CAF50) else Color(0xFFFF9800) // Green vs Orange
-    val accessibilityRunningStatusText = if (accessibilityRunning) "已啟用" else "未啟用"
+    val accessibilityRunningStatusText = if (accessibilityRunning) "已启用" else "未启用"
 
     // Reactive state for permissions that change via system settings
     // (refreshed on Activity resume via LifecycleEventObserver)
@@ -97,9 +97,9 @@ fun HomeScreen(
         // Check 1: Overlay permission
         if (!Settings.canDrawOverlays(context)) {
             AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-                .setTitle("需要覆蓋層權限")
-                .setMessage("FgoGotran 需要「顯示在其他應用程式上層」權限才能在FGO上顯示翻譯按鈕。")
-                .setPositiveButton("前往設定") { _, _ ->
+                .setTitle("需要悬浮窗权限")
+                .setMessage("FgoGotran 需要“显示在其他应用上层”权限，才能在 FGO 上显示翻译按钮。")
+                .setPositiveButton("前往设置") { _, _ ->
                     val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
                             data = Uri.parse("package:${context.packageName}")
@@ -119,9 +119,9 @@ fun HomeScreen(
         // Check 2: Accessibility service
         if (!accessibilityRunning) {
             AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-                .setTitle("需要無障礙服務")
-                .setMessage("FgoGotran 需要無障礙服務來檢測FGO中的點擊並擷取畫面。\n\n請在設定中開啟「FgoGotran」無障礙服務。")
-                .setPositiveButton("前往設定") { _, _ ->
+                .setTitle("需要无障碍服务")
+                .setMessage("FgoGotran 需要无障碍服务来检测 FGO 中的点击并截取画面。\n\n请在设置中开启“FgoGotran”无障碍服务。")
+                .setPositiveButton("前往设置") { _, _ ->
                     context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 }
                 .setNegativeButton("取消", null)
@@ -151,7 +151,7 @@ fun HomeScreen(
                 },
                 text = {
                     Text(
-                        if (serviceRunning) "停止服務" else "啟動服務"
+                        if (serviceRunning) "停止服务" else "启动服务"
                     )
                 },
                 containerColor = if (serviceRunning)
@@ -222,7 +222,7 @@ fun HomeScreen(
                     //verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     StatusRow(
-                        label = "無障礙服務",
+                        label = "无障碍服务",
                         statusText = accessibilityRunningStatusText,
                         statusColor = accessibilityRunningStatusColor,
                         enabled = accessibilityRunning
@@ -232,7 +232,7 @@ fun HomeScreen(
                             context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         }
                     ) {
-                        Text("前往無障礙設定 →")
+                        Text("前往无障碍设置 →")
                     }
                 }
             }
@@ -244,8 +244,8 @@ fun HomeScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     StatusRow(
-                        label = "顯示在其他應用程式上層",
-                        statusText = if (canDrawOverlays) "已授權" else "未授權",
+                        label = "显示在其他应用上层",
+                        statusText = if (canDrawOverlays) "已授权" else "未授权",
                         statusColor = if (canDrawOverlays) Color(0xFF4CAF50) else Color(0xFFFF9800),
                         enabled = canDrawOverlays
                     )
@@ -260,7 +260,7 @@ fun HomeScreen(
                             context.startActivity(intent)
                         }
                     ) {
-                        Text("前往設定權限 →")
+                        Text("前往权限设置 →")
                     }
                 }
             }
@@ -271,11 +271,11 @@ fun HomeScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 val batteryColor = if (isIgnoringBatteryOptimizations) Color(0xFF4CAF50) else Color(0xFFFF9800)
-                val batteryText = if (isIgnoringBatteryOptimizations) "已關閉優化" else "優化中 (建議關閉)"
+                val batteryText = if (isIgnoringBatteryOptimizations) "已关闭优化" else "优化中（建议关闭）"
 
                 Column(modifier = Modifier.padding(16.dp)) {
                     StatusRow(
-                        label = "電池優化",
+                        label = "电池优化",
                         statusText = batteryText,
                         statusColor = batteryColor,
                         enabled = isIgnoringBatteryOptimizations
@@ -285,7 +285,7 @@ fun HomeScreen(
                             context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                         }
                     ) {
-                        Text("前往管理電池使用量 →")
+                        Text("前往管理电池使用量 →")
                     }
                 }
             }
@@ -294,7 +294,7 @@ fun HomeScreen(
                 onClick = onSettings,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("設定")
+                Text("设置")
             }
 
         }

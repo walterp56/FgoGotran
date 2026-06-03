@@ -38,10 +38,10 @@ fun HistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Session History (${items.size})") },
+                title = { Text("会话历史（${items.size}）") },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
-                        Text("Back", color = MaterialTheme.colorScheme.primary)
+                        Text("返回", color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -55,7 +55,7 @@ fun HistoryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "No translations in this service session yet.",
+                    "本次服务还没有翻译历史。",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )

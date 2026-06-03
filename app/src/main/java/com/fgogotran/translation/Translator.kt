@@ -204,7 +204,7 @@ class Translator @Inject constructor(
         if (apiKey.isBlank()) {
             FgoLogger.warn(tag, "No API key configured; returning placeholder")
             return TranslateResult(
-                "[API key not configured]\nOpen Settings and enter an API key.",
+                "[未配置 API Key]\n请打开设置并输入 API Key。",
                 "none",
                 false
             )
@@ -232,7 +232,7 @@ class Translator @Inject constructor(
         } catch (e: Exception) {
             FgoLogger.error(tag, "$backend API call failed: ${e.message}", e)
             return TranslateResult(
-                "[Translation failed: ${e.message}]\nCheck your API key and network connection.",
+                "[翻译失败：${e.message}]\n请检查 API Key 和网络连接。",
                 backend,
                 false
             )
@@ -330,7 +330,7 @@ class Translator @Inject constructor(
 
         if (apiKey.isBlank()) {
             FgoLogger.warn(tag, "No API key configured; returning placeholders for batch")
-            val placeholder = "[API key not configured]\nOpen Settings and enter an API key."
+            val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
             uncachedIndices.forEach { index ->
                 results[index] = TranslateResult(placeholder, "none", false)
             }
@@ -539,7 +539,7 @@ class Translator @Inject constructor(
 
         if (apiKey.isBlank()) {
             FgoLogger.warn(tag, "No API key configured; returning placeholders for scene")
-            val placeholder = "[API key not configured]\nOpen Settings and enter an API key."
+            val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
             if (needsName) nameResult = TranslateResult("", "none", false)
             if (needsDialogue) dialogueResult = TranslateResult(placeholder, "none", false)
             neededChoiceIndices.forEach { choiceResults[it] = TranslateResult(placeholder, "none", false) }
