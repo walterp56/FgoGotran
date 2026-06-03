@@ -692,8 +692,8 @@ class FgoAccessibilityService : AccessibilityService() {
         FgoLogger.info(
             tag,
             "Pipeline ready ($mode): ocr=${recognitionDuration}ms, translate=${translationDuration}ms, " +
-                "layout=${layoutDuration}ms, render=${renderDuration}ms, overlay=${overlayDuration}ms, " +
-                "total=${SystemClock.elapsedRealtime() - processStartedAt}ms"
+                    "layout=${layoutDuration}ms, render=${renderDuration}ms, overlay=${overlayDuration}ms, " +
+                    "total=${SystemClock.elapsedRealtime() - processStartedAt}ms"
         )
         return true
     }
@@ -747,7 +747,7 @@ class FgoAccessibilityService : AccessibilityService() {
         completedDialogueCandidateSeenCount++
         val stableFor = now - completedDialogueCandidateFirstSeenAt
         val stable = stableFor >= COMPLETED_DIALOGUE_STABLE_DELAY &&
-            completedDialogueCandidateSeenCount >= COMPLETED_DIALOGUE_STABLE_SCANS
+                completedDialogueCandidateSeenCount >= COMPLETED_DIALOGUE_STABLE_SCANS
         if (!stable) {
             FgoLogger.debug(
                 tag,
@@ -1012,7 +1012,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 .filter { it.boundingBox.top - ruby.boundingBox.bottom <= medianHeight }
                 .filter {
                     horizontalOverlap(ruby.boundingBox, it.boundingBox) >= ruby.boundingBox.width() / 4 ||
-                        ruby.boundingBox.centerX() in it.boundingBox.left..it.boundingBox.right
+                            ruby.boundingBox.centerX() in it.boundingBox.left..it.boundingBox.right
                 }
                 .minWithOrNull(
                     compareBy<OcrTextLine> { kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }
@@ -1047,12 +1047,12 @@ class FgoAccessibilityService : AccessibilityService() {
         if (height > medianHeight * RUBY_HEIGHT_RATIO) return false
         val rubyChars = text.count {
             it in '\u3040'..'\u30ff' ||
-                it in '\u4e00'..'\u9fff' ||
-                it.isLetterOrDigit() ||
-                it in setOf('ー', '・', '･', '＝', '=', '-', '－')
+                    it in '\u4e00'..'\u9fff' ||
+                    it.isLetterOrDigit() ||
+                    it in setOf('ー', '・', '･', '＝', '=', '-', '－')
         }
         return rubyChars >= (text.length * 0.7f).toInt().coerceAtLeast(1) &&
-            text.any { it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff' }
+                text.any { it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff' }
     }
 
     private fun horizontalOverlap(a: Rect, b: Rect): Int {
@@ -1440,9 +1440,9 @@ class FgoAccessibilityService : AccessibilityService() {
         if (regionBounds.contains(lineBounds.centerX(), lineBounds.centerY())) return true
 
         val overlapWidth = (minOf(lineBounds.right, regionBounds.right) -
-            maxOf(lineBounds.left, regionBounds.left)).coerceAtLeast(0)
+                maxOf(lineBounds.left, regionBounds.left)).coerceAtLeast(0)
         val overlapHeight = (minOf(lineBounds.bottom, regionBounds.bottom) -
-            maxOf(lineBounds.top, regionBounds.top)).coerceAtLeast(0)
+                maxOf(lineBounds.top, regionBounds.top)).coerceAtLeast(0)
         val overlapArea = overlapWidth * overlapHeight
         val lineArea = lineBounds.width().coerceAtLeast(1) * lineBounds.height().coerceAtLeast(1)
         return overlapArea >= lineArea * 0.45f
@@ -1747,7 +1747,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun AccessibilityEvent.isDialogueAdvanceEvent(): Boolean {
         return eventType == AccessibilityEvent.TYPE_TOUCH_INTERACTION_END ||
-            eventType == AccessibilityEvent.TYPE_VIEW_CLICKED
+                eventType == AccessibilityEvent.TYPE_VIEW_CLICKED
     }
 
 }
