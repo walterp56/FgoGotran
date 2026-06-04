@@ -580,19 +580,42 @@ class FgoAccessibilityService : AccessibilityService() {
             return AutoScanResult.Ready(regions = sceneRegions)
         }
 
-        if (choiceRecognition.bounds.isNotEmpty()) {
-            resetEarlyTranslation(clearTypingCandidate = false)
-            resetCompletedDialogueCandidate()
-            FgoLogger.debug(tag, "Choice panels detected by pixels but OCR returned no text; waiting for readable choices")
-            return AutoScanResult.Waiting
-        }
-
         val dialogueComplete = backgroundDetector.isDialogueCompleteMarkerVisible(
             source,
             screenRegions.dialogueComplete
         )
         val dialogueRegions = recognizeDialogueRegions(source, screenRegions)
         val dialogueScene = sceneSourceFor(dialogueRegions)
+
+        if (choiceRecognition.bounds.isNotEmpty()) {
+            if (dialogueScene?.hasDialogue == true) {
+                FgoLogger.debug(tag, "Auto dialogue OCR hit; choice panels had no readable text")
+                if (dialogueComplete) {
+                    logAutoStoryDetection(
+                        "Completed dialogue after empty choice",
+                        dialogueRegions,
+                        currentScreenWidth,
+                        currentScreenHeight
+                    )
+                    return AutoScanResult.Ready(regions = dialogueRegions)
+                }
+
+                resetCompletedDialogueCandidate()
+                logAutoStoryDetection(
+                    "Typing dialogue after empty choice",
+                    dialogueRegions,
+                    currentScreenWidth,
+                    currentScreenHeight
+                )
+                return AutoScanResult.EarlyTyping(dialogueScene)
+            }
+
+            resetEarlyTranslation(clearTypingCandidate = false)
+            resetCompletedDialogueCandidate()
+            FgoLogger.debug(tag, "Choice panels detected by pixels but OCR returned no text; waiting for readable choices")
+            return AutoScanResult.Waiting
+        }
+
         if (dialogueComplete) {
             if (dialogueScene?.hasDialogue == true) {
                 logAutoStoryDetection("Completed dialogue", dialogueRegions, currentScreenWidth, currentScreenHeight)
@@ -1224,8 +1247,15 @@ class FgoAccessibilityService : AccessibilityService() {
         val choiceRegions = recognizeScreenRegions(
             source = source,
             targets = choiceBounds.map { OcrRegionTarget(it, TextRegion.CHOICE_BUTTON) },
-            retryEmptyTargetsIndividually = choiceBounds.size >= 2
-        )
+            retryEmptyTargetsIndividually = mode == ProcessingMode.AUTO || choiceBounds.size >= 2
+        ).ifEmpty {
+            if (mode == ProcessingMode.AUTO && choiceBounds.size == 1) {
+                recognizeAutoSingleChoiceRegion(source, choiceBounds.single())?.let { listOf(it) }
+                    ?: emptyList()
+            } else {
+                emptyList()
+            }
+        }
         if (choiceRegions.size != choiceBounds.size) {
             FgoLogger.debug(
                 tag,
@@ -1256,6 +1286,98 @@ class FgoAccessibilityService : AccessibilityService() {
             emptyChoiceOcrStreak = 0
         }
         return ChoiceRecognitionResult(choiceBounds, choiceRegions)
+    }
+
+    private suspend fun recognizeAutoSingleChoiceRegion(
+        source: Bitmap,
+        choiceBounds: Rect
+    ): ClassifiedRegion? {
+        val textBounds = Rect(choiceBounds).apply {
+            left += (width() * 0.14f).toInt()
+            right -= (width() * 0.03f).toInt()
+            top -= (height() * 0.14f).toInt()
+            bottom += (height() * 0.14f).toInt()
+            if (!intersect(0, 0, source.width, source.height) ||
+                width() <= 0 ||
+                height() <= 0
+            ) {
+                return null
+            }
+        }
+
+        val cropped = Bitmap.createBitmap(
+            source,
+            textBounds.left,
+            textBounds.top,
+            textBounds.width(),
+            textBounds.height()
+        )
+        val normalized = Bitmap.createBitmap(cropped.width, cropped.height, Bitmap.Config.ARGB_8888)
+        var scaled: Bitmap? = null
+        return try {
+            for (y in 0 until cropped.height) {
+                for (x in 0 until cropped.width) {
+                    normalized.setPixel(
+                        x,
+                        y,
+                        if (isLikelyChoiceTextPixel(cropped.getPixel(x, y))) {
+                            android.graphics.Color.BLACK
+                        } else {
+                            android.graphics.Color.WHITE
+                        }
+                    )
+                }
+            }
+
+            val scale = 2
+            scaled = Bitmap.createScaledBitmap(
+                normalized,
+                normalized.width * scale,
+                normalized.height * scale,
+                false
+            )
+            val ocrResult = withContext(Dispatchers.Default) {
+                ocrEngine.recognize(scaled!!)
+            }
+            val lines = ocrResult.lines
+                .map { line ->
+                    OcrTextLine(
+                        text = line.text,
+                        boundingBox = Rect(
+                            textBounds.left + line.boundingBox.left / scale,
+                            textBounds.top + line.boundingBox.top / scale,
+                            textBounds.left + line.boundingBox.right / scale,
+                            textBounds.top + line.boundingBox.bottom / scale
+                        ),
+                        confidence = line.confidence
+                    )
+                }
+                .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
+
+            if (lines.isEmpty()) {
+                null
+            } else {
+                FgoLogger.debug(tag, "Auto single-choice binary OCR recovered ${lines.size} line(s)")
+                ClassifiedRegion(
+                    region = TextRegion.CHOICE_BUTTON,
+                    lines = lines,
+                    boundingBox = choiceBounds
+                )
+            }
+        } finally {
+            scaled?.recycle()
+            normalized.recycle()
+            cropped.recycle()
+        }
+    }
+
+    private fun isLikelyChoiceTextPixel(pixel: Int): Boolean {
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        val max = maxOf(r, g, b)
+        val min = minOf(r, g, b)
+        return r >= 145 && g >= 145 && b >= 145 && max - min <= 95
     }
 
     private fun shouldExpandChoiceSearch(
