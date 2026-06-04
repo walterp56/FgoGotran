@@ -119,6 +119,50 @@ class OverlayRenderer @Inject constructor(
         return result
     }
 
+    fun renderedChoiceBounds(
+        instructions: List<RenderInstruction>,
+        screenWidth: Int,
+        screenHeight: Int
+    ): List<Rect> {
+        val scale = screenScale(screenHeight)
+        val choicePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = this@OverlayRenderer.typeface ?: Typeface.DEFAULT
+            textAlign = Paint.Align.LEFT
+            isSubpixelText = true
+            isLinearText = true
+        }
+        return instructions.mapNotNull { instruction ->
+            if (instruction.region.region != TextRegion.CHOICE_BUTTON) return@mapNotNull null
+            val box = fixedChoiceRenderBox(
+                rawBox = instruction.region.boundingBox,
+                canvasWidth = screenWidth,
+                canvasHeight = screenHeight,
+                scale = scale
+            ) ?: return@mapNotNull null
+            val textInsetX = 70f * scale
+            val textArea = RectF(
+                box.left + textInsetX,
+                box.top + 12f * scale,
+                box.right - textInsetX,
+                box.bottom - 12f * scale
+            )
+            fitSingleLineOrNull(
+                text = instruction.translatedText.trim(),
+                paint = choicePaint,
+                initialTextSize = 49f * scale,
+                minimumTextSize = 27f * scale,
+                maxWidth = textArea.width()
+            ) ?: return@mapNotNull null
+
+            Rect(
+                kotlin.math.floor(box.left).toInt(),
+                kotlin.math.floor(box.top).toInt(),
+                kotlin.math.ceil(box.right).toInt(),
+                kotlin.math.ceil(box.bottom).toInt()
+            )
+        }
+    }
+
     private fun obtainReusableBitmap(width: Int, height: Int): Bitmap {
         val current = reusableBitmap
         if (current != null && !current.isRecycled && current.width == width && current.height == height) {
@@ -319,6 +363,15 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun fixedChoiceRenderBox(rawBox: Rect, canvas: Canvas, scale: Float): RectF? {
+        return fixedChoiceRenderBox(rawBox, canvas.width, canvas.height, scale)
+    }
+
+    private fun fixedChoiceRenderBox(
+        rawBox: Rect,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        scale: Float
+    ): RectF? {
         val expectedWidth = CHOICE_REFERENCE_WIDTH * scale
         val expectedHeight = CHOICE_REFERENCE_HEIGHT * scale
         val rawWidth = rawBox.width().toFloat()
@@ -327,9 +380,9 @@ class OverlayRenderer @Inject constructor(
         }
 
         val left = (rawBox.centerX() - expectedWidth / 2f)
-            .coerceIn(0f, (canvas.width - expectedWidth).coerceAtLeast(0f))
+            .coerceIn(0f, (canvasWidth - expectedWidth).coerceAtLeast(0f))
         val top = (rawBox.centerY() - expectedHeight / 2f)
-            .coerceIn(0f, (canvas.height - expectedHeight).coerceAtLeast(0f))
+            .coerceIn(0f, (canvasHeight - expectedHeight).coerceAtLeast(0f))
         return RectF(left, top, left + expectedWidth, top + expectedHeight)
     }
 
@@ -441,6 +494,10 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun screenScale(canvas: Canvas): Float {
-        return (canvas.height / 1080f).coerceIn(0.6f, 1.4f)
+        return screenScale(canvas.height)
+    }
+
+    private fun screenScale(screenHeight: Int): Float {
+        return (screenHeight / 1080f).coerceIn(0.6f, 1.4f)
     }
 }
