@@ -67,6 +67,7 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_REFERENCE_HEIGHT = 110f
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
+        private const val DIALOGUE_MAX_LINES = 2
     }
 
     /** Shadow offset in pixels at the marked 1080px reference height. */
@@ -203,12 +204,13 @@ class OverlayRenderer @Inject constructor(
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
         paint.color = textColor
         val (lines, lineHeight) = fitWrappedText(
-            text = instruction.translatedText,
+            text = instruction.translatedText.toDialogueRenderText(),
             paint = paint,
             initialTextSize = 50f * scale,
             minimumTextSize = 28f * scale,
             maxWidth = textArea.width(),
-            maxHeight = textArea.height()
+            maxHeight = textArea.height(),
+            maxLines = DIALOGUE_MAX_LINES
         )
         val firstBaseline = textArea.top - paint.fontMetrics.ascent
 
@@ -405,19 +407,31 @@ class OverlayRenderer @Inject constructor(
         initialTextSize: Float,
         minimumTextSize: Float,
         maxWidth: Float,
-        maxHeight: Float
+        maxHeight: Float,
+        maxLines: Int = Int.MAX_VALUE
     ): Pair<List<String>, Float> {
         var textSize = initialTextSize
+        val allowedLines = maxLines.coerceAtLeast(1)
         while (true) {
             paint.textSize = textSize
             val lineHeight = textSize * 1.45f
             val lines = wrapText(text, paint, maxWidth)
-            val maximumLines = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
+            val heightLimitedLines = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
+            val maximumLines = minOf(heightLimitedLines, allowedLines)
             if (lines.size <= maximumLines || textSize <= minimumTextSize) {
                 return limitLines(lines, maximumLines, paint, maxWidth) to lineHeight
             }
             textSize = (textSize - 2f).coerceAtLeast(minimumTextSize)
         }
+    }
+
+    private fun String.toDialogueRenderText(): String {
+        return lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+            .replace(Regex("[ \\t]+"), " ")
+            .trim()
     }
 
     private fun fitSingleLine(

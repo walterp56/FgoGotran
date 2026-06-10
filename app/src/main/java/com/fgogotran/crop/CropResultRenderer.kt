@@ -1,24 +1,29 @@
 package com.fgogotran.crop
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Typeface
+import com.fgogotran.overlay.FgoTypefaceProvider
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class CropResultRenderer @Inject constructor() {
+class CropResultRenderer @Inject constructor(
+    @ApplicationContext context: Context
+) {
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(190, 0, 0, 0)
         style = Paint.Style.FILL
     }
 
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        typeface = Typeface.DEFAULT
+        color = FGO_TEXT_COLOR
+        typeface = FgoTypefaceProvider.storyTypeface(context)
         textAlign = Paint.Align.LEFT
+        isFakeBoldText = false
         isSubpixelText = true
         isLinearText = true
     }
@@ -41,10 +46,19 @@ class CropResultRenderer @Inject constructor() {
                 ((maxHeight - totalTextHeight) / 2f).coerceAtLeast(0f) -
                 textPaint.fontMetrics.ascent
         fitted.lines.forEach { line ->
-            canvas.drawText(line, padding, baseline, textPaint)
+            drawTranslatedLine(canvas, line, padding, baseline)
             baseline += fitted.lineHeight
         }
         return bitmap
+    }
+
+    private fun drawTranslatedLine(canvas: Canvas, line: String, x: Float, baseline: Float) {
+        textPaint.setShadowLayer(2f, SHADOW_OFFSET, SHADOW_OFFSET, Color.BLACK)
+        textPaint.color = FGO_TEXT_COLOR
+        canvas.drawText(line, x, baseline, textPaint)
+        textPaint.clearShadowLayer()
+        textPaint.color = FGO_TEXT_COLOR
+        canvas.drawText(line, x, baseline, textPaint)
     }
 
     private fun fitLines(text: String, maxWidth: Float, maxHeight: Float): FittedLines {
@@ -128,4 +142,9 @@ class CropResultRenderer @Inject constructor() {
         val lineHeight: Float,
         val textSize: Float
     )
+
+    private companion object {
+        private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
+        private const val SHADOW_OFFSET = 2f
+    }
 }
