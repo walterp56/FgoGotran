@@ -90,6 +90,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "アズライール",
+    "cn_name": "亚兹拉尔",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "アタランテ",
     "cn_name": "阿塔兰忒",
     "category": "character",
@@ -1753,7 +1759,7 @@
   },
   {
     "jp_name": "プロフェッサー",
-    "cn_name": "尼莫教授",
+    "cn_name": "教授",
     "category": "character",
     "aliases": "[]"
   },
@@ -1831,7 +1837,7 @@
   },
   {
     "jp_name": "ベーカリー",
-    "cn_name": "尼莫烘焙坊",
+    "cn_name": "烘焙坊",
     "category": "character",
     "aliases": "[]"
   },
@@ -4086,12 +4092,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "アヴァロン",
-    "cn_name": "遗世独立的理想乡",
-    "category": "noble_phantasm",
-    "aliases": "[\"全て遠き理想郷\"]"
-  },
-  {
     "jp_name": "エクスカリバー",
     "cn_name": "誓约胜利之剑",
     "category": "noble_phantasm",
@@ -4167,6 +4167,12 @@
     "jp_name": "魔術協会",
     "cn_name": "魔术协会",
     "category": "organization",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アヴァロン",
+    "cn_name": "阿瓦隆",
+    "category": "place",
     "aliases": "[]"
   },
   {

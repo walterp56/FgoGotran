@@ -63,6 +63,29 @@ app/src/main/assets/db/fgo_terms.db
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## CDN Release Package
+
+After `build_db.py` finishes, create the files for `cdn.fgogotran.com`:
+
+```powershell
+C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\package_release.py --content-version 2026.06.10.1
+```
+
+Output:
+
+```text
+release/cdn/db/zh-Hans/latest/manifest.json
+release/cdn/db/zh-Hans/releases/2026.06.10.1/fgo_terms.db
+release/cdn/db/zh-Hans/releases/2026.06.10.1/fgo_terms.db.sha256
+```
+
+Upload the versioned `releases/...` files first, then upload
+`latest/manifest.json` last. The app should check:
+
+```text
+https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json
+```
+
 ## Runtime DB Tables
 
 `build_db.py` creates one SQLite asset with two tables:

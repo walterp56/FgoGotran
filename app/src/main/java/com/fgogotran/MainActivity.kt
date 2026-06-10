@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
@@ -40,6 +41,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +49,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FgoGotranTheme {
-                MainScreen(settingsRepository)
+                MainScreen(settingsRepository, glossaryUpdateManager)
             }
         }
     }
@@ -63,7 +65,8 @@ enum class Screen { HOME, SETTINGS }
  */
 @Composable
 fun MainScreen(
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    glossaryUpdateManager: GlossaryUpdateManager
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
@@ -80,6 +83,7 @@ fun MainScreen(
 
         Screen.SETTINGS -> SettingsScreen(
             settingsRepository = settingsRepository,
+            glossaryUpdateManager = glossaryUpdateManager,
             onBack = { currentScreen = Screen.HOME }
         )
 

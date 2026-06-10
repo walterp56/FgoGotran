@@ -1,0 +1,15 @@
+{
+  "manifestVersion": 1,
+  "contentVersion": "2026.06.10.1",
+  "schemaVersion": 1,
+  "locale": "zh-Hans",
+  "generatedAt": "2026-06-10T05:26:47+08:00",
+  "minimumAppVersion": "1.0.0",
+  "releaseNotes": "FgoGotran terminology database update",
+  "dbUrl": "https://cdn.fgogotran.com/db/zh-Hans/releases/2026.06.10.1/fgo_terms.db",
+  "dbSha256": "cae53a2ec62513d1320281bec1d9b3a2f2e3c2b6571621d8cc58c12550823a83",
+  "dbSize": 102400,
+  "characterNameCount": 780,
+  "termCount": 119,
+  "totalCount": 899
+}

@@ -33,7 +33,28 @@ abstract class TermDatabase : RoomDatabase() {
 
     companion object {
         private const val DB_NAME = "fgo_terms.db"
+        private const val ONLINE_MARKER_NAME = "fgo_terms.db.online"
         private const val TAG = "TermDB"
+
+        fun databaseFile(context: Context): File = context.getDatabasePath(DB_NAME)
+
+        fun markOnlineInstall(
+            context: Context,
+            contentVersion: String,
+            sha256: String,
+            generatedAt: String
+        ) {
+            val dbFile = databaseFile(context)
+            dbFile.parentFile?.mkdirs()
+            onlineMarkerFile(dbFile).writeText(
+                listOf(
+                    "contentVersion=$contentVersion",
+                    "sha256=$sha256",
+                    "generatedAt=$generatedAt"
+                ).joinToString(separator = "\n", postfix = "\n"),
+                Charsets.UTF_8
+            )
+        }
 
         /**
          * Creates or opens the term database.
@@ -43,7 +64,7 @@ abstract class TermDatabase : RoomDatabase() {
          * stuck on an older glossary after an APK update.
          */
         fun create(context: Context): TermDatabase {
-            val dbFile = context.getDatabasePath(DB_NAME)
+            val dbFile = databaseFile(context)
             var assetAvailable = false
             try {
                 refreshFromAssetsIfChanged(context, dbFile)
@@ -83,6 +104,11 @@ abstract class TermDatabase : RoomDatabase() {
         }
 
         private fun refreshFromAssetsIfChanged(context: Context, dbFile: File) {
+            if (shouldKeepOnlineDb(dbFile)) {
+                FgoLogger.info(TAG, "Term DB is online-installed; skipping asset refresh")
+                return
+            }
+
             val tempFile = File(dbFile.parentFile, "$DB_NAME.asset")
             copyFromAssets(context, tempFile)
 
@@ -101,6 +127,12 @@ abstract class TermDatabase : RoomDatabase() {
             } else {
                 tempFile.delete()
             }
+        }
+
+        private fun shouldKeepOnlineDb(dbFile: File): Boolean {
+            return onlineMarkerFile(dbFile).exists() &&
+                dbFile.exists() &&
+                dbFile.length() > 0L
         }
 
         private fun ensureBundledDbHasRows(context: Context, dbFile: File) {
@@ -156,12 +188,17 @@ abstract class TermDatabase : RoomDatabase() {
             listOf(
                 dbFile,
                 File("${dbFile.absolutePath}-wal"),
-                File("${dbFile.absolutePath}-shm")
+                File("${dbFile.absolutePath}-shm"),
+                onlineMarkerFile(dbFile)
             ).forEach { file ->
                 if (file.exists() && !file.delete()) {
                     throw IllegalStateException("Unable to delete stale term DB file: ${file.absolutePath}")
                 }
             }
+        }
+
+        private fun onlineMarkerFile(dbFile: File): File {
+            return File(dbFile.parentFile, ONLINE_MARKER_NAME)
         }
 
         private fun sha256(file: File): String {

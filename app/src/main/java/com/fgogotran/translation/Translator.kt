@@ -118,11 +118,27 @@ class Translator @Inject constructor(
         }
     }
 
+    fun clearGlossaryCache() {
+        cachedRuntimeConfig = null
+        cachedRuntimeConfigAt = 0L
+        cachedTermRows = null
+        cachedTerms = null
+        cachedCharacterNames = null
+        cachedTermLookup = null
+        cachedCharacterNameLookup = null
+        cachedCharacterNameVariants = null
+        synchronized(memoryCacheLock) {
+            memoryTranslationCache.clear()
+        }
+        FgoLogger.info(tag, "Glossary and memory translation cache cleared")
+    }
+
     private data class RuntimeConfig(
         val backend: String,
         val apiKey: String,
         val playerName: String,
-        val cacheEnabled: Boolean
+        val cacheEnabled: Boolean,
+        val glossaryCacheKey: String
     )
 
     private data class CharacterNameVariant(
@@ -190,7 +206,7 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled
-        val hash = cacheKey(normalizedText, normalizedChoices, backend, playerName)
+        val hash = cacheKey(normalizedText, normalizedChoices, config)
 
         FgoLogger.debug(tag, "translate: textLen=${normalizedText.length}, choices=${normalizedChoices.size}")
 
@@ -277,7 +293,7 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled
-        val hashes = normalizedTexts.map { cacheKey(it, emptyList(), backend, playerName) }
+        val hashes = normalizedTexts.map { cacheKey(it, emptyList(), config) }
         val results = MutableList<TranslateResult?>(japaneseTexts.size) { null }
         val uncachedIndices = mutableListOf<Int>()
 
@@ -468,9 +484,9 @@ class Translator @Inject constructor(
             }
         }
 
-        val nameHash = nameForLlm?.let { cacheKey(it, emptyList(), backend, playerName) }
-        val dialogueHash = normalizedDialogue?.let { cacheKey(it, emptyList(), backend, playerName) }
-        val choiceHashes = normalizedChoices.map { it?.let { text -> cacheKey(text, emptyList(), backend, playerName) } }
+        val nameHash = nameForLlm?.let { cacheKey(it, emptyList(), config) }
+        val dialogueHash = normalizedDialogue?.let { cacheKey(it, emptyList(), config) }
+        val choiceHashes = normalizedChoices.map { it?.let { text -> cacheKey(text, emptyList(), config) } }
 
         if (cacheEnabled) {
             if (nameForLlm != null && nameHash != null && nameResult == null) {
@@ -702,7 +718,8 @@ class Translator @Inject constructor(
             backend = settingsRepository.translationBackend.first(),
             apiKey = settingsRepository.apiKey.first(),
             playerName = userProfile.getPlayerName(),
-            cacheEnabled = settingsRepository.cacheEnabled.first()
+            cacheEnabled = settingsRepository.cacheEnabled.first(),
+            glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "bundled-db" }
         )
         cachedRuntimeConfig = loaded
         cachedRuntimeConfigAt = now
@@ -1929,14 +1946,14 @@ Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly.
     private fun cacheKey(
         normalizedText: String,
         choiceTexts: List<String>,
-        backend: String,
-        playerName: String
+        config: RuntimeConfig
     ): String {
         return hashText(
             listOf(
                 PromptBuilder.PROMPT_VERSION,
-                backend,
-                TextNormalizer.normalizeForTranslation(playerName),
+                config.backend,
+                config.glossaryCacheKey,
+                TextNormalizer.normalizeForTranslation(config.playerName),
                 normalizedText,
                 choiceTexts.joinToString("\n")
             ).joinToString("\u001F")

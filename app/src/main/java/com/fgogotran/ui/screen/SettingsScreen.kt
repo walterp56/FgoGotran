@@ -12,6 +12,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.terminology.GlossaryUpdateManager
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -28,10 +32,16 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
+    glossaryUpdateManager: GlossaryUpdateManager,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val timeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
+    val dbContentVersion by settingsRepository.dbContentVersion.collectAsState(initial = "")
+    val dbLastCheckAt by settingsRepository.dbLastCheckAt.collectAsState(initial = 0L)
+    val dbLastUpdateAt by settingsRepository.dbLastUpdateAt.collectAsState(initial = 0L)
+    val dbUpdateStatus by glossaryUpdateManager.updateStatus.collectAsState()
 
     // Form state — initialized from DataStore via LaunchedEffect
     var apiKey by remember { mutableStateOf("") }
@@ -55,6 +65,10 @@ fun SettingsScreen(
         scope.launch { settingsRepository.setPlayerName(playerName) }
     }
 
+    fun formatTime(epochMillis: Long): String {
+        return if (epochMillis <= 0L) "从未" else timeFormatter.format(Date(epochMillis))
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -75,6 +89,48 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("数据库", style = MaterialTheme.typography.titleMedium)
+                    SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "内置数据库" })
+                    SettingsInfoRow(label = "上次检查", value = formatTime(dbLastCheckAt))
+                    SettingsInfoRow(label = "上次更新", value = formatTime(dbLastUpdateAt))
+                    SettingsInfoRow(
+                        label = "状态",
+                        value = listOf(dbUpdateStatus.message, dbUpdateStatus.detail)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" - ")
+                    )
+                    Text(
+                        "每天首次启动悬浮按钮服务时自动检查一次。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Button(
+                        onClick = { scope.launch { glossaryUpdateManager.updateIfNeeded(force = true) } },
+                        enabled = !dbUpdateStatus.isChecking,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        if (dbUpdateStatus.isChecking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (dbUpdateStatus.isChecking) "检查中" else "检查更新")
+                    }
+                }
+            }
+
+            HorizontalDivider()
             // ── Translation Backend ──
             Text("翻译后端", style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -156,5 +212,30 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsInfoRow(
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End
+        )
     }
 }
