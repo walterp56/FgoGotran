@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
+import com.fgogotran.ui.component.BackendProviderLabel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -137,7 +138,14 @@ fun SettingsScreen(
                     Text("翻译接口", style = MaterialTheme.typography.titleMedium)
                     SettingsInfoRow(
                         label = "服务商",
-                        value = SettingsRepository.backendDisplayName(translationBackend)
+                        valueContent = {
+                            BackendProviderLabel(
+                                backend = translationBackend,
+                                label = SettingsRepository.backendDisplayName(translationBackend),
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                horizontalArrangement = Arrangement.End
+                            )
+                        }
                     )
                     SettingsInfoRow(
                         label = "模型",
@@ -203,7 +211,8 @@ fun SettingsScreen(
 @Composable
 private fun SettingsInfoRow(
     label: String,
-    value: String
+    value: String = "",
+    valueContent: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -216,11 +225,19 @@ private fun SettingsInfoRow(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
         Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyMedium,
+        Box(
             modifier = Modifier.weight(1f),
-            textAlign = androidx.compose.ui.text.style.TextAlign.End
-        )
+            contentAlignment = Alignment.TopEnd
+        ) {
+            if (valueContent != null) {
+                valueContent()
+            } else {
+                Text(
+                    value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                )
+            }
+        }
     }
 }

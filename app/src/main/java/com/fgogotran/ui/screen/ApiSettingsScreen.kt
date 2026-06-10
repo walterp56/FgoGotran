@@ -12,6 +12,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.ui.component.BackendProviderLabel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -132,7 +133,11 @@ fun ApiSettingsScreen(
                                 onClick = { applyBackendDefaults(option.value) }
                             )
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(option.label, style = MaterialTheme.typography.bodyLarge)
+                                BackendProviderLabel(
+                                    backend = option.value,
+                                    label = option.label,
+                                    textStyle = MaterialTheme.typography.bodyLarge
+                                )
                                 Text(
                                     option.note,
                                     style = MaterialTheme.typography.bodySmall,
