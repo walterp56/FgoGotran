@@ -575,11 +575,14 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun cropSourceText(lines: List<OcrTextLine>, fullText: String): String {
-        return lines
+        val cleanedLines = cleanRubyNoiseLines(lines)
+        val cleanedText = cleanedLines
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy<OcrTextLine> { it.boundingBox.top }.thenBy { it.boundingBox.left })
             .joinToString("\n") { it.text.trim() }
-            .ifBlank { fullText.trim() }
+        return cleanedText.ifBlank {
+            if (lines.any { isRubyDotNoiseLine(it) }) "" else fullText.trim()
+        }
     }
 
     private suspend fun processManualScreen(
@@ -1311,7 +1314,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun sourceTextFor(region: ClassifiedRegion): String {
         return when (region.region) {
             TextRegion.DIALOGUE_BOX -> formatDialogueForTranslation(region.lines)
-            else -> region.lines
+            else -> cleanRubyNoiseLines(region.lines)
                 .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
                 .joinToString("\n") { it.text }
                 .trim()
@@ -1319,11 +1322,12 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun formatDialogueForTranslation(lines: List<OcrTextLine>): String {
-        if (lines.size < 2) {
-            return lines.joinToString("\n") { it.text }.trim()
+        val cleanedLines = cleanRubyNoiseLines(lines)
+        if (cleanedLines.size < 2) {
+            return cleanedLines.joinToString("\n") { it.text }.trim()
         }
 
-        val sorted = lines
+        val sorted = cleanedLines
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
         if (sorted.size < 2) return sorted.joinToString("\n") { it.text }.trim()
@@ -1369,6 +1373,55 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
             }
             .trim()
+    }
+
+    private fun cleanRubyNoiseLines(lines: List<OcrTextLine>): List<OcrTextLine> {
+        val sorted = lines
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+        if (sorted.size < 2) return sorted.filterNot { isRubyDotNoiseLine(it) }
+
+        val heights = sorted.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
+        val medianHeight = heights[heights.size / 2]
+        val meaningfulLines = sorted.filterNot { isRubyDotNoiseLine(it) }
+        if (meaningfulLines.isEmpty()) return emptyList()
+
+        val noiseLines = sorted.filter { line ->
+            isRubyDotNoiseLine(line) && meaningfulLines.any { main ->
+                isLikelyRubyAboveMain(line, main, medianHeight)
+            }
+        }.toSet()
+
+        return sorted.filterNot { it in noiseLines }
+    }
+
+    private fun isRubyDotNoiseLine(line: OcrTextLine): Boolean {
+        val text = line.text.trim()
+        if (text.isBlank()) return false
+        if (text.any { it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff' || it.isLetterOrDigit() }) {
+            return false
+        }
+        val dotLikeCount = text.count { it.isRubyDotNoiseChar() }
+        return dotLikeCount > 0 && text.all { it.isRubyDotNoiseChar() || it.isWhitespace() }
+    }
+
+    private fun isLikelyRubyAboveMain(
+        ruby: OcrTextLine,
+        main: OcrTextLine,
+        medianHeight: Int
+    ): Boolean {
+        if (main.boundingBox.top < ruby.boundingBox.bottom - medianHeight / 3) return false
+        if (main.boundingBox.top - ruby.boundingBox.bottom > medianHeight * 2) return false
+        return horizontalOverlap(ruby.boundingBox, main.boundingBox) >= ruby.boundingBox.width() / 4 ||
+                ruby.boundingBox.centerX() in main.boundingBox.left..main.boundingBox.right
+    }
+
+    private fun Char.isRubyDotNoiseChar(): Boolean {
+        return this in setOf(
+            '.', ',', ':', ';', '-', '_', '~',
+            '・', '･', '…', '‥', '·', '•', '。', '、',
+            '︙', '⋯', '—', '–', '─', '━'
+        )
     }
 
     private fun isLikelyRubyLine(line: OcrTextLine, medianHeight: Int): Boolean {
