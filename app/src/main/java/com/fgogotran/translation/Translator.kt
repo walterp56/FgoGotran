@@ -157,6 +157,28 @@ class Translator @Inject constructor(
         private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
         private const val UNTRANSLATED_FALLBACK = ""
+        private val nameSanHonorificPattern =
+            Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})さん")
+        private val wrongSanHonorificPattern =
+            Regex("([\\p{L}\\p{N}_·・ー〇○-]{1,32})(?:先生|小姐|女士|大人|阁下)")
+        private val sanHonorificExceptionPhrases = setOf(
+            "皆さん",
+            "みなさん",
+            "たくさん",
+            "お父さん",
+            "父さん",
+            "お母さん",
+            "母さん",
+            "お兄さん",
+            "兄さん",
+            "お姉さん",
+            "姉さん",
+            "お客さん",
+            "おじさん",
+            "おばさん",
+            "叔父さん",
+            "叔母さん"
+        )
     }
 
     suspend fun warmUp() {
@@ -188,7 +210,7 @@ class Translator @Inject constructor(
 
         translationMemory.lookupNormalized(normalizedText)?.let {
             FgoLogger.info(tag, "Official CN memory HIT")
-            return TranslateResult(toSimplifiedChinese(it), "official-cn", true)
+            return TranslateResult(sanitizeTranslation(normalizedText, it), "official-cn", true)
         }
 
         findCharacterNameTranslation(normalizedText)?.let {
@@ -198,7 +220,7 @@ class Translator @Inject constructor(
 
         findTermTranslation(normalizedText)?.let {
             FgoLogger.info(tag, "Glossary exact HIT")
-            return TranslateResult(toSimplifiedChinese(it), "glossary", true)
+            return TranslateResult(sanitizeTranslation(normalizedText, it), "glossary", true)
         }
 
         val config = getRuntimeConfig()
@@ -312,7 +334,7 @@ class Translator @Inject constructor(
             val officialMemory = translationMemory.lookupNormalized(normalizedText)
             if (officialMemory != null) {
                 FgoLogger.info(tag, "Batch official CN memory HIT[$index]")
-                results[index] = TranslateResult(toSimplifiedChinese(officialMemory), "official-cn", true)
+                results[index] = TranslateResult(sanitizeTranslation(normalizedText, officialMemory), "official-cn", true)
                 continue
             }
 
@@ -326,7 +348,7 @@ class Translator @Inject constructor(
             val termTranslation = findTermTranslation(normalizedText)
             if (termTranslation != null) {
                 FgoLogger.info(tag, "Batch term exact HIT[$index]")
-                results[index] = TranslateResult(toSimplifiedChinese(termTranslation), "glossary", true)
+                results[index] = TranslateResult(sanitizeTranslation(normalizedText, termTranslation), "glossary", true)
                 continue
             }
 
@@ -455,12 +477,12 @@ class Translator @Inject constructor(
         normalizedDialogue?.let { normalized ->
             translationMemory.lookupNormalized(normalized)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT dialogue")
-                dialogueResult = TranslateResult(toSimplifiedChinese(it), "official-cn", true)
+                dialogueResult = TranslateResult(sanitizeTranslation(normalized, it), "official-cn", true)
             }
             if (dialogueResult == null) {
                 findTermTranslation(normalized)?.let {
                     FgoLogger.info(tag, "Term exact HIT dialogue")
-                    dialogueResult = TranslateResult(toSimplifiedChinese(it), "glossary", true)
+                    dialogueResult = TranslateResult(sanitizeTranslation(normalized, it), "glossary", true)
                 }
             }
         }
@@ -468,12 +490,12 @@ class Translator @Inject constructor(
             if (normalized == null) return@forEachIndexed
             translationMemory.lookupNormalized(normalized)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT choice[$index]")
-                choiceResults[index] = TranslateResult(toSimplifiedChinese(it), "official-cn", true)
+                choiceResults[index] = TranslateResult(sanitizeTranslation(normalized, it), "official-cn", true)
             }
             if (choiceResults[index] == null) {
                 findTermTranslation(normalized)?.let {
                     FgoLogger.info(tag, "Term exact HIT choice[$index]")
-                    choiceResults[index] = TranslateResult(toSimplifiedChinese(it), "glossary", true)
+                    choiceResults[index] = TranslateResult(sanitizeTranslation(normalized, it), "glossary", true)
                 }
             }
             if (choiceResults[index] == null) {
@@ -1235,7 +1257,26 @@ class Translator @Inject constructor(
         val simplified = stripEdgeKanaLeak(
             cleanReturnedRubyMarkup(toSimplifiedChinese(translatedText))
         )
-        return preserveSourcePunctuation(sourceText, simplified)
+        val honorificAdjusted = applySanHonorificPolicy(sourceText, simplified)
+        return preserveSourcePunctuation(sourceText, honorificAdjusted)
+    }
+
+    private fun applySanHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameSanHonorific(sourceText)) return translatedText
+        return wrongSanHonorificPattern.replace(translatedText) { match ->
+            "${match.groupValues[1]}桑"
+        }
+    }
+
+    private fun sourceContainsNameSanHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameSanHonorificPattern.findAll(normalized).any { match ->
+            val contextStart = (match.range.first - 2).coerceAtLeast(0)
+            val context = normalized.substring(contextStart, match.range.last + 1)
+            sanHonorificExceptionPhrases.none { exception ->
+                match.value == exception || context.endsWith(exception)
+            }
+        }
     }
 
     private fun stripEdgeKanaLeak(text: String): String {
@@ -1660,7 +1701,7 @@ class Translator @Inject constructor(
         backend: String,
         playerName: String
     ) {
-        val simplified = toSimplifiedChinese(translatedText)
+        val simplified = sanitizeTranslation(normalizedText, translatedText)
         if (looksUntranslated(normalizedText, simplified, playerName)) {
             FgoLogger.warn(tag, "Not caching untranslated result, hash=${hash.take(8)}...")
             return
@@ -1701,6 +1742,7 @@ class Translator @Inject constructor(
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
             appendLine("- Translate choices as an array in the same order.")
             appendLine("- Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly; do not translate them.")
+            appendLine("- If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士. Do not apply to fixed common words like 皆さん, お父さん, お母さん, お兄さん, or お姉さん.")
             appendLine("- Treat base《reading》 as ruby/furigana context. Do not translate the reading as a separate dialogue fragment.")
             appendLine("- No markdown, no explanations, no extra keys.")
             appendLine()
@@ -1790,6 +1832,7 @@ class Translator @Inject constructor(
             appendLine("Return ONLY a JSON array of strings.")
             appendLine("The JSON array must contain exactly ${texts.size} items in the same order.")
             appendLine("Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly; do not translate them.")
+            appendLine("If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士. Do not apply to fixed common words like 皆さん, お父さん, お母さん, お兄さん, or お姉さん.")
             appendLine("Treat base《reading》 as ruby/furigana context, not separate dialogue.")
             appendLine("No markdown, no explanations, no extra keys.")
             appendLine()
@@ -1820,6 +1863,7 @@ Return Simplified Chinese only.
 The player name "$playerName" is fixed user text; keep it exactly if it appears.
 Do not include Japanese kana except inside the player name or fixed official terminology supplied above.
 Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly.
+If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士.
 """.trimIndent()
             ),
             ChatMessage("user", buildStrictRetryUserPrompt(protectedInput.text, normalizedChoices))
@@ -1851,6 +1895,7 @@ Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly.
             appendLine("Translate this Japanese Fate/Grand Order text into Simplified Chinese.")
             appendLine("Return ONLY the Chinese translation. No Japanese source text, no explanation.")
             appendLine("If placeholders like __FGOTERM_1__ or __FGOPLAYER_1__ appear, copy them exactly.")
+            appendLine("If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士.")
             if (choiceTexts.isNotEmpty()) {
                 appendLine("Choice context:")
                 choiceTexts.forEachIndexed { index, choice ->

@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v17"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v18"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -50,7 +50,7 @@ Rules (MUST follow):
 1. TERMINOLOGY: Use ONLY the official Chinese translations provided below for proper nouns. Never invent new translations.
 2. STYLE: Maintain the original speaker's tone. Use natural conversational Chinese appropriate for game dialogue.
 3. NAMES: Never translate servant/character names creatively. Use ONLY the official Chinese names.
-4. PLAYER NAME: The player's name is "{player_name}". It is fixed user text; keep it exactly when it appears, even if it contains Japanese kana. Remove honorifics like さん/殿/君 unless they are important to the tone.
+4. PLAYER NAME: The player's name is "{player_name}". It is fixed user text; keep it exactly when it appears, even if it contains Japanese kana. For さん after the player name, follow the HONORIFIC さん rule below.
 5. FORMAT: Return ONLY the translated Chinese text. No explanations, no notes, no markdown.
 6. CONTEXT AWARENESS: If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear.
 7. UNKNOWN TERMS: If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
@@ -58,6 +58,7 @@ Rules (MUST follow):
 9. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
 10. RUBY/FURIGANA: Source may contain OCR ruby as base《reading》, e.g. 大穴《クエスチョン》. Treat the reading as pronunciation/alternate-name context, not separate dialogue. Translate the base meaning naturally; include a concise Chinese parenthetical only when the reading is a proper noun, codename, or important alternate name.
 11. PLACEHOLDERS: Keep tokens like __FGOTERM_1__ and __FGOPLAYER_1__ unchanged exactly.
+12. HONORIFIC さん: When さん is used as a suffix after a character, Servant, NPC, or player name, render it as 桑. Never translate this name suffix as 先生, 小姐, 女士, or remove it. Do not apply this to fixed common words such as 皆さん, みなさん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
 
 Style examples:
 JP: ……そうか。君は、そう選ぶんだな。
