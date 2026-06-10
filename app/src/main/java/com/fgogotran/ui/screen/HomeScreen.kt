@@ -32,13 +32,13 @@ import com.fgogotran.R
  * Home screen with service status, "Start Service" flow, and navigation.
  *
  * ## Startup flow (like FGA's toggleOverlayService)
- * 1. Tap "啟動服務" FAB
+ * 1. Tap "启动服务" FAB
  * 2. Check overlay permission → show dialog if not granted
  * 3. Check accessibility service → show dialog if not running
  * 4. Check MediaProjection token → launch system screen share dialog
  * 5. Start FgoRunnerService → floating button appears on FGO
  *
- * Tap "停止服務" → stop service → floating button disappears
+ * Tap "停止服务" → stop service → floating button disappears
  */
 
 @Composable
@@ -180,7 +180,7 @@ fun HomeScreen(
             )
 
 //            Text(
-//                text = "FGO 日文故事 → 中文即時翻譯",
+//                text = "FGO 日文故事 → 中文即时翻译",
 //                style = MaterialTheme.typography.bodyLarge,
 //                textAlign = TextAlign.Center
 //            )
@@ -202,7 +202,7 @@ fun HomeScreen(
 //                        Text("●", color = Color(0xFF4CAF50), style = MaterialTheme.typography.bodySmall)
 //                        Spacer(modifier = Modifier.width(8.dp))
 //                        Text(
-//                            "FgoGotran 服務中",
+//                            "FgoGotran 服务中",
 //                            color = Color(0xFF4CAF50),
 //                            style = MaterialTheme.typography.bodyMedium
 //                        )

@@ -15,6 +15,8 @@ import android.view.accessibility.AccessibilityEvent
 import android.accessibilityservice.AccessibilityServiceInfo
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import com.fgogotran.crop.CropResultOverlay
+import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrTextLine
 import com.fgogotran.overlay.BackgroundDetector
@@ -64,10 +66,13 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var translator: Translator
     @Inject lateinit var overlayRenderer: OverlayRenderer
     @Inject lateinit var storyDetector: StoryDetector
+    @Inject lateinit var cropResultOverlay: CropResultOverlay
+    @Inject lateinit var cropResultRenderer: CropResultRenderer
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isProcessing = false
     private var translationJob: Job? = null
+    private var cropTranslationJob: Job? = null
     private var stopVersion = 0L
     private var screenWidth = 0
     private var screenHeight = 0
@@ -103,6 +108,8 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NEXT_DIALOGUE_POLL_TIMEOUT = 2_500L
         private const val TAP_PASSTHROUGH_SETTLE_DELAY = 32L
         private const val TAP_REPLAY_TIMEOUT = 500L
+        private const val CROP_TRANSLATION_WAIT_TIMEOUT = 700L
+        private const val CROP_OCR_SCALE = 2
         private const val EMPTY_CHOICE_OCR_BASE_COOLDOWN = 600L
         private const val EMPTY_CHOICE_OCR_MAX_COOLDOWN = 1_200L
         private const val FRESHNESS_CHECK_TRANSLATION_DELAY = 800L
@@ -195,6 +202,9 @@ class FgoAccessibilityService : AccessibilityService() {
         translationOverlay.init(this, screenWidth, screenHeight) { x, y ->
             handleTranslatedOverlayTap(x, y)
         }
+        cropResultOverlay.init(this) { x, y ->
+            handleCropResultTap(x, y)
+        }
         TranslationTrigger.setAutoTranslateEnabled(false)
         startDetectionLoop()
         warmUpManualPipeline()
@@ -249,6 +259,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 resetEarlyTranslation()
                 resetCompletedDialogueCandidate()
                 translationOverlay.hideAll()
+                cropResultOverlay.hide()
             }
         }
     }
@@ -256,12 +267,14 @@ class FgoAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {
         FgoLogger.warn(tag, "Service interrupted")
         translationOverlay.hideAll()
+        cropResultOverlay.hide()
         serviceScope.cancel()
     }
 
     override fun onDestroy() {
         instance = null
         translationOverlay.destroy()
+        cropResultOverlay.destroy()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -269,6 +282,7 @@ class FgoAccessibilityService : AccessibilityService() {
     fun setAutoTranslationEnabled(enabled: Boolean) {
         TranslationTrigger.setAutoTranslateEnabled(enabled)
         cancelCurrentTranslation()
+        cropResultOverlay.hide()
         if (enabled) {
             autoScanReadyAt = SystemClock.elapsedRealtime() + MANUAL_MENU_DISMISS_SETTLE_DELAY
             FgoLogger.debug(tag, "Auto translate enabled")
@@ -280,6 +294,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     fun requestManualTranslation(afterMenuDismiss: Boolean = false): Boolean {
         if (TranslationTrigger.isAutoTranslateEnabled()) return false
+        cropResultOverlay.hide()
 
         if (!isFgoForeground ||
             isProcessing ||
@@ -298,11 +313,42 @@ class FgoAccessibilityService : AccessibilityService() {
         return true
     }
 
+    fun requestCropTranslation(bounds: Rect): Boolean {
+        if (!isFgoForeground || TranslationTrigger.isUiBlockingOcr()) {
+            FgoLogger.warn(tag, "Crop translation rejected; FGO foreground=$isFgoForeground")
+            return false
+        }
+
+        TranslationTrigger.setAutoTranslateEnabled(false)
+        cancelCurrentTranslation()
+        cropTranslationJob = serviceScope.launch {
+            val deadline = SystemClock.elapsedRealtime() + CROP_TRANSLATION_WAIT_TIMEOUT
+            while (isProcessing && SystemClock.elapsedRealtime() < deadline) {
+                delay(CAPTURE_SETTLE_DELAY)
+            }
+            if (isProcessing) {
+                FgoLogger.warn(tag, "Crop translation skipped; previous pipeline is still busy")
+                showCropStatus(bounds, "请稍后再试")
+                return@launch
+            }
+            processCropTranslation(Rect(bounds))
+        }
+        return true
+    }
+
+    fun clearCropTranslationOverlay() {
+        cropTranslationJob?.cancel()
+        cropTranslationJob = null
+        cropResultOverlay.hide()
+    }
+
     private fun cancelCurrentTranslation() {
         stopVersion++
         TranslationTrigger.cancelPendingTranslation()
         translationJob?.cancel()
+        cropTranslationJob?.cancel()
         translationJob = null
+        cropTranslationJob = null
         resetEarlyTranslation()
         resetCompletedDialogueCandidate()
         lastManualRenderedSourceText = ""
@@ -315,6 +361,7 @@ class FgoAccessibilityService : AccessibilityService() {
         suppressedChoiceBoundsKey = ""
         emptyChoiceOcrStreak = 0
         translationOverlay.hide()
+        cropResultOverlay.hide()
     }
 
     private fun startDetectionLoop() {
@@ -338,6 +385,7 @@ class FgoAccessibilityService : AccessibilityService() {
                         } else if (manualRequest) {
                             FgoLogger.debug(tag, "Translate Now requested")
                             val waitForMenuDismissal = TranslationTrigger.consumeMenuDismissSettleRequired()
+                            cropResultOverlay.hide()
                             translationJob = serviceScope.launch {
                                 if (waitForMenuDismissal) delay(MANUAL_MENU_DISMISS_SETTLE_DELAY)
                                 processScreen(ProcessingMode.MANUAL)
@@ -414,6 +462,124 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             isProcessing = false
         }
+    }
+
+    private suspend fun processCropTranslation(requestedBounds: Rect) {
+        if (isProcessing) return
+        isProcessing = true
+        val startedAt = SystemClock.elapsedRealtime()
+        var screenshot: Bitmap? = null
+        var cropped: Bitmap? = null
+        var scaledForOcr: Bitmap? = null
+
+        try {
+            translationOverlay.hideForCapture()
+            cropResultOverlay.hide()
+            delay(CAPTURE_SETTLE_DELAY)
+
+            screenshot = takeScreenshotCompat()
+            if (screenshot == null) {
+                showCropStatus(requestedBounds, "截图失败")
+                return
+            }
+
+            val cropBounds = clippedCropBounds(requestedBounds, screenshot.width, screenshot.height)
+            if (cropBounds == null) {
+                showCropStatus(requestedBounds, "区域太小")
+                return
+            }
+
+            val cropBitmap = Bitmap.createBitmap(
+                screenshot,
+                cropBounds.left,
+                cropBounds.top,
+                cropBounds.width(),
+                cropBounds.height()
+            )
+            cropped = cropBitmap
+            val ocrBitmap = if (cropBitmap.width < 900 || cropBitmap.height < 500) {
+                scaledForOcr = Bitmap.createScaledBitmap(
+                    cropBitmap,
+                    cropBitmap.width * CROP_OCR_SCALE,
+                    cropBitmap.height * CROP_OCR_SCALE,
+                    false
+                )
+                scaledForOcr!!
+            } else {
+                cropBitmap
+            }
+
+            val ocrStartedAt = SystemClock.elapsedRealtime()
+            val ocrResult = withContext(Dispatchers.Default) {
+                ocrEngine.recognize(ocrBitmap)
+            }
+            val sourceText = cropSourceText(ocrResult.lines, ocrResult.fullText)
+            val ocrDuration = SystemClock.elapsedRealtime() - ocrStartedAt
+
+            if (sourceText.isBlank()) {
+                showCropStatus(cropBounds, "未识别到文字")
+                FgoLogger.info(tag, "Crop OCR found no text in ${ocrDuration}ms")
+                return
+            }
+
+            val translationStartedAt = SystemClock.elapsedRealtime()
+            val translated = withContext(Dispatchers.IO) {
+                translator.translate(sourceText).translatedText.trim()
+            }.ifBlank {
+                "翻译失败"
+            }
+            val translationDuration = SystemClock.elapsedRealtime() - translationStartedAt
+
+            val rendered = withContext(Dispatchers.Default) {
+                cropResultRenderer.render(
+                    width = cropBounds.width(),
+                    height = cropBounds.height(),
+                    text = translated
+                )
+            }
+            cropResultOverlay.show(cropBounds, rendered)
+            FgoLogger.info(
+                tag,
+                "Crop pipeline ready: ocr=${ocrDuration}ms, translate=${translationDuration}ms, " +
+                        "total=${SystemClock.elapsedRealtime() - startedAt}ms, bounds=${cropBounds.flattenToString()}"
+            )
+        } catch (e: CancellationException) {
+            FgoLogger.debug(tag, "Crop translation cancelled")
+            throw e
+        } catch (e: Exception) {
+            FgoLogger.error(tag, "Crop translation failed", e)
+            showCropStatus(requestedBounds, "翻译失败")
+        } finally {
+            scaledForOcr?.recycle()
+            cropped?.recycle()
+            screenshot?.recycle()
+            isProcessing = false
+        }
+    }
+
+    private fun showCropStatus(bounds: Rect, message: String) {
+        val safeWidth = bounds.width().coerceAtLeast(180)
+        val safeHeight = bounds.height().coerceAtLeast(96)
+        val bitmap = cropResultRenderer.render(safeWidth, safeHeight, message)
+        cropResultOverlay.show(
+            Rect(bounds.left, bounds.top, bounds.left + safeWidth, bounds.top + safeHeight),
+            bitmap
+        )
+    }
+
+    private fun clippedCropBounds(bounds: Rect, screenWidth: Int, screenHeight: Int): Rect? {
+        val clipped = Rect(bounds)
+        if (!clipped.intersect(0, 0, screenWidth, screenHeight)) return null
+        if (clipped.width() < 32 || clipped.height() < 32) return null
+        return clipped
+    }
+
+    private fun cropSourceText(lines: List<OcrTextLine>, fullText: String): String {
+        return lines
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy<OcrTextLine> { it.boundingBox.top }.thenBy { it.boundingBox.left })
+            .joinToString("\n") { it.text.trim() }
+            .ifBlank { fullText.trim() }
     }
 
     private suspend fun processManualScreen(
@@ -1901,6 +2067,33 @@ class FgoAccessibilityService : AccessibilityService() {
                     }
                 }
             )
+        }
+    }
+
+    private fun handleCropResultTap(x: Float, y: Float) {
+        if (isForwardingOverlayTap) {
+            FgoLogger.debug(tag, "Ignoring crop result tap while replay is active")
+            return
+        }
+
+        serviceScope.launch {
+            isForwardingOverlayTap = true
+            cropResultOverlay.hide()
+            try {
+                if (!canPerformGestures()) {
+                    FgoLogger.warn(tag, "Gesture injection is not granted; crop tap will only hide overlay")
+                    return@launch
+                }
+                delay(TAP_PASSTHROUGH_SETTLE_DELAY)
+                FgoLogger.debug(tag, "Crop result tapped; forwarding to FGO at $x,$y")
+                withTimeoutOrNull(TAP_REPLAY_TIMEOUT) {
+                    dispatchTapToFgo(x, y)
+                } ?: FgoLogger.warn(tag, "Crop tap replay timed out")
+            } catch (e: Exception) {
+                FgoLogger.error(tag, "Crop tap replay failed", e)
+            } finally {
+                isForwardingOverlayTap = false
+            }
         }
     }
 

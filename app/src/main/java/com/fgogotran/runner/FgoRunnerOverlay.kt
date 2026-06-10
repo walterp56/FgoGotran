@@ -1,6 +1,7 @@
 package com.fgogotran.runner
 
 import android.content.Context
+import android.graphics.Rect
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.ColorDrawable
@@ -10,6 +11,8 @@ import android.view.Gravity
 import android.view.WindowManager
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
+import com.fgogotran.crop.CropModeState
+import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
 import com.fgogotran.ui.overlay.HistoryOverlayPanel
@@ -37,7 +40,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class FgoRunnerOverlay @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val cropSelectionOverlay: CropSelectionOverlay
 ) {
     private var windowManager: WindowManager? = null
     private var composeHost: FakeComposeHost? = null
@@ -45,6 +49,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var floatingMenuDialog: androidx.appcompat.app.AlertDialog? = null
     private var onCloseRequested: (() -> Unit)? = null
     private var shown = false
+    private var cropModeState = CropModeState.IDLE
 
     /**
      * Current position of the floating button (top-left origin).
@@ -107,14 +112,7 @@ class FgoRunnerOverlay @Inject constructor(
         composeHost = FakeComposeHost(context) {
             FloatingButton(
                 onClick = {
-                    if (!TranslationTrigger.isAutoTranslateEnabled()) {
-                        val requested = FgoAccessibilityService.instance
-                            ?.requestManualTranslation()
-                            ?: false
-                        if (!requested) {
-                            TranslationTrigger.requestTranslation()
-                        }
-                    }
+                    onButtonClick()
                 },
                 onLongClick = { onButtonLongClick() },
                 onDrag = { dx, dy -> onDrag(dx, dy) }
@@ -130,6 +128,7 @@ class FgoRunnerOverlay @Inject constructor(
     fun hide() {
         if (!shown) return
         val wm = windowManager ?: return
+        cancelCropMode()
 
         composeHost?.let {
             try { wm.removeView(it.view) } catch (_: Exception) {}
@@ -144,6 +143,8 @@ class FgoRunnerOverlay @Inject constructor(
     fun destroy() {
         dismissMenu()
         dismissHistoryPanel()
+        cancelCropMode()
+        FgoAccessibilityService.instance?.clearCropTranslationOverlay()
         hide()
         windowManager = null
         onCloseRequested = null
@@ -152,6 +153,22 @@ class FgoRunnerOverlay @Inject constructor(
 
     /** Whether the floating button is currently visible. */
     fun isShowing(): Boolean = shown
+
+    private fun onButtonClick() {
+        if (cropModeState == CropModeState.SELECTING) {
+            requestOneShotCropTranslation()
+            return
+        }
+
+        if (!TranslationTrigger.isAutoTranslateEnabled()) {
+            val requested = FgoAccessibilityService.instance
+                ?.requestManualTranslation()
+                ?: false
+            if (!requested) {
+                TranslationTrigger.requestTranslation()
+            }
+        }
+    }
 
     // ─── Drag handling ────────────────────────────────────────────────
 
@@ -208,6 +225,10 @@ class FgoRunnerOverlay @Inject constructor(
                     }
                     dismissMenu()
                 },
+                onCropTranslateClick = {
+                    dismissMenu()
+                    armOneShotCropMode()
+                },
                 onHistoryClick = {
                     dismissMenu()
                     showHistoryPanel()
@@ -242,8 +263,56 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun requestClose() {
         dismissMenu()
+        cancelCropMode()
+        FgoAccessibilityService.instance?.clearCropTranslationOverlay()
         FgoLogger.info(tag, "Close requested from floating menu")
         onCloseRequested?.invoke()
+    }
+
+    private fun armOneShotCropMode() {
+        FgoAccessibilityService.instance?.setAutoTranslationEnabled(false)
+            ?: TranslationTrigger.setAutoTranslateEnabled(false)
+        FgoAccessibilityService.instance?.clearCropTranslationOverlay()
+        TranslationTrigger.cancelPendingTranslation()
+
+        cropModeState = CropModeState.SELECTING
+        cropSelectionOverlay.show()
+        bringFloatingButtonToFront()
+        FgoLogger.info(tag, "One-shot crop mode armed")
+    }
+
+    private fun requestOneShotCropTranslation() {
+        val bounds = cropSelectionOverlay.selectedBounds()
+        cropSelectionOverlay.hide()
+        cropModeState = CropModeState.IDLE
+
+        if (bounds == null || bounds.width() <= 0 || bounds.height() <= 0) {
+            FgoLogger.warn(tag, "Crop translation requested without valid bounds")
+            return
+        }
+
+        val requested = FgoAccessibilityService.instance
+            ?.requestCropTranslation(Rect(bounds))
+            ?: false
+        if (!requested) {
+            FgoLogger.warn(tag, "Accessibility service unavailable; crop translation ignored")
+        }
+    }
+
+    private fun cancelCropMode() {
+        cropModeState = CropModeState.IDLE
+        cropSelectionOverlay.hide()
+    }
+
+    private fun bringFloatingButtonToFront() {
+        val wm = windowManager ?: return
+        val view = composeHost?.view ?: return
+        try {
+            wm.removeView(view)
+            wm.addView(view, btnLayoutParams)
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "Failed to bring floating button above crop selector", e)
+        }
     }
 
     private fun showHistoryPanel() {

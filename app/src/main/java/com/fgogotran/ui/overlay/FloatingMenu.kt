@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 fun FloatingMenu(
     autoTranslateEnabled: Boolean,
     onAutoTranslateChange: (Boolean) -> Unit,
+    onCropTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
@@ -53,6 +54,14 @@ fun FloatingMenu(
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
 
         MenuRow(
+            icon = "C",
+            label = "区域翻译",
+            onClick = onCropTranslateClick
+        )
+
+        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+
+        MenuRow(
             icon = "H",
             label = "翻译LOG",
             onClick = onHistoryClick
@@ -62,7 +71,7 @@ fun FloatingMenu(
 
         MenuRow(
             icon = "X",
-            label = "关闭",
+            label = "关闭服务",
             muted = true,
             onClick = onCloseClick
         )
@@ -112,11 +121,22 @@ private fun AutoTranslateRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = "自动翻译",
-            fontSize = 15.sp,
-            color = Color(0xFF333333)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "A",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF333333)
+            )
+            Text(
+                text = "自动翻译",
+                fontSize = 15.sp,
+                color = Color(0xFF333333)
+            )
+        }
         Switch(
             checked = enabled,
             onCheckedChange = onEnabledChange
