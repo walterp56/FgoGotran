@@ -1,0 +1,224 @@
+package com.fgogotran.ui.screen
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import com.fgogotran.data.SettingsRepository
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+private data class BackendOption(
+    val value: String,
+    val label: String,
+    val note: String
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ApiSettingsScreen(
+    settingsRepository: SettingsRepository,
+    onBack: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    val backendOptions = remember {
+        listOf(
+            BackendOption(
+                SettingsRepository.BACKEND_FGOGOTRAN,
+                "FgoGotran 后端",
+                "应用只连接你的后端，模型由后端管理"
+            ),
+            BackendOption(
+                SettingsRepository.BACKEND_DEEPSEEK,
+                "DeepSeek",
+                "默认使用 deepseek-v4-flash"
+            ),
+            BackendOption(
+                SettingsRepository.BACKEND_GPT,
+                "OpenAI",
+                "OpenAI Chat Completions"
+            ),
+            BackendOption(
+                SettingsRepository.BACKEND_CLAUDE,
+                "Claude",
+                "Anthropic Messages API"
+            ),
+            BackendOption(
+                SettingsRepository.BACKEND_CUSTOM_OPENAI,
+                "自定义接口",
+                "兼容 OpenAI Chat Completions 的接口"
+            )
+        )
+    }
+
+    var selectedBackend by remember { mutableStateOf(SettingsRepository.BACKEND_DEEPSEEK) }
+    var apiBaseUrl by remember { mutableStateOf("") }
+    var apiModel by remember { mutableStateOf(SettingsRepository.DEFAULT_DEEPSEEK_MODEL) }
+    var apiKey by remember { mutableStateOf("") }
+    var saveMessage by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        selectedBackend = settingsRepository.translationBackend.first()
+        apiBaseUrl = settingsRepository.apiBaseUrl.first()
+            .ifBlank { SettingsRepository.defaultApiBaseUrl(selectedBackend) }
+        apiModel = settingsRepository.apiModel.first()
+            .ifBlank { SettingsRepository.defaultApiModel(selectedBackend) }
+        apiKey = settingsRepository.apiKey.first()
+    }
+
+    fun applyBackendDefaults(backend: String) {
+        selectedBackend = backend
+        apiBaseUrl = SettingsRepository.defaultApiBaseUrl(backend)
+        apiModel = SettingsRepository.defaultApiModel(backend)
+        saveMessage = ""
+    }
+
+    fun saveSettings() {
+        scope.launch {
+            settingsRepository.saveApiSettings(
+                backend = selectedBackend,
+                apiKey = apiKey,
+                apiBaseUrl = apiBaseUrl,
+                apiModel = apiModel
+            )
+            saveMessage = "已保存"
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("翻译接口") },
+                navigationIcon = {
+                    TextButton(onClick = onBack) {
+                        Text("返回", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("服务商", style = MaterialTheme.typography.titleMedium)
+                    backendOptions.forEach { option ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedBackend == option.value,
+                                onClick = { applyBackendDefaults(option.value) }
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(option.label, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    option.note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("请求设置", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = apiBaseUrl,
+                        onValueChange = {
+                            apiBaseUrl = it
+                            saveMessage = ""
+                        },
+                        label = { Text("API 地址") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = apiModel,
+                        onValueChange = {
+                            apiModel = it
+                            saveMessage = ""
+                        },
+                        label = { Text("模型") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = {
+                            apiKey = it
+                            saveMessage = ""
+                        },
+                        label = { Text("API Key") },
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        supportingText = {
+                            Text(
+                                if (SettingsRepository.requiresApiKey(selectedBackend)) {
+                                    "当前服务商需要 API Key"
+                                } else {
+                                    "FgoGotran 后端可留空"
+                                }
+                            )
+                        },
+                        singleLine = true
+                    )
+                    if (saveMessage.isNotBlank()) {
+                        Text(
+                            saveMessage,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { applyBackendDefaults(selectedBackend) }
+                        ) {
+                            Text("恢复默认")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = { saveSettings() }) {
+                            Text("保存设置")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

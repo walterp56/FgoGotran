@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
+import com.fgogotran.ui.screen.ApiSettingsScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
@@ -58,7 +59,7 @@ class MainActivity : ComponentActivity() {
 /**
  * Top-level navigation state and routing.
  */
-enum class Screen { HOME, SETTINGS }
+enum class Screen { HOME, SETTINGS, API_SETTINGS }
 
 /**
  * Root composable managing 3-screen navigation.
@@ -73,7 +74,7 @@ fun MainScreen(
 
     // enable backscreen
     BackHandler(enabled = currentScreen != Screen.HOME) {
-        currentScreen = Screen.HOME
+        currentScreen = if (currentScreen == Screen.API_SETTINGS) Screen.SETTINGS else Screen.HOME
     }
 
     when (currentScreen) {
@@ -84,8 +85,13 @@ fun MainScreen(
         Screen.SETTINGS -> SettingsScreen(
             settingsRepository = settingsRepository,
             glossaryUpdateManager = glossaryUpdateManager,
+            onApiSettings = { currentScreen = Screen.API_SETTINGS },
             onBack = { currentScreen = Screen.HOME }
         )
 
+        Screen.API_SETTINGS -> ApiSettingsScreen(
+            settingsRepository = settingsRepository,
+            onBack = { currentScreen = Screen.SETTINGS }
+        )
     }
 }

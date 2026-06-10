@@ -32,6 +32,8 @@ class SettingsRepository @Inject constructor(
     companion object {
         val KEY_TRANSLATION_BACKEND = stringPreferencesKey("translation_backend")
         val KEY_API_KEY = stringPreferencesKey("api_key")
+        val KEY_API_BASE_URL = stringPreferencesKey("api_base_url")
+        val KEY_API_MODEL = stringPreferencesKey("api_model")
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
@@ -40,12 +42,54 @@ class SettingsRepository @Inject constructor(
         val KEY_DB_LAST_CHECK_AT = longPreferencesKey("db_last_check_at")
         val KEY_DB_LAST_UPDATE_AT = longPreferencesKey("db_last_update_at")
 
+        /** FgoGotran hosted backend API. */
+        const val BACKEND_FGOGOTRAN = "fgogotran"
         /** DeepSeek Chat API (default). */
         const val BACKEND_DEEPSEEK = "deepseek"
         /** Anthropic Claude Messages API. */
         const val BACKEND_CLAUDE = "claude"
         /** OpenAI GPT Chat Completions API. */
         const val BACKEND_GPT = "gpt"
+        /** Custom OpenAI-compatible Chat Completions API. */
+        const val BACKEND_CUSTOM_OPENAI = "custom_openai"
+
+        const val DEFAULT_FGOGOTRAN_BASE_URL = "https://api.fgogotran.com/v1/chat/completions"
+        const val DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1/chat/completions"
+        const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
+        const val DEFAULT_CLAUDE_BASE_URL = "https://api.anthropic.com/v1/messages"
+
+        const val DEFAULT_FGOGOTRAN_MODEL = "fast"
+        const val DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
+        const val DEFAULT_OPENAI_MODEL = "gpt-4o"
+        const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
+        const val DEFAULT_CUSTOM_MODEL = "deepseek-v4-flash"
+
+        fun defaultApiBaseUrl(backend: String): String = when (backend) {
+            BACKEND_FGOGOTRAN -> DEFAULT_FGOGOTRAN_BASE_URL
+            BACKEND_CLAUDE -> DEFAULT_CLAUDE_BASE_URL
+            BACKEND_GPT -> DEFAULT_OPENAI_BASE_URL
+            BACKEND_CUSTOM_OPENAI -> DEFAULT_DEEPSEEK_BASE_URL
+            else -> DEFAULT_DEEPSEEK_BASE_URL
+        }
+
+        fun defaultApiModel(backend: String): String = when (backend) {
+            BACKEND_FGOGOTRAN -> DEFAULT_FGOGOTRAN_MODEL
+            BACKEND_CLAUDE -> DEFAULT_CLAUDE_MODEL
+            BACKEND_GPT -> DEFAULT_OPENAI_MODEL
+            BACKEND_CUSTOM_OPENAI -> DEFAULT_CUSTOM_MODEL
+            else -> DEFAULT_DEEPSEEK_MODEL
+        }
+
+        fun backendDisplayName(backend: String): String = when (backend) {
+            BACKEND_FGOGOTRAN -> "FgoGotran 后端"
+            BACKEND_DEEPSEEK -> "DeepSeek"
+            BACKEND_CLAUDE -> "Claude"
+            BACKEND_GPT -> "OpenAI"
+            BACKEND_CUSTOM_OPENAI -> "自定义接口"
+            else -> "DeepSeek"
+        }
+
+        fun requiresApiKey(backend: String): Boolean = backend != BACKEND_FGOGOTRAN
     }
 
     private val tag = "Settings"
@@ -58,6 +102,17 @@ class SettingsRepository @Inject constructor(
     /** User's API key for the selected translation backend. */
     val apiKey: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_API_KEY] ?: ""
+    }
+
+    /** Chat completions endpoint for the selected backend. Blank means provider default. */
+    val apiBaseUrl: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_API_BASE_URL] ?: ""
+    }
+
+    /** Model name for the selected backend. */
+    val apiModel: Flow<String> = context.dataStore.data.map { prefs ->
+        val backend = prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK
+        prefs[KEY_API_MODEL] ?: defaultApiModel(backend)
     }
 
     /** The player's FGO Master name for dialogue personalization. */
@@ -104,6 +159,34 @@ class SettingsRepository @Inject constructor(
         context.dataStore.edit { it[KEY_API_KEY] = key }
         // Redact the actual key value to prevent accidental log leakage
         FgoLogger.debug(tag, "Setting updated: api_key=(redacted, ${key.length} chars)")
+    }
+
+    suspend fun setApiBaseUrl(url: String) {
+        context.dataStore.edit { it[KEY_API_BASE_URL] = url.trim() }
+        FgoLogger.debug(tag, "Setting updated: api_base_url=${url.trim()}")
+    }
+
+    suspend fun setApiModel(model: String) {
+        context.dataStore.edit { it[KEY_API_MODEL] = model.trim() }
+        FgoLogger.debug(tag, "Setting updated: api_model=${model.trim()}")
+    }
+
+    suspend fun saveApiSettings(
+        backend: String,
+        apiKey: String,
+        apiBaseUrl: String,
+        apiModel: String
+    ) {
+        context.dataStore.edit {
+            it[KEY_TRANSLATION_BACKEND] = backend
+            it[KEY_API_KEY] = apiKey.trim()
+            it[KEY_API_BASE_URL] = apiBaseUrl.trim()
+            it[KEY_API_MODEL] = apiModel.trim()
+        }
+        FgoLogger.debug(
+            tag,
+            "API settings updated: backend=$backend, model=${apiModel.trim()}, api_key=(redacted, ${apiKey.trim().length} chars)"
+        )
     }
 
     suspend fun setPlayerName(name: String) {

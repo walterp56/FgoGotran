@@ -2,14 +2,11 @@ package com.fgogotran.ui.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
@@ -33,6 +30,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
     glossaryUpdateManager: GlossaryUpdateManager,
+    onApiSettings: () -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -42,23 +40,21 @@ fun SettingsScreen(
     val dbLastCheckAt by settingsRepository.dbLastCheckAt.collectAsState(initial = 0L)
     val dbLastUpdateAt by settingsRepository.dbLastUpdateAt.collectAsState(initial = 0L)
     val dbUpdateStatus by glossaryUpdateManager.updateStatus.collectAsState()
+    val translationBackend by settingsRepository.translationBackend.collectAsState(
+        initial = SettingsRepository.BACKEND_DEEPSEEK
+    )
+    val apiModel by settingsRepository.apiModel.collectAsState(
+        initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
+    )
 
     // Form state — initialized from DataStore via LaunchedEffect
-    var apiKey by remember { mutableStateOf("") }
     var playerName by remember { mutableStateOf("") }
-    var selectedBackend by remember { mutableStateOf(SettingsRepository.BACKEND_DEEPSEEK) }
     var cacheEnabled by remember { mutableStateOf(true) }
 
     // Load persisted settings on first composition
     LaunchedEffect(Unit) {
-        apiKey = settingsRepository.apiKey.first()
         playerName = settingsRepository.playerName.first()
-        selectedBackend = settingsRepository.translationBackend.first()
         cacheEnabled = settingsRepository.cacheEnabled.first()
-    }
-
-    fun saveApiKey() {
-        scope.launch { settingsRepository.setApiKey(apiKey) }
     }
 
     fun savePlayerName() {
@@ -130,41 +126,30 @@ fun SettingsScreen(
                 }
             }
 
-            HorizontalDivider()
-            // ── Translation Backend ──
-            Text("翻译后端", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    SettingsRepository.BACKEND_DEEPSEEK to "DeepSeek",
-                    SettingsRepository.BACKEND_CLAUDE to "Claude",
-                    SettingsRepository.BACKEND_GPT to "GPT"
-                ).forEach { (value, label) ->
-                    FilterChip(
-                        selected = selectedBackend == value,
-                        onClick = {
-                            selectedBackend = value
-                            scope.launch { settingsRepository.setTranslationBackend(value) }
-                        },
-                        label = { Text(label) }
-                    )
-                }
-            }
-
-            HorizontalDivider()
-
-            // ── API Key ──
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("API Key") },
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                // Mask the key — it's sensitive like a password
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                supportingText = { Text("用于翻译 API 的密钥") }
-            )
-            Button(onClick = { saveApiKey() }, modifier = Modifier.align(Alignment.End)) {
-                Text("保存 API Key")
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("翻译接口", style = MaterialTheme.typography.titleMedium)
+                    SettingsInfoRow(
+                        label = "服务商",
+                        value = SettingsRepository.backendDisplayName(translationBackend)
+                    )
+                    SettingsInfoRow(
+                        label = "模型",
+                        value = apiModel.ifBlank { SettingsRepository.defaultApiModel(translationBackend) }
+                    )
+                    Button(
+                        onClick = onApiSettings,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("管理翻译接口")
+                    }
+                }
             }
 
             HorizontalDivider()

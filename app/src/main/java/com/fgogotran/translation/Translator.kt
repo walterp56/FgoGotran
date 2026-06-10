@@ -136,10 +136,15 @@ class Translator @Inject constructor(
     private data class RuntimeConfig(
         val backend: String,
         val apiKey: String,
+        val apiBaseUrl: String,
+        val apiModel: String,
         val playerName: String,
         val cacheEnabled: Boolean,
         val glossaryCacheKey: String
-    )
+    ) {
+        val requiresApiKey: Boolean
+            get() = SettingsRepository.requiresApiKey(backend)
+    }
 
     private data class CharacterNameVariant(
         val jpName: String,
@@ -179,6 +184,7 @@ class Translator @Inject constructor(
             "叔父さん",
             "叔母さん"
         )
+        private val NAME_PLURAL_ZU_SUFFIXES = listOf("ズ", "ず")
     }
 
     suspend fun warmUp() {
@@ -198,7 +204,8 @@ class Translator @Inject constructor(
 
     suspend fun translate(
         japaneseText: String,
-        choiceTexts: List<String> = emptyList()
+        choiceTexts: List<String> = emptyList(),
+        preserveRubyMeaning: Boolean = false
     ): TranslateResult {
         val normalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         val normalizedChoices = choiceTexts.map(TextNormalizer::normalizeForTranslation)
@@ -228,7 +235,8 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled
-        val hash = cacheKey(normalizedText, normalizedChoices, config)
+        val rubyPolicyKey = if (preserveRubyMeaning) "ruby-meaning-v1" else ""
+        val hash = cacheKey(normalizedText, normalizedChoices, config, rubyPolicyKey)
 
         FgoLogger.debug(tag, "translate: textLen=${normalizedText.length}, choices=${normalizedChoices.size}")
 
@@ -239,7 +247,7 @@ class Translator @Inject constructor(
         }
         FgoLogger.debug(tag, "Cache miss, hash=${hash.take(8)}...")
 
-        if (apiKey.isBlank()) {
+        if (config.requiresApiKey && apiKey.isBlank()) {
             FgoLogger.warn(tag, "No API key configured; returning placeholder")
             return TranslateResult(
                 "[未配置 API Key]\n请打开设置并输入 API Key。",
@@ -261,12 +269,19 @@ class Translator @Inject constructor(
 
         val messages = listOf(
             ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName)),
-            ChatMessage("user", promptBuilder.buildUserPrompt(protectedInput.text, normalizedChoices))
+            ChatMessage(
+                "user",
+                buildSingleUserPrompt(
+                    japaneseText = protectedInput.text,
+                    choiceTexts = normalizedChoices,
+                    preserveRubyMeaning = preserveRubyMeaning
+                )
+            )
         )
 
         FgoLogger.info(tag, "Calling $backend API")
         val result = try {
-            callTranslationBackend(backend, apiKey, messages)
+            callTranslationBackend(config, messages)
         } catch (e: Exception) {
             FgoLogger.error(tag, "$backend API call failed: ${e.message}", e)
             return TranslateResult(
@@ -283,8 +298,7 @@ class Translator @Inject constructor(
         if (looksUntranslated(normalizedText, simplifiedResult, playerName)) {
             FgoLogger.warn(tag, "API returned untranslated Japanese; retrying with strict Chinese-only prompt")
             val retryResult = retryUntranslatedSingle(
-                backend = backend,
-                apiKey = apiKey,
+                config = config,
                 playerName = playerName,
                 normalizedText = normalizedText,
                 normalizedChoices = normalizedChoices,
@@ -366,7 +380,7 @@ class Translator @Inject constructor(
             return results.map { it ?: TranslateResult("", "none", true) }
         }
 
-        if (apiKey.isBlank()) {
+        if (config.requiresApiKey && apiKey.isBlank()) {
             FgoLogger.warn(tag, "No API key configured; returning placeholders for batch")
             val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
             uncachedIndices.forEach { index ->
@@ -395,12 +409,7 @@ class Translator @Inject constructor(
 
         FgoLogger.info(tag, "Calling $backend API for batch (${uncachedTexts.size} items)")
         val translatedTexts = try {
-            val rawResult = when (backend) {
-                SettingsRepository.BACKEND_DEEPSEEK -> translateDeepSeek(apiKey, messages)
-                SettingsRepository.BACKEND_CLAUDE -> translateClaude(apiKey, messages)
-                SettingsRepository.BACKEND_GPT -> translateGpt(apiKey, messages)
-                else -> translateDeepSeek(apiKey, messages)
-            }
+            val rawResult = callTranslationBackend(config, messages)
             parseBatchResult(rawResult, uncachedTexts.size)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Batch translation failed, falling back to single calls", e)
@@ -575,7 +584,7 @@ class Translator @Inject constructor(
             )
         }
 
-        if (apiKey.isBlank()) {
+        if (config.requiresApiKey && apiKey.isBlank()) {
             FgoLogger.warn(tag, "No API key configured; returning placeholders for scene")
             val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
             if (needsName) nameResult = TranslateResult("", "none", false)
@@ -624,12 +633,7 @@ class Translator @Inject constructor(
             "Calling $backend API for structured scene (name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size})"
         )
         val translatedScene = try {
-            val rawResult = when (backend) {
-                SettingsRepository.BACKEND_DEEPSEEK -> translateDeepSeek(apiKey, messages)
-                SettingsRepository.BACKEND_CLAUDE -> translateClaude(apiKey, messages)
-                SettingsRepository.BACKEND_GPT -> translateGpt(apiKey, messages)
-                else -> translateDeepSeek(apiKey, messages)
-            }
+            val rawResult = callTranslationBackend(config, messages)
             parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Structured scene translation failed, falling back to one batch call", e)
@@ -736,9 +740,14 @@ class Translator @Inject constructor(
             }
         }
 
+        val backend = settingsRepository.translationBackend.first()
         val loaded = RuntimeConfig(
-            backend = settingsRepository.translationBackend.first(),
+            backend = backend,
             apiKey = settingsRepository.apiKey.first(),
+            apiBaseUrl = settingsRepository.apiBaseUrl.first()
+                .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) },
+            apiModel = settingsRepository.apiModel.first()
+                .ifBlank { SettingsRepository.defaultApiModel(backend) },
             playerName = userProfile.getPlayerName(),
             cacheEnabled = settingsRepository.cacheEnabled.first(),
             glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "bundled-db" }
@@ -886,7 +895,7 @@ class Translator @Inject constructor(
     private fun isLikelyOcrWrappedName(input: String, candidate: String): Boolean {
         if (candidate.length < 3) return false
         if (input == candidate) return false
-        if (input.length !in (candidate.length + 1)..(candidate.length + 2)) return false
+        if (input.length !in (candidate.length + 1)..(candidate.length + 3)) return false
 
         val start = input.indexOf(candidate)
         if (start < 0) return false
@@ -894,7 +903,7 @@ class Translator @Inject constructor(
         val prefix = input.substring(0, start)
         val suffix = input.substring(start + candidate.length)
         val extra = prefix + suffix
-        return extra.length in 1..2 && extra.all(::isJapaneseKana)
+        return extra.length in 1..3 && extra.all { isJapaneseKana(it) || it.isNameOcrNoisePunctuation() }
     }
 
     private fun translateCharacterNameComponents(
@@ -1115,8 +1124,15 @@ class Translator @Inject constructor(
     private fun Char.isNameLookupPunctuation(): Boolean {
         return this in setOf(
             '・', '･', '·', '•', '.', '．', '。', '、', ',', '，',
-            '!', '！', '?', '？', ':', '：', ';', '；'
+            '!', '！', '?', '？', ':', '：', ';', '；',
+            '(', ')', '（', '）', '[', ']', '［', '］',
+            '{', '}', '｛', '｝', '「', '」', '『', '』',
+            '<', '>', '＜', '＞', '《', '》'
         )
+    }
+
+    private fun Char.isNameOcrNoisePunctuation(): Boolean {
+        return isNameLookupPunctuation() || this in setOf('(', ')', '（', '）')
     }
 
     private fun Char.isNameTrailingPunctuation(): Boolean {
@@ -1308,7 +1324,9 @@ class Translator @Inject constructor(
 
     private data class TermProtection(
         val token: String,
-        val officialText: String
+        val officialText: String,
+        val pluralToken: String? = null,
+        val pluralOfficialText: String? = null
     )
 
     private fun protectText(
@@ -1331,12 +1349,22 @@ class Translator @Inject constructor(
         }
 
         val token = "__FGOPLAYER_1__"
-        val protectedText = replaceTermCandidate(sourceText, normalizedPlayerName, token)
+        val pluralToken = "__FGOPLAYER_1_PLURAL__"
+        val pluralProtectedText = replaceTermPluralCandidate(sourceText, normalizedPlayerName, pluralToken)
+        val protectedText = replaceTermCandidate(pluralProtectedText, normalizedPlayerName, token)
         return if (protectedText != sourceText) {
             FgoLogger.debug(tag, "Protected player name as $token")
             ProtectedText(
                 text = protectedText,
-                terms = listOf(TermProtection(token, normalizedPlayerName))
+                terms = listOf(
+                    TermProtection(
+                        token = token,
+                        officialText = normalizedPlayerName,
+                        pluralToken = pluralToken.takeIf { pluralProtectedText != sourceText },
+                        pluralOfficialText = pluralNameText(normalizedPlayerName)
+                            .takeIf { pluralProtectedText != sourceText }
+                    )
+                )
             )
         } else {
             ProtectedText(sourceText, emptyList())
@@ -1355,16 +1383,32 @@ class Translator @Inject constructor(
         for (term in matchedTerms.distinctBy { it.jpTerm }) {
             if (term.cnTerm.isBlank()) continue
 
-            val token = "__FGOTERM_${tokenIndex++}__"
+            val termIndex = tokenIndex++
+            val token = "__FGOTERM_${termIndex}__"
+            val pluralToken = "__FGOTERM_${termIndex}_PLURAL__"
             var matched = false
+            var pluralMatched = false
             for (candidate in termProtectionCandidates(term)) {
                 val before = protectedText
+                val pluralBefore = protectedText
+                protectedText = replaceTermPluralCandidate(
+                    protectedText,
+                    candidate,
+                    pluralToken
+                )
+                pluralMatched = pluralMatched || protectedText != pluralBefore
                 protectedText = replaceTermCandidate(protectedText, candidate, token)
                 matched = matched || protectedText != before
             }
 
             if (matched) {
-                protections += TermProtection(token, toSimplifiedChinese(term.cnTerm))
+                val officialText = toSimplifiedChinese(term.cnTerm)
+                protections += TermProtection(
+                    token = token,
+                    officialText = officialText,
+                    pluralToken = pluralToken.takeIf { pluralMatched },
+                    pluralOfficialText = pluralNameText(officialText).takeIf { pluralMatched }
+                )
                 FgoLogger.debug(tag, "Protected DB term ${term.jpTerm} -> ${term.cnTerm} as $token")
             } else {
                 tokenIndex--
@@ -1398,6 +1442,14 @@ class Translator @Inject constructor(
         if (exact != text) return exact
 
         return replaceNormalizedTermCandidate(text, candidate, token)
+    }
+
+    private fun replaceTermPluralCandidate(text: String, candidate: String, token: String): String {
+        var current = text
+        for (suffix in NAME_PLURAL_ZU_SUFFIXES) {
+            current = replaceTermCandidate(current, candidate + suffix, token)
+        }
+        return current
     }
 
     private fun replaceNormalizedTermCandidate(text: String, candidate: String, token: String): String {
@@ -1464,14 +1516,33 @@ class Translator @Inject constructor(
 
         var restored = translatedText
         for (protection in protections) {
+            val pluralToken = protection.pluralToken ?: continue
+            val pluralOfficialText = protection.pluralOfficialText ?: continue
+            restored = restored.replace(pluralToken, pluralOfficialText)
+        }
+        for (protection in protections) {
             restored = restored.replace(protection.token, protection.officialText)
         }
         for (protection in protections) {
-            if (restored.contains(protection.token)) {
-                FgoLogger.warn(tag, "LLM returned unresolved terminology token ${protection.token}")
+            val unresolvedToken = listOfNotNull(protection.token, protection.pluralToken)
+                .firstOrNull { restored.contains(it) }
+            if (unresolvedToken != null) {
+                FgoLogger.warn(tag, "LLM returned unresolved terminology token $unresolvedToken")
             }
         }
         return restored
+    }
+
+    private fun pluralNameText(name: String): String {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return trimmed
+        return if (trimmed.endsWith("们") || trimmed.endsWith("組") || trimmed.endsWith("组") ||
+            trimmed.endsWith("隊") || trimmed.endsWith("队")
+        ) {
+            trimmed
+        } else {
+            "${trimmed}们"
+        }
     }
 
     private fun Char.isAsciiLetter(): Boolean {
@@ -1743,7 +1814,8 @@ class Translator @Inject constructor(
             appendLine("- Translate choices as an array in the same order.")
             appendLine("- Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly; do not translate them.")
             appendLine("- If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士. Do not apply to fixed common words like 皆さん, お父さん, お母さん, お兄さん, or お姉さん.")
-            appendLine("- Treat base《reading》 as ruby/furigana context. Do not translate the reading as a separate dialogue fragment.")
+            appendLine("- If ズ is a suffix after a character, Servant, NPC, or player name, treat it like English plural -s. Translate as X们 by default, or X组/X队 only when it clearly means a team.")
+            appendLine("- Treat base《reading》 as ruby/furigana context. Translate the full base phrase first, then place any parenthetical after that full phrase. Never insert the parenthetical in the middle of the translated base phrase.")
             appendLine("- No markdown, no explanations, no extra keys.")
             appendLine()
             appendLine("Scene:")
@@ -1826,6 +1898,27 @@ class Translator @Inject constructor(
             .trim()
     }
 
+    private fun buildSingleUserPrompt(
+        japaneseText: String,
+        choiceTexts: List<String>,
+        preserveRubyMeaning: Boolean
+    ): String {
+        val basePrompt = promptBuilder.buildUserPrompt(japaneseText, choiceTexts)
+        if (!preserveRubyMeaning || !japaneseText.contains('《')) {
+            return basePrompt
+        }
+        return buildString {
+            appendLine(basePrompt)
+            appendLine()
+            appendLine("Crop ruby rule:")
+            appendLine("- The source includes visible small ruby/furigana in base《ruby》 form.")
+            appendLine("- Translate BOTH the base text and the ruby text.")
+            appendLine("- Put the translated ruby meaning in a Chinese parenthetical AFTER the full translated base phrase.")
+            appendLine("- Do not omit the ruby meaning and do not place it in the middle of the base phrase.")
+            appendLine("Example shape: Good point《nice job》 -> Good point（nice job）")
+        }
+    }
+
     private fun buildBatchUserPrompt(texts: List<String>): String {
         return buildString {
             appendLine("Translate each Japanese item to Simplified Chinese.")
@@ -1833,7 +1926,8 @@ class Translator @Inject constructor(
             appendLine("The JSON array must contain exactly ${texts.size} items in the same order.")
             appendLine("Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly; do not translate them.")
             appendLine("If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士. Do not apply to fixed common words like 皆さん, お父さん, お母さん, お兄さん, or お姉さん.")
-            appendLine("Treat base《reading》 as ruby/furigana context, not separate dialogue.")
+            appendLine("If ズ is a suffix after a character, Servant, NPC, or player name, treat it like English plural -s. Translate as X们 by default, or X组/X队 only when it clearly means a team.")
+            appendLine("Treat base《reading》 as ruby/furigana context, not separate dialogue. If you include the reading as a parenthetical, place it after the full translated base phrase, never inside it.")
             appendLine("No markdown, no explanations, no extra keys.")
             appendLine()
             appendLine("Items:")
@@ -1844,8 +1938,7 @@ class Translator @Inject constructor(
     }
 
     private suspend fun retryUntranslatedSingle(
-        backend: String,
-        apiKey: String,
+        config: RuntimeConfig,
         playerName: String,
         normalizedText: String,
         normalizedChoices: List<String>,
@@ -1864,13 +1957,14 @@ The player name "$playerName" is fixed user text; keep it exactly if it appears.
 Do not include Japanese kana except inside the player name or fixed official terminology supplied above.
 Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly.
 If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士.
+If ズ is a suffix after a character, Servant, NPC, or player name, translate it as a plural/group marker: X们 by default, or X组/X队 only when clearly a team.
 """.trimIndent()
             ),
             ChatMessage("user", buildStrictRetryUserPrompt(protectedInput.text, normalizedChoices))
         )
 
         val retryRaw = try {
-            callTranslationBackend(backend, apiKey, retryMessages)
+            callTranslationBackend(config, retryMessages)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Strict retry API call failed: ${e.message}", e)
             return null
@@ -1896,6 +1990,7 @@ If さん is a suffix after a character, Servant, NPC, or player name, translate
             appendLine("Return ONLY the Chinese translation. No Japanese source text, no explanation.")
             appendLine("If placeholders like __FGOTERM_1__ or __FGOPLAYER_1__ appear, copy them exactly.")
             appendLine("If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士.")
+            appendLine("If ズ is a suffix after a character, Servant, NPC, or player name, translate it as a plural/group marker: X们 by default.")
             if (choiceTexts.isNotEmpty()) {
                 appendLine("Choice context:")
                 choiceTexts.forEachIndexed { index, choice ->
@@ -1928,14 +2023,39 @@ If さん is a suffix after a character, Servant, NPC, or player name, translate
         return values
     }
 
+    private fun chatMessagesJson(messages: List<ChatMessage>) = buildJsonArray {
+        for (msg in messages) {
+            add(buildJsonObject {
+                put("role", JsonPrimitive(msg.role))
+                put("content", JsonPrimitive(msg.content))
+            })
+        }
+    }
+
     private suspend fun translateDeepSeek(
         apiKey: String,
+        apiBaseUrl: String,
+        apiModel: String,
         messages: List<ChatMessage>
     ): String {
-        val response = httpClient.post("https://api.deepseek.com/v1/chat/completions") {
-            header("Authorization", "Bearer $apiKey")
+        val response = httpClient.post(apiBaseUrl) {
+            if (apiKey.isNotBlank()) {
+                header("Authorization", "Bearer $apiKey")
+            }
             contentType(ContentType.Application.Json)
-            setBody(ChatRequest(model = "deepseek-chat", messages = messages))
+            setBody(
+                buildJsonObject {
+                    put("model", JsonPrimitive(apiModel))
+                    put("max_tokens", JsonPrimitive(1024))
+                    put("temperature", JsonPrimitive(0.3))
+                    put("messages", chatMessagesJson(messages))
+                    if (apiModel.startsWith("deepseek-v4")) {
+                        put("thinking", buildJsonObject {
+                            put("type", JsonPrimitive("disabled"))
+                        })
+                    }
+                }
+            )
         }
         val body = response.body<ChatResponse>()
         return body.choices.firstOrNull()?.message?.content
@@ -1944,25 +2064,20 @@ If さん is a suffix after a character, Servant, NPC, or player name, translate
 
     private suspend fun translateClaude(
         apiKey: String,
+        apiBaseUrl: String,
+        apiModel: String,
         messages: List<ChatMessage>
     ): String {
-        val response = httpClient.post("https://api.anthropic.com/v1/messages") {
+        val response = httpClient.post(apiBaseUrl) {
             header("x-api-key", apiKey)
             header("anthropic-version", "2023-06-01")
             contentType(ContentType.Application.Json)
             setBody(
                 buildJsonObject {
-                    put("model", JsonPrimitive("claude-sonnet-4-20250514"))
+                    put("model", JsonPrimitive(apiModel))
                     put("max_tokens", JsonPrimitive(1024))
                     put("temperature", JsonPrimitive(0.3))
-                    put("messages", buildJsonArray {
-                        for (msg in messages) {
-                            add(buildJsonObject {
-                                put("role", JsonPrimitive(msg.role))
-                                put("content", JsonPrimitive(msg.content))
-                            })
-                        }
-                    })
+                    put("messages", chatMessagesJson(messages))
                 }
             )
         }
@@ -1974,29 +2089,37 @@ If さん is a suffix after a character, Servant, NPC, or player name, translate
             ?: throw Exception("Claude returned empty response")
     }
 
-    private suspend fun translateGpt(
+    private suspend fun translateOpenAiCompatible(
         apiKey: String,
+        apiBaseUrl: String,
+        apiModel: String,
         messages: List<ChatMessage>
     ): String {
-        val response = httpClient.post("https://api.openai.com/v1/chat/completions") {
-            header("Authorization", "Bearer $apiKey")
+        val response = httpClient.post(apiBaseUrl) {
+            if (apiKey.isNotBlank()) {
+                header("Authorization", "Bearer $apiKey")
+            }
             contentType(ContentType.Application.Json)
-            setBody(ChatRequest(model = "gpt-4o", messages = messages))
+            setBody(ChatRequest(model = apiModel, messages = messages))
         }
         val body = response.body<ChatResponse>()
         return body.choices.firstOrNull()?.message?.content
-            ?: throw Exception("GPT returned empty response")
+            ?: throw Exception("Chat completions API returned empty response")
     }
 
     private fun cacheKey(
         normalizedText: String,
         choiceTexts: List<String>,
-        config: RuntimeConfig
+        config: RuntimeConfig,
+        rubyPolicyKey: String = ""
     ): String {
         return hashText(
             listOf(
                 PromptBuilder.PROMPT_VERSION,
                 config.backend,
+                config.apiBaseUrl,
+                config.apiModel,
+                rubyPolicyKey,
                 config.glossaryCacheKey,
                 TextNormalizer.normalizeForTranslation(config.playerName),
                 normalizedText,
@@ -2012,15 +2135,32 @@ If さん is a suffix after a character, Servant, NPC, or player name, translate
     }
 
     private suspend fun callTranslationBackend(
-        backend: String,
-        apiKey: String,
+        config: RuntimeConfig,
         messages: List<ChatMessage>
     ): String {
-        return when (backend) {
-            SettingsRepository.BACKEND_DEEPSEEK -> translateDeepSeek(apiKey, messages)
-            SettingsRepository.BACKEND_CLAUDE -> translateClaude(apiKey, messages)
-            SettingsRepository.BACKEND_GPT -> translateGpt(apiKey, messages)
-            else -> translateDeepSeek(apiKey, messages)
+        return when (config.backend) {
+            SettingsRepository.BACKEND_CLAUDE -> translateClaude(
+                apiKey = config.apiKey,
+                apiBaseUrl = config.apiBaseUrl,
+                apiModel = config.apiModel,
+                messages = messages
+            )
+
+            SettingsRepository.BACKEND_GPT,
+            SettingsRepository.BACKEND_FGOGOTRAN,
+            SettingsRepository.BACKEND_CUSTOM_OPENAI -> translateOpenAiCompatible(
+                apiKey = config.apiKey,
+                apiBaseUrl = config.apiBaseUrl,
+                apiModel = config.apiModel,
+                messages = messages
+            )
+
+            else -> translateDeepSeek(
+                apiKey = config.apiKey,
+                apiBaseUrl = config.apiBaseUrl,
+                apiModel = config.apiModel,
+                messages = messages
+            )
         }
     }
 }

@@ -206,8 +206,8 @@ class OverlayRenderer @Inject constructor(
         val (lines, lineHeight) = fitWrappedText(
             text = instruction.translatedText.toDialogueRenderText(),
             paint = paint,
-            initialTextSize = 50f * scale,
-            minimumTextSize = 28f * scale,
+            initialTextSize = 53f * scale,
+            minimumTextSize = 36f * scale,
             maxWidth = textArea.width(),
             maxHeight = textArea.height(),
             maxLines = DIALOGUE_MAX_LINES
@@ -266,7 +266,7 @@ class OverlayRenderer @Inject constructor(
         val fittedName = fitSingleLine(
             text = instruction.translatedText.trim(),
             paint = paint,
-            initialTextSize = 48f * scale,
+            initialTextSize = 53f * scale,
             minimumTextSize = 28f * scale,
             maxWidth = textArea.width()
         )
@@ -312,7 +312,7 @@ class OverlayRenderer @Inject constructor(
         if (fitSingleLineOrNull(
                 text = instruction.translatedText.trim(),
                 paint = paint,
-                initialTextSize = 49f * scale,
+                initialTextSize = 53f * scale,
                 minimumTextSize = 27f * scale,
                 maxWidth = preflightTextArea.width()
             ) == null

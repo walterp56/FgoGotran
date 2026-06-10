@@ -122,6 +122,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_DELAY = 180L
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_SCANS = 2
         private const val RUBY_MAX_CHARS = 14
+        private const val RUBY_MAX_BASE_CHARS = 12
         private const val RUBY_HEIGHT_RATIO = 0.72f
 
         private val _serviceStarted = mutableStateOf(false)
@@ -176,6 +177,11 @@ class FgoAccessibilityService : AccessibilityService() {
         val regions: List<ClassifiedRegion>,
         val dialogueComplete: Boolean
     )
+
+    private enum class RubyDetectionMode {
+        STRICT,
+        PERMISSIVE
+    }
 
     private sealed class AutoScanResult {
         data class Ready(
@@ -524,7 +530,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
             val translationStartedAt = SystemClock.elapsedRealtime()
             val translated = withContext(Dispatchers.IO) {
-                translator.translate(sourceText).translatedText.trim()
+                translator.translate(sourceText, preserveRubyMeaning = true).translatedText.trim()
             }.ifBlank {
                 "翻译失败"
             }
@@ -575,11 +581,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun cropSourceText(lines: List<OcrTextLine>, fullText: String): String {
-        val cleanedLines = cleanRubyNoiseLines(lines)
-        val cleanedText = cleanedLines
-            .filter { it.text.isNotBlank() }
-            .sortedWith(compareBy<OcrTextLine> { it.boundingBox.top }.thenBy { it.boundingBox.left })
-            .joinToString("\n") { it.text.trim() }
+        val cleanedText = formatDialogueForTranslation(lines, RubyDetectionMode.PERMISSIVE)
         return cleanedText.ifBlank {
             if (lines.any { isRubyDotNoiseLine(it) }) "" else fullText.trim()
         }
@@ -1250,7 +1252,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 TextRegion.NAME_LABEL -> renderableNameTranslation(
                     sourceText = regionAndText.text,
                     result = sceneTranslation.name
-                ) ?: regionAndText.text
+                )
                 TextRegion.DIALOGUE_BOX -> sceneTranslation.dialogue?.translatedText
                 TextRegion.CHOICE_BUTTON -> translatedChoicesByRegion[regionAndText.region]
             }
@@ -1313,7 +1315,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun sourceTextFor(region: ClassifiedRegion): String {
         return when (region.region) {
-            TextRegion.DIALOGUE_BOX -> formatDialogueForTranslation(region.lines)
+            TextRegion.DIALOGUE_BOX -> formatDialogueForTranslation(region.lines, RubyDetectionMode.STRICT)
             else -> cleanRubyNoiseLines(region.lines)
                 .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
                 .joinToString("\n") { it.text }
@@ -1321,7 +1323,10 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun formatDialogueForTranslation(lines: List<OcrTextLine>): String {
+    private fun formatDialogueForTranslation(
+        lines: List<OcrTextLine>,
+        rubyDetectionMode: RubyDetectionMode
+    ): String {
         val cleanedLines = cleanRubyNoiseLines(lines)
         if (cleanedLines.size < 2) {
             return cleanedLines.joinToString("\n") { it.text }.trim()
@@ -1334,7 +1339,9 @@ class FgoAccessibilityService : AccessibilityService() {
 
         val heights = sorted.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
         val medianHeight = heights[heights.size / 2]
-        val rubyLines = sorted.filter { line -> isLikelyRubyLine(line, medianHeight) }.toSet()
+        val rubyLines = sorted.filter { line ->
+            isLikelyRubyLine(line, medianHeight, rubyDetectionMode)
+        }.toSet()
         if (rubyLines.isEmpty()) return sorted.joinToString("\n") { it.text }.trim()
 
         val mainLines = sorted.filterNot { it in rubyLines }.toMutableList()
@@ -1350,7 +1357,8 @@ class FgoAccessibilityService : AccessibilityService() {
                             ruby.boundingBox.centerX() in it.boundingBox.left..it.boundingBox.right
                 }
                 .minWithOrNull(
-                    compareBy<OcrTextLine> { kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }
+                    compareByDescending<OcrTextLine> { horizontalOverlap(ruby.boundingBox, it.boundingBox) }
+                        .thenBy { kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }
                         .thenBy { it.boundingBox.top - ruby.boundingBox.bottom }
                 )
             if (main != null) {
@@ -1358,7 +1366,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
         }
 
-        return mainLines
+        val formatted = mainLines
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
             .joinToString("\n") { main ->
                 val rubies = rubyByMain[main]
@@ -1367,12 +1375,19 @@ class FgoAccessibilityService : AccessibilityService() {
                 if (rubies.isEmpty()) {
                     main.text
                 } else {
-                    rubies.fold(main.text) { text, ruby ->
-                        insertRubyAnnotation(text, main.boundingBox, ruby, useJapaneseRubyMarkup = true)
-                    }
+                    insertRubyAnnotations(main.text, main.boundingBox, rubies, useJapaneseRubyMarkup = true)
                 }
             }
             .trim()
+        if (formatted.isNotBlank()) {
+            val rawText = sorted.filterNot { it in rubyLines }
+                .joinToString("\n") { it.text.trim() }
+                .trim()
+            if (formatted != rawText) {
+                FgoLogger.debug(tag, "Ruby formatted source (${rubyDetectionMode.name.lowercase()}): $formatted")
+            }
+        }
+        return formatted
     }
 
     private fun cleanRubyNoiseLines(lines: List<OcrTextLine>): List<OcrTextLine> {
@@ -1424,7 +1439,11 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun isLikelyRubyLine(line: OcrTextLine, medianHeight: Int): Boolean {
+    private fun isLikelyRubyLine(
+        line: OcrTextLine,
+        medianHeight: Int,
+        rubyDetectionMode: RubyDetectionMode
+    ): Boolean {
         val text = line.text.trim()
         if (text.length !in 1..RUBY_MAX_CHARS) return false
         val height = line.boundingBox.height().coerceAtLeast(1)
@@ -1435,12 +1454,44 @@ class FgoAccessibilityService : AccessibilityService() {
                     it.isLetterOrDigit() ||
                     it in setOf('ー', '・', '･', '＝', '=', '-', '－')
         }
-        return rubyChars >= (text.length * 0.7f).toInt().coerceAtLeast(1) &&
-                text.any { it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff' }
+        val hasJapanese = text.any { it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff' }
+        val hasReadable = when (rubyDetectionMode) {
+            RubyDetectionMode.STRICT -> hasJapanese
+            RubyDetectionMode.PERMISSIVE -> text.any {
+                it.isLetterOrDigit() || it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff'
+            }
+        }
+        return rubyChars >= (text.length * 0.7f).toInt().coerceAtLeast(1) && hasReadable
     }
 
     private fun horizontalOverlap(a: Rect, b: Rect): Int {
         return (minOf(a.right, b.right) - maxOf(a.left, b.left)).coerceAtLeast(0)
+    }
+
+    private data class RubyInsertion(
+        val index: Int,
+        val annotation: String,
+        val rubyText: String
+    )
+
+    private fun insertRubyAnnotations(
+        mainText: String,
+        mainBounds: Rect,
+        rubies: List<OcrTextLine>,
+        useJapaneseRubyMarkup: Boolean
+    ): String {
+        val insertions = rubies
+            .mapNotNull { ruby -> rubyInsertion(mainText, mainBounds, ruby, useJapaneseRubyMarkup) }
+            .distinctBy { it.index to it.rubyText }
+            .sortedByDescending { it.index }
+        if (insertions.isEmpty()) return mainText
+
+        var result = mainText
+        for (insertion in insertions) {
+            val index = insertion.index.coerceIn(0, result.length)
+            result = result.substring(0, index) + insertion.annotation + result.substring(index)
+        }
+        return result
     }
 
     private fun insertRubyAnnotation(
@@ -1449,39 +1500,96 @@ class FgoAccessibilityService : AccessibilityService() {
         ruby: OcrTextLine,
         useJapaneseRubyMarkup: Boolean
     ): String {
-        if (mainText.isBlank()) return mainText
+        val insertion = rubyInsertion(mainText, mainBounds, ruby, useJapaneseRubyMarkup)
+            ?: return mainText
+        return mainText.substring(0, insertion.index) +
+                insertion.annotation +
+                mainText.substring(insertion.index)
+    }
+
+    private fun rubyInsertion(
+        mainText: String,
+        mainBounds: Rect,
+        ruby: OcrTextLine,
+        useJapaneseRubyMarkup: Boolean
+    ): RubyInsertion? {
+        if (mainText.isBlank()) return null
         val rubyText = ruby.text.trim()
         if (rubyText.isBlank() ||
             mainText.contains("《$rubyText》") ||
             mainText.contains("($rubyText)") ||
             mainText.contains(rubyText)
         ) {
-            return mainText
+            return null
         }
 
         val approximateCharWidth = mainBounds.width().toFloat() / mainText.length.coerceAtLeast(1)
-        val rawIndex = ((ruby.boundingBox.centerX() - mainBounds.left) / approximateCharWidth)
+        val rawStartIndex = kotlin.math.floor(
+            (ruby.boundingBox.left - mainBounds.left) / approximateCharWidth
+        )
+            .toInt()
+            .coerceIn(0, mainText.length - 1)
+        val rawEndIndex = kotlin.math.ceil(
+            (ruby.boundingBox.right - mainBounds.left) / approximateCharWidth
+        )
             .toInt()
             .coerceIn(1, mainText.length)
-        val insertIndex = refineRubyInsertIndex(mainText, rawIndex)
+        val insertIndex = refineRubyInsertIndex(mainText, rawStartIndex, rawEndIndex)
         val annotation = if (useJapaneseRubyMarkup) {
             "《$rubyText》"
         } else {
             "($rubyText)"
         }
-        return mainText.substring(0, insertIndex) + annotation + mainText.substring(insertIndex)
+        return RubyInsertion(insertIndex, annotation, rubyText)
     }
 
-    private fun refineRubyInsertIndex(text: String, rawIndex: Int): Int {
+    private fun refineRubyInsertIndex(
+        text: String,
+        rawStartIndex: Int,
+        rawEndIndex: Int
+    ): Int {
         val punctuation = setOf('、', '。', '，', ',', '！', '!', '？', '?', '…', '」', '』', ')', '）')
-        var index = rawIndex.coerceIn(1, text.length)
-        while (index < text.length && text[index] in setOf('は', 'が', 'を', 'に', 'へ', 'で', 'と', 'も')) {
-            break
+        val closingMarks = setOf('」', '』', ')', '）', ']', '】', '》')
+        val startIndex = rawStartIndex.coerceIn(0, text.lastIndex)
+        var index = rawEndIndex.coerceIn(1, text.length)
+        while (index < text.length &&
+            index > 0 &&
+            text[index - 1].isAsciiWordChar() &&
+            text[index].isAsciiWordChar()
+        ) {
+            index++
+        }
+        while (index < text.length &&
+            index - startIndex < RUBY_MAX_BASE_CHARS &&
+            shouldExtendJapaneseRubyBase(text[index - 1], text[index])
+        ) {
+            index++
+        }
+        while (index < text.length && text[index] in closingMarks) {
+            index++
         }
         while (index > 1 && text[index - 1] in punctuation) {
             index--
         }
         return index.coerceIn(1, text.length)
+    }
+
+    private fun Char.isAsciiWordChar(): Boolean {
+        return this in 'A'..'Z' || this in 'a'..'z' || this in '0'..'9' || this == '_'
+    }
+
+    private fun shouldExtendJapaneseRubyBase(previous: Char, next: Char): Boolean {
+        return (previous.isCjkIdeograph() && next.isCjkIdeograph()) ||
+                (previous.isKatakanaLike() && next.isKatakanaLike())
+    }
+
+    private fun Char.isCjkIdeograph(): Boolean {
+        return this in '\u3400'..'\u9FFF'
+    }
+
+    private fun Char.isKatakanaLike(): Boolean {
+        return this in '\u30A0'..'\u30FF' || this in '\uFF66'..'\uFF9D' ||
+                this in setOf('ー', '・', '･')
     }
 
     private fun sampleOriginalTextColor(source: Bitmap, region: ClassifiedRegion): Int? {

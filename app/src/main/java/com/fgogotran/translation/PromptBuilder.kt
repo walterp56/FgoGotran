@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v18"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v20"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -56,9 +56,10 @@ Rules (MUST follow):
 7. UNKNOWN TERMS: If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
 8. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
 9. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
-10. RUBY/FURIGANA: Source may contain OCR ruby as base《reading》, e.g. 大穴《クエスチョン》. Treat the reading as pronunciation/alternate-name context, not separate dialogue. Translate the base meaning naturally; include a concise Chinese parenthetical only when the reading is a proper noun, codename, or important alternate name.
+10. RUBY/FURIGANA: Source may contain OCR ruby as base《reading》, e.g. 大穴《クエスチョン》. Treat the reading as pronunciation/alternate-name context, not separate dialogue. Translate the full base phrase first, then place any concise Chinese parenthetical after that full translated phrase. Never insert the parenthetical in the middle of the translated base phrase.
 11. PLACEHOLDERS: Keep tokens like __FGOTERM_1__ and __FGOPLAYER_1__ unchanged exactly.
 12. HONORIFIC さん: When さん is used as a suffix after a character, Servant, NPC, or player name, render it as 桑. Never translate this name suffix as 先生, 小姐, 女士, or remove it. Do not apply this to fixed common words such as 皆さん, みなさん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
+13. NAME PLURAL ズ: When ズ is suffixed to a character, Servant, NPC, or player name, treat it like an English plural/group marker "-s". Translate as "X们" by default. Use "X组" or "X队" only when the context clearly means a team/unit. Example: ネモズ -> 尼莫们.
 
 Style examples:
 JP: ……そうか。君は、そう選ぶんだな。
