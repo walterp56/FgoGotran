@@ -79,6 +79,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private var isFgoForeground = false
     private var lastManualRenderedSourceText = ""
     private var lastAutoRenderedSourceText = ""
+    private var lastManualRenderContextKey = ""
+    private var lastAutoRenderContextKey = ""
     private var autoScanReadyAt = 0L
     private var renderedChoiceBounds: List<Rect> = emptyList()
     private var waitingForChoiceSelectionExit = false
@@ -117,6 +119,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val VISUAL_FINGERPRINT_MAX_DIFF_RATIO = 0.035f
         private const val EARLY_TRANSLATION_STABLE_DELAY = 80L
         private const val EARLY_TRANSLATION_MIN_DIALOGUE_CHARS = 6
+        private const val AUTO_COMPLETED_DIALOGUE_MIN_CHARS = 2
         private const val COMPLETED_DIALOGUE_STABLE_DELAY = 0L
         private const val COMPLETED_DIALOGUE_STABLE_SCANS = 1
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_DELAY = 180L
@@ -359,6 +362,8 @@ class FgoAccessibilityService : AccessibilityService() {
         resetCompletedDialogueCandidate()
         lastManualRenderedSourceText = ""
         lastAutoRenderedSourceText = ""
+        lastManualRenderContextKey = ""
+        lastAutoRenderContextKey = ""
         renderedChoiceBounds = emptyList()
         waitingForChoiceSelectionExit = false
         isForwardingOverlayTap = false
@@ -530,7 +535,11 @@ class FgoAccessibilityService : AccessibilityService() {
 
             val translationStartedAt = SystemClock.elapsedRealtime()
             val translated = withContext(Dispatchers.IO) {
-                translator.translate(sourceText, preserveRubyMeaning = true).translatedText.trim()
+                translator.translate(
+                    sourceText,
+                    preserveRubyMeaning = true,
+                    allowLocalFailureFallback = true
+                ).translatedText.trim()
             }.ifBlank {
                 "翻译失败"
             }
@@ -615,8 +624,10 @@ class FgoAccessibilityService : AccessibilityService() {
             return false
         }
 
+        val translationContextKey = translator.renderContextKey()
         if (restoreHiddenOverlay &&
-            sceneSource.fingerprint == lastRenderedSourceTextFor(ProcessingMode.MANUAL)
+            sceneSource.fingerprint == lastRenderedSourceTextFor(ProcessingMode.MANUAL) &&
+            translationContextKey == lastRenderedContextKeyFor(ProcessingMode.MANUAL)
         ) {
             FgoLogger.debug(tag, "Manual source unchanged; restoring previous overlay without translation")
             return true
@@ -630,6 +641,7 @@ class FgoAccessibilityService : AccessibilityService() {
             processStartedAt = processStartedAt,
             processingVersion = processingVersion,
             sceneSource = sceneSource,
+            translationContextKey = translationContextKey,
             recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
         )
         return false
@@ -690,7 +702,10 @@ class FgoAccessibilityService : AccessibilityService() {
                     translationOverlay.hide()
                     return
                 }
-                if (sceneSource.fingerprint == lastRenderedSourceTextFor(ProcessingMode.AUTO)) {
+                val translationContextKey = translator.renderContextKey()
+                if (sceneSource.fingerprint == lastRenderedSourceTextFor(ProcessingMode.AUTO) &&
+                    translationContextKey == lastRenderedContextKeyFor(ProcessingMode.AUTO)
+                ) {
                     FgoLogger.debug(tag, "Auto source unchanged; waiting for new OCR text")
                     return
                 }
@@ -736,6 +751,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     processStartedAt = processStartedAt,
                     processingVersion = processingVersion,
                     sceneSource = sceneSource,
+                    translationContextKey = translationContextKey,
                     recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
                 )
             }
@@ -795,6 +811,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
                 FgoLogger.debug(tag, "Auto dialogue OCR hit before single-choice OCR fallback")
                 if (dialogueComplete) {
+                    if (!isRenderableCompletedAutoDialogue(dialogueScene)) {
+                        FgoLogger.debug(tag, "Completed dialogue OCR too short; treating as empty")
+                        return AutoScanResult.EmptyCompletedDialogue
+                    }
                     logAutoStoryDetection(
                         "Completed dialogue before single choice",
                         dialogueRegions,
@@ -856,6 +876,10 @@ class FgoAccessibilityService : AccessibilityService() {
             if (dialogueScene?.hasDialogue == true) {
                 FgoLogger.debug(tag, "Auto dialogue OCR hit; choice panels had no readable text")
                 if (dialogueComplete) {
+                    if (!isRenderableCompletedAutoDialogue(dialogueScene)) {
+                        FgoLogger.debug(tag, "Completed dialogue OCR too short after empty choice; waiting")
+                        return AutoScanResult.Waiting
+                    }
                     logAutoStoryDetection(
                         "Completed dialogue after empty choice",
                         dialogueRegions,
@@ -883,6 +907,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
         if (dialogueComplete) {
             if (dialogueScene?.hasDialogue == true) {
+                if (!isRenderableCompletedAutoDialogue(dialogueScene)) {
+                    FgoLogger.debug(tag, "Completed dialogue OCR too short; treating as empty")
+                    return AutoScanResult.EmptyCompletedDialogue
+                }
                 logAutoStoryDetection("Completed dialogue", dialogueRegions, currentScreenWidth, currentScreenHeight)
                 return AutoScanResult.Ready(regions = dialogueRegions)
             }
@@ -897,6 +925,11 @@ class FgoAccessibilityService : AccessibilityService() {
 
         FgoLogger.debug(tag, "Dialogue is still typing and no stable OCR text is visible")
         return AutoScanResult.Waiting
+    }
+
+    private fun isRenderableCompletedAutoDialogue(sceneSource: SceneSource): Boolean {
+        if (sceneSource.input.choices.isNotEmpty()) return true
+        return sceneSource.dialogueCharCount >= AUTO_COMPLETED_DIALOGUE_MIN_CHARS
     }
 
     private fun logAutoStoryDetection(
@@ -953,6 +986,7 @@ class FgoAccessibilityService : AccessibilityService() {
         processStartedAt: Long,
         processingVersion: Long,
         sceneSource: SceneSource,
+        translationContextKey: String,
         recognitionDuration: Long
     ): Boolean {
         val sourceFingerprint = sceneSource.fingerprint
@@ -1006,7 +1040,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         }
         val renderDuration = SystemClock.elapsedRealtime() - renderStartedAt
-        rememberRenderedSourceText(mode, sourceFingerprint)
+        rememberRenderedSourceText(mode, sourceFingerprint, translationContextKey)
         resetCompletedDialogueCandidate()
         renderedChoiceBounds = if (mode == ProcessingMode.AUTO) {
             overlayRenderer.renderedChoiceBounds(
@@ -1037,10 +1071,27 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun rememberRenderedSourceText(mode: ProcessingMode, fingerprint: String) {
+    private fun lastRenderedContextKeyFor(mode: ProcessingMode): String {
+        return when (mode) {
+            ProcessingMode.MANUAL -> lastManualRenderContextKey
+            ProcessingMode.AUTO -> lastAutoRenderContextKey
+        }
+    }
+
+    private fun rememberRenderedSourceText(
+        mode: ProcessingMode,
+        fingerprint: String,
+        translationContextKey: String
+    ) {
         when (mode) {
-            ProcessingMode.MANUAL -> lastManualRenderedSourceText = fingerprint
-            ProcessingMode.AUTO -> lastAutoRenderedSourceText = fingerprint
+            ProcessingMode.MANUAL -> {
+                lastManualRenderedSourceText = fingerprint
+                lastManualRenderContextKey = translationContextKey
+            }
+            ProcessingMode.AUTO -> {
+                lastAutoRenderedSourceText = fingerprint
+                lastAutoRenderContextKey = translationContextKey
+            }
         }
     }
 

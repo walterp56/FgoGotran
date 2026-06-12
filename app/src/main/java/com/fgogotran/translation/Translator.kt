@@ -2,6 +2,7 @@ package com.fgogotran.translation
 
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
+import com.fgogotran.localmodel.LocalLlamaTranslator
 import com.fgogotran.terminology.CharacterNameEntity
 import com.fgogotran.terminology.TermDao
 import com.fgogotran.terminology.TermEntity
@@ -86,7 +87,8 @@ class Translator @Inject constructor(
     private val termDao: TermDao,
     private val promptBuilder: PromptBuilder,
     private val cacheDb: TranslationCacheDb,
-    private val translationMemory: TranslationMemory
+    private val translationMemory: TranslationMemory,
+    private val localLlamaTranslator: LocalLlamaTranslator
 ) {
     private val httpClient = HttpClient {
         install(ContentNegotiation) {
@@ -144,6 +146,8 @@ class Translator @Inject constructor(
     ) {
         val requiresApiKey: Boolean
             get() = SettingsRepository.requiresApiKey(backend)
+        val isLocalLlama: Boolean
+            get() = backend == SettingsRepository.BACKEND_LOCAL_LLAMA
     }
 
     private data class CharacterNameVariant(
@@ -159,9 +163,16 @@ class Translator @Inject constructor(
     )
 
     companion object {
-        private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
+        private const val RUNTIME_CONFIG_CACHE_TTL_MS = 0L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
         private const val UNTRANSLATED_FALLBACK = ""
+        private const val LOCAL_LLAMA_RENDER_FALLBACK = "本地模型未能翻译"
+        private val unresolvedPlaceholderPattern =
+            Regex("""__FGO(?:TERM|PLAYER)_\d+(?:_PLURAL)?__""")
+        private val unresolvedPlayerPluralPattern =
+            Regex("""__FGOPLAYER_\d+_PLURAL__""")
+        private val unresolvedPlayerPattern =
+            Regex("""__FGOPLAYER_\d+__""")
         private val nameSanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})さん")
         private val wrongSanHonorificPattern =
@@ -185,6 +196,13 @@ class Translator @Inject constructor(
             "叔母さん"
         )
         private val NAME_PLURAL_ZU_SUFFIXES = listOf("ズ", "ず")
+        private val assistantMetaReplyPatterns = listOf(
+            Regex("请提供.{0,16}翻译"),
+            Regex("请提供.{0,16}原文"),
+            Regex("请提供.{0,16}文本"),
+            Regex("需要翻译的.{0,16}文本"),
+            Regex("Fate/GrandOrder游戏对话文本")
+        )
     }
 
     suspend fun warmUp() {
@@ -202,10 +220,25 @@ class Translator @Inject constructor(
         }
     }
 
+    suspend fun renderContextKey(): String {
+        val config = getRuntimeConfig()
+        return hashText(
+            listOf(
+                PromptBuilder.PROMPT_VERSION,
+                config.backend,
+                config.apiBaseUrl,
+                config.apiModel,
+                config.glossaryCacheKey,
+                TextNormalizer.normalizeForTranslation(config.playerName)
+            ).joinToString("\u001F")
+        )
+    }
+
     suspend fun translate(
         japaneseText: String,
         choiceTexts: List<String> = emptyList(),
-        preserveRubyMeaning: Boolean = false
+        preserveRubyMeaning: Boolean = false,
+        allowLocalFailureFallback: Boolean = false
     ): TranslateResult {
         val normalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         val normalizedChoices = choiceTexts.map(TextNormalizer::normalizeForTranslation)
@@ -293,23 +326,54 @@ class Translator @Inject constructor(
 
         var simplifiedResult = sanitizeTranslation(
             normalizedText,
-            restoreProtectedTerms(result, protectedInput.terms)
+            restoreProtectedTerms(result, protectedInput.terms, playerName)
         )
-        if (looksUntranslated(normalizedText, simplifiedResult, playerName)) {
-            FgoLogger.warn(tag, "API returned untranslated Japanese; retrying with strict Chinese-only prompt")
-            val retryResult = retryUntranslatedSingle(
-                config = config,
-                playerName = playerName,
-                normalizedText = normalizedText,
-                normalizedChoices = normalizedChoices,
-                matchedTerms = matchedTerms,
-                protectedInput = protectedInput
-            )
-            if (retryResult == null) {
-                FgoLogger.warn(tag, "Retry still looked untranslated; skipping overlay render")
-                return TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
+        if (containsUnresolvedPlaceholder(simplifiedResult) ||
+            looksUntranslated(normalizedText, simplifiedResult, playerName)
+        ) {
+            if (config.isLocalLlama) {
+                if (allowLocalFailureFallback) {
+                    FgoLogger.warn(
+                        tag,
+                        "Local llama returned untranslated/invalid text; rendering fallback without strict retry"
+                    )
+                    return TranslateResult(localFailureFallbackText(config, true), backend, false)
+                }
+                FgoLogger.warn(tag, "Local llama returned untranslated/invalid text; retrying once with strict prompt")
+                val retryResult = retryUntranslatedSingle(
+                    config = config,
+                    playerName = playerName,
+                    normalizedText = normalizedText,
+                    normalizedChoices = normalizedChoices,
+                    matchedTerms = matchedTerms,
+                    protectedInput = protectedInput
+                )
+                if (retryResult == null) {
+                    val fallback = localFailureFallbackText(config, allowLocalFailureFallback)
+                    if (fallback.isBlank()) {
+                        FgoLogger.warn(tag, "Local llama strict retry failed; skipping unsafe render")
+                    } else {
+                        FgoLogger.warn(tag, "Local llama strict retry failed; rendering simplified fallback")
+                    }
+                    return TranslateResult(fallback, backend, false)
+                }
+                simplifiedResult = retryResult
+            } else {
+                FgoLogger.warn(tag, "API returned untranslated Japanese; retrying with strict Chinese-only prompt")
+                val retryResult = retryUntranslatedSingle(
+                    config = config,
+                    playerName = playerName,
+                    normalizedText = normalizedText,
+                    normalizedChoices = normalizedChoices,
+                    matchedTerms = matchedTerms,
+                    protectedInput = protectedInput
+                )
+                if (retryResult == null) {
+                    FgoLogger.warn(tag, "Retry still looked untranslated; skipping overlay render")
+                    return TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
+                }
+                simplifiedResult = retryResult
             }
-            simplifiedResult = retryResult
         }
 
         if (cacheEnabled) {
@@ -320,7 +384,10 @@ class Translator @Inject constructor(
         return TranslateResult(simplifiedResult, backend, false)
     }
 
-    suspend fun translateBatch(japaneseTexts: List<String>): List<TranslateResult> {
+    suspend fun translateBatch(
+        japaneseTexts: List<String>,
+        allowLocalFailureFallback: Boolean = false
+    ): List<TranslateResult> {
         if (japaneseTexts.isEmpty()) return emptyList()
 
         val normalizedTexts = japaneseTexts.map(TextNormalizer::normalizeForTranslation)
@@ -390,6 +457,17 @@ class Translator @Inject constructor(
         }
 
         val uncachedTexts = uncachedIndices.map { normalizedTexts[it] }
+        if (config.isLocalLlama) {
+            FgoLogger.info(tag, "Local llama batch path: translating ${uncachedIndices.size} item(s) individually")
+            for (index in uncachedIndices) {
+                results[index] = translate(
+                    japaneseTexts[index],
+                    allowLocalFailureFallback = allowLocalFailureFallback
+                )
+            }
+            return results.map { it ?: TranslateResult("", "none", true) }
+        }
+
         val matchedTerms = try {
             val allTerms = getCachedTerms()
             val combinedText = uncachedTexts.joinToString("\n")
@@ -414,7 +492,10 @@ class Translator @Inject constructor(
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Batch translation failed, falling back to single calls", e)
             for (index in uncachedIndices) {
-                results[index] = translate(japaneseTexts[index])
+                results[index] = translate(
+                    japaneseTexts[index],
+                    allowLocalFailureFallback = allowLocalFailureFallback
+                )
             }
             return results.map { it ?: TranslateResult("", "none", true) }
         }
@@ -422,20 +503,29 @@ class Translator @Inject constructor(
         for ((batchIndex, originalIndex) in uncachedIndices.withIndex()) {
             val restored = restoreProtectedTerms(
                 translatedTexts[batchIndex],
-                protectedTexts[batchIndex].terms
+                protectedTexts[batchIndex].terms,
+                playerName
             )
             val sanitized = sanitizeTranslation(normalizedTexts[originalIndex], restored)
-            val wasUntranslated = looksUntranslated(normalizedTexts[originalIndex], sanitized, playerName)
+            val wasUntranslated = containsUnresolvedPlaceholder(sanitized) ||
+                    looksUntranslated(normalizedTexts[originalIndex], sanitized, playerName)
             if (wasUntranslated) {
                 FgoLogger.warn(tag, "Batch item[$originalIndex] returned untranslated Japanese; retrying single strict path")
-                val retryResult = translate(japaneseTexts[originalIndex])
+                val retryResult = translate(
+                    japaneseTexts[originalIndex],
+                    allowLocalFailureFallback = allowLocalFailureFallback
+                )
                 if (retryResult.translatedText.isNotBlank()) {
                     results[originalIndex] = retryResult
                     continue
                 }
                 FgoLogger.warn(tag, "Batch item[$originalIndex] retry produced no renderable translation")
             }
-            val translated = if (wasUntranslated) UNTRANSLATED_FALLBACK else sanitized
+            val translated = if (wasUntranslated) {
+                localFailureFallbackText(config, allowLocalFailureFallback)
+            } else {
+                sanitized
+            }
             results[originalIndex] = TranslateResult(translated, backend, false)
             if (cacheEnabled && !wasUntranslated) {
                 cacheTranslatedText(
@@ -562,7 +652,10 @@ class Translator @Inject constructor(
 
         if (needsDialogue && !needsName && neededChoiceIndices.isEmpty()) {
             FgoLogger.info(tag, "Scene fast path: dialogue only")
-            dialogueResult = translate(input.dialogue.orEmpty())
+            dialogueResult = translate(
+                input.dialogue.orEmpty(),
+                allowLocalFailureFallback = true
+            )
             return SceneTranslateResult(
                 name = nameResult,
                 dialogue = dialogueResult,
@@ -572,10 +665,45 @@ class Translator @Inject constructor(
 
         if (!needsName && !needsDialogue && neededChoiceIndices.isNotEmpty()) {
             FgoLogger.info(tag, "Scene fast path: choices only (${neededChoiceIndices.size})")
-            val translatedChoices = translateBatch(neededChoiceIndices.map { input.choices[it] })
+            val translatedChoices = translateBatch(
+                neededChoiceIndices.map { input.choices[it] },
+                allowLocalFailureFallback = true
+            )
             translatedChoices.forEachIndexed { batchIndex, result ->
                 val choiceIndex = neededChoiceIndices[batchIndex]
                 choiceResults[choiceIndex] = result
+            }
+            return SceneTranslateResult(
+                name = nameResult,
+                dialogue = dialogueResult,
+                choices = choiceResults.map { it ?: TranslateResult("", "none", true) }
+            )
+        }
+
+        if (config.isLocalLlama) {
+            FgoLogger.info(tag, "Local llama scene path: translating fields individually")
+            if (needsDialogue) {
+                dialogueResult = translate(
+                    input.dialogue.orEmpty(),
+                    allowLocalFailureFallback = true
+                )
+            }
+            if (needsName) {
+                nameResult = validateLlmNameResult(
+                    normalizedName = nameForLlm!!,
+                    result = translate(input.name.orEmpty()),
+                    playerName = playerName
+                )
+            }
+            if (neededChoiceIndices.isNotEmpty()) {
+                val translatedChoices = translateBatch(
+                    neededChoiceIndices.map { input.choices[it] },
+                    allowLocalFailureFallback = true
+                )
+                translatedChoices.forEachIndexed { batchIndex, result ->
+                    val choiceIndex = neededChoiceIndices[batchIndex]
+                    choiceResults[choiceIndex] = result
+                }
             }
             return SceneTranslateResult(
                 name = nameResult,
@@ -675,7 +803,11 @@ class Translator @Inject constructor(
         if (needsName) {
             val translatedName = translatedScene.name
                 ?: throw IllegalStateException("Structured scene response missing parsed name")
-            val restoredName = restoreProtectedTerms(translatedName, protectedName?.terms.orEmpty())
+            val restoredName = restoreProtectedTerms(
+                translatedName,
+                protectedName?.terms.orEmpty(),
+                playerName
+            )
             val sourceName = nameForLlm!!
             val simplifiedName = sanitizeNameTranslation(sourceName, restoredName)
             if (isBadLlmNameTranslation(sourceName, simplifiedName, playerName)) {
@@ -693,9 +825,14 @@ class Translator @Inject constructor(
                 ?: throw IllegalStateException("Structured scene response missing parsed dialogue")
             val simplifiedDialogue = sanitizeTranslation(
                 normalizedDialogue!!,
-                restoreProtectedTerms(translatedDialogue, protectedDialogue?.terms.orEmpty())
+                restoreProtectedTerms(
+                    translatedDialogue,
+                    protectedDialogue?.terms.orEmpty(),
+                    playerName
+                )
             )
             val dialogueUntranslated = looksUntranslated(normalizedDialogue, simplifiedDialogue, playerName)
+                    || containsUnresolvedPlaceholder(simplifiedDialogue)
             if (dialogueUntranslated) {
                 FgoLogger.warn(tag, "Structured scene dialogue returned untranslated Japanese")
             }
@@ -710,10 +847,13 @@ class Translator @Inject constructor(
             val hash = choiceHashes[originalIndex] ?: continue
             val restoredChoice = restoreProtectedTerms(
                 translatedScene.choices[batchIndex],
-                protectedChoices[batchIndex].terms
+                protectedChoices[batchIndex].terms,
+                playerName
             )
             val translatedChoice = sanitizeTranslation(normalizedChoice, restoredChoice)
-            if (looksUntranslated(normalizedChoice, translatedChoice, playerName)) {
+            if (containsUnresolvedPlaceholder(translatedChoice) ||
+                looksUntranslated(normalizedChoice, translatedChoice, playerName)
+            ) {
                 FgoLogger.warn(tag, "Structured scene choice[$originalIndex] returned untranslated Japanese")
                 choiceResults[originalIndex] = TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
                 continue
@@ -740,14 +880,27 @@ class Translator @Inject constructor(
             }
         }
 
-        val backend = settingsRepository.translationBackend.first()
+        val requestedBackend = settingsRepository.translationBackend.first()
+        val backend = if (requestedBackend == SettingsRepository.BACKEND_LOCAL_LLAMA &&
+            !LocalLlamaTranslator.RUNTIME_AVAILABLE
+        ) {
+            FgoLogger.warn(tag, "Local llama runtime unavailable; using DeepSeek runtime config")
+            SettingsRepository.BACKEND_DEEPSEEK
+        } else {
+            requestedBackend
+        }
+        val storedApiModel = settingsRepository.apiModel.first()
+        val apiModel = if (requestedBackend != backend) {
+            SettingsRepository.defaultApiModel(backend)
+        } else {
+            storedApiModel.ifBlank { SettingsRepository.defaultApiModel(backend) }
+        }
         val loaded = RuntimeConfig(
             backend = backend,
             apiKey = settingsRepository.apiKey.first(),
             apiBaseUrl = settingsRepository.apiBaseUrl.first()
                 .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) },
-            apiModel = settingsRepository.apiModel.first()
-                .ifBlank { SettingsRepository.defaultApiModel(backend) },
+            apiModel = apiModel,
             playerName = userProfile.getPlayerName(),
             cacheEnabled = settingsRepository.cacheEnabled.first(),
             glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "bundled-db" }
@@ -1089,6 +1242,8 @@ class Translator @Inject constructor(
     ): Boolean {
         val translated = translatedText.trim()
         if (translated.isBlank()) return true
+        if (translated == LOCAL_LLAMA_RENDER_FALLBACK) return true
+        if (containsUnresolvedPlaceholder(translated)) return true
         if (translated.length > 32) return true
         if (translated.any(::isJapaneseKana)) return true
         if (translated.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') }) return true
@@ -1220,6 +1375,18 @@ class Translator @Inject constructor(
         playerName: String
     ): String? {
         val simplified = sanitizeTranslation(sourceText, cachedText)
+        if (simplified.isBlank()) {
+            FgoLogger.warn(tag, "Dropping blank or non-translation cache entry, hash=${hash.take(8)}...")
+            removeMemoryCachedTranslation(hash)
+            cacheDao.deleteByHash(hash)
+            return null
+        }
+        if (containsUnresolvedPlaceholder(simplified)) {
+            FgoLogger.warn(tag, "Dropping cached translation with unresolved placeholder, hash=${hash.take(8)}...")
+            removeMemoryCachedTranslation(hash)
+            cacheDao.deleteByHash(hash)
+            return null
+        }
         if (!looksUntranslated(sourceText, simplified, playerName)) {
             return simplified
         }
@@ -1274,7 +1441,17 @@ class Translator @Inject constructor(
             cleanReturnedRubyMarkup(toSimplifiedChinese(translatedText))
         )
         val honorificAdjusted = applySanHonorificPolicy(sourceText, simplified)
+        if (isAssistantMetaReply(honorificAdjusted)) {
+            FgoLogger.warn(tag, "Dropping assistant meta reply instead of rendering translation")
+            return ""
+        }
         return preserveSourcePunctuation(sourceText, honorificAdjusted)
+    }
+
+    private fun isAssistantMetaReply(text: String): Boolean {
+        val compact = text.filterNot { it.isWhitespace() || it == '，' || it == ',' || it == '。' }
+        if (compact.length < 12) return false
+        return assistantMetaReplyPatterns.any { it.containsMatchIn(compact) }
     }
 
     private fun applySanHonorificPolicy(sourceText: String, translatedText: String): String {
@@ -1511,9 +1688,11 @@ class Translator @Inject constructor(
         )
     }
 
-    private fun restoreProtectedTerms(translatedText: String, protections: List<TermProtection>): String {
-        if (protections.isEmpty()) return translatedText
-
+    private fun restoreProtectedTerms(
+        translatedText: String,
+        protections: List<TermProtection>,
+        playerName: String = ""
+    ): String {
         var restored = translatedText
         for (protection in protections) {
             val pluralToken = protection.pluralToken ?: continue
@@ -1523,6 +1702,13 @@ class Translator @Inject constructor(
         for (protection in protections) {
             restored = restored.replace(protection.token, protection.officialText)
         }
+
+        val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
+        if (normalizedPlayerName.isNotBlank()) {
+            restored = unresolvedPlayerPluralPattern.replace(restored, pluralNameText(normalizedPlayerName))
+            restored = unresolvedPlayerPattern.replace(restored, normalizedPlayerName)
+        }
+
         for (protection in protections) {
             val unresolvedToken = listOfNotNull(protection.token, protection.pluralToken)
                 .firstOrNull { restored.contains(it) }
@@ -1531,6 +1717,10 @@ class Translator @Inject constructor(
             }
         }
         return restored
+    }
+
+    private fun containsUnresolvedPlaceholder(text: String): Boolean {
+        return unresolvedPlaceholderPattern.containsMatchIn(text)
     }
 
     private fun pluralNameText(name: String): String {
@@ -1773,6 +1963,14 @@ class Translator @Inject constructor(
         playerName: String
     ) {
         val simplified = sanitizeTranslation(normalizedText, translatedText)
+        if (simplified.isBlank()) {
+            FgoLogger.warn(tag, "Not caching blank or non-translation result, hash=${hash.take(8)}...")
+            return
+        }
+        if (containsUnresolvedPlaceholder(simplified)) {
+            FgoLogger.warn(tag, "Not caching translation with unresolved placeholder, hash=${hash.take(8)}...")
+            return
+        }
         if (looksUntranslated(normalizedText, simplified, playerName)) {
             FgoLogger.warn(tag, "Not caching untranslated result, hash=${hash.take(8)}...")
             return
@@ -1937,6 +2135,17 @@ class Translator @Inject constructor(
         }
     }
 
+    private fun localFailureFallbackText(
+        config: RuntimeConfig,
+        allowLocalFailureFallback: Boolean
+    ): String {
+        return if (allowLocalFailureFallback && config.isLocalLlama) {
+            LOCAL_LLAMA_RENDER_FALLBACK
+        } else {
+            UNTRANSLATED_FALLBACK
+        }
+    }
+
     private suspend fun retryUntranslatedSingle(
         config: RuntimeConfig,
         playerName: String,
@@ -1972,9 +2181,11 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
 
         val retrySimplified = sanitizeTranslation(
             normalizedText,
-            restoreProtectedTerms(retryRaw, protectedInput.terms)
+            restoreProtectedTerms(retryRaw, protectedInput.terms, playerName)
         )
-        if (looksUntranslated(normalizedText, retrySimplified, playerName)) {
+        if (containsUnresolvedPlaceholder(retrySimplified) ||
+            looksUntranslated(normalizedText, retrySimplified, playerName)
+        ) {
             return null
         }
         FgoLogger.info(tag, "Strict retry produced translated result")
@@ -2139,6 +2350,18 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
         messages: List<ChatMessage>
     ): String {
         return when (config.backend) {
+            SettingsRepository.BACKEND_LOCAL_LLAMA -> if (LocalLlamaTranslator.RUNTIME_AVAILABLE) {
+                localLlamaTranslator.translate(messages)
+            } else {
+                FgoLogger.warn(tag, "Local llama runtime unavailable; falling back to DeepSeek")
+                translateDeepSeek(
+                    apiKey = config.apiKey,
+                    apiBaseUrl = SettingsRepository.DEFAULT_DEEPSEEK_BASE_URL,
+                    apiModel = SettingsRepository.DEFAULT_DEEPSEEK_MODEL,
+                    messages = messages
+                )
+            }
+
             SettingsRepository.BACKEND_CLAUDE -> translateClaude(
                 apiKey = config.apiKey,
                 apiBaseUrl = config.apiBaseUrl,

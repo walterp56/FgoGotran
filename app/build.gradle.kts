@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.fgogotran"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.fgogotran"
@@ -40,6 +40,14 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    packaging {
+        jniLibs {
+            // llama.cpp loads GGML backends by scanning nativeLibraryDir at runtime.
+            // Keep native libs extracted instead of mmap-only inside the APK.
+            useLegacyPackaging = true
+        }
     }
 }
 
@@ -88,4 +96,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // Local GGUF inference runtime (llama.cpp Android bridge)
+    implementation(project(":llama-android-lib"))
 }

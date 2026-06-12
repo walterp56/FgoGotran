@@ -41,9 +41,16 @@ class SettingsRepository @Inject constructor(
         val KEY_DB_LOCALE = stringPreferencesKey("db_locale")
         val KEY_DB_LAST_CHECK_AT = longPreferencesKey("db_last_check_at")
         val KEY_DB_LAST_UPDATE_AT = longPreferencesKey("db_last_update_at")
+        val KEY_LOCAL_LLAMA_MODEL_ID = stringPreferencesKey("local_llama_model_id")
+        val KEY_LOCAL_LLAMA_MODEL_VERSION = stringPreferencesKey("local_llama_model_version")
+        val KEY_LOCAL_LLAMA_MODEL_PATH = stringPreferencesKey("local_llama_model_path")
+        val KEY_LOCAL_LLAMA_MODEL_SHA256 = stringPreferencesKey("local_llama_model_sha256")
+        val KEY_LOCAL_LLAMA_MODEL_SIZE = longPreferencesKey("local_llama_model_size")
 
         /** FgoGotran hosted backend API. */
         const val BACKEND_FGOGOTRAN = "fgogotran"
+        /** Phone-local llama.cpp GGUF model. */
+        const val BACKEND_LOCAL_LLAMA = "local_llama"
         /** DeepSeek Chat API (default). */
         const val BACKEND_DEEPSEEK = "deepseek"
         /** Anthropic Claude Messages API. */
@@ -59,6 +66,7 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_CLAUDE_BASE_URL = "https://api.anthropic.com/v1/messages"
 
         const val DEFAULT_FGOGOTRAN_MODEL = "fast"
+        const val DEFAULT_LOCAL_LLAMA_MODEL = "qwen2.5-0.5b-instruct-q4"
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
         const val DEFAULT_OPENAI_MODEL = "gpt-4o"
         const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
@@ -66,6 +74,7 @@ class SettingsRepository @Inject constructor(
 
         fun defaultApiBaseUrl(backend: String): String = when (backend) {
             BACKEND_FGOGOTRAN -> DEFAULT_FGOGOTRAN_BASE_URL
+            BACKEND_LOCAL_LLAMA -> ""
             BACKEND_CLAUDE -> DEFAULT_CLAUDE_BASE_URL
             BACKEND_GPT -> DEFAULT_OPENAI_BASE_URL
             BACKEND_CUSTOM_OPENAI -> DEFAULT_DEEPSEEK_BASE_URL
@@ -74,6 +83,7 @@ class SettingsRepository @Inject constructor(
 
         fun defaultApiModel(backend: String): String = when (backend) {
             BACKEND_FGOGOTRAN -> DEFAULT_FGOGOTRAN_MODEL
+            BACKEND_LOCAL_LLAMA -> DEFAULT_LOCAL_LLAMA_MODEL
             BACKEND_CLAUDE -> DEFAULT_CLAUDE_MODEL
             BACKEND_GPT -> DEFAULT_OPENAI_MODEL
             BACKEND_CUSTOM_OPENAI -> DEFAULT_CUSTOM_MODEL
@@ -82,6 +92,7 @@ class SettingsRepository @Inject constructor(
 
         fun backendDisplayName(backend: String): String = when (backend) {
             BACKEND_FGOGOTRAN -> "FgoGotran 后端"
+            BACKEND_LOCAL_LLAMA -> "手机本地模型"
             BACKEND_DEEPSEEK -> "DeepSeek"
             BACKEND_CLAUDE -> "Claude"
             BACKEND_GPT -> "OpenAI"
@@ -89,7 +100,8 @@ class SettingsRepository @Inject constructor(
             else -> "DeepSeek"
         }
 
-        fun requiresApiKey(backend: String): Boolean = backend != BACKEND_FGOGOTRAN
+        fun requiresApiKey(backend: String): Boolean =
+            backend != BACKEND_FGOGOTRAN && backend != BACKEND_LOCAL_LLAMA
     }
 
     private val tag = "Settings"
@@ -148,6 +160,27 @@ class SettingsRepository @Inject constructor(
     /** Last time an online terminology DB package was installed, as epoch millis. */
     val dbLastUpdateAt: Flow<Long> = context.dataStore.data.map { prefs ->
         prefs[KEY_DB_LAST_UPDATE_AT] ?: 0L
+    }
+
+    /** Installed phone-local llama.cpp model metadata. */
+    val localLlamaModelId: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LOCAL_LLAMA_MODEL_ID] ?: ""
+    }
+
+    val localLlamaModelVersion: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LOCAL_LLAMA_MODEL_VERSION] ?: ""
+    }
+
+    val localLlamaModelPath: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LOCAL_LLAMA_MODEL_PATH] ?: ""
+    }
+
+    val localLlamaModelSha256: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LOCAL_LLAMA_MODEL_SHA256] ?: ""
+    }
+
+    val localLlamaModelSize: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LOCAL_LLAMA_MODEL_SIZE] ?: 0L
     }
 
     suspend fun setTranslationBackend(backend: String) {
@@ -220,5 +253,36 @@ class SettingsRepository @Inject constructor(
             tag,
             "DB metadata updated: version=$contentVersion, locale=$locale, sha256=$sha256"
         )
+    }
+
+    suspend fun saveLocalLlamaModelInstall(
+        modelId: String,
+        version: String,
+        filePath: String,
+        sha256: String,
+        sizeBytes: Long
+    ) {
+        context.dataStore.edit {
+            it[KEY_LOCAL_LLAMA_MODEL_ID] = modelId
+            it[KEY_LOCAL_LLAMA_MODEL_VERSION] = version
+            it[KEY_LOCAL_LLAMA_MODEL_PATH] = filePath
+            it[KEY_LOCAL_LLAMA_MODEL_SHA256] = sha256
+            it[KEY_LOCAL_LLAMA_MODEL_SIZE] = sizeBytes
+        }
+        FgoLogger.info(
+            tag,
+            "Local llama model installed: id=$modelId, version=$version, size=$sizeBytes, sha256=$sha256"
+        )
+    }
+
+    suspend fun clearLocalLlamaModelInstall() {
+        context.dataStore.edit {
+            it.remove(KEY_LOCAL_LLAMA_MODEL_ID)
+            it.remove(KEY_LOCAL_LLAMA_MODEL_VERSION)
+            it.remove(KEY_LOCAL_LLAMA_MODEL_PATH)
+            it.remove(KEY_LOCAL_LLAMA_MODEL_SHA256)
+            it.remove(KEY_LOCAL_LLAMA_MODEL_SIZE)
+        }
+        FgoLogger.info(tag, "Local llama model metadata cleared")
     }
 }

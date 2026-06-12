@@ -14,3 +14,6 @@
 # Room
 -keep class * extends androidx.room.RoomDatabase
 -dontwarn androidx.room.paging.**
+
+# llama.cpp optional logging binding
+-dontwarn org.slf4j.impl.StaticLoggerBinder

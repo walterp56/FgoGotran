@@ -20,3 +20,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "FgoGotran"
 include(":app")
+include(":llama-android-lib")

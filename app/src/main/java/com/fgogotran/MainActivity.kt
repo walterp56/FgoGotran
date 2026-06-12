@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.localmodel.LocalLlamaModelManager
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.ui.screen.ApiSettingsScreen
 import com.fgogotran.ui.screen.HomeScreen
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
+    @Inject lateinit var localLlamaModelManager: LocalLlamaModelManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +52,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FgoGotranTheme {
-                MainScreen(settingsRepository, glossaryUpdateManager)
+                MainScreen(settingsRepository, glossaryUpdateManager, localLlamaModelManager)
             }
         }
     }
@@ -67,7 +69,8 @@ enum class Screen { HOME, SETTINGS, API_SETTINGS }
 @Composable
 fun MainScreen(
     settingsRepository: SettingsRepository,
-    glossaryUpdateManager: GlossaryUpdateManager
+    glossaryUpdateManager: GlossaryUpdateManager,
+    localLlamaModelManager: LocalLlamaModelManager
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
@@ -91,6 +94,7 @@ fun MainScreen(
 
         Screen.API_SETTINGS -> ApiSettingsScreen(
             settingsRepository = settingsRepository,
+            localLlamaModelManager = localLlamaModelManager,
             onBack = { currentScreen = Screen.SETTINGS }
         )
     }
