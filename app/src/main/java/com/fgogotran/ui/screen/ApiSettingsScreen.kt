@@ -33,14 +33,19 @@ fun ApiSettingsScreen(
     val backendOptions = remember {
         listOf(
             BackendOption(
-                SettingsRepository.BACKEND_FGOGOTRAN,
-                "FgoGotran 后端",
-                "应用只连接你的后端，模型由后端管理"
-            ),
-            BackendOption(
                 SettingsRepository.BACKEND_DEEPSEEK,
                 "DeepSeek",
                 "默认使用 deepseek-v4-flash"
+            ),
+            BackendOption(
+                SettingsRepository.BACKEND_ZHIPU,
+                "智谱 GLM",
+                "免费模型 glm-4.7-flash"
+            ),
+            BackendOption(
+                SettingsRepository.BACKEND_QWEN,
+                "阿里云 Qwen",
+                "默认使用 qwen-flash（新加坡）"
             ),
             BackendOption(
                 SettingsRepository.BACKEND_GPT,
@@ -67,7 +72,7 @@ fun ApiSettingsScreen(
     var saveMessage by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        selectedBackend = settingsRepository.translationBackend.first()
+        selectedBackend = SettingsRepository.normalizeBackend(settingsRepository.translationBackend.first())
         apiBaseUrl = settingsRepository.apiBaseUrl.first()
             .ifBlank { SettingsRepository.defaultApiBaseUrl(selectedBackend) }
         apiModel = settingsRepository.apiModel.first()
@@ -79,7 +84,11 @@ fun ApiSettingsScreen(
         selectedBackend = backend
         apiBaseUrl = SettingsRepository.defaultApiBaseUrl(backend)
         apiModel = SettingsRepository.defaultApiModel(backend)
+        apiKey = ""
         saveMessage = ""
+        scope.launch {
+            apiKey = settingsRepository.getApiKeyForBackend(backend)
+        }
     }
 
     fun saveSettings() {
@@ -190,13 +199,7 @@ fun ApiSettingsScreen(
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         supportingText = {
-                            Text(
-                                if (SettingsRepository.requiresApiKey(selectedBackend)) {
-                                    "当前服务商需要 API Key"
-                                } else {
-                                    "FgoGotran 后端可留空"
-                                }
-                            )
+                            Text("当前服务商需要 API Key")
                         },
                         singleLine = true
                     )

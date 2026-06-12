@@ -8,9 +8,13 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fgogotran.terminology.LocalCharacterNameEntity
+import com.fgogotran.terminology.LocalGlossaryDao
+import com.fgogotran.terminology.LocalGlossaryDatabase
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,7 +31,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  */
 @Singleton
 class SettingsRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val localGlossaryDao: LocalGlossaryDao
 ) {
     companion object {
         val KEY_TRANSLATION_BACKEND = stringPreferencesKey("translation_backend")
@@ -42,10 +47,12 @@ class SettingsRepository @Inject constructor(
         val KEY_DB_LAST_CHECK_AT = longPreferencesKey("db_last_check_at")
         val KEY_DB_LAST_UPDATE_AT = longPreferencesKey("db_last_update_at")
 
-        /** FgoGotran hosted backend API. */
-        const val BACKEND_FGOGOTRAN = "fgogotran"
         /** DeepSeek Chat API (default). */
         const val BACKEND_DEEPSEEK = "deepseek"
+        /** Zhipu BigModel GLM OpenAI-compatible API. */
+        const val BACKEND_ZHIPU = "zhipu"
+        /** Alibaba Cloud Model Studio Qwen OpenAI-compatible API. */
+        const val BACKEND_QWEN = "qwen"
         /** Anthropic Claude Messages API. */
         const val BACKEND_CLAUDE = "claude"
         /** OpenAI GPT Chat Completions API. */
@@ -53,55 +60,83 @@ class SettingsRepository @Inject constructor(
         /** Custom OpenAI-compatible Chat Completions API. */
         const val BACKEND_CUSTOM_OPENAI = "custom_openai"
 
-        const val DEFAULT_FGOGOTRAN_BASE_URL = "https://api.fgogotran.com/v1/chat/completions"
         const val DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1/chat/completions"
+        const val DEFAULT_ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+        const val DEFAULT_QWEN_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
         const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
         const val DEFAULT_CLAUDE_BASE_URL = "https://api.anthropic.com/v1/messages"
 
-        const val DEFAULT_FGOGOTRAN_MODEL = "fast"
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
+        const val DEFAULT_ZHIPU_MODEL = "glm-4.7-flash"
+        const val DEFAULT_QWEN_MODEL = "qwen-flash"
         const val DEFAULT_OPENAI_MODEL = "gpt-4o"
         const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
         const val DEFAULT_CUSTOM_MODEL = "deepseek-v4-flash"
 
-        fun defaultApiBaseUrl(backend: String): String = when (backend) {
-            BACKEND_FGOGOTRAN -> DEFAULT_FGOGOTRAN_BASE_URL
+        private val SUPPORTED_BACKENDS = setOf(
+            BACKEND_DEEPSEEK,
+            BACKEND_ZHIPU,
+            BACKEND_QWEN,
+            BACKEND_CLAUDE,
+            BACKEND_GPT,
+            BACKEND_CUSTOM_OPENAI
+        )
+
+        fun normalizeBackend(backend: String): String =
+            backend.takeIf { it in SUPPORTED_BACKENDS } ?: BACKEND_DEEPSEEK
+
+        fun defaultApiBaseUrl(backend: String): String = when (normalizeBackend(backend)) {
+            BACKEND_ZHIPU -> DEFAULT_ZHIPU_BASE_URL
+            BACKEND_QWEN -> DEFAULT_QWEN_BASE_URL
             BACKEND_CLAUDE -> DEFAULT_CLAUDE_BASE_URL
             BACKEND_GPT -> DEFAULT_OPENAI_BASE_URL
             BACKEND_CUSTOM_OPENAI -> DEFAULT_DEEPSEEK_BASE_URL
             else -> DEFAULT_DEEPSEEK_BASE_URL
         }
 
-        fun defaultApiModel(backend: String): String = when (backend) {
-            BACKEND_FGOGOTRAN -> DEFAULT_FGOGOTRAN_MODEL
+        fun defaultApiModel(backend: String): String = when (normalizeBackend(backend)) {
+            BACKEND_ZHIPU -> DEFAULT_ZHIPU_MODEL
+            BACKEND_QWEN -> DEFAULT_QWEN_MODEL
             BACKEND_CLAUDE -> DEFAULT_CLAUDE_MODEL
             BACKEND_GPT -> DEFAULT_OPENAI_MODEL
             BACKEND_CUSTOM_OPENAI -> DEFAULT_CUSTOM_MODEL
             else -> DEFAULT_DEEPSEEK_MODEL
         }
 
-        fun backendDisplayName(backend: String): String = when (backend) {
-            BACKEND_FGOGOTRAN -> "FgoGotran 后端"
+        fun backendDisplayName(backend: String): String = when (normalizeBackend(backend)) {
             BACKEND_DEEPSEEK -> "DeepSeek"
+            BACKEND_ZHIPU -> "智谱 GLM"
+            BACKEND_QWEN -> "阿里云 Qwen"
             BACKEND_CLAUDE -> "Claude"
             BACKEND_GPT -> "OpenAI"
             BACKEND_CUSTOM_OPENAI -> "自定义接口"
             else -> "DeepSeek"
         }
 
-        fun requiresApiKey(backend: String): Boolean = backend != BACKEND_FGOGOTRAN
+        fun requiresApiKey(backend: String): Boolean = normalizeBackend(backend).isNotBlank()
+
+        fun apiKeyPreferenceKey(backend: String) =
+            stringPreferencesKey("api_key_${normalizeBackend(backend)}")
     }
 
     private val tag = "Settings"
 
     /** Which LLM backend to use for translation. Default: [BACKEND_DEEPSEEK]. */
     val translationBackend: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK
+        normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
     }
 
     /** User's API key for the selected translation backend. */
     val apiKey: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_API_KEY] ?: ""
+        val backend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
+        prefs[apiKeyPreferenceKey(backend)] ?: ""
+    }
+
+    suspend fun getApiKeyForBackend(backend: String): String {
+        val normalizedBackend = normalizeBackend(backend)
+        return context.dataStore.data.map { prefs ->
+            prefs[apiKeyPreferenceKey(normalizedBackend)] ?: ""
+        }.first()
     }
 
     /** Chat completions endpoint for the selected backend. Blank means provider default. */
@@ -111,7 +146,7 @@ class SettingsRepository @Inject constructor(
 
     /** Model name for the selected backend. */
     val apiModel: Flow<String> = context.dataStore.data.map { prefs ->
-        val backend = prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK
+        val backend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
         prefs[KEY_API_MODEL] ?: defaultApiModel(backend)
     }
 
@@ -151,12 +186,14 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setTranslationBackend(backend: String) {
-        context.dataStore.edit { it[KEY_TRANSLATION_BACKEND] = backend }
-        FgoLogger.debug(tag, "Setting updated: translation_backend=$backend")
+        val normalizedBackend = normalizeBackend(backend)
+        context.dataStore.edit { it[KEY_TRANSLATION_BACKEND] = normalizedBackend }
+        FgoLogger.debug(tag, "Setting updated: translation_backend=$normalizedBackend")
     }
 
     suspend fun setApiKey(key: String) {
-        context.dataStore.edit { it[KEY_API_KEY] = key }
+        val backend = translationBackend.first()
+        context.dataStore.edit { it[apiKeyPreferenceKey(backend)] = key }
         // Redact the actual key value to prevent accidental log leakage
         FgoLogger.debug(tag, "Setting updated: api_key=(redacted, ${key.length} chars)")
     }
@@ -177,21 +214,37 @@ class SettingsRepository @Inject constructor(
         apiBaseUrl: String,
         apiModel: String
     ) {
+        val normalizedBackend = normalizeBackend(backend)
         context.dataStore.edit {
-            it[KEY_TRANSLATION_BACKEND] = backend
-            it[KEY_API_KEY] = apiKey.trim()
+            it[KEY_TRANSLATION_BACKEND] = normalizedBackend
+            it[apiKeyPreferenceKey(normalizedBackend)] = apiKey.trim()
             it[KEY_API_BASE_URL] = apiBaseUrl.trim()
             it[KEY_API_MODEL] = apiModel.trim()
         }
         FgoLogger.debug(
             tag,
-            "API settings updated: backend=$backend, model=${apiModel.trim()}, api_key=(redacted, ${apiKey.trim().length} chars)"
+            "API settings updated: backend=$normalizedBackend, model=${apiModel.trim()}, api_key=(redacted, ${apiKey.trim().length} chars)"
         )
     }
 
     suspend fun setPlayerName(name: String) {
-        context.dataStore.edit { it[KEY_PLAYER_NAME] = name }
-        FgoLogger.debug(tag, "Setting updated: player_name=$name")
+        val trimmedName = name.trim()
+        context.dataStore.edit { it[KEY_PLAYER_NAME] = trimmedName }
+        if (trimmedName.isBlank()) {
+            localGlossaryDao.deleteCharacterName(LocalGlossaryDatabase.PLAYER_NAME_RECORD_ID)
+            FgoLogger.debug(tag, "Local player name glossary row removed")
+        } else {
+            localGlossaryDao.upsertCharacterName(
+                LocalCharacterNameEntity(
+                    id = LocalGlossaryDatabase.PLAYER_NAME_RECORD_ID,
+                    jpName = trimmedName,
+                    cnName = trimmedName,
+                    aliases = null
+                )
+            )
+            FgoLogger.debug(tag, "Local player name glossary row updated")
+        }
+        FgoLogger.debug(tag, "Setting updated: player_name=$trimmedName")
     }
 
     suspend fun setCacheEnabled(enabled: Boolean) {

@@ -3,17 +3,22 @@ package com.fgogotran.translation
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
 import com.fgogotran.terminology.CharacterNameEntity
+import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.TermDao
 import com.fgogotran.terminology.TermEntity
 import com.fgogotran.util.FgoLogger
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -24,6 +29,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -84,11 +90,17 @@ class Translator @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val userProfile: UserProfile,
     private val termDao: TermDao,
+    private val localGlossaryDao: LocalGlossaryDao,
     private val promptBuilder: PromptBuilder,
     private val cacheDb: TranslationCacheDb,
     private val translationMemory: TranslationMemory
 ) {
     private val httpClient = HttpClient {
+        install(HttpTimeout) {
+            connectTimeoutMillis = TRANSLATION_CONNECT_TIMEOUT_MS
+            socketTimeoutMillis = TRANSLATION_SOCKET_TIMEOUT_MS
+            requestTimeoutMillis = TRANSLATION_REQUEST_TIMEOUT_MS
+        }
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -122,15 +134,19 @@ class Translator @Inject constructor(
         cachedRuntimeConfig = null
         cachedRuntimeConfigAt = 0L
         cachedTermRows = null
+        cachedTermLookup = null
+        clearCharacterNameCaches()
+        FgoLogger.info(tag, "Glossary and memory translation cache cleared")
+    }
+
+    private fun clearCharacterNameCaches() {
         cachedTerms = null
         cachedCharacterNames = null
-        cachedTermLookup = null
         cachedCharacterNameLookup = null
         cachedCharacterNameVariants = null
         synchronized(memoryCacheLock) {
             memoryTranslationCache.clear()
         }
-        FgoLogger.info(tag, "Glossary and memory translation cache cleared")
     }
 
     private data class RuntimeConfig(
@@ -161,6 +177,9 @@ class Translator @Inject constructor(
     companion object {
         private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
+        private const val TRANSLATION_CONNECT_TIMEOUT_MS = 10_000L
+        private const val TRANSLATION_SOCKET_TIMEOUT_MS = 20_000L
+        private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
         private const val UNTRANSLATED_FALLBACK = ""
         private val nameSanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})さん")
@@ -185,6 +204,13 @@ class Translator @Inject constructor(
             "叔母さん"
         )
         private val NAME_PLURAL_ZU_SUFFIXES = listOf("ズ", "ず")
+    }
+
+    private fun formatUserFacingApiError(error: Exception): String {
+        if (error is HttpRequestTimeoutException || error.message?.contains("timeout", ignoreCase = true) == true) {
+            return "请求超时，请稍后重试或更换模型"
+        }
+        return error.message?.trim()?.takeIf(String::isNotBlank) ?: "未知错误"
     }
 
     suspend fun warmUp() {
@@ -285,7 +311,7 @@ class Translator @Inject constructor(
         } catch (e: Exception) {
             FgoLogger.error(tag, "$backend API call failed: ${e.message}", e)
             return TranslateResult(
-                "[翻译失败：${e.message}]\n请检查 API Key 和网络连接。",
+                "[翻译失败：${formatUserFacingApiError(e)}]\n请检查 API Key、模型和网络连接。",
                 backend,
                 false
             )
@@ -734,9 +760,14 @@ class Translator @Inject constructor(
 
     private suspend fun getRuntimeConfig(): RuntimeConfig {
         val now = System.currentTimeMillis()
+        val playerName = userProfile.getPlayerName()
         cachedRuntimeConfig?.let { cached ->
-            if (now - cachedRuntimeConfigAt < RUNTIME_CONFIG_CACHE_TTL_MS) {
+            if (cached.playerName == playerName && now - cachedRuntimeConfigAt < RUNTIME_CONFIG_CACHE_TTL_MS) {
                 return cached
+            }
+            if (cached.playerName != playerName) {
+                clearCharacterNameCaches()
+                FgoLogger.info(tag, "Player name changed; local glossary cache cleared")
             }
         }
 
@@ -748,7 +779,7 @@ class Translator @Inject constructor(
                 .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) },
             apiModel = settingsRepository.apiModel.first()
                 .ifBlank { SettingsRepository.defaultApiModel(backend) },
-            playerName = userProfile.getPlayerName(),
+            playerName = playerName,
             cacheEnabled = settingsRepository.cacheEnabled.first(),
             glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "bundled-db" }
         )
@@ -781,9 +812,18 @@ class Translator @Inject constructor(
 
     private suspend fun getCachedCharacterNames(): List<CharacterNameEntity> {
         cachedCharacterNames?.let { return it }
-        val loaded = termDao.getAllCharacterNames()
+        val localNames = localGlossaryDao.getAllCharacterNames().map { localName ->
+            CharacterNameEntity(
+                jpName = localName.jpName,
+                cnName = localName.cnName,
+                aliases = localName.aliases
+            )
+        }
+        val downloadedNames = termDao.getAllCharacterNames()
+        val loaded = (localNames + downloadedNames)
+            .distinctBy { TextNormalizer.normalizeForTranslation(it.jpName) }
         cachedCharacterNames = loaded
-        FgoLogger.debug(tag, "Character names cached: ${loaded.size}")
+        FgoLogger.debug(tag, "Character names cached: ${loaded.size} (local=${localNames.size})")
         return loaded
     }
 
@@ -2102,9 +2142,77 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
             contentType(ContentType.Application.Json)
             setBody(ChatRequest(model = apiModel, messages = messages))
         }
-        val body = response.body<ChatResponse>()
-        return body.choices.firstOrNull()?.message?.content
-            ?: throw Exception("Chat completions API returned empty response")
+        val rawBody = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            throw Exception(extractChatApiError(rawBody) ?: "HTTP ${response.status.value}: ${rawBody.take(240)}")
+        }
+        return parseChatCompletionContent(rawBody, "Chat completions API")
+    }
+
+    private fun parseChatCompletionContent(rawBody: String, providerName: String): String {
+        val jsonElement = try {
+            responseJson.parseToJsonElement(rawBody)
+        } catch (e: Exception) {
+            throw Exception("$providerName returned non-JSON response: ${rawBody.take(240)}")
+        }
+        val jsonObject = jsonElement as? JsonObject
+            ?: throw Exception("$providerName returned invalid response: ${rawBody.take(240)}")
+
+        val choices = runCatching { jsonObject["choices"]?.jsonArray }.getOrNull()
+        val firstChoice = choices?.firstOrNull()
+        val content = runCatching {
+            firstChoice
+                ?.jsonObject
+                ?.get("message")
+                ?.jsonObject
+                ?.get("content")
+                ?.jsonPrimitive
+                ?.content
+                ?.trim()
+        }.getOrNull()
+        if (!content.isNullOrBlank()) {
+            return content
+        }
+
+        extractChatApiError(jsonObject)?.let { error ->
+            throw Exception(error)
+        }
+        throw Exception("$providerName returned empty or unsupported response: ${rawBody.take(240)}")
+    }
+
+    private fun extractChatApiError(rawBody: String): String? {
+        val jsonObject = runCatching {
+            responseJson.parseToJsonElement(rawBody).jsonObject
+        }.getOrNull() ?: return null
+        return extractChatApiError(jsonObject)
+    }
+
+    private fun extractChatApiError(jsonObject: JsonObject): String? {
+        val directMessage = listOf("message", "msg", "error_msg", "error_message")
+            .firstNotNullOfOrNull { key ->
+                (jsonObject[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotBlank)
+            }
+        if (directMessage != null) return directMessage
+
+        val error = jsonObject["error"] ?: return null
+        if (error is JsonPrimitive) {
+            return error.contentOrNull?.trim()?.takeIf(String::isNotBlank)
+        }
+        val errorObject = error as? JsonObject ?: return null
+        val message = listOf("message", "msg", "error_msg", "error_message")
+            .firstNotNullOfOrNull { key ->
+                (errorObject[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotBlank)
+            }
+        val code = listOf("code", "type")
+            .firstNotNullOfOrNull { key ->
+                (errorObject[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotBlank)
+            }
+        return when {
+            message != null && code != null -> "$message ($code)"
+            message != null -> message
+            code != null -> code
+            else -> null
+        }
     }
 
     private fun cacheKey(
@@ -2147,7 +2255,8 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
             )
 
             SettingsRepository.BACKEND_GPT,
-            SettingsRepository.BACKEND_FGOGOTRAN,
+            SettingsRepository.BACKEND_ZHIPU,
+            SettingsRepository.BACKEND_QWEN,
             SettingsRepository.BACKEND_CUSTOM_OPENAI -> translateOpenAiCompatible(
                 apiKey = config.apiKey,
                 apiBaseUrl = config.apiBaseUrl,

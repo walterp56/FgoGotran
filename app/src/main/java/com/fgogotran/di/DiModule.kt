@@ -1,6 +1,8 @@
 package com.fgogotran.di
 
 import android.content.Context
+import com.fgogotran.terminology.LocalGlossaryDao
+import com.fgogotran.terminology.LocalGlossaryDatabase
 import com.fgogotran.terminology.TermDao
 import com.fgogotran.terminology.TermDatabase
 import com.fgogotran.translation.TranslationCacheDb
@@ -33,6 +35,19 @@ object DiModule {
     @Singleton
     fun provideTermDao(db: TermDatabase): TermDao {
         return db.termDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideLocalGlossaryDatabase(@ApplicationContext context: Context): LocalGlossaryDatabase {
+        FgoLogger.info("DI", "Providing LocalGlossaryDatabase")
+        return LocalGlossaryDatabase.create(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideLocalGlossaryDao(db: LocalGlossaryDatabase): LocalGlossaryDao {
+        return db.localGlossaryDao()
     }
 
     @Provides
