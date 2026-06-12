@@ -180,6 +180,8 @@ class Translator @Inject constructor(
         private const val TRANSLATION_CONNECT_TIMEOUT_MS = 10_000L
         private const val TRANSLATION_SOCKET_TIMEOUT_MS = 20_000L
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
+        private const val CHAT_COMPLETION_MAX_TOKENS = 1024
+        private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val UNTRANSLATED_FALLBACK = ""
         private val nameSanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})さん")
@@ -2133,14 +2135,31 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
         apiKey: String,
         apiBaseUrl: String,
         apiModel: String,
-        messages: List<ChatMessage>
+        messages: List<ChatMessage>,
+        maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
+        disableThinking: Boolean = false
     ): String {
         val response = httpClient.post(apiBaseUrl) {
             if (apiKey.isNotBlank()) {
                 header("Authorization", "Bearer $apiKey")
             }
             contentType(ContentType.Application.Json)
-            setBody(ChatRequest(model = apiModel, messages = messages))
+            setBody(
+                buildJsonObject {
+                    put("model", JsonPrimitive(apiModel))
+                    put("messages", chatMessagesJson(messages))
+                    put("max_tokens", JsonPrimitive(maxTokens))
+                    put("temperature", JsonPrimitive(0.3))
+                    if (disableThinking) {
+                        put(
+                            "thinking",
+                            buildJsonObject {
+                                put("type", JsonPrimitive("disabled"))
+                            }
+                        )
+                    }
+                }
+            )
         }
         val rawBody = response.bodyAsText()
         if (!response.status.isSuccess()) {
@@ -2254,8 +2273,16 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
                 messages = messages
             )
 
+            SettingsRepository.BACKEND_ZHIPU -> translateOpenAiCompatible(
+                apiKey = config.apiKey,
+                apiBaseUrl = config.apiBaseUrl,
+                apiModel = config.apiModel,
+                messages = messages,
+                maxTokens = ZHIPU_TRANSLATION_MAX_TOKENS,
+                disableThinking = true
+            )
+
             SettingsRepository.BACKEND_GPT,
-            SettingsRepository.BACKEND_ZHIPU,
             SettingsRepository.BACKEND_QWEN,
             SettingsRepository.BACKEND_CUSTOM_OPENAI -> translateOpenAiCompatible(
                 apiKey = config.apiKey,
