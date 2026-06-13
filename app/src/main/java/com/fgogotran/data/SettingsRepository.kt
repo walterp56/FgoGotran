@@ -51,7 +51,7 @@ class SettingsRepository @Inject constructor(
         const val BACKEND_DEEPSEEK = "deepseek"
         /** Zhipu BigModel GLM OpenAI-compatible API. */
         const val BACKEND_ZHIPU = "zhipu"
-        /** Alibaba Cloud Model Studio Qwen OpenAI-compatible API. */
+        /** Alibaba Cloud Bailian / Model Studio Qwen OpenAI-compatible API. */
         const val BACKEND_QWEN = "qwen"
         /** Anthropic Claude Messages API. */
         const val BACKEND_CLAUDE = "claude"
@@ -113,10 +113,10 @@ class SettingsRepository @Inject constructor(
         fun backendDisplayName(backend: String): String = when (normalizeBackend(backend)) {
             BACKEND_DEEPSEEK -> "DeepSeek"
             BACKEND_ZHIPU -> "智谱 GLM"
-            BACKEND_QWEN -> "阿里云 Qwen"
-            BACKEND_CLAUDE -> "Claude"
-            BACKEND_GPT -> "OpenAI"
-            BACKEND_GEMINI -> "Gemini"
+            BACKEND_QWEN -> "阿里云百炼 Qwen"
+            BACKEND_CLAUDE -> "Anthropic Claude"
+            BACKEND_GPT -> "OpenAI GPT"
+            BACKEND_GEMINI -> "Google Gemini"
             BACKEND_CUSTOM_OPENAI -> "自定义接口"
             else -> "DeepSeek"
         }

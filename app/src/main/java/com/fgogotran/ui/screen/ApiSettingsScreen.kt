@@ -18,7 +18,6 @@ import kotlinx.coroutines.launch
 
 private data class BackendOption(
     val value: String,
-    val label: String,
     val note: String? = null
 )
 
@@ -32,33 +31,14 @@ fun ApiSettingsScreen(
     val scrollState = rememberScrollState()
     val backendOptions = remember {
         listOf(
-            BackendOption(
-                SettingsRepository.BACKEND_DEEPSEEK,
-                "DeepSeek"
-            ),
-            BackendOption(
-                SettingsRepository.BACKEND_ZHIPU,
-                "智谱 GLM"
-            ),
-            BackendOption(
-                SettingsRepository.BACKEND_QWEN,
-                "阿里云 Qwen"
-            ),
-            BackendOption(
-                SettingsRepository.BACKEND_GPT,
-                "OpenAI"
-            ),
-            BackendOption(
-                SettingsRepository.BACKEND_GEMINI,
-                "Gemini"
-            ),
-            BackendOption(
-                SettingsRepository.BACKEND_CLAUDE,
-                "Claude"
-            ),
+            BackendOption(SettingsRepository.BACKEND_DEEPSEEK),
+            BackendOption(SettingsRepository.BACKEND_ZHIPU),
+            BackendOption(SettingsRepository.BACKEND_QWEN),
+            BackendOption(SettingsRepository.BACKEND_GPT),
+            BackendOption(SettingsRepository.BACKEND_GEMINI),
+            BackendOption(SettingsRepository.BACKEND_CLAUDE),
             BackendOption(
                 SettingsRepository.BACKEND_CUSTOM_OPENAI,
-                "自定义接口",
                 "兼容 OpenAI Chat Completions 的接口"
             )
         )
@@ -158,7 +138,7 @@ fun ApiSettingsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 BackendProviderLabel(
                                     backend = option.value,
-                                    label = option.label,
+                                    label = SettingsRepository.backendDisplayName(option.value),
                                     textStyle = MaterialTheme.typography.bodyLarge
                                 )
                                 option.note?.let { note ->

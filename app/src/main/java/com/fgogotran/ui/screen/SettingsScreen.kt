@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Settings form allowing configuration of:
- * - Translation backend (DeepSeek / Claude / GPT via FilterChip row)
+ * - Translation backend and model via the API settings screen
  * - API key (password-masked text field with save button)
  * - Player Master name (text field with save button)
  * - Translation cache toggle
