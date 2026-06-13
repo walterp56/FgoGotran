@@ -125,9 +125,30 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
         private const val RUBY_HEIGHT_RATIO = 0.72f
-        private const val TEXT_COLOR_HUE_BUCKETS = 12
-        private const val MIN_COLORED_TEXT_PIXELS = 8
+        private const val MIN_PALETTE_TEXT_PIXELS = 8
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
+        private val FGO_TEXT_COLOR_SAMPLES = listOf(
+            TextColorSample(
+                sampleColor = Color.rgb(245, 245, 240),
+                renderColor = Color.rgb(245, 245, 240),
+                maxDistanceSquared = 120 * 120
+            ),
+            TextColorSample(
+                sampleColor = Color.rgb(255, 80, 80),
+                renderColor = Color.rgb(255, 80, 80),
+                maxDistanceSquared = 100 * 100
+            ),
+            TextColorSample(
+                sampleColor = Color.rgb(80, 235, 235),
+                renderColor = Color.rgb(80, 235, 235),
+                maxDistanceSquared = 115 * 115
+            ),
+            TextColorSample(
+                sampleColor = Color.rgb(197, 227, 94),
+                renderColor = Color.rgb(197, 227, 94),
+                maxDistanceSquared = 90 * 90
+            )
+        )
 
         private val _serviceStarted = mutableStateOf(false)
         val serviceStarted: State<Boolean>
@@ -1272,7 +1293,11 @@ class FgoAccessibilityService : AccessibilityService() {
             RenderInstruction(
                 region = regionAndText.region,
                 translatedText = translatedText,
-                textColor = sampleOriginalTextColor(source, regionAndText.region)
+                textColor = renderTextColorForRegion(source, regionAndText.region),
+                wideTextSpacing = shouldUseWideRenderSpacing(
+                    sourceText = regionAndText.text,
+                    region = regionAndText.region.region
+                )
             )
         }
     }
@@ -1602,9 +1627,68 @@ class FgoAccessibilityService : AccessibilityService() {
                 this in setOf('ー', '・', '･')
     }
 
+    private fun shouldUseWideRenderSpacing(sourceText: String, region: TextRegion): Boolean {
+        return when (region) {
+            TextRegion.DIALOGUE_BOX,
+            TextRegion.CHOICE_BUTTON -> hasFgoWideSourceSpacing(sourceText)
+            TextRegion.NAME_LABEL -> false
+        }
+    }
+
+    private fun renderTextColorForRegion(source: Bitmap, region: ClassifiedRegion): Int? {
+        return when (region.region) {
+            TextRegion.DIALOGUE_BOX,
+            TextRegion.NAME_LABEL,
+            TextRegion.CHOICE_BUTTON -> sampleOriginalTextColor(source, region)
+        }
+    }
+
+    private fun hasFgoWideSourceSpacing(sourceText: String): Boolean {
+        var spacedGaps = 0
+        var adjacentPairs = 0
+
+        sourceText.lines().forEach { line ->
+            var previousTextChar: Char? = null
+            var sawWhitespace = false
+
+            for (char in line) {
+                if (char.isWhitespace() || char == '\u3000') {
+                    if (previousTextChar != null) {
+                        sawWhitespace = true
+                    }
+                    continue
+                }
+
+                if (!char.isJapaneseOrCjkForSpacing()) {
+                    previousTextChar = null
+                    sawWhitespace = false
+                    continue
+                }
+
+                if (previousTextChar != null) {
+                    if (sawWhitespace) {
+                        spacedGaps++
+                    } else {
+                        adjacentPairs++
+                    }
+                }
+                previousTextChar = char
+                sawWhitespace = false
+            }
+        }
+
+        return spacedGaps >= 2 && spacedGaps * 2 >= adjacentPairs
+    }
+
+    private fun Char.isJapaneseOrCjkForSpacing(): Boolean {
+        return isCjkIdeograph() ||
+                this in '\u3040'..'\u309F' ||
+                this in '\u30A0'..'\u30FF' ||
+                this in '\uFF66'..'\uFF9D'
+    }
+
     private fun sampleOriginalTextColor(source: Bitmap, region: ClassifiedRegion): Int? {
-        val colorBuckets = Array(TEXT_COLOR_HUE_BUCKETS) { TextColorBucket() }
-        var whiteScore = 0
+        val matchCounts = IntArray(FGO_TEXT_COLOR_SAMPLES.size)
 
         for (line in region.lines) {
             val bounds = Rect(line.boundingBox)
@@ -1617,35 +1701,21 @@ class FgoAccessibilityService : AccessibilityService() {
                     val r = (pixel shr 16) and 0xFF
                     val g = (pixel shr 8) and 0xFF
                     val b = pixel and 0xFF
-                    val max = maxOf(r, g, b)
-                    val min = minOf(r, g, b)
-                    val spread = max - min
 
-                    if (r >= 175 && g >= 175 && b >= 175 && spread <= 70) {
-                        whiteScore++
-                        continue
+                    val sampleIndex = nearestTextColorSampleIndex(r, g, b)
+                    if (sampleIndex >= 0) {
+                        matchCounts[sampleIndex]++
                     }
-
-                    if (max < 145 || spread < 35) continue
-                    val saturation = spread.toFloat() / max.coerceAtLeast(1)
-                    if (saturation < 0.22f) continue
-
-                    val hsv = FloatArray(3)
-                    Color.RGBToHSV(r, g, b, hsv)
-                    val bucketIndex = ((hsv[0] / 360f) * TEXT_COLOR_HUE_BUCKETS)
-                        .toInt()
-                        .coerceIn(0, TEXT_COLOR_HUE_BUCKETS - 1)
-                    colorBuckets[bucketIndex].add(r, g, b)
                 }
             }
         }
 
-        val dominantColor = colorBuckets
-            .filter { it.count >= MIN_COLORED_TEXT_PIXELS }
-            .maxByOrNull { it.count }
-            ?.takeIf { it.count >= whiteScore / 3 }
-            ?.toColor()
-        return dominantColor ?: if (whiteScore > 0) FGO_RENDER_WHITE else null
+        val bestIndex = matchCounts.indices.maxByOrNull { matchCounts[it] } ?: return null
+        return if (matchCounts[bestIndex] >= MIN_PALETTE_TEXT_PIXELS) {
+            FGO_TEXT_COLOR_SAMPLES[bestIndex].renderColor
+        } else {
+            null
+        }
     }
 
     private fun sampleCropOriginalTextColor(
@@ -1684,35 +1754,29 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    private data class TextColorBucket(
-        var count: Int = 0,
-        var redTotal: Int = 0,
-        var greenTotal: Int = 0,
-        var blueTotal: Int = 0
-    ) {
-        fun add(red: Int, green: Int, blue: Int) {
-            count++
-            redTotal += red
-            greenTotal += green
-            blueTotal += blue
-        }
-
-        fun toColor(): Int {
-            if (count <= 0) return FGO_RENDER_WHITE
-            val red = (redTotal / count).coerceIn(0, 255)
-            val green = (greenTotal / count).coerceIn(0, 255)
-            val blue = (blueTotal / count).coerceIn(0, 255)
-            val max = maxOf(red, green, blue)
-            if (max >= 220) {
-                return Color.rgb(red, green, blue)
+    private fun nearestTextColorSampleIndex(red: Int, green: Int, blue: Int): Int {
+        var bestIndex = -1
+        var bestDistance = Int.MAX_VALUE
+        FGO_TEXT_COLOR_SAMPLES.forEachIndexed { index, sample ->
+            val distance = sample.distanceSquared(red, green, blue)
+            if (distance <= sample.maxDistanceSquared && distance < bestDistance) {
+                bestDistance = distance
+                bestIndex = index
             }
+        }
+        return bestIndex
+    }
 
-            val boost = 220f / max.coerceAtLeast(1)
-            return Color.rgb(
-                (red * boost).toInt().coerceIn(0, 255),
-                (green * boost).toInt().coerceIn(0, 255),
-                (blue * boost).toInt().coerceIn(0, 255)
-            )
+    private data class TextColorSample(
+        val sampleColor: Int,
+        val renderColor: Int,
+        val maxDistanceSquared: Int
+    ) {
+        fun distanceSquared(red: Int, green: Int, blue: Int): Int {
+            val dr = red - Color.red(sampleColor)
+            val dg = green - Color.green(sampleColor)
+            val db = blue - Color.blue(sampleColor)
+            return dr * dr + dg * dg + db * db
         }
     }
 

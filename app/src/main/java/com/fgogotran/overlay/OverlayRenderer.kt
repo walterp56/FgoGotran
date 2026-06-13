@@ -14,7 +14,8 @@ import javax.inject.Singleton
 data class RenderInstruction(
     val region: ClassifiedRegion,
     val translatedText: String,
-    val textColor: Int? = null
+    val textColor: Int? = null,
+    val wideTextSpacing: Boolean = false
 )
 
 /**
@@ -68,6 +69,13 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
         private const val DIALOGUE_MAX_LINES = 2
+        private const val WIDE_RENDER_SPACE = "\u3000"
+        private val WIDE_RENDER_CONNECTORS = listOf(
+            "\u4EE5\u53CA", "\u8FD8\u6709", "\u6216\u8005", "\u4F46\u662F",
+            "\u56E0\u6B64", "\u6240\u4EE5", "\u4E0D\u8FC7", "\u7136\u540E",
+            "\u7684", "\u4E4B", "\u4E0E", "\u548C", "\u53CA", "\u5E76",
+            "\u800C", "\u6216", "\u4F46", "\u4E5F", "\u662F"
+        )
     }
 
     /** Shadow offset in pixels at the marked 1080px reference height. */
@@ -148,7 +156,7 @@ class OverlayRenderer @Inject constructor(
                 box.bottom - 12f * scale
             )
             fitSingleLineOrNull(
-                text = instruction.translatedText.trim(),
+                text = instruction.toChoiceRenderText(),
                 paint = choicePaint,
                 initialTextSize = 49f * scale,
                 minimumTextSize = 27f * scale,
@@ -204,7 +212,7 @@ class OverlayRenderer @Inject constructor(
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
         paint.color = textColor
         val (lines, lineHeight) = fitWrappedText(
-            text = instruction.translatedText.toDialogueRenderText(),
+            text = instruction.toDialogueRenderText(),
             paint = paint,
             initialTextSize = 53f * scale,
             minimumTextSize = 36f * scale,
@@ -332,7 +340,7 @@ class OverlayRenderer @Inject constructor(
             box.bottom - 12f * scale
         )
         if (fitSingleLineOrNull(
-                text = instruction.translatedText.trim(),
+                text = instruction.toChoiceRenderText(),
                 paint = paint,
                 initialTextSize = 53f * scale,
                 minimumTextSize = 27f * scale,
@@ -361,7 +369,7 @@ class OverlayRenderer @Inject constructor(
             color = textColor
         }
         val text = fitSingleLineOrNull(
-            text = instruction.translatedText.trim(),
+            text = instruction.toChoiceRenderText(),
             paint = paint,
             initialTextSize = 49f * scale,
             minimumTextSize = 27f * scale,
@@ -447,13 +455,83 @@ class OverlayRenderer @Inject constructor(
         }
     }
 
-    private fun String.toDialogueRenderText(): String {
-        return lines()
+    private fun RenderInstruction.toDialogueRenderText(): String {
+        val normalized = translatedText.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .joinToString("\n")
             .replace(Regex("[ \\t]+"), " ")
             .trim()
+        return if (wideTextSpacing) normalized.toFgoWideRenderText() else normalized
+    }
+
+    private fun RenderInstruction.toChoiceRenderText(): String {
+        val normalized = translatedText.trim().replace(Regex("[ \\t]+"), " ")
+        return if (wideTextSpacing) normalized.toFgoWideRenderText() else normalized
+    }
+
+    private fun String.toFgoWideRenderText(): String {
+        return lines().joinToString("\n") { line ->
+            line.spaceCjkRunsForFgo()
+        }
+    }
+
+    private fun String.spaceCjkRunsForFgo(): String {
+        val out = StringBuilder()
+        val run = StringBuilder()
+
+        fun flushRun() {
+            if (run.isNotEmpty()) {
+                out.append(splitWideCjkRun(run.toString()).joinToString(WIDE_RENDER_SPACE))
+                run.clear()
+            }
+        }
+
+        for (char in this) {
+            if (char.isCjkRenderChar()) {
+                run.append(char)
+            } else {
+                flushRun()
+                out.append(char)
+            }
+        }
+        flushRun()
+        return out.toString()
+            .replace(Regex("[ \\t]+"), " ")
+            .trim()
+    }
+
+    private fun splitWideCjkRun(text: String): List<String> {
+        val segments = mutableListOf<String>()
+        val content = StringBuilder()
+        var index = 0
+
+        fun flushContent() {
+            if (content.isNotEmpty()) {
+                val raw = content.toString()
+                val chunkSize = if (raw.length <= 10) 5 else 4
+                segments.addAll(raw.chunked(chunkSize))
+                content.clear()
+            }
+        }
+
+        while (index < text.length) {
+            val connector = WIDE_RENDER_CONNECTORS.firstOrNull { text.startsWith(it, index) }
+            if (connector != null) {
+                flushContent()
+                segments.add(connector)
+                index += connector.length
+            } else {
+                content.append(text[index])
+                index++
+            }
+        }
+        flushContent()
+        return segments.filter { it.isNotBlank() }
+    }
+
+    private fun Char.isCjkRenderChar(): Boolean {
+        return this in '\u3400'..'\u9FFF'
     }
 
     private fun fitSingleLine(
