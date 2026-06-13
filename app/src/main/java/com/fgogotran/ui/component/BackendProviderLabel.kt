@@ -1,5 +1,6 @@
 package com.fgogotran.ui.component
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
@@ -30,8 +32,8 @@ fun BackendProviderLabel(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = horizontalArrangement
     ) {
-        if (backend == SettingsRepository.BACKEND_DEEPSEEK) {
-            DeepSeekProviderIcon()
+        providerIcon(backend)?.let { icon ->
+            ProviderIcon(icon)
             Spacer(modifier = Modifier.width(6.dp))
         }
         Text(label, style = textStyle)
@@ -39,11 +41,37 @@ fun BackendProviderLabel(
 }
 
 @Composable
-private fun DeepSeekProviderIcon() {
+private fun ProviderIcon(icon: ProviderIconSpec) {
     Image(
-        painter = painterResource(id = R.drawable.ic_deepseek_mark),
+        painter = painterResource(id = icon.drawableRes),
         contentDescription = null,
         modifier = Modifier
-            .size(width = 24.dp, height = 18.dp)
+            .size(width = icon.width, height = icon.height)
     )
+}
+
+private data class ProviderIconSpec(
+    @DrawableRes val drawableRes: Int,
+    val width: Dp = 22.dp,
+    val height: Dp = 22.dp
+)
+
+private fun providerIcon(backend: String): ProviderIconSpec? {
+    return when (SettingsRepository.normalizeBackend(backend)) {
+        SettingsRepository.BACKEND_DEEPSEEK -> ProviderIconSpec(
+            drawableRes = R.drawable.ic_deepseek_mark,
+            width = 24.dp,
+            height = 18.dp
+        )
+        SettingsRepository.BACKEND_ZHIPU -> ProviderIconSpec(
+            drawableRes = R.drawable.ic_zhipu_mark,
+            width = 38.dp,
+            height = 13.dp
+        )
+        SettingsRepository.BACKEND_QWEN -> ProviderIconSpec(R.drawable.ic_qwen_mark)
+        SettingsRepository.BACKEND_CLAUDE -> ProviderIconSpec(R.drawable.ic_claude_mark)
+        SettingsRepository.BACKEND_GPT -> ProviderIconSpec(R.drawable.ic_openai_mark)
+        SettingsRepository.BACKEND_CUSTOM_OPENAI -> ProviderIconSpec(R.drawable.ic_custom_api_mark)
+        else -> null
+    }
 }

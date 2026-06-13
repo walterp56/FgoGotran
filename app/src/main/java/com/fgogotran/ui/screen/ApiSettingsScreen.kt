@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 private data class BackendOption(
     val value: String,
     val label: String,
-    val note: String
+    val note: String? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,28 +34,23 @@ fun ApiSettingsScreen(
         listOf(
             BackendOption(
                 SettingsRepository.BACKEND_DEEPSEEK,
-                "DeepSeek",
-                "默认使用 deepseek-v4-flash"
+                "DeepSeek"
             ),
             BackendOption(
                 SettingsRepository.BACKEND_ZHIPU,
-                "智谱 GLM",
-                "免费模型 glm-4.7-flash"
+                "智谱 GLM"
             ),
             BackendOption(
                 SettingsRepository.BACKEND_QWEN,
-                "阿里云 Qwen",
-                "默认使用 qwen-flash（新加坡）"
+                "阿里云 Qwen"
             ),
             BackendOption(
                 SettingsRepository.BACKEND_GPT,
-                "OpenAI",
-                "OpenAI Chat Completions"
+                "OpenAI"
             ),
             BackendOption(
                 SettingsRepository.BACKEND_CLAUDE,
-                "Claude",
-                "Anthropic Messages API"
+                "Claude"
             ),
             BackendOption(
                 SettingsRepository.BACKEND_CUSTOM_OPENAI,
@@ -73,22 +68,37 @@ fun ApiSettingsScreen(
 
     LaunchedEffect(Unit) {
         selectedBackend = SettingsRepository.normalizeBackend(settingsRepository.translationBackend.first())
-        apiBaseUrl = settingsRepository.apiBaseUrl.first()
+        apiBaseUrl = settingsRepository.getApiBaseUrlForBackend(selectedBackend)
             .ifBlank { SettingsRepository.defaultApiBaseUrl(selectedBackend) }
-        apiModel = settingsRepository.apiModel.first()
+        apiModel = settingsRepository.getApiModelForBackend(selectedBackend)
             .ifBlank { SettingsRepository.defaultApiModel(selectedBackend) }
-        apiKey = settingsRepository.apiKey.first()
+        apiKey = settingsRepository.getApiKeyForBackend(selectedBackend)
     }
 
-    fun applyBackendDefaults(backend: String) {
+    fun selectBackend(backend: String) {
         selectedBackend = backend
         apiBaseUrl = SettingsRepository.defaultApiBaseUrl(backend)
         apiModel = SettingsRepository.defaultApiModel(backend)
         apiKey = ""
         saveMessage = ""
         scope.launch {
-            apiKey = settingsRepository.getApiKeyForBackend(backend)
+            val savedBaseUrl = settingsRepository.getApiBaseUrlForBackend(backend)
+                .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) }
+            val savedModel = settingsRepository.getApiModelForBackend(backend)
+                .ifBlank { SettingsRepository.defaultApiModel(backend) }
+            val savedKey = settingsRepository.getApiKeyForBackend(backend)
+            if (selectedBackend == backend) {
+                apiBaseUrl = savedBaseUrl
+                apiModel = savedModel
+                apiKey = savedKey
+            }
         }
+    }
+
+    fun restoreBackendDefaults() {
+        apiBaseUrl = SettingsRepository.defaultApiBaseUrl(selectedBackend)
+        apiModel = SettingsRepository.defaultApiModel(selectedBackend)
+        saveMessage = ""
     }
 
     fun saveSettings() {
@@ -139,7 +149,7 @@ fun ApiSettingsScreen(
                         ) {
                             RadioButton(
                                 selected = selectedBackend == option.value,
-                                onClick = { applyBackendDefaults(option.value) }
+                                onClick = { selectBackend(option.value) }
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 BackendProviderLabel(
@@ -147,11 +157,13 @@ fun ApiSettingsScreen(
                                     label = option.label,
                                     textStyle = MaterialTheme.typography.bodyLarge
                                 )
-                                Text(
-                                    option.note,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
+                                option.note?.let { note ->
+                                    Text(
+                                        note,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
                             }
                         }
                     }
@@ -216,7 +228,7 @@ fun ApiSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
-                            onClick = { applyBackendDefaults(selectedBackend) }
+                            onClick = { restoreBackendDefaults() }
                         ) {
                             Text("恢复默认")
                         }

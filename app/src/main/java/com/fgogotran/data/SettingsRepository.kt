@@ -67,7 +67,7 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_CLAUDE_BASE_URL = "https://api.anthropic.com/v1/messages"
 
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
-        const val DEFAULT_ZHIPU_MODEL = "glm-4.7-flash"
+        const val DEFAULT_ZHIPU_MODEL = "glm-4.5-air"
         const val DEFAULT_QWEN_MODEL = "qwen-flash"
         const val DEFAULT_OPENAI_MODEL = "gpt-4o"
         const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
@@ -117,6 +117,12 @@ class SettingsRepository @Inject constructor(
 
         fun apiKeyPreferenceKey(backend: String) =
             stringPreferencesKey("api_key_${normalizeBackend(backend)}")
+
+        fun apiBaseUrlPreferenceKey(backend: String) =
+            stringPreferencesKey("api_base_url_${normalizeBackend(backend)}")
+
+        fun apiModelPreferenceKey(backend: String) =
+            stringPreferencesKey("api_model_${normalizeBackend(backend)}")
     }
 
     private val tag = "Settings"
@@ -141,13 +147,34 @@ class SettingsRepository @Inject constructor(
 
     /** Chat completions endpoint for the selected backend. Blank means provider default. */
     val apiBaseUrl: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_API_BASE_URL] ?: ""
+        val backend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
+        prefs[apiBaseUrlPreferenceKey(backend)] ?: prefs[KEY_API_BASE_URL] ?: ""
+    }
+
+    suspend fun getApiBaseUrlForBackend(backend: String): String {
+        val normalizedBackend = normalizeBackend(backend)
+        return context.dataStore.data.map { prefs ->
+            val selectedBackend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
+            prefs[apiBaseUrlPreferenceKey(normalizedBackend)]
+                ?: prefs[KEY_API_BASE_URL]?.takeIf { normalizedBackend == selectedBackend }
+                ?: ""
+        }.first()
     }
 
     /** Model name for the selected backend. */
     val apiModel: Flow<String> = context.dataStore.data.map { prefs ->
         val backend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
-        prefs[KEY_API_MODEL] ?: defaultApiModel(backend)
+        prefs[apiModelPreferenceKey(backend)] ?: prefs[KEY_API_MODEL] ?: defaultApiModel(backend)
+    }
+
+    suspend fun getApiModelForBackend(backend: String): String {
+        val normalizedBackend = normalizeBackend(backend)
+        return context.dataStore.data.map { prefs ->
+            val selectedBackend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
+            prefs[apiModelPreferenceKey(normalizedBackend)]
+                ?: prefs[KEY_API_MODEL]?.takeIf { normalizedBackend == selectedBackend }
+                ?: ""
+        }.first()
     }
 
     /** The player's FGO Master name for dialogue personalization. */
@@ -199,12 +226,20 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setApiBaseUrl(url: String) {
-        context.dataStore.edit { it[KEY_API_BASE_URL] = url.trim() }
+        val backend = translationBackend.first()
+        context.dataStore.edit {
+            it[apiBaseUrlPreferenceKey(backend)] = url.trim()
+            it[KEY_API_BASE_URL] = url.trim()
+        }
         FgoLogger.debug(tag, "Setting updated: api_base_url=${url.trim()}")
     }
 
     suspend fun setApiModel(model: String) {
-        context.dataStore.edit { it[KEY_API_MODEL] = model.trim() }
+        val backend = translationBackend.first()
+        context.dataStore.edit {
+            it[apiModelPreferenceKey(backend)] = model.trim()
+            it[KEY_API_MODEL] = model.trim()
+        }
         FgoLogger.debug(tag, "Setting updated: api_model=${model.trim()}")
     }
 
@@ -218,6 +253,8 @@ class SettingsRepository @Inject constructor(
         context.dataStore.edit {
             it[KEY_TRANSLATION_BACKEND] = normalizedBackend
             it[apiKeyPreferenceKey(normalizedBackend)] = apiKey.trim()
+            it[apiBaseUrlPreferenceKey(normalizedBackend)] = apiBaseUrl.trim()
+            it[apiModelPreferenceKey(normalizedBackend)] = apiModel.trim()
             it[KEY_API_BASE_URL] = apiBaseUrl.trim()
             it[KEY_API_MODEL] = apiModel.trim()
         }

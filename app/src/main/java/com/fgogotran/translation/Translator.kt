@@ -763,28 +763,28 @@ class Translator @Inject constructor(
     private suspend fun getRuntimeConfig(): RuntimeConfig {
         val now = System.currentTimeMillis()
         val playerName = userProfile.getPlayerName()
-        cachedRuntimeConfig?.let { cached ->
-            if (cached.playerName == playerName && now - cachedRuntimeConfigAt < RUNTIME_CONFIG_CACHE_TTL_MS) {
-                return cached
-            }
-            if (cached.playerName != playerName) {
-                clearCharacterNameCaches()
-                FgoLogger.info(tag, "Player name changed; local glossary cache cleared")
-            }
-        }
-
         val backend = settingsRepository.translationBackend.first()
         val loaded = RuntimeConfig(
             backend = backend,
-            apiKey = settingsRepository.apiKey.first(),
-            apiBaseUrl = settingsRepository.apiBaseUrl.first()
+            apiKey = settingsRepository.getApiKeyForBackend(backend),
+            apiBaseUrl = settingsRepository.getApiBaseUrlForBackend(backend)
                 .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) },
-            apiModel = settingsRepository.apiModel.first()
+            apiModel = settingsRepository.getApiModelForBackend(backend)
                 .ifBlank { SettingsRepository.defaultApiModel(backend) },
             playerName = playerName,
             cacheEnabled = settingsRepository.cacheEnabled.first(),
             glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "bundled-db" }
         )
+        cachedRuntimeConfig?.let { cached ->
+            if (cached.playerName != loaded.playerName) {
+                clearCharacterNameCaches()
+                FgoLogger.info(tag, "Player name changed; local glossary cache cleared")
+            }
+            if (cached == loaded && now - cachedRuntimeConfigAt < RUNTIME_CONFIG_CACHE_TTL_MS) {
+                return cached
+            }
+        }
+
         cachedRuntimeConfig = loaded
         cachedRuntimeConfigAt = now
         FgoLogger.debug(tag, "Runtime config refreshed")
