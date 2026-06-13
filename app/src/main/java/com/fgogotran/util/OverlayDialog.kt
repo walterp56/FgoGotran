@@ -1,9 +1,7 @@
 package com.fgogotran.util
 
-import android.content.Context
 import android.os.Build
 import android.view.WindowManager
-import androidx.appcompat.app.AlertDialog
 
 /**
  * The correct overlay window type for the current API level.
@@ -16,30 +14,3 @@ val overlayType: Int
     } else {
         WindowManager.LayoutParams.TYPE_PHONE
     }
-
-/**
- * Creates and shows an [AlertDialog] as a system overlay window.
- *
- * This allows dialogs to appear on top of other apps (e.g., FGO) when called
- * from a Service context rather than an Activity.
- *
- * Usage:
- * ```kotlin
- * showOverlayDialog(service) {
- *     setTitle("Menu")
- *     setMessage("Choose an option")
- *     setPositiveButton("OK") { _, _ -> }
- * }
- * ```
- */
-fun showOverlayDialog(context: Context, builder: AlertDialog.Builder.() -> Unit): AlertDialog {
-    val alertDialog = AlertDialog.Builder(context)
-        .apply(builder)
-        .create()
-
-    // Set window type to overlay so it appears on top of other apps
-    alertDialog.window?.setType(overlayType)
-    alertDialog.show()
-
-    return alertDialog
-}

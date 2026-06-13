@@ -220,37 +220,6 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_DB_LAST_UPDATE_AT] ?: 0L
     }
 
-    suspend fun setTranslationBackend(backend: String) {
-        val normalizedBackend = normalizeBackend(backend)
-        context.dataStore.edit { it[KEY_TRANSLATION_BACKEND] = normalizedBackend }
-        FgoLogger.debug(tag, "Setting updated: translation_backend=$normalizedBackend")
-    }
-
-    suspend fun setApiKey(key: String) {
-        val backend = translationBackend.first()
-        context.dataStore.edit { it[apiKeyPreferenceKey(backend)] = key }
-        // Redact the actual key value to prevent accidental log leakage
-        FgoLogger.debug(tag, "Setting updated: api_key=(redacted, ${key.length} chars)")
-    }
-
-    suspend fun setApiBaseUrl(url: String) {
-        val backend = translationBackend.first()
-        context.dataStore.edit {
-            it[apiBaseUrlPreferenceKey(backend)] = url.trim()
-            it[KEY_API_BASE_URL] = url.trim()
-        }
-        FgoLogger.debug(tag, "Setting updated: api_base_url=${url.trim()}")
-    }
-
-    suspend fun setApiModel(model: String) {
-        val backend = translationBackend.first()
-        context.dataStore.edit {
-            it[apiModelPreferenceKey(backend)] = model.trim()
-            it[KEY_API_MODEL] = model.trim()
-        }
-        FgoLogger.debug(tag, "Setting updated: api_model=${model.trim()}")
-    }
-
     suspend fun saveApiSettings(
         backend: String,
         apiKey: String,

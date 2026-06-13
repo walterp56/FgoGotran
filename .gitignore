@@ -3,6 +3,11 @@
 build/
 app/build/
 
+# Python virtual environments
+.venv/
+venv/
+term_builder/venv/
+
 # Kotlin daemon
 .kotlin/
 

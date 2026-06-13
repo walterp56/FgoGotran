@@ -7,8 +7,12 @@ import com.fgogotran.translation.Translator
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +46,13 @@ class GlossaryUpdateManager @Inject constructor(
     private val termDatabase: TermDatabase,
     private val translator: Translator
 ) {
-    private val httpClient = HttpClient()
+    private val httpClient = HttpClient {
+        install(HttpTimeout) {
+            connectTimeoutMillis = CONNECT_TIMEOUT_MS
+            requestTimeoutMillis = REQUEST_TIMEOUT_MS
+            socketTimeoutMillis = REQUEST_TIMEOUT_MS
+        }
+    }
     private val json = Json { ignoreUnknownKeys = true }
     private val tag = "GlossaryUpdate"
     private val _updateStatus = MutableStateFlow(DbUpdateStatus())
@@ -53,6 +63,8 @@ class GlossaryUpdateManager @Inject constructor(
         private const val SUPPORTED_SCHEMA_VERSION = 1
         private const val TEMP_DB_NAME = "fgo_terms.db.download"
         private const val AUTO_CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L
+        private const val CONNECT_TIMEOUT_MS = 10_000L
+        private const val REQUEST_TIMEOUT_MS = 30_000L
         private val hasAttemptedUpdate = AtomicBoolean(false)
         private val updateInProgress = AtomicBoolean(false)
     }
@@ -140,7 +152,11 @@ class GlossaryUpdateManager @Inject constructor(
     }
 
     private suspend fun fetchManifest(): GlossaryDbManifest {
-        val body = httpClient.get(MANIFEST_URL).body<String>()
+        val response = httpClient.get(MANIFEST_URL)
+        val body = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("Manifest HTTP ${response.status.value}: ${body.take(240)}")
+        }
         return json.decodeFromString(GlossaryDbManifest.serializer(), body)
     }
 
@@ -180,9 +196,22 @@ class GlossaryUpdateManager @Inject constructor(
             throw IllegalStateException("Unable to delete stale download: ${tempFile.absolutePath}")
         }
 
-        val bytes = httpClient.get(manifest.dbUrl).body<ByteArray>()
-        tempFile.outputStream().use { output ->
-            output.write(bytes)
+        val response = httpClient.get(manifest.dbUrl)
+        if (!response.status.isSuccess()) {
+            val errorBody = response.bodyAsText()
+            throw IllegalStateException("DB download HTTP ${response.status.value}: ${errorBody.take(240)}")
+        }
+
+        val channel = response.bodyAsChannel()
+        tempFile.outputStream().buffered().use { output ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = channel.readAvailable(buffer, 0, buffer.size)
+                if (read == -1) break
+                if (read > 0) {
+                    output.write(buffer, 0, read)
+                }
+            }
         }
         FgoLogger.info(tag, "DB update: downloaded ${tempFile.length()} bytes")
         return tempFile

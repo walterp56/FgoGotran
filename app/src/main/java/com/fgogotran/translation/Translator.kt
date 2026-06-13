@@ -46,14 +46,6 @@ data class ChatMessage(
 )
 
 @Serializable
-data class ChatRequest(
-    val model: String,
-    val messages: List<ChatMessage>,
-    val max_tokens: Int = 1024,
-    val temperature: Double = 0.3
-)
-
-@Serializable
 data class ChatChoice(
     val message: ChatMessage
 )
