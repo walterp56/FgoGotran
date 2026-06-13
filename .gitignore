@@ -3,10 +3,18 @@
 build/
 app/build/
 
+# Web
+web/node_modules/
+web/.next/
+web/out/
+
 # Python virtual environments
 .venv/
 venv/
+term_builder/.venv/
+term_builder/venv
 term_builder/venv/
+term_builder/venv/**
 
 # Kotlin daemon
 .kotlin/
