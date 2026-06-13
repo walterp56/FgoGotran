@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.AccessibilityService.ScreenshotResult
 import android.accessibilityservice.AccessibilityService.TakeScreenshotCallback
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.SystemClock
@@ -124,6 +125,9 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
         private const val RUBY_HEIGHT_RATIO = 0.72f
+        private const val TEXT_COLOR_HUE_BUCKETS = 12
+        private const val MIN_COLORED_TEXT_PIXELS = 8
+        private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
 
         private val _serviceStarted = mutableStateOf(false)
         val serviceStarted: State<Boolean>
@@ -536,11 +540,17 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             val translationDuration = SystemClock.elapsedRealtime() - translationStartedAt
 
+            val cropTextColor = sampleCropOriginalTextColor(
+                crop = cropBitmap,
+                lines = ocrResult.lines,
+                coordinateScale = if (scaledForOcr != null) CROP_OCR_SCALE else 1
+            )
             val rendered = withContext(Dispatchers.Default) {
                 cropResultRenderer.render(
                     width = cropBounds.width(),
                     height = cropBounds.height(),
-                    text = translated
+                    text = translated,
+                    textColor = cropTextColor ?: FGO_RENDER_WHITE
                 )
             }
             cropResultOverlay.show(cropBounds, rendered)
@@ -1593,13 +1603,12 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun sampleOriginalTextColor(source: Bitmap, region: ClassifiedRegion): Int? {
-        var redScore = 0
-        var cyanScore = 0
+        val colorBuckets = Array(TEXT_COLOR_HUE_BUCKETS) { TextColorBucket() }
         var whiteScore = 0
 
         for (line in region.lines) {
             val bounds = Rect(line.boundingBox)
-            bounds.intersect(0, 0, source.width, source.height)
+            if (!bounds.intersect(0, 0, source.width, source.height)) continue
             if (bounds.width() <= 0 || bounds.height() <= 0) continue
 
             for (y in bounds.top until bounds.bottom step 2) {
@@ -1612,22 +1621,98 @@ class FgoAccessibilityService : AccessibilityService() {
                     val min = minOf(r, g, b)
                     val spread = max - min
 
-                    if (r >= 180 && g <= 125 && b <= 125 && r - maxOf(g, b) >= 45) {
-                        redScore++
-                    } else if (g >= 150 && b >= 150 && r <= 130 && minOf(g, b) - r >= 45) {
-                        cyanScore++
-                    } else if (r >= 175 && g >= 175 && b >= 175 && spread <= 70) {
+                    if (r >= 175 && g >= 175 && b >= 175 && spread <= 70) {
                         whiteScore++
+                        continue
                     }
+
+                    if (max < 145 || spread < 35) continue
+                    val saturation = spread.toFloat() / max.coerceAtLeast(1)
+                    if (saturation < 0.22f) continue
+
+                    val hsv = FloatArray(3)
+                    Color.RGBToHSV(r, g, b, hsv)
+                    val bucketIndex = ((hsv[0] / 360f) * TEXT_COLOR_HUE_BUCKETS)
+                        .toInt()
+                        .coerceIn(0, TEXT_COLOR_HUE_BUCKETS - 1)
+                    colorBuckets[bucketIndex].add(r, g, b)
                 }
             }
         }
 
-        return when {
-            cyanScore >= 8 && cyanScore >= redScore && cyanScore > whiteScore / 3 -> android.graphics.Color.rgb(80, 235, 235)
-            redScore >= 8 && redScore > whiteScore / 3 -> android.graphics.Color.rgb(255, 80, 80)
-            whiteScore > 0 -> android.graphics.Color.rgb(245, 245, 240)
-            else -> null
+        val dominantColor = colorBuckets
+            .filter { it.count >= MIN_COLORED_TEXT_PIXELS }
+            .maxByOrNull { it.count }
+            ?.takeIf { it.count >= whiteScore / 3 }
+            ?.toColor()
+        return dominantColor ?: if (whiteScore > 0) FGO_RENDER_WHITE else null
+    }
+
+    private fun sampleCropOriginalTextColor(
+        crop: Bitmap,
+        lines: List<OcrTextLine>,
+        coordinateScale: Int
+    ): Int? {
+        val scale = coordinateScale.coerceAtLeast(1)
+        val cropLines = lines.mapNotNull { line ->
+            val sourceBounds = line.boundingBox
+            val bounds = if (scale == 1) {
+                Rect(sourceBounds)
+            } else {
+                Rect(
+                    sourceBounds.left / scale,
+                    sourceBounds.top / scale,
+                    (sourceBounds.right + scale - 1) / scale,
+                    (sourceBounds.bottom + scale - 1) / scale
+                )
+            }
+            if (bounds.width() <= 0 || bounds.height() <= 0) return@mapNotNull null
+            OcrTextLine(
+                text = line.text,
+                boundingBox = bounds,
+                confidence = line.confidence
+            )
+        }
+        if (cropLines.isEmpty()) return null
+        return sampleOriginalTextColor(
+            source = crop,
+            region = ClassifiedRegion(
+                region = TextRegion.DIALOGUE_BOX,
+                lines = cropLines,
+                boundingBox = Rect(0, 0, crop.width, crop.height)
+            )
+        )
+    }
+
+    private data class TextColorBucket(
+        var count: Int = 0,
+        var redTotal: Int = 0,
+        var greenTotal: Int = 0,
+        var blueTotal: Int = 0
+    ) {
+        fun add(red: Int, green: Int, blue: Int) {
+            count++
+            redTotal += red
+            greenTotal += green
+            blueTotal += blue
+        }
+
+        fun toColor(): Int {
+            if (count <= 0) return FGO_RENDER_WHITE
+            val red = (redTotal / count).coerceIn(0, 255)
+            val green = (greenTotal / count).coerceIn(0, 255)
+            val blue = (blueTotal / count).coerceIn(0, 255)
+            val max = maxOf(red, green, blue)
+            if (max >= 220) {
+                return Color.rgb(red, green, blue)
+            }
+
+            val boost = 220f / max.coerceAtLeast(1)
+            return Color.rgb(
+                (red * boost).toInt().coerceIn(0, 255),
+                (green * boost).toInt().coerceIn(0, 255),
+                (blue * boost).toInt().coerceIn(0, 255)
+            )
         }
     }
 

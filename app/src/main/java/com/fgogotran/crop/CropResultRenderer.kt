@@ -28,7 +28,12 @@ class CropResultRenderer @Inject constructor(
         isLinearText = true
     }
 
-    fun render(width: Int, height: Int, text: String): Bitmap {
+    fun render(
+        width: Int,
+        height: Int,
+        text: String,
+        textColor: Int = FGO_TEXT_COLOR
+    ): Bitmap {
         val bitmapWidth = width.coerceAtLeast(1)
         val bitmapHeight = height.coerceAtLeast(1)
         val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
@@ -46,18 +51,24 @@ class CropResultRenderer @Inject constructor(
                 ((maxHeight - totalTextHeight) / 2f).coerceAtLeast(0f) -
                 textPaint.fontMetrics.ascent
         fitted.lines.forEach { line ->
-            drawTranslatedLine(canvas, line, padding, baseline)
+            drawTranslatedLine(canvas, line, padding, baseline, textColor)
             baseline += fitted.lineHeight
         }
         return bitmap
     }
 
-    private fun drawTranslatedLine(canvas: Canvas, line: String, x: Float, baseline: Float) {
+    private fun drawTranslatedLine(
+        canvas: Canvas,
+        line: String,
+        x: Float,
+        baseline: Float,
+        textColor: Int
+    ) {
         textPaint.setShadowLayer(2f, SHADOW_OFFSET, SHADOW_OFFSET, Color.BLACK)
-        textPaint.color = FGO_TEXT_COLOR
+        textPaint.color = textColor
         canvas.drawText(line, x, baseline, textPaint)
         textPaint.clearShadowLayer()
-        textPaint.color = FGO_TEXT_COLOR
+        textPaint.color = textColor
         canvas.drawText(line, x, baseline, textPaint)
     }
 
