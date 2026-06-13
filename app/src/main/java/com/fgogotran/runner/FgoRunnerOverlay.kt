@@ -337,12 +337,4 @@ class FgoRunnerOverlay @Inject constructor(
         TranslationTrigger.setHistoryVisible(false)
     }
 
-    // ─── MediaProjection ───────────────────────────────────────────────
-
-    /** Called when a MediaProjection token becomes available. */
-    fun onMediaProjectionReady() {
-        FgoLogger.info(tag, "MediaProjection token received")
-        // The ScreenshotServiceHolder will be wired into FgoAccessibilityService
-        // to start using MediaProjection for screenshots
-    }
 }

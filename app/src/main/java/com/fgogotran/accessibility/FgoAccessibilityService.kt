@@ -2205,7 +2205,6 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    @Suppress("NewApi")
     private suspend fun takeScreenshotCompat(): Bitmap? {
         return suspendCoroutine { cont ->
             takeScreenshot(

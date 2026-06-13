@@ -2,10 +2,8 @@ package com.fgogotran.ui.screen
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -25,7 +23,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.runner.FgoRunnerService
-import com.fgogotran.ui.StartMediaProjection
 import com.fgogotran.R
 
 /**
@@ -35,8 +32,7 @@ import com.fgogotran.R
  * 1. Tap "启动服务" FAB
  * 2. Check overlay permission → show dialog if not granted
  * 3. Check accessibility service → show dialog if not running
- * 4. Check MediaProjection token → launch system screen share dialog
- * 5. Start FgoRunnerService → floating button appears on FGO
+ * 4. Start FgoRunnerService → floating button appears on FGO
  *
  * Tap "停止服务" → stop service → floating button disappears
  */
@@ -74,23 +70,13 @@ fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // MediaProjection launcher (system "Share screen" dialog)
-    val mediaProjectionLauncher =
-        rememberLauncherForActivityResult(StartMediaProjection()) { intent ->
-            if (intent != null) {
-                FgoRunnerService.mediaProjectionToken = intent
-                FgoRunnerService.startService(context)
-            }
-        }
-
     /**
      * Permission-gated service toggle.
-     * Checks overlay → accessibility → MediaProjection → start service.
+     * Checks overlay → accessibility → start service.
      */
     fun toggleService() {
         if (serviceRunning) {
             FgoRunnerService.stopService(context)
-            FgoRunnerService.mediaProjectionToken = null
             return
         }
 
@@ -100,14 +86,8 @@ fun HomeScreen(
                 .setTitle("需要悬浮窗权限")
                 .setMessage("FgoGotran 需要“显示在其他应用上层”权限，才能在 FGO 上显示翻译按钮。")
                 .setPositiveButton("前往设置") { _, _ ->
-                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
-                    } else {
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
+                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                        data = Uri.parse("package:${context.packageName}")
                     }
                     context.startActivity(intent)
                 }
@@ -126,12 +106,6 @@ fun HomeScreen(
                 }
                 .setNegativeButton("取消", null)
                 .show()
-            return
-        }
-
-        // Check 3: MediaProjection — ask user to share screen
-        if (FgoRunnerService.mediaProjectionToken == null) {
-            mediaProjectionLauncher.launch(Unit)
             return
         }
 

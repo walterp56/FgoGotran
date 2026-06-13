@@ -42,14 +42,6 @@ class FgoRunnerService : Service() {
                 _serviceStarted.value = value != null
             }
 
-        var mediaProjectionToken: Intent? = null
-            set(value) {
-                field = value
-                if (value != null) {
-                    instance?.overlay?.onMediaProjectionReady()
-                }
-            }
-
         fun startService(context: Context) {
             val intent = Intent(context, FgoRunnerService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -97,7 +89,6 @@ class FgoRunnerService : Service() {
 
     private fun stopFromOverlay() {
         FgoLogger.info(tag, "Stop requested from floating menu")
-        mediaProjectionToken = null
         stopSelf()
     }
 

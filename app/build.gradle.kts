@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.fgogotran"
-        minSdk = 28
+        minSdk = 30
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
