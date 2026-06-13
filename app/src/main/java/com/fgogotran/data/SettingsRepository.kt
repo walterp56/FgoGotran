@@ -57,6 +57,8 @@ class SettingsRepository @Inject constructor(
         const val BACKEND_CLAUDE = "claude"
         /** OpenAI GPT Chat Completions API. */
         const val BACKEND_GPT = "gpt"
+        /** Google Gemini OpenAI-compatible API. */
+        const val BACKEND_GEMINI = "gemini"
         /** Custom OpenAI-compatible Chat Completions API. */
         const val BACKEND_CUSTOM_OPENAI = "custom_openai"
 
@@ -64,12 +66,14 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
         const val DEFAULT_QWEN_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
         const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
+        const val DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         const val DEFAULT_CLAUDE_BASE_URL = "https://api.anthropic.com/v1/messages"
 
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
         const val DEFAULT_ZHIPU_MODEL = "glm-4.5-air"
         const val DEFAULT_QWEN_MODEL = "qwen-flash"
         const val DEFAULT_OPENAI_MODEL = "gpt-4o"
+        const val DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
         const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
         const val DEFAULT_CUSTOM_MODEL = "deepseek-v4-flash"
 
@@ -79,6 +83,7 @@ class SettingsRepository @Inject constructor(
             BACKEND_QWEN,
             BACKEND_CLAUDE,
             BACKEND_GPT,
+            BACKEND_GEMINI,
             BACKEND_CUSTOM_OPENAI
         )
 
@@ -90,6 +95,7 @@ class SettingsRepository @Inject constructor(
             BACKEND_QWEN -> DEFAULT_QWEN_BASE_URL
             BACKEND_CLAUDE -> DEFAULT_CLAUDE_BASE_URL
             BACKEND_GPT -> DEFAULT_OPENAI_BASE_URL
+            BACKEND_GEMINI -> DEFAULT_GEMINI_BASE_URL
             BACKEND_CUSTOM_OPENAI -> DEFAULT_DEEPSEEK_BASE_URL
             else -> DEFAULT_DEEPSEEK_BASE_URL
         }
@@ -99,6 +105,7 @@ class SettingsRepository @Inject constructor(
             BACKEND_QWEN -> DEFAULT_QWEN_MODEL
             BACKEND_CLAUDE -> DEFAULT_CLAUDE_MODEL
             BACKEND_GPT -> DEFAULT_OPENAI_MODEL
+            BACKEND_GEMINI -> DEFAULT_GEMINI_MODEL
             BACKEND_CUSTOM_OPENAI -> DEFAULT_CUSTOM_MODEL
             else -> DEFAULT_DEEPSEEK_MODEL
         }
@@ -109,6 +116,7 @@ class SettingsRepository @Inject constructor(
             BACKEND_QWEN -> "阿里云 Qwen"
             BACKEND_CLAUDE -> "Claude"
             BACKEND_GPT -> "OpenAI"
+            BACKEND_GEMINI -> "Gemini"
             BACKEND_CUSTOM_OPENAI -> "自定义接口"
             else -> "DeepSeek"
         }

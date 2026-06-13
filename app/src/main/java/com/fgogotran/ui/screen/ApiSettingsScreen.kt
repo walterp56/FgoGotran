@@ -49,6 +49,10 @@ fun ApiSettingsScreen(
                 "OpenAI"
             ),
             BackendOption(
+                SettingsRepository.BACKEND_GEMINI,
+                "Gemini"
+            ),
+            BackendOption(
                 SettingsRepository.BACKEND_CLAUDE,
                 "Claude"
             ),

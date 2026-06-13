@@ -71,6 +71,7 @@ private fun providerIcon(backend: String): ProviderIconSpec? {
         SettingsRepository.BACKEND_QWEN -> ProviderIconSpec(R.drawable.ic_qwen_mark)
         SettingsRepository.BACKEND_CLAUDE -> ProviderIconSpec(R.drawable.ic_claude_mark)
         SettingsRepository.BACKEND_GPT -> ProviderIconSpec(R.drawable.ic_openai_mark)
+        SettingsRepository.BACKEND_GEMINI -> ProviderIconSpec(R.drawable.ic_gemini_mark)
         SettingsRepository.BACKEND_CUSTOM_OPENAI -> ProviderIconSpec(R.drawable.ic_custom_api_mark)
         else -> null
     }

@@ -2137,7 +2137,8 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
         apiModel: String,
         messages: List<ChatMessage>,
         maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
-        disableThinking: Boolean = false
+        disableThinking: Boolean = false,
+        reasoningEffort: String? = null
     ): String {
         val response = httpClient.post(apiBaseUrl) {
             if (apiKey.isNotBlank()) {
@@ -2150,6 +2151,9 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
                     put("messages", chatMessagesJson(messages))
                     put("max_tokens", JsonPrimitive(maxTokens))
                     put("temperature", JsonPrimitive(0.3))
+                    if (!reasoningEffort.isNullOrBlank()) {
+                        put("reasoning_effort", JsonPrimitive(reasoningEffort))
+                    }
                     if (disableThinking) {
                         put(
                             "thinking",
@@ -2289,6 +2293,14 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages
+            )
+
+            SettingsRepository.BACKEND_GEMINI -> translateOpenAiCompatible(
+                apiKey = config.apiKey,
+                apiBaseUrl = config.apiBaseUrl,
+                apiModel = config.apiModel,
+                messages = messages,
+                reasoningEffort = "low"
             )
 
             else -> translateDeepSeek(

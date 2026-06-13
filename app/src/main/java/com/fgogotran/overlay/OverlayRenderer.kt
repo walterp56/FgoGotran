@@ -62,7 +62,7 @@ class OverlayRenderer @Inject constructor(
         private val NAME_BACKGROUND = Color.rgb(52, 89, 138)
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
-        private const val MIN_NAME_PLATE_WIDTH = 500f
+        private const val MIN_NAME_PLATE_WIDTH = 160f
         private const val CHOICE_REFERENCE_WIDTH = 1470f
         private const val CHOICE_REFERENCE_HEIGHT = 110f
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
@@ -239,15 +239,24 @@ class OverlayRenderer @Inject constructor(
         val box = instruction.region.boundingBox
         val scale = screenScale(canvas)
         val name = instruction.translatedText.trim()
-        val minimumRenderedWidth = MIN_NAME_PLATE_WIDTH * scale
 
         paint.apply {
             color = instruction.textColor ?: FGO_TEXT_COLOR
             textSize = 48f * scale
         }
 
+        val originalNameBounds = originalTextBounds(instruction)
+        val originalNameRight = originalNameBounds
+            ?.right
+            ?.toFloat()
+            ?.plus(30f * scale)
+            ?: box.left.toFloat()
         val requiredWidth = 52f * scale + paint.measureText(name) + 28f * scale
-        val renderedRight = (box.left + maxOf(minimumRenderedWidth, requiredWidth))
+        val renderedRight = maxOf(
+            box.left + MIN_NAME_PLATE_WIDTH * scale,
+            box.left + requiredWidth,
+            originalNameRight + 10f * scale
+        )
             .coerceAtMost(canvas.width.toFloat())
 
         canvas.drawRoundRect(
@@ -283,6 +292,19 @@ class OverlayRenderer @Inject constructor(
             textColor = instruction.textColor ?: FGO_TEXT_COLOR
         )
         canvas.restore()
+    }
+
+    private fun originalTextBounds(instruction: RenderInstruction): Rect? {
+        val sourceLines = instruction.region.lines.filter {
+            it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0
+        }
+        if (sourceLines.isEmpty()) return null
+
+        val bounds = Rect(sourceLines.first().boundingBox)
+        sourceLines.drop(1).forEach { line ->
+            bounds.union(line.boundingBox)
+        }
+        return bounds
     }
 
     /**
