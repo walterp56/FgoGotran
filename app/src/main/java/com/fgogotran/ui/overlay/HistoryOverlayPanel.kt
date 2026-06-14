@@ -5,6 +5,9 @@ import android.graphics.Color as AndroidColor
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -155,7 +158,10 @@ private fun addHistoryEntryViews(
         container.addView(
             historyTextView(
                 context = container.context,
-                text = quoteSpeakerDialogue(it, speakerName != null),
+                text = quoteSpeakerDialogue(
+                    text = it,
+                    hasSpeaker = speakerName != null
+                ),
                 color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                 typeface = typeface
             )
@@ -175,16 +181,24 @@ private fun addHistoryEntryViews(
     }
 }
 
-private fun quoteSpeakerDialogue(text: String, hasSpeaker: Boolean): String {
+private fun quoteSpeakerDialogue(text: String, hasSpeaker: Boolean): CharSequence {
     if (!hasSpeaker) return text
     val trimmed = text.trim()
-    if (trimmed.startsWith("「") && trimmed.endsWith("」")) return text
-    return "「$text」"
+    val quotedText = if (trimmed.startsWith("「") && trimmed.endsWith("」")) text else "「$text」"
+    return SpannableString(quotedText).apply {
+        setSpan(ForegroundColorSpan(AndroidColor.WHITE), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        setSpan(
+            ForegroundColorSpan(AndroidColor.WHITE),
+            quotedText.length - 1,
+            quotedText.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+    }
 }
 
 private fun historyTextView(
     context: Context,
-    text: String,
+    text: CharSequence,
     typeface: Typeface,
     color: Int = AndroidColor.WHITE,
     gravity: Int = Gravity.START

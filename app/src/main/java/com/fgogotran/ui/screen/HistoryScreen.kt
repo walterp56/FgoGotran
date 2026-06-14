@@ -24,6 +24,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
@@ -92,7 +96,10 @@ private fun HistoryItem(translation: SessionTranslationEntry) {
             translation.dialogueText?.let {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = quoteSpeakerDialogue(it, !translation.speakerName.isNullOrBlank()),
+                    text = quoteSpeakerDialogue(
+                        text = it,
+                        hasSpeaker = !translation.speakerName.isNullOrBlank()
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = translation.dialogueTextColor?.let { color -> Color(color) } ?: Color.Unspecified
                 )
@@ -112,9 +119,17 @@ private fun HistoryItem(translation: SessionTranslationEntry) {
     }
 }
 
-private fun quoteSpeakerDialogue(text: String, hasSpeaker: Boolean): String {
-    if (!hasSpeaker) return text
+private fun quoteSpeakerDialogue(text: String, hasSpeaker: Boolean): AnnotatedString {
+    if (!hasSpeaker) return AnnotatedString(text)
     val trimmed = text.trim()
-    if (trimmed.startsWith("「") && trimmed.endsWith("」")) return text
-    return "「$text」"
+    val quotedText = if (trimmed.startsWith("「") && trimmed.endsWith("」")) text else "「$text」"
+    return buildAnnotatedString {
+        withStyle(SpanStyle(color = Color.White)) {
+            append(quotedText.first().toString())
+        }
+        append(quotedText.substring(1, quotedText.lastIndex))
+        withStyle(SpanStyle(color = Color.White)) {
+            append(quotedText.last().toString())
+        }
+    }
 }
