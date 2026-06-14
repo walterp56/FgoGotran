@@ -1,5 +1,7 @@
 package com.fgogotran.ui.screen
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -7,13 +9,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.ui.component.BackendProviderLabel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.fgogotran.update.AppUpdateManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -31,16 +32,16 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
     glossaryUpdateManager: GlossaryUpdateManager,
+    appUpdateManager: AppUpdateManager,
     onApiSettings: () -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
-    val timeFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
     val dbContentVersion by settingsRepository.dbContentVersion.collectAsState(initial = "")
-    val dbLastCheckAt by settingsRepository.dbLastCheckAt.collectAsState(initial = 0L)
-    val dbLastUpdateAt by settingsRepository.dbLastUpdateAt.collectAsState(initial = 0L)
     val dbUpdateStatus by glossaryUpdateManager.updateStatus.collectAsState()
+    val appUpdateStatus by appUpdateManager.updateStatus.collectAsState()
     val translationBackend by settingsRepository.translationBackend.collectAsState(
         initial = SettingsRepository.BACKEND_DEEPSEEK
     )
@@ -62,8 +63,9 @@ fun SettingsScreen(
         scope.launch { settingsRepository.setPlayerName(playerName) }
     }
 
-    fun formatTime(epochMillis: Long): String {
-        return if (epochMillis <= 0L) "从未" else timeFormatter.format(Date(epochMillis))
+    fun openUpdateUrl(url: String) {
+        if (url.isBlank()) return
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 
     Scaffold(
@@ -86,47 +88,6 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("数据库", style = MaterialTheme.typography.titleMedium)
-                    SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "内置数据库" })
-                    SettingsInfoRow(label = "上次检查", value = formatTime(dbLastCheckAt))
-                    SettingsInfoRow(label = "上次更新", value = formatTime(dbLastUpdateAt))
-                    SettingsInfoRow(
-                        label = "状态",
-                        value = listOf(dbUpdateStatus.message, dbUpdateStatus.detail)
-                            .filter { it.isNotBlank() }
-                            .joinToString(" - ")
-                    )
-                    Text(
-                        "每天首次启动悬浮按钮服务时自动检查一次。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    Button(
-                        onClick = { scope.launch { glossaryUpdateManager.updateIfNeeded(force = true) } },
-                        enabled = !dbUpdateStatus.isChecking,
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        if (dbUpdateStatus.isChecking) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text(if (dbUpdateStatus.isChecking) "检查中" else "检查更新")
-                    }
-                }
-            }
-
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -160,49 +121,154 @@ fun SettingsScreen(
                 }
             }
 
-            HorizontalDivider()
-
-            // ── Player Name ──
-            Text("玩家名称（Master名）", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "输入您在 FGO 中的玩家名称，翻译时会正确处理对话中的玩家名称。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            OutlinedTextField(
-                value = playerName,
-                onValueChange = { playerName = it },
-                label = { Text("玩家名称") },
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("例：藤丸立香") }
-            )
-            Button(onClick = { savePlayerName() }, modifier = Modifier.align(Alignment.End)) {
-                Text("保存玩家名称")
-            }
-
-            HorizontalDivider()
-
-            // ── Translation Cache ──
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Column {
-                    Text("翻译缓存")
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("玩家名称", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "缓存过的翻译可快速显示",
+                        "输入您在 FGO 中的玩家名称，翻译时会正确处理对话中的玩家名称。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
-                }
-                Switch(
-                    checked = cacheEnabled,
-                    onCheckedChange = {
-                        cacheEnabled = it
-                        scope.launch { settingsRepository.setCacheEnabled(it) }
+                    OutlinedTextField(
+                        value = playerName,
+                        onValueChange = { playerName = it },
+                        label = { Text("玩家名称") },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("例：藤丸立香") },
+                        singleLine = true
+                    )
+                    Button(onClick = { savePlayerName() }, modifier = Modifier.align(Alignment.End)) {
+                        Text("保存玩家名称")
                     }
-                )
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("术语库", style = MaterialTheme.typography.titleMedium)
+                    SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "内置术语库" })
+                    SettingsInfoRow(
+                        label = "状态",
+                        value = dbUpdateStatus.message.ifBlank { "空闲" }
+                    )
+                    Text(
+                        "用于角色名和 FGO 专有名词翻译。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Button(
+                        onClick = { scope.launch { glossaryUpdateManager.updateIfNeeded(force = true) } },
+                        enabled = !dbUpdateStatus.isChecking,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        if (dbUpdateStatus.isChecking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (dbUpdateStatus.isChecking) "检查中" else "检查术语库更新")
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("翻译缓存", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "缓存过的翻译可快速显示。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Switch(
+                        checked = cacheEnabled,
+                        onCheckedChange = {
+                            cacheEnabled = it
+                            scope.launch { settingsRepository.setCacheEnabled(it) }
+                        }
+                    )
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("应用更新", style = MaterialTheme.typography.titleMedium)
+                    SettingsInfoRow(
+                        label = "当前版本",
+                        value = "${appUpdateStatus.currentVersionName} (${appUpdateStatus.currentVersionCode})"
+                    )
+                    if (appUpdateStatus.latestVersionName.isNotBlank()) {
+                        SettingsInfoRow(
+                            label = "最新版本",
+                            value = "${appUpdateStatus.latestVersionName} (${appUpdateStatus.latestVersionCode})"
+                        )
+                    }
+                    SettingsInfoRow(label = "状态", value = appUpdateStatus.message)
+                    if (appUpdateStatus.hasUpdate && appUpdateStatus.releaseNotes.isNotEmpty()) {
+                        Text(
+                            appUpdateStatus.releaseNotes.joinToString("\n") { "• $it" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (appUpdateStatus.hasUpdate && appUpdateStatus.downloadUrl.isNotBlank()) {
+                            OutlinedButton(
+                                onClick = { openUpdateUrl(appUpdateStatus.downloadUrl) }
+                            ) {
+                                Text("下载新版")
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Button(
+                            onClick = { scope.launch { appUpdateManager.checkForUpdate() } },
+                            enabled = !appUpdateStatus.isChecking
+                        ) {
+                            if (appUpdateStatus.isChecking) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Text(if (appUpdateStatus.isChecking) "检查中" else "检查应用更新")
+                        }
+                    }
+                }
             }
         }
     }

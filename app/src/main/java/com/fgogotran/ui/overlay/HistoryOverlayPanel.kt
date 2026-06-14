@@ -7,7 +7,9 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.text.SpannableString
 import android.text.Spanned
+import android.text.TextPaint
 import android.text.style.ForegroundColorSpan
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -34,8 +36,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
+import kotlin.math.roundToInt
 
 private val FGO_CHOICE_HISTORY_RED = AndroidColor.rgb(246, 58, 60)
+private const val HISTORY_TEXT_SIZE_SP = 18f
 
 @Composable
 fun HistoryOverlayPanel(onDismiss: () -> Unit) {
@@ -155,17 +159,25 @@ private fun addHistoryEntryViews(
         )
     }
     entry.dialogueText?.takeIf { it.isNotBlank() }?.let {
-        container.addView(
-            historyTextView(
-                context = container.context,
-                text = quoteSpeakerDialogue(
+        if (speakerName != null) {
+            container.addView(
+                historySpeakerDialogueView(
+                    context = container.context,
                     text = it,
-                    hasSpeaker = speakerName != null
-                ),
-                color = entry.dialogueTextColor ?: AndroidColor.WHITE,
-                typeface = typeface
+                    color = entry.dialogueTextColor ?: AndroidColor.WHITE,
+                    typeface = typeface
+                )
             )
-        )
+        } else {
+            container.addView(
+                historyTextView(
+                    context = container.context,
+                    text = it,
+                    color = entry.dialogueTextColor ?: AndroidColor.WHITE,
+                    typeface = typeface
+                )
+            )
+        }
     }
     entry.choices.forEachIndexed { index, choice ->
         if (choice.isBlank()) return@forEachIndexed
@@ -181,19 +193,84 @@ private fun addHistoryEntryViews(
     }
 }
 
-private fun quoteSpeakerDialogue(text: String, hasSpeaker: Boolean): CharSequence {
-    if (!hasSpeaker) return text
+private fun historySpeakerDialogueView(
+    context: Context,
+    text: String,
+    typeface: Typeface,
+    color: Int
+): LinearLayout {
+    val quoteWidth = historyQuoteIndentPx(context, typeface)
+    val bodyText = quoteSpeakerDialogueBody(text)
+    return LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        isBaselineAligned = true
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            bottomMargin = dp(context, 3)
+        }
+        addView(
+            historyTextView(
+                context = context,
+                text = "「",
+                color = AndroidColor.WHITE,
+                typeface = typeface
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    quoteWidth,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+        )
+        addView(
+            historyTextView(
+                context = context,
+                text = quoteSpeakerDialogueClosing(bodyText),
+                color = color,
+                typeface = typeface
+            ).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+            }
+        )
+    }
+}
+
+private fun quoteSpeakerDialogueBody(text: String): String {
     val trimmed = text.trim()
-    val quotedText = if (trimmed.startsWith("「") && trimmed.endsWith("」")) text else "「$text」"
+    return if (trimmed.length >= 2 && trimmed.startsWith("「") && trimmed.endsWith("」")) {
+        trimmed.substring(1, trimmed.lastIndex)
+    } else {
+        text
+    }
+}
+
+private fun quoteSpeakerDialogueClosing(text: String): CharSequence {
+    val quotedText = "$text」"
     return SpannableString(quotedText).apply {
-        setSpan(ForegroundColorSpan(AndroidColor.WHITE), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         setSpan(
             ForegroundColorSpan(AndroidColor.WHITE),
-            quotedText.length - 1,
+            quotedText.lastIndex,
             quotedText.length,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
     }
+}
+
+private fun historyQuoteIndentPx(context: Context, typeface: Typeface): Int {
+    val quotePaint = TextPaint().apply {
+        textSize = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            HISTORY_TEXT_SIZE_SP,
+            context.resources.displayMetrics
+        )
+        this.typeface = typeface
+    }
+    return quotePaint.measureText("「").roundToInt().coerceAtLeast(1)
 }
 
 private fun historyTextView(
@@ -206,7 +283,7 @@ private fun historyTextView(
     return TextView(context).apply {
         this.text = text
         setTextColor(color)
-        textSize = 18f
+        textSize = HISTORY_TEXT_SIZE_SP
         this.typeface = typeface
         paint.isFakeBoldText = false
         paint.isSubpixelText = true

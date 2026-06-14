@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -95,14 +96,16 @@ private fun HistoryItem(translation: SessionTranslationEntry) {
             )
             translation.dialogueText?.let {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = quoteSpeakerDialogue(
+                val dialogueColor = translation.dialogueTextColor?.let { color -> Color(color) } ?: Color.Unspecified
+                if (!translation.speakerName.isNullOrBlank()) {
+                    SpeakerDialogueText(text = it, color = dialogueColor)
+                } else {
+                    Text(
                         text = it,
-                        hasSpeaker = !translation.speakerName.isNullOrBlank()
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = translation.dialogueTextColor?.let { color -> Color(color) } ?: Color.Unspecified
-                )
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = dialogueColor
+                    )
+                }
             }
             val droppedChoices = if (translation.speakerName == null) 1 else 0
             translation.choices.drop(droppedChoices).forEachIndexed { index, choice ->
@@ -119,15 +122,36 @@ private fun HistoryItem(translation: SessionTranslationEntry) {
     }
 }
 
-private fun quoteSpeakerDialogue(text: String, hasSpeaker: Boolean): AnnotatedString {
-    if (!hasSpeaker) return AnnotatedString(text)
+@Composable
+private fun SpeakerDialogueText(text: String, color: Color) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "「",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White
+        )
+        Text(
+            text = quoteSpeakerDialogueClosing(quoteSpeakerDialogueBody(text)),
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = color
+        )
+    }
+}
+
+private fun quoteSpeakerDialogueBody(text: String): String {
     val trimmed = text.trim()
-    val quotedText = if (trimmed.startsWith("「") && trimmed.endsWith("」")) text else "「$text」"
+    return if (trimmed.length >= 2 && trimmed.startsWith("「") && trimmed.endsWith("」")) {
+        trimmed.substring(1, trimmed.lastIndex)
+    } else {
+        text
+    }
+}
+
+private fun quoteSpeakerDialogueClosing(text: String): AnnotatedString {
+    val quotedText = "$text」"
     return buildAnnotatedString {
-        withStyle(SpanStyle(color = Color.White)) {
-            append(quotedText.first().toString())
-        }
-        append(quotedText.substring(1, quotedText.lastIndex))
+        append(quotedText.substring(0, quotedText.lastIndex))
         withStyle(SpanStyle(color = Color.White)) {
             append(quotedText.last().toString())
         }

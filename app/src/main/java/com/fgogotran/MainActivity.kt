@@ -22,6 +22,7 @@ import com.fgogotran.ui.screen.ApiSettingsScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
+import com.fgogotran.update.AppUpdateManager
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
+    @Inject lateinit var appUpdateManager: AppUpdateManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +52,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             FgoGotranTheme {
-                MainScreen(settingsRepository, glossaryUpdateManager)
+                MainScreen(settingsRepository, glossaryUpdateManager, appUpdateManager)
             }
         }
     }
@@ -67,7 +69,8 @@ enum class Screen { HOME, SETTINGS, API_SETTINGS }
 @Composable
 fun MainScreen(
     settingsRepository: SettingsRepository,
-    glossaryUpdateManager: GlossaryUpdateManager
+    glossaryUpdateManager: GlossaryUpdateManager,
+    appUpdateManager: AppUpdateManager
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
@@ -85,6 +88,7 @@ fun MainScreen(
         Screen.SETTINGS -> SettingsScreen(
             settingsRepository = settingsRepository,
             glossaryUpdateManager = glossaryUpdateManager,
+            appUpdateManager = appUpdateManager,
             onApiSettings = { currentScreen = Screen.API_SETTINGS },
             onBack = { currentScreen = Screen.HOME }
         )
