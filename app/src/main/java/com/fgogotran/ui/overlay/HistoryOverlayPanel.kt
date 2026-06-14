@@ -155,7 +155,7 @@ private fun addHistoryEntryViews(
         container.addView(
             historyTextView(
                 context = container.context,
-                text = it,
+                text = quoteSpeakerDialogue(it, speakerName != null),
                 color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                 typeface = typeface
             )
@@ -173,6 +173,13 @@ private fun addHistoryEntryViews(
             )
         )
     }
+}
+
+private fun quoteSpeakerDialogue(text: String, hasSpeaker: Boolean): String {
+    if (!hasSpeaker) return text
+    val trimmed = text.trim()
+    if (trimmed.startsWith("「") && trimmed.endsWith("」")) return text
+    return "「$text」"
 }
 
 private fun historyTextView(

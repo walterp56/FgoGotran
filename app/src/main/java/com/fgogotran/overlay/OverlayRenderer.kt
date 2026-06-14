@@ -69,9 +69,22 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
         private const val DIALOGUE_MAX_LINES = 2
-        private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.28f
+        private const val DIALOGUE_TEXT_LEFT_INSET = 108f
+        private const val DIALOGUE_TEXT_TOP_INSET = 48f
+        private const val DIALOGUE_TEXT_RIGHT_INSET = 46f
+        private const val DIALOGUE_TEXT_BOTTOM_INSET = 12f
+        private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.48f
         private const val DIALOGUE_MIN_TEXT_SIZE = 28f
         private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
+        private const val NAME_TEXT_SIZE = 56f
+        private const val NAME_TEXT_MIN_SIZE = 31f
+        private const val NAME_TEXT_LEFT_INSET = 52f
+        private const val NAME_TEXT_TOP_INSET = 6f
+        private const val NAME_TEXT_BOTTOM_INSET = 6f
+        private const val NAME_TEXT_BASELINE_OFFSET = 2f
+        private const val NAME_TEXT_RIGHT_INSET = 20f
+        private const val CHOICE_TEXT_SIZE = 53f
+        private const val CHOICE_TEXT_MIN_SIZE = 29f
         private const val WIDE_RENDER_SPACE = "\u3000"
         private val WIDE_RENDER_CONNECTORS = listOf(
             "\u4EE5\u53CA", "\u8FD8\u6709", "\u6216\u8005", "\u4F46\u662F",
@@ -161,8 +174,8 @@ class OverlayRenderer @Inject constructor(
             fitSingleLineOrNull(
                 text = instruction.toChoiceRenderText(),
                 paint = choicePaint,
-                initialTextSize = 49f * scale,
-                minimumTextSize = 27f * scale,
+                initialTextSize = CHOICE_TEXT_SIZE * scale,
+                minimumTextSize = CHOICE_TEXT_MIN_SIZE * scale,
                 maxWidth = textArea.width()
             ) ?: return@mapNotNull null
 
@@ -270,12 +283,11 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun dialogueTextArea(box: Rect, scale: Float): RectF {
-        val leftInset = 92f * scale
         return RectF(
-            box.left + leftInset,
-            box.top + 24f * scale,
-            box.right - 46f * scale,
-            box.bottom - 18f * scale
+            box.left + DIALOGUE_TEXT_LEFT_INSET * scale,
+            box.top + DIALOGUE_TEXT_TOP_INSET * scale,
+            box.right - DIALOGUE_TEXT_RIGHT_INSET * scale,
+            box.bottom - DIALOGUE_TEXT_BOTTOM_INSET * scale
         )
     }
 
@@ -293,7 +305,7 @@ class OverlayRenderer @Inject constructor(
 
         paint.apply {
             color = instruction.textColor ?: FGO_TEXT_COLOR
-            textSize = 48f * scale
+            textSize = NAME_TEXT_SIZE * scale
         }
 
         val originalNameBounds = originalTextBounds(instruction)
@@ -302,7 +314,7 @@ class OverlayRenderer @Inject constructor(
             ?.toFloat()
             ?.plus(30f * scale)
             ?: box.left.toFloat()
-        val requiredWidth = 52f * scale + paint.measureText(name) + 28f * scale
+        val requiredWidth = NAME_TEXT_LEFT_INSET * scale + paint.measureText(name) + 28f * scale
         val renderedRight = maxOf(
             box.left + MIN_NAME_PLATE_WIDTH * scale,
             box.left + requiredWidth,
@@ -318,16 +330,16 @@ class OverlayRenderer @Inject constructor(
 
         // FGO draws the speaker name inset from the arrow-shaped leading edge.
         val textArea = RectF(
-            box.left + 52f * scale,
-            box.top + 8f * scale,
-            renderedRight - 20f * scale,
-            box.bottom - 8f * scale
+            box.left + NAME_TEXT_LEFT_INSET * scale,
+            box.top + NAME_TEXT_TOP_INSET * scale,
+            renderedRight - NAME_TEXT_RIGHT_INSET * scale,
+            box.bottom - NAME_TEXT_BOTTOM_INSET * scale
         )
         val fittedName = fitSingleLine(
             text = instruction.translatedText.trim(),
             paint = paint,
-            initialTextSize = 53f * scale,
-            minimumTextSize = 28f * scale,
+            initialTextSize = NAME_TEXT_SIZE * scale,
+            minimumTextSize = NAME_TEXT_MIN_SIZE * scale,
             maxWidth = textArea.width()
         )
 
@@ -338,7 +350,7 @@ class OverlayRenderer @Inject constructor(
             paint = paint,
             lines = listOf(fittedName),
             x = textArea.left,
-            firstBaseline = textArea.top - paint.fontMetrics.ascent,
+            firstBaseline = textArea.top - paint.fontMetrics.ascent + NAME_TEXT_BASELINE_OFFSET * scale,
             lineHeight = paint.textSize,
             textColor = instruction.textColor ?: FGO_TEXT_COLOR
         )
@@ -385,8 +397,8 @@ class OverlayRenderer @Inject constructor(
         if (fitSingleLineOrNull(
                 text = instruction.toChoiceRenderText(),
                 paint = paint,
-                initialTextSize = 53f * scale,
-                minimumTextSize = 27f * scale,
+                initialTextSize = CHOICE_TEXT_SIZE * scale,
+                minimumTextSize = CHOICE_TEXT_MIN_SIZE * scale,
                 maxWidth = preflightTextArea.width()
             ) == null
         ) {
@@ -414,8 +426,8 @@ class OverlayRenderer @Inject constructor(
         val text = fitSingleLineOrNull(
             text = instruction.toChoiceRenderText(),
             paint = paint,
-            initialTextSize = 49f * scale,
-            minimumTextSize = 27f * scale,
+            initialTextSize = CHOICE_TEXT_SIZE * scale,
+            minimumTextSize = CHOICE_TEXT_MIN_SIZE * scale,
             maxWidth = textArea.width()
         ) ?: run {
             FgoLogger.debug(tag, "Skipping choice render because text does not fit fixed box")

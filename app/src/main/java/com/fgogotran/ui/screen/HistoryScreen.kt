@@ -92,7 +92,7 @@ private fun HistoryItem(translation: SessionTranslationEntry) {
             translation.dialogueText?.let {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = it,
+                    text = quoteSpeakerDialogue(it, !translation.speakerName.isNullOrBlank()),
                     style = MaterialTheme.typography.bodyMedium,
                     color = translation.dialogueTextColor?.let { color -> Color(color) } ?: Color.Unspecified
                 )
@@ -110,4 +110,11 @@ private fun HistoryItem(translation: SessionTranslationEntry) {
             }
         }
     }
+}
+
+private fun quoteSpeakerDialogue(text: String, hasSpeaker: Boolean): String {
+    if (!hasSpeaker) return text
+    val trimmed = text.trim()
+    if (trimmed.startsWith("「") && trimmed.endsWith("」")) return text
+    return "「$text」"
 }
