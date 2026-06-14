@@ -92,7 +92,7 @@ private fun HistoryItem(translation: SessionTranslationEntry) {
             translation.dialogueText?.let {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (translation.speakerName.isNullOrBlank()) it else "「$it」",
+                    text = it,
                     style = MaterialTheme.typography.bodyMedium,
                     color = translation.dialogueTextColor?.let { color -> Color(color) } ?: Color.Unspecified
                 )

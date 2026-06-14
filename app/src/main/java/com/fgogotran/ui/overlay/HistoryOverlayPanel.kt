@@ -155,7 +155,7 @@ private fun addHistoryEntryViews(
         container.addView(
             historyTextView(
                 context = container.context,
-                text = if (speakerName != null) "「$it」" else it,
+                text = it,
                 color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                 typeface = typeface
             )

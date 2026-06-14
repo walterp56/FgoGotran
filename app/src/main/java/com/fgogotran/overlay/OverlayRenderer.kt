@@ -69,6 +69,9 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
         private const val DIALOGUE_MAX_LINES = 2
+        private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.28f
+        private const val DIALOGUE_MIN_TEXT_SIZE = 28f
+        private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
         private const val WIDE_RENDER_SPACE = "\u3000"
         private val WIDE_RENDER_CONNECTORS = listOf(
             "\u4EE5\u53CA", "\u8FD8\u6709", "\u6216\u8005", "\u4F46\u662F",
@@ -172,6 +175,26 @@ class OverlayRenderer @Inject constructor(
         }
     }
 
+    fun renderedDialogueText(
+        instruction: RenderInstruction,
+        screenHeight: Int
+    ): String {
+        if (instruction.region.region != TextRegion.DIALOGUE_BOX) {
+            return instruction.translatedText.trim()
+        }
+        val historyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = this@OverlayRenderer.typeface ?: Typeface.DEFAULT
+            textAlign = Paint.Align.LEFT
+            isSubpixelText = true
+            isLinearText = true
+        }
+        val scale = screenScale(screenHeight)
+        return layoutDialogueText(instruction, historyPaint, scale)
+            .lines
+            .joinToString("\n")
+            .trim()
+    }
+
     private fun obtainReusableBitmap(width: Int, height: Int): Bitmap {
         val current = reusableBitmap
         if (current != null && !current.isRecycled && current.width == width && current.height == height) {
@@ -201,25 +224,10 @@ class OverlayRenderer @Inject constructor(
             12f, 12f, dialogueClearPaint
         )
 
-        val leftInset = 92f * scale
-        val textArea = RectF(
-            box.left + leftInset,
-            box.top + 24f * scale,
-            box.right - 46f * scale,
-            box.bottom - 18f * scale
-        )
-
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
         paint.color = textColor
-        val (lines, lineHeight) = fitWrappedText(
-            text = instruction.toDialogueRenderText(),
-            paint = paint,
-            initialTextSize = 53f * scale,
-            minimumTextSize = 36f * scale,
-            maxWidth = textArea.width(),
-            maxHeight = textArea.height(),
-            maxLines = DIALOGUE_MAX_LINES
-        )
+        val layout = layoutDialogueText(instruction, paint, scale)
+        val textArea = layout.textArea
         val firstBaseline = textArea.top - paint.fontMetrics.ascent
 
         canvas.save()
@@ -227,13 +235,48 @@ class OverlayRenderer @Inject constructor(
         drawLines(
             canvas = canvas,
             paint = paint,
-            lines = lines,
+            lines = layout.lines,
             x = textArea.left,
             firstBaseline = firstBaseline,
-            lineHeight = lineHeight,
+            lineHeight = layout.lineHeight,
             textColor = textColor
         )
         canvas.restore()
+    }
+
+    private data class DialogueTextLayout(
+        val textArea: RectF,
+        val lines: List<String>,
+        val lineHeight: Float
+    )
+
+    private fun layoutDialogueText(
+        instruction: RenderInstruction,
+        paint: Paint,
+        scale: Float
+    ): DialogueTextLayout {
+        val textArea = dialogueTextArea(instruction.region.boundingBox, scale)
+        val (lines, lineHeight) = fitDialogueText(
+            candidates = instruction.dialogueRenderCandidates(),
+            paint = paint,
+            initialTextSize = 53f * scale,
+            preferredMinimumTextSize = DIALOGUE_MIN_TEXT_SIZE * scale,
+            emergencyMinimumTextSize = DIALOGUE_EMERGENCY_MIN_TEXT_SIZE * scale,
+            maxWidth = textArea.width(),
+            maxHeight = textArea.height(),
+            maxLines = DIALOGUE_MAX_LINES
+        )
+        return DialogueTextLayout(textArea, lines, lineHeight)
+    }
+
+    private fun dialogueTextArea(box: Rect, scale: Float): RectF {
+        val leftInset = 92f * scale
+        return RectF(
+            box.left + leftInset,
+            box.top + 24f * scale,
+            box.right - 46f * scale,
+            box.bottom - 18f * scale
+        )
     }
 
     /**
@@ -431,43 +474,150 @@ class OverlayRenderer @Inject constructor(
         return wrapped
     }
 
-    private fun fitWrappedText(
+    private fun fitDialogueText(
+        candidates: List<String>,
+        paint: Paint,
+        initialTextSize: Float,
+        preferredMinimumTextSize: Float,
+        emergencyMinimumTextSize: Float,
+        maxWidth: Float,
+        maxHeight: Float,
+        maxLines: Int
+    ): Pair<List<String>, Float> {
+        val distinctCandidates = candidates
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .ifEmpty { listOf("") }
+
+        listOf(preferredMinimumTextSize, emergencyMinimumTextSize).forEach { minimumTextSize ->
+            distinctCandidates.forEach { candidate ->
+                fitWrappedTextOrNull(
+                    text = candidate,
+                    paint = paint,
+                    initialTextSize = initialTextSize,
+                    minimumTextSize = minimumTextSize,
+                    maxWidth = maxWidth,
+                    maxHeight = maxHeight,
+                    maxLines = maxLines,
+                    lineHeightMultiplier = DIALOGUE_LINE_HEIGHT_MULTIPLIER
+                )?.let { return it }
+            }
+        }
+
+        val fallbackText = distinctCandidates.last()
+        paint.textSize = emergencyMinimumTextSize
+        val lineHeight = emergencyMinimumTextSize * DIALOGUE_LINE_HEIGHT_MULTIPLIER
+        val heightLimitedLines = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
+        val maximumLines = minOf(heightLimitedLines, maxLines.coerceAtLeast(1))
+        FgoLogger.debug(tag, "Dialogue still over 2 lines at emergency size; ellipsizing as final fallback")
+        return limitLines(wrapText(fallbackText, paint, maxWidth), maximumLines, paint, maxWidth) to lineHeight
+    }
+
+    private fun fitWrappedTextOrNull(
         text: String,
         paint: Paint,
         initialTextSize: Float,
         minimumTextSize: Float,
         maxWidth: Float,
         maxHeight: Float,
-        maxLines: Int = Int.MAX_VALUE
-    ): Pair<List<String>, Float> {
+        maxLines: Int,
+        lineHeightMultiplier: Float
+    ): Pair<List<String>, Float>? {
         var textSize = initialTextSize
         val allowedLines = maxLines.coerceAtLeast(1)
         while (true) {
             paint.textSize = textSize
-            val lineHeight = textSize * 1.45f
-            val lines = wrapText(text, paint, maxWidth)
+            val lineHeight = textSize * lineHeightMultiplier
             val heightLimitedLines = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
             val maximumLines = minOf(heightLimitedLines, allowedLines)
-            if (lines.size <= maximumLines || textSize <= minimumTextSize) {
-                return limitLines(lines, maximumLines, paint, maxWidth) to lineHeight
+            val lines = wrapText(text, paint, maxWidth)
+            if (lines.size <= maximumLines) {
+                return lines to lineHeight
+            }
+            if (textSize <= minimumTextSize) {
+                return null
             }
             textSize = (textSize - 2f).coerceAtLeast(minimumTextSize)
         }
     }
 
-    private fun RenderInstruction.toDialogueRenderText(): String {
-        val normalized = translatedText.lines()
+    private fun RenderInstruction.dialogueRenderCandidates(): List<String> {
+        val normalizedLines = translatedText.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .joinToString("\n")
+            .map { it.normalizeDialogueSymbolsAndSpacing() }
+        val mergedLines = mergeDialoguePrefixLines(normalizedLines)
+        val linePreserved = mergedLines.joinToString("\n").trim()
+        val flattened = mergedLines.joinToString(WIDE_RENDER_SPACE) { it.trim() }
             .replace(Regex("[ \\t]+"), " ")
             .trim()
-        return if (wideTextSpacing) normalized.toFgoWideRenderText() else normalized
+        val compact = flattened
+            .replace(Regex("[\\s$WIDE_RENDER_SPACE]+"), "")
+            .trim()
+
+        return buildList {
+            if (wideTextSpacing) add(linePreserved.toFgoWideRenderText())
+            add(linePreserved)
+            add(flattened)
+            if (wideTextSpacing) add(flattened.toFgoWideRenderText())
+            add(compact)
+        }
     }
 
     private fun RenderInstruction.toChoiceRenderText(): String {
-        val normalized = translatedText.trim().replace(Regex("[ \\t]+"), " ")
+        val normalized = translatedText.trim()
+            .normalizeDialogueSymbolsAndSpacing()
+            .replace(Regex("[ \\t]+"), " ")
         return if (wideTextSpacing) normalized.toFgoWideRenderText() else normalized
+    }
+
+    private fun mergeDialoguePrefixLines(lines: List<String>): List<String> {
+        if (lines.isEmpty()) return emptyList()
+        val merged = mutableListOf<String>()
+        var pendingPrefix = ""
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isBlank()) continue
+            if (trimmed.isStandaloneDialoguePrefix()) {
+                pendingPrefix += trimmed.trimEnd()
+                continue
+            }
+            val nextLine = if (pendingPrefix.isNotBlank()) {
+                pendingPrefix + trimmed
+            } else {
+                trimmed
+            }
+            merged += nextLine
+            pendingPrefix = ""
+        }
+        if (pendingPrefix.isNotBlank()) {
+            merged += pendingPrefix
+        }
+        return merged
+    }
+
+    private fun String.normalizeDialogueSymbolsAndSpacing(): String {
+        return this
+            .replace('－', '-')
+            .replace('―', '—')
+            .replace(Regex("[-—ー]{2,}"), "——")
+            .replace(Regex("(?m)(^|[「『（(\\[\\s　])-+(?=[\\u3400-\\u9FFFA-Za-z0-9_])")) {
+                "${it.groupValues[1]}——"
+            }
+            .replace(Regex("\\.{3,}|…{2,}"), "……")
+            .replace(Regex("[ \\t]+"), " ")
+            .trim()
+    }
+
+    private fun String.isStandaloneDialoguePrefix(): Boolean {
+        val normalized = normalizeDialogueSymbolsAndSpacing()
+            .trim(' ', '\t', '\u3000')
+            .trim('「', '」', '『', '』', '（', '）', '(', ')', '[', ']')
+        return normalized.isNotBlank() &&
+                normalized.all {
+                    it in setOf('—', '－', '-', 'ー', '…', '.', '。', '、', ',', '，', ':', '：', '!', '！', '?', '？')
+                }
     }
 
     private fun String.toFgoWideRenderText(): String {

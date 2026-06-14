@@ -1800,7 +1800,7 @@ class FgoAccessibilityService : AccessibilityService() {
             ?.takeIf { it.isNotBlank() }
         val name = renderedName ?: rawName
         val dialogue = dialogueInstruction
-            ?.translatedText
+            ?.let { overlayRenderer.renderedDialogueText(it, source.height) }
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         val choicePairs = choiceInstructions

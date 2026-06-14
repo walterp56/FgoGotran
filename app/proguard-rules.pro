@@ -1,6 +1,7 @@
 # Ktor
 -keep class io.ktor.** { *; }
 -dontwarn io.ktor.**
+-dontwarn org.slf4j.impl.StaticLoggerBinder
 
 # Kotlinx Serialization
 -keepattributes *Annotation*, InnerClasses
