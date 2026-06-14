@@ -29,6 +29,7 @@ import com.fgogotran.overlay.RenderInstruction
 import com.fgogotran.overlay.TextRegion
 import com.fgogotran.overlay.TranslationOverlay
 import com.fgogotran.story.StoryDetector
+import com.fgogotran.translation.EmphasisMarkup
 import com.fgogotran.translation.SceneTranslateInput
 import com.fgogotran.translation.SceneTranslateResult
 import com.fgogotran.translation.SessionTranslationEntry
@@ -612,7 +613,13 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun cropSourceText(lines: List<OcrTextLine>, fullText: String): String {
-        val cleanedText = formatDialogueForTranslation(lines, RubyDetectionMode.PERMISSIVE)
+        val cleanedText = formatDialogueForTranslation(
+            lines = lines,
+            rubyDetectionMode = RubyDetectionMode.PERMISSIVE,
+            preserveEmphasisDots = false,
+            source = null,
+            regionBounds = null
+        )
         return cleanedText.ifBlank {
             if (lines.any { isRubyDotNoiseLine(it) }) "" else fullText.trim()
         }
@@ -640,7 +647,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         FgoLogger.debug(tag, "Manual path uses fixed dialogue/choice regions without story guard")
-        val sceneSource = sceneSourceFor(scan.regions)
+        val sceneSource = sceneSourceFor(source, scan.regions)
         if (sceneSource == null) {
             translationOverlay.hide()
             return false
@@ -684,7 +691,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         val dialogueRegions = recognizeDialogueRegions(source, screenRegions)
-        val dialogueScene = sceneSourceFor(dialogueRegions)
+        val dialogueScene = sceneSourceFor(source, dialogueRegions)
         resetEarlyTranslation()
         resetCompletedDialogueCandidate()
         if (dialogueScene?.hasDialogue == true) {
@@ -716,7 +723,7 @@ class FgoAccessibilityService : AccessibilityService() {
     ) {
         when (val scan = scanAutoScene(source, screenRegions, currentScreenWidth, currentScreenHeight)) {
             is AutoScanResult.Ready -> {
-                val sceneSource = sceneSourceFor(scan.regions)
+                val sceneSource = sceneSourceFor(source, scan.regions)
                 if (sceneSource == null) {
                     translationOverlay.hide()
                     return
@@ -804,7 +811,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 screenRegions.dialogueComplete
             )
             val dialogueRegions = recognizeDialogueRegions(source, screenRegions)
-            val dialogueScene = sceneSourceFor(dialogueRegions)
+            val dialogueScene = sceneSourceFor(source, dialogueRegions)
 
             if (dialogueScene?.hasDialogue == true) {
                 val choiceRecognition = recognizeChoiceRegions(
@@ -881,7 +888,7 @@ class FgoAccessibilityService : AccessibilityService() {
             screenRegions.dialogueComplete
         )
         val dialogueRegions = recognizeDialogueRegions(source, screenRegions)
-        val dialogueScene = sceneSourceFor(dialogueRegions)
+        val dialogueScene = sceneSourceFor(source, dialogueRegions)
 
         if (choiceBounds.isNotEmpty()) {
             if (dialogueScene?.hasDialogue == true) {
@@ -1230,9 +1237,9 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun sceneSourceFor(regions: List<ClassifiedRegion>): SceneSource? {
+    private fun sceneSourceFor(source: Bitmap, regions: List<ClassifiedRegion>): SceneSource? {
         val translatableRegions = regions.mapNotNull { region ->
-            val sourceText = sourceTextFor(region)
+            val sourceText = sourceTextFor(region, source)
             if (sourceText.isBlank()) null else RegionSourceText(region, sourceText)
         }
         if (translatableRegions.isEmpty()) return null
@@ -1348,9 +1355,15 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun sourceTextFor(region: ClassifiedRegion): String {
+    private fun sourceTextFor(region: ClassifiedRegion, source: Bitmap? = null): String {
         return when (region.region) {
-            TextRegion.DIALOGUE_BOX -> formatDialogueForTranslation(region.lines, RubyDetectionMode.STRICT)
+            TextRegion.DIALOGUE_BOX -> formatDialogueForTranslation(
+                lines = region.lines,
+                rubyDetectionMode = RubyDetectionMode.STRICT,
+                preserveEmphasisDots = true,
+                source = source,
+                regionBounds = region.boundingBox
+            )
             else -> cleanRubyNoiseLines(region.lines)
                 .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
                 .joinToString("\n") { it.text }
@@ -1360,45 +1373,70 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun formatDialogueForTranslation(
         lines: List<OcrTextLine>,
-        rubyDetectionMode: RubyDetectionMode
+        rubyDetectionMode: RubyDetectionMode,
+        preserveEmphasisDots: Boolean = false,
+        source: Bitmap? = null,
+        regionBounds: Rect? = null
     ): String {
+        val rawSorted = lines
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
         val cleanedLines = cleanRubyNoiseLines(lines)
-        if (cleanedLines.size < 2) {
+        val hasEmphasisDotLine = preserveEmphasisDots && rawSorted.any { isRubyDotNoiseLine(it) }
+        if (cleanedLines.size < 2 && !hasEmphasisDotLine) {
             return cleanedLines.joinToString("\n") { it.text }.trim()
         }
 
         val sorted = cleanedLines
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-        if (sorted.size < 2) return sorted.joinToString("\n") { it.text }.trim()
+        if (sorted.isEmpty()) return ""
 
         val heights = sorted.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
         val medianHeight = heights[heights.size / 2]
-        val rubyLines = sorted.filter { line ->
-            isLikelyRubyLine(line, medianHeight, rubyDetectionMode)
-        }.toSet()
-        if (rubyLines.isEmpty()) return sorted.joinToString("\n") { it.text }.trim()
+        val rubyLines = if (sorted.size >= 2) {
+            sorted.filter { line ->
+                isLikelyRubyLine(line, medianHeight, rubyDetectionMode)
+            }.toSet()
+        } else {
+            emptySet()
+        }
+        if (rubyLines.isEmpty() && !hasEmphasisDotLine) return sorted.joinToString("\n") { it.text }.trim()
 
         val mainLines = sorted.filterNot { it in rubyLines }.toMutableList()
         if (mainLines.isEmpty()) return sorted.joinToString("\n") { it.text }.trim()
 
         val rubyByMain = mutableMapOf<OcrTextLine, MutableList<OcrTextLine>>()
         for (ruby in rubyLines) {
-            val main = mainLines
-                .filter { it.boundingBox.top >= ruby.boundingBox.bottom - medianHeight / 3 }
-                .filter { it.boundingBox.top - ruby.boundingBox.bottom <= medianHeight }
-                .filter {
-                    horizontalOverlap(ruby.boundingBox, it.boundingBox) >= ruby.boundingBox.width() / 4 ||
-                            ruby.boundingBox.centerX() in it.boundingBox.left..it.boundingBox.right
-                }
-                .minWithOrNull(
-                    compareByDescending<OcrTextLine> { horizontalOverlap(ruby.boundingBox, it.boundingBox) }
-                        .thenBy { kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }
-                        .thenBy { it.boundingBox.top - ruby.boundingBox.bottom }
-                )
+            val main = mainLineBelowRuby(ruby, mainLines, medianHeight)
             if (main != null) {
                 rubyByMain.getOrPut(main) { mutableListOf() }.add(ruby)
             }
+        }
+        val emphasisByMain = if (preserveEmphasisDots) {
+            val dotLines = rawSorted.filter { dot ->
+                isRubyDotNoiseLine(dot) && mainLines.any { main ->
+                    isLikelyEmphasisDotsAboveMain(dot, main, medianHeight)
+                }
+            }
+            val mapped = mutableMapOf<OcrTextLine, MutableList<OcrTextLine>>()
+            for (dotLine in dotLines) {
+                val main = mainLineBelowEmphasisDots(dotLine, mainLines, medianHeight)
+                if (main != null) {
+                    mapped.getOrPut(main) { mutableListOf() }.add(dotLine)
+                }
+            }
+            pixelEmphasisDotsByMain(
+                source = source,
+                mainLines = mainLines,
+                dialogueBounds = regionBounds,
+                medianHeight = medianHeight
+            ).forEach { (main, pixelDots) ->
+                mapped.getOrPut(main) { mutableListOf() }.addAll(pixelDots)
+            }
+            mapped
+        } else {
+            emptyMap()
         }
 
         val formatted = mainLines
@@ -1407,10 +1445,18 @@ class FgoAccessibilityService : AccessibilityService() {
                 val rubies = rubyByMain[main]
                     ?.sortedBy { it.boundingBox.left }
                     .orEmpty()
-                if (rubies.isEmpty()) {
+                val emphasisDots = emphasisByMain[main]
+                    ?.sortedBy { it.boundingBox.left }
+                    .orEmpty()
+                val rubyFormatted = if (rubies.isEmpty()) {
                     main.text
                 } else {
                     insertRubyAnnotations(main.text, main.boundingBox, rubies, useJapaneseRubyMarkup = true)
+                }
+                if (emphasisDots.isEmpty()) {
+                    rubyFormatted
+                } else {
+                    insertEmphasisAnnotations(rubyFormatted, main.text, main.boundingBox, emphasisDots)
                 }
             }
             .trim()
@@ -1466,6 +1512,53 @@ class FgoAccessibilityService : AccessibilityService() {
                 ruby.boundingBox.centerX() in main.boundingBox.left..main.boundingBox.right
     }
 
+    private fun mainLineBelowRuby(
+        ruby: OcrTextLine,
+        mainLines: List<OcrTextLine>,
+        medianHeight: Int
+    ): OcrTextLine? {
+        return mainLines
+            .filter { isLikelyRubyAboveMain(ruby, it, medianHeight) }
+            .minWithOrNull(
+                compareByDescending<OcrTextLine> { horizontalOverlap(ruby.boundingBox, it.boundingBox) }
+                    .thenBy { kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }
+                    .thenBy { it.boundingBox.top - ruby.boundingBox.bottom }
+            )
+    }
+
+    private fun isLikelyEmphasisDotsAboveMain(
+        dot: OcrTextLine,
+        main: OcrTextLine,
+        medianHeight: Int
+    ): Boolean {
+        if (!isRubyDotNoiseLine(dot)) return false
+        if (dot === main) return false
+        if (dot.boundingBox.centerY() > main.boundingBox.centerY()) return false
+        if (dot.boundingBox.bottom > main.boundingBox.bottom) return false
+
+        val verticalGap = main.boundingBox.top - dot.boundingBox.bottom
+        if (verticalGap > medianHeight * 2) return false
+
+        val overlap = horizontalOverlap(dot.boundingBox, main.boundingBox)
+        val overlapFloor = minOf(dot.boundingBox.width(), main.boundingBox.width()) / 6
+        return overlap >= overlapFloor.coerceAtLeast(medianHeight / 2) ||
+                dot.boundingBox.centerX() in main.boundingBox.left..main.boundingBox.right
+    }
+
+    private fun mainLineBelowEmphasisDots(
+        dot: OcrTextLine,
+        mainLines: List<OcrTextLine>,
+        medianHeight: Int
+    ): OcrTextLine? {
+        return mainLines
+            .filter { isLikelyEmphasisDotsAboveMain(dot, it, medianHeight) }
+            .minWithOrNull(
+                compareByDescending<OcrTextLine> { horizontalOverlap(dot.boundingBox, it.boundingBox) }
+                    .thenBy { kotlin.math.abs(it.boundingBox.centerX() - dot.boundingBox.centerX()) }
+                    .thenBy { kotlin.math.abs(it.boundingBox.top - dot.boundingBox.bottom) }
+            )
+    }
+
     private fun Char.isRubyDotNoiseChar(): Boolean {
         return this in setOf(
             '.', ',', ':', ';', '-', '_', '~',
@@ -1508,6 +1601,298 @@ class FgoAccessibilityService : AccessibilityService() {
         val annotation: String,
         val rubyText: String
     )
+
+    private data class EmphasisInsertion(
+        val startIndex: Int,
+        val endIndex: Int
+    )
+
+    private data class PixelDotComponent(
+        val bounds: Rect,
+        val pixels: Int
+    ) {
+        val centerX: Int
+            get() = bounds.centerX()
+        val centerY: Int
+            get() = bounds.centerY()
+    }
+
+    private fun pixelEmphasisDotsByMain(
+        source: Bitmap?,
+        mainLines: List<OcrTextLine>,
+        dialogueBounds: Rect?,
+        medianHeight: Int
+    ): Map<OcrTextLine, List<OcrTextLine>> {
+        if (source == null || dialogueBounds == null) return emptyMap()
+        if (mainLines.isEmpty()) return emptyMap()
+
+        val mapped = mutableMapOf<OcrTextLine, List<OcrTextLine>>()
+        for (main in mainLines) {
+            val dotGroups = detectPixelEmphasisDotGroups(
+                source = source,
+                main = main,
+                dialogueBounds = dialogueBounds,
+                medianHeight = medianHeight
+            )
+            if (dotGroups.isNotEmpty()) {
+                mapped[main] = dotGroups.map { groupBounds ->
+                    OcrTextLine(text = ".", boundingBox = groupBounds, confidence = 1f)
+                }
+                FgoLogger.debug(
+                    tag,
+                    "Pixel emphasis dots detected: groups=${dotGroups.size}, line=${main.text}"
+                )
+            }
+        }
+        return mapped
+    }
+
+    private fun detectPixelEmphasisDotGroups(
+        source: Bitmap,
+        main: OcrTextLine,
+        dialogueBounds: Rect,
+        medianHeight: Int
+    ): List<Rect> {
+        val mainBounds = main.boundingBox
+        if (main.text.isBlank() || mainBounds.width() <= 0 || mainBounds.height() <= 0) {
+            return emptyList()
+        }
+
+        val lineHeight = maxOf(mainBounds.height(), medianHeight, 12)
+        val approximateCharWidth = mainBounds.width().toFloat() / main.text.length.coerceAtLeast(1)
+        val horizontalPadding = (approximateCharWidth * 0.75f).toInt().coerceAtLeast(8)
+        val scanTopPadding = (lineHeight * 0.85f).toInt().coerceAtLeast(10)
+        val scanBottomPadding = (lineHeight * 0.14f).toInt().coerceAtLeast(4)
+        val scanBounds = Rect(
+            mainBounds.left - horizontalPadding,
+            mainBounds.top - scanTopPadding,
+            mainBounds.right + horizontalPadding,
+            mainBounds.top + scanBottomPadding
+        )
+        if (!scanBounds.intersect(dialogueBounds)) return emptyList()
+        if (!scanBounds.intersect(0, 0, source.width, source.height)) return emptyList()
+        if (scanBounds.width() <= 0 || scanBounds.height() <= 0) return emptyList()
+
+        val dotMaxSize = (lineHeight * 0.36f).toInt().coerceIn(8, 22)
+        val dotMinSize = 3
+        val components = findPixelDotComponents(source, scanBounds, dotMinSize, dotMaxSize)
+        if (components.size < 2) return emptyList()
+
+        val verticalGroups = mutableListOf<MutableList<PixelDotComponent>>()
+        val maxVerticalGap = (lineHeight * 0.22f).toInt().coerceAtLeast(6)
+        for (component in components.sortedBy { it.centerY }) {
+            val previousGroup = verticalGroups.lastOrNull()
+            val previous = previousGroup?.lastOrNull()
+            if (previous == null || component.centerY - previous.centerY > maxVerticalGap) {
+                verticalGroups += mutableListOf(component)
+            } else {
+                previousGroup += component
+            }
+        }
+
+        val dotRow = verticalGroups
+            .filter { it.size >= 2 }
+            .minByOrNull { group -> group.minOf { it.centerY } }
+            ?: return emptyList()
+
+        val maxHorizontalGap = (approximateCharWidth * 3.1f)
+            .coerceAtLeast(lineHeight * 0.9f)
+            .toInt()
+        val horizontalGroups = mutableListOf<MutableList<PixelDotComponent>>()
+        for (component in dotRow.sortedBy { it.centerX }) {
+            val previousGroup = horizontalGroups.lastOrNull()
+            val previous = previousGroup?.lastOrNull()
+            if (previous == null || component.centerX - previous.centerX > maxHorizontalGap) {
+                horizontalGroups += mutableListOf(component)
+            } else {
+                previousGroup += component
+            }
+        }
+
+        return horizontalGroups
+            .filter { it.size >= 2 }
+            .map { group ->
+                val bounds = Rect(group.first().bounds)
+                group.drop(1).forEach { bounds.union(it.bounds) }
+                bounds.inset(-(approximateCharWidth / 2f).toInt().coerceAtLeast(2), 0)
+                bounds.left = bounds.left.coerceAtLeast(mainBounds.left)
+                bounds.right = bounds.right.coerceAtMost(mainBounds.right)
+                bounds
+            }
+            .filter { it.width() > 0 }
+    }
+
+    private fun findPixelDotComponents(
+        source: Bitmap,
+        scanBounds: Rect,
+        dotMinSize: Int,
+        dotMaxSize: Int
+    ): List<PixelDotComponent> {
+        val width = scanBounds.width()
+        val height = scanBounds.height()
+        val visited = BooleanArray(width * height)
+        val components = mutableListOf<PixelDotComponent>()
+
+        fun localIndex(x: Int, y: Int): Int = y * width + x
+
+        for (localY in 0 until height) {
+            for (localX in 0 until width) {
+                val startIndex = localIndex(localX, localY)
+                if (visited[startIndex]) continue
+                visited[startIndex] = true
+                val screenX = scanBounds.left + localX
+                val screenY = scanBounds.top + localY
+                if (!isLikelyEmphasisDotPixel(source.getPixel(screenX, screenY))) continue
+
+                val queue = java.util.ArrayDeque<Int>()
+                queue.add(startIndex)
+                var minX = localX
+                var maxX = localX
+                var minY = localY
+                var maxY = localY
+                var pixels = 0
+
+                while (!queue.isEmpty()) {
+                    val current = queue.removeFirst()
+                    val cx = current % width
+                    val cy = current / width
+                    pixels++
+                    if (cx < minX) minX = cx
+                    if (cx > maxX) maxX = cx
+                    if (cy < minY) minY = cy
+                    if (cy > maxY) maxY = cy
+
+                    for (ny in (cy - 1)..(cy + 1)) {
+                        if (ny !in 0 until height) continue
+                        for (nx in (cx - 1)..(cx + 1)) {
+                            if (nx !in 0 until width || (nx == cx && ny == cy)) continue
+                            val neighborIndex = localIndex(nx, ny)
+                            if (visited[neighborIndex]) continue
+                            visited[neighborIndex] = true
+                            if (isLikelyEmphasisDotPixel(
+                                    source.getPixel(scanBounds.left + nx, scanBounds.top + ny)
+                                )
+                            ) {
+                                queue.add(neighborIndex)
+                            }
+                        }
+                    }
+                }
+
+                val componentBounds = Rect(
+                    scanBounds.left + minX,
+                    scanBounds.top + minY,
+                    scanBounds.left + maxX + 1,
+                    scanBounds.top + maxY + 1
+                )
+                val componentWidth = componentBounds.width()
+                val componentHeight = componentBounds.height()
+                val componentArea = componentWidth * componentHeight
+                val density = pixels.toFloat() / componentArea.coerceAtLeast(1)
+                val aspect = maxOf(componentWidth, componentHeight).toFloat() /
+                        minOf(componentWidth, componentHeight).coerceAtLeast(1)
+
+                if (componentWidth in dotMinSize..dotMaxSize &&
+                    componentHeight in dotMinSize..dotMaxSize &&
+                    pixels >= 5 &&
+                    density >= 0.25f &&
+                    aspect <= 2.2f
+                ) {
+                    components += PixelDotComponent(componentBounds, pixels)
+                }
+            }
+        }
+
+        return components
+    }
+
+    private fun isLikelyEmphasisDotPixel(pixel: Int): Boolean {
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        val max = maxOf(r, g, b)
+        val min = minOf(r, g, b)
+        val spread = max - min
+        val whiteText = r >= 160 && g >= 160 && b >= 160 && spread <= 110
+        val redText = r >= 165 && r - maxOf(g, b) >= 40
+        val cyanText = g >= 140 && b >= 140 && minOf(g, b) - r >= 35
+        val greenText = g >= 145 && r >= 120 && b <= 175 && g - b >= 35
+        return whiteText || redText || cyanText || greenText
+    }
+
+    private fun insertEmphasisAnnotations(
+        formattedMainText: String,
+        originalMainText: String,
+        mainBounds: Rect,
+        dotLines: List<OcrTextLine>
+    ): String {
+        val ranges = dotLines
+            .mapNotNull { emphasisInsertion(originalMainText, mainBounds, it) }
+            .let(::mergeEmphasisInsertions)
+            .ifEmpty { return formattedMainText }
+
+        if (formattedMainText != originalMainText) {
+            return formattedMainText
+        }
+
+        var result = formattedMainText
+        for (range in ranges.sortedByDescending { it.startIndex }) {
+            result = result.substring(0, range.startIndex) +
+                    EmphasisMarkup.OPEN +
+                    result.substring(range.startIndex, range.endIndex) +
+                    EmphasisMarkup.CLOSE +
+                    result.substring(range.endIndex)
+        }
+        FgoLogger.debug(tag, "Emphasis dots marked source: $result")
+        return result
+    }
+
+    private fun emphasisInsertion(
+        mainText: String,
+        mainBounds: Rect,
+        dotLine: OcrTextLine
+    ): EmphasisInsertion? {
+        if (mainText.isBlank()) return null
+        val approximateCharWidth = mainBounds.width().toFloat() / mainText.length.coerceAtLeast(1)
+        var start = kotlin.math.floor(
+            (dotLine.boundingBox.left - mainBounds.left) / approximateCharWidth
+        )
+            .toInt()
+            .coerceIn(0, mainText.lastIndex)
+        var end = kotlin.math.ceil(
+            (dotLine.boundingBox.right - mainBounds.left) / approximateCharWidth
+        )
+            .toInt()
+            .coerceIn(start + 1, mainText.length)
+
+        while (start < end && !mainText[start].canCarryEmphasisDot()) start++
+        while (end > start && !mainText[end - 1].canCarryEmphasisDot()) end--
+        if (start >= end) return null
+        return EmphasisInsertion(start, end)
+    }
+
+    private fun mergeEmphasisInsertions(ranges: List<EmphasisInsertion>): List<EmphasisInsertion> {
+        if (ranges.isEmpty()) return emptyList()
+        val sorted = ranges.sortedWith(compareBy({ it.startIndex }, { it.endIndex }))
+        val merged = mutableListOf<EmphasisInsertion>()
+        for (range in sorted) {
+            val previous = merged.lastOrNull()
+            if (previous == null || range.startIndex > previous.endIndex) {
+                merged += range
+            } else {
+                merged[merged.lastIndex] = previous.copy(endIndex = maxOf(previous.endIndex, range.endIndex))
+            }
+        }
+        return merged
+    }
+
+    private fun Char.canCarryEmphasisDot(): Boolean {
+        return !isWhitespace() && this !in setOf(
+            '。', '、', '，', ',', '！', '!', '？', '?', '…', '·', '・', '･',
+            '「', '」', '『', '』', '（', '）', '(', ')', '[', ']', '【', '】',
+            '《', '》', '<', '>', '＜', '＞'
+        )
+    }
 
     private fun insertRubyAnnotations(
         mainText: String,

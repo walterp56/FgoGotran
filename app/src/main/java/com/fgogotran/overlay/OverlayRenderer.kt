@@ -2,6 +2,7 @@ package com.fgogotran.overlay
 
 import android.content.Context
 import android.graphics.*
+import com.fgogotran.translation.EmphasisMarkup
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -73,9 +74,12 @@ class OverlayRenderer @Inject constructor(
         private const val DIALOGUE_TEXT_TOP_INSET = 48f
         private const val DIALOGUE_TEXT_RIGHT_INSET = 46f
         private const val DIALOGUE_TEXT_BOTTOM_INSET = 12f
+        private const val DIALOGUE_DOT_CLIP_TOP_EXTRA = 14f
         private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.48f
         private const val DIALOGUE_MIN_TEXT_SIZE = 28f
         private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
+        private const val DEBUG_DOT_EVERY_DIALOGUE_CHAR = false
+        private const val PLAIN_EMPHASIS_DOT_ABOVE = '\u0307'
         private const val NAME_TEXT_SIZE = 56f
         private const val NAME_TEXT_MIN_SIZE = 31f
         private const val NAME_TEXT_LEFT_INSET = 52f
@@ -202,8 +206,10 @@ class OverlayRenderer @Inject constructor(
             isLinearText = true
         }
         val scale = screenScale(screenHeight)
-        return layoutDialogueText(instruction, historyPaint, scale)
-            .lines
+        val layout = layoutDialogueText(instruction, historyPaint, scale)
+        val emphasisRanges = if (DEBUG_DOT_EVERY_DIALOGUE_CHAR) allRenderableRangesForLines(layout.lines)
+        else layout.emphasisRanges
+        return linesWithPlainEmphasisDots(layout.lines, emphasisRanges)
             .joinToString("\n")
             .trim()
     }
@@ -244,7 +250,12 @@ class OverlayRenderer @Inject constructor(
         val firstBaseline = textArea.top - paint.fontMetrics.ascent
 
         canvas.save()
-        canvas.clipRect(textArea)
+        canvas.clipRect(
+            textArea.left,
+            (textArea.top - DIALOGUE_DOT_CLIP_TOP_EXTRA * scale).coerceAtLeast(box.top.toFloat()),
+            textArea.right,
+            textArea.bottom
+        )
         drawLines(
             canvas = canvas,
             paint = paint,
@@ -252,7 +263,9 @@ class OverlayRenderer @Inject constructor(
             x = textArea.left,
             firstBaseline = firstBaseline,
             lineHeight = layout.lineHeight,
-            textColor = textColor
+            textColor = textColor,
+            emphasisRanges = layout.emphasisRanges,
+            dotEveryRenderableChar = DEBUG_DOT_EVERY_DIALOGUE_CHAR
         )
         canvas.restore()
     }
@@ -260,7 +273,8 @@ class OverlayRenderer @Inject constructor(
     private data class DialogueTextLayout(
         val textArea: RectF,
         val lines: List<String>,
-        val lineHeight: Float
+        val lineHeight: Float,
+        val emphasisRanges: List<IntRange>
     )
 
     private fun layoutDialogueText(
@@ -269,8 +283,10 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): DialogueTextLayout {
         val textArea = dialogueTextArea(instruction.region.boundingBox, scale)
+        val emphasis = EmphasisMarkup.parse(instruction.translatedText)
+        val plainInstruction = instruction.copy(translatedText = emphasis.plainText)
         val (lines, lineHeight) = fitDialogueText(
-            candidates = instruction.dialogueRenderCandidates(),
+            candidates = plainInstruction.dialogueRenderCandidates(),
             paint = paint,
             initialTextSize = 53f * scale,
             preferredMinimumTextSize = DIALOGUE_MIN_TEXT_SIZE * scale,
@@ -279,7 +295,12 @@ class OverlayRenderer @Inject constructor(
             maxHeight = textArea.height(),
             maxLines = DIALOGUE_MAX_LINES
         )
-        return DialogueTextLayout(textArea, lines, lineHeight)
+        return DialogueTextLayout(
+            textArea = textArea,
+            lines = lines,
+            lineHeight = lineHeight,
+            emphasisRanges = emphasisRangesForLines(lines, emphasis)
+        )
     }
 
     private fun dialogueTextArea(box: Rect, scale: Float): RectF {
@@ -301,7 +322,7 @@ class OverlayRenderer @Inject constructor(
     ) {
         val box = instruction.region.boundingBox
         val scale = screenScale(canvas)
-        val name = instruction.translatedText.trim()
+        val name = EmphasisMarkup.strip(instruction.translatedText).trim()
 
         paint.apply {
             color = instruction.textColor ?: FGO_TEXT_COLOR
@@ -336,7 +357,7 @@ class OverlayRenderer @Inject constructor(
             box.bottom - NAME_TEXT_BOTTOM_INSET * scale
         )
         val fittedName = fitSingleLine(
-            text = instruction.translatedText.trim(),
+            text = name,
             paint = paint,
             initialTextSize = NAME_TEXT_SIZE * scale,
             minimumTextSize = NAME_TEXT_MIN_SIZE * scale,
@@ -555,7 +576,7 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun RenderInstruction.dialogueRenderCandidates(): List<String> {
-        val normalizedLines = translatedText.lines()
+        val normalizedLines = EmphasisMarkup.strip(translatedText).lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .map { it.normalizeDialogueSymbolsAndSpacing() }
@@ -578,7 +599,7 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun RenderInstruction.toChoiceRenderText(): String {
-        val normalized = translatedText.trim()
+        val normalized = EmphasisMarkup.strip(translatedText).trim()
             .normalizeDialogueSymbolsAndSpacing()
             .replace(Regex("[ \\t]+"), " ")
         return if (wideTextSpacing) normalized.toFgoWideRenderText() else normalized
@@ -756,8 +777,16 @@ class OverlayRenderer @Inject constructor(
         x: Float,
         firstBaseline: Float,
         lineHeight: Float,
-        textColor: Int
+        textColor: Int,
+        emphasisRanges: List<IntRange> = emptyList(),
+        dotEveryRenderableChar: Boolean = false
     ) {
+        val effectiveEmphasisRanges = if (dotEveryRenderableChar) {
+            allRenderableRangesForLines(lines)
+        } else {
+            emphasisRanges
+        }
+        var lineStartOffset = 0
         for ((index, line) in lines.withIndex()) {
             val y = firstBaseline + index * lineHeight
             paint.setShadowLayer(2f, shadowOffset, shadowOffset, Color.BLACK)
@@ -766,7 +795,204 @@ class OverlayRenderer @Inject constructor(
             paint.clearShadowLayer()
             paint.color = textColor
             canvas.drawText(line, x, y, paint)
+            drawEmphasisDots(
+                canvas = canvas,
+                paint = paint,
+                line = line,
+                lineStartOffset = lineStartOffset,
+                emphasisRanges = effectiveEmphasisRanges,
+                x = x,
+                baseline = y,
+                textColor = textColor
+            )
+            lineStartOffset += line.length
         }
+    }
+
+    private fun allRenderableRangesForLines(lines: List<String>): List<IntRange> {
+        val text = lines.joinToString("")
+        if (text.isBlank()) return emptyList()
+
+        val ranges = mutableListOf<IntRange>()
+        var rangeStart: Int? = null
+        for (index in text.indices) {
+            if (text[index].canCarryRenderedEmphasisDot()) {
+                if (rangeStart == null) rangeStart = index
+            } else {
+                val start = rangeStart
+                if (start != null) {
+                    ranges += start until index
+                    rangeStart = null
+                }
+            }
+        }
+        rangeStart?.let { ranges += it until text.length }
+        return ranges
+    }
+
+    private fun linesWithPlainEmphasisDots(
+        lines: List<String>,
+        emphasisRanges: List<IntRange>
+    ): List<String> {
+        if (lines.isEmpty() || emphasisRanges.isEmpty()) return lines
+
+        val dottedLines = mutableListOf<String>()
+        var lineStartOffset = 0
+        for (line in lines) {
+            val dotted = buildString {
+                line.forEachIndexed { index, char ->
+                    append(char)
+                    val globalIndex = lineStartOffset + index
+                    if (char.canCarryRenderedEmphasisDot() && emphasisRanges.any { globalIndex in it }) {
+                        append(PLAIN_EMPHASIS_DOT_ABOVE)
+                    }
+                }
+            }
+            dottedLines += dotted
+            lineStartOffset += line.length
+        }
+        return dottedLines
+    }
+
+    private data class SearchableText(
+        val text: String,
+        val renderedIndices: List<Int>
+    )
+
+    private fun emphasisRangesForLines(
+        lines: List<String>,
+        emphasis: EmphasisMarkup.Parsed
+    ): List<IntRange> {
+        if (lines.isEmpty() || emphasis.ranges.isEmpty()) return emptyList()
+        val text = lines.joinToString("")
+        val searchable = searchableTextWithRenderedIndex(text)
+        if (searchable.text.isBlank()) return emptyList()
+        val ranges = mutableListOf<IntRange>()
+
+        for (range in emphasis.ranges) {
+            val phrase = searchableEmphasisText(range.phrase)
+            if (phrase.isBlank()) continue
+            val beforeRange = emphasis.plainText.substring(0, range.startIndex.coerceIn(0, emphasis.plainText.length))
+            val occurrenceIndex = countOccurrences(searchableEmphasisText(beforeRange), phrase)
+            val matchStart = nthIndexOf(searchable.text, phrase, occurrenceIndex)
+                ?: nthIndexOf(searchable.text, phrase, 0)
+                ?: continue
+            val matchEnd = matchStart + phrase.length - 1
+            ranges += searchable.renderedIndices[matchStart]..searchable.renderedIndices[matchEnd]
+        }
+
+        if (ranges.isEmpty()) return emptyList()
+        return ranges
+            .sortedBy { it.first }
+            .fold(mutableListOf<IntRange>()) { merged, range ->
+                val previous = merged.lastOrNull()
+                if (previous == null || range.first > previous.last + 1) {
+                    merged += range
+                } else {
+                    merged[merged.lastIndex] = previous.first..maxOf(previous.last, range.last)
+                }
+                merged
+            }
+    }
+
+    private fun searchableTextWithRenderedIndex(text: String): SearchableText {
+        val searchableText = StringBuilder(text.length)
+        val renderedIndices = mutableListOf<Int>()
+        text.forEachIndexed { index, char ->
+            if (!char.isEmphasisSearchGap()) {
+                searchableText.append(char)
+                renderedIndices += index
+            }
+        }
+        return SearchableText(searchableText.toString(), renderedIndices)
+    }
+
+    private fun searchableEmphasisText(text: String): String {
+        val normalized = text.normalizeDialogueSymbolsAndSpacing()
+        return buildString {
+            normalized.forEach { char ->
+                if (!char.isEmphasisSearchGap()) append(char)
+            }
+        }
+    }
+
+    private fun Char.isEmphasisSearchGap(): Boolean {
+        return isWhitespace() || this == WIDE_RENDER_SPACE.first() || this == '\n' || this == '\r'
+    }
+
+    private fun countOccurrences(text: String, phrase: String): Int {
+        if (text.isBlank() || phrase.isBlank()) return 0
+        var count = 0
+        var start = 0
+        while (start < text.length) {
+            val index = text.indexOf(phrase, start)
+            if (index < 0) break
+            count++
+            start = index + phrase.length
+        }
+        return count
+    }
+
+    private fun nthIndexOf(text: String, phrase: String, occurrenceIndex: Int): Int? {
+        if (text.isBlank() || phrase.isBlank()) return null
+        var found = 0
+        var start = 0
+        while (start < text.length) {
+            val index = text.indexOf(phrase, start)
+            if (index < 0) return null
+            if (found == occurrenceIndex) return index
+            found++
+            start = index + phrase.length
+        }
+        return null
+    }
+
+    private fun drawEmphasisDots(
+        canvas: Canvas,
+        paint: Paint,
+        line: String,
+        lineStartOffset: Int,
+        emphasisRanges: List<IntRange>,
+        x: Float,
+        baseline: Float,
+        textColor: Int
+    ) {
+        if (line.isBlank() || emphasisRanges.isEmpty()) return
+        val lineEndOffset = lineStartOffset + line.length
+        val lineRanges = emphasisRanges.mapNotNull { range ->
+            val start = maxOf(range.first, lineStartOffset)
+            val endExclusive = minOf(range.last + 1, lineEndOffset)
+            if (start >= endExclusive) null else (start - lineStartOffset) until (endExclusive - lineStartOffset)
+        }
+        if (lineRanges.isEmpty()) return
+
+        val dotPaint = Paint(paint).apply {
+            style = Paint.Style.FILL
+            clearShadowLayer()
+        }
+        val radius = (paint.textSize * 0.095f).coerceAtLeast(4.0f)
+        val dotY = baseline + paint.fontMetrics.ascent - paint.textSize * 0.08f
+
+        for (range in lineRanges) {
+            for (charIndex in range) {
+                val char = line[charIndex]
+                if (!char.canCarryRenderedEmphasisDot()) continue
+                val charLeft = x + paint.measureText(line, 0, charIndex)
+                val charWidth = paint.measureText(line, charIndex, charIndex + 1)
+                val dotX = charLeft + charWidth / 2f
+
+                dotPaint.color = textColor
+                canvas.drawCircle(dotX, dotY, radius, dotPaint)
+            }
+        }
+    }
+
+    private fun Char.canCarryRenderedEmphasisDot(): Boolean {
+        return !isWhitespace() && this !in setOf(
+            '。', '、', '，', ',', '！', '!', '？', '?', '…', '·', '・', '･',
+            '「', '」', '『', '』', '（', '）', '(', ')', '[', ']', '【', '】',
+            '《', '》', '<', '>', '＜', '＞', WIDE_RENDER_SPACE.first()
+        )
     }
 
     private fun screenScale(canvas: Canvas): Float {

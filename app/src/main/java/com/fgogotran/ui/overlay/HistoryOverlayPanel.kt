@@ -288,7 +288,7 @@ private fun historyTextView(
         paint.isFakeBoldText = false
         paint.isSubpixelText = true
         paint.isLinearText = true
-        includeFontPadding = false
+        includeFontPadding = text.toString().contains('\u0307')
         this.gravity = gravity
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,

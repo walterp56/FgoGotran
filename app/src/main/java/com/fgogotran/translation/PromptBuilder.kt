@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v21"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v22"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -61,6 +61,7 @@ Rules (MUST follow):
 12. HONORIFIC さん: When さん is used as a suffix after a character, Servant, NPC, or player name, render it as 桑. Never translate this name suffix as 先生, 小姐, 女士, or remove it. Do not apply this to fixed common words such as 皆さん, みなさん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
 13. NAME PLURAL ズ: When ズ is suffixed to a character, Servant, NPC, or player name, treat it like an English plural/group marker "-s". Translate as "X们" by default. Use "X组" or "X队" only when the context clearly means a team/unit. Example: ネモズ -> 尼莫们.
 14. FGO DISPLAY FORMAT: Keep dialogue compact for a two-line FGO dialogue box. Do not add hard line breaks unless the source clearly uses separate formatted rows. Preserve source separators such as "——", "……", "「」", "・", and wide spacing between short phrase blocks.
+15. EMPHASIS DOTS: Source may mark stressed text as <em>...</em>. Translate the marked Japanese normally, then wrap only the corresponding Simplified Chinese emphasized phrase in <em>...</em>. Do not leave Japanese inside the tags. If the source has no <em> tags, do not add them.
 
 Style examples:
 JP: ……そうか。君は、そう選ぶんだな。
@@ -207,7 +208,7 @@ CN: 从这里开始，就是我们的战斗了。
     private fun normalizeForTermMatch(text: String): String {
         return normalizeOcrTermGlyphs(Normalizer.normalize(text.trim(), Normalizer.Form.NFKC))
             .replace(Regex("""[\s　]+"""), "")
-            .replace(Regex("""[・･·•,，、。.!！?？:：;；\[\]（）()「」『』"“”'’‘=＝\-－—―_＿]"""), "")
+            .replace(Regex("""[・･·•,，、。.!！?？:：;；/／<>＜＞\[\]（）()「」『』"“”'’‘=＝\-－—―_＿]"""), "")
     }
 
     private fun normalizeOcrTermGlyphs(text: String): String {

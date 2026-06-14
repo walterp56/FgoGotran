@@ -1308,7 +1308,86 @@ class Translator @Inject constructor(
             cleanReturnedRubyMarkup(toSimplifiedChinese(translatedText))
         )
         val honorificAdjusted = applySanHonorificPolicy(sourceText, simplified)
-        return preserveSourcePunctuation(sourceText, honorificAdjusted)
+        val punctuated = preserveSourcePunctuation(sourceText, honorificAdjusted)
+        return applySourceEmphasisFallback(sourceText, punctuated)
+    }
+
+    private fun applySourceEmphasisFallback(sourceText: String, translatedText: String): String {
+        if (!EmphasisMarkup.hasMarkup(sourceText) || EmphasisMarkup.hasMarkup(translatedText)) {
+            return translatedText
+        }
+
+        val source = EmphasisMarkup.parse(sourceText)
+        if (source.ranges.isEmpty() || source.plainText.isBlank() || translatedText.isBlank()) {
+            return translatedText
+        }
+
+        val target = EmphasisMarkup.strip(translatedText)
+        val sourceLength = source.plainText.length.coerceAtLeast(1)
+        val targetRanges = source.ranges
+            .mapNotNull { sourceRange ->
+                val rawStart = kotlin.math.floor(
+                    target.length * sourceRange.startIndex.toDouble() / sourceLength
+                ).toInt()
+                val rawEnd = kotlin.math.ceil(
+                    target.length * sourceRange.endIndex.toDouble() / sourceLength
+                ).toInt()
+                adjustedTranslatedEmphasisRange(target, rawStart, rawEnd)
+            }
+            .let(::mergeTranslatedEmphasisRanges)
+
+        if (targetRanges.isEmpty()) return translatedText
+
+        var result = target
+        for (range in targetRanges.sortedByDescending { it.first }) {
+            result = result.substring(0, range.first) +
+                    EmphasisMarkup.OPEN +
+                    result.substring(range.first, range.last + 1) +
+                    EmphasisMarkup.CLOSE +
+                    result.substring(range.last + 1)
+        }
+        FgoLogger.debug(tag, "Applied emphasis fallback: $result")
+        return result
+    }
+
+    private fun adjustedTranslatedEmphasisRange(
+        text: String,
+        rawStart: Int,
+        rawEnd: Int
+    ): IntRange? {
+        if (text.isBlank()) return null
+        var start = rawStart.coerceIn(0, text.lastIndex)
+        var endExclusive = rawEnd.coerceIn(start + 1, text.length)
+
+        while (start < endExclusive && !text[start].canCarryTranslatedEmphasisDot()) start++
+        while (endExclusive > start && !text[endExclusive - 1].canCarryTranslatedEmphasisDot()) {
+            endExclusive--
+        }
+        if (start >= endExclusive) return null
+        return start until endExclusive
+    }
+
+    private fun mergeTranslatedEmphasisRanges(ranges: List<IntRange>): List<IntRange> {
+        if (ranges.isEmpty()) return emptyList()
+        return ranges
+            .sortedBy { it.first }
+            .fold(mutableListOf<IntRange>()) { merged, range ->
+                val previous = merged.lastOrNull()
+                if (previous == null || range.first > previous.last + 1) {
+                    merged += range
+                } else {
+                    merged[merged.lastIndex] = previous.first..maxOf(previous.last, range.last)
+                }
+                merged
+            }
+    }
+
+    private fun Char.canCarryTranslatedEmphasisDot(): Boolean {
+        return !isWhitespace() && this !in setOf(
+            '。', '、', '，', ',', '！', '!', '？', '?', '…', '·', '・', '･',
+            '「', '」', '『', '』', '（', '）', '(', ')', '[', ']', '【', '】',
+            '《', '》', '<', '>', '＜', '＞'
+        )
     }
 
     private fun applySanHonorificPolicy(sourceText: String, translatedText: String): String {
@@ -1852,6 +1931,7 @@ class Translator @Inject constructor(
             appendLine("- If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士. Do not apply to fixed common words like 皆さん, お父さん, お母さん, お兄さん, or お姉さん.")
             appendLine("- If ズ is a suffix after a character, Servant, NPC, or player name, treat it like English plural -s. Translate as X们 by default, or X组/X队 only when it clearly means a team.")
             appendLine("- Treat base《reading》 as ruby/furigana context. Translate the full base phrase first, then place any parenthetical after that full phrase. Never insert the parenthetical in the middle of the translated base phrase.")
+            appendLine("- If dialogue contains <em>...</em>, keep exactly one <em>...</em> pair around the corresponding translated Chinese phrase. These tags are renderer metadata for FGO emphasis dots, not visible text.")
             appendLine("- No markdown, no explanations, no extra keys.")
             appendLine()
             appendLine("Scene:")
@@ -1940,18 +2020,28 @@ class Translator @Inject constructor(
         preserveRubyMeaning: Boolean
     ): String {
         val basePrompt = promptBuilder.buildUserPrompt(japaneseText, choiceTexts)
-        if (!preserveRubyMeaning || !japaneseText.contains('《')) {
+        val hasRubyMarkup = preserveRubyMeaning && japaneseText.contains('《')
+        val hasEmphasisMarkup = EmphasisMarkup.hasMarkup(japaneseText)
+        if (!hasRubyMarkup && !hasEmphasisMarkup) {
             return basePrompt
         }
         return buildString {
             appendLine(basePrompt)
             appendLine()
-            appendLine("Crop ruby rule:")
-            appendLine("- The source includes visible small ruby/furigana in base《ruby》 form.")
-            appendLine("- Translate BOTH the base text and the ruby text.")
-            appendLine("- Put the translated ruby meaning in a Chinese parenthetical AFTER the full translated base phrase.")
-            appendLine("- Do not omit the ruby meaning and do not place it in the middle of the base phrase.")
-            appendLine("Example shape: Good point《nice job》 -> Good point（nice job）")
+            if (hasEmphasisMarkup) {
+                appendLine("Emphasis dot rule:")
+                appendLine("- The source uses <em>...</em> for FGO emphasis dots above text.")
+                appendLine("- Translate the marked source phrase and keep <em>...</em> around the corresponding Chinese phrase only.")
+                appendLine("- Do not show or explain the tags; they are renderer metadata.")
+            }
+            if (hasRubyMarkup) {
+                appendLine("Crop ruby rule:")
+                appendLine("- The source includes visible small ruby/furigana in base《ruby》 form.")
+                appendLine("- Translate BOTH the base text and the ruby text.")
+                appendLine("- Put the translated ruby meaning in a Chinese parenthetical AFTER the full translated base phrase.")
+                appendLine("- Do not omit the ruby meaning and do not place it in the middle of the base phrase.")
+                appendLine("Example shape: Good point《nice job》 -> Good point（nice job）")
+            }
         }
     }
 
@@ -1964,6 +2054,7 @@ class Translator @Inject constructor(
             appendLine("If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士. Do not apply to fixed common words like 皆さん, お父さん, お母さん, お兄さん, or お姉さん.")
             appendLine("If ズ is a suffix after a character, Servant, NPC, or player name, treat it like English plural -s. Translate as X们 by default, or X组/X队 only when it clearly means a team.")
             appendLine("Treat base《reading》 as ruby/furigana context, not separate dialogue. If you include the reading as a parenthetical, place it after the full translated base phrase, never inside it.")
+            appendLine("If an item contains <em>...</em>, keep one <em>...</em> pair around the corresponding translated Chinese phrase; do not translate or remove the tag names.")
             appendLine("Keep punctuation/display separators such as ——, ……/..., 「」, ・, and wide spaces. Do not add hard line breaks unless the source clearly uses formatted rows.")
             appendLine("No markdown, no explanations, no extra keys.")
             appendLine()
@@ -1995,6 +2086,7 @@ Do not include Japanese kana except inside the player name or fixed official ter
 Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly.
 If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士.
 If ズ is a suffix after a character, Servant, NPC, or player name, translate it as a plural/group marker: X们 by default, or X组/X队 only when clearly a team.
+If source text contains <em>...</em>, keep one <em>...</em> pair around the corresponding translated Chinese phrase only.
 """.trimIndent()
             ),
             ChatMessage("user", buildStrictRetryUserPrompt(protectedInput.text, normalizedChoices))
@@ -2028,6 +2120,9 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
             appendLine("If placeholders like __FGOTERM_1__ or __FGOPLAYER_1__ appear, copy them exactly.")
             appendLine("If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士.")
             appendLine("If ズ is a suffix after a character, Servant, NPC, or player name, translate it as a plural/group marker: X们 by default.")
+            if (EmphasisMarkup.hasMarkup(japaneseText)) {
+                appendLine("Keep <em>...</em> around the corresponding translated Chinese phrase only; these tags mark emphasis dots.")
+            }
             if (choiceTexts.isNotEmpty()) {
                 appendLine("Choice context:")
                 choiceTexts.forEachIndexed { index, choice ->
