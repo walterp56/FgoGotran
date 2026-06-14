@@ -40,6 +40,11 @@ import kotlin.math.roundToInt
 
 private val FGO_CHOICE_HISTORY_RED = AndroidColor.rgb(246, 58, 60)
 private const val HISTORY_TEXT_SIZE_SP = 18f
+private const val HISTORY_LINE_SPACING_EXTRA_DP = 2
+private const val HISTORY_LINE_SPACING_MULTIPLIER = 1.08f
+private const val HISTORY_TEXT_BOTTOM_MARGIN_DP = 3
+private const val HISTORY_SPEAKER_BOTTOM_MARGIN_DP = 6
+private const val HISTORY_DIALOGUE_BOTTOM_MARGIN_DP = 4
 
 @Composable
 fun HistoryOverlayPanel(onDismiss: () -> Unit) {
@@ -154,7 +159,8 @@ private fun addHistoryEntryViews(
                 context = container.context,
                 text = it,
                 color = entry.speakerNameColor ?: AndroidColor.WHITE,
-                typeface = typeface
+                typeface = typeface,
+                bottomMarginDp = HISTORY_SPEAKER_BOTTOM_MARGIN_DP
             )
         )
     }
@@ -208,7 +214,7 @@ private fun historySpeakerDialogueView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            bottomMargin = dp(context, 3)
+            bottomMargin = dp(context, HISTORY_DIALOGUE_BOTTOM_MARGIN_DP)
         }
         addView(
             historyTextView(
@@ -278,7 +284,8 @@ private fun historyTextView(
     text: CharSequence,
     typeface: Typeface,
     color: Int = AndroidColor.WHITE,
-    gravity: Int = Gravity.START
+    gravity: Int = Gravity.START,
+    bottomMarginDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_DP
 ): TextView {
     return TextView(context).apply {
         this.text = text
@@ -288,13 +295,14 @@ private fun historyTextView(
         paint.isFakeBoldText = false
         paint.isSubpixelText = true
         paint.isLinearText = true
+        setLineSpacing(dp(context, HISTORY_LINE_SPACING_EXTRA_DP).toFloat(), HISTORY_LINE_SPACING_MULTIPLIER)
         includeFontPadding = false
         this.gravity = gravity
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            bottomMargin = dp(context, 3)
+            bottomMargin = dp(context, bottomMarginDp)
         }
     }
 }
