@@ -118,8 +118,8 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val VISUAL_FINGERPRINT_MAX_DIFF_RATIO = 0.035f
         private const val EARLY_TRANSLATION_STABLE_DELAY = 80L
         private const val EARLY_TRANSLATION_MIN_DIALOGUE_CHARS = 6
-        private const val COMPLETED_DIALOGUE_STABLE_DELAY = 0L
-        private const val COMPLETED_DIALOGUE_STABLE_SCANS = 1
+        private const val COMPLETED_DIALOGUE_STABLE_DELAY = 160L
+        private const val COMPLETED_DIALOGUE_STABLE_SCANS = 2
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_DELAY = 180L
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_SCANS = 2
         private const val RUBY_MAX_CHARS = 14
