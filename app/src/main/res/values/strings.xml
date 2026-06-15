@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FgoGotran</string>
-    <string name="accessibility_description">捕获 FGO 剧情画面并进行日译中翻译。需要此权限来检测点击并静默截取游戏画面。</string>
+    <string name="accessibility_summary">在用户启动服务后识别 FGO 剧情文字并显示翻译覆盖层。</string>
+    <string name="accessibility_description">FgoGotran 不是无障碍辅助工具。它使用无障碍服务在用户启动服务后检测 FGO 窗口和点击、截取当前 FGO 画面进行 OCR，并可将用户对翻译覆盖层的点击转发给 FGO。</string>
 </resources>

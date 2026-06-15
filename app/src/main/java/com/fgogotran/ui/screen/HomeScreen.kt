@@ -1,5 +1,6 @@
 package com.fgogotran.ui.screen
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
@@ -82,30 +83,13 @@ fun HomeScreen(
 
         // Check 1: Overlay permission
         if (!Settings.canDrawOverlays(context)) {
-            AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-                .setTitle("需要悬浮窗权限")
-                .setMessage("FgoGotran 需要“显示在其他应用上层”权限，才能在 FGO 上显示翻译按钮。")
-                .setPositiveButton("前往设置") { _, _ ->
-                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                    }
-                    context.startActivity(intent)
-                }
-                .setNegativeButton("取消", null)
-                .show()
+            showOverlayPermissionDisclosure(context)
             return
         }
 
         // Check 2: Accessibility service
         if (!accessibilityRunning) {
-            AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-                .setTitle("需要无障碍服务")
-                .setMessage("FgoGotran 需要无障碍服务来检测 FGO 中的点击并截取画面。\n\n请在设置中开启“FgoGotran”无障碍服务。")
-                .setPositiveButton("前往设置") { _, _ ->
-                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                }
-                .setNegativeButton("取消", null)
-                .show()
+            showAccessibilityDisclosure(context)
             return
         }
 
@@ -203,7 +187,7 @@ fun HomeScreen(
                     )
                     TextButton(
                         onClick = {
-                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                            showAccessibilityDisclosure(context)
                         }
                     ) {
                         Text("前往无障碍设置 →")
@@ -226,12 +210,7 @@ fun HomeScreen(
 
                     TextButton(
                         onClick = {
-                            // Direct link to THIS app's overlay setting
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            context.startActivity(intent)
+                            showOverlayPermissionDisclosure(context)
                         }
                     ) {
                         Text("前往权限设置 →")
@@ -304,4 +283,51 @@ private fun StatusRow(label: String, enabled: Boolean ,statusText: String, statu
             color = statusColor
         )
     }
+}
+
+private fun showAccessibilityDisclosure(context: Context) {
+    AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
+        .setTitle("无障碍服务用途说明")
+        .setMessage(
+            """
+            FgoGotran 不是无障碍辅助工具。开启后，它只用于 FGO 翻译功能：
+
+            • 检测 FGO 窗口变化和点击，用于判断何时刷新剧情翻译
+            • 在您启动服务后截取当前 FGO 画面，用 OCR 识别日文剧情文字
+            • 在 FGO 上方显示翻译覆盖层
+            • 当您点击翻译覆盖层时，将该点击转发给 FGO
+
+            如果使用在线翻译接口，识别出的待翻译文字会发送到您选择或配置的翻译服务。FgoGotran 不会读取联系人、短信、密码、银行应用内容，也不会在未启动服务时自动控制其他应用。
+
+            继续表示您理解并同意上述用途。
+            """.trimIndent()
+        )
+        .setPositiveButton("我同意并前往设置") { _, _ ->
+            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        .setNegativeButton("取消", null)
+        .show()
+}
+
+private fun showOverlayPermissionDisclosure(context: Context) {
+    AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
+        .setTitle("悬浮窗权限用途说明")
+        .setMessage(
+            """
+            FgoGotran 需要“显示在其他应用上层”权限，才能在 FGO 上显示翻译按钮、菜单和翻译结果。
+
+            该权限只用于 FGO 翻译覆盖层。您可以随时在系统设置中关闭此权限；关闭后翻译按钮和覆盖层将无法显示。
+
+            继续表示您理解并同意上述用途。
+            """.trimIndent()
+        )
+        .setPositiveButton("我同意并前往设置") { _, _ ->
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}")
+            )
+            context.startActivity(intent)
+        }
+        .setNegativeButton("取消", null)
+        .show()
 }

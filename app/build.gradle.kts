@@ -67,8 +67,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // ML Kit OCR (Japanese, model delivered by Google Play services to avoid bundling native OCR libs)
-    implementation("com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1")
+    // ML Kit OCR (Japanese, bundled so OCR works without Google Play services/model delivery)
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
 
     // Ktor HTTP client
     implementation("io.ktor:ktor-client-android:2.3.12")

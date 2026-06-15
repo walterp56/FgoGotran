@@ -177,8 +177,21 @@ class Translator @Inject constructor(
         private const val UNTRANSLATED_FALLBACK = ""
         private val nameSanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})さん")
-        private val wrongSanHonorificPattern =
-            Regex("([\\p{L}\\p{N}_·・ー〇○-]{1,32})(?:先生|小姐|女士|大人|阁下)")
+        private val nameKunHonorificPattern =
+            Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})君")
+        private val nameChanHonorificPattern =
+            Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})ちゃん")
+        private val nameSamaHonorificPattern =
+            Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})様")
+        private val nameTonoHonorificPattern =
+            Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})殿")
+        private val wrongSanHonorificSuffixes = listOf("先生", "小姐", "女士", "大人", "阁下")
+        private val wrongKunHonorificSuffixes = listOf("同学", "先生", "小姐", "女士", "大人", "阁下", "桑")
+        private val wrongChanHonorificSuffixes = listOf("小妹妹", "妹妹", "小姐", "同学", "亲", "桑")
+        private val wrongSamaHonorificSuffixes = listOf("大人", "阁下", "先生", "小姐", "女士", "同学", "桑", "殿")
+        private val wrongTonoHonorificSuffixes = listOf("大人", "阁下", "先生", "小姐", "女士", "同学", "桑", "様")
+        private val leakedMasterTitlePattern = Regex("(?i)\\bmaster\\b|マスター")
+        private val standaloneMasterTitleWrongSuffixes = listOf("御主人", "主人", "大师")
         private val sanHonorificExceptionPhrases = setOf(
             "皆さん",
             "みなさん",
@@ -197,7 +210,66 @@ class Translator @Inject constructor(
             "叔父さん",
             "叔母さん"
         )
+        private val kunHonorificExceptionPhrases = setOf(
+            "主君",
+            "若君",
+            "暴君"
+        )
+        private val chanHonorificExceptionPhrases = setOf(
+            "赤ちゃん",
+            "お父ちゃん",
+            "父ちゃん",
+            "お母ちゃん",
+            "母ちゃん",
+            "お兄ちゃん",
+            "兄ちゃん",
+            "お姉ちゃん",
+            "姉ちゃん",
+            "おじいちゃん",
+            "じいちゃん",
+            "おばあちゃん",
+            "ばあちゃん"
+        )
+        private val samaHonorificExceptionPhrases = setOf(
+            "皆様",
+            "みな様",
+            "お客様",
+            "神様",
+            "王様",
+            "奥様",
+            "お嬢様",
+            "殿様"
+        )
+        private val tonoHonorificExceptionPhrases = setOf(
+            "神殿",
+            "宮殿",
+            "御殿",
+            "殿堂",
+            "殿方"
+        )
         private val NAME_PLURAL_ZU_SUFFIXES = listOf("ズ", "ず")
+        private const val NAME_HONORIFIC_KUN_SUFFIX = "君"
+        private const val NAME_HONORIFIC_CHAN_SOURCE_SUFFIX = "ちゃん"
+        private const val NAME_HONORIFIC_CHAN_TARGET_SUFFIX = "酱"
+        private const val NAME_HONORIFIC_SAMA_SUFFIX = "様"
+        private const val NAME_HONORIFIC_TONO_SUFFIX = "殿"
+        private const val MASTER_TITLE_SOURCE = "マスター"
+        private const val MASTER_TITLE_OFFICIAL = "御主"
+        private val malformedProtectedTokenPattern =
+            Regex("__FGO(?:TERM|PLAYER)_([^_\\s]{1,64})(?:_(PLURAL|KUN|CHAN|SAMA|TONO|MASTER))?__")
+        private val anyProtectedTokenPattern =
+            Regex("__FGO(?:TERM|PLAYER)_[^\\s]{1,96}__")
+        private val protectedTokenNumericVariantBodyPattern =
+            Regex("\\d+_(PLURAL|KUN|CHAN|SAMA|TONO|MASTER)")
+        private val protectedTokenMarkerBodies = setOf(
+            "MASTER",
+            "PLAYER",
+            "PLURAL",
+            "KUN",
+            "CHAN",
+            "SAMA",
+            "TONO"
+        )
     }
 
     private fun formatUserFacingApiError(error: Exception): String {
@@ -1304,18 +1376,29 @@ class Translator @Inject constructor(
     }
 
     private fun sanitizeTranslation(sourceText: String, translatedText: String): String {
+        val restoredText = restoreMalformedProtectedTokens(translatedText, emptyList())
         val simplified = stripEdgeKanaLeak(
-            cleanReturnedRubyMarkup(toSimplifiedChinese(translatedText))
+            cleanReturnedRubyMarkup(toSimplifiedChinese(restoredText))
         )
-        val honorificAdjusted = applySanHonorificPolicy(sourceText, simplified)
-        return preserveSourcePunctuation(sourceText, honorificAdjusted)
+        val sanAdjusted = applySanHonorificPolicy(sourceText, simplified)
+        val kunAdjusted = applyKunHonorificPolicy(sourceText, sanAdjusted)
+        val chanAdjusted = applyChanHonorificPolicy(sourceText, kunAdjusted)
+        val samaAdjusted = applySamaHonorificPolicy(sourceText, chanAdjusted)
+        val tonoAdjusted = applyTonoHonorificPolicy(sourceText, samaAdjusted)
+        val masterAdjusted = applyMasterTitlePolicy(sourceText, tonoAdjusted)
+        return preserveSourcePunctuation(sourceText, masterAdjusted)
     }
 
     private fun applySanHonorificPolicy(sourceText: String, translatedText: String): String {
         if (!sourceContainsNameSanHonorific(sourceText)) return translatedText
-        return wrongSanHonorificPattern.replace(translatedText) { match ->
-            "${match.groupValues[1]}桑"
-        }
+        val adjusted = replaceStandaloneWrongHonorificIfNeeded(
+            sourceText,
+            translatedText,
+            nameSanHonorificPattern,
+            wrongSanHonorificSuffixes,
+            "桑"
+        )
+        return appendHonorificToStandaloneNameIfMissing(sourceText, adjusted, nameSanHonorificPattern, "桑")
     }
 
     private fun sourceContainsNameSanHonorific(sourceText: String): Boolean {
@@ -1327,6 +1410,230 @@ class Translator @Inject constructor(
                 match.value == exception || context.endsWith(exception)
             }
         }
+    }
+
+    private fun applyKunHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameKunHonorific(sourceText)) return translatedText
+        val adjusted = replaceStandaloneWrongHonorificIfNeeded(
+            sourceText,
+            translatedText,
+            nameKunHonorificPattern,
+            wrongKunHonorificSuffixes,
+            NAME_HONORIFIC_KUN_SUFFIX
+        )
+        return appendKunToStandaloneNameIfMissing(sourceText, adjusted)
+    }
+
+    private fun sourceContainsNameKunHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameKunHonorificPattern.findAll(normalized).any { match ->
+            val contextStart = (match.range.first - 2).coerceAtLeast(0)
+            val context = normalized.substring(contextStart, match.range.last + 1)
+            kunHonorificExceptionPhrases.none { exception ->
+                match.value == exception || context.endsWith(exception)
+            }
+        }
+    }
+
+    private fun applyChanHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameChanHonorific(sourceText)) return translatedText
+        val adjusted = replaceStandaloneWrongHonorificIfNeeded(
+            sourceText,
+            translatedText,
+            nameChanHonorificPattern,
+            wrongChanHonorificSuffixes,
+            NAME_HONORIFIC_CHAN_TARGET_SUFFIX
+        )
+        return appendHonorificToStandaloneNameIfMissing(
+            sourceText,
+            adjusted,
+            nameChanHonorificPattern,
+            NAME_HONORIFIC_CHAN_TARGET_SUFFIX
+        )
+    }
+
+    private fun sourceContainsNameChanHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameChanHonorificPattern.findAll(normalized).any { match ->
+            val contextStart = (match.range.first - 3).coerceAtLeast(0)
+            val context = normalized.substring(contextStart, match.range.last + 1)
+            chanHonorificExceptionPhrases.none { exception ->
+                match.value == exception || context.endsWith(exception)
+            }
+        }
+    }
+
+    private fun applySamaHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameSamaHonorific(sourceText)) return translatedText
+        val adjusted = replaceStandaloneWrongHonorificIfNeeded(
+            sourceText,
+            translatedText,
+            nameSamaHonorificPattern,
+            wrongSamaHonorificSuffixes,
+            NAME_HONORIFIC_SAMA_SUFFIX
+        )
+        return appendHonorificToStandaloneNameIfMissing(
+            sourceText,
+            adjusted,
+            nameSamaHonorificPattern,
+            NAME_HONORIFIC_SAMA_SUFFIX
+        )
+    }
+
+    private fun sourceContainsNameSamaHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameSamaHonorificPattern.findAll(normalized).any { match ->
+            val contextStart = (match.range.first - 2).coerceAtLeast(0)
+            val context = normalized.substring(contextStart, match.range.last + 1)
+            samaHonorificExceptionPhrases.none { exception ->
+                match.value == exception || context.endsWith(exception)
+            }
+        }
+    }
+
+    private fun applyTonoHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameTonoHonorific(sourceText)) return translatedText
+        val adjusted = replaceStandaloneWrongHonorificIfNeeded(
+            sourceText,
+            translatedText,
+            nameTonoHonorificPattern,
+            wrongTonoHonorificSuffixes,
+            NAME_HONORIFIC_TONO_SUFFIX
+        )
+        return appendHonorificToStandaloneNameIfMissing(
+            sourceText,
+            adjusted,
+            nameTonoHonorificPattern,
+            NAME_HONORIFIC_TONO_SUFFIX
+        )
+    }
+
+    private fun sourceContainsNameTonoHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameTonoHonorificPattern.findAll(normalized).any { match ->
+            val contextStart = (match.range.first - 2).coerceAtLeast(0)
+            val context = normalized.substring(contextStart, match.range.last + 1)
+            tonoHonorificExceptionPhrases.none { exception ->
+                match.value == exception || context.endsWith(exception)
+            }
+        }
+    }
+
+    private fun applyMasterTitlePolicy(sourceText: String, translatedText: String): String {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        if (!normalized.contains(MASTER_TITLE_SOURCE)) return translatedText
+        val leakedAdjusted = leakedMasterTitlePattern.replace(translatedText, MASTER_TITLE_OFFICIAL)
+        if (!sourceIsStandaloneText(sourceText, MASTER_TITLE_SOURCE)) return leakedAdjusted
+        return replaceStandaloneWrongTerm(leakedAdjusted, standaloneMasterTitleWrongSuffixes, MASTER_TITLE_OFFICIAL)
+    }
+
+    private fun appendKunToStandaloneNameIfMissing(sourceText: String, translatedText: String): String {
+        return appendHonorificToStandaloneNameIfMissing(
+            sourceText,
+            translatedText,
+            nameKunHonorificPattern,
+            NAME_HONORIFIC_KUN_SUFFIX
+        )
+    }
+
+    private fun appendHonorificToStandaloneNameIfMissing(
+        sourceText: String,
+        translatedText: String,
+        sourcePattern: Regex,
+        targetSuffix: String
+    ): String {
+        if (translatedText.contains(targetSuffix)) return translatedText
+        if (!sourceIsStandaloneNameHonorific(sourceText, sourcePattern)) return translatedText
+
+        val trimmed = translatedText.trim()
+        if (trimmed.isBlank() || trimmed.length > 32 || trimmed.any(::isJapaneseKana)) {
+            return translatedText
+        }
+
+        val trailing = trimmed.takeLastWhile { it.isNameTrailingPunctuation() }
+        val name = trimmed.dropLast(trailing.length).trimEnd()
+        if (name.any { it.isUnsafeStandaloneNameCharacter() }) return translatedText
+        if (name.isBlank()) return translatedText
+        return "$name$targetSuffix$trailing"
+    }
+
+    private fun replaceStandaloneWrongHonorificIfNeeded(
+        sourceText: String,
+        translatedText: String,
+        sourcePattern: Regex,
+        wrongSuffixes: List<String>,
+        targetSuffix: String
+    ): String {
+        if (!sourceIsStandaloneNameHonorific(sourceText, sourcePattern)) return translatedText
+        return replaceStandaloneWrongSuffix(translatedText, wrongSuffixes, targetSuffix)
+    }
+
+    private fun sourceIsStandaloneNameHonorific(sourceText: String, sourcePattern: Regex): Boolean {
+        return sourcePattern.matchEntire(normalizedStandaloneSourceCandidate(sourceText)) != null
+    }
+
+    private fun sourceIsStandaloneText(sourceText: String, expectedText: String): Boolean {
+        return normalizedStandaloneSourceCandidate(sourceText) == expectedText
+    }
+
+    private fun normalizedStandaloneSourceCandidate(sourceText: String): String {
+        return Normalizer.normalize(
+            TextNormalizer.stripRubyAnnotations(sourceText).trim(),
+            Normalizer.Form.NFKC
+        ).trim { it.isWhitespace() || it.isNameLookupPunctuation() }
+    }
+
+    private fun replaceStandaloneWrongSuffix(
+        translatedText: String,
+        wrongSuffixes: List<String>,
+        targetSuffix: String
+    ): String {
+        val trimmed = translatedText.trim()
+        if (!isSafeStandaloneRepairCandidate(trimmed)) return translatedText
+
+        val trailing = trimmed.takeLastWhile { it.isNameTrailingPunctuation() }
+        val core = trimmed.dropLast(trailing.length).trimEnd()
+        for (wrongSuffix in wrongSuffixes.sortedByDescending { it.length }) {
+            if (!core.endsWith(wrongSuffix)) continue
+            val name = core.dropLast(wrongSuffix.length).trimEnd()
+            if (name.isBlank() || name.any { it.isUnsafeStandaloneNameCharacter() }) {
+                return translatedText
+            }
+            return "$name$targetSuffix$trailing"
+        }
+        return translatedText
+    }
+
+    private fun replaceStandaloneWrongTerm(
+        translatedText: String,
+        wrongTerms: List<String>,
+        targetText: String
+    ): String {
+        val trimmed = translatedText.trim()
+        if (!isSafeStandaloneRepairCandidate(trimmed)) return translatedText
+
+        val trailing = trimmed.takeLastWhile { it.isNameTrailingPunctuation() }
+        val core = trimmed.dropLast(trailing.length).trimEnd()
+        return if (wrongTerms.any { core.equals(it, ignoreCase = true) }) {
+            "$targetText$trailing"
+        } else {
+            translatedText
+        }
+    }
+
+    private fun isSafeStandaloneRepairCandidate(text: String): Boolean {
+        if (text.isBlank() || text.length > 40 || text.any(::isJapaneseKana)) return false
+        val trailing = text.takeLastWhile { it.isNameTrailingPunctuation() }
+        val core = text.dropLast(trailing.length).trimEnd()
+        return core.isNotBlank() && core.none { it.isUnsafeStandaloneNameCharacter() }
+    }
+
+    private fun Char.isUnsafeStandaloneNameCharacter(): Boolean {
+        return this in setOf(
+            '\n', '\r', '。', '，', '、', '；', '：', '！', '？', '!', '?',
+            '「', '」', '『', '』', '（', '）', '(', ')', '[', ']', '【', '】',
+            '《', '》', '<', '>'
+        )
     }
 
     private fun stripEdgeKanaLeak(text: String): String {
@@ -1363,17 +1670,79 @@ class Translator @Inject constructor(
         val pluralOfficialText: String? = null
     )
 
+    private data class HonorificProtectionVariant(
+        val token: String,
+        val sourceSuffix: String,
+        val officialSuffix: String,
+        var matched: Boolean = false
+    )
+
     private fun protectText(
         sourceText: String,
         matchedTerms: List<TermEntity>,
         playerName: String
     ): ProtectedText {
-        val playerProtected = protectPlayerName(sourceText, playerName)
+        val masterProtected = protectMasterTitle(sourceText)
+        val playerProtected = protectPlayerName(masterProtected.text, playerName)
         val termProtected = protectOfficialTerms(playerProtected.text, matchedTerms)
         return ProtectedText(
             text = termProtected.text,
-            terms = playerProtected.terms + termProtected.terms
+            terms = masterProtected.terms + playerProtected.terms + termProtected.terms
         )
+    }
+
+    private fun protectMasterTitle(sourceText: String): ProtectedText {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        if (sourceText.isBlank() || !normalized.contains(MASTER_TITLE_SOURCE)) {
+            return ProtectedText(sourceText, emptyList())
+        }
+
+        val token = "__FGOTERM_MASTER__"
+        val pluralToken = "__FGOTERM_MASTER_PLURAL__"
+        val honorificVariants = honorificProtectionVariants("__FGOTERM_MASTER")
+        var protectedText = sourceText
+        val protections = mutableListOf<TermProtection>()
+
+        for (variant in honorificVariants) {
+            val before = protectedText
+            protectedText = replaceTermHonorificCandidate(
+                protectedText,
+                MASTER_TITLE_SOURCE,
+                variant.sourceSuffix,
+                variant.token
+            )
+            variant.matched = protectedText != before
+        }
+
+        val pluralBefore = protectedText
+        protectedText = replaceTermPluralCandidate(protectedText, MASTER_TITLE_SOURCE, pluralToken)
+        val pluralMatched = protectedText != pluralBefore
+
+        val baseBefore = protectedText
+        protectedText = replaceTermCandidate(protectedText, MASTER_TITLE_SOURCE, token)
+        val baseMatched = protectedText != baseBefore
+
+        return if (baseMatched || pluralMatched || honorificVariants.any { it.matched }) {
+            if (baseMatched || pluralMatched) {
+                protections += TermProtection(
+                    token = token,
+                    officialText = MASTER_TITLE_OFFICIAL,
+                    pluralToken = pluralToken.takeIf { pluralMatched },
+                    pluralOfficialText = pluralNameText(MASTER_TITLE_OFFICIAL).takeIf { pluralMatched }
+                )
+            }
+            for (variant in honorificVariants) {
+                if (variant.matched) {
+                    protections += TermProtection(
+                        token = variant.token,
+                        officialText = MASTER_TITLE_OFFICIAL + variant.officialSuffix
+                    )
+                }
+            }
+            ProtectedText(protectedText, protections)
+        } else {
+            ProtectedText(sourceText, emptyList())
+        }
     }
 
     private fun protectPlayerName(sourceText: String, playerName: String): ProtectedText {
@@ -1384,21 +1753,51 @@ class Translator @Inject constructor(
 
         val token = "__FGOPLAYER_1__"
         val pluralToken = "__FGOPLAYER_1_PLURAL__"
-        val pluralProtectedText = replaceTermPluralCandidate(sourceText, normalizedPlayerName, pluralToken)
-        val protectedText = replaceTermCandidate(pluralProtectedText, normalizedPlayerName, token)
-        return if (protectedText != sourceText) {
+        val honorificVariants = honorificProtectionVariants("__FGOPLAYER_1")
+        var protectedText = sourceText
+        val protections = mutableListOf<TermProtection>()
+
+        for (variant in honorificVariants) {
+            val before = protectedText
+            protectedText = replaceTermHonorificCandidate(
+                protectedText,
+                normalizedPlayerName,
+                variant.sourceSuffix,
+                variant.token
+            )
+            variant.matched = protectedText != before
+        }
+
+        val pluralBefore = protectedText
+        protectedText = replaceTermPluralCandidate(protectedText, normalizedPlayerName, pluralToken)
+        val pluralMatched = protectedText != pluralBefore
+
+        val baseBefore = protectedText
+        protectedText = replaceTermCandidate(protectedText, normalizedPlayerName, token)
+        val baseMatched = protectedText != baseBefore
+
+        return if (baseMatched || pluralMatched || honorificVariants.any { it.matched }) {
+            if (baseMatched || pluralMatched) {
+                protections += TermProtection(
+                    token = token,
+                    officialText = normalizedPlayerName,
+                    pluralToken = pluralToken.takeIf { pluralMatched },
+                    pluralOfficialText = pluralNameText(normalizedPlayerName)
+                        .takeIf { pluralMatched }
+                )
+            }
+            for (variant in honorificVariants) {
+                if (variant.matched) {
+                    protections += TermProtection(
+                        token = variant.token,
+                        officialText = normalizedPlayerName + variant.officialSuffix
+                    )
+                }
+            }
             FgoLogger.debug(tag, "Protected player name as $token")
             ProtectedText(
                 text = protectedText,
-                terms = listOf(
-                    TermProtection(
-                        token = token,
-                        officialText = normalizedPlayerName,
-                        pluralToken = pluralToken.takeIf { pluralProtectedText != sourceText },
-                        pluralOfficialText = pluralNameText(normalizedPlayerName)
-                            .takeIf { pluralProtectedText != sourceText }
-                    )
-                )
+                terms = protections
             )
         } else {
             ProtectedText(sourceText, emptyList())
@@ -1420,29 +1819,55 @@ class Translator @Inject constructor(
             val termIndex = tokenIndex++
             val token = "__FGOTERM_${termIndex}__"
             val pluralToken = "__FGOTERM_${termIndex}_PLURAL__"
+            val honorificVariants = honorificProtectionVariants("__FGOTERM_${termIndex}")
             var matched = false
             var pluralMatched = false
             for (candidate in termProtectionCandidates(term)) {
-                val before = protectedText
+                for (variant in honorificVariants) {
+                    val before = protectedText
+                    protectedText = replaceTermHonorificCandidate(
+                        protectedText,
+                        candidate,
+                        variant.sourceSuffix,
+                        variant.token
+                    )
+                    variant.matched = variant.matched || protectedText != before
+                }
+
                 val pluralBefore = protectedText
                 protectedText = replaceTermPluralCandidate(
                     protectedText,
                     candidate,
                     pluralToken
                 )
-                pluralMatched = pluralMatched || protectedText != pluralBefore
+                val candidatePluralMatched = protectedText != pluralBefore
+
+                val baseBefore = protectedText
                 protectedText = replaceTermCandidate(protectedText, candidate, token)
-                matched = matched || protectedText != before
+                val candidateBaseMatched = protectedText != baseBefore
+
+                pluralMatched = pluralMatched || candidatePluralMatched
+                matched = matched || candidatePluralMatched || candidateBaseMatched
             }
 
-            if (matched) {
+            if (matched || honorificVariants.any { it.matched }) {
                 val officialText = toSimplifiedChinese(term.cnTerm)
-                protections += TermProtection(
-                    token = token,
-                    officialText = officialText,
-                    pluralToken = pluralToken.takeIf { pluralMatched },
-                    pluralOfficialText = pluralNameText(officialText).takeIf { pluralMatched }
-                )
+                if (matched) {
+                    protections += TermProtection(
+                        token = token,
+                        officialText = officialText,
+                        pluralToken = pluralToken.takeIf { pluralMatched },
+                        pluralOfficialText = pluralNameText(officialText).takeIf { pluralMatched }
+                    )
+                }
+                for (variant in honorificVariants) {
+                    if (variant.matched) {
+                        protections += TermProtection(
+                            token = variant.token,
+                            officialText = officialText + variant.officialSuffix
+                        )
+                    }
+                }
                 FgoLogger.debug(tag, "Protected DB term ${term.jpTerm} -> ${term.cnTerm} as $token")
             } else {
                 tokenIndex--
@@ -1484,6 +1909,40 @@ class Translator @Inject constructor(
             current = replaceTermCandidate(current, candidate + suffix, token)
         }
         return current
+    }
+
+    private fun honorificProtectionVariants(tokenPrefix: String): List<HonorificProtectionVariant> {
+        return listOf(
+            HonorificProtectionVariant(
+                token = "${tokenPrefix}_KUN__",
+                sourceSuffix = NAME_HONORIFIC_KUN_SUFFIX,
+                officialSuffix = NAME_HONORIFIC_KUN_SUFFIX
+            ),
+            HonorificProtectionVariant(
+                token = "${tokenPrefix}_CHAN__",
+                sourceSuffix = NAME_HONORIFIC_CHAN_SOURCE_SUFFIX,
+                officialSuffix = NAME_HONORIFIC_CHAN_TARGET_SUFFIX
+            ),
+            HonorificProtectionVariant(
+                token = "${tokenPrefix}_SAMA__",
+                sourceSuffix = NAME_HONORIFIC_SAMA_SUFFIX,
+                officialSuffix = NAME_HONORIFIC_SAMA_SUFFIX
+            ),
+            HonorificProtectionVariant(
+                token = "${tokenPrefix}_TONO__",
+                sourceSuffix = NAME_HONORIFIC_TONO_SUFFIX,
+                officialSuffix = NAME_HONORIFIC_TONO_SUFFIX
+            )
+        )
+    }
+
+    private fun replaceTermHonorificCandidate(
+        text: String,
+        candidate: String,
+        sourceSuffix: String,
+        token: String
+    ): String {
+        return replaceTermCandidate(text, candidate + sourceSuffix, token)
     }
 
     private fun replaceNormalizedTermCandidate(text: String, candidate: String, token: String): String {
@@ -1546,8 +2005,6 @@ class Translator @Inject constructor(
     }
 
     private fun restoreProtectedTerms(translatedText: String, protections: List<TermProtection>): String {
-        if (protections.isEmpty()) return translatedText
-
         var restored = translatedText
         for (protection in protections) {
             val pluralToken = protection.pluralToken ?: continue
@@ -1557,6 +2014,7 @@ class Translator @Inject constructor(
         for (protection in protections) {
             restored = restored.replace(protection.token, protection.officialText)
         }
+        restored = restoreMalformedProtectedTokens(restored, protections)
         for (protection in protections) {
             val unresolvedToken = listOfNotNull(protection.token, protection.pluralToken)
                 .firstOrNull { restored.contains(it) }
@@ -1564,7 +2022,66 @@ class Translator @Inject constructor(
                 FgoLogger.warn(tag, "LLM returned unresolved terminology token $unresolvedToken")
             }
         }
+        if (anyProtectedTokenPattern.containsMatchIn(restored)) {
+            FgoLogger.warn(tag, "LLM returned malformed terminology token in translation")
+        }
         return restored
+    }
+
+    private fun restoreMalformedProtectedTokens(
+        translatedText: String,
+        protections: List<TermProtection>
+    ): String {
+        if (!translatedText.contains("__FGO")) return translatedText
+
+        val officialByText = buildMap {
+            for (protection in protections) {
+                putProtectionAlias(protection.officialText, protection.officialText)
+                protection.pluralOfficialText?.let { pluralOfficialText ->
+                    putProtectionAlias(pluralOfficialText, pluralOfficialText)
+                    putProtectionAlias(protection.officialText, pluralOfficialText, "PLURAL")
+                }
+            }
+            putProtectionAlias(MASTER_TITLE_OFFICIAL, MASTER_TITLE_OFFICIAL)
+            putProtectionAlias(MASTER_TITLE_SOURCE, MASTER_TITLE_OFFICIAL)
+        }
+
+        return malformedProtectedTokenPattern.replace(translatedText) { match ->
+            val body = match.groupValues[1].trim()
+            val suffix = match.groupValues.getOrNull(2).orEmpty().takeIf { it.isNotBlank() }
+            val normalizedKey = malformedProtectionAliasKey(body, suffix)
+            officialByText[normalizedKey]
+                ?: body.takeIf { suffix == null && it.shouldUnwrapMalformedPlaceholderBody() }
+                ?: match.value
+        }
+    }
+
+    private fun MutableMap<String, String>.putProtectionAlias(
+        source: String,
+        official: String,
+        suffix: String? = null
+    ) {
+        val trimmed = source.trim()
+        if (trimmed.isBlank()) return
+        this[malformedProtectionAliasKey(trimmed, suffix)] = official
+        this[malformedProtectionAliasKey(toSimplifiedChinese(trimmed), suffix)] = official
+    }
+
+    private fun malformedProtectionAliasKey(body: String, suffix: String?): String {
+        val normalizedBody = Normalizer.normalize(toSimplifiedChinese(body.trim()), Normalizer.Form.NFKC)
+        return if (suffix.isNullOrBlank()) normalizedBody else "$normalizedBody:$suffix"
+    }
+
+    private fun String.shouldUnwrapMalformedPlaceholderBody(): Boolean {
+        val trimmed = trim()
+        if (trimmed.isBlank()) return false
+        if (trimmed.all { it.isDigit() }) return false
+
+        val upper = trimmed.uppercase()
+        if (upper in protectedTokenMarkerBodies) return false
+        if (protectedTokenNumericVariantBodyPattern.matches(upper)) return false
+
+        return trimmed.any { !it.isAsciiLetterOrDigit() } || trimmed.any { it.isLowerCase() }
     }
 
     private fun pluralNameText(name: String): String {
@@ -1581,6 +2098,10 @@ class Translator @Inject constructor(
 
     private fun Char.isAsciiLetter(): Boolean {
         return this in 'A'..'Z' || this in 'a'..'z'
+    }
+
+    private fun Char.isAsciiLetterOrDigit(): Boolean {
+        return isAsciiLetter() || this in '0'..'9'
     }
 
     private fun preserveSourcePunctuation(sourceText: String, translatedText: String): String {
@@ -1837,22 +2358,18 @@ class Translator @Inject constructor(
         choices: List<String>
     ): String {
         return buildString {
-            appendLine("Translate this Fate/Grand Order story scene to Simplified Chinese.")
+            appendLine("Localize this Fate/Grand Order story scene to Simplified Chinese for an in-game overlay.")
             appendLine("Return ONLY a JSON object with exactly these keys:")
             appendLine("""{"name": string|null, "dialogue": string|null, "choices": string[]}""")
-            appendLine("Rules:")
+            appendLine("Prompt policy:")
+            appendLine("- Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
             appendLine("- Translate name only if name is not null; otherwise return null.")
             appendLine("- If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order character name. Never return the original Japanese name unchanged.")
             appendLine("- For short katakana names, transliterate the sound literally (example: レオン -> 莱昂). Do not replace it with another known FGO character.")
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
-            appendLine("- Keep dialogue compact for a two-line FGO dialogue box; do not add hard line breaks unless the source has meaningful separated rows.")
-            appendLine("- Preserve display symbols and separators: ——, ……/..., 「」, ・, and wide spaces between short phrase blocks.")
-            appendLine("- Translate choices as an array in the same order.")
-            appendLine("- Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly; do not translate them.")
-            appendLine("- If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士. Do not apply to fixed common words like 皆さん, お父さん, お母さん, お兄さん, or お姉さん.")
-            appendLine("- If ズ is a suffix after a character, Servant, NPC, or player name, treat it like English plural -s. Translate as X们 by default, or X组/X队 only when it clearly means a team.")
-            appendLine("- Treat base《reading》 as ruby/furigana context. Translate the full base phrase first, then place any parenthetical after that full phrase. Never insert the parenthetical in the middle of the translated base phrase.")
-            appendLine("- No markdown, no explanations, no extra keys.")
+            appendLine("- Translate choices as short player-facing options in the same order. Preserve intent and emotional nuance, but avoid making choices long.")
+            appendLine("- If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
+            appendLine("- Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations, no extra keys.")
             appendLine()
             appendLine("Scene:")
             appendLine("name: ${name ?: "null"}")
@@ -1948,24 +2465,22 @@ class Translator @Inject constructor(
             appendLine()
             appendLine("Crop ruby rule:")
             appendLine("- The source includes visible small ruby/furigana in base《ruby》 form.")
-            appendLine("- Translate BOTH the base text and the ruby text.")
-            appendLine("- Put the translated ruby meaning in a Chinese parenthetical AFTER the full translated base phrase.")
-            appendLine("- Do not omit the ruby meaning and do not place it in the middle of the base phrase.")
+            appendLine("- Treat ruby as pronunciation, alias, joke, or hidden meaning context, not as separate dialogue.")
+            appendLine("- Translate the full base phrase first, then put the translated ruby meaning in a concise Chinese parenthetical after that full phrase.")
+            appendLine("- Do not omit useful ruby meaning and do not place it in the middle of the base phrase.")
             appendLine("Example shape: Good point《nice job》 -> Good point（nice job）")
         }
     }
 
     private fun buildBatchUserPrompt(texts: List<String>): String {
         return buildString {
-            appendLine("Translate each Japanese item to Simplified Chinese.")
+            appendLine("Localize each Fate/Grand Order Japanese item to Simplified Chinese.")
             appendLine("Return ONLY a JSON array of strings.")
             appendLine("The JSON array must contain exactly ${texts.size} items in the same order.")
-            appendLine("Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly; do not translate them.")
-            appendLine("If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士. Do not apply to fixed common words like 皆さん, お父さん, お母さん, お兄さん, or お姉さん.")
-            appendLine("If ズ is a suffix after a character, Servant, NPC, or player name, treat it like English plural -s. Translate as X们 by default, or X组/X队 only when it clearly means a team.")
-            appendLine("Treat base《reading》 as ruby/furigana context, not separate dialogue. If you include the reading as a parenthetical, place it after the full translated base phrase, never inside it.")
-            appendLine("Keep punctuation/display separators such as ——, ……/..., 「」, ・, and wide spaces. Do not add hard line breaks unless the source clearly uses formatted rows.")
-            appendLine("No markdown, no explanations, no extra keys.")
+            appendLine("Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
+            appendLine("If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
+            appendLine("Keep every item aligned one-to-one with input order; do not merge, split, or skip items.")
+            appendLine("Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations.")
             appendLine()
             appendLine("Items:")
             texts.forEachIndexed { index, text ->
@@ -1989,12 +2504,10 @@ class Translator @Inject constructor(
 
 IMPORTANT RETRY:
 The previous response copied Japanese instead of translating.
-Return Simplified Chinese only.
+Return Simplified Chinese only, with no Japanese source text, notes, markdown, or explanations.
+Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.
 The player name "$playerName" is fixed user text; keep it exactly if it appears.
-Do not include Japanese kana except inside the player name or fixed official terminology supplied above.
-Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly.
-If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士.
-If ズ is a suffix after a character, Servant, NPC, or player name, translate it as a plural/group marker: X们 by default, or X组/X队 only when clearly a team.
+Do not include Japanese kana except inside the player name, unchanged placeholders, or fixed official terminology supplied above.
 """.trimIndent()
             ),
             ChatMessage("user", buildStrictRetryUserPrompt(protectedInput.text, normalizedChoices))
@@ -2023,13 +2536,13 @@ If ズ is a suffix after a character, Servant, NPC, or player name, translate it
         choiceTexts: List<String>
     ): String {
         return buildString {
-            appendLine("Translate this Japanese Fate/Grand Order text into Simplified Chinese.")
+            appendLine("Localize this Japanese Fate/Grand Order text into Simplified Chinese.")
             appendLine("Return ONLY the Chinese translation. No Japanese source text, no explanation.")
-            appendLine("If placeholders like __FGOTERM_1__ or __FGOPLAYER_1__ appear, copy them exactly.")
-            appendLine("If さん is a suffix after a character, Servant, NPC, or player name, translate that suffix as 桑; never use 先生, 小姐, or 女士.")
-            appendLine("If ズ is a suffix after a character, Servant, NPC, or player name, translate it as a plural/group marker: X们 by default.")
+            appendLine("Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
+            appendLine("Keep the translation compact. Do not over-explain lore, add source text, add translator notes, or leave Japanese kana unless allowed by placeholders/player/official terms.")
+            appendLine("If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders, including _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, and _MASTER__ variants.")
             if (choiceTexts.isNotEmpty()) {
-                appendLine("Choice context:")
+                appendLine("Choice context. Translate choices as short player-facing options:")
                 choiceTexts.forEachIndexed { index, choice ->
                     appendLine("[Choice ${index + 1}] $choice")
                 }

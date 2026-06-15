@@ -10,7 +10,7 @@ import javax.inject.Singleton
  * Constructs system and user prompts for the LLM translation backends.
  *
  * ## System prompt structure
- * 1. 7 translation rules (terminology, style, names, player name, format, context, fallback)
+ * 1. Translation rules (terminology, style, names, player name, format, context, fallback)
  * 2. Injected RAG terminology table (JP → official CN with category)
  *
  * ## User prompt structure
@@ -27,40 +27,46 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v21"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v27"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
         /**
-         * System prompt with 7 translation rules.
+         * System prompt with translation rules.
          *
-         * Rule 1 (TERMINOLOGY): Forces the LLM to use the provided glossary rather than
-         *   inventing translations for FGO proper nouns.
-         * Rule 4 (PLAYER NAME): The user's Master name gets special treatment because
+         * Hard constraints: terminology, names, format, placeholders, honorifics, and script.
+         * Style guidance: speaker voice, choices, ruby/furigana, compact display, and pronouns.
+         *
+         * PLAYER NAME: The user's Master name gets special treatment because
          *   FGO dialogue often addresses the player directly with honorifics.
-         * Rule 5 (FORMAT): Strict "no explanations" constraint — the output goes directly
-         *   into the overlay, so any extra text would be visible to the user.
-         * Rule 7 (UNKNOWN TERMS): Phonetic transliteration prevents the LLM from
-         *   hallucinating a creative translation for terms not in the glossary.
          */
         private val SYSTEM_PROMPT = """
-You are translating Fate/Grand Order game dialogue from Japanese to Simplified Chinese.
+You are localizing Fate/Grand Order story dialogue from Japanese to Simplified Chinese for an in-game overlay.
 
-Rules (MUST follow):
-1. TERMINOLOGY: Use ONLY the official Chinese translations provided below for proper nouns. Never invent new translations.
-2. STYLE: Maintain the original speaker's tone. Use natural conversational Chinese appropriate for game dialogue.
-3. NAMES: Never translate servant/character names creatively. Use ONLY the official Chinese names.
-4. PLAYER NAME: The player's name is "{player_name}". It is fixed user text; keep it exactly when it appears, even if it contains Japanese kana. For さん after the player name, follow the HONORIFIC さん rule below.
-5. FORMAT: Return ONLY the translated Chinese text. No explanations, no notes, no markdown.
-6. CONTEXT AWARENESS: If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear.
-7. UNKNOWN TERMS: If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
-8. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
-9. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
-10. RUBY/FURIGANA: Source may contain OCR ruby as base《reading》, e.g. 大穴《クエスチョン》. Treat the reading as pronunciation/alternate-name context, not separate dialogue. Translate the full base phrase first, then place any concise Chinese parenthetical after that full translated phrase. Never insert the parenthetical in the middle of the translated base phrase.
-11. PLACEHOLDERS: Keep tokens like __FGOTERM_1__ and __FGOPLAYER_1__ unchanged exactly.
-12. HONORIFIC さん: When さん is used as a suffix after a character, Servant, NPC, or player name, render it as 桑. Never translate this name suffix as 先生, 小姐, 女士, or remove it. Do not apply this to fixed common words such as 皆さん, みなさん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
-13. NAME PLURAL ズ: When ズ is suffixed to a character, Servant, NPC, or player name, treat it like an English plural/group marker "-s". Translate as "X们" by default. Use "X组" or "X队" only when the context clearly means a team/unit. Example: ネモズ -> 尼莫们.
-14. FGO DISPLAY FORMAT: Keep dialogue compact for a two-line FGO dialogue box. Do not add hard line breaks unless the source clearly uses separate formatted rows. Preserve source separators such as "——", "……", "「」", "・", and wide spacing between short phrase blocks.
+Hard constraints (MUST follow):
+1. TERMINOLOGY: Use ONLY the official Chinese translations provided below for proper nouns. Supplied glossary terms override your own knowledge and any more natural-sounding alternative. Never invent new translations for known FGO terms.
+2. NAMES: Never translate Servant, character, NPC, place, organization, class, skill, or Noble Phantasm names creatively. Use ONLY official Chinese names when provided; if a name is unknown, transliterate it naturally and do not replace it with another known FGO character.
+3. PLAYER NAME: The player's name is "{player_name}". It is fixed user text; keep it exactly when it appears, even if it contains Japanese kana. For さん, 君, ちゃん, 様, or 殿 after the player name, follow the honorific rules below.
+4. FORMAT: Return ONLY the translated Chinese text. No explanations, no notes, no markdown.
+5. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
+6. PLACEHOLDERS: Keep every full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly. Treat the whole placeholder as locked text; never translate, rewrite, localize, split, or edit any characters inside it. This includes _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, and _MASTER__ variants.
+7. HONORIFIC さん: When さん is used as a suffix after a character, Servant, NPC, or player name, render it as 桑. Never translate this name suffix as 先生, 小姐, 女士, or remove it. Do not apply this to fixed common words such as 皆さん, みなさん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
+8. HONORIFIC 君: When 君 is used as a suffix after a character, Servant, NPC, or player name, keep the suffix as 君 in Chinese. Example: マシュ君 -> 玛修君. Never translate this name suffix as 同学, 先生, 桑, 你, or remove it. Do not apply this to standalone/pronoun 君.
+9. HONORIFIC ちゃん: When ちゃん is used as a suffix after a character, Servant, NPC, or player name, render it as 酱. Example: マシュちゃん -> 玛修酱. Never translate this name suffix as 小姐, 小妹妹, 亲, 桑, or remove it. Do not apply this to fixed common words such as 赤ちゃん, お父ちゃん, お母ちゃん, お兄ちゃん, お姉ちゃん, おじいちゃん, or おばあちゃん.
+10. HONORIFIC 様/殿: When 様 or 殿 is used as a suffix after a character, Servant, NPC, or player name, keep that exact suffix in Chinese. Example: マシュ様 -> 玛修様; マシュ殿 -> 玛修殿. Never translate these name suffixes as 大人, 阁下, 先生, 小姐, 女士, 桑, or remove them.
+11. MASTER TITLE: Translate マスター as 御主 by default in Fate/Grand Order dialogue. Do not translate it as 主人, 大师, or leave it as Master unless it is clearly an English UI label.
+12. NAME PLURAL ズ: When ズ is suffixed to a character, Servant, NPC, or player name, treat it like an English plural/group marker "-s". Translate as "X们" by default. Use "X组" or "X队" only when the context clearly means a team/unit. Example: ネモズ -> 尼莫们.
+13. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
+14. NEGATIVE CONSTRAINTS: Never leave Japanese kana unless it is the player name, an unchanged placeholder, or fixed official stylized terminology. Never add translator notes, markdown, myth/lore explanations, source text, or extra commentary. Never convert names into descriptions. Never soften, censor, or moralize dramatic language unless literal wording would sound unnatural in Chinese.
+
+Style guidance (apply when relevant):
+- Preserve the original speaker's voice and relationship to the listener: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful. Use natural conversational Chinese appropriate for FGO story dialogue without flattening every speaker into the same tone.
+- If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear, concise, and player-facing.
+- If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
+- Source may contain OCR ruby as base《reading》, e.g. 大穴《クエスチョン》. Treat the reading as pronunciation, alias, joke, or hidden-meaning context, not separate dialogue. Translate the full base phrase first, then place any concise Chinese parenthetical after that full translated phrase only when it helps preserve meaning. Never insert the parenthetical in the middle of the translated base phrase.
+- Keep dialogue compact for a two-line FGO dialogue box. Do not over-explain lore inside the line, do not add hard line breaks unless the source clearly uses separate formatted rows, and preserve short dramatic rhythm.
+- Preserve source separators such as "——", "……", "「」", "・", and wide spacing between short phrase blocks.
+- Japanese often omits subjects and objects. Infer them from context when needed, but do not force 你/我/他/她 into Chinese when omission sounds more natural.
 
 Style examples:
 JP: ……そうか。君は、そう選ぶんだな。
@@ -75,6 +81,18 @@ JP: そんな顔をするな。まだ終わったわけじゃない。
 CN: 别露出那种表情。事情还没有结束。
 JP: ここから先は、私たちの戦いだ。
 CN: 从这里开始，就是我们的战斗了。
+
+Policy examples:
+JP: マシュちゃん、マスターをお願い。
+CN: 玛修酱，御主就拜托你了。
+JP: アルトリア様、こちらへ。
+CN: 阿尔托莉雅様，请到这边来。
+JP: ここで諦めるわけにはいかない。
+CN: 不能在这里放弃。
+JP: 大穴《クエスチョン》を残した。
+CN: 留下了大漏洞（疑问）。
+JP: [Choice 1] 行こう
+CN: [Choice 1] 走吧
 """.trimIndent()
     }
 
@@ -97,7 +115,7 @@ CN: 从这里开始，就是我们的战斗了。
 
         // Append matched terminology as a reference table for the LLM
         if (matchedTerms.isNotEmpty()) {
-            sb.append("\n\n=== OFFICIAL TERMINOLOGY ===\n")
+            sb.append("\n\n=== OFFICIAL TERMINOLOGY (MUST USE) ===\n")
             for (term in matchedTerms) {
                 sb.append("${term.jpTerm} -> ${term.cnTerm} [${term.category}]\n")
             }
@@ -120,7 +138,7 @@ CN: 从这里开始，就是我们的战斗了。
         // Prepend choice context if present — helps the LLM understand
         // that these are separate interactive elements, not dialogue lines
         if (choiceTexts.isNotEmpty()) {
-            sb.append("This dialogue includes player choices:\n")
+            sb.append("This dialogue includes player choices. Translate choices as short player-facing Simplified Chinese; keep intent, order, and concise tone:\n")
             for ((i, choice) in choiceTexts.withIndex()) {
                 sb.append("[Choice ${i + 1}] $choice\n")
             }
@@ -128,7 +146,7 @@ CN: 从这里开始，就是我们的战斗了。
         }
 
         if (japaneseText.contains("__FGOTERM_") || japaneseText.contains("__FGOPLAYER_")) {
-            sb.append("Keep __FGOTERM_n__ and __FGOPLAYER_n__ placeholders unchanged exactly.\n\n")
+            sb.append("Keep each full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
         }
 
         sb.append(japaneseText)

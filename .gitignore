@@ -37,3 +37,4 @@ local.properties
 # Ignore the entire doc folder
 doc/
 image/
+app/release/

@@ -3,8 +3,10 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeTouchInteractionEnd|typeViewClicked"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:canRetrieveWindowContent="true"
+    android:canRetrieveWindowContent="false"
     android:canTakeScreenshot="true"
     android:canPerformGestures="true"
-    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
+    android:accessibilityFlags="flagDefault"
+    android:isAccessibilityTool="false"
+    android:summary="@string/accessibility_summary"
     android:description="@string/accessibility_description" />

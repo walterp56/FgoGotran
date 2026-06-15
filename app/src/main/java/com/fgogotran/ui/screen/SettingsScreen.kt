@@ -1,7 +1,5 @@
 package com.fgogotran.ui.screen
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -9,12 +7,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.ui.component.BackendProviderLabel
-import com.fgogotran.update.AppUpdateManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -32,16 +28,13 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
     glossaryUpdateManager: GlossaryUpdateManager,
-    appUpdateManager: AppUpdateManager,
     onApiSettings: () -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val scrollState = rememberScrollState()
     val dbContentVersion by settingsRepository.dbContentVersion.collectAsState(initial = "")
     val dbUpdateStatus by glossaryUpdateManager.updateStatus.collectAsState()
-    val appUpdateStatus by appUpdateManager.updateStatus.collectAsState()
     val translationBackend by settingsRepository.translationBackend.collectAsState(
         initial = SettingsRepository.BACKEND_DEEPSEEK
     )
@@ -61,11 +54,6 @@ fun SettingsScreen(
 
     fun savePlayerName() {
         scope.launch { settingsRepository.setPlayerName(playerName) }
-    }
-
-    fun openUpdateUrl(url: String) {
-        if (url.isBlank()) return
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 
     Scaffold(
@@ -210,64 +198,6 @@ fun SettingsScreen(
                             scope.launch { settingsRepository.setCacheEnabled(it) }
                         }
                     )
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("应用更新", style = MaterialTheme.typography.titleMedium)
-                    SettingsInfoRow(
-                        label = "当前版本",
-                        value = "${appUpdateStatus.currentVersionName} (${appUpdateStatus.currentVersionCode})"
-                    )
-                    if (appUpdateStatus.latestVersionName.isNotBlank()) {
-                        SettingsInfoRow(
-                            label = "最新版本",
-                            value = "${appUpdateStatus.latestVersionName} (${appUpdateStatus.latestVersionCode})"
-                        )
-                    }
-                    SettingsInfoRow(label = "状态", value = appUpdateStatus.message)
-                    if (appUpdateStatus.hasUpdate && appUpdateStatus.releaseNotes.isNotEmpty()) {
-                        Text(
-                            appUpdateStatus.releaseNotes.joinToString("\n") { "• $it" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (appUpdateStatus.hasUpdate && appUpdateStatus.downloadUrl.isNotBlank()) {
-                            OutlinedButton(
-                                onClick = { openUpdateUrl(appUpdateStatus.downloadUrl) }
-                            ) {
-                                Text("下载新版")
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Button(
-                            onClick = { scope.launch { appUpdateManager.checkForUpdate() } },
-                            enabled = !appUpdateStatus.isChecking
-                        ) {
-                            if (appUpdateStatus.isChecking) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-                            Text(if (appUpdateStatus.isChecking) "检查中" else "检查应用更新")
-                        }
-                    }
                 }
             }
         }

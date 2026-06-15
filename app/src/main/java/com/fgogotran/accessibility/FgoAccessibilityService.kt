@@ -254,24 +254,18 @@ class FgoAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val packageName = event?.packageName?.toString() ?: return
-        val activePackageName = rootInActiveWindow?.packageName?.toString()
         val isFgoEvent = packageName.isSupportedFgoPackage()
-        val isFgoActive = activePackageName?.isSupportedFgoPackage() == true
 
         when {
             packageName == APP_PACKAGE -> {
-                if (isFgoActive) {
-                    isFgoForeground = true
+                if (isFgoForeground) {
                     translationOverlay.showIndicator()
                 }
                 // Our overlays emit window/touch events when they appear or redraw. Treat them as UI noise.
             }
-            isFgoEvent || isFgoActive -> {
+            isFgoEvent -> {
                 if (!isFgoForeground) {
-                    FgoLogger.info(
-                        tag,
-                        "FGO foreground detected: event=$packageName active=$activePackageName"
-                    )
+                    FgoLogger.info(tag, "FGO foreground detected: event=$packageName")
                 }
                 isFgoForeground = true
                 translationOverlay.showIndicator()
@@ -284,7 +278,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             else -> {
                 if (isFgoForeground) {
-                    FgoLogger.info(tag, "FGO foreground lost: event=$packageName active=$activePackageName")
+                    FgoLogger.info(tag, "FGO foreground lost: event=$packageName")
                 }
                 isFgoForeground = false
                 resetEarlyTranslation()
