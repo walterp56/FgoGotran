@@ -15,6 +15,7 @@ term_builder/.venv/
 term_builder/venv
 term_builder/venv/
 term_builder/venv/**
+term_builder/__pycache__/
 
 # Kotlin daemon
 .kotlin/
