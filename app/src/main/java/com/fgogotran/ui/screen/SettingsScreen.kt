@@ -146,7 +146,7 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("术语库", style = MaterialTheme.typography.titleMedium)
-                    SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "内置术语库" })
+                    SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "等待在线术语库" })
                     SettingsInfoRow(
                         label = "状态",
                         value = dbUpdateStatus.message.ifBlank { "空闲" }

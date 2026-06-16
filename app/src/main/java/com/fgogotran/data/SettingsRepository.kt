@@ -195,7 +195,7 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_CACHE_ENABLED] ?: true
     }
 
-    /** Latest installed CDN terminology DB content version, blank when only bundled DB is known. */
+    /** Latest installed CDN terminology DB content version, blank before online DB install. */
     val dbContentVersion: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_DB_CONTENT_VERSION] ?: ""
     }

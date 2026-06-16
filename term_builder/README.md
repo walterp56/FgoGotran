@@ -1,6 +1,7 @@
 # FGO Terminology Builder
 
-Builds the bundled terminology database used by the Android app.
+Builds the terminology database that is published to the CDN and downloaded by
+the Android app.
 
 ## Editable TSV Files
 
@@ -26,7 +27,7 @@ jp_name	cn_name	aliases
 Keep full character names here. `build_db.py` automatically adds component
 records for separator-based names, so `マシュ・キリエライト` keeps the full
 official row and also becomes searchable as `マシュ` and `キリエライト` in the
-bundled database.
+published database.
 
 ### `term.tsv`
 
@@ -50,17 +51,10 @@ C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\py
 C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\py\build_db.py
 ```
 
-Then rebuild the APK:
-
-```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'; .\gradlew.bat assembleDebug
-```
-
 Output:
 
 ```text
-app/src/main/assets/db/fgo_terms.db
-app/build/outputs/apk/debug/app-debug.apk
+term_builder/fgo_terms.db
 ```
 
 ## CDN Release Package
@@ -98,9 +92,10 @@ then verifies the live manifest content version.
 
 ## Runtime DB Tables
 
-`build_db.py` creates one SQLite asset with two tables:
+`build_db.py` creates one SQLite DB with two tables:
 
 - `character_names`: `jp_name`, `cn_name`, `aliases`
 - `terms`: `jp_term`, `cn_term`, `category`, `aliases`
 
-The app refreshes its copied runtime DB automatically when the bundled asset changes.
+The APK does not include this DB. The app downloads the latest verified package
+from `https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json`.

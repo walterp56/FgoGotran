@@ -64,7 +64,6 @@ class GlossaryUpdateManager @Inject constructor(
         private const val MANIFEST_URL = "https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json"
         private const val SUPPORTED_SCHEMA_VERSION = 1
         private const val TEMP_DB_NAME = "fgo_terms.db.download"
-        private const val AUTO_CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L
         private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val REQUEST_TIMEOUT_MS = 30_000L
         private val hasAttemptedUpdate = AtomicBoolean(false)
@@ -80,13 +79,6 @@ class GlossaryUpdateManager @Inject constructor(
 
         try {
             val now = System.currentTimeMillis()
-            val lastCheckAt = settingsRepository.dbLastCheckAt.first()
-            if (!force && now - lastCheckAt < AUTO_CHECK_INTERVAL_MS) {
-                FgoLogger.info(tag, "DB update: auto check skipped; checked recently")
-                _updateStatus.value = DbUpdateStatus(message = "今日已检查")
-                return
-            }
-
             settingsRepository.setDbLastCheckAt(now)
             _updateStatus.value = DbUpdateStatus(isChecking = true, message = "正在检查")
             FgoLogger.info(tag, "DB update: checking manifest $MANIFEST_URL")
@@ -102,13 +94,10 @@ class GlossaryUpdateManager @Inject constructor(
             val installedVersion = settingsRepository.dbContentVersion.first()
             val installedSha = settingsRepository.dbSha256.first()
             val currentSha = dbFile.takeIf { it.exists() && it.length() > 0L }?.let(::sha256File).orEmpty()
-            val bundledMetadata = TermDatabase.bundledPackageMetadata(context)
             val packageMetadata = TermDatabase.onlinePackageMetadata(context)
             val knownCurrentMetadata = when {
                 packageMetadata != null && dbFile.exists() && dbFile.length() > 0L ->
                     KnownDbMetadata(packageMetadata.contentVersion, packageMetadata.sha256)
-                bundledMetadata != null && bundledMetadata.sha256.equals(currentSha, ignoreCase = true) ->
-                    KnownDbMetadata(bundledMetadata.contentVersion, bundledMetadata.sha256)
                 installedSha.equals(currentSha, ignoreCase = true) && installedVersion.isNotBlank() ->
                     KnownDbMetadata(installedVersion, installedSha)
                 else -> null
@@ -119,7 +108,7 @@ class GlossaryUpdateManager @Inject constructor(
                 tag,
                 "DB update: local version=$effectiveInstalledVersion, " +
                     "settings=$installedVersion, package=${packageMetadata?.contentVersion.orEmpty()}, " +
-                    "bundled=${bundledMetadata?.contentVersion.orEmpty()}, currentSha=${currentSha.take(12)}..."
+                    "currentSha=${currentSha.take(12)}..."
             )
 
             if (isContentVersionOlder(manifest.contentVersion, effectiveInstalledVersion)) {
@@ -154,6 +143,12 @@ class GlossaryUpdateManager @Inject constructor(
                     locale = manifest.locale,
                     updatedAt = System.currentTimeMillis()
                 )
+                TermDatabase.markOnlineInstall(
+                    context = context,
+                    contentVersion = manifest.contentVersion,
+                    sha256 = manifest.dbSha256,
+                    generatedAt = manifest.generatedAt
+                )
                 FgoLogger.info(
                     tag,
                     "DB update: already current by metadata sha version=${manifest.contentVersion}"
@@ -171,6 +166,12 @@ class GlossaryUpdateManager @Inject constructor(
                     sha256 = manifest.dbSha256,
                     locale = manifest.locale,
                     updatedAt = System.currentTimeMillis()
+                )
+                TermDatabase.markOnlineInstall(
+                    context = context,
+                    contentVersion = manifest.contentVersion,
+                    sha256 = manifest.dbSha256,
+                    generatedAt = manifest.generatedAt
                 )
                 FgoLogger.info(
                     tag,

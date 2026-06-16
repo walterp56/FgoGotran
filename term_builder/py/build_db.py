@@ -1,8 +1,8 @@
 """
-Build the Android bundled Room database from term_builder/fgo_terms.json.
+Build the terminology SQLite database from term_builder/fgo_terms.json.
 
 Default output:
-  app/src/main/assets/db/fgo_terms.db
+  term_builder/fgo_terms.db
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 REPO_ROOT = ROOT.parent
 DEFAULT_JSON = ROOT / "fgo_terms.json"
-DEFAULT_DB = REPO_ROOT / "app" / "src" / "main" / "assets" / "db" / "fgo_terms.db"
+DEFAULT_DB = ROOT / "fgo_terms.db"
 NAME_SEPARATOR_RE = re.compile(r"[\u30FB\uFF65\u00B7\uFF0F/\uFF06&\uFF1D=\s]+")
 
 

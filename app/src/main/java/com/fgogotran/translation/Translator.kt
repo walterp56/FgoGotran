@@ -837,7 +837,7 @@ class Translator @Inject constructor(
                 .ifBlank { SettingsRepository.defaultApiModel(backend) },
             playerName = playerName,
             cacheEnabled = settingsRepository.cacheEnabled.first(),
-            glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "bundled-db" }
+            glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "online-db-pending" }
         )
         cachedRuntimeConfig?.let { cached ->
             if (cached.playerName != loaded.playerName) {
