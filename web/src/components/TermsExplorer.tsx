@@ -29,6 +29,16 @@ function normalizeRows(rows: RawPreviewRow[], source: TermPreviewRow["source"]):
     .filter((row) => row.jp && row.cn);
 }
 
+function previewUrl(path: string) {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+      return path;
+    }
+  }
+  return cdnUrl(path);
+}
+
 export function TermsExplorer() {
   const [rows, setRows] = useState<TermPreviewRow[]>(sampleTermRows);
   const [sourceLabel, setSourceLabel] = useState("内置示例");
@@ -40,8 +50,8 @@ export function TermsExplorer() {
     async function loadPreviewRows() {
       try {
         const [characters, terms] = await Promise.all([
-          fetch(cdnUrl(siteConfig.characterPreviewPath), { cache: "no-store" }),
-          fetch(cdnUrl(siteConfig.termsPreviewPath), { cache: "no-store" })
+          fetch(previewUrl(siteConfig.characterPreviewPath), { cache: "no-store" }),
+          fetch(previewUrl(siteConfig.termsPreviewPath), { cache: "no-store" })
         ]);
         if (!characters.ok || !terms.ok) {
           throw new Error("preview files not published");
