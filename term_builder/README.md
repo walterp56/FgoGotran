@@ -46,8 +46,8 @@ jp_term	cn_term	category	aliases
 From the repo root:
 
 ```powershell
-C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\ingest_atlas.py --skip-atlas
-C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\build_db.py
+C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\py\ingest_atlas.py --skip-atlas
+C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\py\build_db.py
 ```
 
 Then rebuild the APK:
@@ -68,7 +68,7 @@ app/build/outputs/apk/debug/app-debug.apk
 After `build_db.py` finishes, create the files for `cdn.fgogotran.com`:
 
 ```powershell
-C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe term_builder\package_release.py --content-version 2026.06.10.1
+.\scripts\release-db.ps1
 ```
 
 Output:
@@ -85,6 +85,16 @@ Upload the versioned `releases/...` files first, then upload
 ```text
 https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json
 ```
+
+To publish directly to S3 and invalidate CloudFront in the safe order:
+
+```powershell
+.\scripts\release-db.ps1 -S3Uri s3://YOUR_BUCKET -CloudFrontDistributionId YOUR_DISTRIBUTION_ID
+```
+
+The script uploads the versioned DB and checksum first, uploads
+`db/zh-Hans/latest/manifest.json` last, waits for the CloudFront invalidation,
+then verifies the live manifest content version.
 
 ## Runtime DB Tables
 

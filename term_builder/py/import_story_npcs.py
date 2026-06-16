@@ -17,7 +17,8 @@ from pathlib import Path
 from urllib.request import urlopen
 
 
-ROOT = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent
 CHARACTER_TSV = ROOT / "character_names.tsv"
 STORY_CHARACTER_RAW_URL = (
     "https://fgo.wiki/index.php?"

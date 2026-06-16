@@ -16,9 +16,11 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent
 REPO_ROOT = ROOT.parent
 DEFAULT_DB = REPO_ROOT / "app" / "src" / "main" / "assets" / "db" / "fgo_terms.db"
+DEFAULT_ASSET_MANIFEST = REPO_ROOT / "app" / "src" / "main" / "assets" / "db" / "manifest.json"
 DEFAULT_OUTPUT = REPO_ROOT / "release" / "cdn"
 DEFAULT_BASE_URL = "https://cdn.fgogotran.com"
 DEFAULT_LOCALE = "zh-Hans"
@@ -130,10 +132,12 @@ def package_release(args: argparse.Namespace) -> dict[str, Any]:
         "totalCount": stats["totalCount"],
     }
     write_json(latest_dir / "manifest.json", manifest)
+    write_json(args.asset_manifest, manifest)
 
     return {
         "releaseDir": str(release_dir),
         "manifest": str(latest_dir / "manifest.json"),
+        "assetManifest": str(args.asset_manifest),
         "contentVersion": content_version,
         "dbSha256": db_hash,
         "dbSize": db_size,
@@ -147,6 +151,7 @@ def main() -> None:
         description="Create CDN release files for FgoGotran terminology DB."
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument("--asset-manifest", type=Path, default=DEFAULT_ASSET_MANIFEST)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--locale", default=DEFAULT_LOCALE)
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)

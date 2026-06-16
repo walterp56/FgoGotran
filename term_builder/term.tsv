@@ -28,13 +28,8 @@
 シャドウサーヴァント	影从者	game_term	Shadow Servant
 宝具	宝具	game_term	Noble Phantasm
 スキル	技能	game_term	Skill
-クラススキル	职阶技能	game_term	Class Skill
-アペンドスキル	追加技能	game_term	Append Skill
-コマンドカード	指令卡	game_term	Command Card
-コマンドコード	指令纹章	game_term	Command Code
 概念礼装	概念礼装	game_term	Craft Essence,礼装
 聖晶石	圣晶石	item	
-呼符	呼符	item	
 聖杯	圣杯	item	
 聖杯戦争	圣杯战争	game_term	
 令呪	令咒	game_term	Command Spell
@@ -69,12 +64,6 @@
 強化	强化	game_term	
 再臨	灵基再临	game_term	霊基再臨
 霊基再臨	灵基再临	game_term	再臨
-絆	牵绊	game_term	
-絆礼装	牵绊礼装	game_term	
-マナプリズム	魔力棱镜	item	绿方块
-レアプリズム	稀有魔力棱镜	item	金方块
-ピュアプリズム	纯净棱镜	item	
-QP	QP	item	量子
 セイバー	Saber	class	剑士
 アーチャー	Archer	class	弓兵
 ランサー	Lancer	class	枪兵
@@ -98,7 +87,7 @@ QP	QP	item	量子
 剪定事象	剪定事象	game_term	
 残存詩篇	残存诗篇	game_term	Remnant Order
 英霊召喚システム・Fate	英灵召唤系统·Fate	game_term	英霊召喚システム·Fate
-トリスメギストス	特里斯墨吉斯忒斯	game_term	灵子演算装置·特里斯墨吉斯忒斯
+霊子演算器·トリスメギストス	灵子演算装置·特里斯墨吉斯忒斯	game_term	霊子演算器トリスメギストス
 聖堂教会	圣堂教会	organization	
 魔術協会	魔术协会	organization	
 時計塔	时钟塔	organization	
@@ -118,5 +107,7 @@ QP	QP	item	量子
 ロンゴミニアド	伦戈米尼亚德	noble_phantasm	Rhongomyniad
 ゲイ・ボルク	穿刺死棘之枪	noble_phantasm	刺し穿つ死棘の槍
 ブラックバレル	Black Barrel	item	ブラック・バレル,Black Barrel
-ヤガ    雅嘎    game_term
-ペーパームーン  平面之月    game_term
+ヤガ	雅嘎	game_term	
+ペーパームーン	平面之月	game_term	
+近未来観測レンズ・シバ	近未来观测透镜·示巴	game_term	
+虚数羅針	虚数罗盘	game_term	

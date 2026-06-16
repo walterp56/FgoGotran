@@ -24,8 +24,8 @@
     "aliases": "[\"ひびき&千鍵\"]"
   },
   {
-    "jp_name": "アイリスフィール〔天の衣〕",
-    "cn_name": "爱丽丝菲尔〔天之衣〕",
+    "jp_name": "アイリスフィール",
+    "cn_name": "爱丽丝菲尔",
     "category": "character",
     "aliases": "[]"
   },
@@ -102,10 +102,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "アタランテ〔オルタ〕",
-    "cn_name": "阿塔兰忒〔Alter〕",
+    "jp_name": "アタランテ・オルタ",
+    "cn_name": "阿塔兰忒·Alter",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"アタランテオルタ\"]"
   },
   {
     "jp_name": "アテナ",
@@ -116,6 +116,12 @@
   {
     "jp_name": "アトラス",
     "cn_name": "阿特拉斯",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アナウンス",
+    "cn_name": "广播",
     "category": "character",
     "aliases": "[]"
   },
@@ -138,16 +144,10 @@
     "aliases": "[\"アビゲイルウィリアムズ\"]"
   },
   {
-    "jp_name": "アビゲイル・ウィリアムズ〔サンタ〕",
-    "cn_name": "阿比盖尔·威廉姆斯〔圣诞〕",
+    "jp_name": "アビゲイル・サンタ",
+    "cn_name": "阿比盖尔·圣诞",
     "category": "character",
-    "aliases": "[\"アビゲイルウィリアムズ〔サンタ〕\"]"
-  },
-  {
-    "jp_name": "アビゲイル・ウィリアムズ〔夏〕",
-    "cn_name": "阿比盖尔·威廉姆斯〔夏〕",
-    "category": "character",
-    "aliases": "[\"アビゲイルウィリアムズ〔夏〕\"]"
+    "aliases": "[\"アビゲイルサンタ\"]"
   },
   {
     "jp_name": "アフロディーテ",
@@ -162,8 +162,8 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "アムール〔カレン〕",
-    "cn_name": "阿摩耳〔卡莲〕",
+    "jp_name": "アムール",
+    "cn_name": "阿摩耳",
     "category": "character",
     "aliases": "[]"
   },
@@ -180,10 +180,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "アルジュナ〔オルタ〕",
-    "cn_name": "阿周那〔Alter〕",
+    "jp_name": "アルジュナ・オルタ",
+    "cn_name": "阿周那·Alter",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"アルジュナオルタ\"]"
   },
   {
     "jp_name": "アルテミス",
@@ -198,10 +198,16 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "アルテラ・ザ・サン〔タ〕",
-    "cn_name": "阿蒂拉·the·San〔ta〕",
+    "jp_name": "アルテラサンタ",
+    "cn_name": "阿蒂拉圣诞",
     "category": "character",
-    "aliases": "[\"アルテラザサン〔タ〕\"]"
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アルトリア・オルタ",
+    "cn_name": "阿尔托莉雅·Alter",
+    "category": "character",
+    "aliases": "[\"アルトリアオルタ\"]"
   },
   {
     "jp_name": "アルトリア・キャスター",
@@ -214,24 +220,6 @@
     "cn_name": "阿尔托莉雅·潘德拉贡",
     "category": "character",
     "aliases": "[\"アルトリアペンドラゴン\"]"
-  },
-  {
-    "jp_name": "アルトリア・ペンドラゴン〔オルタ〕",
-    "cn_name": "阿尔托莉雅·潘德拉贡〔Alter〕",
-    "category": "character",
-    "aliases": "[\"アルトリアペンドラゴン〔オルタ〕\"]"
-  },
-  {
-    "jp_name": "アルトリア・ペンドラゴン〔サンタオルタ〕",
-    "cn_name": "阿尔托莉雅·潘德拉贡〔圣诞Alter〕",
-    "category": "character",
-    "aliases": "[\"アルトリアペンドラゴン〔サンタオルタ〕\"]"
-  },
-  {
-    "jp_name": "アルトリア・ペンドラゴン〔リリィ〕",
-    "cn_name": "阿尔托莉雅·潘德拉贡〔Lily〕",
-    "category": "character",
-    "aliases": "[\"アルトリアペンドラゴン〔リリィ〕\"]"
   },
   {
     "jp_name": "アルビオンの竜骸",
@@ -297,7 +285,7 @@
     "jp_name": "アン・ボニー＆メアリー・リード",
     "cn_name": "安妮·伯妮＆玛莉·瑞德",
     "category": "character",
-    "aliases": "[\"アンボニー&メアリーリード\", \"アンボニー＆メアリーリード\", \"アン・ボニー&メアリー・リード\"]"
+    "aliases": "[\"アンボニー＆メアリーリード\", \"アン・ボニー&メアリー・リード\"]"
   },
   {
     "jp_name": "アヴィケブロン",
@@ -312,10 +300,10 @@
     "aliases": "[\"アーキタイプ:アース\"]"
   },
   {
-    "jp_name": "アーサー・ペンドラゴン〔プロトタイプ〕",
-    "cn_name": "亚瑟·潘德拉贡〔Prototype〕",
+    "jp_name": "アーサー・ペンドラゴン",
+    "cn_name": "亚瑟·潘德拉贡",
     "category": "character",
-    "aliases": "[\"アーサーペンドラゴン〔プロトタイプ〕\"]"
+    "aliases": "[\"アーサーペンドラゴン\"]"
   },
   {
     "jp_name": "アーチャー・インフェルノ",
@@ -328,6 +316,12 @@
     "cn_name": "Archer Inferno·一切烧却",
     "category": "character",
     "aliases": "[\"アーチャー·インフェルノ·一切焼却\", \"アーチャーインフェルノ一切焼却\"]"
+  },
+  {
+    "jp_name": "アーユス",
+    "cn_name": "阿愈丝",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "アーラシュ",
@@ -456,40 +450,16 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "エミヤ〔アサシン〕",
-    "cn_name": "卫宫〔Assassin〕",
+    "jp_name": "エミヤ・オルタ",
+    "cn_name": "卫宫·Alter",
     "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "エミヤ〔オルタ〕",
-    "cn_name": "卫宫〔Alter〕",
-    "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"エミヤオルタ\"]"
   },
   {
     "jp_name": "エリザベート・バートリー",
     "cn_name": "伊丽莎白·巴托里",
     "category": "character",
     "aliases": "[\"エリザベートバートリー\"]"
-  },
-  {
-    "jp_name": "エリザベート・バートリー〔シンデレラ〕",
-    "cn_name": "伊丽莎白·巴托里〔灰姑娘〕",
-    "category": "character",
-    "aliases": "[\"エリザベートバートリー〔シンデレラ〕\"]"
-  },
-  {
-    "jp_name": "エリザベート・バートリー〔ハロウィン〕",
-    "cn_name": "伊丽莎白·巴托里〔万圣节〕",
-    "category": "character",
-    "aliases": "[\"エリザベートバートリー〔ハロウィン〕\"]"
-  },
-  {
-    "jp_name": "エリザベート・バートリー〔ブレイブ〕",
-    "cn_name": "伊丽莎白·巴托里〔勇者〕",
-    "category": "character",
-    "aliases": "[\"エリザベートバートリー〔ブレイブ〕\"]"
   },
   {
     "jp_name": "エルキドゥ",
@@ -500,6 +470,12 @@
   {
     "jp_name": "エルドラドのバーサーカー",
     "cn_name": "黄金国的Berserker",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "エルメロイⅡ世",
+    "cn_name": "埃尔梅罗Ⅱ世",
     "category": "character",
     "aliases": "[]"
   },
@@ -525,7 +501,7 @@
     "jp_name": "オキタ・Ｊ・ソウジ",
     "cn_name": "冲田·J·总司",
     "category": "character",
-    "aliases": "[\"オキタJソウジ\", \"オキタ・J・ソウジ\", \"オキタＪソウジ\"]"
+    "aliases": "[\"オキタ・J・ソウジ\", \"オキタＪソウジ\"]"
   },
   {
     "jp_name": "オケアノスのキャスター",
@@ -654,8 +630,8 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "カルナ〔サンタ〕",
-    "cn_name": "迦尔纳〔圣诞〕",
+    "jp_name": "カレン",
+    "cn_name": "卡莲",
     "category": "character",
     "aliases": "[]"
   },
@@ -798,16 +774,10 @@
     "aliases": "[\"クーフーリン\"]"
   },
   {
-    "jp_name": "クー・フーリン〔オルタ〕",
-    "cn_name": "库·丘林〔Alter〕",
+    "jp_name": "クー・フーリン・オルタ",
+    "cn_name": "库·丘林·Alter",
     "category": "character",
-    "aliases": "[\"クーフーリン〔オルタ〕\"]"
-  },
-  {
-    "jp_name": "クー・フーリン〔プロトタイプ〕",
-    "cn_name": "库·丘林〔Prototype〕",
-    "category": "character",
-    "aliases": "[\"クーフーリン〔プロトタイプ〕\"]"
+    "aliases": "[\"クーフーリンオルタ\"]"
   },
   {
     "jp_name": "グレイ",
@@ -846,10 +816,16 @@
     "aliases": "[\"ケツァルコアトル\"]"
   },
   {
-    "jp_name": "ケツァル・コアトル〔サンバ",
-    "cn_name": "魁札尔·科亚特尔〔桑巴",
+    "jp_name": "ケツァル・コアトル・サンバ・サンタ",
+    "cn_name": "魁札尔·科亚特尔·桑巴·圣诞",
     "category": "character",
-    "aliases": "[\"ケツァルコアトル〔サンバ\"]"
+    "aliases": "[\"ケツァルコアトルサンバサンタ\"]"
+  },
+  {
+    "jp_name": "ケルヌンノス",
+    "cn_name": "科尔努诺斯",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "ゲオルギウス",
@@ -918,8 +894,26 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "サンタ〕",
-    "cn_name": "圣诞〕",
+    "jp_name": "サンタオルタ",
+    "cn_name": "圣诞Alter",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "サンタカルナ",
+    "cn_name": "圣诞迦尔纳",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "サンタズムーン",
+    "cn_name": "Santasmoon",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "サンタマルタ",
+    "cn_name": "圣诞玛尔达",
     "category": "character",
     "aliases": "[]"
   },
@@ -963,7 +957,7 @@
     "jp_name": "シャルル＝アンリ・サンソン",
     "cn_name": "夏尔·亨利·桑松",
     "category": "character",
-    "aliases": "[\"シャルル=アンリサンソン\", \"シャルル=アンリ・サンソン\", \"シャルル＝アンリサンソン\"]"
+    "aliases": "[\"シャルル=アンリ・サンソン\", \"シャルル＝アンリサンソン\"]"
   },
   {
     "jp_name": "シャルロット・コルデー",
@@ -1026,22 +1020,22 @@
     "aliases": "[\"ジャックドモレー\"]"
   },
   {
+    "jp_name": "ジャンヌ・オルタ",
+    "cn_name": "贞德·Alter",
+    "category": "character",
+    "aliases": "[\"ジャンヌオルタ\"]"
+  },
+  {
+    "jp_name": "ジャンヌ・オルタ・サンタ・リリィ",
+    "cn_name": "贞德·Alter·圣诞·Lily",
+    "category": "character",
+    "aliases": "[\"ジャンヌオルタサンタリリィ\"]"
+  },
+  {
     "jp_name": "ジャンヌ・ダルク",
     "cn_name": "贞德",
     "category": "character",
     "aliases": "[\"ジャンヌダルク\"]"
-  },
-  {
-    "jp_name": "ジャンヌ・ダルク〔オルタ〕",
-    "cn_name": "贞德〔Alter〕",
-    "category": "character",
-    "aliases": "[\"ジャンヌダルク〔オルタ〕\"]"
-  },
-  {
-    "jp_name": "ジャンヌ・ダルク・オルタ・サンタ・リリィ",
-    "cn_name": "贞德·Alter·Santa·Lily",
-    "category": "character",
-    "aliases": "[\"ジャンヌダルクオルタサンタリリィ\"]"
   },
   {
     "jp_name": "ジュネス・クレーン",
@@ -1126,6 +1120,12 @@
     "cn_name": "太空埃列什基伽勒",
     "category": "character",
     "aliases": "[\"スペースエレシュキガル\"]"
+  },
+  {
+    "jp_name": "スペース・ファンタズムーンＶ",
+    "cn_name": "Space PhantasmoonⅤ",
+    "category": "character",
+    "aliases": "[\"スペースファンタズムーンV\"]"
   },
   {
     "jp_name": "スペース遠坂時臣",
@@ -1239,7 +1239,7 @@
     "jp_name": "ダ・ヴィンチ",
     "cn_name": "达·芬奇",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"ダヴィンチ\"]"
   },
   {
     "jp_name": "ダーニック・プレストーン・ユグドミレニア",
@@ -1386,10 +1386,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ナイチンゲール〔サンタ〕",
-    "cn_name": "南丁格尔〔圣诞〕",
+    "jp_name": "ナイチンゲール・サンタ",
+    "cn_name": "南丁格尔·圣诞",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"ナイチンゲールサンタ\"]"
   },
   {
     "jp_name": "ナベリウス",
@@ -1428,20 +1428,14 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ニトクリス〔オルタ〕",
-    "cn_name": "尼托克丽丝〔Alter〕",
+    "jp_name": "ニトクリス・オルタ",
+    "cn_name": "尼托克丽丝·Alter",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"ニトクリスオルタ\"]"
   },
   {
     "jp_name": "ネモ",
     "cn_name": "尼莫",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "ネモ〔サンタ〕",
-    "cn_name": "尼莫〔圣诞〕",
     "category": "character",
     "aliases": "[]"
   },
@@ -1480,12 +1474,6 @@
     "cn_name": "尼禄·克劳狄乌斯",
     "category": "character",
     "aliases": "[\"ネロクラウディウス\"]"
-  },
-  {
-    "jp_name": "ネロ・クラウディウス〔ブライド〕",
-    "cn_name": "尼禄·克劳狄乌斯〔新娘〕",
-    "category": "character",
-    "aliases": "[\"ネロクラウディウス〔ブライド〕\"]"
   },
   {
     "jp_name": "ノア",
@@ -1542,16 +1530,34 @@
     "aliases": "[\"魔神バアル\"]"
   },
   {
+    "jp_name": "バゼット",
+    "cn_name": "巴泽特",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "バルバトス",
     "cn_name": "巴巴妥司",
     "category": "character",
     "aliases": "[\"魔神バルバトス\"]"
   },
   {
+    "jp_name": "バーゲスト",
+    "cn_name": "巴格斯特",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "バーソロミュー・ロバーツ",
     "cn_name": "巴沙洛缪·罗伯茨",
     "category": "character",
     "aliases": "[\"バーソロミューロバーツ\"]"
+  },
+  {
+    "jp_name": "バーヴァン・シー",
+    "cn_name": "芭万·希",
+    "category": "character",
+    "aliases": "[\"バーヴァンシー\"]"
   },
   {
     "jp_name": "パッションリップ",
@@ -1803,7 +1809,7 @@
     "jp_name": "ヘンリー・ジキル＆ハイド",
     "cn_name": "亨利·杰基尔＆海德",
     "category": "character",
-    "aliases": "[\"ヘンリージキル&ハイド\", \"ヘンリージキル＆ハイド\", \"ヘンリー・ジキル&ハイド\"]"
+    "aliases": "[\"ヘンリージキル＆ハイド\", \"ヘンリー・ジキル&ハイド\"]"
   },
   {
     "jp_name": "ベオウルフ",
@@ -1914,10 +1920,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "マナナン・マク・リール〔バゼット〕",
-    "cn_name": "马纳南·麦克·利尔〔巴泽特〕",
+    "jp_name": "マナナン・マク・リール",
+    "cn_name": "马纳南·麦克·利尔",
     "category": "character",
-    "aliases": "[\"マナナンマクリール〔バゼット〕\"]"
+    "aliases": "[\"マナナンマクリール\"]"
   },
   {
     "jp_name": "マリスビリー",
@@ -1950,20 +1956,14 @@
     "aliases": "[\"マリーアントワネット\"]"
   },
   {
-    "jp_name": "マリー・アントワネット〔オルタ〕",
-    "cn_name": "玛丽·安托瓦内特〔Alter〕",
+    "jp_name": "マリー・オルタ",
+    "cn_name": "玛丽·Alter",
     "category": "character",
-    "aliases": "[\"マリーアントワネット〔オルタ〕\"]"
+    "aliases": "[\"マリーオルタ\"]"
   },
   {
     "jp_name": "マルタ",
     "cn_name": "玛尔达",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "マルタ〔サンタ〕",
-    "cn_name": "玛尔达〔圣诞〕",
     "category": "character",
     "aliases": "[]"
   },
@@ -2046,12 +2046,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "メディア〔リリィ〕",
-    "cn_name": "美狄亚〔Lily〕",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "メドゥーサ",
     "cn_name": "美杜莎",
     "category": "character",
@@ -2106,6 +2100,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ライネス",
+    "cn_name": "莱妮丝",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ラウム",
     "cn_name": "劳姆",
     "category": "character",
@@ -2116,6 +2116,12 @@
     "cn_name": "拉克什米·芭伊",
     "category": "character",
     "aliases": "[\"ラクシュミーバーイー\"]"
+  },
+  {
+    "jp_name": "ラニ=Ⅻ",
+    "cn_name": "拉妮-Ⅻ",
+    "category": "character",
+    "aliases": "[\"ラニXII\"]"
   },
   {
     "jp_name": "ラフム",
@@ -2310,12 +2316,6 @@
     "aliases": "[\"ヴァンゴッホ\"]"
   },
   {
-    "jp_name": "ヴァン・ゴッホ〔マイナー〕",
-    "cn_name": "梵高〔矿工〕",
-    "category": "character",
-    "aliases": "[\"ヴァンゴッホ〔マイナー〕\"]"
-  },
-  {
     "jp_name": "ヴァン・ホーエンハイム・パラケルスス",
     "cn_name": "冯·霍恩海姆·帕拉塞尔苏斯",
     "category": "character",
@@ -2330,12 +2330,6 @@
   {
     "jp_name": "ヴラド三世",
     "cn_name": "弗拉德三世",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "ヴラド三世〔EXTRA〕",
-    "cn_name": "弗拉德三世〔EXTRA〕",
     "category": "character",
     "aliases": "[]"
   },
@@ -2472,8 +2466,8 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "司馬懿〔ライネス〕",
-    "cn_name": "司马懿〔莱妮丝〕",
+    "jp_name": "司馬懿",
+    "cn_name": "司马懿",
     "category": "character",
     "aliases": "[]"
   },
@@ -2552,6 +2546,12 @@
   {
     "jp_name": "大黒天",
     "cn_name": "大黑天",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "天の衣",
+    "cn_name": "天之衣",
     "category": "character",
     "aliases": "[]"
   },
@@ -2660,12 +2660,6 @@
   {
     "jp_name": "岡田以蔵",
     "cn_name": "冈田以藏",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "岸波白野",
-    "cn_name": "岸波白野",
     "category": "character",
     "aliases": "[]"
   },
@@ -2832,6 +2826,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "検体:E",
+    "cn_name": "检体:E",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "楊貴妃",
     "cn_name": "杨贵妃",
     "category": "character",
@@ -2886,10 +2886,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "沖田総司〔オルタ〕",
-    "cn_name": "冲田总司〔Alter〕",
+    "jp_name": "沖田総司・オルタ",
+    "cn_name": "冲田总司·Alter",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"沖田総司オルタ\"]"
   },
   {
     "jp_name": "河上彦斎",
@@ -3222,16 +3222,16 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "諸葛孔明〔エルメロイⅡ世〕",
-    "cn_name": "诸葛孔明〔埃尔梅罗Ⅱ世〕",
-    "category": "character",
-    "aliases": "[\"諸葛孔明〔エルメロイII世〕\"]"
-  },
-  {
-    "jp_name": "謎のアイドルX〔オルタ〕",
-    "cn_name": "谜之偶像X〔Alter〕",
+    "jp_name": "諸葛孔明",
+    "cn_name": "诸葛孔明",
     "category": "character",
     "aliases": "[]"
+  },
+  {
+    "jp_name": "謎のアイドルX・オルタ",
+    "cn_name": "谜之偶像X·Alter",
+    "category": "character",
+    "aliases": "[\"謎のアイドルXオルタ\"]"
   },
   {
     "jp_name": "謎のアルターエゴ・Λ",
@@ -3252,16 +3252,16 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "謎のヒロインXX〔オルタ〕",
-    "cn_name": "谜之女主角XX〔Alter〕",
+    "jp_name": "謎のヒロインXX・オルタ",
+    "cn_name": "谜之女主角XX·Alter",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"謎のヒロインXXオルタ\"]"
   },
   {
-    "jp_name": "謎のヒロインＸ〔オルタ〕",
-    "cn_name": "谜之女主角X〔Alter〕",
+    "jp_name": "謎のヒロインＸ・オルタ",
+    "cn_name": "谜之女主角X·Alter",
     "category": "character",
-    "aliases": "[\"謎のヒロインX〔オルタ〕\"]"
+    "aliases": "[\"謎のヒロインXオルタ\"]"
   },
   {
     "jp_name": "謎の代行者C.I.E.L",
@@ -3320,12 +3320,6 @@
   {
     "jp_name": "鈴鹿御前",
     "cn_name": "铃鹿御前",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "鈴鹿御前〔サマバケ〕",
-    "cn_name": "铃鹿御前〔暑假〕",
     "category": "character",
     "aliases": "[]"
   },
@@ -3612,12 +3606,6 @@
     "aliases": "[\"Ruler\", \"裁定者\"]"
   },
   {
-    "jp_name": "アペンドスキル",
-    "cn_name": "追加技能",
-    "category": "game_term",
-    "aliases": "[\"Append Skill\"]"
-  },
-  {
     "jp_name": "アラヤ",
     "cn_name": "阿赖耶",
     "category": "game_term",
@@ -3634,12 +3622,6 @@
     "cn_name": "盖亚",
     "category": "game_term",
     "aliases": "[]"
-  },
-  {
-    "jp_name": "クラススキル",
-    "cn_name": "职阶技能",
-    "category": "game_term",
-    "aliases": "[\"Class Skill\"]"
   },
   {
     "jp_name": "クリプター",
@@ -3666,18 +3648,6 @@
     "aliases": "[\"Grand Servant\"]"
   },
   {
-    "jp_name": "コマンドカード",
-    "cn_name": "指令卡",
-    "category": "game_term",
-    "aliases": "[\"Command Card\"]"
-  },
-  {
-    "jp_name": "コマンドコード",
-    "cn_name": "指令纹章",
-    "category": "game_term",
-    "aliases": "[\"Command Code\"]"
-  },
-  {
     "jp_name": "サーヴァント",
     "cn_name": "从者",
     "category": "game_term",
@@ -3702,10 +3672,10 @@
     "aliases": "[\"Demi-Servant\"]"
   },
   {
-    "jp_name": "トリスメギストス",
-    "cn_name": "特里斯墨吉斯忒斯",
+    "jp_name": "ペーパームーン",
+    "cn_name": "平面之月",
     "category": "game_term",
-    "aliases": "[\"灵子演算装置·特里斯墨吉斯忒斯\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "マスター",
@@ -3718,6 +3688,12 @@
     "cn_name": "月之圣杯",
     "category": "game_term",
     "aliases": "[\"Moon Cell\"]"
+  },
+  {
+    "jp_name": "ヤガ",
+    "cn_name": "雅嘎",
+    "category": "game_term",
+    "aliases": "[]"
   },
   {
     "jp_name": "レイシフト",
@@ -3918,18 +3894,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "絆",
-    "cn_name": "牵绊",
-    "category": "game_term",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "絆礼装",
-    "cn_name": "牵绊礼装",
-    "category": "game_term",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "聖剣",
     "cn_name": "圣剑",
     "category": "game_term",
@@ -3972,6 +3936,18 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "虚数羅針",
+    "cn_name": "虚数罗盘",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "近未来観測レンズ・シバ",
+    "cn_name": "近未来观测透镜·示巴",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "霊基",
     "cn_name": "灵基",
     "category": "game_term",
@@ -3988,6 +3964,12 @@
     "cn_name": "灵子",
     "category": "game_term",
     "aliases": "[]"
+  },
+  {
+    "jp_name": "霊子演算器·トリスメギストス",
+    "cn_name": "灵子演算装置·特里斯墨吉斯忒斯",
+    "category": "game_term",
+    "aliases": "[\"霊子演算器トリスメギストス\"]"
   },
   {
     "jp_name": "霊子転移",
@@ -4044,40 +4026,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "QP",
-    "cn_name": "QP",
-    "category": "item",
-    "aliases": "[\"量子\"]"
-  },
-  {
-    "jp_name": "ピュアプリズム",
-    "cn_name": "纯净棱镜",
-    "category": "item",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "ブラックバレル",
     "cn_name": "Black Barrel",
     "category": "item",
     "aliases": "[\"Black Barrel\", \"ブラック・バレル\"]"
-  },
-  {
-    "jp_name": "マナプリズム",
-    "cn_name": "魔力棱镜",
-    "category": "item",
-    "aliases": "[\"绿方块\"]"
-  },
-  {
-    "jp_name": "レアプリズム",
-    "cn_name": "稀有魔力棱镜",
-    "category": "item",
-    "aliases": "[\"金方块\"]"
-  },
-  {
-    "jp_name": "呼符",
-    "cn_name": "呼符",
-    "category": "item",
-    "aliases": "[]"
   },
   {
     "jp_name": "聖晶石",

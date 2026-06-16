@@ -33,7 +33,8 @@ from lxml import html
 
 BASE_URL = "https://zh.moegirl.org.cn"
 HEADERS = {"User-Agent": "fgoGotran-term-builder/1.0"}
-ROOT = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent
 CHARACTER_TSV = ROOT / "character_names.tsv"
 TERM_TSV = ROOT / "term.tsv"
 

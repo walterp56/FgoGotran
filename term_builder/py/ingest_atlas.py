@@ -25,7 +25,8 @@ from urllib.request import Request, urlopen
 ATLAS_BASE = "https://api.atlasacademy.io"
 HEADERS = {"Accept": "application/json", "User-Agent": "fgoGotran-term-builder/1.0"}
 
-ROOT = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent
 DEFAULT_OUTPUT = ROOT / "fgo_terms.json"
 DEFAULT_CHARACTER_TSV = ROOT / "character_names.tsv"
 DEFAULT_TERMS_TSV = ROOT / "term.tsv"

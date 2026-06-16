@@ -1150,6 +1150,7 @@ class Translator @Inject constructor(
 
     private fun sanitizeCharacterNameResult(name: String): String {
         return toSimplifiedChinese(name)
+            .normalizeTranslatedNameSeparators()
             .trim()
             .trimEnd { it.isNameTrailingPunctuation() }
     }
@@ -1372,7 +1373,12 @@ class Translator @Inject constructor(
     }
 
     private fun isJapaneseKana(char: Char): Boolean {
-        return char in '\u3040'..'\u30FF' || char in '\uFF66'..'\uFF9D'
+        return (char in '\u3040'..'\u30FF' || char in '\uFF66'..'\uFF9D') &&
+            char != '\u30FB'
+    }
+
+    private fun String.normalizeTranslatedNameSeparators(): String {
+        return replace('\u30FB', '\u00B7')
     }
 
     private fun sanitizeTranslation(sourceText: String, translatedText: String): String {

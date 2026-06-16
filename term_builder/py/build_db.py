@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent
 REPO_ROOT = ROOT.parent
 DEFAULT_JSON = ROOT / "fgo_terms.json"
 DEFAULT_DB = REPO_ROOT / "app" / "src" / "main" / "assets" / "db" / "fgo_terms.db"

@@ -9,8 +9,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.flow.first
@@ -72,7 +74,7 @@ class GlossaryUpdateManager @Inject constructor(
     suspend fun updateIfNeeded(force: Boolean = false) {
         if (!force && !hasAttemptedUpdate.compareAndSet(false, true)) return
         if (!updateInProgress.compareAndSet(false, true)) {
-            _updateStatus.value = DbUpdateStatus(message = "数据库更新正在进行")
+            _updateStatus.value = DbUpdateStatus(message = "正在更新")
             return
         }
 
@@ -86,13 +88,83 @@ class GlossaryUpdateManager @Inject constructor(
             }
 
             settingsRepository.setDbLastCheckAt(now)
-            _updateStatus.value = DbUpdateStatus(isChecking = true, message = "正在检查数据库")
+            _updateStatus.value = DbUpdateStatus(isChecking = true, message = "正在检查")
             FgoLogger.info(tag, "DB update: checking manifest $MANIFEST_URL")
             val manifest = fetchManifest()
             validateManifest(manifest)
+            FgoLogger.info(
+                tag,
+                "DB update: manifest version=${manifest.contentVersion}, rows=${manifest.totalCount}, " +
+                    "sha=${manifest.dbSha256.take(12)}..., dbUrl=${manifest.dbUrl}"
+            )
 
             val dbFile = TermDatabase.databaseFile(context)
+            val installedVersion = settingsRepository.dbContentVersion.first()
+            val installedSha = settingsRepository.dbSha256.first()
             val currentSha = dbFile.takeIf { it.exists() && it.length() > 0L }?.let(::sha256File).orEmpty()
+            val bundledMetadata = TermDatabase.bundledPackageMetadata(context)
+            val packageMetadata = TermDatabase.onlinePackageMetadata(context)
+            val knownCurrentMetadata = when {
+                packageMetadata != null && dbFile.exists() && dbFile.length() > 0L ->
+                    KnownDbMetadata(packageMetadata.contentVersion, packageMetadata.sha256)
+                bundledMetadata != null && bundledMetadata.sha256.equals(currentSha, ignoreCase = true) ->
+                    KnownDbMetadata(bundledMetadata.contentVersion, bundledMetadata.sha256)
+                installedSha.equals(currentSha, ignoreCase = true) && installedVersion.isNotBlank() ->
+                    KnownDbMetadata(installedVersion, installedSha)
+                else -> null
+            }
+            val effectiveInstalledVersion = knownCurrentMetadata?.contentVersion ?: installedVersion
+            val effectiveInstalledSha = knownCurrentMetadata?.sha256 ?: installedSha
+            FgoLogger.info(
+                tag,
+                "DB update: local version=$effectiveInstalledVersion, " +
+                    "settings=$installedVersion, package=${packageMetadata?.contentVersion.orEmpty()}, " +
+                    "bundled=${bundledMetadata?.contentVersion.orEmpty()}, currentSha=${currentSha.take(12)}..."
+            )
+
+            if (isContentVersionOlder(manifest.contentVersion, effectiveInstalledVersion)) {
+                FgoLogger.warn(
+                    tag,
+                    "DB update: ignoring older manifest version=${manifest.contentVersion}, " +
+                        "installed=$effectiveInstalledVersion"
+                )
+                if (knownCurrentMetadata != null) {
+                    settingsRepository.saveDbUpdateMetadata(
+                        contentVersion = knownCurrentMetadata.contentVersion,
+                        sha256 = knownCurrentMetadata.sha256,
+                        locale = manifest.locale,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                }
+                _updateStatus.value = DbUpdateStatus(
+                    message = "已是最新",
+                    detail = "远端版本：${manifest.contentVersion}，本地版本：$effectiveInstalledVersion"
+                )
+                return
+            }
+
+            if (
+                effectiveInstalledSha.equals(manifest.dbSha256, ignoreCase = true) &&
+                    dbFile.exists() &&
+                    dbFile.length() > 0L
+            ) {
+                settingsRepository.saveDbUpdateMetadata(
+                    contentVersion = manifest.contentVersion,
+                    sha256 = manifest.dbSha256,
+                    locale = manifest.locale,
+                    updatedAt = System.currentTimeMillis()
+                )
+                FgoLogger.info(
+                    tag,
+                    "DB update: already current by metadata sha version=${manifest.contentVersion}"
+                )
+                _updateStatus.value = DbUpdateStatus(
+                    message = "已是最新",
+                    detail = formatStatusDetail(manifest)
+                )
+                return
+            }
+
             if (currentSha.equals(manifest.dbSha256, ignoreCase = true)) {
                 settingsRepository.saveDbUpdateMetadata(
                     contentVersion = manifest.contentVersion,
@@ -105,21 +177,20 @@ class GlossaryUpdateManager @Inject constructor(
                     "DB update: already current version=${manifest.contentVersion}, rows=${manifest.totalCount}"
                 )
                 _updateStatus.value = DbUpdateStatus(
-                    message = "数据库已是最新",
-                    detail = "version=${manifest.contentVersion}, rows=${manifest.totalCount}"
+                    message = "已是最新",
+                    detail = formatStatusDetail(manifest)
                 )
                 return
             }
 
-            val installedVersion = settingsRepository.dbContentVersion.first()
             _updateStatus.value = DbUpdateStatus(
                 isChecking = true,
-                message = "正在下载数据库",
-                detail = "version=${manifest.contentVersion}"
+                message = "正在下载",
+                detail = "版本：${manifest.contentVersion}"
             )
             FgoLogger.info(
                 tag,
-                "DB update: installing version=${manifest.contentVersion} over installed=$installedVersion"
+                "DB update: installing version=${manifest.contentVersion} over installed=$effectiveInstalledVersion"
             )
 
             val downloadedDb = downloadDb(manifest)
@@ -137,14 +208,14 @@ class GlossaryUpdateManager @Inject constructor(
                 "DB update: installed version=${manifest.contentVersion}, rows=${manifest.totalCount}"
             )
             _updateStatus.value = DbUpdateStatus(
-                message = "数据库更新完成",
-                detail = "version=${manifest.contentVersion}, rows=${manifest.totalCount}"
+                message = "更新完成",
+                detail = formatStatusDetail(manifest)
             )
         } catch (e: Exception) {
             FgoLogger.warn(tag, "DB update failed; keeping existing glossary DB", e)
             _updateStatus.value = DbUpdateStatus(
-                message = "数据库更新失败",
-                detail = e.message.orEmpty()
+                message = "更新失败",
+                detail = userFacingError(e)
             )
         } finally {
             updateInProgress.set(false)
@@ -152,12 +223,61 @@ class GlossaryUpdateManager @Inject constructor(
     }
 
     private suspend fun fetchManifest(): GlossaryDbManifest {
-        val response = httpClient.get(MANIFEST_URL)
+        val manifestUrl = cacheBustedUrl(MANIFEST_URL)
+        FgoLogger.info(tag, "DB update: fetching manifest $manifestUrl")
+        val response = httpClient.get(manifestUrl) {
+            header(HttpHeaders.CacheControl, "no-cache, no-store, max-age=0")
+            header(HttpHeaders.Pragma, "no-cache")
+        }
         val body = response.bodyAsText()
         if (!response.status.isSuccess()) {
             throw IllegalStateException("Manifest HTTP ${response.status.value}: ${body.take(240)}")
         }
         return json.decodeFromString(GlossaryDbManifest.serializer(), body)
+    }
+
+    private fun formatStatusDetail(manifest: GlossaryDbManifest): String {
+        return "版本：${manifest.contentVersion}，条目：${manifest.totalCount}"
+    }
+
+    private fun userFacingError(error: Exception): String {
+        val message = error.message.orEmpty()
+        return when {
+            message.contains("HTTP", ignoreCase = true) -> "网络请求失败"
+            message.contains("SHA", ignoreCase = true) -> "数据库校验失败"
+            message.contains("size", ignoreCase = true) -> "数据库大小不一致"
+            message.contains("schema", ignoreCase = true) -> "数据库结构不兼容"
+            message.contains("locale", ignoreCase = true) -> "数据库语言不兼容"
+            message.contains("version", ignoreCase = true) -> "数据库版本不兼容"
+            message.isBlank() -> "请稍后重试"
+            else -> "请稍后重试"
+        }
+    }
+
+    private fun cacheBustedUrl(url: String): String {
+        val separator = if ('?' in url) '&' else '?'
+        return "$url${separator}ts=${System.currentTimeMillis()}"
+    }
+
+    private fun isContentVersionOlder(candidate: String, installed: String): Boolean {
+        if (candidate.isBlank() || installed.isBlank()) return false
+        val candidateParts = parseContentVersion(candidate) ?: return false
+        val installedParts = parseContentVersion(installed) ?: return false
+        val maxSize = maxOf(candidateParts.size, installedParts.size)
+        for (index in 0 until maxSize) {
+            val candidatePart = candidateParts.getOrElse(index) { 0 }
+            val installedPart = installedParts.getOrElse(index) { 0 }
+            if (candidatePart != installedPart) return candidatePart < installedPart
+        }
+        return false
+    }
+
+    private fun parseContentVersion(value: String): List<Int>? {
+        val parts = value.split('.')
+        if (parts.isEmpty()) return null
+        return parts.map { part ->
+            part.toIntOrNull() ?: return null
+        }
     }
 
     private fun validateManifest(manifest: GlossaryDbManifest) {
@@ -186,8 +306,8 @@ class GlossaryUpdateManager @Inject constructor(
         FgoLogger.info(tag, "DB update: downloading ${manifest.dbUrl}")
         _updateStatus.value = DbUpdateStatus(
             isChecking = true,
-            message = "正在下载数据库",
-            detail = manifest.contentVersion
+            message = "正在下载",
+            detail = "版本：${manifest.contentVersion}"
         )
         val dbFile = TermDatabase.databaseFile(context)
         val tempFile = File(dbFile.parentFile, TEMP_DB_NAME)
@@ -220,8 +340,8 @@ class GlossaryUpdateManager @Inject constructor(
     private fun validateDownloadedDb(file: File, manifest: GlossaryDbManifest) {
         _updateStatus.value = DbUpdateStatus(
             isChecking = true,
-            message = "正在校验数据库",
-            detail = manifest.contentVersion
+            message = "正在校验",
+            detail = "版本：${manifest.contentVersion}"
         )
         require(file.exists() && file.length() > 0L) { "Downloaded DB is empty" }
         require(file.length() == manifest.dbSize) {
@@ -262,8 +382,8 @@ class GlossaryUpdateManager @Inject constructor(
     private fun installDb(downloadedDb: File, manifest: GlossaryDbManifest) {
         _updateStatus.value = DbUpdateStatus(
             isChecking = true,
-            message = "正在安装数据库",
-            detail = manifest.contentVersion
+            message = "正在安装",
+            detail = "版本：${manifest.contentVersion}"
         )
         val dbFile = TermDatabase.databaseFile(context)
         dbFile.parentFile?.mkdirs()
@@ -335,6 +455,11 @@ class GlossaryUpdateManager @Inject constructor(
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
+
+    private data class KnownDbMetadata(
+        val contentVersion: String,
+        val sha256: String
+    )
 
     @Serializable
     private data class GlossaryDbManifest(

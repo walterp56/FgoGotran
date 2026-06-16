@@ -152,7 +152,7 @@ fun SettingsScreen(
                         value = dbUpdateStatus.message.ifBlank { "空闲" }
                     )
                     Text(
-                        "用于角色名和 FGO 专有名词翻译。",
+                        "用于角色名和游戏专有名词翻译。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )

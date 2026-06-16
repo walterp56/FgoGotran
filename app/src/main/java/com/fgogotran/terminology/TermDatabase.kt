@@ -6,6 +6,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.fgogotran.util.FgoLogger
+import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 
@@ -33,10 +34,34 @@ abstract class TermDatabase : RoomDatabase() {
 
     companion object {
         private const val DB_NAME = "fgo_terms.db"
+        private const val MANIFEST_ASSET_PATH = "db/manifest.json"
         private const val ONLINE_MARKER_NAME = "fgo_terms.db.online"
         private const val TAG = "TermDB"
 
+        data class DbPackageMetadata(
+            val contentVersion: String,
+            val sha256: String,
+            val generatedAt: String
+        )
+
         fun databaseFile(context: Context): File = context.getDatabasePath(DB_NAME)
+
+        fun bundledPackageMetadata(context: Context): DbPackageMetadata? {
+            return runCatching {
+                context.assets.open(MANIFEST_ASSET_PATH).bufferedReader(Charsets.UTF_8).use { reader ->
+                    val json = JSONObject(reader.readText())
+                    DbPackageMetadata(
+                        contentVersion = json.optString("contentVersion").trim(),
+                        sha256 = json.optString("dbSha256").trim(),
+                        generatedAt = json.optString("generatedAt").trim()
+                    )
+                }
+            }.getOrNull()?.takeIf { it.contentVersion.isNotBlank() && it.sha256.isNotBlank() }
+        }
+
+        fun onlinePackageMetadata(context: Context): DbPackageMetadata? {
+            return readOnlineMarker(databaseFile(context))
+        }
 
         fun markOnlineInstall(
             context: Context,
@@ -44,13 +69,28 @@ abstract class TermDatabase : RoomDatabase() {
             sha256: String,
             generatedAt: String
         ) {
-            val dbFile = databaseFile(context)
+            writePackageMarker(
+                dbFile = databaseFile(context),
+                metadata = DbPackageMetadata(
+                    contentVersion = contentVersion,
+                    sha256 = sha256,
+                    generatedAt = generatedAt
+                )
+            )
+        }
+
+        private fun markBundledInstall(context: Context) {
+            val metadata = bundledPackageMetadata(context) ?: return
+            writePackageMarker(databaseFile(context), metadata)
+        }
+
+        private fun writePackageMarker(dbFile: File, metadata: DbPackageMetadata) {
             dbFile.parentFile?.mkdirs()
             onlineMarkerFile(dbFile).writeText(
                 listOf(
-                    "contentVersion=$contentVersion",
-                    "sha256=$sha256",
-                    "generatedAt=$generatedAt"
+                    "contentVersion=${metadata.contentVersion}",
+                    "sha256=${metadata.sha256}",
+                    "generatedAt=${metadata.generatedAt}"
                 ).joinToString(separator = "\n", postfix = "\n"),
                 Charsets.UTF_8
             )
@@ -104,7 +144,7 @@ abstract class TermDatabase : RoomDatabase() {
         }
 
         private fun refreshFromAssetsIfChanged(context: Context, dbFile: File) {
-            if (shouldKeepOnlineDb(dbFile)) {
+            if (shouldKeepOnlineDb(context, dbFile)) {
                 FgoLogger.info(TAG, "Term DB is online-installed; skipping asset refresh")
                 return
             }
@@ -123,16 +163,30 @@ abstract class TermDatabase : RoomDatabase() {
                     copyFromAssets(context, dbFile)
                     tempFile.delete()
                 }
+                markBundledInstall(context)
                 FgoLogger.info(TAG, "Term DB refreshed from assets, size=${dbFile.length()} bytes")
             } else {
                 tempFile.delete()
+                if (readOnlineMarker(dbFile) == null) {
+                    markBundledInstall(context)
+                }
             }
         }
 
-        private fun shouldKeepOnlineDb(dbFile: File): Boolean {
-            return onlineMarkerFile(dbFile).exists() &&
-                dbFile.exists() &&
-                dbFile.length() > 0L
+        private fun shouldKeepOnlineDb(context: Context, dbFile: File): Boolean {
+            val onlineMetadata = readOnlineMarker(dbFile) ?: return false
+            if (!dbFile.exists() || dbFile.length() <= 0L) return false
+
+            val bundledMetadata = bundledPackageMetadata(context) ?: return true
+            if (isContentVersionOlder(onlineMetadata.contentVersion, bundledMetadata.contentVersion)) {
+                FgoLogger.info(
+                    TAG,
+                    "Term DB online install ${onlineMetadata.contentVersion} is older than " +
+                        "bundled ${bundledMetadata.contentVersion}; refreshing from assets"
+                )
+                return false
+            }
+            return true
         }
 
         private fun ensureBundledDbHasRows(context: Context, dbFile: File) {
@@ -148,6 +202,7 @@ abstract class TermDatabase : RoomDatabase() {
             FgoLogger.warn(TAG, "Term DB at ${dbFile.absolutePath} has no rows; refreshing from assets")
             deleteDatabaseFiles(dbFile)
             copyFromAssets(context, dbFile)
+            markBundledInstall(context)
             val refreshedStats = readDbStats(dbFile)
             require(refreshedStats.total > 0) {
                 "Bundled term DB is empty: ${dbFile.absolutePath}"
@@ -199,6 +254,53 @@ abstract class TermDatabase : RoomDatabase() {
 
         private fun onlineMarkerFile(dbFile: File): File {
             return File(dbFile.parentFile, ONLINE_MARKER_NAME)
+        }
+
+        private fun readOnlineMarker(dbFile: File): DbPackageMetadata? {
+            val marker = onlineMarkerFile(dbFile)
+            if (!marker.exists()) return null
+
+            val values = marker.readLines(Charsets.UTF_8)
+                .mapNotNull { line ->
+                    val separator = line.indexOf('=')
+                    if (separator <= 0) {
+                        null
+                    } else {
+                        line.substring(0, separator).trim() to line.substring(separator + 1).trim()
+                    }
+                }
+                .toMap()
+
+            val contentVersion = values["contentVersion"].orEmpty()
+            val sha256 = values["sha256"].orEmpty()
+            if (contentVersion.isBlank() || sha256.isBlank()) return null
+
+            return DbPackageMetadata(
+                contentVersion = contentVersion,
+                sha256 = sha256,
+                generatedAt = values["generatedAt"].orEmpty()
+            )
+        }
+
+        private fun isContentVersionOlder(candidate: String, installed: String): Boolean {
+            if (candidate.isBlank() || installed.isBlank()) return false
+            val candidateParts = parseContentVersion(candidate) ?: return false
+            val installedParts = parseContentVersion(installed) ?: return false
+            val maxSize = maxOf(candidateParts.size, installedParts.size)
+            for (index in 0 until maxSize) {
+                val candidatePart = candidateParts.getOrElse(index) { 0 }
+                val installedPart = installedParts.getOrElse(index) { 0 }
+                if (candidatePart != installedPart) return candidatePart < installedPart
+            }
+            return false
+        }
+
+        private fun parseContentVersion(value: String): List<Int>? {
+            val parts = value.split('.')
+            if (parts.isEmpty()) return null
+            return parts.map { part ->
+                part.toIntOrNull() ?: return null
+            }
         }
 
         private fun sha256(file: File): String {

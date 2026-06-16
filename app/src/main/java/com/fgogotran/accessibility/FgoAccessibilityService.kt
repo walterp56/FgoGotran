@@ -1332,7 +1332,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun Char.isJapaneseKana(): Boolean {
-        return this in '\u3040'..'\u30ff'
+        return this in '\u3040'..'\u30ff' && this != '\u30FB'
     }
 
     private fun Char.isNameComparePunctuation(): Boolean {
