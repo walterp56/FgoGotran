@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.ocr.OcrEngine
+import com.fgogotran.ocr.OcrTextCorrector
 import com.fgogotran.ocr.OcrTextLine
 import com.fgogotran.overlay.BackgroundDetector
 import com.fgogotran.overlay.ClassifiedRegion
@@ -28,6 +29,7 @@ import com.fgogotran.overlay.OverlayRenderer
 import com.fgogotran.overlay.RenderInstruction
 import com.fgogotran.overlay.TextRegion
 import com.fgogotran.overlay.TranslationOverlay
+import com.fgogotran.runner.FgoRunnerOverlay
 import com.fgogotran.story.StoryDetector
 import com.fgogotran.translation.SceneTranslateInput
 import com.fgogotran.translation.SceneTranslateResult
@@ -69,6 +71,7 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var storyDetector: StoryDetector
     @Inject lateinit var cropResultOverlay: CropResultOverlay
     @Inject lateinit var cropResultRenderer: CropResultRenderer
+    @Inject lateinit var runnerOverlay: FgoRunnerOverlay
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isProcessing = false
@@ -607,9 +610,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun cropSourceText(lines: List<OcrTextLine>, fullText: String): String {
         val cleanedText = formatDialogueForTranslation(lines, RubyDetectionMode.PERMISSIVE)
-        return cleanedText.ifBlank {
+        val sourceText = cleanedText.ifBlank {
             if (lines.any { isRubyDotNoiseLine(it) }) "" else fullText.trim()
         }
+        return correctOcrSourceText(sourceText, "CROP")
     }
 
     private suspend fun processManualScreen(
@@ -1343,13 +1347,26 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun sourceTextFor(region: ClassifiedRegion): String {
-        return when (region.region) {
+        val rawText = when (region.region) {
             TextRegion.DIALOGUE_BOX -> formatDialogueForTranslation(region.lines, RubyDetectionMode.STRICT)
             else -> cleanRubyNoiseLines(region.lines)
                 .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
                 .joinToString("\n") { it.text }
                 .trim()
         }
+        return when (region.region) {
+            TextRegion.NAME_LABEL -> rawText
+            TextRegion.DIALOGUE_BOX,
+            TextRegion.CHOICE_BUTTON -> correctOcrSourceText(rawText, region.region.name)
+        }
+    }
+
+    private fun correctOcrSourceText(sourceText: String, label: String): String {
+        val corrected = OcrTextCorrector.correct(sourceText)
+        if (corrected != sourceText) {
+            FgoLogger.debug(tag, "OCR correction ($label): $sourceText -> $corrected")
+        }
+        return corrected
     }
 
     private fun formatDialogueForTranslation(
@@ -2401,6 +2418,9 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun handleTranslatedOverlayTap(x: Float, y: Float) {
+        if (runnerOverlay.handleInterceptedButtonTap(x, y)) {
+            return
+        }
         if (isForwardingOverlayTap) {
             FgoLogger.debug(tag, "Ignoring duplicate translated overlay tap while replay is active")
             return

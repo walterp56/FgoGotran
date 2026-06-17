@@ -154,19 +154,44 @@ class FgoRunnerOverlay @Inject constructor(
     /** Whether the floating button is currently visible. */
     fun isShowing(): Boolean = shown
 
+    fun handleInterceptedButtonTap(rawX: Float, rawY: Float): Boolean {
+        if (!shown) return false
+        val view = composeHost?.view ?: return false
+        val width = view.width.takeIf { it > 0 } ?: view.measuredWidth
+        val height = view.height.takeIf { it > 0 } ?: view.measuredHeight
+        if (width <= 0 || height <= 0) return false
+
+        val slop = (12f * context.resources.displayMetrics.density).toInt()
+        val bounds = Rect(
+            btnX - slop,
+            btnY - slop,
+            btnX + width + slop,
+            btnY + height + slop
+        )
+        if (!bounds.contains(rawX.toInt(), rawY.toInt())) return false
+
+        FgoLogger.debug(tag, "Translated overlay tap routed to floating button")
+        onButtonClick()
+        return true
+    }
+
     private fun onButtonClick() {
         if (cropModeState == CropModeState.SELECTING) {
             requestOneShotCropTranslation()
             return
         }
 
-        if (!TranslationTrigger.isAutoTranslateEnabled()) {
-            val requested = FgoAccessibilityService.instance
-                ?.requestManualTranslation()
-                ?: false
-            if (!requested) {
-                TranslationTrigger.requestTranslation()
-            }
+        if (TranslationTrigger.isAutoTranslateEnabled()) {
+            FgoLogger.debug(tag, "Floating button tap ignored while auto translation is enabled")
+            return
+        }
+
+        val requested = FgoAccessibilityService.instance
+            ?.requestManualTranslation()
+            ?: false
+        if (!requested) {
+            FgoLogger.debug(tag, "Accessibility service unavailable; queued manual translation")
+            TranslationTrigger.requestTranslation()
         }
     }
 

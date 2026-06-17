@@ -1899,14 +1899,40 @@ class Translator @Inject constructor(
     }
 
     private fun replaceTermCandidate(text: String, candidate: String, token: String): String {
-        val exact = if (candidate.any { it.isAsciiLetter() }) {
-            text.replace(candidate, token, ignoreCase = true)
-        } else {
-            text.replace(candidate, token)
-        }
+        val exact = replaceExactTermCandidate(text, candidate, token)
         if (exact != text) return exact
 
         return replaceNormalizedTermCandidate(text, candidate, token)
+    }
+
+    private fun replaceExactTermCandidate(text: String, candidate: String, token: String): String {
+        if (candidate.isBlank()) return text
+        val ignoreCase = candidate.any { it.isAsciiLetter() }
+        val requiresKatakanaBoundary = candidate.requiresKatakanaBoundary()
+        val result = StringBuilder()
+        var searchStart = 0
+        var changed = false
+
+        while (searchStart < text.length) {
+            val matchStart = text.indexOf(candidate, searchStart, ignoreCase)
+            if (matchStart < 0) break
+
+            val matchEndExclusive = matchStart + candidate.length
+            result.append(text, searchStart, matchStart)
+            if (!requiresKatakanaBoundary ||
+                hasKatakanaWordBoundary(text, matchStart, matchEndExclusive)
+            ) {
+                result.append(token)
+                changed = true
+            } else {
+                result.append(text, matchStart, matchEndExclusive)
+            }
+            searchStart = matchEndExclusive
+        }
+
+        if (!changed) return text
+        result.append(text, searchStart, text.length)
+        return result.toString()
     }
 
     private fun replaceTermPluralCandidate(text: String, candidate: String, token: String): String {
@@ -1978,16 +2004,26 @@ class Translator @Inject constructor(
             }
         }
 
-        val matchStart = normalizedText.toString().indexOf(
-            normalizedCandidate,
-            ignoreCase = normalizedCandidate.any { it.isAsciiLetter() }
-        )
-        if (matchStart < 0) return text
+        var searchStart = 0
+        while (searchStart <= normalizedText.length - normalizedCandidate.length) {
+            val matchStart = normalizedText.toString().indexOf(
+                normalizedCandidate,
+                startIndex = searchStart,
+                ignoreCase = normalizedCandidate.any { it.isAsciiLetter() }
+            )
+            if (matchStart < 0) return text
 
-        val matchEnd = matchStart + normalizedCandidate.length - 1
-        val sourceStart = sourceIndices[matchStart]
-        val sourceEndExclusive = sourceIndices[matchEnd] + 1
-        return text.substring(0, sourceStart) + token + text.substring(sourceEndExclusive)
+            val matchEnd = matchStart + normalizedCandidate.length - 1
+            val sourceStart = sourceIndices[matchStart]
+            val sourceEndExclusive = sourceIndices[matchEnd] + 1
+            if (!normalizedCandidate.requiresKatakanaBoundary() ||
+                hasKatakanaWordBoundary(text, sourceStart, sourceEndExclusive)
+            ) {
+                return text.substring(0, sourceStart) + token + text.substring(sourceEndExclusive)
+            }
+            searchStart = matchStart + 1
+        }
+        return text
     }
 
     private fun normalizeForTermProtection(text: String): String {
@@ -1998,6 +2034,24 @@ class Translator @Inject constructor(
     private fun normalizeOcrTermGlyphs(text: String): String {
         return text
             .replace('一', 'ー')
+    }
+
+    private fun String.requiresKatakanaBoundary(): Boolean {
+        return isNotBlank() && all { it.isKatakanaWordChar() }
+    }
+
+    private fun hasKatakanaWordBoundary(text: String, start: Int, endExclusive: Int): Boolean {
+        val before = text.getOrNull(start - 1)
+        val after = text.getOrNull(endExclusive)
+        return before?.isKatakanaWordChar() != true && after?.isKatakanaWordChar() != true
+    }
+
+    private fun Char.isKatakanaWordChar(): Boolean {
+        return this in '\u30A1'..'\u30FA' ||
+                this == 'ー' ||
+                this in '\u31F0'..'\u31FF' ||
+                this in '\uFF66'..'\uFF9D' ||
+                this == 'ｰ'
     }
 
     private fun Char.isTermProtectionSeparator(): Boolean {

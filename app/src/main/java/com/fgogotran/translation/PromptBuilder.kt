@@ -98,6 +98,12 @@ CN: [Choice 1] 走吧
 
     private val tag = "PromptBuilder"
 
+    private data class TermSearchText(
+        val sourceText: String,
+        val compactText: String,
+        val sourceIndices: List<Int>
+    )
+
     /**
      * Builds the system prompt with injected RAG terminology and player name.
      *
@@ -169,12 +175,12 @@ CN: [Choice 1] 走吧
      * @return subset of terms that appear in the text
      */
     fun extractTermMatches(japaneseText: String, terms: List<TermEntity>): List<TermEntity> {
-        val normalizedText = normalizeForTermMatch(japaneseText)
-        if (normalizedText.isBlank()) return emptyList()
+        val searchText = buildTermSearchText(japaneseText)
+        if (searchText.compactText.isBlank()) return emptyList()
 
         val matches = terms.asSequence()
             .mapNotNull { term ->
-                val matchedLength = longestMatchedNeedleLength(normalizedText, term)
+                val matchedLength = longestMatchedNeedleLength(searchText, term)
                 if (matchedLength > 0) term to matchedLength else null
             }
             .sortedWith(
@@ -201,9 +207,9 @@ CN: [Choice 1] 走吧
         return matches
     }
 
-    private fun longestMatchedNeedleLength(text: String, term: TermEntity): Int {
+    private fun longestMatchedNeedleLength(text: TermSearchText, term: TermEntity): Int {
         return candidateNeedles(term)
-            .filter { text.contains(it) }
+            .filter { text.containsNeedle(it) }
             .maxOfOrNull { it.length }
             ?: 0
     }
@@ -222,6 +228,48 @@ CN: [Choice 1] 走吧
         }.distinct()
     }
 
+    private fun buildTermSearchText(text: String): TermSearchText {
+        val compactText = StringBuilder()
+        val sourceIndices = mutableListOf<Int>()
+        val normalized = Normalizer.normalize(text.trim(), Normalizer.Form.NFKC)
+        for (index in normalized.indices) {
+            val normalizedChar = normalizeOcrTermGlyphs(normalized[index].toString())
+            for (char in normalizedChar) {
+                if (!char.isTermMatchSeparator()) {
+                    compactText.append(char)
+                    sourceIndices += index
+                }
+            }
+        }
+        return TermSearchText(normalized, compactText.toString(), sourceIndices)
+    }
+
+    private fun TermSearchText.containsNeedle(needle: String): Boolean {
+        if (needle.isBlank()) return false
+        var startIndex = 0
+        while (startIndex <= compactText.length - needle.length) {
+            val matchStart = compactText.indexOf(needle, startIndex)
+            if (matchStart < 0) return false
+
+            val matchEnd = matchStart + needle.length - 1
+            val sourceStart = sourceIndices[matchStart]
+            val sourceEndExclusive = sourceIndices[matchEnd] + 1
+            if (!needle.requiresKatakanaBoundary() ||
+                hasKatakanaWordBoundary(sourceStart, sourceEndExclusive)
+            ) {
+                return true
+            }
+            startIndex = matchStart + 1
+        }
+        return false
+    }
+
+    private fun TermSearchText.hasKatakanaWordBoundary(start: Int, endExclusive: Int): Boolean {
+        val before = sourceText.getOrNull(start - 1)
+        val after = sourceText.getOrNull(endExclusive)
+        return before?.isKatakanaWordChar() != true && after?.isKatakanaWordChar() != true
+    }
+
     private fun normalizeForTermMatch(text: String): String {
         return normalizeOcrTermGlyphs(Normalizer.normalize(text.trim(), Normalizer.Form.NFKC))
             .replace(Regex("""[\s　]+"""), "")
@@ -231,5 +279,26 @@ CN: [Choice 1] 走吧
     private fun normalizeOcrTermGlyphs(text: String): String {
         return text
             .replace('一', 'ー')
+    }
+
+    private fun String.requiresKatakanaBoundary(): Boolean {
+        return isNotBlank() && all { it.isKatakanaWordChar() }
+    }
+
+    private fun Char.isKatakanaWordChar(): Boolean {
+        return this in '\u30A1'..'\u30FA' ||
+                this == 'ー' ||
+                this in '\u31F0'..'\u31FF' ||
+                this in '\uFF66'..'\uFF9D' ||
+                this == 'ｰ'
+    }
+
+    private fun Char.isTermMatchSeparator(): Boolean {
+        return isWhitespace() || this in setOf(
+            '　', '・', '･', '·', '•', ',', '，', '、', '。', '.', '!',
+            '！', '?', '？', ':', '：', ';', '；', '[', ']', '（',
+            '）', '(', ')', '「', '」', '『', '』', '"', '“', '”',
+            '\'', '’', '‘', '=', '＝', '-', '－', '—', '―', '_', '＿'
+        )
     }
 }
