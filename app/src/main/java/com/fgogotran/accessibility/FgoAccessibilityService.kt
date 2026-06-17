@@ -77,6 +77,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private var isProcessing = false
     private var translationJob: Job? = null
     private var cropTranslationJob: Job? = null
+    private var transientForegroundLossJob: Job? = null
+    private var transientForegroundLossStartedAt = 0L
     private var stopVersion = 0L
     private var screenWidth = 0
     private var screenHeight = 0
@@ -109,6 +111,8 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val DETECTION_INTERVAL = 120L
         private const val CAPTURE_SETTLE_DELAY = 16L
         private const val MANUAL_MENU_DISMISS_SETTLE_DELAY = 300L
+        private const val TRANSIENT_SYSTEM_UI_FOREGROUND_RECHECK_DELAY = 3_000L
+        private const val TRANSIENT_SYSTEM_UI_FOREGROUND_MAX_DELAY = 30_000L
         private const val TAP_TRANSLATION_READ_HOLD_DELAY = 120L
         private const val NEXT_DIALOGUE_POLL_INTERVAL = 120L
         private const val NEXT_DIALOGUE_POLL_TIMEOUT = 2_500L
@@ -159,6 +163,10 @@ class FgoAccessibilityService : AccessibilityService() {
         private val _serviceStarted = mutableStateOf(false)
         val serviceStarted: State<Boolean>
             get() = _serviceStarted
+
+        private val TRANSIENT_SYSTEM_UI_PACKAGES = setOf(
+            "com.android.systemui"
+        )
 
         @Volatile
         var instance: FgoAccessibilityService? = null
@@ -265,11 +273,13 @@ class FgoAccessibilityService : AccessibilityService() {
         when {
             packageName == APP_PACKAGE -> {
                 if (isFgoForeground) {
+                    cancelTransientForegroundLoss()
                     translationOverlay.showIndicator()
                 }
                 // Our overlays emit window/touch events when they appear or redraw. Treat them as UI noise.
             }
             isFgoEvent -> {
+                cancelTransientForegroundLoss()
                 if (!isFgoForeground) {
                     FgoLogger.info(tag, "FGO foreground detected: event=$packageName")
                 }
@@ -283,20 +293,79 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
             }
             else -> {
-                if (isFgoForeground) {
-                    FgoLogger.info(tag, "FGO foreground lost: event=$packageName")
+                if (isFgoForeground && packageName.isTransientSystemUiPackage()) {
+                    scheduleTransientForegroundLoss(packageName)
+                } else {
+                    cancelTransientForegroundLoss()
+                    markFgoForegroundLost(packageName)
                 }
-                isFgoForeground = false
-                resetEarlyTranslation()
-                resetCompletedDialogueCandidate()
-                translationOverlay.hideAll()
-                cropResultOverlay.hide()
             }
         }
     }
 
+    private fun scheduleTransientForegroundLoss(packageName: String) {
+        transientForegroundLossJob?.cancel()
+        if (transientForegroundLossStartedAt == 0L) {
+            transientForegroundLossStartedAt = SystemClock.elapsedRealtime()
+        }
+        FgoLogger.debug(tag, "Transient system UI event while FGO foreground; delaying foreground loss: event=$packageName")
+        transientForegroundLossJob = serviceScope.launch {
+            delay(TRANSIENT_SYSTEM_UI_FOREGROUND_RECHECK_DELAY)
+            transientForegroundLossJob = null
+            val activePackage = rootInActiveWindow?.packageName?.toString()
+            when {
+                activePackage?.isSupportedFgoPackage() == true -> {
+                    cancelTransientForegroundLoss()
+                    FgoLogger.debug(tag, "FGO still active after transient system UI; keeping foreground")
+                    translationOverlay.showIndicator()
+                }
+                activePackage == null ||
+                        activePackage == APP_PACKAGE ||
+                        activePackage.isTransientSystemUiPackage() -> {
+                    val waitingFor = SystemClock.elapsedRealtime() - transientForegroundLossStartedAt
+                    if (waitingFor >= TRANSIENT_SYSTEM_UI_FOREGROUND_MAX_DELAY) {
+                        FgoLogger.debug(
+                            tag,
+                            "Transient system UI persisted for ${waitingFor}ms; clearing FGO foreground"
+                        )
+                        markFgoForegroundLost(packageName, delayed = true)
+                    } else {
+                        FgoLogger.debug(
+                            tag,
+                            "Transient system UI still active after ${waitingFor}ms; keeping FGO foreground"
+                        )
+                        scheduleTransientForegroundLoss(packageName)
+                    }
+                }
+                else -> {
+                    markFgoForegroundLost(activePackage, delayed = true)
+                }
+            }
+        }
+    }
+
+    private fun cancelTransientForegroundLoss() {
+        transientForegroundLossJob?.cancel()
+        transientForegroundLossJob = null
+        transientForegroundLossStartedAt = 0L
+    }
+
+    private fun markFgoForegroundLost(packageName: String, delayed: Boolean = false) {
+        if (isFgoForeground) {
+            val delayLabel = if (delayed) " after transient delay" else ""
+            FgoLogger.info(tag, "FGO foreground lost$delayLabel: event=$packageName")
+        }
+        isFgoForeground = false
+        cancelTransientForegroundLoss()
+        resetEarlyTranslation()
+        resetCompletedDialogueCandidate()
+        translationOverlay.hideAll()
+        cropResultOverlay.hide()
+    }
+
     override fun onInterrupt() {
         FgoLogger.warn(tag, "Service interrupted")
+        cancelTransientForegroundLoss()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
         serviceScope.cancel()
@@ -304,6 +373,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
+        cancelTransientForegroundLoss()
         translationOverlay.destroy()
         cropResultOverlay.destroy()
         serviceScope.cancel()
@@ -2659,6 +2729,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun String.isSupportedFgoPackage(): Boolean {
         return this in supportedFgoPackages || startsWith("$FGO_PACKAGE.")
+    }
+
+    private fun String.isTransientSystemUiPackage(): Boolean {
+        return this in TRANSIENT_SYSTEM_UI_PACKAGES
     }
 
     private fun AccessibilityEvent.isDialogueAdvanceEvent(): Boolean {
