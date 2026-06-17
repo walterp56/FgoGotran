@@ -94,6 +94,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private var earlyTranslationJob: Job? = null
     private var earlyTranslationFingerprint = ""
     private var earlyTranslationResult: EarlyTranslationResult? = null
+    private var failedAutoRenderFingerprint = ""
+    private var failedAutoRenderRetryAt = 0L
     private var typingCandidateFingerprint = ""
     private var typingCandidateFirstSeenAt = 0L
     private var completedDialogueCandidateFingerprint = ""
@@ -125,6 +127,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val COMPLETED_DIALOGUE_STABLE_SCANS = 2
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_DELAY = 180L
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_SCANS = 2
+        private const val AUTO_FAILED_TRANSLATION_RETRY_COOLDOWN = 5_000L
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
         private const val RUBY_HEIGHT_RATIO = 0.72f
@@ -324,21 +327,36 @@ class FgoAccessibilityService : AccessibilityService() {
         if (TranslationTrigger.isAutoTranslateEnabled()) return false
         cropResultOverlay.hide()
 
-        if (!isFgoForeground ||
-            isProcessing ||
-            tapAdvancePolling ||
-            TranslationTrigger.isUiBlockingOcr()
-        ) {
+        if (!canStartScreenTranslationNow()) {
+            FgoLogger.debug(
+                tag,
+                "Manual translation queued: foreground=$isFgoForeground, " +
+                        "processing=$isProcessing, tapPolling=$tapAdvancePolling, " +
+                        "uiBlocking=${TranslationTrigger.isUiBlockingOcr()}"
+            )
             TranslationTrigger.requestTranslation(afterMenuDismiss)
             return true
         }
 
+        startManualTranslation(afterMenuDismiss)
+        return true
+    }
+
+    private fun canStartScreenTranslationNow(): Boolean {
+        return !isProcessing &&
+                !tapAdvancePolling &&
+                !TranslationTrigger.isUiBlockingOcr()
+    }
+
+    private fun startManualTranslation(afterMenuDismiss: Boolean = false) {
+        if (!isFgoForeground) {
+            FgoLogger.debug(tag, "Manual translation requested while FGO foreground flag is stale; attempting capture")
+        }
         TranslationTrigger.cancelPendingTranslation()
         translationJob = serviceScope.launch {
             if (afterMenuDismiss) delay(MANUAL_MENU_DISMISS_SETTLE_DELAY)
             processScreen(ProcessingMode.MANUAL)
         }
-        return true
     }
 
     fun requestCropTranslation(bounds: Rect): Boolean {
@@ -381,6 +399,8 @@ class FgoAccessibilityService : AccessibilityService() {
         resetCompletedDialogueCandidate()
         lastManualRenderedSourceText = ""
         lastAutoRenderedSourceText = ""
+        failedAutoRenderFingerprint = ""
+        failedAutoRenderRetryAt = 0L
         renderedChoiceBounds = emptyList()
         waitingForChoiceSelectionExit = false
         isForwardingOverlayTap = false
@@ -396,27 +416,21 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             while (isActive) {
                 try {
-                    if (isFgoForeground &&
-                        !isProcessing &&
-                        !tapAdvancePolling &&
-                        !TranslationTrigger.isUiBlockingOcr()
-                    ) {
+                    if (canStartScreenTranslationNow()) {
                         val autoEnabled = TranslationTrigger.isAutoTranslateEnabled()
                         val manualRequest = if (autoEnabled) false else TranslationTrigger.consumeRequest()
-                        if (autoEnabled &&
+                        if (manualRequest) {
+                            FgoLogger.debug(tag, "Translate Now requested")
+                            val waitForMenuDismissal = TranslationTrigger.consumeMenuDismissSettleRequired()
+                            cropResultOverlay.hide()
+                            startManualTranslation(waitForMenuDismissal)
+                        } else if (isFgoForeground &&
+                            autoEnabled &&
                             !translationOverlay.isShowing() &&
                             SystemClock.elapsedRealtime() >= autoScanReadyAt
                         ) {
                             translationJob = serviceScope.launch {
                                 processScreen(ProcessingMode.AUTO)
-                            }
-                        } else if (manualRequest) {
-                            FgoLogger.debug(tag, "Translate Now requested")
-                            val waitForMenuDismissal = TranslationTrigger.consumeMenuDismissSettleRequired()
-                            cropResultOverlay.hide()
-                            translationJob = serviceScope.launch {
-                                if (waitForMenuDismissal) delay(MANUAL_MENU_DISMISS_SETTLE_DELAY)
-                                processScreen(ProcessingMode.MANUAL)
                             }
                         }
                     }
@@ -723,6 +737,9 @@ class FgoAccessibilityService : AccessibilityService() {
                     FgoLogger.debug(tag, "Auto source unchanged; waiting for new OCR text")
                     return
                 }
+                if (isAutoFailedRenderCoolingDown(sceneSource)) {
+                    return
+                }
                 if (shouldHoldAutoTapHandoffScene(
                         sceneSource = sceneSource,
                         regions = scan.regions,
@@ -994,6 +1011,12 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         val layoutDuration = SystemClock.elapsedRealtime() - layoutStartedAt
 
+        missingRequiredRenderReason(sceneSource, instructions)?.let { reason ->
+            FgoLogger.warn(tag, "Translation result incomplete; not marking source as rendered: $reason")
+            rememberFailedRenderAttempt(mode, sourceFingerprint)
+            translationOverlay.hide()
+            return false
+        }
         if (instructions.isEmpty()) {
             addHistoryEntry(source, sceneSource, instructions)
             translationOverlay.hide()
@@ -1036,6 +1059,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         val renderDuration = SystemClock.elapsedRealtime() - renderStartedAt
         rememberRenderedSourceText(mode, sourceFingerprint)
+        clearFailedRenderAttempt(sourceFingerprint)
         resetCompletedDialogueCandidate()
         renderedChoiceBounds = if (mode == ProcessingMode.AUTO) {
             overlayRenderer.renderedChoiceBounds(
@@ -1071,6 +1095,30 @@ class FgoAccessibilityService : AccessibilityService() {
             ProcessingMode.MANUAL -> lastManualRenderedSourceText = fingerprint
             ProcessingMode.AUTO -> lastAutoRenderedSourceText = fingerprint
         }
+    }
+
+    private fun isAutoFailedRenderCoolingDown(sceneSource: SceneSource): Boolean {
+        if (sceneSource.fingerprint != failedAutoRenderFingerprint) return false
+        val now = SystemClock.elapsedRealtime()
+        if (now >= failedAutoRenderRetryAt) return false
+
+        FgoLogger.debug(
+            tag,
+            "Auto failed translation cooldown active for same source: ${failedAutoRenderRetryAt - now}ms remaining"
+        )
+        return true
+    }
+
+    private fun rememberFailedRenderAttempt(mode: ProcessingMode, fingerprint: String) {
+        if (mode != ProcessingMode.AUTO) return
+        failedAutoRenderFingerprint = fingerprint
+        failedAutoRenderRetryAt = SystemClock.elapsedRealtime() + AUTO_FAILED_TRANSLATION_RETRY_COOLDOWN
+    }
+
+    private fun clearFailedRenderAttempt(fingerprint: String) {
+        if (failedAutoRenderFingerprint != fingerprint) return
+        failedAutoRenderFingerprint = ""
+        failedAutoRenderRetryAt = 0L
     }
 
     private fun resetEarlyTranslation(clearTypingCandidate: Boolean = true) {
@@ -1298,6 +1346,34 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
             )
         }
+    }
+
+    private fun missingRequiredRenderReason(
+        sceneSource: SceneSource,
+        instructions: List<RenderInstruction>
+    ): String? {
+        val sourceHasDialogue = sceneSource.regions.any {
+            it.region.region == TextRegion.DIALOGUE_BOX && it.text.isNotBlank()
+        }
+        val renderedHasDialogue = instructions.any {
+            it.region.region == TextRegion.DIALOGUE_BOX && it.translatedText.isNotBlank()
+        }
+        if (sourceHasDialogue && !renderedHasDialogue) {
+            return "dialogue translation missing"
+        }
+
+        val sourceChoiceCount = sceneSource.regions.count {
+            it.region.region == TextRegion.CHOICE_BUTTON && it.text.isNotBlank()
+        }
+        if (sourceChoiceCount == 0) return null
+
+        val renderedChoiceCount = instructions.count {
+            it.region.region == TextRegion.CHOICE_BUTTON && it.translatedText.isNotBlank()
+        }
+        if (renderedChoiceCount < sourceChoiceCount) {
+            return "choice translation missing ($renderedChoiceCount/$sourceChoiceCount)"
+        }
+        return null
     }
 
     private fun renderableNameTranslation(sourceText: String, result: TranslateResult?): String? {
