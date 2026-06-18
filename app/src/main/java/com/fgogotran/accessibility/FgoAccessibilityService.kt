@@ -2373,7 +2373,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 currentScreenshot.height
             )
             if (expected.hasChoices) {
-                val currentChoices = backgroundDetector.detectChoiceButtons(currentScreenshot, screenRegions.choiceSearch)
+                val currentChoices = detectChoiceBounds(currentScreenshot, screenRegions)
                 if (currentChoices.size < expected.choiceRegionCount) return false
             }
             if (expected.hasDialogue) {
