@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v27"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v28"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -63,6 +63,7 @@ Style guidance (apply when relevant):
 - Preserve the original speaker's voice and relationship to the listener: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful. Use natural conversational Chinese appropriate for FGO story dialogue without flattening every speaker into the same tone.
 - If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear, concise, and player-facing.
 - If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
+- Katakana loanword style: when katakana is clearly an English-origin common word used for dramatic style, effect text, UI-like wording, or short emphasis, prefer a compact English rendering instead of Chinese transliteration. Examples: バーン -> Burn, フラッグ -> Flag, グランド -> Grand, チェンジ -> Change, マックス -> MAX when it means maximum/limit. Do not apply this to character names, place names, organizations, classes, Noble Phantasms, skills, or supplied glossary/official terms; those must still follow the terminology/name rules above. If English would hurt readability or the context is not clearly English-style, use natural Simplified Chinese.
 - Source may contain OCR ruby as base《reading》, e.g. 大穴《クエスチョン》. Treat the reading as pronunciation, alias, joke, or hidden-meaning context, not separate dialogue. Translate the full base phrase first, then place any concise Chinese parenthetical after that full translated phrase only when it helps preserve meaning. Never insert the parenthetical in the middle of the translated base phrase.
 - Keep dialogue compact for a two-line FGO dialogue box. Do not over-explain lore inside the line, do not add hard line breaks unless the source clearly uses separate formatted rows, and preserve short dramatic rhythm.
 - Preserve source separators such as "——", "……", "「」", "・", and wide spacing between short phrase blocks.

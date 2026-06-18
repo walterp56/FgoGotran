@@ -185,6 +185,8 @@ class Translator @Inject constructor(
         private const val CHAT_COMPLETION_MAX_TOKENS = 1024
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val UNTRANSLATED_FALLBACK = ""
+        private const val MAX_STRICT_RETRY_TERMS = 10
+        private const val LOG_SAMPLE_MAX_CHARS = 120
         private val nameSanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})さん")
         private val nameKunHonorificPattern =
@@ -398,6 +400,7 @@ class Translator @Inject constructor(
             restoreProtectedTerms(result, protectedInput.terms)
         )
         if (looksUntranslated(normalizedText, simplifiedResult, playerName)) {
+            logUntranslatedResult("API response", normalizedText, simplifiedResult, playerName)
             FgoLogger.warn(tag, "API returned untranslated Japanese; retrying with strict Chinese-only prompt")
             val retryResult = retryUntranslatedSingle(
                 config = config,
@@ -2437,6 +2440,7 @@ class Translator @Inject constructor(
             appendLine("- If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order character name. Never return the original Japanese name unchanged.")
             appendLine("- For short katakana names, transliterate the sound literally (example: レオン -> 莱昂). Do not replace it with another known FGO character.")
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
+            appendLine("- For obvious English-origin katakana common words in dialogue or choices, keep compact English flavor when natural, unless a glossary/name/official term applies.")
             appendLine("- Translate choices as short player-facing options in the same order. Preserve intent and emotional nuance, but avoid making choices long.")
             appendLine("- If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
             appendLine("- Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations, no extra keys.")
@@ -2570,15 +2574,7 @@ class Translator @Inject constructor(
         val retryMessages = listOf(
             ChatMessage(
                 "system",
-                promptBuilder.buildSystemPrompt(matchedTerms, playerName) + """
-
-IMPORTANT RETRY:
-The previous response copied Japanese instead of translating.
-Return Simplified Chinese only, with no Japanese source text, notes, markdown, or explanations.
-Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.
-The player name "$playerName" is fixed user text; keep it exactly if it appears.
-Do not include Japanese kana except inside the player name, unchanged placeholders, or fixed official terminology supplied above.
-""".trimIndent()
+                buildStrictRetrySystemPrompt(matchedTerms, playerName)
             ),
             ChatMessage("user", buildStrictRetryUserPrompt(protectedInput.text, normalizedChoices))
         )
@@ -2595,10 +2591,36 @@ Do not include Japanese kana except inside the player name, unchanged placeholde
             restoreProtectedTerms(retryRaw, protectedInput.terms)
         )
         if (looksUntranslated(normalizedText, retrySimplified, playerName)) {
+            logUntranslatedResult("Strict retry response", normalizedText, retrySimplified, playerName)
             return null
         }
         FgoLogger.info(tag, "Strict retry produced translated result")
         return retrySimplified
+    }
+
+    private fun buildStrictRetrySystemPrompt(
+        matchedTerms: List<TermEntity>,
+        playerName: String
+    ): String {
+        return buildString {
+            appendLine("You translate Japanese Fate/Grand Order story text into Simplified Chinese.")
+            appendLine("This is a repair retry because the previous answer copied Japanese.")
+            appendLine("Return only the final translated text. No source text, notes, markdown, or explanations.")
+            appendLine("Do not leave Japanese kana, except inside the fixed player name or unchanged placeholder tokens.")
+            appendLine("Keep every full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ exactly unchanged.")
+            appendLine("Keep the FGO dialogue tone natural, compact, and suitable for a two-line in-game overlay.")
+            appendLine("For obvious English-origin katakana common words, compact English flavor is allowed when natural; never apply this to names or official terms.")
+            if (playerName.isNotBlank()) {
+                appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
+            }
+            if (matchedTerms.isNotEmpty()) {
+                appendLine()
+                appendLine("Official terms, use exactly:")
+                matchedTerms.take(MAX_STRICT_RETRY_TERMS).forEach { term ->
+                    appendLine("${term.jpTerm} -> ${toSimplifiedChinese(term.cnTerm)} [${term.category}]")
+                }
+            }
+        }
     }
 
     private fun buildStrictRetryUserPrompt(
@@ -2606,11 +2628,11 @@ Do not include Japanese kana except inside the player name, unchanged placeholde
         choiceTexts: List<String>
     ): String {
         return buildString {
-            appendLine("Localize this Japanese Fate/Grand Order text into Simplified Chinese.")
-            appendLine("Return ONLY the Chinese translation. No Japanese source text, no explanation.")
-            appendLine("Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
-            appendLine("Keep the translation compact. Do not over-explain lore, add source text, add translator notes, or leave Japanese kana unless allowed by placeholders/player/official terms.")
-            appendLine("If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders, including _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, and _MASTER__ variants.")
+            appendLine("Translate the Japanese source below into Simplified Chinese.")
+            appendLine("Return only the translated text, not JSON.")
+            appendLine("Translate every Japanese line; preserve line breaks only when they separate complete source rows.")
+            appendLine("Do not copy any Japanese kana from the source.")
+            appendLine("Keep placeholder tokens exactly unchanged.")
             if (choiceTexts.isNotEmpty()) {
                 appendLine("Choice context. Translate choices as short player-facing options:")
                 choiceTexts.forEachIndexed { index, choice ->
@@ -2621,6 +2643,34 @@ Do not include Japanese kana except inside the player name, unchanged placeholde
             appendLine("Japanese source:")
             append(japaneseText)
         }
+    }
+
+    private fun logUntranslatedResult(
+        stage: String,
+        sourceText: String,
+        translatedText: String,
+        playerName: String
+    ) {
+        FgoLogger.warn(
+            tag,
+            "$stage looked untranslated; source=\"${logSample(sourceText, playerName)}\", " +
+                "result=\"${logSample(translatedText, playerName)}\""
+        )
+    }
+
+    private fun logSample(
+        text: String,
+        playerName: String,
+        maxLength: Int = LOG_SAMPLE_MAX_CHARS
+    ): String {
+        var sample = TextNormalizer.normalizeForTranslation(text)
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
+        if (normalizedPlayerName.isNotBlank()) {
+            sample = sample.replace(normalizedPlayerName, "{player}")
+        }
+        return if (sample.length <= maxLength) sample else sample.take(maxLength) + "..."
     }
 
     private fun parseBatchResult(rawResult: String, expectedCount: Int): List<String> {
