@@ -187,6 +187,8 @@ class Translator @Inject constructor(
         private const val UNTRANSLATED_FALLBACK = ""
         private const val MAX_STRICT_RETRY_TERMS = 10
         private const val LOG_SAMPLE_MAX_CHARS = 120
+        private const val PLAYER_NAME_OCR_MIN_LOOKUP_LENGTH = 4
+        private const val PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH = 16
         private val nameSanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})さん")
         private val nameKunHonorificPattern =
@@ -311,12 +313,21 @@ class Translator @Inject constructor(
         choiceTexts: List<String> = emptyList(),
         preserveRubyMeaning: Boolean = false
     ): TranslateResult {
-        val normalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
-        val normalizedChoices = choiceTexts.map(TextNormalizer::normalizeForTranslation)
-            .filter { it.isNotBlank() }
-
-        if (normalizedText.isBlank()) {
+        val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
+        if (rawNormalizedText.isBlank()) {
             return TranslateResult("", "none", true)
+        }
+
+        val config = getRuntimeConfig()
+        val backend = config.backend
+        val apiKey = config.apiKey
+        val playerName = config.playerName
+        val cacheEnabled = config.cacheEnabled
+        val normalizedText = correctPlayerNameOcr(rawNormalizedText, playerName, "TEXT")
+        val normalizedChoices = choiceTexts.mapIndexedNotNull { index, choice ->
+            TextNormalizer.normalizeForTranslation(choice)
+                .takeIf { it.isNotBlank() }
+                ?.let { correctPlayerNameOcr(it, playerName, "CHOICE[$index]") }
         }
 
         translationMemory.lookupNormalized(normalizedText)?.let {
@@ -334,11 +345,6 @@ class Translator @Inject constructor(
             return TranslateResult(sanitizeTranslation(normalizedText, it), "glossary", true)
         }
 
-        val config = getRuntimeConfig()
-        val backend = config.backend
-        val apiKey = config.apiKey
-        val playerName = config.playerName
-        val cacheEnabled = config.cacheEnabled
         val rubyPolicyKey = if (preserveRubyMeaning) "ruby-meaning-v1" else ""
         val hash = cacheKey(normalizedText, normalizedChoices, config, rubyPolicyKey)
 
@@ -428,12 +434,15 @@ class Translator @Inject constructor(
     suspend fun translateBatch(japaneseTexts: List<String>): List<TranslateResult> {
         if (japaneseTexts.isEmpty()) return emptyList()
 
-        val normalizedTexts = japaneseTexts.map(TextNormalizer::normalizeForTranslation)
+        val rawNormalizedTexts = japaneseTexts.map(TextNormalizer::normalizeForTranslation)
         val config = getRuntimeConfig()
         val backend = config.backend
         val apiKey = config.apiKey
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled
+        val normalizedTexts = rawNormalizedTexts.mapIndexed { index, text ->
+            correctPlayerNameOcr(text, playerName, "BATCH[$index]")
+        }
         val hashes = normalizedTexts.map { cacheKey(it, emptyList(), config) }
         val results = MutableList<TranslateResult?>(japaneseTexts.size) { null }
         val uncachedIndices = mutableListOf<Int>()
@@ -559,9 +568,9 @@ class Translator @Inject constructor(
     }
 
     suspend fun translateScene(input: SceneTranslateInput): SceneTranslateResult {
-        val normalizedName = input.name?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
-        val normalizedDialogue = input.dialogue?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
-        val normalizedChoices = input.choices
+        val rawNormalizedName = input.name?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
+        val rawNormalizedDialogue = input.dialogue?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
+        val rawNormalizedChoices = input.choices
             .map(TextNormalizer::normalizeForTranslation)
             .map { it.takeIf(String::isNotBlank) }
 
@@ -570,6 +579,11 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val cacheEnabled = config.cacheEnabled
         val playerName = config.playerName
+        val normalizedName = rawNormalizedName?.let { correctPlayerNameOcr(it, playerName, "SCENE_NAME") }
+        val normalizedDialogue = rawNormalizedDialogue?.let { correctPlayerNameOcr(it, playerName, "SCENE_DIALOGUE") }
+        val normalizedChoices = rawNormalizedChoices.mapIndexed { index, text ->
+            text?.let { correctPlayerNameOcr(it, playerName, "SCENE_CHOICE[$index]") }
+        }
 
         var nameResult: TranslateResult? = null
         var dialogueResult: TranslateResult? = null
@@ -1168,6 +1182,78 @@ class Translator @Inject constructor(
             .trimEnd { it.isNameTrailingPunctuation() }
     }
 
+    private fun correctPlayerNameOcr(
+        sourceText: String,
+        playerName: String,
+        label: String
+    ): String {
+        val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
+        val playerLookup = normalizeNameLookup(normalizedPlayerName)
+        if (sourceText.isBlank() ||
+            normalizedPlayerName.isBlank() ||
+            playerLookup.length !in PLAYER_NAME_OCR_MIN_LOOKUP_LENGTH..PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH ||
+            !containsJapaneseScript(normalizedPlayerName)
+        ) {
+            return sourceText
+        }
+
+        val candidateLengths = listOf(
+            normalizedPlayerName.length,
+            normalizedPlayerName.length - 1,
+            normalizedPlayerName.length + 1
+        )
+            .filter { it > 0 }
+            .distinct()
+
+        val corrected = StringBuilder(sourceText.length)
+        var index = 0
+        var changed = false
+        while (index < sourceText.length) {
+            val matchLength = candidateLengths.firstOrNull { length ->
+                index + length <= sourceText.length &&
+                    isLikelyPlayerNameOcrMatch(
+                        sourceText.substring(index, index + length),
+                        normalizedPlayerName,
+                        playerLookup
+                    )
+            }
+
+            if (matchLength == null) {
+                corrected.append(sourceText[index])
+                index++
+                continue
+            }
+
+            val candidate = sourceText.substring(index, index + matchLength)
+            corrected.append(normalizedPlayerName)
+            if (candidate != normalizedPlayerName) {
+                changed = true
+                FgoLogger.debug(tag, "OCR player name correction ($label): $candidate -> $normalizedPlayerName")
+            }
+            index += matchLength
+        }
+
+        return if (changed) corrected.toString() else sourceText
+    }
+
+    private fun isLikelyPlayerNameOcrMatch(
+        candidateText: String,
+        normalizedPlayerName: String,
+        playerLookup: String
+    ): Boolean {
+        if (candidateText.isBlank() || !containsJapaneseScript(candidateText)) return false
+        if (candidateText == normalizedPlayerName) return true
+
+        val candidateLookup = normalizeNameLookup(candidateText)
+        if (candidateLookup == playerLookup) return true
+        if (candidateLookup.length !in PLAYER_NAME_OCR_MIN_LOOKUP_LENGTH..PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH) {
+            return false
+        }
+        if (kotlin.math.abs(candidateLookup.length - playerLookup.length) > 1) return false
+        if (candidateLookup.firstOrNull() != playerLookup.firstOrNull()) return false
+        return editDistanceAtMostOne(candidateLookup, playerLookup)
+    }
+
     private fun shouldTranslateUnknownNameWithLlm(normalizedName: String, playerName: String): Boolean {
         if (normalizedName.isBlank()) return false
         val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
@@ -1358,7 +1444,7 @@ class Translator @Inject constructor(
         val source = TextNormalizer.normalizeForTranslation(sourceText)
         val translated = TextNormalizer.normalizeForTranslation(translatedText)
         if (source.isBlank() || translated.isBlank()) return false
-        val allowedFragments = allowedJapaneseFragments(source, playerName)
+        val allowedFragments = allowedJapaneseFragments(source, translated, playerName)
         val sourceForCheck = removeAllowedJapaneseFragments(source, allowedFragments)
         val translatedForCheck = removeAllowedJapaneseFragments(translated, allowedFragments)
         if (sourceForCheck.isBlank() && translatedForCheck.isBlank()) return false
@@ -1369,11 +1455,19 @@ class Translator @Inject constructor(
         return sourceKanaCount >= 2 && translatedForCheck.contains(sourceForCheck)
     }
 
-    private fun allowedJapaneseFragments(sourceText: String, playerName: String): List<String> {
+    private fun allowedJapaneseFragments(
+        sourceText: String,
+        translatedText: String,
+        playerName: String
+    ): List<String> {
         val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
         if (normalizedPlayerName.isBlank()) return emptyList()
         if (!normalizedPlayerName.any(::isJapaneseKana)) return emptyList()
-        if (!sourceText.contains(normalizedPlayerName)) return emptyList()
+        // OCR can slightly misread the player name; allow the configured name
+        // when the retry restores it in the translated result.
+        if (!sourceText.contains(normalizedPlayerName) && !translatedText.contains(normalizedPlayerName)) {
+            return emptyList()
+        }
         return listOf(normalizedPlayerName)
     }
 
