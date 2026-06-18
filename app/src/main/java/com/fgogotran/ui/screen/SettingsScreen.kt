@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
     glossaryUpdateManager: GlossaryUpdateManager,
+    onClearTranslationCache: suspend () -> Int,
     onApiSettings: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -45,6 +46,8 @@ fun SettingsScreen(
     // Form state — initialized from DataStore via LaunchedEffect
     var playerName by remember { mutableStateOf("") }
     var cacheEnabled by remember { mutableStateOf(true) }
+    var clearingCache by remember { mutableStateOf(false) }
+    var cacheClearMessage by remember { mutableStateOf("") }
 
     // Load persisted settings on first composition
     LaunchedEffect(Unit) {
@@ -198,6 +201,58 @@ fun SettingsScreen(
                             scope.launch { settingsRepository.setCacheEnabled(it) }
                         }
                     )
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("清除翻译缓存", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "删除已保存的翻译结果，并清空当前内存缓存。不会删除术语库或 API 设置。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Button(
+                        onClick = {
+                            clearingCache = true
+                            cacheClearMessage = ""
+                            scope.launch {
+                                runCatching { onClearTranslationCache() }
+                                    .onSuccess { count ->
+                                        cacheClearMessage = "已清除 $count 条翻译缓存"
+                                    }
+                                    .onFailure {
+                                        cacheClearMessage = "清除翻译缓存失败"
+                                    }
+                                clearingCache = false
+                            }
+                        },
+                        enabled = !clearingCache,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        if (clearingCache) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (clearingCache) "清除中" else "清除翻译缓存")
+                    }
+                    if (cacheClearMessage.isNotBlank()) {
+                        Text(
+                            cacheClearMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
                 }
             }
         }

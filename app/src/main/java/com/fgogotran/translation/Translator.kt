@@ -131,6 +131,16 @@ class Translator @Inject constructor(
         FgoLogger.info(tag, "Glossary and memory translation cache cleared")
     }
 
+    suspend fun clearTranslationCache(): Int {
+        val clearedCount = cacheDao.count()
+        cacheDao.clearAll()
+        synchronized(memoryCacheLock) {
+            memoryTranslationCache.clear()
+        }
+        FgoLogger.info(tag, "Translation cache cleared: $clearedCount rows")
+        return clearedCount
+    }
+
     private fun clearCharacterNameCaches() {
         cachedTerms = null
         cachedCharacterNames = null

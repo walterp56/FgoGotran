@@ -95,15 +95,39 @@ class GlossaryUpdateManager @Inject constructor(
             val installedSha = settingsRepository.dbSha256.first()
             val currentSha = dbFile.takeIf { it.exists() && it.length() > 0L }?.let(::sha256File).orEmpty()
             val packageMetadata = TermDatabase.onlinePackageMetadata(context)
+            val verifiedPackageMetadata = packageMetadata?.takeIf { metadata ->
+                currentSha.isNotBlank() && metadata.sha256.equals(currentSha, ignoreCase = true)
+            }
+            if (packageMetadata != null && verifiedPackageMetadata == null) {
+                FgoLogger.warn(
+                    tag,
+                    "DB update: package metadata sha mismatch; " +
+                        "package=${packageMetadata.sha256.take(12)}..., current=${currentSha.take(12)}..."
+                )
+            }
+            val settingsMatchCurrentFile =
+                installedVersion.isNotBlank() &&
+                    installedSha.isNotBlank() &&
+                    installedSha.equals(currentSha, ignoreCase = true)
+            if (installedSha.isNotBlank() &&
+                currentSha.isNotBlank() &&
+                !settingsMatchCurrentFile
+            ) {
+                FgoLogger.warn(
+                    tag,
+                    "DB update: settings sha mismatch; " +
+                        "settings=${installedSha.take(12)}..., current=${currentSha.take(12)}..."
+                )
+            }
             val knownCurrentMetadata = when {
-                packageMetadata != null && dbFile.exists() && dbFile.length() > 0L ->
-                    KnownDbMetadata(packageMetadata.contentVersion, packageMetadata.sha256)
-                installedSha.equals(currentSha, ignoreCase = true) && installedVersion.isNotBlank() ->
+                verifiedPackageMetadata != null ->
+                    KnownDbMetadata(verifiedPackageMetadata.contentVersion, verifiedPackageMetadata.sha256)
+                settingsMatchCurrentFile ->
                     KnownDbMetadata(installedVersion, installedSha)
                 else -> null
             }
-            val effectiveInstalledVersion = knownCurrentMetadata?.contentVersion ?: installedVersion
-            val effectiveInstalledSha = knownCurrentMetadata?.sha256 ?: installedSha
+            val effectiveInstalledVersion = knownCurrentMetadata?.contentVersion.orEmpty()
+            val effectiveInstalledSha = knownCurrentMetadata?.sha256.orEmpty()
             FgoLogger.info(
                 tag,
                 "DB update: local version=$effectiveInstalledVersion, " +
