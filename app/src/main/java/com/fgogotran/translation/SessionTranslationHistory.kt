@@ -12,6 +12,8 @@ data class SessionTranslationEntry(
     val speakerNameColor: Int? = null,
     val dialogueTextColor: Int? = null,
     val choiceColors: List<Int?> = emptyList(),
+    val sourceKey: String = "",
+    val dialogueSourceKey: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -39,6 +41,11 @@ object SessionTranslationHistory {
         val normalizedEntry = entry.withoutRepeatedDialogueAfter(previousDialogueEntry)
         val key = normalizedEntry.contentKey()
         if (key.isBlank()) return
+        if (normalizedEntry.shouldUpdateLatestSameSource(currentEntries.lastOrNull())) {
+            FgoLogger.debug(TAG, "History latest same-source entry updated")
+            _entries.value = currentEntries.dropLast(1) + normalizedEntry
+            return
+        }
         if (currentEntries.lastOrNull()?.contentKey() == key) {
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
@@ -69,13 +76,41 @@ object SessionTranslationHistory {
             .trim()
     }
 
+    private fun SessionTranslationEntry.normalizedSourceKey(): String {
+        return sourceKey.normalizeHistoryText()
+    }
+
+    private fun SessionTranslationEntry.normalizedDialogueSourceKey(): String {
+        return dialogueSourceKey
+            .normalizeHistoryText()
+            .ifBlank { normalizedSourceKey() }
+    }
+
+    private fun SessionTranslationEntry.shouldUpdateLatestSameSource(
+        previous: SessionTranslationEntry?
+    ): Boolean {
+        if (previous == null) return false
+        if (choices.isNotEmpty() != previous.choices.isNotEmpty()) return false
+        if (choices.isEmpty() && (dialogueText.isNullOrBlank() || previous.dialogueText.isNullOrBlank())) {
+            return false
+        }
+
+        val currentSourceKey = normalizedSourceKey()
+        return currentSourceKey.isNotBlank() && currentSourceKey == previous.normalizedSourceKey()
+    }
+
     private fun SessionTranslationEntry.withoutRepeatedDialogueAfter(
         previous: SessionTranslationEntry?
     ): SessionTranslationEntry {
         if (previous == null || choices.isEmpty()) return this
 
         val currentDialogueKey = dialogueKey()
-        if (currentDialogueKey.isBlank() || currentDialogueKey != previous.dialogueKey()) return this
+        val currentDialogueSourceKey = normalizedDialogueSourceKey()
+        val repeatsPreviousDialogue =
+            (currentDialogueSourceKey.isNotBlank() &&
+                currentDialogueSourceKey == previous.normalizedDialogueSourceKey()) ||
+                (currentDialogueKey.isNotBlank() && currentDialogueKey == previous.dialogueKey())
+        if (!repeatsPreviousDialogue) return this
 
         FgoLogger.debug(TAG, "History repeated dialogue omitted from choice entry")
         return copy(

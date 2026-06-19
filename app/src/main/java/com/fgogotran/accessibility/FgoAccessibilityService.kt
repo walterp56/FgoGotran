@@ -1964,6 +1964,8 @@ class FgoAccessibilityService : AccessibilityService() {
             .map { it.translatedText.trim() }
             .zip(choiceInstructions.map { it.textColor })
             .filter { it.first.isNotBlank() }
+        val dialogueSourceKey = sceneSource.historyDialogueSourceKey()
+        val entrySourceKey = sceneSource.historySourceKey(hasChoices = choicePairs.isNotEmpty())
 
         if (name != null || dialogue != null || choicePairs.isNotEmpty()) {
             SessionTranslationHistory.add(
@@ -1974,10 +1976,43 @@ class FgoAccessibilityService : AccessibilityService() {
                     speakerNameColor = nameInstruction?.textColor
                         ?: rawNameRegion?.let { sampleOriginalTextColor(source, it.region) },
                     dialogueTextColor = dialogueInstruction?.textColor,
-                    choiceColors = choicePairs.map { it.second }
+                    choiceColors = choicePairs.map { it.second },
+                    sourceKey = entrySourceKey,
+                    dialogueSourceKey = dialogueSourceKey
                 )
             )
         }
+    }
+
+    private fun SceneSource.historyDialogueSourceKey(): String {
+        val dialogue = input.dialogue?.trim().orEmpty()
+        if (dialogue.isBlank()) return ""
+        return listOf(
+            input.name.orEmpty(),
+            dialogue
+        )
+            .joinToString("\n")
+            .trim()
+    }
+
+    private fun SceneSource.historySourceKey(hasChoices: Boolean): String {
+        val dialogueSourceKey = historyDialogueSourceKey()
+        if (!hasChoices) return dialogueSourceKey
+
+        val choicesSourceKey = input.choices
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+        if (choicesSourceKey.isBlank()) return dialogueSourceKey
+
+        return listOf(
+            "CHOICES",
+            dialogueSourceKey,
+            choicesSourceKey
+        )
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+            .trim()
     }
 
     private suspend fun recognizeChoiceRegions(
