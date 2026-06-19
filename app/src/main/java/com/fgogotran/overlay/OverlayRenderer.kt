@@ -92,6 +92,8 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_TEXT_SIZE = 53f
         private const val CHOICE_TEXT_MIN_SIZE = 29f
         private const val WIDE_RENDER_SPACE = "\u3000"
+        private val TRAILING_DASH_CLEAR_RISK = Regex("""[\u002D\u30FC\u2010-\u2015\u2212\u2500\uFF0D]{2,}\s*$""")
+        private val COUNTDOWN_CLEAR_RISK = Regex("""(?:[0-9\uFF10-\uFF19][ \t\u3000]+){2,}[0-9\uFF10-\uFF19]\s*[\u002D\u30FC\u2010-\u2015\u2212\u2500\uFF0D]*\s*$""")
         private val WIDE_RENDER_CONNECTORS = listOf(
             "\u4EE5\u53CA", "\u8FD8\u6709", "\u6216\u8005", "\u4F46\u662F",
             "\u56E0\u6B64", "\u6240\u4EE5", "\u4E0D\u8FC7", "\u7136\u540E",
@@ -347,11 +349,16 @@ class OverlayRenderer @Inject constructor(
         val sourceTop = originalBounds?.top?.minus(sourcePaddingY) ?: textArea.top
         val sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: textArea.left
         val sourceBottom = originalBounds?.bottom?.plus(sourcePaddingY) ?: textArea.top
+        val clearRightForRiskyTail = if (instruction.hasRiskyTrailingDialogueText()) {
+            textArea.right
+        } else {
+            textArea.left
+        }
 
         return boundedRect(
             left = minOf(sourceLeft, textArea.left - clearLeftInsetX),
             top = minOf(sourceTop, textArea.top - clearInsetY),
-            right = maxOf(sourceRight, textArea.left + textWidth + clearInsetX),
+            right = maxOf(sourceRight, textArea.left + textWidth + clearInsetX, clearRightForRiskyTail),
             bottom = maxOf(sourceBottom, textBottom + clearInsetY),
             bounds = panelBox
         )
@@ -462,6 +469,15 @@ class OverlayRenderer @Inject constructor(
             bounds.union(line.boundingBox)
         }
         return bounds
+    }
+
+    private fun RenderInstruction.hasRiskyTrailingDialogueText(): Boolean {
+        val sourceTail = region.lines
+            .map { it.text.trim() }
+            .lastOrNull { it.isNotBlank() }
+            ?: return false
+        return TRAILING_DASH_CLEAR_RISK.containsMatchIn(sourceTail) ||
+            COUNTDOWN_CLEAR_RISK.containsMatchIn(sourceTail)
     }
 
     /**
