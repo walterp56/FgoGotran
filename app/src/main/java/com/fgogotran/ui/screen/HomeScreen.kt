@@ -29,7 +29,7 @@ import com.fgogotran.R
 /**
  * Home screen with service status, "Start Service" flow, and navigation.
  *
- * ## Startup flow (like FGA's toggleOverlayService)
+ * ## Startup flow
  * 1. Tap "启动服务" FAB
  * 2. Check overlay permission → show dialog if not granted
  * 3. Check accessibility service → show dialog if not running

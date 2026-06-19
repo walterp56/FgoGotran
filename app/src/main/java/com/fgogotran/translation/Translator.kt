@@ -2633,10 +2633,10 @@ class Translator @Inject constructor(
             appendLine()
             appendLine("Crop ruby rule:")
             appendLine("- The source includes visible small ruby/furigana in base《ruby》 form.")
-            appendLine("- Treat ruby as pronunciation, alias, joke, or hidden meaning context, not as separate dialogue.")
-            appendLine("- Translate the full base phrase first, then put the translated ruby meaning in a concise Chinese parenthetical after that full phrase.")
-            appendLine("- Do not omit useful ruby meaning and do not place it in the middle of the base phrase.")
-            appendLine("Example shape: Good point《nice job》 -> Good point（nice job）")
+            appendLine("- Usually treat base and ruby as one annotated expression, but keep this flexible: ruby can be pronunciation, alias, joke, hidden meaning, spoken/intended wording, or a second layer of dialogue-like meaning.")
+            appendLine("- Translate naturally in Chinese according to context. If ruby only gives pronunciation, omit it; if it changes or adds important nuance, reflect that meaning.")
+            appendLine("- Use a short Chinese parenthetical only when both base and ruby meanings matter and it still reads naturally. Do not mechanically output base（ruby）.")
+            appendLine("Example shape: 切り札《ジョーカー》 -> 王牌")
         }
     }
 

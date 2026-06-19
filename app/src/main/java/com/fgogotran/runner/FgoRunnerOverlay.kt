@@ -27,7 +27,7 @@ import javax.inject.Singleton
 /**
  * Manages the draggable floating button overlay window.
  *
- * Like FGA's [ScriptRunnerOverlay], this class:
+ * This class:
  * - Adds a [androidx.compose.ui.platform.ComposeView] to the WindowManager
  * - Renders the [FloatingButton] composable inside it
  * - Handles drag-to-reposition via [onDrag]

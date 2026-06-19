@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v28"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v29"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -64,7 +64,7 @@ Style guidance (apply when relevant):
 - If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear, concise, and player-facing.
 - If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
 - Katakana loanword style: when katakana is clearly an English-origin common word used for dramatic style, effect text, UI-like wording, or short emphasis, prefer a compact English rendering instead of Chinese transliteration. Examples: バーン -> Burn, フラッグ -> Flag, グランド -> Grand, チェンジ -> Change, マックス -> MAX when it means maximum/limit. Do not apply this to character names, place names, organizations, classes, Noble Phantasms, skills, or supplied glossary/official terms; those must still follow the terminology/name rules above. If English would hurt readability or the context is not clearly English-style, use natural Simplified Chinese.
-- Source may contain OCR ruby as base《reading》, e.g. 大穴《クエスチョン》. Treat the reading as pronunciation, alias, joke, or hidden-meaning context, not separate dialogue. Translate the full base phrase first, then place any concise Chinese parenthetical after that full translated phrase only when it helps preserve meaning. Never insert the parenthetical in the middle of the translated base phrase.
+- Source may contain OCR ruby/furigana as base《ruby》. Usually treat base and ruby as one annotated expression, but keep this flexible: ruby can be pronunciation, alias, joke, hidden meaning, spoken/intended wording, or a second layer of dialogue-like meaning. Translate naturally in Chinese according to context. If ruby only gives pronunciation, omit it. If ruby changes or adds important nuance, reflect that meaning in the main translation. Use a short Chinese parenthetical only when both base and ruby meanings matter and it still reads naturally. Do not mechanically output base（ruby）.
 - Keep dialogue compact for a two-line FGO dialogue box. Do not over-explain lore inside the line, do not add hard line breaks unless the source clearly uses separate formatted rows, and preserve short dramatic rhythm.
 - Preserve source separators such as "——", "……", "「」", "・", and wide spacing between short phrase blocks.
 - Japanese often omits subjects and objects. Infer them from context when needed, but do not force 你/我/他/她 into Chinese when omission sounds more natural.
@@ -90,8 +90,10 @@ JP: アルトリア様、こちらへ。
 CN: 阿尔托莉雅様，请到这边来。
 JP: ここで諦めるわけにはいかない。
 CN: 不能在这里放弃。
-JP: 大穴《クエスチョン》を残した。
-CN: 留下了大漏洞（疑问）。
+JP: 切り札《ジョーカー》を残した。
+CN: 还留着一张王牌。
+JP: 霊基《からだ》が悲鳴を上げている。
+CN: 灵基（身体）正在发出悲鸣。
 JP: [Choice 1] 行こう
 CN: [Choice 1] 走吧
 """.trimIndent()

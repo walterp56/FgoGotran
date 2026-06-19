@@ -24,9 +24,6 @@ import kotlinx.coroutines.launch
 /**
  * Minimal [SavedStateRegistryOwner] + [LifecycleOwner] for hosting Compose
  * content inside a Service or WindowManager overlay (outside an Activity).
- *
- * Adapted from FGA's FakedComposeView pattern.
- * Source: https://gist.github.com/handstandsam/6ecff2f39da72c0b38c07aa80bbb5a2f
  */
 private class FakeLifecycleOwner : SavedStateRegistryOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
