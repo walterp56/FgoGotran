@@ -391,6 +391,7 @@ class FgoAccessibilityService : AccessibilityService() {
             autoScanReadyAt = 0L
             FgoLogger.debug(tag, "Auto translate disabled")
         }
+        runnerOverlay.refreshButtonMode()
     }
 
     fun requestManualTranslation(afterMenuDismiss: Boolean = false): Boolean {
@@ -533,7 +534,11 @@ class FgoAccessibilityService : AccessibilityService() {
                 delay(CAPTURE_SETTLE_DELAY)
             }
 
-            screenshot = takeScreenshotCompat() ?: return
+            screenshot = takeScreenshotCompat()
+            if (screenshot == null) {
+                runnerOverlay.showTranslationFailureFeedback()
+                return
+            }
             val source = screenshot
             val currentScreenWidth = source.width
             val currentScreenHeight = source.height
@@ -567,6 +572,7 @@ class FgoAccessibilityService : AccessibilityService() {
             throw e
         } catch (e: Exception) {
             FgoLogger.error(tag, "processScreen failed", e)
+            runnerOverlay.showTranslationFailureFeedback()
         } finally {
             screenshot?.recycle()
             if (restoreHiddenOverlay && processingVersion == stopVersion && !translationOverlay.isShowing()) {
@@ -714,6 +720,7 @@ class FgoAccessibilityService : AccessibilityService() {
             if (scan.dialogueComplete) {
                 resetEarlyTranslation()
                 FgoLogger.debug(tag, "No translatable completed dialogue detected in FGO regions")
+                runnerOverlay.showTranslationFailureFeedback()
                 translationOverlay.hide()
                 return false
             }
@@ -724,6 +731,7 @@ class FgoAccessibilityService : AccessibilityService() {
         FgoLogger.debug(tag, "Manual path uses fixed dialogue/choice regions without story guard")
         val sceneSource = sceneSourceFor(scan.regions)
         if (sceneSource == null) {
+            runnerOverlay.showTranslationFailureFeedback()
             translationOverlay.hide()
             return false
         }
@@ -861,6 +869,7 @@ class FgoAccessibilityService : AccessibilityService() {
             AutoScanResult.EmptyCompletedDialogue -> {
                 resetEarlyTranslation()
                 FgoLogger.debug(tag, "No translatable completed dialogue detected in FGO regions")
+                runnerOverlay.showTranslationFailureFeedback()
                 translationOverlay.hide()
             }
             AutoScanResult.Waiting -> Unit
@@ -1084,11 +1093,13 @@ class FgoAccessibilityService : AccessibilityService() {
         missingRequiredRenderReason(sceneSource, instructions)?.let { reason ->
             FgoLogger.warn(tag, "Translation result incomplete; not marking source as rendered: $reason")
             rememberFailedRenderAttempt(mode, sourceFingerprint)
+            runnerOverlay.showTranslationFailureFeedback()
             translationOverlay.hide()
             return false
         }
         if (instructions.isEmpty()) {
             addHistoryEntry(source, sceneSource, instructions)
+            runnerOverlay.showTranslationFailureFeedback()
             translationOverlay.hide()
             return false
         }

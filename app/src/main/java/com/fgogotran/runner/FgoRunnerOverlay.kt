@@ -6,15 +6,21 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.crop.CropModeState
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
+import com.fgogotran.ui.overlay.FloatingButtonMode
 import com.fgogotran.ui.overlay.HistoryOverlayPanel
 import com.fgogotran.ui.overlay.FloatingMenu
 import com.fgogotran.util.FakeComposeHost
@@ -50,6 +56,10 @@ class FgoRunnerOverlay @Inject constructor(
     private var onCloseRequested: (() -> Unit)? = null
     private var shown = false
     private var cropModeState = CropModeState.IDLE
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
+    private var showButtonFailureRing by mutableStateOf(false)
+    private var failureFeedbackVersion = 0
 
     /**
      * Current position of the floating button (top-left origin).
@@ -59,6 +69,10 @@ class FgoRunnerOverlay @Inject constructor(
     private var btnY = 300  // Default: near the left edge, offset down a bit
 
     private val tag = "FgoRunnerOverlay"
+
+    private companion object {
+        const val FAILURE_FEEDBACK_MS = 1800L
+    }
 
     /** Layout params for the floating button overlay. */
     private val btnLayoutParams: WindowManager.LayoutParams
@@ -109,8 +123,11 @@ class FgoRunnerOverlay @Inject constructor(
         }
 
         // Create the ComposeView hosting the floating button
+        refreshButtonMode()
         composeHost = FakeComposeHost(context) {
             FloatingButton(
+                mode = buttonMode,
+                showFailureRing = showButtonFailureRing,
                 onClick = {
                     onButtonClick()
                 },
@@ -153,6 +170,30 @@ class FgoRunnerOverlay @Inject constructor(
 
     /** Whether the floating button is currently visible. */
     fun isShowing(): Boolean = shown
+
+    fun refreshButtonMode() {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            updateButtonMode()
+        } else {
+            mainHandler.post { updateButtonMode() }
+        }
+    }
+
+    fun showTranslationFailureFeedback() {
+        mainHandler.post {
+            failureFeedbackVersion += 1
+            val version = failureFeedbackVersion
+            showButtonFailureRing = true
+            mainHandler.postDelayed(
+                {
+                    if (failureFeedbackVersion == version) {
+                        showButtonFailureRing = false
+                    }
+                },
+                FAILURE_FEEDBACK_MS
+            )
+        }
+    }
 
     fun handleInterceptedButtonTap(rawX: Float, rawY: Float): Boolean {
         if (!shown) return false
@@ -247,6 +288,7 @@ class FgoRunnerOverlay @Inject constructor(
                         accessibility.setAutoTranslationEnabled(enabled)
                     } else {
                         TranslationTrigger.setAutoTranslateEnabled(enabled)
+                        refreshButtonMode()
                     }
                     dismissMenu()
                 },
@@ -302,6 +344,7 @@ class FgoRunnerOverlay @Inject constructor(
 
         cropModeState = CropModeState.SELECTING
         cropSelectionOverlay.show()
+        refreshButtonMode()
         bringFloatingButtonToFront()
         FgoLogger.info(tag, "One-shot crop mode armed")
     }
@@ -310,6 +353,7 @@ class FgoRunnerOverlay @Inject constructor(
         val bounds = cropSelectionOverlay.selectedBounds()
         cropSelectionOverlay.hide()
         cropModeState = CropModeState.IDLE
+        refreshButtonMode()
 
         if (bounds == null || bounds.width() <= 0 || bounds.height() <= 0) {
             FgoLogger.warn(tag, "Crop translation requested without valid bounds")
@@ -327,6 +371,15 @@ class FgoRunnerOverlay @Inject constructor(
     private fun cancelCropMode() {
         cropModeState = CropModeState.IDLE
         cropSelectionOverlay.hide()
+        refreshButtonMode()
+    }
+
+    private fun updateButtonMode() {
+        buttonMode = when {
+            cropModeState == CropModeState.SELECTING -> FloatingButtonMode.CROP
+            TranslationTrigger.isAutoTranslateEnabled() -> FloatingButtonMode.AUTO
+            else -> FloatingButtonMode.MANUAL
+        }
     }
 
     private fun bringFloatingButtonToFront() {

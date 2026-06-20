@@ -2,11 +2,13 @@ package com.fgogotran.ui.overlay
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -54,7 +56,7 @@ fun FloatingMenu(
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
 
         MenuRow(
-            icon = "C",
+            icon = FloatingActionIcon.CROP,
             label = "区域翻译",
             onClick = onCropTranslateClick
         )
@@ -62,7 +64,7 @@ fun FloatingMenu(
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
 
         MenuRow(
-            icon = "H",
+            icon = FloatingActionIcon.HISTORY_LIST,
             label = "翻译LOG",
             onClick = onHistoryClick
         )
@@ -70,7 +72,7 @@ fun FloatingMenu(
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
 
         MenuRow(
-            icon = "X",
+            icon = FloatingActionIcon.CLOSE_CIRCLE,
             label = "关闭服务",
             muted = true,
             onClick = onCloseClick
@@ -80,7 +82,7 @@ fun FloatingMenu(
 
 @Composable
 private fun MenuRow(
-    icon: String,
+    icon: FloatingActionIcon,
     label: String,
     muted: Boolean = false,
     enabled: Boolean = true,
@@ -95,12 +97,7 @@ private fun MenuRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = icon,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
+        MenuIcon(icon = icon, color = color)
         Text(
             text = label,
             fontSize = 15.sp,
@@ -125,12 +122,7 @@ private fun AutoTranslateRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "A",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF333333)
-            )
+            MenuIcon(icon = FloatingActionIcon.AUTO, color = Color(0xFF333333))
             Text(
                 text = "自动翻译",
                 fontSize = 15.sp,
@@ -140,6 +132,23 @@ private fun AutoTranslateRow(
         Switch(
             checked = enabled,
             onCheckedChange = onEnabledChange
+        )
+    }
+}
+
+@Composable
+private fun MenuIcon(
+    icon: FloatingActionIcon,
+    color: Color
+) {
+    Box(
+        modifier = Modifier.size(28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        FloatingActionGlyph(
+            icon = icon,
+            color = color,
+            modifier = Modifier.size(24.dp)
         )
     }
 }
