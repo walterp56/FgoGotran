@@ -141,6 +141,42 @@ class Translator @Inject constructor(
         return clearedCount
     }
 
+    suspend fun testApiSettings(
+        backend: String,
+        apiKey: String,
+        apiBaseUrl: String,
+        apiModel: String
+    ): String {
+        val normalizedBackend = SettingsRepository.normalizeBackend(backend)
+        val config = RuntimeConfig(
+            backend = normalizedBackend,
+            apiKey = apiKey.trim(),
+            apiBaseUrl = apiBaseUrl.trim().ifBlank {
+                SettingsRepository.defaultApiBaseUrl(normalizedBackend)
+            },
+            apiModel = apiModel.trim().ifBlank {
+                SettingsRepository.defaultApiModel(normalizedBackend)
+            },
+            playerName = "",
+            cacheEnabled = false,
+            glossaryCacheKey = "api-test"
+        )
+        val response = callTranslationBackend(
+            config = config,
+            messages = listOf(
+                ChatMessage(
+                    role = "user",
+                    content = "API connectivity test. Reply with OK only."
+                )
+            )
+        ).trim()
+        if (response.isBlank()) {
+            throw IllegalStateException("API returned an empty response")
+        }
+        FgoLogger.info(tag, "API test succeeded: backend=$normalizedBackend, model=${config.apiModel}")
+        return response
+    }
+
     private fun clearCharacterNameCaches() {
         cachedTerms = null
         cachedCharacterNames = null

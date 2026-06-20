@@ -84,6 +84,7 @@ fun MainScreen(
 
         Screen.API_SETTINGS -> ApiSettingsScreen(
             settingsRepository = settingsRepository,
+            translator = translator,
             onBack = { currentScreen = Screen.SETTINGS }
         )
     }

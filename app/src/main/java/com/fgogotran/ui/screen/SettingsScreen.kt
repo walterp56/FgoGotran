@@ -120,22 +120,22 @@ fun SettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("玩家名称", style = MaterialTheme.typography.titleMedium)
+                    Text("御主名称", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "输入您在 FGO 中的玩家名称，翻译时会正确处理对话中的玩家名称。",
+                        "输入您在 FGO 中的御主名称，翻译时会正确处理对话中的御主名称。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     OutlinedTextField(
                         value = playerName,
                         onValueChange = { playerName = it },
-                        label = { Text("玩家名称") },
+                        label = { Text("御主名称") },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("例：藤丸立香") },
                         singleLine = true
                     )
                     Button(onClick = { savePlayerName() }, modifier = Modifier.align(Alignment.End)) {
-                        Text("保存玩家名称")
+                        Text("保存御主名称")
                     }
                 }
             }
@@ -155,7 +155,7 @@ fun SettingsScreen(
                         value = dbUpdateStatus.message.ifBlank { "空闲" }
                     )
                     Text(
-                        "用于角色名和游戏专有名词翻译。",
+                        "用于角色名和FGO专有名词翻译。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )

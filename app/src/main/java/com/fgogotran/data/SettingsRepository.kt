@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -46,6 +47,15 @@ class SettingsRepository @Inject constructor(
         val KEY_DB_LOCALE = stringPreferencesKey("db_locale")
         val KEY_DB_LAST_CHECK_AT = longPreferencesKey("db_last_check_at")
         val KEY_DB_LAST_UPDATE_AT = longPreferencesKey("db_last_update_at")
+        val KEY_FLOATING_BUTTON_X = intPreferencesKey("floating_button_x")
+        val KEY_FLOATING_BUTTON_Y = intPreferencesKey("floating_button_y")
+        val KEY_FLOATING_BUTTON_PORTRAIT_X = intPreferencesKey("floating_button_portrait_x")
+        val KEY_FLOATING_BUTTON_PORTRAIT_Y = intPreferencesKey("floating_button_portrait_y")
+        val KEY_FLOATING_BUTTON_LANDSCAPE_X = intPreferencesKey("floating_button_landscape_x")
+        val KEY_FLOATING_BUTTON_LANDSCAPE_Y = intPreferencesKey("floating_button_landscape_y")
+
+        const val DEFAULT_FLOATING_BUTTON_X = 8
+        const val DEFAULT_FLOATING_BUTTON_Y = 300
 
         /** DeepSeek Chat API (default). */
         const val BACKEND_DEEPSEEK = "deepseek"
@@ -220,6 +230,16 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_DB_LAST_UPDATE_AT] ?: 0L
     }
 
+    /** Last user-positioned floating button x coordinate. */
+    val floatingButtonX: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FLOATING_BUTTON_X] ?: DEFAULT_FLOATING_BUTTON_X
+    }
+
+    /** Last user-positioned floating button y coordinate. */
+    val floatingButtonY: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FLOATING_BUTTON_Y] ?: DEFAULT_FLOATING_BUTTON_Y
+    }
+
     suspend fun saveApiSettings(
         backend: String,
         apiKey: String,
@@ -264,6 +284,52 @@ class SettingsRepository @Inject constructor(
     suspend fun setCacheEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_CACHE_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: cache_enabled=$enabled")
+    }
+
+    suspend fun setFloatingButtonPosition(x: Int, y: Int) {
+        val safeX = x.coerceAtLeast(0)
+        val safeY = y.coerceAtLeast(0)
+        context.dataStore.edit {
+            it[KEY_FLOATING_BUTTON_X] = safeX
+            it[KEY_FLOATING_BUTTON_Y] = safeY
+        }
+        FgoLogger.debug(tag, "Setting updated: floating_button=($safeX,$safeY)")
+    }
+
+    suspend fun getFloatingButtonPosition(isLandscape: Boolean): Pair<Int, Int> {
+        return context.dataStore.data.map { prefs ->
+            if (isLandscape) {
+                Pair(
+                    prefs[KEY_FLOATING_BUTTON_LANDSCAPE_X]
+                        ?: prefs[KEY_FLOATING_BUTTON_X]
+                        ?: DEFAULT_FLOATING_BUTTON_X,
+                    prefs[KEY_FLOATING_BUTTON_LANDSCAPE_Y]
+                        ?: prefs[KEY_FLOATING_BUTTON_Y]
+                        ?: DEFAULT_FLOATING_BUTTON_Y
+                )
+            } else {
+                Pair(
+                    prefs[KEY_FLOATING_BUTTON_PORTRAIT_X] ?: DEFAULT_FLOATING_BUTTON_X,
+                    prefs[KEY_FLOATING_BUTTON_PORTRAIT_Y] ?: DEFAULT_FLOATING_BUTTON_Y
+                )
+            }
+        }.first()
+    }
+
+    suspend fun setFloatingButtonPosition(x: Int, y: Int, isLandscape: Boolean) {
+        val safeX = x.coerceAtLeast(0)
+        val safeY = y.coerceAtLeast(0)
+        context.dataStore.edit {
+            if (isLandscape) {
+                it[KEY_FLOATING_BUTTON_LANDSCAPE_X] = safeX
+                it[KEY_FLOATING_BUTTON_LANDSCAPE_Y] = safeY
+            } else {
+                it[KEY_FLOATING_BUTTON_PORTRAIT_X] = safeX
+                it[KEY_FLOATING_BUTTON_PORTRAIT_Y] = safeY
+            }
+        }
+        val orientation = if (isLandscape) "landscape" else "portrait"
+        FgoLogger.debug(tag, "Setting updated: floating_button_$orientation=($safeX,$safeY)")
     }
 
     suspend fun setDbLastCheckAt(checkedAt: Long) {

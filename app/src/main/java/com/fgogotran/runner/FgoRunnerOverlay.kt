@@ -1,6 +1,8 @@
 package com.fgogotran.runner
 
 import android.content.Context
+import android.content.ComponentCallbacks
+import android.content.res.Configuration
 import android.graphics.Rect
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -18,6 +20,7 @@ import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.crop.CropModeState
 import com.fgogotran.crop.CropSelectionOverlay
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
 import com.fgogotran.ui.overlay.FloatingButtonMode
@@ -27,6 +30,13 @@ import com.fgogotran.util.FakeComposeHost
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.overlayType
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -47,7 +57,8 @@ import javax.inject.Singleton
 @Singleton
 class FgoRunnerOverlay @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val cropSelectionOverlay: CropSelectionOverlay
+    private val cropSelectionOverlay: CropSelectionOverlay,
+    private val settingsRepository: SettingsRepository
 ) {
     private var windowManager: WindowManager? = null
     private var composeHost: FakeComposeHost? = null
@@ -57,21 +68,42 @@ class FgoRunnerOverlay @Inject constructor(
     private var shown = false
     private var cropModeState = CropModeState.IDLE
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val overlayScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
     private var showButtonFailureRing by mutableStateOf(false)
     private var failureFeedbackVersion = 0
+    private var buttonPositionScreen: ButtonScreen? = null
+    private var buttonPositionLoaded = false
+    private var savePositionJob: Job? = null
+    private var showRequestVersion = 0
+    private var callbacksRegistered = false
+
+    private val componentCallbacks = object : ComponentCallbacks {
+        override fun onConfigurationChanged(newConfig: Configuration) {
+            handleScreenBoundsChanged()
+        }
+
+        override fun onLowMemory() = Unit
+    }
 
     /**
      * Current position of the floating button (top-left origin).
      * Saved to DataStore when the button is hidden, restored on show.
      */
-    private var btnX = 8
-    private var btnY = 300  // Default: near the left edge, offset down a bit
+    private var btnX = SettingsRepository.DEFAULT_FLOATING_BUTTON_X
+    private var btnY = SettingsRepository.DEFAULT_FLOATING_BUTTON_Y
 
     private val tag = "FgoRunnerOverlay"
 
     private companion object {
         const val FAILURE_FEEDBACK_MS = 1800L
+        const val POSITION_SAVE_DEBOUNCE_MS = 300L
+        const val FLOATING_BUTTON_SIZE_DP = 56f
+    }
+
+    private enum class ButtonScreen {
+        PORTRAIT,
+        LANDSCAPE
     }
 
     /** Layout params for the floating button overlay. */
@@ -109,46 +141,70 @@ class FgoRunnerOverlay @Inject constructor(
     fun init(onCloseRequested: () -> Unit) {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         this.onCloseRequested = onCloseRequested
+        if (!callbacksRegistered) {
+            context.registerComponentCallbacks(componentCallbacks)
+            callbacksRegistered = true
+        }
         FgoLogger.info(tag, "Overlay initialized")
     }
 
     /** Shows the floating button on screen. No-op if already showing. */
     fun show() {
         if (shown) return
-        val wm = windowManager ?: return
 
         if (!Settings.canDrawOverlays(context)) {
             FgoLogger.warn(tag, "Overlay permission not granted, cannot show button")
             return
         }
 
-        // Create the ComposeView hosting the floating button
-        refreshButtonMode()
-        composeHost = FakeComposeHost(context) {
-            FloatingButton(
-                mode = buttonMode,
-                showFailureRing = showButtonFailureRing,
-                onClick = {
-                    onButtonClick()
-                },
-                onLongClick = { onButtonLongClick() },
-                onDrag = { dx, dy -> onDrag(dx, dy) }
-            )
-        }
-
-        wm.addView(composeHost!!.view, btnLayoutParams)
         shown = true
-        FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
+        val requestVersion = ++showRequestVersion
+        overlayScope.launch {
+            try {
+                loadButtonPositionIfNeeded()
+                if (!shown || requestVersion != showRequestVersion) return@launch
+
+                val wm = windowManager
+                if (wm == null) {
+                    shown = false
+                    return@launch
+                }
+
+                refreshButtonMode()
+                composeHost = FakeComposeHost(context) {
+                    FloatingButton(
+                        mode = buttonMode,
+                        showFailureRing = showButtonFailureRing,
+                        onClick = {
+                            onButtonClick()
+                        },
+                        onLongClick = { onButtonLongClick() },
+                        onDrag = { dx, dy -> onDrag(dx, dy) }
+                    )
+                }
+
+                clampButtonPositionToScreen()
+                wm.addView(composeHost!!.view, btnLayoutParams)
+                FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
+            } catch (e: Exception) {
+                composeHost?.close()
+                composeHost = null
+                shown = false
+                FgoLogger.warn(tag, "Failed to show floating button", e)
+            }
+        }
     }
 
     /** Hides the floating button and saves its position. */
     fun hide() {
         if (!shown) return
-        val wm = windowManager ?: return
+        showRequestVersion += 1
+        saveButtonPositionNow()
+        val wm = windowManager
         cancelCropMode()
 
         composeHost?.let {
-            try { wm.removeView(it.view) } catch (_: Exception) {}
+            try { wm?.removeView(it.view) } catch (_: Exception) {}
             it.close()
         }
         composeHost = null
@@ -163,6 +219,10 @@ class FgoRunnerOverlay @Inject constructor(
         cancelCropMode()
         FgoAccessibilityService.instance?.clearCropTranslationOverlay()
         hide()
+        if (callbacksRegistered) {
+            context.unregisterComponentCallbacks(componentCallbacks)
+            callbacksRegistered = false
+        }
         windowManager = null
         onCloseRequested = null
         FgoLogger.info(tag, "Overlay destroyed")
@@ -245,6 +305,7 @@ class FgoRunnerOverlay @Inject constructor(
     private fun onDrag(dx: Float, dy: Float) {
         val wm = windowManager ?: return
         val view = composeHost?.view ?: return
+        buttonPositionScreen = currentButtonScreen()
 
         btnX = (btnX + dx.toInt()).coerceAtLeast(0)
         btnY = (btnY + dy.toInt()).coerceAtLeast(0)
@@ -259,9 +320,107 @@ class FgoRunnerOverlay @Inject constructor(
         btnLayoutParams.x = btnX
         btnLayoutParams.y = btnY
         wm.updateViewLayout(view, btnLayoutParams)
+        saveButtonPositionSoon()
     }
 
     // ─── Menu handling ─────────────────────────────────────────────────
+
+    private suspend fun loadButtonPositionIfNeeded(force: Boolean = false) {
+        val screen = currentButtonScreen()
+        if (!force && buttonPositionLoaded && buttonPositionScreen == screen) return
+        val position = settingsRepository.getFloatingButtonPosition(screen == ButtonScreen.LANDSCAPE)
+        btnX = position.first
+        btnY = position.second
+        buttonPositionScreen = screen
+        buttonPositionLoaded = true
+        clampButtonPositionToScreen()
+    }
+
+    private fun currentButtonScreen(): ButtonScreen {
+        val bounds = windowManager?.currentWindowMetrics?.bounds
+        val width = bounds?.width() ?: context.resources.displayMetrics.widthPixels
+        val height = bounds?.height() ?: context.resources.displayMetrics.heightPixels
+        return if (width >= height) ButtonScreen.LANDSCAPE else ButtonScreen.PORTRAIT
+    }
+
+    private fun clampButtonPositionToScreen(buttonWidth: Int? = null, buttonHeight: Int? = null) {
+        val wm = windowManager ?: return
+        val bounds = wm.currentWindowMetrics.bounds
+        val fallbackSize = (FLOATING_BUTTON_SIZE_DP * context.resources.displayMetrics.density).roundToInt()
+        val width = buttonWidth?.takeIf { it > 0 } ?: fallbackSize
+        val height = buttonHeight?.takeIf { it > 0 } ?: fallbackSize
+        val maxX = (bounds.width() - width).coerceAtLeast(0)
+        val maxY = (bounds.height() - height).coerceAtLeast(0)
+        btnX = btnX.coerceIn(0, maxX)
+        btnY = btnY.coerceIn(0, maxY)
+    }
+
+    private fun saveButtonPositionSoon() {
+        val x = btnX
+        val y = btnY
+        val screen = buttonPositionScreen ?: currentButtonScreen()
+        savePositionJob?.cancel()
+        savePositionJob = overlayScope.launch {
+            delay(POSITION_SAVE_DEBOUNCE_MS)
+            saveButtonPosition(screen, x, y)
+        }
+    }
+
+    private fun saveButtonPositionNow(screen: ButtonScreen = buttonPositionScreen ?: currentButtonScreen()) {
+        if (!buttonPositionLoaded && composeHost == null) return
+        val x = btnX
+        val y = btnY
+        savePositionJob?.cancel()
+        savePositionJob = overlayScope.launch {
+            saveButtonPosition(screen, x, y)
+        }
+    }
+
+    private suspend fun saveButtonPosition(screen: ButtonScreen, x: Int, y: Int) {
+        settingsRepository.setFloatingButtonPosition(
+            x = x,
+            y = y,
+            isLandscape = screen == ButtonScreen.LANDSCAPE
+        )
+    }
+
+    private fun handleScreenBoundsChanged() {
+        if (!shown) {
+            buttonPositionScreen = null
+            buttonPositionLoaded = false
+            return
+        }
+
+        overlayScope.launch {
+            val oldScreen = buttonPositionScreen
+            val newScreen = currentButtonScreen()
+            if (oldScreen == null || oldScreen != newScreen) {
+                savePositionJob?.cancel()
+                if (oldScreen != null && buttonPositionLoaded) {
+                    saveButtonPosition(oldScreen, btnX, btnY)
+                }
+                loadButtonPositionIfNeeded(force = true)
+                updateButtonLayout()
+                FgoLogger.info(tag, "Floating button position restored for $newScreen at ($btnX, $btnY)")
+            } else {
+                buttonPositionScreen = newScreen
+                clampButtonPositionToScreen()
+                updateButtonLayout()
+            }
+        }
+    }
+
+    private fun updateButtonLayout() {
+        val wm = windowManager ?: return
+        val view = composeHost?.view ?: return
+        btnLayoutParams.x = btnX
+        btnLayoutParams.y = btnY
+        try {
+            wm.updateViewLayout(view, btnLayoutParams)
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "Failed to update floating button layout", e)
+        }
+    }
 
     /** Called when the user holds the floating button (not drags). */
     private fun onButtonLongClick() {
