@@ -1,10 +1,33 @@
+import { readdirSync } from "node:fs";
+import path from "node:path";
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, Download, GitBranch } from "lucide-react";
+import { ExampleSlideshow, type ExampleImage } from "@/components/ExampleSlideshow";
 import { FeatureGrid } from "@/components/FeatureGrid";
 import { PublishedBadge, ReleaseStatus } from "@/components/ReleaseStatus";
 import { SectionHeader } from "@/components/SectionHeader";
 import { deployNotes, features, modeCards, siteConfig } from "@/data/site";
+
+const exampleImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+
+function getHeroExamples(): ExampleImage[] {
+  const examplesDirectory = path.join(process.cwd(), "public", "examples");
+
+  try {
+    return readdirSync(examplesDirectory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && exampleImageExtensions.has(path.extname(entry.name).toLowerCase()))
+      .sort((a, b) => a.name.localeCompare(b.name, "en"))
+      .map((entry, index) => ({
+        src: `/examples/${encodeURIComponent(entry.name)}`,
+        alt: `FGO translation screenshot example ${index + 1}`
+      }));
+  } catch {
+    return [];
+  }
+}
+
+const heroExamples = getHeroExamples();
 
 export default function HomePage() {
   return (
@@ -38,15 +61,9 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="hero-screen" aria-label="FgoGotran overlay preview">
-            <div className="game-window">
-              <div className="game-stage">
-                <div className="name-label">玛修·基列莱特</div>
-                <div className="game-dialog">
-                  <div>先辈，检测到新的剧情文本。</div>
-                  <div className="translated-line">FgoGotran 会把译文覆盖在原来的对话位置。</div>
-                </div>
-              </div>
+          <div className="hero-screen" aria-label="FgoGotran screenshot examples">
+            <div className="example-showcase">
+              <ExampleSlideshow examples={heroExamples} intervalMs={2000} />
             </div>
           </div>
         </div>

@@ -11,7 +11,12 @@ export const metadata: Metadata = {
     template: "%s | FgoGotran"
   },
   description: siteConfig.description,
-  metadataBase: new URL("https://fgogotran.com")
+  metadataBase: new URL("https://fgogotran.com"),
+  icons: {
+    icon: "/brand/gotran-icon.png",
+    shortcut: "/brand/gotran-icon.png",
+    apple: "/brand/gotran-icon.png"
+  }
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

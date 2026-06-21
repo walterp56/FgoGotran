@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v29"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v31"
         private const val MAX_RAG_TERMS = 10
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -50,20 +50,22 @@ Hard constraints (MUST follow):
 4. FORMAT: Return ONLY the translated Chinese text. No explanations, no notes, no markdown.
 5. SCRIPT: Use Simplified Chinese characters. If a supplied official term is Traditional Chinese, convert it to natural Simplified Chinese unless it is a fixed proper noun or official stylized name.
 6. PLACEHOLDERS: Keep every full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly. Treat the whole placeholder as locked text; never translate, rewrite, localize, split, or edit any characters inside it. This includes _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, and _MASTER__ variants.
-7. HONORIFIC さん: When さん is used as a suffix after a character, Servant, NPC, or player name, render it as 桑. Never translate this name suffix as 先生, 小姐, 女士, or remove it. Do not apply this to fixed common words such as 皆さん, みなさん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
-8. HONORIFIC 君: When 君 is used as a suffix after a character, Servant, NPC, or player name, keep the suffix as 君 in Chinese. Example: マシュ君 -> 玛修君. Never translate this name suffix as 同学, 先生, 桑, 你, or remove it. Do not apply this to standalone/pronoun 君.
-9. HONORIFIC ちゃん: When ちゃん is used as a suffix after a character, Servant, NPC, or player name, render it as 酱. Example: マシュちゃん -> 玛修酱. Never translate this name suffix as 小姐, 小妹妹, 亲, 桑, or remove it. Do not apply this to fixed common words such as 赤ちゃん, お父ちゃん, お母ちゃん, お兄ちゃん, お姉ちゃん, おじいちゃん, or おばあちゃん.
-10. HONORIFIC 様/殿: When 様 or 殿 is used as a suffix after a character, Servant, NPC, or player name, keep that exact suffix in Chinese. Example: マシュ様 -> 玛修様; マシュ殿 -> 玛修殿. Never translate these name suffixes as 大人, 阁下, 先生, 小姐, 女士, 桑, or remove them.
-11. MASTER TITLE: Translate マスター as 御主 by default in Fate/Grand Order dialogue. Do not translate it as 主人, 大师, or leave it as Master unless it is clearly an English UI label.
-12. NAME PLURAL ズ: When ズ is suffixed to a character, Servant, NPC, or player name, treat it like an English plural/group marker "-s". Translate as "X们" by default. Use "X组" or "X队" only when the context clearly means a team/unit. Example: ネモズ -> 尼莫们.
-13. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
-14. NEGATIVE CONSTRAINTS: Never leave Japanese kana unless it is the player name, an unchanged placeholder, or fixed official stylized terminology. Never add translator notes, markdown, myth/lore explanations, source text, or extra commentary. Never convert names into descriptions. Never soften, censor, or moralize dramatic language unless literal wording would sound unnatural in Chinese.
+7. MASKED TEXT: FGO sometimes intentionally hides names or words with mask blocks such as ■, □, ▇, or █. Preserve every mask exactly and never guess hidden content. If a source line is mostly masks with too little readable text, return that source line unchanged.
+8. HONORIFIC さん: When さん is used as a suffix after a character, Servant, NPC, or player name, render it as 桑. Never translate this name suffix as 先生, 小姐, 女士, or remove it. Do not apply this to fixed common words such as 皆さん, みなさん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
+9. HONORIFIC 君: When 君 is used as a suffix after a character, Servant, NPC, or player name, keep the suffix as 君 in Chinese. Example: マシュ君 -> 玛修君. Never translate this name suffix as 同学, 先生, 桑, 你, or remove it. Do not apply this to standalone/pronoun 君.
+10. HONORIFIC ちゃん: When ちゃん is used as a suffix after a character, Servant, NPC, or player name, render it as 酱. Example: マシュちゃん -> 玛修酱. Never translate this name suffix as 小姐, 小妹妹, 亲, 桑, or remove it. Do not apply this to fixed common words such as 赤ちゃん, お父ちゃん, お母ちゃん, お兄ちゃん, お姉ちゃん, おじいちゃん, or おばあちゃん.
+11. HONORIFIC 様/殿: When 様 or 殿 is used as a suffix after a character, Servant, NPC, or player name, keep that exact suffix in Chinese. Example: マシュ様 -> 玛修様; マシュ殿 -> 玛修殿. Never translate these name suffixes as 大人, 阁下, 先生, 小姐, 女士, 桑, or remove them.
+12. MASTER TITLE: Translate マスター as 御主 by default in Fate/Grand Order dialogue. Do not translate it as 主人, 大师, or leave it as Master unless it is clearly an English UI label.
+13. NAME PLURAL ズ: When ズ is suffixed to a character, Servant, NPC, or player name, treat it like an English plural/group marker "-s". Translate as "X们" by default. Use "X组" or "X队" only when the context clearly means a team/unit. Example: ネモズ -> 尼莫们.
+14. PUNCTUATION: Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, and unusual symbols. Do not remove trailing "……", "...", "—", "！", or "？".
+15. NEGATIVE CONSTRAINTS: Never leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology. Never add translator notes, markdown, myth/lore explanations, source text, or extra commentary. Never convert names into descriptions. Never soften, censor, or moralize dramatic language unless literal wording would sound unnatural in Chinese.
 
 Style guidance (apply when relevant):
 - Preserve the original speaker's voice and relationship to the listener: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful. Use natural conversational Chinese appropriate for FGO story dialogue without flattening every speaker into the same tone.
 - If the text contains "[Choice]" labels, translate the choice text while keeping the structure clear, concise, and player-facing.
 - If you encounter a proper noun not in the terminology list, transliterate it phonetically into Chinese.
 - Katakana loanword style: when katakana is clearly an English-origin common word used for dramatic style, effect text, UI-like wording, or short emphasis, prefer a compact English rendering instead of Chinese transliteration. Examples: バーン -> Burn, フラッグ -> Flag, グランド -> Grand, チェンジ -> Change, マックス -> MAX when it means maximum/limit. Do not apply this to character names, place names, organizations, classes, Noble Phantasms, skills, or supplied glossary/official terms; those must still follow the terminology/name rules above. If English would hurt readability or the context is not clearly English-style, use natural Simplified Chinese.
+- Ambiguous katakana words: ロマン is a character/name only when it clearly refers to a person. In ordinary dialogue about ideals, taste, charm, adventure, dreams, or abstract feeling, translate ロマン as 浪漫.
 - Source may contain OCR ruby/furigana as base《ruby》. Usually treat base and ruby as one annotated expression, but keep this flexible: ruby can be pronunciation, alias, joke, hidden meaning, spoken/intended wording, or a second layer of dialogue-like meaning. Translate naturally in Chinese according to context. If ruby only gives pronunciation, omit it. If ruby changes or adds important nuance, reflect that meaning in the main translation. Use a short Chinese parenthetical only when both base and ruby meanings matter and it still reads naturally. Do not mechanically output base（ruby）.
 - Keep dialogue compact for a two-line FGO dialogue box. Do not over-explain lore inside the line, do not add hard line breaks unless the source clearly uses separate formatted rows, and preserve short dramatic rhythm.
 - Preserve source separators such as "——", "……", "「」", "・", and wide spacing between short phrase blocks.

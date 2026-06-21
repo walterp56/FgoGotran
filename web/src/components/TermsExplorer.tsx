@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import { sampleTermRows, type TermPreviewRow } from "@/data/sampleTerms";
 import { cdnUrl } from "@/lib/cdn";
 import { siteConfig } from "@/data/site";
@@ -16,6 +16,8 @@ type RawPreviewRow = Partial<{
   category: string;
   aliases: string;
 }>;
+
+type PreviewStatus = "loading" | "ready" | "fallback";
 
 function normalizeRows(rows: RawPreviewRow[], source: TermPreviewRow["source"]): TermPreviewRow[] {
   return rows
@@ -39,38 +41,75 @@ function previewUrl(path: string) {
   return cdnUrl(path);
 }
 
+function cacheBustedPreviewUrl(path: string) {
+  const url = previewUrl(path);
+  return `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+}
+
+async function fetchPreviewRows() {
+  const [characters, terms] = await Promise.all([
+    fetch(cacheBustedPreviewUrl(siteConfig.characterPreviewPath), { cache: "no-store" }),
+    fetch(cacheBustedPreviewUrl(siteConfig.termsPreviewPath), { cache: "no-store" })
+  ]);
+  if (!characters.ok || !terms.ok) {
+    throw new Error("preview files not published");
+  }
+
+  const characterRows = normalizeRows(await characters.json(), "character");
+  const termRows = normalizeRows(await terms.json(), "term");
+  const nextRows = [...characterRows, ...termRows];
+  if (nextRows.length === 0) {
+    throw new Error("preview files are empty");
+  }
+  return nextRows;
+}
+
 export function TermsExplorer() {
-  const [rows, setRows] = useState<TermPreviewRow[]>(sampleTermRows);
-  const [sourceLabel, setSourceLabel] = useState("内置示例");
+  const [rows, setRows] = useState<TermPreviewRow[]>([]);
+  const [sourceLabel, setSourceLabel] = useState("正在读取 CDN 预览数据");
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("loading");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
 
+  async function loadPreviewRows() {
+    setRows([]);
+    setCategory("all");
+    setSourceLabel("正在读取 CDN 预览数据");
+    setPreviewStatus("loading");
+    try {
+      const nextRows = await fetchPreviewRows();
+      setRows(nextRows);
+      setSourceLabel("CDN 预览数据");
+      setPreviewStatus("ready");
+    } catch {
+      setRows(sampleTermRows);
+      setSourceLabel("内置示例（CDN 预览暂不可用）");
+      setPreviewStatus("fallback");
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
-    async function loadPreviewRows() {
+    async function loadInitialPreviewRows() {
+      setRows([]);
+      setCategory("all");
+      setSourceLabel("正在读取 CDN 预览数据");
+      setPreviewStatus("loading");
       try {
-        const [characters, terms] = await Promise.all([
-          fetch(previewUrl(siteConfig.characterPreviewPath), { cache: "no-store" }),
-          fetch(previewUrl(siteConfig.termsPreviewPath), { cache: "no-store" })
-        ]);
-        if (!characters.ok || !terms.ok) {
-          throw new Error("preview files not published");
-        }
-        const characterRows = normalizeRows(await characters.json(), "character");
-        const termRows = normalizeRows(await terms.json(), "term");
-        const nextRows = [...characterRows, ...termRows];
-        if (!cancelled && nextRows.length > 0) {
-          setRows(nextRows);
-          setSourceLabel("CDN 预览数据");
-        }
+        const nextRows = await fetchPreviewRows();
+        if (cancelled) return;
+        setRows(nextRows);
+        setSourceLabel("CDN 预览数据");
+        setPreviewStatus("ready");
       } catch {
         if (!cancelled) {
           setRows(sampleTermRows);
-          setSourceLabel("内置示例");
+          setSourceLabel("内置示例（CDN 预览暂不可用）");
+          setPreviewStatus("fallback");
         }
       }
     }
-    loadPreviewRows();
+    loadInitialPreviewRows();
     return () => {
       cancelled = true;
     };
@@ -101,10 +140,15 @@ export function TermsExplorer() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            disabled={previewStatus === "loading"}
             placeholder="搜索日文、中文、别名或分类"
           />
         </label>
-        <select value={category} onChange={(event) => setCategory(event.target.value)}>
+        <select
+          value={category}
+          onChange={(event) => setCategory(event.target.value)}
+          disabled={previewStatus === "loading"}
+        >
           {categories.map((item) => (
             <option key={item} value={item}>
               {item === "all" ? "全部分类" : item}
@@ -114,7 +158,19 @@ export function TermsExplorer() {
       </div>
       <div className="terms-meta">
         <span>{sourceLabel}</span>
-        <span>{filteredRows.length} / {rows.length} 条</span>
+        <div className="terms-meta-actions">
+          <span>{previewStatus === "loading" ? "读取中" : `${filteredRows.length} / ${rows.length} 条`}</span>
+          <button
+            className="terms-refresh"
+            type="button"
+            onClick={loadPreviewRows}
+            disabled={previewStatus === "loading"}
+            aria-label="刷新术语预览数据"
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            刷新
+          </button>
+        </div>
       </div>
       <div className="terms-table-wrap">
         <table className="terms-table">
@@ -127,14 +183,28 @@ export function TermsExplorer() {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map((row) => (
-              <tr key={`${row.source}-${row.jp}-${row.cn}`}>
-                <td lang="ja">{row.jp}</td>
-                <td>{row.cn}</td>
-                <td>{row.category}</td>
-                <td>{row.aliases || "—"}</td>
+            {previewStatus === "loading" ? (
+              <tr>
+                <td className="terms-empty" colSpan={4}>
+                  正在读取 CDN 预览数据...
+                </td>
               </tr>
-            ))}
+            ) : filteredRows.length > 0 ? (
+              filteredRows.map((row) => (
+                <tr key={`${row.source}-${row.jp}-${row.cn}`}>
+                  <td lang="ja">{row.jp}</td>
+                  <td>{row.cn}</td>
+                  <td>{row.category}</td>
+                  <td>{row.aliases || "—"}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="terms-empty" colSpan={4}>
+                  没有匹配的术语。
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
