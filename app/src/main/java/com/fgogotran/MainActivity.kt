@@ -10,6 +10,7 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.screen.ApiSettingsScreen
+import com.fgogotran.ui.screen.GuideScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
@@ -51,7 +52,7 @@ class MainActivity : ComponentActivity() {
 /**
  * Top-level navigation state and routing.
  */
-enum class Screen { HOME, SETTINGS, API_SETTINGS }
+enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS }
 
 /**
  * Root composable managing 3-screen navigation.
@@ -71,7 +72,12 @@ fun MainScreen(
 
     when (currentScreen) {
         Screen.HOME -> HomeScreen(
+            onGuide = { currentScreen = Screen.GUIDE },
             onSettings = { currentScreen = Screen.SETTINGS }
+        )
+
+        Screen.GUIDE -> GuideScreen(
+            onBack = { currentScreen = Screen.HOME }
         )
 
         Screen.SETTINGS -> SettingsScreen(

@@ -63,8 +63,11 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
     conn.execute("CREATE UNIQUE INDEX index_terms_jp_term ON terms(jp_term)")
 
     generated_character_parts = 0
+    generated_term_parts = 0
     for term in terms:
-        generated_character_parts += insert_term(conn, term)
+        character_parts, term_parts = insert_term(conn, term)
+        generated_character_parts += character_parts
+        generated_term_parts += term_parts
 
     conn.commit()
     character_count = conn.execute("SELECT COUNT(*) FROM character_names").fetchone()[0]
@@ -77,6 +80,7 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
     print(f"Built {db_path}")
     print(f"  character_names: {character_count}")
     print(f"  generated_character_parts: {generated_character_parts}")
+    print(f"  generated_term_parts: {generated_term_parts}")
     print(f"  terms: {term_count}")
     for category, category_count in categories:
         print(f"  {category}: {category_count}")
@@ -87,28 +91,45 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
         print(f"Copied local DB preview to {local_copy}")
 
 
-def insert_term(conn: sqlite3.Connection, term: dict[str, Any]) -> int:
+def insert_term(conn: sqlite3.Connection, term: dict[str, Any]) -> tuple[int, int]:
     jp_name = clean(term.get("jp_name"))
     cn_name = clean(term.get("cn_name"))
     category = clean(term.get("category")) or "term"
     aliases = clean(term.get("aliases")) or "[]"
     if not jp_name or not cn_name:
-        return 0
+        return 0, 0
     if category in {"character", "servant"}:
         insert_character_name(conn, jp_name, cn_name, aliases, replace=True)
         generated = 0
         for jp_part, cn_part in character_name_components(jp_name, cn_name):
             generated += insert_character_name(conn, jp_part, cn_part, "[]", replace=False)
-        return generated
-    else:
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO terms (jp_term, cn_term, category, aliases)
-            VALUES (?, ?, ?, ?)
-            """,
-            (jp_name, cn_name, category, aliases),
-        )
-        return 0
+        return generated, 0
+
+    insert_term_row(conn, jp_name, cn_name, category, aliases, replace=True)
+    generated = 0
+    for jp_part, cn_part in term_components(jp_name, cn_name):
+        generated += insert_term_row(conn, jp_part, cn_part, f"{category}_part", "[]", replace=False)
+    return 0, generated
+
+
+def insert_term_row(
+    conn: sqlite3.Connection,
+    jp_term: str,
+    cn_term: str,
+    category: str,
+    aliases: str,
+    *,
+    replace: bool,
+) -> int:
+    conflict = "REPLACE" if replace else "IGNORE"
+    cursor = conn.execute(
+        f"""
+        INSERT OR {conflict} INTO terms (jp_term, cn_term, category, aliases)
+        VALUES (?, ?, ?, ?)
+        """,
+        (jp_term, cn_term, category, aliases),
+    )
+    return max(cursor.rowcount, 0)
 
 
 def insert_character_name(
@@ -131,6 +152,14 @@ def insert_character_name(
 
 
 def character_name_components(jp_name: str, cn_name: str) -> list[tuple[str, str]]:
+    return split_parallel_components(jp_name, cn_name)
+
+
+def term_components(jp_name: str, cn_name: str) -> list[tuple[str, str]]:
+    return split_parallel_components(jp_name, cn_name)
+
+
+def split_parallel_components(jp_name: str, cn_name: str) -> list[tuple[str, str]]:
     jp_parts = split_name_components(jp_name)
     cn_parts = split_name_components(cn_name)
     if len(jp_parts) < 2 or len(jp_parts) != len(cn_parts):

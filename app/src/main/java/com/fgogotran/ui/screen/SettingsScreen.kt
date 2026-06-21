@@ -45,6 +45,7 @@ fun SettingsScreen(
 
     // Form state — initialized from DataStore via LaunchedEffect
     var playerName by remember { mutableStateOf("") }
+    var playerNameSaveMessage by remember { mutableStateOf("") }
     var cacheEnabled by remember { mutableStateOf(true) }
     var clearingCache by remember { mutableStateOf(false) }
     var cacheClearMessage by remember { mutableStateOf("") }
@@ -56,7 +57,10 @@ fun SettingsScreen(
     }
 
     fun savePlayerName() {
-        scope.launch { settingsRepository.setPlayerName(playerName) }
+        scope.launch {
+            settingsRepository.setPlayerName(playerName)
+            playerNameSaveMessage = "已保存"
+        }
     }
 
     Scaffold(
@@ -128,7 +132,10 @@ fun SettingsScreen(
                     )
                     OutlinedTextField(
                         value = playerName,
-                        onValueChange = { playerName = it },
+                        onValueChange = {
+                            playerName = it
+                            playerNameSaveMessage = ""
+                        },
                         label = { Text("御主名称") },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("例：藤丸立香") },
@@ -136,6 +143,14 @@ fun SettingsScreen(
                     )
                     Button(onClick = { savePlayerName() }, modifier = Modifier.align(Alignment.End)) {
                         Text("保存御主名称")
+                    }
+                    if (playerNameSaveMessage.isNotBlank()) {
+                        Text(
+                            playerNameSaveMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.align(Alignment.End)
+                        )
                     }
                 }
             }
@@ -186,14 +201,15 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text("翻译缓存", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "缓存过的翻译可快速显示。",
+                            "开启后相同日文会直接使用上次翻译，速度更快。关闭后会重新请求翻译，适合测试模型、提示词或检查翻译改善；关闭不会删除已有缓存。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Switch(
                         checked = cacheEnabled,
                         onCheckedChange = {
@@ -214,7 +230,7 @@ fun SettingsScreen(
                 ) {
                     Text("清除翻译缓存", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "删除已保存的翻译结果，并清空当前内存缓存。不会删除术语库或 API 设置。",
+                        "如果某句一直显示旧翻译或错误翻译，或刚更新术语库、模型、API 设置、御主名称，请使用此按钮。只会删除已保存的翻译结果，不会删除术语库、API 设置或御主名称。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )

@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.appcompat.app.AlertDialog
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -40,9 +42,11 @@ import com.fgogotran.R
 
 @Composable
 fun HomeScreen(
+    onGuide: () -> Unit,
     onSettings: () -> Unit
 ) {
     val context = LocalContext.current
+    val scrollState = rememberScrollState()
     val serviceRunning = FgoRunnerService.serviceStarted.value
     val accessibilityRunning = FgoAccessibilityService.serviceStarted.value
     val accessibilityRunningStatusColor = if (accessibilityRunning) Color(0xFF4CAF50) else Color(0xFFFF9800) // Green vs Orange
@@ -126,10 +130,11 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(scrollState)
                 .padding(padding)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
                 text = "FgoGotran",
@@ -243,13 +248,24 @@ fun HomeScreen(
                 }
             }
 
-            OutlinedButton(
-                onClick = onSettings,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("设置")
-            }
+                OutlinedButton(
+                    onClick = onSettings,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("设置")
+                }
 
+                OutlinedButton(
+                    onClick = onGuide,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("使用指南")
+                }
+            }
         }
     }
 }
@@ -258,7 +274,7 @@ fun HomeScreen(
  * A row showing a permission/service status with a colored dot indicator.
  */
 @Composable
-private fun StatusRow(label: String, enabled: Boolean ,statusText: String, statusColor: Color) {
+private fun StatusRow(label: String, enabled: Boolean, statusText: String, statusColor: Color) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)

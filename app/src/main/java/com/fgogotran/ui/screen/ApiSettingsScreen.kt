@@ -118,12 +118,12 @@ fun ApiSettingsScreen(
                     apiBaseUrl = apiBaseUrl,
                     apiModel = apiModel
                 )
-                saveMessage = "API test OK: ${response.take(80)}"
+                saveMessage = "API 测试成功：${response.take(80)}"
                 saveMessageIsError = false
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                saveMessage = "API test failed: ${e.message ?: e.javaClass.simpleName}"
+                saveMessage = "API 测试失败：${e.message ?: e.javaClass.simpleName}"
                 saveMessageIsError = true
             } finally {
                 testingApi = false

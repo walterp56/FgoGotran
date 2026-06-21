@@ -181,7 +181,7 @@
   },
   {
     "jp_name": "アルジュナ・オルタ",
-    "cn_name": "阿周那·Alter",
+    "cn_name": "阿周那・オルタ",
     "category": "character",
     "aliases": "[\"アルジュナオルタ\"]"
   },
@@ -402,6 +402,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ウルズ",
+    "cn_name": "乌尔德",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "エイリーク・ブラッドアクス",
     "cn_name": "血斧埃里克",
     "category": "character",
@@ -482,6 +488,12 @@
   {
     "jp_name": "エレシュキガル",
     "cn_name": "埃列什基伽勒",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "エレシュキガル・オルタ",
+    "cn_name": "埃列什基伽勒·Alter",
     "category": "character",
     "aliases": "[]"
   },
@@ -720,6 +732,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "キングプロテア・オルタ",
+    "cn_name": "Kingprotea・Alter",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ギャラハッド",
     "cn_name": "加拉哈德",
     "category": "character",
@@ -882,6 +900,12 @@
     "aliases": "[\"ゴルドルフ·ムジーク\", \"ゴルドルフムジーク\"]"
   },
   {
+    "jp_name": "ゴールデンＢＢ",
+    "cn_name": "黄金BB",
+    "category": "character",
+    "aliases": "[\"ゴールデンBB\"]"
+  },
+  {
     "jp_name": "サブナック",
     "cn_name": "斯伯纳克",
     "category": "character",
@@ -1042,6 +1066,12 @@
     "cn_name": "热内斯·克莱恩",
     "category": "character",
     "aliases": "[\"ジュネスクレーン\"]"
+  },
+  {
+    "jp_name": "ジョン",
+    "cn_name": "约翰",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "ジョン・ラックランド",
@@ -1434,6 +1464,12 @@
     "aliases": "[\"ニトクリスオルタ\"]"
   },
   {
+    "jp_name": "ニンキガル",
+    "cn_name": "宁基伽勒",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ネモ",
     "cn_name": "尼莫",
     "category": "character",
@@ -1764,6 +1800,18 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "プロテア",
+    "cn_name": "Protea",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "プロテア・オルタ",
+    "cn_name": "Protea・Alter",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "プロフェッサー",
     "cn_name": "教授",
     "category": "character",
@@ -2068,6 +2116,12 @@
     "cn_name": "梅柳齐娜·翁蒂娜",
     "category": "character",
     "aliases": "[\"メリュジーヌオンディーヌ\"]"
+  },
+  {
+    "jp_name": "メルト",
+    "cn_name": "Melt",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "メルトリリス",
@@ -3018,6 +3072,12 @@
     "aliases": "[\"百貌ハサン·ちびハサン\", \"百貌ハサンちびハサン\"]"
   },
   {
+    "jp_name": "神王ラックランド",
+    "cn_name": "神王拉克兰",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "祭神ケルヌンノス",
     "cn_name": "祭神科尔努诺斯",
     "category": "character",
@@ -3074,6 +3134,12 @@
   {
     "jp_name": "紅閻魔",
     "cn_name": "红阎魔",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "紅閻魔・オルタ",
+    "cn_name": "红阎魔·Alter",
     "category": "character",
     "aliases": "[]"
   },
@@ -3172,12 +3238,6 @@
     "cn_name": "苍崎青子",
     "category": "character",
     "aliases": "[]"
-  },
-  {
-    "jp_name": "藤丸立香",
-    "cn_name": "藤丸立香",
-    "category": "character",
-    "aliases": "[\"ぐだお\", \"ぐだこ\", \"ぐだ子\", \"ぐだ男\", \"藤丸\"]"
   },
   {
     "jp_name": "藤原道長",
@@ -3466,6 +3526,12 @@
     "cn_name": "BB",
     "category": "character",
     "aliases": "[\"BB\"]"
+  },
+  {
+    "jp_name": "ＢＢコスモ",
+    "cn_name": "BB宇宙",
+    "category": "character",
+    "aliases": "[\"BBコスモ\"]"
   },
   {
     "jp_name": "ＢＢドバイ",

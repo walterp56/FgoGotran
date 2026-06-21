@@ -42,6 +42,12 @@ jp_term	cn_term	category	aliases
 
 `category` examples: `place`, `game_term`, `class`, `item`, `organization`.
 
+`build_db.py` also adds component records for separator-based terms when the JP
+and CN text split into the same number of parts. For example,
+`近未来観測レンズ・シバ -> 近未来观测透镜·示巴` also makes `シバ -> 示巴`
+available in the generated terms table. Curated TSV rows still win over
+generated component rows.
+
 ## Build
 
 From the repo root:

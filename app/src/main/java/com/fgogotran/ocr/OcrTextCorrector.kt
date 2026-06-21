@@ -14,11 +14,13 @@ object OcrTextCorrector {
     )
 
     private val likelyDialogueWords = listOf(
-        "普段"
+        "普段",
+        "転移孔",
     )
 
     private val confusableGlyphs = mapOf(
-        '普' to setOf('善')
+        '普' to setOf('善'),
+        '孔' to setOf('乳', '乱')
     )
 
     private val rules: List<CorrectionRule> = likelyDialogueWords
@@ -87,7 +89,7 @@ object OcrTextCorrector {
                 char in setOf(
                     '\n', '　', '、', '。', '，', '．', '.', ',', '!',
                     '！', '?', '？', '…', '「', '『', '（', '(', '[',
-                    '【', 'は', 'が', 'を', 'に', 'で', 'へ', 'と',
+                    '【', '》', 'は', 'が', 'を', 'に', 'で', 'へ', 'と',
                     'も', 'の', 'や', 'か'
                 )
     }
@@ -98,7 +100,7 @@ object OcrTextCorrector {
                 char in setOf(
                     '\n', '　', '、', '。', '，', '．', '.', ',', '!',
                     '！', '?', '？', '…', '」', '』', '）', ')', ']',
-                    '】', 'は', 'が', 'を', 'に', 'で', 'へ', 'と',
+                    '】', '《', 'は', 'が', 'を', 'に', 'で', 'へ', 'と',
                     'も', 'の', 'や', 'か', 'よ', 'ね', 'な', 'だ'
                 )
     }
