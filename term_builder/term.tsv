@@ -16,7 +16,7 @@
 空想樹	空想树	game_term	
 クリプター	隐匿者	game_term	Crypter
 異星の神	异星之神	game_term	
-ビースト	Beast	class	
+ビースト	Beast	class   兽	
 グランド	冠位	game_term	Grand
 グランドサーヴァント	冠位从者	game_term	Grand Servant
 サーヴァント	从者	game_term	Servant
@@ -106,7 +106,7 @@
 ルールブレイカー	万符必应破戒	noble_phantasm	破戒すべき全ての符
 ロンゴミニアド	伦戈米尼亚德	noble_phantasm	Rhongomyniad
 ゲイ・ボルク	穿刺死棘之枪	noble_phantasm	刺し穿つ死棘の槍
-ブラックバレル	Black Barrel	item	ブラック・バレル,Black Barrel
+ブラックバレル	Black Barrel	game_term	ブラック・バレル,Black Barrel
 ヤガ	雅嘎	game_term	
 ペーパームーン	平面之月	game_term	
 近未来観測レンズ・シバ	近未来观测透镜·示巴	game_term	
@@ -115,3 +115,4 @@
 アーキタイプ	Archetype	game_term
 ムーン・ドバイ	月面杜拜	place	ムーン・ドバイ
 転移孔	转移孔	game_term
+バルトアンデルス	波丹德斯	game_term

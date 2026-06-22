@@ -42,6 +42,7 @@ class SettingsRepository @Inject constructor(
         val KEY_API_MODEL = stringPreferencesKey("api_model")
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
+        val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
         val KEY_DB_SHA256 = stringPreferencesKey("db_sha256")
         val KEY_DB_LOCALE = stringPreferencesKey("db_locale")
@@ -86,6 +87,8 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
         const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
         const val DEFAULT_CUSTOM_MODEL = "deepseek-v4-flash"
+        const val TARGET_LOCALE_SIMPLIFIED = "zh-Hans"
+        const val TARGET_LOCALE_TRADITIONAL = "zh-Hant"
 
         private val SUPPORTED_BACKENDS = setOf(
             BACKEND_DEEPSEEK,
@@ -99,6 +102,11 @@ class SettingsRepository @Inject constructor(
 
         fun normalizeBackend(backend: String): String =
             backend.takeIf { it in SUPPORTED_BACKENDS } ?: BACKEND_DEEPSEEK
+
+        fun normalizeTargetChineseLocale(locale: String): String = when (locale) {
+            TARGET_LOCALE_TRADITIONAL -> TARGET_LOCALE_TRADITIONAL
+            else -> TARGET_LOCALE_SIMPLIFIED
+        }
 
         fun defaultApiBaseUrl(backend: String): String = when (normalizeBackend(backend)) {
             BACKEND_ZHIPU -> DEFAULT_ZHIPU_BASE_URL
@@ -205,6 +213,11 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_CACHE_ENABLED] ?: true
     }
 
+    /** Target Chinese script for translated output. */
+    val targetChineseLocale: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeTargetChineseLocale(prefs[KEY_TARGET_CHINESE_LOCALE] ?: TARGET_LOCALE_SIMPLIFIED)
+    }
+
     /** Latest installed CDN terminology DB content version, blank before online DB install. */
     val dbContentVersion: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_DB_CONTENT_VERSION] ?: ""
@@ -284,6 +297,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setCacheEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_CACHE_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: cache_enabled=$enabled")
+    }
+
+    suspend fun setTargetChineseLocale(locale: String) {
+        val normalizedLocale = normalizeTargetChineseLocale(locale)
+        context.dataStore.edit { it[KEY_TARGET_CHINESE_LOCALE] = normalizedLocale }
+        FgoLogger.debug(tag, "Setting updated: target_chinese_locale=$normalizedLocale")
     }
 
     suspend fun setFloatingButtonPosition(x: Int, y: Int) {

@@ -18,6 +18,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrTextCorrector
 import com.fgogotran.ocr.OcrTextLine
@@ -135,6 +136,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
         private const val RUBY_HEIGHT_RATIO = 0.72f
+        private const val LOG_TEXT_CHUNK_SIZE = 900
         private const val MIN_PALETTE_TEXT_PIXELS = 8
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_TEXT_COLOR_SAMPLES = listOf(
@@ -633,6 +635,8 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             val sourceText = cropSourceText(ocrResult.lines, ocrResult.fullText)
             val ocrDuration = SystemClock.elapsedRealtime() - ocrStartedAt
+            logTranslationDebugText("Crop OCR fullText", ocrResult.fullText.trim())
+            logTranslationDebugText("Crop source text", sourceText)
 
             if (sourceText.isBlank()) {
                 showCropStatus(cropBounds, "未识别到文字")
@@ -641,11 +645,16 @@ class FgoAccessibilityService : AccessibilityService() {
             }
 
             val translationStartedAt = SystemClock.elapsedRealtime()
-            val translated = withContext(Dispatchers.IO) {
-                translator.translate(sourceText, preserveRubyMeaning = true).translatedText.trim()
-            }.ifBlank {
+            val translationResult = withContext(Dispatchers.IO) {
+                translator.translate(sourceText, preserveRubyMeaning = true)
+            }
+            val translated = translationResult.translatedText.trim().ifBlank {
                 "翻译失败"
             }
+            logTranslationDebugText(
+                "Crop translated text (${translationResult.backend}, ${translationResult.targetLocale})",
+                translated
+            )
             val translationDuration = SystemClock.elapsedRealtime() - translationStartedAt
 
             val cropTextColor = sampleCropOriginalTextColor(
@@ -658,7 +667,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     width = cropBounds.width(),
                     height = cropBounds.height(),
                     text = translated,
-                    textColor = cropTextColor ?: FGO_RENDER_WHITE
+                    textColor = cropTextColor ?: FGO_RENDER_WHITE,
+                    targetLocale = translationResult.targetLocale
                 )
             }
             cropResultOverlay.show(cropBounds, rendered)
@@ -1089,6 +1099,7 @@ class FgoAccessibilityService : AccessibilityService() {
             buildRenderInstructions(source, sceneSource, sceneTranslation)
         }
         val layoutDuration = SystemClock.elapsedRealtime() - layoutStartedAt
+        logSceneTranslationDebug(mode, sceneSource, sceneTranslation, instructions)
 
         missingRequiredRenderReason(sceneSource, instructions)?.let { reason ->
             FgoLogger.warn(tag, "Translation result incomplete; not marking source as rendered: $reason")
@@ -1403,19 +1414,24 @@ class FgoAccessibilityService : AccessibilityService() {
         val choiceRegions = sceneSource.regions.filter { it.region.region == TextRegion.CHOICE_BUTTON }
         val translatedChoicesByRegion = choiceRegions
             .zip(sceneTranslation.choices)
-            .associate { (regionAndText, result) -> regionAndText.region to result.translatedText }
+            .associate { (regionAndText, result) -> regionAndText.region to result }
 
         return sceneSource.regions.mapNotNull { regionAndText ->
-            val translatedText = when (regionAndText.region.region) {
+            val translatedResult = when (regionAndText.region.region) {
                 TextRegion.NAME_LABEL -> renderableNameTranslation(
                     sourceText = regionAndText.text,
                     result = sceneTranslation.name
-                )
-                TextRegion.DIALOGUE_BOX -> sceneTranslation.dialogue?.translatedText
+                )?.let { text ->
+                    sceneTranslation.name?.copy(translatedText = text)
+                        ?: TranslateResult(text, "none", true)
+                }
+                TextRegion.DIALOGUE_BOX -> sceneTranslation.dialogue
                 TextRegion.CHOICE_BUTTON -> translatedChoicesByRegion[regionAndText.region]
             }
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val translatedText = translatedResult.translatedText
+                .trim()
+                .takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
             RenderInstruction(
                 region = regionAndText.region,
@@ -1424,8 +1440,63 @@ class FgoAccessibilityService : AccessibilityService() {
                 wideTextSpacing = shouldUseWideRenderSpacing(
                     sourceText = regionAndText.text,
                     region = regionAndText.region.region
-                )
+                ),
+                targetLocale = translatedResult.targetLocale
             )
+        }
+    }
+
+    private fun logSceneTranslationDebug(
+        mode: ProcessingMode,
+        sceneSource: SceneSource,
+        sceneTranslation: SceneTranslateResult,
+        instructions: List<RenderInstruction>
+    ) {
+        logTranslationDebugText(
+            "Scene OCR source [$mode]",
+            buildList {
+                sceneSource.input.name?.takeIf { it.isNotBlank() }?.let { add("name=${debugQuote(it)}") }
+                sceneSource.input.dialogue?.takeIf { it.isNotBlank() }?.let { add("dialogue=${debugQuote(it)}") }
+                sceneSource.input.choices.forEachIndexed { index, choice ->
+                    if (choice.isNotBlank()) add("choice[$index]=${debugQuote(choice)}")
+                }
+            }.joinToString("; ")
+        )
+        logTranslationDebugText(
+            "Scene translated [$mode]",
+            buildList {
+                sceneTranslation.name?.let { add("name=${debugResult(it)}") }
+                sceneTranslation.dialogue?.let { add("dialogue=${debugResult(it)}") }
+                sceneTranslation.choices.forEachIndexed { index, result ->
+                    if (result.translatedText.isNotBlank()) add("choice[$index]=${debugResult(result)}")
+                }
+            }.joinToString("; ")
+        )
+        logTranslationDebugText(
+            "Scene render text [$mode]",
+            instructions.joinToString("; ") { instruction ->
+                "${instruction.region.region}=${debugQuote(instruction.translatedText)} (${instruction.targetLocale})"
+            }
+        )
+    }
+
+    private fun debugResult(result: TranslateResult): String {
+        return "${debugQuote(result.translatedText)} (${result.backend}, cached=${result.cached}, ${result.targetLocale})"
+    }
+
+    private fun debugQuote(text: String): String {
+        return "\"${text.replace("\r", "\\r").replace("\n", "\\n")}\""
+    }
+
+    private fun logTranslationDebugText(label: String, text: String) {
+        val cleaned = text.ifBlank { "<blank>" }
+        val chunks = cleaned.chunked(LOG_TEXT_CHUNK_SIZE)
+        if (chunks.size <= 1) {
+            FgoLogger.info(tag, "$label: $cleaned")
+            return
+        }
+        chunks.forEachIndexed { index, chunk ->
+            FgoLogger.info(tag, "$label [${index + 1}/${chunks.size}]: $chunk")
         }
     }
 
@@ -1975,6 +2046,13 @@ class FgoAccessibilityService : AccessibilityService() {
             .map { it.translatedText.trim() }
             .zip(choiceInstructions.map { it.textColor })
             .filter { it.first.isNotBlank() }
+        val targetLocale = listOfNotNull(
+            nameInstruction?.targetLocale,
+            dialogueInstruction?.targetLocale
+        )
+            .plus(choiceInstructions.map { it.targetLocale })
+            .firstOrNull { it == SettingsRepository.TARGET_LOCALE_TRADITIONAL }
+            ?: SettingsRepository.TARGET_LOCALE_SIMPLIFIED
         val dialogueSourceKey = sceneSource.historyDialogueSourceKey()
         val entrySourceKey = sceneSource.historySourceKey(hasChoices = choicePairs.isNotEmpty())
 
@@ -1988,6 +2066,7 @@ class FgoAccessibilityService : AccessibilityService() {
                         ?: rawNameRegion?.let { sampleOriginalTextColor(source, it.region) },
                     dialogueTextColor = dialogueInstruction?.textColor,
                     choiceColors = choicePairs.map { it.second },
+                    targetLocale = targetLocale,
                     sourceKey = entrySourceKey,
                     dialogueSourceKey = dialogueSourceKey
                 )

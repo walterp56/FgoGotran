@@ -1,5 +1,6 @@
 package com.fgogotran.translation
 
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.util.FgoLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +13,7 @@ data class SessionTranslationEntry(
     val speakerNameColor: Int? = null,
     val dialogueTextColor: Int? = null,
     val choiceColors: List<Int?> = emptyList(),
+    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
     val sourceKey: String = "",
     val dialogueSourceKey: String = "",
     val createdAt: Long = System.currentTimeMillis()

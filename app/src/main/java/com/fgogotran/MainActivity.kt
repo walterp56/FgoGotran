@@ -72,6 +72,7 @@ fun MainScreen(
 
     when (currentScreen) {
         Screen.HOME -> HomeScreen(
+            settingsRepository = settingsRepository,
             onGuide = { currentScreen = Screen.GUIDE },
             onSettings = { currentScreen = Screen.SETTINGS }
         )

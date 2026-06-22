@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
@@ -114,9 +115,9 @@ private fun HistoryScrollView(
         update = { scrollView ->
             val container = scrollView.getChildAt(0) as LinearLayout
             container.removeAllViews()
-            val typeface = historyTypeface(scrollView.context)
 
             if (entries.isEmpty()) {
+                val typeface = historyTypeface(scrollView.context)
                 container.gravity = Gravity.CENTER
                 container.layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -136,7 +137,11 @@ private fun HistoryScrollView(
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 )
                 entries.forEachIndexed { index, entry ->
-                    addHistoryEntryViews(container, entry, typeface)
+                    addHistoryEntryViews(
+                        container,
+                        entry,
+                        historyTypeface(scrollView.context, entry.targetLocale)
+                    )
                     if (index != entries.lastIndex) {
                         container.addView(spacerView(scrollView.context, 12))
                     }
@@ -316,8 +321,11 @@ private fun spacerView(context: Context, heightDp: Int): View {
     }
 }
 
-private fun historyTypeface(context: Context): Typeface {
-    return FgoTypefaceProvider.storyTypeface(context)
+private fun historyTypeface(
+    context: Context,
+    targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+): Typeface {
+    return FgoTypefaceProvider.storyTypeface(context, targetLocale)
 }
 
 private fun dp(context: Context, value: Int): Int {

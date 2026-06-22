@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -12,7 +13,7 @@ import javax.inject.Singleton
 
 @Singleton
 class CropResultRenderer @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext private val context: Context
 ) {
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(190, 0, 0, 0)
@@ -32,7 +33,8 @@ class CropResultRenderer @Inject constructor(
         width: Int,
         height: Int,
         text: String,
-        textColor: Int = FGO_TEXT_COLOR
+        textColor: Int = FGO_TEXT_COLOR,
+        targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
     ): Bitmap {
         val bitmapWidth = width.coerceAtLeast(1)
         val bitmapHeight = height.coerceAtLeast(1)
@@ -40,6 +42,7 @@ class CropResultRenderer @Inject constructor(
         val canvas = Canvas(bitmap)
         canvas.drawRect(0f, 0f, bitmapWidth.toFloat(), bitmapHeight.toFloat(), backgroundPaint)
 
+        textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, targetLocale)
         val padding = (minOf(bitmapWidth, bitmapHeight) * 0.06f).coerceIn(6f, 24f)
         val maxWidth = (bitmapWidth - padding * 2f).coerceAtLeast(1f)
         val maxHeight = (bitmapHeight - padding * 2f).coerceAtLeast(1f)

@@ -6,15 +6,19 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.appcompat.app.AlertDialog
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,9 +28,12 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.fgogotran.accessibility.FgoAccessibilityService
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.R
+import kotlinx.coroutines.launch
 
 /**
  * Home screen with service status, "Start Service" flow, and navigation.
@@ -42,11 +49,16 @@ import com.fgogotran.R
 
 @Composable
 fun HomeScreen(
+    settingsRepository: SettingsRepository,
     onGuide: () -> Unit,
     onSettings: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val targetChineseLocale by settingsRepository.targetChineseLocale.collectAsState(
+        initial = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    )
     val serviceRunning = FgoRunnerService.serviceStarted.value
     val accessibilityRunning = FgoAccessibilityService.serviceStarted.value
     val accessibilityRunningStatusColor = if (accessibilityRunning) Color(0xFF4CAF50) else Color(0xFFFF9800) // Green vs Orange
@@ -59,6 +71,7 @@ fun HomeScreen(
         val pm = context.getSystemService(PowerManager::class.java)
         mutableStateOf(pm.isIgnoringBatteryOptimizations(context.packageName))
     }
+    var showLanguageDialog by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // update permissions state
@@ -140,6 +153,11 @@ fun HomeScreen(
                 text = "FgoGotran",
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.primary
+            )
+
+            LanguagePreference(
+                selectedLabel = targetChineseLocaleLabel(targetChineseLocale),
+                onClick = { showLanguageDialog = true }
             )
 
 //            Text(
@@ -265,6 +283,157 @@ fun HomeScreen(
                 ) {
                     Text("使用指南")
                 }
+            }
+        }
+
+        if (showLanguageDialog) {
+            LanguageChoiceDialog(
+                selectedLocale = targetChineseLocale,
+                onDismiss = { showLanguageDialog = false },
+                onSelect = { locale ->
+                    showLanguageDialog = false
+                    scope.launch {
+                        settingsRepository.setTargetChineseLocale(locale)
+                    }
+                }
+            )
+        }
+    }
+}
+
+private val targetChineseLocaleOptions = listOf(
+    SettingsRepository.TARGET_LOCALE_SIMPLIFIED to "简体中文",
+    SettingsRepository.TARGET_LOCALE_TRADITIONAL to "繁體中文"
+)
+
+private fun targetChineseLocaleLabel(locale: String): String {
+    val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(locale)
+    return targetChineseLocaleOptions.firstOrNull { it.first == normalizedLocale }?.second
+        ?: "简体中文"
+}
+
+@Composable
+private fun LanguagePreference(
+    selectedLabel: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        ListItem(
+            headlineContent = { Text("Translate To") },
+            supportingContent = {
+                Text(
+                    selectedLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+                )
+            },
+            trailingContent = {
+                Text(
+                    "›",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            colors = ListItemDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            modifier = Modifier.clickable(onClick = onClick)
+        )
+    }
+}
+
+@Composable
+private fun LanguageChoiceDialog(
+    selectedLocale: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(selectedLocale)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "Translate To",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    targetChineseLocaleOptions.forEach { (locale, label) ->
+                        LanguageDialogOption(
+                            label = label,
+                            selected = locale == normalizedLocale,
+                            onClick = { onSelect(locale) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageDialogOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = CircleShape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.weight(1f)
+            )
+            if (selected) {
+                Text(
+                    "✓",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

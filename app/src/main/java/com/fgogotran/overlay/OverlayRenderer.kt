@@ -2,6 +2,7 @@ package com.fgogotran.overlay
 
 import android.content.Context
 import android.graphics.*
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -15,7 +16,8 @@ data class RenderInstruction(
     val region: ClassifiedRegion,
     val translatedText: String,
     val textColor: Int? = null,
-    val wideTextSpacing: Boolean = false
+    val wideTextSpacing: Boolean = false,
+    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
 )
 
 /**
@@ -142,6 +144,7 @@ class OverlayRenderer @Inject constructor(
         }
 
         for (instruction in instructions) {
+            textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             when (instruction.region.region) {
                 TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction)
                 TextRegion.NAME_LABEL -> renderNameLabel(reusableCanvas, textPaint, instruction)
@@ -166,6 +169,7 @@ class OverlayRenderer @Inject constructor(
         }
         return instructions.mapNotNull { instruction ->
             if (instruction.region.region != TextRegion.CHOICE_BUTTON) return@mapNotNull null
+            choicePaint.typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             val box = fixedChoiceRenderBox(
                 rawBox = instruction.region.boundingBox,
                 canvasWidth = screenWidth,
@@ -204,7 +208,7 @@ class OverlayRenderer @Inject constructor(
             return instruction.translatedText.trim()
         }
         val historyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = this@OverlayRenderer.typeface ?: Typeface.DEFAULT
+            typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             textAlign = Paint.Align.LEFT
             isSubpixelText = true
             isLinearText = true

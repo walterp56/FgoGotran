@@ -16,11 +16,14 @@ object OcrTextCorrector {
     private val likelyDialogueWords = listOf(
         "普段",
         "転移孔",
+        "彷徨海",
     )
 
     private val confusableGlyphs = mapOf(
         '普' to setOf('善'),
-        '孔' to setOf('乳', '乱')
+        '孔' to setOf('乳', '乱'),
+        '彷' to setOf('紡'),
+        '徨' to setOf('律', '僧', '管')
     )
 
     private val rules: List<CorrectionRule> = likelyDialogueWords

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Database, Download, GitBranch, ShieldCheck } from "lucide-react";
-import { ReleaseStatus } from "@/components/ReleaseStatus";
 import { SectionHeader } from "@/components/SectionHeader";
 import { cdnUrl } from "@/lib/cdn";
 import { siteConfig } from "@/data/site";
@@ -21,10 +20,6 @@ export default function DownloadPage() {
             展示版本、大小和校验信息。
           </p>
         </div>
-      </section>
-
-      <section className="section">
-        <ReleaseStatus />
       </section>
 
       <section className="section section-band compact">
