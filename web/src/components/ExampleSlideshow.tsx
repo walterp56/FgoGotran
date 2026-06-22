@@ -13,7 +13,7 @@ type ExampleSlideshowProps = {
   intervalMs?: number;
 };
 
-export function ExampleSlideshow({ examples, intervalMs = 2000 }: ExampleSlideshowProps) {
+export function ExampleSlideshow({ examples, intervalMs = 3000 }: ExampleSlideshowProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -43,11 +43,6 @@ export function ExampleSlideshow({ examples, intervalMs = 2000 }: ExampleSlidesh
           className={`example-slide${index === activeIndex ? " is-active" : ""}`}
         />
       ))}
-      <div className="example-dots" aria-hidden="true">
-        {examples.map((example, index) => (
-          <span className={`example-dot${index === activeIndex ? " is-active" : ""}`} key={example.src} />
-        ))}
-      </div>
     </div>
   );
 }

@@ -1,20 +1,21 @@
 import {
-  BookOpen,
-  Bot,
-  Cloud,
-  Crop,
-  Database,
-  Download,
-  GitBranch,
+  Accessibility,
+  BrainCircuit,
+  CloudDownload,
+  CirclePlay,
+  DatabaseZap,
+  Globe,
   History,
   KeyRound,
+  MousePointerClick,
+  PackageCheck,
+  PanelBottom,
   RefreshCw,
-  Search,
-  Server,
-  ShieldCheck,
-  Smartphone,
-  Sparkles,
-  Zap
+  ScanText,
+  ServerCog,
+  SlidersHorizontal,
+  SquareDashedMousePointer,
+  Webhook
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -35,7 +36,6 @@ export type NavItem = {
 };
 
 export const navItems: NavItem[] = [
-  { href: "/download", label: "下载" },
   { href: "/guide", label: "使用指南" },
   { href: "/api-guide", label: "接口指南" },
   { href: "/terms", label: "术语库" },
@@ -50,24 +50,34 @@ export type Feature = {
 
 export const features: Feature[] = [
   {
-    title: "悬浮翻译",
-    body: "在 FGO 画面上覆盖译文，尽量贴近原来的对话框、姓名框和选项框。",
-    icon: Smartphone
+    title: "FGO 专用提示词",
+    body: "针对 FGO 原文风格调校 Prompt，并结合术语库 RAG，让角色名、设定词和台词语气更稳定。",
+    icon: BrainCircuit
+  },
+  {
+    title: "贴近原生 UI",
+    body: "译文按 FGO 原本的姓名框、对话框和选项框位置渲染，阅读时更像游戏内文本。",
+    icon: PanelBottom
+  },
+  {
+    title: "实时悬浮翻译",
+    body: "检测到新的剧情文本后，实时 OCR 并翻译，中文译文直接显示在 FGO 画面上。",
+    icon: ScanText
   },
   {
     title: "三种模式",
-    body: "手动、自动、裁剪区域翻译分开处理，减少互相影响。",
-    icon: Crop
+    body: "手动、自动、裁剪区域翻译分开处理。",
+    icon: SlidersHorizontal
   },
   {
     title: "术语库更新",
-    body: "从 CDN 拉取最新 SQLite 术语库，校验哈希后原子替换。",
-    icon: Database
+    body: "从 CDN 拉取最新 SQLite 术语库，校验，角色名、宝具、地点、组织名等固定翻译。",
+    icon: DatabaseZap
   },
   {
     title: "多接口支持",
     body: "支持 DeepSeek、智谱 GLM、阿里云百炼 Qwen、OpenAI GPT、Google Gemini、Anthropic Claude 和自定义接口。",
-    icon: Bot
+    icon: ServerCog
   }
 ];
 
@@ -174,12 +184,12 @@ export const workflowSteps = [
   {
     title: "安装 APK",
     body: "从下载页获取最新版 APK，安装后打开 FgoGotran。",
-    icon: Download
+    icon: PackageCheck
   },
   {
     title: "开启权限",
     body: "按应用首页提示开启悬浮窗、无障碍服务，并建议关闭电池优化。",
-    icon: ShieldCheck
+    icon: Accessibility
   },
   {
     title: "配置接口",
@@ -189,7 +199,7 @@ export const workflowSteps = [
   {
     title: "启动服务",
     body: "进入 FGO 后点悬浮按钮，选择手动、自动或裁剪翻译。",
-    icon: Zap
+    icon: CirclePlay
   }
 ];
 
@@ -197,21 +207,21 @@ export const modeCards = [
   {
     title: "手动模式",
     body: "适合稳定阅读。每次点击悬浮按钮后识别当前画面并翻译。",
-    icon: Sparkles
+    icon: MousePointerClick
   },
   {
     title: "自动模式",
-    body: "适合连续剧情。应用会观察对话/选项变化并自动刷新译文。",
+    body: "适合放松阅读。应用会观察对话/选项变化并自动刷新译文。",
     icon: RefreshCw
   },
   {
     title: "裁剪模式",
-    body: "适合非标准 UI。用户框选区域后只翻译该区域，不走 FGO 对话检测。",
-    icon: Search
+    body: "可翻译FGO中非劇情部分，同時适用于自动/手动模式识别不准或漏翻时，手动框选画面区域进行翻译。",
+    icon: SquareDashedMousePointer
   },
   {
     title: "历史记录",
-    body: "保存本次识别过的姓名、对话和选项，方便回看。",
+    body: "保存本次识别过的角色名、对话和选项，方便回看。",
     icon: History
   }
 ];
@@ -220,16 +230,16 @@ export const deployNotes = [
   {
     title: "fgogotran.com",
     body: "网站前端，推荐用 AWS Amplify Hosting 连接 GitHub 自动部署。",
-    icon: Cloud
+    icon: Globe
   },
   {
     title: "cdn.fgogotran.com",
     body: "APK、DB、TSV 预览和 manifest，继续放在 S3 + CloudFront。",
-    icon: Server
+    icon: CloudDownload
   },
   {
     title: "api.fgogotran.com",
     body: "以后要做用户反馈、术语提交、后台管理时再启用。",
-    icon: GitBranch
+    icon: Webhook
   }
 ];

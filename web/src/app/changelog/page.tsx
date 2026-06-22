@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Database, Smartphone, Wrench } from "lucide-react";
+import { DatabaseZap, PanelsTopLeft, Smartphone } from "lucide-react";
 import { SectionHeader } from "@/components/SectionHeader";
 
 export const metadata: Metadata = {
@@ -10,13 +10,13 @@ const changelog = [
   {
     title: "网站初版",
     date: "2026-06-14",
-    icon: Wrench,
+    icon: PanelsTopLeft,
     items: ["新增下载页、使用指南、接口指南、术语库查看页。", "采用静态优先结构，后续可接 API 后端。"]
   },
   {
     title: "术语库 CDN",
     date: "2026-06-10",
-    icon: Database,
+    icon: DatabaseZap,
     items: ["发布 zh-Hans DB manifest。", "Android App 支持检查、下载、校验并安装最新 DB。"]
   },
   {

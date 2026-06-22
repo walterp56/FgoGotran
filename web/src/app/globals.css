@@ -290,34 +290,6 @@ h3 {
   opacity: 1;
 }
 
-.example-dots {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  display: flex;
-  gap: 7px;
-  padding: 6px 8px;
-  border-radius: 999px;
-  background: rgba(16, 32, 51, 0.48);
-  transform: translateX(-50%);
-}
-
-.example-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.45);
-  transform: scale(1);
-  transition:
-    background 180ms ease,
-    transform 180ms ease;
-}
-
-.example-dot.is-active {
-  background: #ffffff;
-  transform: scale(1.2);
-}
-
 .example-empty {
   aspect-ratio: 13 / 6;
 }
@@ -357,7 +329,7 @@ h3 {
 }
 
 .feature-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .provider-grid {
@@ -551,6 +523,125 @@ dd {
   margin-top: 18px;
 }
 
+.download-intro {
+  max-width: 760px;
+  margin-bottom: 28px;
+}
+
+.download-intro p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.download-facts {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.download-facts span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fbfcfe;
+  color: var(--brand-strong);
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.download-source-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.download-source-card {
+  --download-accent: var(--brand);
+  --download-card-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--download-accent) 11%, #ffffff) 0%,
+    #ffffff 58%
+  );
+  position: relative;
+  display: flex;
+  min-height: 260px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  overflow: hidden;
+  padding: 26px 20px;
+  border: 1px solid color-mix(in srgb, var(--download-accent) 30%, var(--line));
+  border-radius: var(--radius);
+  background: var(--download-card-bg);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--download-accent) 11%, transparent);
+  color: var(--ink);
+  text-align: center;
+}
+
+.download-source-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: var(--download-accent);
+}
+
+.download-source-card:hover {
+  border-color: color-mix(in srgb, var(--download-accent) 54%, var(--line));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--download-accent) 15%, #ffffff) 0%,
+    #ffffff 58%
+  );
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--download-accent) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.download-source-card.is-disabled {
+  cursor: default;
+}
+
+.download-source-card.is-disabled:hover {
+  border-color: color-mix(in srgb, var(--download-accent) 30%, var(--line));
+  background: var(--download-card-bg);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--download-accent) 11%, transparent);
+  transform: none;
+}
+
+.download-source-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  height: 70px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--download-accent) 14%, #ffffff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--download-accent) 16%, transparent);
+  color: var(--download-accent);
+}
+
+.download-source-icon img {
+  width: 48px;
+  height: 38px;
+  object-fit: contain;
+}
+
+.download-source-title {
+  color: var(--download-accent);
+  font-size: 20px;
+  font-weight: 780;
+}
+
+.download-source-subtitle {
+  color: var(--muted);
+}
+
 .guide-list {
   display: grid;
   gap: 14px;
@@ -739,6 +830,7 @@ dd {
 
   .feature-grid,
   .provider-grid,
+  .download-source-grid,
   .step-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -762,12 +854,13 @@ dd {
 
   .status-grid,
   .download-grid,
-  .changelog-grid,
-  .feature-grid,
-  .provider-grid,
-  .step-grid,
-  .guide-card,
-  .terms-toolbar {
+    .changelog-grid,
+    .feature-grid,
+    .provider-grid,
+    .download-source-grid,
+    .step-grid,
+    .guide-card,
+    .terms-toolbar {
     grid-template-columns: 1fr;
   }
 

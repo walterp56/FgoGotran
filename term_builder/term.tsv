@@ -45,7 +45,7 @@
 霊子転移	灵子转移	game_term	レイシフト,Rayshift
 レイシフト	灵子转移	game_term	Rayshift
 霊衣	灵衣	game_term	
-聖杯探索	圣杯探索	game_term	Grand Order
+聖杯探索	圣杯探索	game_term
 グランドオーダー	冠位指定	game_term	Grand Order
 冠位指定	冠位指定	game_term	Grand Order
 抑止力	抑止力	game_term	
@@ -94,7 +94,7 @@
 アトラス院	阿特拉斯院	organization	
 彷徨海	彷徨海	organization	
 冬木市	冬木市	place	
-虚数空間	虚数空间	game_term	
+虚数空間	虚数空间	place	
 神代	神代	game_term	
 固有結界	固有结界	game_term	Reality Marble
 投影魔術	投影魔术	game_term	
@@ -114,5 +114,7 @@
 ポイント・ネモ	尼莫点	place	ポイントネモ
 アーキタイプ	Archetype	game_term
 ムーン・ドバイ	月面杜拜	place	ムーン・ドバイ
-転移孔	转移孔	game_term
-バルトアンデルス	波丹德斯	game_term
+転移孔	转移孔	place
+バルトアンデルス	波丹德斯	organization
+マイルーム	My room	place
+オーディール・コール	Ordeal Call	game_term

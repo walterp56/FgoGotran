@@ -11,7 +11,10 @@ export default function TermsPage() {
       <section className="page-hero">
         <div className="page-hero-inner">
           <p className="eyebrow">Terminology</p>
-          <h1>查看角色名和术语</h1>
+          <h1>术语库校对</h1>
+          <p>
+            可查看和校对固定翻译，帮助发现漏词、错译和不一致翻译，持续完善 FGO 中文术语库。
+          </p>
         </div>
       </section>
 

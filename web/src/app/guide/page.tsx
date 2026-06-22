@@ -9,24 +9,19 @@ export const metadata: Metadata = {
 
 const permissionGuides = [
   {
-    label: "悬浮窗权限",
-    title: "允许显示在其他应用上层",
-    body: "FgoGotran 需要在 FGO 画面上显示悬浮按钮和翻译覆盖层。"
-  },
-  {
     label: "无障碍服务",
     title: "开启 FgoGotran 无障碍服务",
     body: "用于检测点击、截取当前画面并启动 OCR 流程。"
   },
   {
+    label: "悬浮窗权限",
+    title: "允许显示在其他应用上层",
+    body: "FgoGotran 需要在 FGO 画面上显示悬浮按钮和翻译覆盖层。"
+  },
+  {
     label: "电池优化",
     title: "建议关闭电池优化",
     body: "避免系统长时间剧情阅读时杀掉悬浮服务。不同手机厂商入口可能不同。"
-  },
-  {
-    label: "FGO 设置",
-    title: "建议提高文字速度",
-    body: "把游戏内文字速度调快，可以减少 OCR 读到半句文本的概率。"
   }
 ];
 
@@ -64,7 +59,6 @@ export default function GuidePage() {
       <section className="section">
         <SectionHeader
           title="翻译模式"
-          body="手动模式适合检查单句，自动模式适合连续剧情，裁剪模式适合非标准画面。"
         />
         <FeatureGrid items={modeCards} />
       </section>

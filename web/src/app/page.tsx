@@ -37,7 +37,7 @@ export default function HomePage() {
             <h1>FgoGotran</h1>
             <p className="hero-lede">
               面向 FGO 日服剧情阅读的 Android 悬浮翻译工具。通过 OCR 读取当前画面，
-              使用术语库、缓存和可配置 AI 接口，把姓名、对话和选项渲染回游戏区域。
+              使用术语库、缓存和可配置 AI 接口，把角色名、对话和选项渲染回游戏区域。
             </p>
             <div className="hero-actions">
               <Link className="primary-button" href="/download">
@@ -54,13 +54,13 @@ export default function HomePage() {
               </a>
             </div>
             <div className="hero-mini-status">
-              <span>Android 11+ · 简体中文 · BYO API Key</span>
+              <span>Android 11+ · 简体/繁體中文 · Bring Your Own (BYO) API Key</span>
             </div>
           </div>
 
           <div className="hero-screen" aria-label="FgoGotran screenshot examples">
             <div className="example-showcase">
-              <ExampleSlideshow examples={heroExamples} intervalMs={2000} />
+              <ExampleSlideshow examples={heroExamples} intervalMs={3000} />
             </div>
           </div>
         </div>
@@ -69,8 +69,8 @@ export default function HomePage() {
       <section className="section section-band">
         <SectionHeader
           eyebrow="What it does"
-          title="为实时剧情阅读做的翻译流程"
-          body="网站、CDN 和 Android App 使用同一套发布数据：APK、术语库 manifest、TSV 预览和更新日志都能从这里进入。"
+          title="实时剧情翻译"
+          body="APK下载、术语库预览和更新日志都能从这里进入。"
         />
         <FeatureGrid items={features} />
       </section>
@@ -79,7 +79,7 @@ export default function HomePage() {
         <SectionHeader
           eyebrow="Modes"
           title="三种翻译模式保持分离"
-          body="手动、自动和裁剪区域走不同流程，避免后续优化时互相污染行为。"
+          body="手动、自动和裁剪区域走不同流程"
         />
         <FeatureGrid items={modeCards} />
       </section>

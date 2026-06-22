@@ -1,12 +1,40 @@
 import type { Metadata } from "next";
-import { Database, Download, GitBranch, ShieldCheck } from "lucide-react";
-import { SectionHeader } from "@/components/SectionHeader";
-import { cdnUrl } from "@/lib/cdn";
+import type { CSSProperties } from "react";
 import { siteConfig } from "@/data/site";
 
 export const metadata: Metadata = {
   title: "下载"
 };
+
+const downloadOptions = [
+  {
+    title: "网盘下载 (推荐)",
+    subtitle: "OneDrive",
+    href: "#",
+    iconSrc: "/download-icons/onedrive.svg",
+    iconAlt: "OneDrive",
+    accentColor: "#0078d4",
+    disabled: true
+  },
+  {
+    title: "GitHub 下载",
+    subtitle: "Release",
+    href: `${siteConfig.githubUrl}/releases`,
+    iconSrc: "/download-icons/github.svg",
+    iconAlt: "GitHub",
+    accentColor: "#181717",
+    disabled: false
+  },
+  {
+    title: "本地下载",
+    subtitle: "AWS S3",
+    href: "#",
+    iconSrc: "/download-icons/aws.svg",
+    iconAlt: "AWS",
+    accentColor: "#ff9900",
+    disabled: true
+  }
+];
 
 export default function DownloadPage() {
   return (
@@ -16,53 +44,41 @@ export default function DownloadPage() {
           <p className="eyebrow">Download</p>
           <h1>下载 FgoGotran</h1>
           <p>
-            APK 建议通过 CDN 发布，并在 GitHub Releases 保留镜像。页面会读取最新 manifest，
-            展示版本、大小和校验信息。
+            感谢您下载 FgoGotran。请选择合适的下载方式；
           </p>
         </div>
       </section>
 
       <section className="section section-band compact">
-        <SectionHeader
-          title="发布文件结构"
-          body="后续 CI/CD 生成 APK 后，把 versioned 文件先上传，再更新 latest manifest。"
-        />
-        <div className="download-grid">
-          <article className="download-card">
-            <div className="download-card-head">
-              <h3>APK manifest</h3>
-              <Download size={20} aria-hidden="true" />
-            </div>
-            <code className="code-path">{cdnUrl(siteConfig.apkManifestPath)}</code>
-            <p>网站下载页读取这里来显示最新版 APK。Android App 暂时不需要读取它。</p>
-          </article>
-          <article className="download-card">
-            <div className="download-card-head">
-              <h3>DB manifest</h3>
-              <Database size={20} aria-hidden="true" />
-            </div>
-            <code className="code-path">{cdnUrl(siteConfig.dbManifestPath)}</code>
-            <p>Android App 已使用这个地址检查并更新术语数据库。</p>
-          </article>
-          <article className="download-card">
-            <div className="download-card-head">
-              <h3>GitHub 镜像</h3>
-              <GitBranch size={20} aria-hidden="true" />
-            </div>
-            <p>建议每次正式版同时上传 GitHub Release，方便用户校验和回退。</p>
-            <div className="download-actions">
-              <a className="secondary-button small" href={`${siteConfig.githubUrl}/releases`} target="_blank" rel="noreferrer">
-                打开 Releases
+        <div className="download-intro">
+          <h2>FgoGotran Android APK</h2>
+          <p>请选择一个下载源。具体更新内容可查看更新日志。</p>
+          <div className="download-facts" aria-label="安装信息">
+            <span>系统要求：Android 11+</span>
+            <span>软件大小：发布后填写</span>
+          </div>
+        </div>
+
+        <div className="download-source-grid">
+          {downloadOptions.map((option) => {
+            return (
+              <a
+                className={`download-source-card${option.disabled ? " is-disabled" : ""}`}
+                href={option.disabled ? undefined : option.href}
+                key={option.title}
+                target={option.disabled ? undefined : "_blank"}
+                rel={option.disabled ? undefined : "noreferrer"}
+                aria-disabled={option.disabled}
+                style={{ "--download-accent": option.accentColor } as CSSProperties}
+              >
+                <span className="download-source-icon">
+                  <img src={option.iconSrc} alt={option.iconAlt} />
+                </span>
+                <span className="download-source-title">{option.title}</span>
+                <span className="download-source-subtitle">({option.subtitle})</span>
               </a>
-            </div>
-          </article>
-          <article className="download-card">
-            <div className="download-card-head">
-              <h3>安装要求</h3>
-              <ShieldCheck size={20} aria-hidden="true" />
-            </div>
-            <p>Android 11+。需要悬浮窗、无障碍服务、网络权限；建议关闭电池优化。</p>
-          </article>
+            );
+          })}
         </div>
       </section>
     </>
