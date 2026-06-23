@@ -21,6 +21,7 @@ import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.crop.CropModeState
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
 import com.fgogotran.ui.overlay.FloatingButtonMode
@@ -174,7 +175,7 @@ class FgoRunnerOverlay @Inject constructor(
                 composeHost = FakeComposeHost(context) {
                     FloatingButton(
                         mode = buttonMode,
-                        showFailureRing = showButtonFailureRing,
+                        showFailureRing = showButtonFailureRing && buttonMode != FloatingButtonMode.AUTO,
                         onClick = {
                             onButtonClick()
                         },
@@ -239,8 +240,12 @@ class FgoRunnerOverlay @Inject constructor(
         }
     }
 
-    fun showTranslationFailureFeedback() {
+    fun showTranslationFailureFeedback(fromUserTap: Boolean = true) {
         mainHandler.post {
+            if (!fromUserTap || !TranslationTrigger.canUserTapTranslate() || buttonMode == FloatingButtonMode.AUTO) {
+                showButtonFailureRing = false
+                return@post
+            }
             failureFeedbackVersion += 1
             val version = failureFeedbackVersion
             showButtonFailureRing = true
@@ -282,8 +287,8 @@ class FgoRunnerOverlay @Inject constructor(
             return
         }
 
-        if (TranslationTrigger.isAutoTranslateEnabled()) {
-            FgoLogger.debug(tag, "Floating button tap ignored while auto translation is enabled")
+        if (!TranslationTrigger.canUserTapTranslate()) {
+            FgoLogger.debug(tag, "Floating button tap ignored while full auto translation is enabled")
             return
         }
 
@@ -440,13 +445,13 @@ class FgoRunnerOverlay @Inject constructor(
         TranslationTrigger.setMenuVisible(true)
         val menuHost = FakeComposeHost(context) {
             FloatingMenu(
-                autoTranslateEnabled = TranslationTrigger.isAutoTranslateEnabled(),
-                onAutoTranslateChange = { enabled ->
+                translationMode = TranslationTrigger.translationMode(),
+                onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {
-                        accessibility.setAutoTranslationEnabled(enabled)
+                        accessibility.setTranslationMode(mode)
                     } else {
-                        TranslationTrigger.setAutoTranslateEnabled(enabled)
+                        TranslationTrigger.setTranslationMode(mode)
                         refreshButtonMode()
                     }
                     dismissMenu()
@@ -496,8 +501,8 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun armOneShotCropMode() {
-        FgoAccessibilityService.instance?.setAutoTranslationEnabled(false)
-            ?: TranslationTrigger.setAutoTranslateEnabled(false)
+        FgoAccessibilityService.instance?.setTranslationMode(TranslationMode.MANUAL)
+            ?: TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
         FgoAccessibilityService.instance?.clearCropTranslationOverlay()
         TranslationTrigger.cancelPendingTranslation()
 
@@ -536,8 +541,12 @@ class FgoRunnerOverlay @Inject constructor(
     private fun updateButtonMode() {
         buttonMode = when {
             cropModeState == CropModeState.SELECTING -> FloatingButtonMode.CROP
-            TranslationTrigger.isAutoTranslateEnabled() -> FloatingButtonMode.AUTO
+            TranslationTrigger.translationMode() == TranslationMode.SEMI_AUTO -> FloatingButtonMode.SEMI_AUTO
+            TranslationTrigger.translationMode() == TranslationMode.AUTO -> FloatingButtonMode.AUTO
             else -> FloatingButtonMode.MANUAL
+        }
+        if (buttonMode == FloatingButtonMode.AUTO) {
+            showButtonFailureRing = false
         }
     }
 

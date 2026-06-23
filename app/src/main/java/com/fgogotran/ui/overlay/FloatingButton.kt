@@ -37,12 +37,14 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 enum class FloatingButtonMode {
     MANUAL,
+    SEMI_AUTO,
     AUTO,
     CROP
 }
 
 enum class FloatingActionIcon {
     GO,
+    SEMI,
     AUTO,
     CROP,
     HISTORY_LIST,
@@ -68,6 +70,7 @@ fun FloatingButton(
     val pressedAlpha = 0.62f
     val baseColor = when (mode) {
         FloatingButtonMode.MANUAL -> Color(0xFF1E1E1E)
+        FloatingButtonMode.SEMI_AUTO -> Color(0xFF1E1E1E)
         FloatingButtonMode.AUTO -> Color(0xFF1E1E1E)
         FloatingButtonMode.CROP -> Color(0xFF075F66)
     }
@@ -191,6 +194,7 @@ fun FloatingButton(
             FloatingActionGlyph(
                 icon = when (mode) {
                     FloatingButtonMode.MANUAL -> FloatingActionIcon.GO
+                    FloatingButtonMode.SEMI_AUTO -> FloatingActionIcon.SEMI
                     FloatingButtonMode.AUTO -> FloatingActionIcon.AUTO
                     FloatingButtonMode.CROP -> FloatingActionIcon.CROP
                 },
@@ -211,15 +215,22 @@ fun FloatingActionGlyph(
 ) {
     when (icon) {
         FloatingActionIcon.GO,
+        FloatingActionIcon.SEMI,
         FloatingActionIcon.AUTO -> Box(
             modifier = modifier,
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = if (icon == FloatingActionIcon.GO) "GO" else "AUTO",
+                text = when (icon) {
+                    FloatingActionIcon.GO -> "GO"
+                    FloatingActionIcon.SEMI -> "SEMI"
+                    else -> "AUTO"
+                },
                 color = color,
                 fontSize = when {
                     icon == FloatingActionIcon.GO && prominent -> 15.sp
+                    icon == FloatingActionIcon.SEMI && prominent -> 9.sp
+                    icon == FloatingActionIcon.SEMI -> 8.sp
                     icon == FloatingActionIcon.AUTO && prominent -> 10.sp
                     icon == FloatingActionIcon.AUTO -> 8.sp
                     else -> 13.sp

@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.lifecycle.lifecycleScope
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.Translator
@@ -16,6 +17,8 @@ import com.fgogotran.ui.screen.SettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -41,6 +44,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         FgoLogger.info("MainActivity", "MainActivity created")
         enableEdgeToEdge()
+        lifecycleScope.launch(Dispatchers.IO) {
+            glossaryUpdateManager.updateIfNeeded()
+        }
         setContent {
             FgoGotranTheme {
                 MainScreen(settingsRepository, glossaryUpdateManager, translator)

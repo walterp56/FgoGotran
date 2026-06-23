@@ -6,6 +6,12 @@
     "aliases": "[\"BB/GO\"]"
   },
   {
+    "jp_name": "Dr.ロマン",
+    "cn_name": "Dr.罗曼",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ORT",
     "cn_name": "ORT",
     "category": "character",
@@ -354,6 +360,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "イプシロン",
+    "cn_name": "伊普西龙",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "イリヤスフィール・フォン・アインツベルン",
     "cn_name": "伊莉雅丝菲尔·冯·爱因兹贝伦",
     "category": "character",
@@ -642,8 +654,20 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "カレイドスコープ",
+    "cn_name": "宝石翁",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "カレン",
     "cn_name": "卡莲",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "カヴァスⅡ世",
+    "cn_name": "卡瓦斯Ⅱ世",
     "category": "character",
     "aliases": "[]"
   },
@@ -680,6 +704,12 @@
   {
     "jp_name": "ガレス",
     "cn_name": "加雷斯",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "キシュア・ゼルレッチ・シュバインオーグ",
+    "cn_name": "基修亚·泽尔里奇·修拜因奥古",
     "category": "character",
     "aliases": "[]"
   },
@@ -2172,6 +2202,12 @@
     "aliases": "[\"ラクシュミーバーイー\"]"
   },
   {
+    "jp_name": "ラニ=B",
+    "cn_name": "拉妮-B",
+    "category": "character",
+    "aliases": "[\"ラニB\"]"
+  },
+  {
     "jp_name": "ラニ=Ⅻ",
     "cn_name": "拉妮-Ⅻ",
     "category": "character",
@@ -2298,22 +2334,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ロマニ",
-    "cn_name": "罗玛尼",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "ロマニ・アーキマン",
     "cn_name": "罗玛尼·阿其曼",
     "category": "character",
     "aliases": "[\"ロマニ·アーキマン\", \"ロマニアーキマン\"]"
-  },
-  {
-    "jp_name": "ロマン",
-    "cn_name": "罗曼",
-    "category": "character",
-    "aliases": "[]"
   },
   {
     "jp_name": "ロミオとジュリエット",
@@ -2662,6 +2686,12 @@
     "cn_name": "妖精骑士兰斯洛特",
     "category": "character",
     "aliases": "[]"
+  },
+  {
+    "jp_name": "妙漣寺鴉郎",
+    "cn_name": "妙漣寺鴉郎",
+    "category": "character",
+    "aliases": "[\"みょうれんじあろう\"]"
   },
   {
     "jp_name": "始皇帝",
@@ -3240,6 +3270,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "藤丸立香",
+    "cn_name": "藤丸立香    ふじまるりつか",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "藤原道長",
     "cn_name": "藤原道长",
     "category": "character",
@@ -3630,12 +3666,6 @@
     "aliases": "[\"Berserker\", \"狂战士\"]"
   },
   {
-    "jp_name": "ビースト",
-    "cn_name": "Beast",
-    "category": "class",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "フォーリナー",
     "cn_name": "Foreigner",
     "category": "class",
@@ -3672,8 +3702,26 @@
     "aliases": "[\"Ruler\", \"裁定者\"]"
   },
   {
+    "jp_name": "ビースト",
+    "cn_name": "Beast",
+    "category": "class   兽",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "アラヤ",
     "cn_name": "阿赖耶",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アーキタイプ",
+    "cn_name": "Archetype",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "オーディール・コール",
+    "cn_name": "Ordeal Call",
     "category": "game_term",
     "aliases": "[]"
   },
@@ -3736,6 +3784,12 @@
     "cn_name": "亚从者",
     "category": "game_term",
     "aliases": "[\"Demi-Servant\"]"
+  },
+  {
+    "jp_name": "ブラックバレル",
+    "cn_name": "Black Barrel",
+    "category": "game_term",
+    "aliases": "[\"Black Barrel\", \"ブラック・バレル\"]"
   },
   {
     "jp_name": "ペーパームーン",
@@ -3975,7 +4029,7 @@
     "jp_name": "聖杯探索",
     "cn_name": "圣杯探索",
     "category": "game_term",
-    "aliases": "[\"Grand Order\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "英霊",
@@ -3994,12 +4048,6 @@
     "cn_name": "英灵召唤系统·Fate",
     "category": "game_term",
     "aliases": "[\"英霊召喚システム·Fate\"]"
-  },
-  {
-    "jp_name": "虚数空間",
-    "cn_name": "虚数空间",
-    "category": "game_term",
-    "aliases": "[]"
   },
   {
     "jp_name": "虚数羅針",
@@ -4092,12 +4140,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ブラックバレル",
-    "cn_name": "Black Barrel",
-    "category": "item",
-    "aliases": "[\"Black Barrel\", \"ブラック・バレル\"]"
-  },
-  {
     "jp_name": "聖晶石",
     "cn_name": "圣晶石",
     "category": "item",
@@ -4148,6 +4190,12 @@
   {
     "jp_name": "アトラス院",
     "cn_name": "阿特拉斯院",
+    "category": "organization",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "バルトアンデルス",
+    "cn_name": "波丹德斯",
     "category": "organization",
     "aliases": "[]"
   },
@@ -4236,6 +4284,24 @@
     "aliases": "[\"Border\", \"ホーダー\", \"ボーダ一\", \"ポーダー\"]"
   },
   {
+    "jp_name": "ポイント・ネモ",
+    "cn_name": "尼莫点",
+    "category": "place",
+    "aliases": "[\"ポイントネモ\"]"
+  },
+  {
+    "jp_name": "マイルーム",
+    "cn_name": "My room",
+    "category": "place",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ムーン・ドバイ",
+    "cn_name": "月面杜拜",
+    "category": "place",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "冬木市",
     "cn_name": "冬木市",
     "category": "place",
@@ -4246,5 +4312,17 @@
     "cn_name": "妖精国",
     "category": "place",
     "aliases": "[\"妖精国\"]"
+  },
+  {
+    "jp_name": "虚数空間",
+    "cn_name": "虚数空间",
+    "category": "place",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "転移孔",
+    "cn_name": "转移孔",
+    "category": "place",
+    "aliases": "[]"
   }
 ]

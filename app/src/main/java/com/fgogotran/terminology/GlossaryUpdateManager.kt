@@ -31,8 +31,10 @@ import javax.inject.Singleton
 
 data class DbUpdateStatus(
     val isChecking: Boolean = false,
-    val message: String = "空闲",
-    val detail: String = ""
+    val message: String = "",
+    val detail: String = "",
+    val visible: Boolean = false,
+    val isError: Boolean = false
 )
 
 /**
@@ -73,14 +75,27 @@ class GlossaryUpdateManager @Inject constructor(
     suspend fun updateIfNeeded(force: Boolean = false) {
         if (!force && !hasAttemptedUpdate.compareAndSet(false, true)) return
         if (!updateInProgress.compareAndSet(false, true)) {
-            _updateStatus.value = DbUpdateStatus(message = "正在更新")
+            val currentStatus = _updateStatus.value
+            _updateStatus.value = when {
+                force && !currentStatus.visible -> visibleStatus("正在检查术语库")
+                currentStatus.visible -> currentStatus.copy(isChecking = true)
+                else -> currentStatus
+            }
             return
         }
 
+        var visibleUpdateStarted = false
         try {
             val now = System.currentTimeMillis()
             settingsRepository.setDbLastCheckAt(now)
-            _updateStatus.value = DbUpdateStatus(isChecking = true, message = "正在检查")
+            val needsInitialDb = !TermDatabase.hasUsableDb(context)
+            val showStatus = force || needsInitialDb
+            if (showStatus) {
+                visibleUpdateStarted = true
+                _updateStatus.value = visibleStatus("正在检查术语库")
+            } else {
+                _updateStatus.value = DbUpdateStatus(isChecking = true)
+            }
             FgoLogger.info(tag, "DB update: checking manifest $MANIFEST_URL")
             val manifest = fetchManifest()
             validateManifest(manifest)
@@ -149,10 +164,15 @@ class GlossaryUpdateManager @Inject constructor(
                         updatedAt = System.currentTimeMillis()
                     )
                 }
-                _updateStatus.value = DbUpdateStatus(
-                    message = "已是最新",
-                    detail = "远端版本：${manifest.contentVersion}，本地版本：$effectiveInstalledVersion"
-                )
+                _updateStatus.value = if (force || _updateStatus.value.visible) {
+                    visibleStatus(
+                        message = "已是最新",
+                        detail = "远端版本：${manifest.contentVersion}，本地版本：$effectiveInstalledVersion",
+                        isChecking = false
+                    )
+                } else {
+                    DbUpdateStatus()
+                }
                 return
             }
 
@@ -177,10 +197,15 @@ class GlossaryUpdateManager @Inject constructor(
                     tag,
                     "DB update: already current by metadata sha version=${manifest.contentVersion}"
                 )
-                _updateStatus.value = DbUpdateStatus(
-                    message = "已是最新",
-                    detail = formatStatusDetail(manifest)
-                )
+                _updateStatus.value = if (force || _updateStatus.value.visible) {
+                    visibleStatus(
+                        message = "已是最新",
+                        detail = formatStatusDetail(manifest),
+                        isChecking = false
+                    )
+                } else {
+                    DbUpdateStatus()
+                }
                 return
             }
 
@@ -201,17 +226,22 @@ class GlossaryUpdateManager @Inject constructor(
                     tag,
                     "DB update: already current version=${manifest.contentVersion}, rows=${manifest.totalCount}"
                 )
-                _updateStatus.value = DbUpdateStatus(
-                    message = "已是最新",
-                    detail = formatStatusDetail(manifest)
-                )
+                _updateStatus.value = if (force || _updateStatus.value.visible) {
+                    visibleStatus(
+                        message = "已是最新",
+                        detail = formatStatusDetail(manifest),
+                        isChecking = false
+                    )
+                } else {
+                    DbUpdateStatus()
+                }
                 return
             }
 
-            _updateStatus.value = DbUpdateStatus(
-                isChecking = true,
-                message = "正在下载",
-                detail = "版本：${manifest.contentVersion}"
+            visibleUpdateStarted = true
+            _updateStatus.value = visibleStatus(
+                message = "正在更新术语库",
+                detail = formatStatusDetail(manifest)
             )
             FgoLogger.info(
                 tag,
@@ -232,16 +262,24 @@ class GlossaryUpdateManager @Inject constructor(
                 tag,
                 "DB update: installed version=${manifest.contentVersion}, rows=${manifest.totalCount}"
             )
-            _updateStatus.value = DbUpdateStatus(
+            _updateStatus.value = visibleStatus(
                 message = "更新完成",
-                detail = formatStatusDetail(manifest)
+                detail = formatStatusDetail(manifest),
+                isChecking = false
             )
         } catch (e: Exception) {
             FgoLogger.warn(tag, "DB update failed; keeping existing glossary DB", e)
-            _updateStatus.value = DbUpdateStatus(
-                message = "更新失败",
-                detail = userFacingError(e)
-            )
+            hasAttemptedUpdate.set(false)
+            _updateStatus.value = if (visibleUpdateStarted || _updateStatus.value.visible) {
+                visibleStatus(
+                    message = "术语库更新失败",
+                    detail = userFacingError(e),
+                    isChecking = false,
+                    isError = true
+                )
+            } else {
+                DbUpdateStatus()
+            }
         } finally {
             updateInProgress.set(false)
         }
@@ -263,6 +301,21 @@ class GlossaryUpdateManager @Inject constructor(
 
     private fun formatStatusDetail(manifest: GlossaryDbManifest): String {
         return "版本：${manifest.contentVersion}，条目：${manifest.totalCount}"
+    }
+
+    private fun visibleStatus(
+        message: String,
+        detail: String = "",
+        isChecking: Boolean = true,
+        isError: Boolean = false
+    ): DbUpdateStatus {
+        return DbUpdateStatus(
+            isChecking = isChecking,
+            message = message,
+            detail = detail,
+            visible = true,
+            isError = isError
+        )
     }
 
     private fun userFacingError(error: Exception): String {
@@ -329,10 +382,9 @@ class GlossaryUpdateManager @Inject constructor(
 
     private suspend fun downloadDb(manifest: GlossaryDbManifest): File {
         FgoLogger.info(tag, "DB update: downloading ${manifest.dbUrl}")
-        _updateStatus.value = DbUpdateStatus(
-            isChecking = true,
-            message = "正在下载",
-            detail = "版本：${manifest.contentVersion}"
+        _updateStatus.value = visibleStatus(
+            message = "正在下载术语库",
+            detail = formatStatusDetail(manifest)
         )
         val dbFile = TermDatabase.databaseFile(context)
         val tempFile = File(dbFile.parentFile, TEMP_DB_NAME)
@@ -363,10 +415,9 @@ class GlossaryUpdateManager @Inject constructor(
     }
 
     private fun validateDownloadedDb(file: File, manifest: GlossaryDbManifest) {
-        _updateStatus.value = DbUpdateStatus(
-            isChecking = true,
-            message = "正在校验",
-            detail = "版本：${manifest.contentVersion}"
+        _updateStatus.value = visibleStatus(
+            message = "正在校验术语库",
+            detail = formatStatusDetail(manifest)
         )
         require(file.exists() && file.length() > 0L) { "Downloaded DB is empty" }
         require(file.length() == manifest.dbSize) {
@@ -405,10 +456,9 @@ class GlossaryUpdateManager @Inject constructor(
     }
 
     private fun installDb(downloadedDb: File, manifest: GlossaryDbManifest) {
-        _updateStatus.value = DbUpdateStatus(
-            isChecking = true,
-            message = "正在安装",
-            detail = "版本：${manifest.contentVersion}"
+        _updateStatus.value = visibleStatus(
+            message = "正在安装术语库",
+            detail = formatStatusDetail(manifest)
         )
         val dbFile = TermDatabase.databaseFile(context)
         dbFile.parentFile?.mkdirs()

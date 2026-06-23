@@ -1,6 +1,13 @@
 package com.fgogotran.translation
 
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+
+enum class TranslationMode {
+    MANUAL,
+    SEMI_AUTO,
+    AUTO
+}
 
 /**
  * Bridge between the draggable overlay button and the accessibility pipeline.
@@ -8,12 +15,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 object TranslationTrigger {
     private val pending = AtomicBoolean(false)
     private val menuDismissSettleRequired = AtomicBoolean(false)
-    private val autoTranslateEnabled = AtomicBoolean(false)
+    private val translationMode = AtomicReference(TranslationMode.MANUAL)
     private val historyVisible = AtomicBoolean(false)
     private val menuVisible = AtomicBoolean(false)
 
     fun requestTranslation(afterMenuDismiss: Boolean = false) {
-        if (autoTranslateEnabled.get()) return
+        if (!canUserTapTranslate()) return
         menuDismissSettleRequired.set(afterMenuDismiss)
         pending.set(true)
     }
@@ -31,15 +38,37 @@ object TranslationTrigger {
         return menuDismissSettleRequired.getAndSet(false)
     }
 
+    fun setTranslationMode(mode: TranslationMode) {
+        translationMode.set(mode)
+        cancelPendingTranslation()
+    }
+
+    fun translationMode(): TranslationMode {
+        return translationMode.get()
+    }
+
+    fun isBackgroundTranslateEnabled(): Boolean {
+        return translationMode.get() != TranslationMode.MANUAL
+    }
+
+    fun isFullAutoEnabled(): Boolean {
+        return translationMode.get() == TranslationMode.AUTO
+    }
+
+    fun isSemiAutoEnabled(): Boolean {
+        return translationMode.get() == TranslationMode.SEMI_AUTO
+    }
+
+    fun canUserTapTranslate(): Boolean {
+        return translationMode.get() != TranslationMode.AUTO
+    }
+
     fun setAutoTranslateEnabled(enabled: Boolean) {
-        autoTranslateEnabled.set(enabled)
-        if (enabled) {
-            cancelPendingTranslation()
-        }
+        setTranslationMode(if (enabled) TranslationMode.AUTO else TranslationMode.MANUAL)
     }
 
     fun isAutoTranslateEnabled(): Boolean {
-        return autoTranslateEnabled.get()
+        return isFullAutoEnabled()
     }
 
     fun setHistoryVisible(visible: Boolean) {

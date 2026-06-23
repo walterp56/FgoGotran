@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.ui.component.BackendProviderLabel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -122,6 +123,52 @@ fun SettingsScreen(
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("术语库", style = MaterialTheme.typography.titleMedium)
+                    SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "等待自动更新" })
+                    SettingsInfoRow(
+                        label = "状态",
+                        value = when {
+                            dbUpdateStatus.visible && dbUpdateStatus.message.isNotBlank() -> dbUpdateStatus.message
+                            else -> "打开应用时自动检查"
+                        }
+                    )
+                    if (dbUpdateStatus.visible && dbUpdateStatus.detail.isNotBlank()) {
+                        Text(
+                            dbUpdateStatus.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                glossaryUpdateManager.updateIfNeeded(force = true)
+                            }
+                        },
+                        enabled = !dbUpdateStatus.isChecking,
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        if (dbUpdateStatus.isChecking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (dbUpdateStatus.isChecking) "检查中" else "检查更新")
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text("御主名称", style = MaterialTheme.typography.titleMedium)
@@ -151,43 +198,6 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.align(Alignment.End)
                         )
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("术语库", style = MaterialTheme.typography.titleMedium)
-                    SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "等待在线术语库" })
-                    SettingsInfoRow(
-                        label = "状态",
-                        value = dbUpdateStatus.message.ifBlank { "空闲" }
-                    )
-                    Text(
-                        "用于角色名和FGO专有名词翻译。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    Button(
-                        onClick = { scope.launch { glossaryUpdateManager.updateIfNeeded(force = true) } },
-                        enabled = !dbUpdateStatus.isChecking,
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        if (dbUpdateStatus.isChecking) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text(if (dbUpdateStatus.isChecking) "检查中" else "检查术语库更新")
                     }
                 }
             }

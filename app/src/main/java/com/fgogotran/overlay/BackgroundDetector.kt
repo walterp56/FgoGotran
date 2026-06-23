@@ -25,6 +25,9 @@ class BackgroundDetector @Inject constructor() {
         private const val MIN_CHOICE_LEFT_ANCHOR_DARK_RATIO = 0.58f
         private const val MIN_CHOICE_RIGHT_ANCHOR_DARK_RATIO = 0.48f
         private const val MIN_CHOICE_HEIGHT = 30
+        private const val MIN_FIXED_CHOICE_SLOT_DARK_RATIO = 0.46f
+        private const val MIN_FIXED_CHOICE_RAW_OVERLAP_RATIO = 0.22f
+        private const val MIN_FIXED_CHOICE_BORDER_RATIO = 0.08f
 
         private const val MIN_SKIP_WHITE_RATIO = 0.08f
         private const val MAX_SKIP_WHITE_RATIO = 0.55f
@@ -38,6 +41,30 @@ class BackgroundDetector @Inject constructor() {
         val whitePixels: Int,
         val ratio: Float
     )
+
+    private data class ChoiceSlotScore(
+        val darkRatio: Float,
+        val topBorderRatio: Float,
+        val bottomBorderRatio: Float
+    ) {
+        val hasBorder: Boolean
+            get() = topBorderRatio >= MIN_FIXED_CHOICE_BORDER_RATIO &&
+                bottomBorderRatio >= MIN_FIXED_CHOICE_BORDER_RATIO
+
+        val isVisible: Boolean
+            get() = darkRatio >= MIN_FIXED_CHOICE_SLOT_DARK_RATIO && hasBorder
+
+        val combinedScore: Float
+            get() = darkRatio + topBorderRatio + bottomBorderRatio
+    }
+
+    private data class FixedChoiceLayoutCandidate(
+        val slots: List<Rect>,
+        val scores: List<ChoiceSlotScore>
+    ) {
+        val combinedScore: Float
+            get() = scores.sumOf { it.combinedScore.toDouble() }.toFloat()
+    }
 
     /**
      * Locates repeated black choice panels inside the known story choice zone.
@@ -112,6 +139,22 @@ class BackgroundDetector @Inject constructor() {
 
         FgoLogger.info(tag, "Choice zone detected ${buttons.size} panels in $bounds ${buttons.map { it.flattenToString() }}")
         return buttons
+    }
+
+    fun snapChoiceButtonsToFixedSlots(
+        bitmap: Bitmap,
+        rawButtons: List<Rect>,
+        fixedSlotLayouts: List<List<Rect>>
+    ): List<Rect> {
+        val fixedButtons = fixedChoiceButtons(bitmap, rawButtons, fixedSlotLayouts)
+        if (fixedButtons != null && fixedButtons != rawButtons) {
+            FgoLogger.debug(
+                tag,
+                "Snapped choice panels to fixed FGO layout: raw=${rawButtons.map { it.flattenToString() }} " +
+                    "fixed=${fixedButtons.map { it.flattenToString() }}"
+            )
+        }
+        return fixedButtons ?: rawButtons
     }
 
     /**
@@ -330,6 +373,167 @@ class BackgroundDetector @Inject constructor() {
             total++
         }
         return if (total == 0) 0f else dark.toFloat() / total
+    }
+
+    private fun fixedChoiceButtons(
+        bitmap: Bitmap,
+        rawButtons: List<Rect>,
+        fixedSlotLayouts: List<List<Rect>>
+    ): List<Rect>? {
+        if (rawButtons.isEmpty() || fixedSlotLayouts.isEmpty()) return null
+
+        val candidate = fixedSlotLayouts
+            .filter { it.isNotEmpty() }
+            .sortedByDescending { it.size }
+            .mapNotNull { layout ->
+                val clippedLayout = layout.mapNotNull { clippedToBitmap(it, bitmap) }
+                if (clippedLayout.size != layout.size) return@mapNotNull null
+                val scores = clippedLayout.map { slot -> fixedChoiceSlotScore(bitmap, slot) }
+                if (!scores.all { it.isVisible }) return@mapNotNull null
+                if (!rawButtons.any { raw ->
+                    clippedLayout.any { slot ->
+                        verticalOverlapRatio(raw, slot) >= MIN_FIXED_CHOICE_RAW_OVERLAP_RATIO
+                    }
+                }) {
+                    return@mapNotNull null
+                }
+
+                FixedChoiceLayoutCandidate(clippedLayout, scores)
+            }
+            .maxWithOrNull(
+                compareBy<FixedChoiceLayoutCandidate> { it.slots.size }
+                    .thenBy { it.combinedScore }
+            )
+
+        if (candidate != null) {
+            FgoLogger.debug(
+                tag,
+                "Fixed choice slot signature accepted: count=${candidate.slots.size}, " +
+                    "scores=${candidate.scores.map { "dark=${it.darkRatio},top=${it.topBorderRatio},bottom=${it.bottomBorderRatio}" }}"
+            )
+        }
+        return candidate?.slots
+    }
+
+    private fun clippedToBitmap(rect: Rect, bitmap: Bitmap): Rect? {
+        return Rect(rect).takeIf { clipped ->
+            clipped.intersect(0, 0, bitmap.width, bitmap.height) &&
+                clipped.width() > 0 &&
+                clipped.height() > 0
+        }
+    }
+
+    private fun fixedChoiceSlotScore(bitmap: Bitmap, slot: Rect): ChoiceSlotScore {
+        val bounds = Rect(slot)
+        if (!bounds.intersect(0, 0, bitmap.width, bitmap.height) ||
+            bounds.width() <= 0 ||
+            bounds.height() <= 0
+        ) {
+            return ChoiceSlotScore(0f, 0f, 0f)
+        }
+
+        val width = bounds.width()
+        val height = bounds.height()
+        val sampleTop = bounds.top + (height * 0.16f).toInt()
+        val sampleBottom = bounds.bottom - (height * 0.10f).toInt()
+        val leftAnchor = Rect(
+            bounds.left + (width * CHOICE_LEFT_ANCHOR_START_RATIO).toInt(),
+            sampleTop,
+            bounds.left + (width * CHOICE_LEFT_ANCHOR_END_RATIO).toInt(),
+            sampleBottom
+        )
+        val rightAnchor = Rect(
+            bounds.left + (width * CHOICE_RIGHT_ANCHOR_START_RATIO).toInt(),
+            sampleTop,
+            bounds.left + (width * CHOICE_RIGHT_ANCHOR_END_RATIO).toInt(),
+            sampleBottom
+        )
+        val darkRatio = minOf(
+            darkRatioInRect(bitmap, leftAnchor),
+            darkRatioInRect(bitmap, rightAnchor)
+        )
+        val horizontalInset = (width * 0.035f).toInt().coerceAtLeast(12)
+        val borderBandHeight = (height * 0.08f).toInt().coerceIn(5, 12)
+        val topBorder = Rect(
+            bounds.left + horizontalInset,
+            bounds.top,
+            bounds.right - horizontalInset,
+            bounds.top + borderBandHeight
+        )
+        val bottomBorder = Rect(
+            bounds.left + horizontalInset,
+            bounds.bottom - borderBandHeight,
+            bounds.right - horizontalInset,
+            bounds.bottom
+        )
+
+        return ChoiceSlotScore(
+            darkRatio = darkRatio,
+            topBorderRatio = choiceBorderRatioInRect(bitmap, topBorder),
+            bottomBorderRatio = choiceBorderRatioInRect(bitmap, bottomBorder)
+        )
+    }
+
+    private fun darkRatioInRect(bitmap: Bitmap, rect: Rect): Float {
+        val bounds = Rect(rect)
+        if (!bounds.intersect(0, 0, bitmap.width, bitmap.height) ||
+            bounds.width() <= 0 ||
+            bounds.height() <= 0
+        ) {
+            return 0f
+        }
+
+        var dark = 0
+        var total = 0
+        for (y in bounds.top until bounds.bottom step 3) {
+            for (x in bounds.left until bounds.right step 3) {
+                if (getPixelLuminance(bitmap, x, y) < DARK_LUMINANCE_THRESHOLD) {
+                    dark++
+                }
+                total++
+            }
+        }
+        return if (total == 0) 0f else dark.toFloat() / total
+    }
+
+    private fun choiceBorderRatioInRect(bitmap: Bitmap, rect: Rect): Float {
+        val bounds = Rect(rect)
+        if (!bounds.intersect(0, 0, bitmap.width, bitmap.height) ||
+            bounds.width() <= 0 ||
+            bounds.height() <= 0
+        ) {
+            return 0f
+        }
+
+        var border = 0
+        var total = 0
+        for (y in bounds.top until bounds.bottom step 2) {
+            for (x in bounds.left until bounds.right step 2) {
+                if (isChoiceBorderPixel(bitmap.getPixel(x, y))) {
+                    border++
+                }
+                total++
+            }
+        }
+        return if (total == 0) 0f else border.toFloat() / total
+    }
+
+    private fun isChoiceBorderPixel(pixel: Int): Boolean {
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        val max = maxOf(r, g, b)
+        val min = minOf(r, g, b)
+        val brightNeutral = r >= 175 && g >= 185 && b >= 190 && max - min <= 82
+        val cyanBlue = r >= 80 && g >= 125 && b >= 150 && b >= r + 24 && g >= r + 12
+        val paleBlue = r >= 110 && g >= 150 && b >= 170 && b >= r + 18 && max - min <= 115
+        return brightNeutral || cyanBlue || paleBlue
+    }
+
+    private fun verticalOverlapRatio(first: Rect, second: Rect): Float {
+        val overlap = minOf(first.bottom, second.bottom) - maxOf(first.top, second.top)
+        if (overlap <= 0) return 0f
+        return overlap.toFloat() / minOf(first.height(), second.height()).coerceAtLeast(1)
     }
 
     private fun addChoiceButton(
