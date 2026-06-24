@@ -28,6 +28,11 @@ class BackgroundDetector @Inject constructor() {
         private const val MIN_FIXED_CHOICE_SLOT_DARK_RATIO = 0.46f
         private const val MIN_FIXED_CHOICE_RAW_OVERLAP_RATIO = 0.22f
         private const val MIN_FIXED_CHOICE_BORDER_RATIO = 0.08f
+        private const val MIN_PARTIAL_FIXED_CHOICE_DARK_RATIO = 0.42f
+        private const val MIN_PARTIAL_FIXED_CHOICE_HEIGHT_RATIO = 0.36f
+        private const val MAX_PARTIAL_FIXED_CHOICE_HEIGHT_RATIO = 0.82f
+        private const val MIN_PARTIAL_FIXED_CHOICE_WIDTH_RATIO = 0.86f
+        private const val MIN_PARTIAL_FIXED_CHOICE_SLOT_OVERLAP_RATIO = 0.82f
 
         private const val MIN_SKIP_WHITE_RATIO = 0.08f
         private const val MAX_SKIP_WHITE_RATIO = 0.55f
@@ -61,6 +66,32 @@ class BackgroundDetector @Inject constructor() {
     private data class FixedChoiceLayoutCandidate(
         val slots: List<Rect>,
         val scores: List<ChoiceSlotScore>
+    ) {
+        val combinedScore: Float
+            get() = scores.sumOf { it.combinedScore.toDouble() }.toFloat()
+    }
+
+    private data class PartialChoiceSlotScore(
+        val rawDarkRatio: Float,
+        val borderRatio: Float,
+        val widthRatio: Float,
+        val heightRatio: Float,
+        val slotOverlapRatio: Float
+    ) {
+        val isVisible: Boolean
+            get() = rawDarkRatio >= MIN_PARTIAL_FIXED_CHOICE_DARK_RATIO &&
+                borderRatio >= MIN_FIXED_CHOICE_BORDER_RATIO &&
+                widthRatio >= MIN_PARTIAL_FIXED_CHOICE_WIDTH_RATIO &&
+                heightRatio in MIN_PARTIAL_FIXED_CHOICE_HEIGHT_RATIO..MAX_PARTIAL_FIXED_CHOICE_HEIGHT_RATIO &&
+                slotOverlapRatio >= MIN_PARTIAL_FIXED_CHOICE_SLOT_OVERLAP_RATIO
+
+        val combinedScore: Float
+            get() = rawDarkRatio + borderRatio + widthRatio + slotOverlapRatio
+    }
+
+    private data class PartialFixedChoiceLayoutCandidate(
+        val slots: List<Rect>,
+        val scores: List<PartialChoiceSlotScore>
     ) {
         val combinedScore: Float
             get() = scores.sumOf { it.combinedScore.toDouble() }.toFloat()
@@ -380,7 +411,7 @@ class BackgroundDetector @Inject constructor() {
         rawButtons: List<Rect>,
         fixedSlotLayouts: List<List<Rect>>
     ): List<Rect>? {
-        if (rawButtons.isEmpty() || fixedSlotLayouts.isEmpty()) return null
+        if (fixedSlotLayouts.isEmpty()) return null
 
         val candidate = fixedSlotLayouts
             .filter { it.isNotEmpty() }
@@ -390,7 +421,7 @@ class BackgroundDetector @Inject constructor() {
                 if (clippedLayout.size != layout.size) return@mapNotNull null
                 val scores = clippedLayout.map { slot -> fixedChoiceSlotScore(bitmap, slot) }
                 if (!scores.all { it.isVisible }) return@mapNotNull null
-                if (!rawButtons.any { raw ->
+                if (rawButtons.isNotEmpty() && !rawButtons.any { raw ->
                     clippedLayout.any { slot ->
                         verticalOverlapRatio(raw, slot) >= MIN_FIXED_CHOICE_RAW_OVERLAP_RATIO
                     }
@@ -411,8 +442,42 @@ class BackgroundDetector @Inject constructor() {
                 "Fixed choice slot signature accepted: count=${candidate.slots.size}, " +
                     "scores=${candidate.scores.map { "dark=${it.darkRatio},top=${it.topBorderRatio},bottom=${it.bottomBorderRatio}" }}"
             )
+            return candidate.slots
         }
-        return candidate?.slots
+
+        val partialCandidate = partialFixedChoiceButtons(bitmap, rawButtons, fixedSlotLayouts)
+        if (partialCandidate != null) {
+            FgoLogger.debug(
+                tag,
+                "Partial fixed choice slot signature accepted: count=${partialCandidate.slots.size}, " +
+                    "scores=${partialCandidate.scores.map { "dark=${it.rawDarkRatio},border=${it.borderRatio},height=${it.heightRatio},overlap=${it.slotOverlapRatio}" }}"
+            )
+        }
+        return partialCandidate?.slots
+    }
+
+    private fun partialFixedChoiceButtons(
+        bitmap: Bitmap,
+        rawButtons: List<Rect>,
+        fixedSlotLayouts: List<List<Rect>>
+    ): PartialFixedChoiceLayoutCandidate? {
+        val rawSorted = rawButtons.sortedBy { it.top }
+        return fixedSlotLayouts
+            .filter { it.size == rawSorted.size }
+            .mapNotNull { layout ->
+                val clippedLayout = layout.mapNotNull { clippedToBitmap(it, bitmap) }.sortedBy { it.top }
+                if (clippedLayout.size != layout.size) return@mapNotNull null
+                val scores = clippedLayout.zip(rawSorted).map { (slot, raw) ->
+                    partialFixedChoiceSlotScore(bitmap, raw, slot)
+                }
+                if (!scores.all { it.isVisible }) return@mapNotNull null
+
+                PartialFixedChoiceLayoutCandidate(clippedLayout, scores)
+            }
+            .maxWithOrNull(
+                compareBy<PartialFixedChoiceLayoutCandidate> { it.slots.size }
+                    .thenBy { it.combinedScore }
+            )
     }
 
     private fun clippedToBitmap(rect: Rect, bitmap: Bitmap): Rect? {
@@ -471,6 +536,81 @@ class BackgroundDetector @Inject constructor() {
             darkRatio = darkRatio,
             topBorderRatio = choiceBorderRatioInRect(bitmap, topBorder),
             bottomBorderRatio = choiceBorderRatioInRect(bitmap, bottomBorder)
+        )
+    }
+
+    private fun partialFixedChoiceSlotScore(bitmap: Bitmap, rawButton: Rect, slot: Rect): PartialChoiceSlotScore {
+        val raw = clippedToBitmap(rawButton, bitmap) ?: return PartialChoiceSlotScore(0f, 0f, 0f, 0f, 1f)
+        val fixed = clippedToBitmap(slot, bitmap) ?: return PartialChoiceSlotScore(0f, 0f, 0f, 0f, 1f)
+        if (raw.height() <= 0 || fixed.height() <= 0 || fixed.width() <= 0) {
+            return PartialChoiceSlotScore(0f, 0f, 0f, 0f, 1f)
+        }
+
+        val rawDarkBounds = Rect(raw).apply {
+            val verticalInset = (height() * 0.16f).toInt().coerceAtLeast(4)
+            top += verticalInset
+            bottom -= verticalInset
+        }
+        val rawDarkRatio = if (rawDarkBounds.height() > 0) {
+            darkRatioInRect(bitmap, rawDarkBounds)
+        } else {
+            darkRatioInRect(bitmap, raw)
+        }
+
+        val horizontalInset = (fixed.width() * 0.035f).toInt().coerceAtLeast(12)
+        val borderBandHeight = (fixed.height() * 0.08f).toInt().coerceIn(5, 12)
+        val topFixedBorder = horizontalBand(
+            fixed = fixed,
+            centerY = fixed.top + borderBandHeight / 2,
+            horizontalInset = horizontalInset,
+            bandHeight = borderBandHeight
+        )
+        val bottomFixedBorder = horizontalBand(
+            fixed = fixed,
+            centerY = fixed.bottom - borderBandHeight / 2,
+            horizontalInset = horizontalInset,
+            bandHeight = borderBandHeight
+        )
+        val topRawBorder = horizontalBand(
+            fixed = fixed,
+            centerY = raw.top + borderBandHeight / 2,
+            horizontalInset = horizontalInset,
+            bandHeight = borderBandHeight
+        )
+        val bottomRawBorder = horizontalBand(
+            fixed = fixed,
+            centerY = raw.bottom - borderBandHeight / 2,
+            horizontalInset = horizontalInset,
+            bandHeight = borderBandHeight
+        )
+        val borderRatio = maxOf(
+            choiceBorderRatioInRect(bitmap, topFixedBorder),
+            choiceBorderRatioInRect(bitmap, bottomFixedBorder),
+            choiceBorderRatioInRect(bitmap, topRawBorder),
+            choiceBorderRatioInRect(bitmap, bottomRawBorder)
+        )
+
+        return PartialChoiceSlotScore(
+            rawDarkRatio = rawDarkRatio,
+            borderRatio = borderRatio,
+            widthRatio = raw.width().toFloat() / fixed.width().coerceAtLeast(1),
+            heightRatio = raw.height().toFloat() / fixed.height().coerceAtLeast(1),
+            slotOverlapRatio = verticalOverlapRatio(raw, fixed)
+        )
+    }
+
+    private fun horizontalBand(
+        fixed: Rect,
+        centerY: Int,
+        horizontalInset: Int,
+        bandHeight: Int
+    ): Rect {
+        val halfHeight = bandHeight / 2
+        return Rect(
+            fixed.left + horizontalInset,
+            centerY - halfHeight,
+            fixed.right - horizontalInset,
+            centerY - halfHeight + bandHeight
         )
     }
 

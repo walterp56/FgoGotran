@@ -515,6 +515,16 @@ class FgoAccessibilityService : AccessibilityService() {
         cropResultOverlay.hide()
     }
 
+    fun stopRunnerSession() {
+        FgoLogger.info(tag, "Runner service stopped; disabling active translation")
+        TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
+        autoScanReadyAt = 0L
+        tapAdvancePolling = false
+        cancelCurrentTranslation()
+        translationOverlay.hideAll()
+        cropResultOverlay.hide()
+    }
+
     private fun cancelCurrentTranslation() {
         stopVersion++
         TranslationTrigger.cancelPendingTranslation()
@@ -632,6 +642,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun processScreen(mode: ProcessingMode) {
         if (isProcessing) return
+        if (!isProcessingModeEnabled(mode)) {
+            FgoLogger.debug(tag, "Skipping $mode because translation mode is no longer active")
+            return
+        }
         if (TranslationTrigger.isUiBlockingOcr()) {
             FgoLogger.debug(tag, "Overlay UI visible; skipping OCR")
             return
@@ -1447,6 +1461,16 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         }
         val renderDuration = SystemClock.elapsedRealtime() - renderStartedAt
+        if (processingVersion != stopVersion) {
+            FgoLogger.debug(tag, "Translation was stopped during render; discarding rendered bitmap")
+            rendered.recycle()
+            return false
+        }
+        if (!isProcessingModeEnabled(mode)) {
+            FgoLogger.debug(tag, "Translation mode changed during render; discarding rendered bitmap")
+            rendered.recycle()
+            return false
+        }
         rememberRenderedSourceText(mode, sourceFingerprint)
         clearFailedRenderAttempt(sourceFingerprint)
         if (mode != ProcessingMode.SEMI_AUTO_CHOICE_TAP) {
@@ -1478,6 +1502,15 @@ class FgoAccessibilityService : AccessibilityService() {
                     "total=${SystemClock.elapsedRealtime() - processStartedAt}ms"
         )
         return true
+    }
+
+    private fun isProcessingModeEnabled(mode: ProcessingMode): Boolean {
+        return when (mode) {
+            ProcessingMode.MANUAL_TAP -> TranslationTrigger.canUserTapTranslate()
+            ProcessingMode.SEMI_AUTO_CHOICE_TAP -> TranslationTrigger.isSemiAutoEnabled()
+            ProcessingMode.SEMI_AUTO_BACKGROUND -> TranslationTrigger.isSemiAutoEnabled()
+            ProcessingMode.AUTO_BACKGROUND -> TranslationTrigger.isAutoTranslateEnabled()
+        }
     }
 
     private fun lastRenderedSourceTextFor(mode: ProcessingMode): String {

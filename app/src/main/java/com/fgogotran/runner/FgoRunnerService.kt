@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
 import com.fgogotran.MainActivity
 import com.fgogotran.R
+import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.util.FgoLogger
@@ -80,6 +81,7 @@ class FgoRunnerService : Service() {
 
     override fun onDestroy() {
         FgoLogger.info(tag, "Service destroyed")
+        FgoAccessibilityService.instance?.stopRunnerSession()
         overlay.destroy()
         SessionTranslationHistory.clear()
         serviceScope.cancel()

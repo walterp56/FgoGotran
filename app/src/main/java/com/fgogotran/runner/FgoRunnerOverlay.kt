@@ -99,7 +99,7 @@ class FgoRunnerOverlay @Inject constructor(
     private companion object {
         const val FAILURE_FEEDBACK_MS = 1800L
         const val POSITION_SAVE_DEBOUNCE_MS = 300L
-        const val FLOATING_BUTTON_SIZE_DP = 56f
+        const val FLOATING_BUTTON_SIZE_DP = 72f
     }
 
     private enum class ButtonScreen {
@@ -495,7 +495,7 @@ class FgoRunnerOverlay @Inject constructor(
     private fun requestClose() {
         dismissMenu()
         cancelCropMode()
-        FgoAccessibilityService.instance?.clearCropTranslationOverlay()
+        FgoAccessibilityService.instance?.stopRunnerSession()
         FgoLogger.info(tag, "Close requested from floating menu")
         onCloseRequested?.invoke()
     }

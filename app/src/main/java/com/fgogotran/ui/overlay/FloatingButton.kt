@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.max
 
 enum class FloatingButtonMode {
     MANUAL,
@@ -66,6 +67,8 @@ fun FloatingButton(
     onLongClick: () -> Unit,
     onDrag: (Float, Float) -> Unit
 ) {
+    val touchTargetSize = 72.dp
+    val visualButtonSize = 60.dp
     val idleAlpha = 0.38f
     val pressedAlpha = 0.62f
     val baseColor = when (mode) {
@@ -85,25 +88,16 @@ fun FloatingButton(
     )
     val hapticFeedback = LocalHapticFeedback.current
 
-    Surface(
-        color = baseColor.copy(alpha = buttonAlpha),
-        contentColor = Color.White.copy(alpha = if (pressed) 0.9f else 0.68f),
-        border = if (showFailureRing) BorderStroke(3.dp, Color(0xFFFF4A4A)) else null,
-        shape = CircleShape,
-        shadowElevation = if (pressed) 8.dp else 2.dp,
+    Box(
         modifier = Modifier
-            .size(56.dp)
-            .graphicsLayer {
-                scaleX = buttonScale
-                scaleY = buttonScale
-            }
+            .size(touchTargetSize)
             .pointerInput(onClick, onLongClick, onDrag) {
                 try {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val pointerId = down.id
-                        val touchSlop = viewConfiguration.touchSlop
-                        val longPressTimeout = viewConfiguration.longPressTimeoutMillis
+                        val dragSlop = max(viewConfiguration.touchSlop, 18.dp.toPx())
+                        val longPressTimeout = minOf(viewConfiguration.longPressTimeoutMillis, 420L)
 
                         pressed = true
                         var totalDrag = Offset.Zero
@@ -130,7 +124,7 @@ fun FloatingButton(
                                 val delta = change.positionChange()
                                 if (delta != Offset.Zero) {
                                     totalDrag += delta
-                                    if (totalDrag.getDistance() > touchSlop) {
+                                    if (totalDrag.getDistance() > dragSlop) {
                                         dragStarted = true
                                         firstDragDelta = totalDrag
                                         change.consume()
@@ -185,23 +179,38 @@ fun FloatingButton(
                 } finally {
                     pressed = false
                 }
-            }
+            },
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+        Surface(
+            color = baseColor.copy(alpha = buttonAlpha),
+            contentColor = Color.White.copy(alpha = if (pressed) 0.9f else 0.68f),
+            border = if (showFailureRing) BorderStroke(3.dp, Color(0xFFFF4A4A)) else null,
+            shape = CircleShape,
+            shadowElevation = if (pressed) 8.dp else 2.dp,
+            modifier = Modifier
+                .size(visualButtonSize)
+                .graphicsLayer {
+                    scaleX = buttonScale
+                    scaleY = buttonScale
+                }
         ) {
-            FloatingActionGlyph(
-                icon = when (mode) {
-                    FloatingButtonMode.MANUAL -> FloatingActionIcon.GO
-                    FloatingButtonMode.SEMI_AUTO -> FloatingActionIcon.SEMI
-                    FloatingButtonMode.AUTO -> FloatingActionIcon.AUTO
-                    FloatingButtonMode.CROP -> FloatingActionIcon.CROP
-                },
-                prominent = true,
-                color = Color.White.copy(alpha = if (pressed) 0.95f else 0.82f),
-                modifier = Modifier.size(40.dp)
-            )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                FloatingActionGlyph(
+                    icon = when (mode) {
+                        FloatingButtonMode.MANUAL -> FloatingActionIcon.GO
+                        FloatingButtonMode.SEMI_AUTO -> FloatingActionIcon.SEMI
+                        FloatingButtonMode.AUTO -> FloatingActionIcon.AUTO
+                        FloatingButtonMode.CROP -> FloatingActionIcon.CROP
+                    },
+                    prominent = true,
+                    color = Color.White.copy(alpha = if (pressed) 0.95f else 0.82f),
+                    modifier = Modifier.size(42.dp)
+                )
+            }
         }
     }
 }
