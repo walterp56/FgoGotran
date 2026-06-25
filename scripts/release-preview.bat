@@ -5,9 +5,11 @@ set "PUBLISH_ARGS="
 if defined FGOGOTRAN_S3_URI set PUBLISH_ARGS=%PUBLISH_ARGS% -S3Uri "%FGOGOTRAN_S3_URI%"
 if defined FGOGOTRAN_CLOUDFRONT_DISTRIBUTION_ID set PUBLISH_ARGS=%PUBLISH_ARGS% -CloudFrontDistributionId "%FGOGOTRAN_CLOUDFRONT_DISTRIBUTION_ID%"
 if defined FGOGOTRAN_AWS_CLI set PUBLISH_ARGS=%PUBLISH_ARGS% -AwsCli "%FGOGOTRAN_AWS_CLI%"
+if defined FGOGOTRAN_WEB_PREVIEW_OUTPUT set PUBLISH_ARGS=%PUBLISH_ARGS% -WebPreviewOutput "%FGOGOTRAN_WEB_PREVIEW_OUTPUT%"
 
 echo release-preview options:
-echo   Set FGOGOTRAN_S3_URI and FGOGOTRAN_CLOUDFRONT_DISTRIBUTION_ID to publish and invalidate automatically.
+echo   Generates preview JSON and copies it to web\public\term-preview by default.
+echo   Optional: set FGOGOTRAN_S3_URI and FGOGOTRAN_CLOUDFRONT_DISTRIBUTION_ID to publish legacy CDN preview files.
 echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0release-preview.ps1" %PUBLISH_ARGS% %*
 set "EXIT_CODE=%ERRORLEVEL%"

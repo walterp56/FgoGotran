@@ -48,6 +48,7 @@ class SettingsRepository @Inject constructor(
         val KEY_DB_LOCALE = stringPreferencesKey("db_locale")
         val KEY_DB_LAST_CHECK_AT = longPreferencesKey("db_last_check_at")
         val KEY_DB_LAST_UPDATE_AT = longPreferencesKey("db_last_update_at")
+        val KEY_IGNORED_APP_UPDATE_VERSION_CODE = longPreferencesKey("ignored_app_update_version_code")
         val KEY_FLOATING_BUTTON_X = intPreferencesKey("floating_button_x")
         val KEY_FLOATING_BUTTON_Y = intPreferencesKey("floating_button_y")
         val KEY_FLOATING_BUTTON_PORTRAIT_X = intPreferencesKey("floating_button_portrait_x")
@@ -249,6 +250,11 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_DB_LAST_UPDATE_AT] ?: 0L
     }
 
+    /** Latest app update version code the user chose not to be reminded about automatically. */
+    val ignoredAppUpdateVersionCode: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[KEY_IGNORED_APP_UPDATE_VERSION_CODE] ?: 0L
+    }
+
     /** Last user-positioned floating button x coordinate. */
     val floatingButtonX: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[KEY_FLOATING_BUTTON_X] ?: DEFAULT_FLOATING_BUTTON_X
@@ -272,6 +278,16 @@ class SettingsRepository @Inject constructor(
         val normalizedMode = normalizeTranslationMode(mode)
         context.dataStore.edit { it[KEY_LAST_TRANSLATION_MODE] = normalizedMode }
         FgoLogger.debug(tag, "Setting updated: last_translation_mode=$normalizedMode")
+    }
+
+    suspend fun getIgnoredAppUpdateVersionCode(): Long {
+        return ignoredAppUpdateVersionCode.first()
+    }
+
+    suspend fun setIgnoredAppUpdateVersionCode(versionCode: Long) {
+        val safeVersionCode = versionCode.coerceAtLeast(0L)
+        context.dataStore.edit { it[KEY_IGNORED_APP_UPDATE_VERSION_CODE] = safeVersionCode }
+        FgoLogger.debug(tag, "Setting updated: ignored_app_update_version_code=$safeVersionCode")
     }
 
     suspend fun saveApiSettings(

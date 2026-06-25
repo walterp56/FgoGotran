@@ -1,7 +1,5 @@
 package com.fgogotran.ui.screen
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,7 +42,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
+import com.fgogotran.ui.component.AppUpdateDialog
 import com.fgogotran.ui.component.BackendProviderLabel
+import com.fgogotran.ui.component.openAppDownloadPage
 import com.fgogotran.update.AppVersionCheckResult
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.update.AppVersionManager
@@ -129,36 +128,17 @@ fun SettingsScreen(
     }
 
     fun openDownloadPage() {
-        runCatching {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(AppVersionManager.DOWNLOAD_PAGE_URL)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            )
-        }
+        openAppDownloadPage(context)
     }
 
     pendingUpdate?.let { update ->
-        AlertDialog(
-            onDismissRequest = { pendingUpdate = null },
-            title = { Text("发现新版本") },
-            text = {
-                Text("当前版本 $currentVersionName，最新版本 ${update.versionName}。")
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingUpdate = null }) {
-                    Text("暂不更新")
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        pendingUpdate = null
-                        openDownloadPage()
-                    }
-                ) {
-                    Text("立即更新")
-                }
+        AppUpdateDialog(
+            currentVersionName = currentVersionName,
+            update = update,
+            onDismiss = { pendingUpdate = null },
+            onUpdateNow = {
+                pendingUpdate = null
+                openDownloadPage()
             }
         )
     }

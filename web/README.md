@@ -18,5 +18,17 @@ https://cdn.fgogotran.com
 
 ## Deployment
 
-Deploy `web/` with AWS Amplify Hosting. Keep downloadable assets, DB packages,
-and TSV preview files on S3 + CloudFront under `cdn.fgogotran.com`.
+Deploy `web/` with AWS Amplify Hosting. Keep downloadable assets and DB
+packages on S3 + CloudFront under `cdn.fgogotran.com`.
+
+Website-only glossary preview JSON is generated into:
+
+```text
+web/public/term-preview/zh-Hans/latest/
+```
+
+Run this before deploying the website when TSV files change:
+
+```bash
+../scripts/release-preview.bat
+```

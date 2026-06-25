@@ -1,0 +1,716 @@
+[
+  {
+    "jp_term": "オリュンポス",
+    "cn_term": "奥林波斯",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "妖精國",
+    "cn_term": "妖精国",
+    "category": "place",
+    "aliases": "妖精国"
+  },
+  {
+    "jp_term": "カルデア",
+    "cn_term": "迦勒底",
+    "category": "place",
+    "aliases": "Chaldea"
+  },
+  {
+    "jp_term": "カルデアス",
+    "cn_term": "迦勒底亚斯",
+    "category": "game_term",
+    "aliases": "CHALDEAS"
+  },
+  {
+    "jp_term": "ノウム・カルデア",
+    "cn_term": "新迦勒底",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "フィニス・カルデア",
+    "cn_term": "菲尼斯·迦勒底",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "人理",
+    "cn_term": "人理",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "人理修復",
+    "cn_term": "人理修复",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "人理継続保障機関",
+    "cn_term": "人理续存保障机构",
+    "category": "organization",
+    "aliases": ""
+  },
+  {
+    "jp_term": "人理保障機関カルデア",
+    "cn_term": "人理保障机构迦勒底",
+    "category": "organization",
+    "aliases": ""
+  },
+  {
+    "jp_term": "特異点",
+    "cn_term": "特异点",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "亜種特異点",
+    "cn_term": "亚种特异点",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "異聞帯",
+    "cn_term": "异闻带",
+    "category": "game_term",
+    "aliases": "Lostbelt"
+  },
+  {
+    "jp_term": "ロストベルト",
+    "cn_term": "异闻带",
+    "category": "game_term",
+    "aliases": "Lostbelt"
+  },
+  {
+    "jp_term": "空想樹",
+    "cn_term": "空想树",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "クリプター",
+    "cn_term": "隐匿者",
+    "category": "game_term",
+    "aliases": "Crypter"
+  },
+  {
+    "jp_term": "異星の神",
+    "cn_term": "异星之神",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ビースト",
+    "cn_term": "Beast",
+    "category": "class   兽",
+    "aliases": ""
+  },
+  {
+    "jp_term": "グランド",
+    "cn_term": "冠位",
+    "category": "game_term",
+    "aliases": "Grand"
+  },
+  {
+    "jp_term": "グランドサーヴァント",
+    "cn_term": "冠位从者",
+    "category": "game_term",
+    "aliases": "Grand Servant"
+  },
+  {
+    "jp_term": "サーヴァント",
+    "cn_term": "从者",
+    "category": "game_term",
+    "aliases": "Servant"
+  },
+  {
+    "jp_term": "マスター",
+    "cn_term": "御主",
+    "category": "game_term",
+    "aliases": "Master"
+  },
+  {
+    "jp_term": "英霊",
+    "cn_term": "英灵",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "守護者",
+    "cn_term": "守护者",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "疑似サーヴァント",
+    "cn_term": "拟似从者",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "デミ・サーヴァント",
+    "cn_term": "亚从者",
+    "category": "game_term",
+    "aliases": "Demi-Servant"
+  },
+  {
+    "jp_term": "シャドウサーヴァント",
+    "cn_term": "影从者",
+    "category": "game_term",
+    "aliases": "Shadow Servant"
+  },
+  {
+    "jp_term": "宝具",
+    "cn_term": "宝具",
+    "category": "game_term",
+    "aliases": "Noble Phantasm"
+  },
+  {
+    "jp_term": "スキル",
+    "cn_term": "技能",
+    "category": "game_term",
+    "aliases": "Skill"
+  },
+  {
+    "jp_term": "概念礼装",
+    "cn_term": "概念礼装",
+    "category": "game_term",
+    "aliases": "Craft Essence,礼装"
+  },
+  {
+    "jp_term": "聖晶石",
+    "cn_term": "圣晶石",
+    "category": "item",
+    "aliases": ""
+  },
+  {
+    "jp_term": "聖杯",
+    "cn_term": "圣杯",
+    "category": "item",
+    "aliases": ""
+  },
+  {
+    "jp_term": "聖杯戦争",
+    "cn_term": "圣杯战争",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "令呪",
+    "cn_term": "令咒",
+    "category": "game_term",
+    "aliases": "Command Spell"
+  },
+  {
+    "jp_term": "魔術",
+    "cn_term": "魔术",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "魔術師",
+    "cn_term": "魔术师",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "魔力",
+    "cn_term": "魔力",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "魔眼",
+    "cn_term": "魔眼",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "魔術回路",
+    "cn_term": "魔术回路",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "霊基",
+    "cn_term": "灵基",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "霊核",
+    "cn_term": "灵核",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "霊脈",
+    "cn_term": "灵脉",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "霊子",
+    "cn_term": "灵子",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "霊子転移",
+    "cn_term": "灵子转移",
+    "category": "game_term",
+    "aliases": "レイシフト,Rayshift"
+  },
+  {
+    "jp_term": "レイシフト",
+    "cn_term": "灵子转移",
+    "category": "game_term",
+    "aliases": "Rayshift"
+  },
+  {
+    "jp_term": "霊衣",
+    "cn_term": "灵衣",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "聖杯探索",
+    "cn_term": "圣杯探索",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "グランドオーダー",
+    "cn_term": "冠位指定",
+    "category": "game_term",
+    "aliases": "Grand Order"
+  },
+  {
+    "jp_term": "冠位指定",
+    "cn_term": "冠位指定",
+    "category": "game_term",
+    "aliases": "Grand Order"
+  },
+  {
+    "jp_term": "抑止力",
+    "cn_term": "抑止力",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "根源",
+    "cn_term": "根源",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "アラヤ",
+    "cn_term": "阿赖耶",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ガイア",
+    "cn_term": "盖亚",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ムーンセル",
+    "cn_term": "月之圣杯",
+    "category": "game_term",
+    "aliases": "Moon Cell"
+  },
+  {
+    "jp_term": "聖剣",
+    "cn_term": "圣剑",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "円卓",
+    "cn_term": "圆桌",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "円卓の騎士",
+    "cn_term": "圆桌骑士",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "妖精",
+    "cn_term": "妖精",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "竜種",
+    "cn_term": "龙种",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "神霊",
+    "cn_term": "神灵",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "英霊召喚",
+    "cn_term": "英灵召唤",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "召喚",
+    "cn_term": "召唤",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "強化",
+    "cn_term": "强化",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "再臨",
+    "cn_term": "灵基再临",
+    "category": "game_term",
+    "aliases": "霊基再臨"
+  },
+  {
+    "jp_term": "霊基再臨",
+    "cn_term": "灵基再临",
+    "category": "game_term",
+    "aliases": "再臨"
+  },
+  {
+    "jp_term": "セイバー",
+    "cn_term": "Saber",
+    "category": "class",
+    "aliases": "剑士"
+  },
+  {
+    "jp_term": "アーチャー",
+    "cn_term": "Archer",
+    "category": "class",
+    "aliases": "弓兵"
+  },
+  {
+    "jp_term": "ランサー",
+    "cn_term": "Lancer",
+    "category": "class",
+    "aliases": "枪兵"
+  },
+  {
+    "jp_term": "ライダー",
+    "cn_term": "Rider",
+    "category": "class",
+    "aliases": "骑兵"
+  },
+  {
+    "jp_term": "キャスター",
+    "cn_term": "Caster",
+    "category": "class",
+    "aliases": "术士"
+  },
+  {
+    "jp_term": "アサシン",
+    "cn_term": "Assassin",
+    "category": "class",
+    "aliases": "暗匿者"
+  },
+  {
+    "jp_term": "バーサーカー",
+    "cn_term": "Berserker",
+    "category": "class",
+    "aliases": "狂战士"
+  },
+  {
+    "jp_term": "シールダー",
+    "cn_term": "Shielder",
+    "category": "class",
+    "aliases": "盾兵"
+  },
+  {
+    "jp_term": "ルーラー",
+    "cn_term": "Ruler",
+    "category": "class",
+    "aliases": "裁定者"
+  },
+  {
+    "jp_term": "アヴェンジャー",
+    "cn_term": "Avenger",
+    "category": "class",
+    "aliases": "复仇者"
+  },
+  {
+    "jp_term": "ムーンキャンサー",
+    "cn_term": "MoonCancer",
+    "category": "class",
+    "aliases": "月之癌"
+  },
+  {
+    "jp_term": "アルターエゴ",
+    "cn_term": "Alterego",
+    "category": "class",
+    "aliases": "Alter Ego,他人格"
+  },
+  {
+    "jp_term": "フォーリナー",
+    "cn_term": "Foreigner",
+    "category": "class",
+    "aliases": "降临者"
+  },
+  {
+    "jp_term": "プリテンダー",
+    "cn_term": "Pretender",
+    "category": "class",
+    "aliases": "身披角色者"
+  },
+  {
+    "jp_term": "ストーム・ボーダー",
+    "cn_term": "Storm Border",
+    "category": "place",
+    "aliases": "ストームボーダー,ストーム・ボーダ一,ストームボーダ一,ストーム・ホーダー,ストームホーダー,ストーム・ポーダー,ストームポーダー,Storm Border,StormBorder"
+  },
+  {
+    "jp_term": "ボーダー",
+    "cn_term": "Border",
+    "category": "place",
+    "aliases": "ボーダ一,ホーダー,ポーダー,Border"
+  },
+  {
+    "jp_term": "アンビースト",
+    "cn_term": "UnBeast",
+    "category": "class",
+    "aliases": "非兽"
+  },
+  {
+    "jp_term": "シャドウ・ボーダー",
+    "cn_term": "Shadow Border",
+    "category": "place",
+    "aliases": "シャドウボーダー,シャドウ・ボーダ一,シャドウボーダ一,シャドウ・ホーダー,シャドウホーダー,シャドウ・ポーダー,シャドウポーダー,Shadow Border,ShadowBorder"
+  },
+  {
+    "jp_term": "汎人類史",
+    "cn_term": "泛人类史",
+    "category": "game_term",
+    "aliases": "Proper Human History"
+  },
+  {
+    "jp_term": "人理定礎",
+    "cn_term": "人理奠基",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "剪定事象",
+    "cn_term": "剪定事象",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "残存詩篇",
+    "cn_term": "残存诗篇",
+    "category": "game_term",
+    "aliases": "Remnant Order"
+  },
+  {
+    "jp_term": "英霊召喚システム・Fate",
+    "cn_term": "英灵召唤系统·Fate",
+    "category": "game_term",
+    "aliases": "英霊召喚システム·Fate"
+  },
+  {
+    "jp_term": "霊子演算器·トリスメギストス",
+    "cn_term": "灵子演算装置·特里斯墨吉斯忒斯",
+    "category": "game_term",
+    "aliases": "霊子演算器トリスメギストス"
+  },
+  {
+    "jp_term": "聖堂教会",
+    "cn_term": "圣堂教会",
+    "category": "organization",
+    "aliases": ""
+  },
+  {
+    "jp_term": "魔術協会",
+    "cn_term": "魔术协会",
+    "category": "organization",
+    "aliases": ""
+  },
+  {
+    "jp_term": "時計塔",
+    "cn_term": "时钟塔",
+    "category": "organization",
+    "aliases": ""
+  },
+  {
+    "jp_term": "アトラス院",
+    "cn_term": "阿特拉斯院",
+    "category": "organization",
+    "aliases": ""
+  },
+  {
+    "jp_term": "彷徨海",
+    "cn_term": "彷徨海",
+    "category": "organization",
+    "aliases": ""
+  },
+  {
+    "jp_term": "冬木市",
+    "cn_term": "冬木市",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "虚数空間",
+    "cn_term": "虚数空间",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "神代",
+    "cn_term": "神代",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "固有結界",
+    "cn_term": "固有结界",
+    "category": "game_term",
+    "aliases": "Reality Marble"
+  },
+  {
+    "jp_term": "投影魔術",
+    "cn_term": "投影魔术",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "空想具現化",
+    "cn_term": "空想具现化",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "無限の剣製",
+    "cn_term": "无限剑制",
+    "category": "noble_phantasm",
+    "aliases": "アンリミテッドブレイドワークス,Unlimited Blade Works"
+  },
+  {
+    "jp_term": "エクスカリバー",
+    "cn_term": "誓约胜利之剑",
+    "category": "noble_phantasm",
+    "aliases": "約束された勝利の剣"
+  },
+  {
+    "jp_term": "アヴァロン",
+    "cn_term": "阿瓦隆",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ロー・アイアス",
+    "cn_term": "覆盖炽天之七圆环",
+    "category": "noble_phantasm",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ルールブレイカー",
+    "cn_term": "万符必应破戒",
+    "category": "noble_phantasm",
+    "aliases": "破戒すべき全ての符"
+  },
+  {
+    "jp_term": "ロンゴミニアド",
+    "cn_term": "伦戈米尼亚德",
+    "category": "noble_phantasm",
+    "aliases": "Rhongomyniad"
+  },
+  {
+    "jp_term": "ゲイ・ボルク",
+    "cn_term": "穿刺死棘之枪",
+    "category": "noble_phantasm",
+    "aliases": "刺し穿つ死棘の槍"
+  },
+  {
+    "jp_term": "ブラックバレル",
+    "cn_term": "Black Barrel",
+    "category": "game_term",
+    "aliases": "ブラック・バレル,Black Barrel"
+  },
+  {
+    "jp_term": "ヤガ",
+    "cn_term": "雅嘎",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ペーパームーン",
+    "cn_term": "平面之月",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "近未来観測レンズ・シバ",
+    "cn_term": "近未来观测透镜·示巴",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "虚数羅針",
+    "cn_term": "虚数罗盘",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ポイント・ネモ",
+    "cn_term": "尼莫点",
+    "category": "place",
+    "aliases": "ポイントネモ"
+  },
+  {
+    "jp_term": "アーキタイプ",
+    "cn_term": "Archetype",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ムーン・ドバイ",
+    "cn_term": "月面杜拜",
+    "category": "place",
+    "aliases": "ムーン・ドバイ"
+  },
+  {
+    "jp_term": "転移孔",
+    "cn_term": "转移孔",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "バルトアンデルス",
+    "cn_term": "波丹德斯",
+    "category": "organization",
+    "aliases": ""
+  },
+  {
+    "jp_term": "マイルーム",
+    "cn_term": "My room",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "オーディール・コール",
+    "cn_term": "Ordeal Call",
+    "category": "game_term",
+    "aliases": ""
+  }
+]

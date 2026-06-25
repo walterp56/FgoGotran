@@ -1,8 +1,12 @@
-"""Generate CDN JSON preview files for the website glossary table.
+"""Generate JSON preview files for the website glossary table.
 
-The website reads:
-  /preview/zh-Hans/latest/character_names.preview.json
-  /preview/zh-Hans/latest/terms.preview.json
+release-preview.ps1 copies the generated files into:
+  web/public/term-preview/zh-Hans/latest/character_names.preview.json
+  web/public/term-preview/zh-Hans/latest/terms.preview.json
+
+The website reads them as:
+  /term-preview/zh-Hans/latest/character_names.preview.json
+  /term-preview/zh-Hans/latest/terms.preview.json
 
 These files are derived from the editable TSV sources. Raw TSV upload is not
 required for the current website.

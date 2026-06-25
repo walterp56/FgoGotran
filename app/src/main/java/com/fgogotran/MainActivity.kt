@@ -6,16 +6,21 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.Translator
+import com.fgogotran.ui.component.AutoAppUpdateDialog
+import com.fgogotran.ui.component.openAppDownloadPage
 import com.fgogotran.update.AppVersionManager
 import com.fgogotran.ui.screen.ApiSettingsScreen
 import com.fgogotran.ui.screen.GuideScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
+import com.fgogotran.update.AppVersionCheckResult
+import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +77,42 @@ fun MainScreen(
     appVersionManager: AppVersionManager,
     translator: Translator
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
+    var pendingAutoUpdate by remember { mutableStateOf<AppVersionInfo?>(null) }
+    val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
+
+    LaunchedEffect(appVersionManager, settingsRepository) {
+        when (val result = appVersionManager.checkNow()) {
+            is AppVersionCheckResult.UpdateAvailable -> {
+                val ignoredVersionCode = settingsRepository.getIgnoredAppUpdateVersionCode()
+                if (result.info.versionCode > ignoredVersionCode) {
+                    pendingAutoUpdate = result.info
+                }
+            }
+            AppVersionCheckResult.UpToDate -> Unit
+            is AppVersionCheckResult.Failed -> Unit
+        }
+    }
+
+    pendingAutoUpdate?.let { update ->
+        AutoAppUpdateDialog(
+            currentVersionName = currentVersionName,
+            update = update,
+            onDismiss = { pendingAutoUpdate = null },
+            onIgnoreVersion = {
+                pendingAutoUpdate = null
+                scope.launch {
+                    settingsRepository.setIgnoredAppUpdateVersionCode(update.versionCode)
+                }
+            },
+            onUpdateNow = {
+                pendingAutoUpdate = null
+                openAppDownloadPage(context)
+            }
+        )
+    }
 
     // enable backscreen
     BackHandler(enabled = currentScreen != Screen.HOME) {

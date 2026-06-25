@@ -2,9 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
-import { sampleTermRows, type TermPreviewRow } from "@/data/sampleTerms";
-import { cdnUrl } from "@/lib/cdn";
 import { siteConfig } from "@/data/site";
+
+type TermPreviewRow = {
+  jp: string;
+  cn: string;
+  category: string;
+  aliases?: string;
+  source: "character" | "term";
+};
 
 type RawPreviewRow = Partial<{
   jp: string;
@@ -17,7 +23,7 @@ type RawPreviewRow = Partial<{
   aliases: string;
 }>;
 
-type PreviewStatus = "loading" | "ready" | "fallback";
+type PreviewStatus = "loading" | "ready" | "error";
 
 function normalizeRows(rows: RawPreviewRow[], source: TermPreviewRow["source"]): TermPreviewRow[] {
   return rows
@@ -31,18 +37,8 @@ function normalizeRows(rows: RawPreviewRow[], source: TermPreviewRow["source"]):
     .filter((row) => row.jp && row.cn);
 }
 
-function previewUrl(path: string) {
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
-      return path;
-    }
-  }
-  return cdnUrl(path);
-}
-
 function cacheBustedPreviewUrl(path: string) {
-  const url = previewUrl(path);
+  const url = path;
   return `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
 }
 
@@ -52,7 +48,7 @@ async function fetchPreviewRows() {
     fetch(cacheBustedPreviewUrl(siteConfig.termsPreviewPath), { cache: "no-store" })
   ]);
   if (!characters.ok || !terms.ok) {
-    throw new Error("preview files not published");
+    throw new Error("preview files not available");
   }
 
   const characterRows = normalizeRows(await characters.json(), "character");
@@ -66,7 +62,7 @@ async function fetchPreviewRows() {
 
 export function TermsExplorer() {
   const [rows, setRows] = useState<TermPreviewRow[]>([]);
-  const [sourceLabel, setSourceLabel] = useState("正在读取 CDN 预览数据");
+  const [sourceLabel, setSourceLabel] = useState("正在读取术语预览数据");
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("loading");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -74,17 +70,17 @@ export function TermsExplorer() {
   async function loadPreviewRows() {
     setRows([]);
     setCategory("all");
-    setSourceLabel("正在读取 CDN 预览数据");
+    setSourceLabel("正在读取术语预览数据");
     setPreviewStatus("loading");
     try {
       const nextRows = await fetchPreviewRows();
       setRows(nextRows);
-      setSourceLabel("CDN 预览数据");
+      setSourceLabel("网站术语预览数据");
       setPreviewStatus("ready");
     } catch {
-      setRows(sampleTermRows);
-      setSourceLabel("内置示例（CDN 预览暂不可用）");
-      setPreviewStatus("fallback");
+      setRows([]);
+      setSourceLabel("术语预览数据读取失败");
+      setPreviewStatus("error");
     }
   }
 
@@ -93,19 +89,19 @@ export function TermsExplorer() {
     async function loadInitialPreviewRows() {
       setRows([]);
       setCategory("all");
-      setSourceLabel("正在读取 CDN 预览数据");
+      setSourceLabel("正在读取术语预览数据");
       setPreviewStatus("loading");
       try {
         const nextRows = await fetchPreviewRows();
         if (cancelled) return;
         setRows(nextRows);
-        setSourceLabel("CDN 预览数据");
+        setSourceLabel("网站术语预览数据");
         setPreviewStatus("ready");
       } catch {
         if (!cancelled) {
-          setRows(sampleTermRows);
-          setSourceLabel("内置示例（CDN 预览暂不可用）");
-          setPreviewStatus("fallback");
+          setRows([]);
+          setSourceLabel("术语预览数据读取失败");
+          setPreviewStatus("error");
         }
       }
     }
@@ -186,7 +182,13 @@ export function TermsExplorer() {
             {previewStatus === "loading" ? (
               <tr>
                 <td className="terms-empty" colSpan={4}>
-                  正在读取 CDN 预览数据...
+                  正在读取术语预览数据...
+                </td>
+              </tr>
+            ) : previewStatus === "error" ? (
+              <tr>
+                <td className="terms-empty" colSpan={4}>
+                  术语预览数据读取失败，请确认网站预览 JSON 已发布后刷新。
                 </td>
               </tr>
             ) : filteredRows.length > 0 ? (

@@ -1,6 +1,7 @@
 param(
     [string]$Python = "",
     [string]$Output = "",
+    [string]$WebPreviewOutput = "",
     [string]$Locale = "zh-Hans",
     [string]$BaseUrl = "https://cdn.fgogotran.com",
     [string]$S3Uri = "",
@@ -42,6 +43,9 @@ function Resolve-Python {
 $PythonExe = Resolve-Python $Python
 if (-not $Output) {
     $Output = Join-Path $RepoRoot "release\cdn"
+}
+if (-not $WebPreviewOutput) {
+    $WebPreviewOutput = Join-Path $RepoRoot "web\public\term-preview"
 }
 $NoCacheControl = "no-cache, no-store, must-revalidate, max-age=0, s-maxage=0"
 
@@ -128,6 +132,34 @@ function Publish-PreviewRelease {
     }
 }
 
+function Copy-WebPreviewRelease {
+    param(
+        [string]$OutputRoot,
+        [string]$PreviewLocale,
+        [string]$WebOutputRoot
+    )
+
+    $SourceDir = Join-Path $OutputRoot "preview\$PreviewLocale\latest"
+    if (-not (Test-Path $SourceDir)) {
+        throw "Missing preview directory: $SourceDir"
+    }
+
+    $DestDir = Join-Path (Join-Path $WebOutputRoot $PreviewLocale) "latest"
+    New-Item -ItemType Directory -Force $DestDir | Out-Null
+
+    foreach ($FileName in @("character_names.preview.json", "terms.preview.json")) {
+        Copy-Item -LiteralPath (Join-Path $SourceDir $FileName) -Destination (Join-Path $DestDir $FileName) -Force
+    }
+
+    Write-Host ""
+    Write-Host "Copied website preview files to:"
+    Write-Host "  $DestDir"
+    Write-Host ""
+    Write-Host "Website preview URLs:"
+    Write-Host "  /term-preview/$PreviewLocale/latest/character_names.preview.json"
+    Write-Host "  /term-preview/$PreviewLocale/latest/terms.preview.json"
+}
+
 Push-Location $RepoRoot
 try {
     $PreviewArgs = @(
@@ -147,18 +179,18 @@ try {
     }
 
     Write-Host ""
-    Write-Host "Generated preview CDN files under:"
+    Write-Host "Generated preview source files under:"
     Write-Host "  $Output\preview\$Locale\latest"
-    Write-Host ""
-    Write-Host "Upload this S3 prefix:"
-    Write-Host "  preview/$Locale/latest/"
+
+    Copy-WebPreviewRelease -OutputRoot $Output -PreviewLocale $Locale -WebOutputRoot $WebPreviewOutput
 
     if ($S3Uri) {
         Publish-PreviewRelease -OutputRoot $Output -PreviewLocale $Locale
     }
     else {
         Write-Host ""
-        Write-Host "Or publish automatically:"
+        Write-Host "S3 preview upload skipped. The website uses web/public/term-preview by default."
+        Write-Host "Optional legacy CDN publish:"
         Write-Host "  .\scripts\release-preview.ps1 -S3Uri s3://YOUR_BUCKET -CloudFrontDistributionId YOUR_DISTRIBUTION_ID"
     }
 }

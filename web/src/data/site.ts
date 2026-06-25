@@ -26,8 +26,8 @@ export const siteConfig = {
   cdnBaseUrl: process.env.NEXT_PUBLIC_CDN_BASE_URL ?? "https://cdn.fgogotran.com",
   apkManifestPath: "/app/android/latest/manifest.json",
   dbManifestPath: "/db/zh-Hans/latest/manifest.json",
-  termsPreviewPath: "/preview/zh-Hans/latest/terms.preview.json",
-  characterPreviewPath: "/preview/zh-Hans/latest/character_names.preview.json"
+  termsPreviewPath: "/term-preview/zh-Hans/latest/terms.preview.json",
+  characterPreviewPath: "/term-preview/zh-Hans/latest/character_names.preview.json"
 };
 
 export type NavItem = {
@@ -234,7 +234,7 @@ export const deployNotes = [
   },
   {
     title: "cdn.fgogotran.com",
-    body: "APK、DB、TSV 预览和 manifest，继续放在 S3 + CloudFront。",
+    body: "APK、DB 和 manifest 放在 S3 + CloudFront；网站术语预览随 web/public/term-preview 一起部署。",
     icon: CloudDownload
   },
   {

@@ -6,19 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  trailingSlash: true,
-  ...(isDev
-    ? {
-        async rewrites() {
-          return [
-            {
-              source: "/preview/:path*",
-              destination: "https://cdn.fgogotran.com/preview/:path*"
-            }
-          ];
-        }
-      }
-    : {})
+  trailingSlash: true
 };
 
 export default nextConfig;
