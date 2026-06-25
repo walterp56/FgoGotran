@@ -3610,5 +3610,17 @@
     "cn_name": "基修亚·泽尔里奇·修拜因奥古",
     "category": "character",
     "aliases": ""
+  },
+  {
+    "jp_name": "ドクター",
+    "cn_name": "医生",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "先輩",
+    "cn_name": "前辈",
+    "category": "character",
+    "aliases": ""
   }
 ]

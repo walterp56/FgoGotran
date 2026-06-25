@@ -233,7 +233,7 @@ fun FloatingActionGlyph(
                 text = when (icon) {
                     FloatingActionIcon.GO -> "GO"
                     FloatingActionIcon.SEMI -> "半"
-                    else -> "自"
+                    else -> "全"
                 },
                 color = color,
                 fontSize = when {

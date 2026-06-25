@@ -282,6 +282,20 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     fun handleInterceptedButtonTap(rawX: Float, rawY: Float): Boolean {
+        if (!isPointInsideButton(rawX, rawY)) return false
+        FgoLogger.debug(tag, "Translated overlay tap routed to floating button")
+        onButtonClick()
+        return true
+    }
+
+    fun handleInterceptedButtonLongPress(): Boolean {
+        if (!shown) return false
+        FgoLogger.debug(tag, "Translated overlay long press routed to floating menu")
+        onButtonLongClick()
+        return true
+    }
+
+    fun isPointInsideButton(rawX: Float, rawY: Float): Boolean {
         if (!shown) return false
         val view = composeHost?.view ?: return false
         val width = view.width.takeIf { it > 0 } ?: view.measuredWidth
@@ -295,11 +309,7 @@ class FgoRunnerOverlay @Inject constructor(
             btnX + width + slop,
             btnY + height + slop
         )
-        if (!bounds.contains(rawX.toInt(), rawY.toInt())) return false
-
-        FgoLogger.debug(tag, "Translated overlay tap routed to floating button")
-        onButtonClick()
-        return true
+        return bounds.contains(rawX.toInt(), rawY.toInt())
     }
 
     private fun onButtonClick() {

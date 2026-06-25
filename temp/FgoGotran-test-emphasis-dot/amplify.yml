@@ -1,0 +1,18 @@
+version: 1
+applications:
+  - appRoot: web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm install
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: out
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - node_modules/**/*

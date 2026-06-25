@@ -44,6 +44,7 @@ class TranslationOverlay @Inject constructor(
     private var screenHeight = 0
     private var latestTranslatedBitmap: Bitmap? = null
     private var onOverlayTap: ((Float, Float) -> Unit)? = null
+    private var onOverlayTouch: ((MotionEvent) -> Boolean)? = null
 
     private val tag = "Overlay"
 
@@ -114,11 +115,13 @@ class TranslationOverlay @Inject constructor(
         serviceContext: Context,
         screenWidth: Int,
         screenHeight: Int,
-        onOverlayTap: (Float, Float) -> Unit
+        onOverlayTap: (Float, Float) -> Unit,
+        onOverlayTouch: ((MotionEvent) -> Boolean)? = null
     ) {
         this.screenWidth = screenWidth
         this.screenHeight = screenHeight
         this.onOverlayTap = onOverlayTap
+        this.onOverlayTouch = onOverlayTouch
         // Must use the service context — Application context has no valid window token
         windowManager = serviceContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         FgoLogger.info(tag, "Overlay initialized: ${screenWidth}x${screenHeight}")
@@ -177,7 +180,10 @@ class TranslationOverlay @Inject constructor(
             alpha = 1f
             scaleType = ImageView.ScaleType.FIT_XY
             setOnTouchListener { _, event ->
-                if (event.action == MotionEvent.ACTION_UP) {
+                if (onOverlayTouch?.invoke(event) == true) {
+                    return@setOnTouchListener true
+                }
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
                     FgoLogger.debug(
                         this@TranslationOverlay.tag,
                         "Translated overlay tapped at ${event.rawX},${event.rawY}"
@@ -293,6 +299,7 @@ class TranslationOverlay @Inject constructor(
     fun destroy() {
         hideAll()
         onOverlayTap = null
+        onOverlayTouch = null
         windowManager = null
         FgoLogger.info(tag, "Overlay destroyed")
     }

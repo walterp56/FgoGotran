@@ -78,8 +78,8 @@ export default function HomePage() {
       <section className="section section-band">
         <SectionHeader
           eyebrow="Modes"
-          title="三种翻译模式保持分离"
-          body="手动、自动和裁剪区域走不同流程"
+          title="四种翻译模式保持分离"
+          body="手动、半自动、全自动和裁剪模式走不同流程"
         />
         <FeatureGrid items={modeCards} />
       </section>

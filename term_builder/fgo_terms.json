@@ -1422,6 +1422,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ドクター",
+    "cn_name": "医生",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ドブルイニャ・ニキチッチ",
     "cn_name": "多布雷尼亚·尼基季奇",
     "category": "character",
@@ -2492,6 +2498,12 @@
   {
     "jp_name": "俵藤太",
     "cn_name": "俵藤太",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "先輩",
+    "cn_name": "前辈",
     "category": "character",
     "aliases": "[]"
   },

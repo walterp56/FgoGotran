@@ -1,15 +1,15 @@
 {
   "manifestVersion": 1,
-  "contentVersion": "2026.06.25.1",
+  "contentVersion": "2026.06.25.2",
   "schemaVersion": 1,
   "locale": "zh-Hans",
-  "generatedAt": "2026-06-25T17:53:14+08:00",
+  "generatedAt": "2026-06-25T20:26:27+08:00",
   "minimumAppVersion": "1.0.0",
   "releaseNotes": "FgoGotran terminology database update",
-  "dbUrl": "https://cdn.fgogotran.com/db/zh-Hans/releases/2026.06.25.1/fgo_terms.db",
-  "dbSha256": "98d485203721026756b81f80382f63fe6edd93f3d13c39f66e575a1943cf98f5",
+  "dbUrl": "https://cdn.fgogotran.com/db/zh-Hans/releases/2026.06.25.2/fgo_terms.db",
+  "dbSha256": "c182ca7f3906c6be24eb87cd0eff019db6e2706f5097d1425a1068df497c7386",
   "dbSize": 102400,
-  "characterNameCount": 794,
+  "characterNameCount": 796,
   "termCount": 129,
-  "totalCount": 923
+  "totalCount": 925
 }

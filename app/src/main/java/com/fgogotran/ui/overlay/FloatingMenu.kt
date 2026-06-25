@@ -178,7 +178,7 @@ private fun ModeSegment(
 private fun TranslationMode.label(): String = when (this) {
     TranslationMode.MANUAL -> "手动"
     TranslationMode.SEMI_AUTO -> "半自动"
-    TranslationMode.AUTO -> "自动"
+    TranslationMode.AUTO -> "全自动"
 }
 
 @Composable

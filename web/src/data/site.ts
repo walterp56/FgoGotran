@@ -15,7 +15,8 @@ import {
   ServerCog,
   SlidersHorizontal,
   SquareDashedMousePointer,
-  Webhook
+  Webhook,
+  Workflow
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -65,8 +66,8 @@ export const features: Feature[] = [
     icon: ScanText
   },
   {
-    title: "三种模式",
-    body: "手动、自动、裁剪区域翻译分开处理。",
+    title: "四种模式",
+    body: "手动、半自动、你全自动、裁剪区域翻译分开处理。",
     icon: SlidersHorizontal
   },
   {
@@ -206,12 +207,17 @@ export const workflowSteps = [
 export const modeCards = [
   {
     title: "手动模式",
-    body: "适合稳定阅读。每次点击悬浮按钮后识别当前画面并翻译。",
+    body: "适合想完全掌控节奏的你。每次点击悬浮按钮后识别当前画面并翻译。",
     icon: MousePointerClick
   },
   {
-    title: "自动模式",
-    body: "适合放松阅读。应用会观察对话/选项变化并自动刷新译文。",
+    title: "半自动模式",
+    body: "适合想轻松阅读、又想保留选择权的你。贴合FGO中对话佔多、选项佔少的特点。保留手动点击翻译选项，更快自动刷新对话译文。",
+    icon: Workflow
+  },
+  {
+    title: "全自动模式",
+    body: "适合想放松连续阅读的你。应用会观察对话/选项变化并自动刷新译文。",
     icon: RefreshCw
   },
   {
@@ -223,23 +229,5 @@ export const modeCards = [
     title: "历史记录",
     body: "保存本次识别过的角色名、对话和选项，方便回看。",
     icon: History
-  }
-];
-
-export const deployNotes = [
-  {
-    title: "fgogotran.com",
-    body: "网站前端，推荐用 AWS Amplify Hosting 连接 GitHub 自动部署。",
-    icon: Globe
-  },
-  {
-    title: "cdn.fgogotran.com",
-    body: "APK、DB 和 manifest 放在 S3 + CloudFront；网站术语预览随 web/public/term-preview 一起部署。",
-    icon: CloudDownload
-  },
-  {
-    title: "api.fgogotran.com",
-    body: "以后要做用户反馈、术语提交、后台管理时再启用。",
-    icon: Webhook
   }
 ];
