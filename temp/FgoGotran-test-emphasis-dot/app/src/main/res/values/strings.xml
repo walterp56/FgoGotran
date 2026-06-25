@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">FgoGotran</string>
-    <string name="accessibility_description">捕获 FGO 剧情画面并进行日译中翻译。需要此权限来检测点击并静默截取游戏画面。</string>
-</resources>
