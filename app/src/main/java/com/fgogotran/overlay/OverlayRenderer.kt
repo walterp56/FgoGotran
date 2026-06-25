@@ -67,7 +67,7 @@ class OverlayRenderer @Inject constructor(
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private const val MIN_NAME_PLATE_WIDTH = 160f
         private const val CHOICE_REFERENCE_WIDTH = 1470f
-        private const val CHOICE_REFERENCE_HEIGHT = 110f
+        private const val CHOICE_REFERENCE_HEIGHT = 135f
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
         private const val DIALOGUE_MAX_LINES = 2
@@ -161,34 +161,13 @@ class OverlayRenderer @Inject constructor(
         screenHeight: Int
     ): List<Rect> {
         val scale = screenScale(screenHeight)
-        val choicePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = this@OverlayRenderer.typeface ?: Typeface.DEFAULT
-            textAlign = Paint.Align.LEFT
-            isSubpixelText = true
-            isLinearText = true
-        }
         return instructions.mapNotNull { instruction ->
             if (instruction.region.region != TextRegion.CHOICE_BUTTON) return@mapNotNull null
-            choicePaint.typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             val box = fixedChoiceRenderBox(
                 rawBox = instruction.region.boundingBox,
                 canvasWidth = screenWidth,
                 canvasHeight = screenHeight,
                 scale = scale
-            ) ?: return@mapNotNull null
-            val textInsetX = 70f * scale
-            val textArea = RectF(
-                box.left + textInsetX,
-                box.top + 12f * scale,
-                box.right - textInsetX,
-                box.bottom - 12f * scale
-            )
-            fitSingleLineOrNull(
-                text = instruction.toChoiceRenderText(),
-                paint = choicePaint,
-                initialTextSize = CHOICE_TEXT_SIZE * scale,
-                minimumTextSize = CHOICE_TEXT_MIN_SIZE * scale,
-                maxWidth = textArea.width()
             ) ?: return@mapNotNull null
 
             Rect(
@@ -502,23 +481,6 @@ class OverlayRenderer @Inject constructor(
         }
         val clearInsetX = 47f * scale
         val textInsetX = 70f * scale
-        val preflightTextArea = RectF(
-            box.left + textInsetX,
-            box.top + 12f * scale,
-            box.right - textInsetX,
-            box.bottom - 12f * scale
-        )
-        if (fitSingleLineOrNull(
-                text = instruction.toChoiceRenderText(),
-                paint = paint,
-                initialTextSize = CHOICE_TEXT_SIZE * scale,
-                minimumTextSize = CHOICE_TEXT_MIN_SIZE * scale,
-                maxWidth = preflightTextArea.width()
-            ) == null
-        ) {
-            FgoLogger.debug(tag, "Skipping choice render because text does not fit fixed box")
-            return
-        }
 
         canvas.drawRoundRect(
             box.left + clearInsetX, box.top + 8f * scale,
@@ -537,16 +499,13 @@ class OverlayRenderer @Inject constructor(
         paint.apply {
             color = textColor
         }
-        val text = fitSingleLineOrNull(
+        val text = fitSingleLine(
             text = instruction.toChoiceRenderText(),
             paint = paint,
             initialTextSize = CHOICE_TEXT_SIZE * scale,
             minimumTextSize = CHOICE_TEXT_MIN_SIZE * scale,
             maxWidth = textArea.width()
-        ) ?: run {
-            FgoLogger.debug(tag, "Skipping choice render because text does not fit fixed box")
-            return
-        }
+        )
 
         // Center the text horizontally within the button bounding box
         val textWidth = paint.measureText(text)
@@ -574,17 +533,63 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): RectF? {
         val expectedWidth = CHOICE_REFERENCE_WIDTH * scale
-        val expectedHeight = CHOICE_REFERENCE_HEIGHT * scale
         val rawWidth = rawBox.width().toFloat()
-        if (rawWidth !in expectedWidth * CHOICE_MIN_WIDTH_RATIO..expectedWidth * CHOICE_MAX_WIDTH_RATIO) {
+        val rawHeight = rawBox.height().toFloat()
+        if (rawWidth !in expectedWidth * CHOICE_MIN_WIDTH_RATIO..expectedWidth * CHOICE_MAX_WIDTH_RATIO ||
+            rawHeight <= 0f
+        ) {
             return null
         }
 
+        nearestChoiceSlot(rawBox, canvasWidth, canvasHeight)?.let { fixedSlot ->
+            return RectF(
+                fixedSlot.left.toFloat(),
+                fixedSlot.top.toFloat(),
+                fixedSlot.right.toFloat(),
+                fixedSlot.bottom.toFloat()
+            )
+        }
+
+        val expectedHeight = CHOICE_REFERENCE_HEIGHT * scale
         val left = (rawBox.centerX() - expectedWidth / 2f)
             .coerceIn(0f, (canvasWidth - expectedWidth).coerceAtLeast(0f))
-        val top = (rawBox.centerY() - expectedHeight / 2f)
+        val top = rawBox.top.toFloat()
             .coerceIn(0f, (canvasHeight - expectedHeight).coerceAtLeast(0f))
-        return RectF(left, top, left + expectedWidth, top + expectedHeight)
+        return RectF(
+            left,
+            top,
+            left + expectedWidth,
+            top + expectedHeight
+        ).takeIf { it.width() > 0f && it.height() > 0f }
+    }
+
+    private fun nearestChoiceSlot(rawBox: Rect, canvasWidth: Int, canvasHeight: Int): Rect? {
+        val screenRegions = FgoViewportLayout.regionsForScreen(canvasWidth, canvasHeight)
+        val rawCenterY = rawBox.centerY()
+        return screenRegions.choiceSlotLayouts
+            .flatten()
+            .mapNotNull { slot ->
+                val horizontalOverlap = overlapRatio(rawBox.left, rawBox.right, slot.left, slot.right)
+                if (horizontalOverlap < CHOICE_MIN_WIDTH_RATIO) return@mapNotNull null
+                val verticalOverlap = overlapRatio(rawBox.top, rawBox.bottom, slot.top, slot.bottom)
+                val centerDistance = kotlin.math.abs(rawCenterY - slot.centerY())
+                if (verticalOverlap < 0.20f && centerDistance > slot.height()) return@mapNotNull null
+                val score = verticalOverlap * 1000f - centerDistance.toFloat() / slot.height().coerceAtLeast(1)
+                ChoiceSlotRenderMatch(slot, score)
+            }
+            .maxByOrNull { it.score }
+            ?.slot
+    }
+
+    private data class ChoiceSlotRenderMatch(
+        val slot: Rect,
+        val score: Float
+    )
+
+    private fun overlapRatio(firstStart: Int, firstEnd: Int, secondStart: Int, secondEnd: Int): Float {
+        val overlap = minOf(firstEnd, secondEnd) - maxOf(firstStart, secondStart)
+        if (overlap <= 0) return 0f
+        return overlap.toFloat() / minOf(firstEnd - firstStart, secondEnd - secondStart).coerceAtLeast(1)
     }
 
     private fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {

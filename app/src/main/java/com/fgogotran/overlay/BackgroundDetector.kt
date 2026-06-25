@@ -30,7 +30,7 @@ class BackgroundDetector @Inject constructor() {
         private const val MIN_FIXED_CHOICE_BORDER_RATIO = 0.08f
         private const val MIN_PARTIAL_FIXED_CHOICE_DARK_RATIO = 0.42f
         private const val MIN_PARTIAL_FIXED_CHOICE_HEIGHT_RATIO = 0.36f
-        private const val MAX_PARTIAL_FIXED_CHOICE_HEIGHT_RATIO = 0.82f
+        private const val MAX_PARTIAL_FIXED_CHOICE_HEIGHT_RATIO = 1.10f
         private const val MIN_PARTIAL_FIXED_CHOICE_WIDTH_RATIO = 0.86f
         private const val MIN_PARTIAL_FIXED_CHOICE_SLOT_OVERLAP_RATIO = 0.82f
 
@@ -45,6 +45,13 @@ class BackgroundDetector @Inject constructor() {
     private data class WhiteScore(
         val whitePixels: Int,
         val ratio: Float
+    )
+
+    private data class MarkerColorProfile(
+        val r: Int,
+        val g: Int,
+        val b: Int,
+        val luminance: Int
     )
 
     private data class ChoiceSlotScore(
@@ -65,10 +72,10 @@ class BackgroundDetector @Inject constructor() {
 
     private data class FixedChoiceLayoutCandidate(
         val slots: List<Rect>,
-        val scores: List<ChoiceSlotScore>
+        val matches: List<FixedChoiceSlotMatch>
     ) {
         val combinedScore: Float
-            get() = scores.sumOf { it.combinedScore.toDouble() }.toFloat()
+            get() = matches.sumOf { it.combinedScore.toDouble() }.toFloat()
     }
 
     private data class PartialChoiceSlotScore(
@@ -89,12 +96,31 @@ class BackgroundDetector @Inject constructor() {
             get() = rawDarkRatio + borderRatio + widthRatio + slotOverlapRatio
     }
 
-    private data class PartialFixedChoiceLayoutCandidate(
-        val slots: List<Rect>,
-        val scores: List<PartialChoiceSlotScore>
+    private data class FixedChoiceSlotMatch(
+        val fixedScore: ChoiceSlotScore,
+        val partialScore: PartialChoiceSlotScore?
     ) {
+        val hasRawEvidence: Boolean
+            get() = partialScore?.let { score ->
+                score.widthRatio >= MIN_PARTIAL_FIXED_CHOICE_WIDTH_RATIO &&
+                    score.slotOverlapRatio >= MIN_PARTIAL_FIXED_CHOICE_SLOT_OVERLAP_RATIO
+            } == true
+
+        val isVisible: Boolean
+            get() = fixedScore.isVisible || partialScore?.isVisible == true
+
         val combinedScore: Float
-            get() = scores.sumOf { it.combinedScore.toDouble() }.toFloat()
+            get() = fixedScore.combinedScore + (partialScore?.combinedScore ?: 0f)
+
+        fun debugString(): String {
+            val partial = partialScore
+            return if (partial == null) {
+                "fixed(dark=${fixedScore.darkRatio},top=${fixedScore.topBorderRatio},bottom=${fixedScore.bottomBorderRatio})"
+            } else {
+                "fixed(dark=${fixedScore.darkRatio},top=${fixedScore.topBorderRatio},bottom=${fixedScore.bottomBorderRatio})/" +
+                    "raw(dark=${partial.rawDarkRatio},border=${partial.borderRatio},height=${partial.heightRatio},overlap=${partial.slotOverlapRatio})"
+            }
+        }
     }
 
     /**
@@ -178,14 +204,22 @@ class BackgroundDetector @Inject constructor() {
         fixedSlotLayouts: List<List<Rect>>
     ): List<Rect> {
         val fixedButtons = fixedChoiceButtons(bitmap, rawButtons, fixedSlotLayouts)
-        if (fixedButtons != null && fixedButtons != rawButtons) {
+        if (fixedButtons != null) {
             FgoLogger.debug(
                 tag,
                 "Snapped choice panels to fixed FGO layout: raw=${rawButtons.map { it.flattenToString() }} " +
                     "fixed=${fixedButtons.map { it.flattenToString() }}"
             )
+            return fixedButtons
         }
-        return fixedButtons ?: rawButtons
+        if (rawButtons.isNotEmpty()) {
+            FgoLogger.debug(
+                tag,
+                "Discarding raw choice evidence that did not match a fixed FGO layout: " +
+                    rawButtons.map { it.flattenToString() }
+            )
+        }
+        return emptyList()
     }
 
     /**
@@ -223,7 +257,7 @@ class BackgroundDetector @Inject constructor() {
     }
 
     /**
-     * Detects FGO's bright continue diamond after dialogue typing completes.
+     * Detects FGO's continue diamond after dialogue typing completes.
      */
     fun isDialogueCompleteMarkerVisible(bitmap: Bitmap, markerRegion: Rect): Boolean {
         val baseBounds = Rect(
@@ -234,12 +268,13 @@ class BackgroundDetector @Inject constructor() {
         )
         if (baseBounds.width() <= 0 || baseBounds.height() <= 0) return false
 
-        val baseScore = completeMarkerWhiteScore(bitmap, baseBounds)
-        val markerShapeVisible = hasCompleteMarkerShape(bitmap, baseBounds)
+        val markerProfile = completeMarkerColorProfile(bitmap, baseBounds)
+        val baseScore = completeMarkerWhiteScore(bitmap, baseBounds, markerProfile)
+        val markerShapeVisible = hasCompleteMarkerShape(bitmap, baseBounds, markerProfile)
         val visible = markerShapeVisible || baseScore.ratio >= MIN_COMPLETE_MARKER_WHITE_RATIO
         FgoLogger.debug(
             tag,
-            "Dialogue complete marker visible=$visible whiteRatio=${baseScore.ratio} " +
+            "Dialogue complete marker visible=$visible markerRatio=${baseScore.ratio} " +
                 "whitePixels=${baseScore.whitePixels} markerShape=$markerShapeVisible bounds=$baseBounds"
         )
         return visible
@@ -260,7 +295,11 @@ class BackgroundDetector @Inject constructor() {
         return visible
     }
 
-    private fun hasCompleteMarkerShape(bitmap: Bitmap, bounds: Rect): Boolean {
+    private fun hasCompleteMarkerShape(
+        bitmap: Bitmap,
+        bounds: Rect,
+        markerProfile: MarkerColorProfile?
+    ): Boolean {
         val width = bounds.width()
         val height = bounds.height()
         if (width <= 0 || height <= 0) return false
@@ -280,7 +319,7 @@ class BackgroundDetector @Inject constructor() {
                 if (visited[seedIndex]) continue
                 val screenX = bounds.left + localX
                 val screenY = bounds.top + localY
-                if (!isCompleteMarkerPixel(bitmap.getPixel(screenX, screenY))) {
+                if (!isCompleteMarkerPixel(bitmap.getPixel(screenX, screenY), markerProfile)) {
                     visited[seedIndex] = true
                     continue
                 }
@@ -307,7 +346,7 @@ class BackgroundDetector @Inject constructor() {
                             val nextIndex = index(nx, ny)
                             if (visited[nextIndex]) continue
                             visited[nextIndex] = true
-                            if (isCompleteMarkerPixel(bitmap.getPixel(bounds.left + nx, bounds.top + ny))) {
+                            if (isCompleteMarkerPixel(bitmap.getPixel(bounds.left + nx, bounds.top + ny), markerProfile)) {
                                 queue.add(nx to ny)
                             }
                         }
@@ -329,12 +368,65 @@ class BackgroundDetector @Inject constructor() {
         return false
     }
 
-    private fun completeMarkerWhiteScore(bitmap: Bitmap, bounds: Rect): WhiteScore {
+    private fun completeMarkerColorProfile(bitmap: Bitmap, bounds: Rect): MarkerColorProfile? {
+        var darkR = 0L
+        var darkG = 0L
+        var darkB = 0L
+        var darkLuminance = 0L
+        var darkCount = 0
+        var allR = 0L
+        var allG = 0L
+        var allB = 0L
+        var allLuminance = 0L
+        var allCount = 0
+
+        for (y in bounds.top until bounds.bottom step 3) {
+            for (x in bounds.left until bounds.right step 3) {
+                val pixel = bitmap.getPixel(x, y)
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                val luminance = luminance(r, g, b)
+                allR += r.toLong()
+                allG += g.toLong()
+                allB += b.toLong()
+                allLuminance += luminance.toLong()
+                allCount++
+                if (luminance <= 118) {
+                    darkR += r.toLong()
+                    darkG += g.toLong()
+                    darkB += b.toLong()
+                    darkLuminance += luminance.toLong()
+                    darkCount++
+                }
+            }
+        }
+
+        val count = if (darkCount >= 6) darkCount else allCount
+        if (count <= 0) return null
+        val useDark = darkCount >= 6
+        val rSum = if (useDark) darkR else allR
+        val gSum = if (useDark) darkG else allG
+        val bSum = if (useDark) darkB else allB
+        val luminanceSum = if (useDark) darkLuminance else allLuminance
+        return MarkerColorProfile(
+            r = (rSum / count).toInt(),
+            g = (gSum / count).toInt(),
+            b = (bSum / count).toInt(),
+            luminance = (luminanceSum / count).toInt()
+        )
+    }
+
+    private fun completeMarkerWhiteScore(
+        bitmap: Bitmap,
+        bounds: Rect,
+        markerProfile: MarkerColorProfile?
+    ): WhiteScore {
         var whitePixels = 0
         var totalPixels = 0
         for (y in bounds.top until bounds.bottom step 2) {
             for (x in bounds.left until bounds.right step 2) {
-                if (isCompleteMarkerPixel(bitmap.getPixel(x, y))) {
+                if (isCompleteMarkerPixel(bitmap.getPixel(x, y), markerProfile)) {
                     whitePixels++
                 }
                 totalPixels++
@@ -346,12 +438,29 @@ class BackgroundDetector @Inject constructor() {
         )
     }
 
-    private fun isCompleteMarkerPixel(pixel: Int): Boolean {
+    private fun isCompleteMarkerPixel(pixel: Int, markerProfile: MarkerColorProfile? = null): Boolean {
         val r = (pixel shr 16) and 0xFF
         val g = (pixel shr 8) and 0xFF
         val b = pixel and 0xFF
         val channelSpread = maxOf(r, g, b) - minOf(r, g, b)
-        return r >= 176 && g >= 176 && b >= 176 && channelSpread <= 58
+        val brightNeutral = r >= 176 && g >= 176 && b >= 176 && channelSpread <= 58
+        val dimBlueWhite = r >= 118 && g >= 132 && b >= 145 &&
+            b >= r + 16 &&
+            g >= r + 8 &&
+            channelSpread <= 72
+        val localBlueWhite = markerProfile != null &&
+            r >= 90 && g >= 105 && b >= 120 &&
+            luminance(r, g, b) >= markerProfile.luminance + 28 &&
+            r >= markerProfile.r + 8 &&
+            g >= markerProfile.g + 10 &&
+            b >= markerProfile.b + 18 &&
+            b >= r + 8 &&
+            channelSpread <= 96
+        return brightNeutral || dimBlueWhite || localBlueWhite
+    }
+
+    private fun luminance(r: Int, g: Int, b: Int): Int {
+        return (r * 299 + g * 587 + b * 114) / 1000
     }
 
     private fun neutralWhiteRatio(bitmap: Bitmap, region: Rect): Float {
@@ -411,7 +520,7 @@ class BackgroundDetector @Inject constructor() {
         rawButtons: List<Rect>,
         fixedSlotLayouts: List<List<Rect>>
     ): List<Rect>? {
-        if (fixedSlotLayouts.isEmpty()) return null
+        if (fixedSlotLayouts.isEmpty() || rawButtons.isEmpty()) return null
 
         val candidate = fixedSlotLayouts
             .filter { it.isNotEmpty() }
@@ -419,17 +528,11 @@ class BackgroundDetector @Inject constructor() {
             .mapNotNull { layout ->
                 val clippedLayout = layout.mapNotNull { clippedToBitmap(it, bitmap) }
                 if (clippedLayout.size != layout.size) return@mapNotNull null
-                val scores = clippedLayout.map { slot -> fixedChoiceSlotScore(bitmap, slot) }
-                if (!scores.all { it.isVisible }) return@mapNotNull null
-                if (rawButtons.isNotEmpty() && !rawButtons.any { raw ->
-                    clippedLayout.any { slot ->
-                        verticalOverlapRatio(raw, slot) >= MIN_FIXED_CHOICE_RAW_OVERLAP_RATIO
-                    }
-                }) {
-                    return@mapNotNull null
-                }
+                val matches = clippedLayout.map { slot -> fixedChoiceSlotMatch(bitmap, rawButtons, slot) }
+                if (!matches.all { it.isVisible }) return@mapNotNull null
+                if (!matches.any { it.hasRawEvidence }) return@mapNotNull null
 
-                FixedChoiceLayoutCandidate(clippedLayout, scores)
+                FixedChoiceLayoutCandidate(clippedLayout, matches)
             }
             .maxWithOrNull(
                 compareBy<FixedChoiceLayoutCandidate> { it.slots.size }
@@ -440,44 +543,25 @@ class BackgroundDetector @Inject constructor() {
             FgoLogger.debug(
                 tag,
                 "Fixed choice slot signature accepted: count=${candidate.slots.size}, " +
-                    "scores=${candidate.scores.map { "dark=${it.darkRatio},top=${it.topBorderRatio},bottom=${it.bottomBorderRatio}" }}"
+                    "scores=${candidate.matches.map { it.debugString() }}"
             )
             return candidate.slots
         }
 
-        val partialCandidate = partialFixedChoiceButtons(bitmap, rawButtons, fixedSlotLayouts)
-        if (partialCandidate != null) {
-            FgoLogger.debug(
-                tag,
-                "Partial fixed choice slot signature accepted: count=${partialCandidate.slots.size}, " +
-                    "scores=${partialCandidate.scores.map { "dark=${it.rawDarkRatio},border=${it.borderRatio},height=${it.heightRatio},overlap=${it.slotOverlapRatio}" }}"
-            )
-        }
-        return partialCandidate?.slots
+        return null
     }
 
-    private fun partialFixedChoiceButtons(
+    private fun fixedChoiceSlotMatch(
         bitmap: Bitmap,
         rawButtons: List<Rect>,
-        fixedSlotLayouts: List<List<Rect>>
-    ): PartialFixedChoiceLayoutCandidate? {
-        val rawSorted = rawButtons.sortedBy { it.top }
-        return fixedSlotLayouts
-            .filter { it.size == rawSorted.size }
-            .mapNotNull { layout ->
-                val clippedLayout = layout.mapNotNull { clippedToBitmap(it, bitmap) }.sortedBy { it.top }
-                if (clippedLayout.size != layout.size) return@mapNotNull null
-                val scores = clippedLayout.zip(rawSorted).map { (slot, raw) ->
-                    partialFixedChoiceSlotScore(bitmap, raw, slot)
-                }
-                if (!scores.all { it.isVisible }) return@mapNotNull null
-
-                PartialFixedChoiceLayoutCandidate(clippedLayout, scores)
-            }
-            .maxWithOrNull(
-                compareBy<PartialFixedChoiceLayoutCandidate> { it.slots.size }
-                    .thenBy { it.combinedScore }
-            )
+        slot: Rect
+    ): FixedChoiceSlotMatch {
+        val fixedScore = fixedChoiceSlotScore(bitmap, slot)
+        val partialScore = rawButtons
+            .filter { raw -> verticalOverlapRatio(raw, slot) >= MIN_FIXED_CHOICE_RAW_OVERLAP_RATIO }
+            .map { raw -> partialFixedChoiceSlotScore(bitmap, raw, slot) }
+            .maxByOrNull { it.combinedScore }
+        return FixedChoiceSlotMatch(fixedScore, partialScore)
     }
 
     private fun clippedToBitmap(rect: Rect, bitmap: Bitmap): Rect? {

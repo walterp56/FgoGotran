@@ -140,6 +140,8 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val EARLY_TRANSLATION_MIN_DIALOGUE_CHARS = 6
         private const val COMPLETED_DIALOGUE_STABLE_DELAY = 160L
         private const val COMPLETED_DIALOGUE_STABLE_SCANS = 2
+        private const val SEMI_AUTO_COMPLETED_OCR_FALLBACK_DELAY = 360L
+        private const val SEMI_AUTO_COMPLETED_OCR_FALLBACK_SCANS = 3
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_DELAY = 180L
         private const val TAP_HANDOFF_COMPLETED_DIALOGUE_STABLE_SCANS = 2
         private const val AUTO_FAILED_TRANSLATION_RETRY_COOLDOWN = 5_000L
@@ -1098,8 +1100,23 @@ class FgoAccessibilityService : AccessibilityService() {
             return AutoScanResult.EmptyCompletedDialogue
         }
 
-        resetCompletedDialogueCandidate()
         if (dialogueScene?.hasDialogue == true) {
+            if (isCompletedDialogueStable(
+                    sceneSource = dialogueScene,
+                    stableDelay = SEMI_AUTO_COMPLETED_OCR_FALLBACK_DELAY,
+                    stableScans = SEMI_AUTO_COMPLETED_OCR_FALLBACK_SCANS
+                )
+            ) {
+                resetSemiAutoBackoff()
+                logAutoStoryDetection(
+                    "Semi-auto stable dialogue fallback",
+                    dialogueRegions,
+                    currentScreenWidth,
+                    currentScreenHeight
+                )
+                FgoLogger.debug(tag, "Semi-auto treating stable OCR as completed dialogue without marker")
+                return AutoScanResult.Ready(regions = dialogueRegions)
+            }
             resetSemiAutoBackoff()
             logAutoStoryDetection(
                 "Semi-auto typing dialogue",
@@ -1110,6 +1127,7 @@ class FgoAccessibilityService : AccessibilityService() {
             return AutoScanResult.EarlyTyping(dialogueScene)
         }
 
+        resetCompletedDialogueCandidate()
         FgoLogger.debug(tag, "Semi-auto found no readable dialogue text")
         rememberSemiAutoBlankOcr()
         return AutoScanResult.Waiting
