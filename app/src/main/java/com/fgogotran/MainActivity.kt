@@ -10,6 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.Translator
+import com.fgogotran.update.AppVersionManager
 import com.fgogotran.ui.screen.ApiSettingsScreen
 import com.fgogotran.ui.screen.GuideScreen
 import com.fgogotran.ui.screen.HomeScreen
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
+    @Inject lateinit var appVersionManager: AppVersionManager
     @Inject lateinit var translator: Translator
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,7 +51,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             FgoGotranTheme {
-                MainScreen(settingsRepository, glossaryUpdateManager, translator)
+                MainScreen(settingsRepository, glossaryUpdateManager, appVersionManager, translator)
             }
         }
     }
@@ -67,6 +69,7 @@ enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS }
 fun MainScreen(
     settingsRepository: SettingsRepository,
     glossaryUpdateManager: GlossaryUpdateManager,
+    appVersionManager: AppVersionManager,
     translator: Translator
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
@@ -90,6 +93,7 @@ fun MainScreen(
         Screen.SETTINGS -> SettingsScreen(
             settingsRepository = settingsRepository,
             glossaryUpdateManager = glossaryUpdateManager,
+            appVersionManager = appVersionManager,
             onClearTranslationCache = { translator.clearTranslationCache() },
             onApiSettings = { currentScreen = Screen.API_SETTINGS },
             onBack = { currentScreen = Screen.HOME }

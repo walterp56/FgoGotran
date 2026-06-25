@@ -11,7 +11,7 @@ This checklist is for reducing false positives and making FgoGotran reviewable. 
 - Accessibility description no longer says "silent screenshot"; it explains user-started screen capture for OCR.
 - Accessibility service no longer declares window-content retrieval or interactive-window retrieval.
 - Manifest no longer declares `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; users can still open battery settings manually from the app.
-- In-app app update checking/downloading was removed; Play builds should update through Google Play.
+- In-app APK downloading/installing is not implemented. The settings page can check the latest public version and open the download page; Play builds should update through Google Play.
 
 ## Play Console Declaration Suggested Answers
 

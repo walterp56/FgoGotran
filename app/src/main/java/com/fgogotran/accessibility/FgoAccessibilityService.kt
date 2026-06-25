@@ -74,6 +74,7 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var cropResultOverlay: CropResultOverlay
     @Inject lateinit var cropResultRenderer: CropResultRenderer
     @Inject lateinit var runnerOverlay: FgoRunnerOverlay
+    @Inject lateinit var settingsRepository: SettingsRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isProcessing = false
@@ -269,11 +270,25 @@ class FgoAccessibilityService : AccessibilityService() {
         cropResultOverlay.init(this) { x, y ->
             handleCropResultTap(x, y)
         }
-        TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
-        startDetectionLoop()
+        restoreLastTranslationMode()
         warmUpManualPipeline()
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
         FgoLogger.info(tag, "Service connected: ${screenWidth}x${screenHeight}")
+    }
+
+    private fun restoreLastTranslationMode() {
+        TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
+        serviceScope.launch {
+            val restoredMode = runCatching {
+                settingsRepository.getLastTranslationMode().toTranslationMode()
+            }.getOrElse { error ->
+                FgoLogger.warn(tag, "Failed to restore translation mode; using manual", error)
+                TranslationMode.MANUAL
+            }
+            applyTranslationMode(restoredMode)
+            startDetectionLoop()
+            FgoLogger.debug(tag, "Restored translation mode: $restoredMode")
+        }
     }
 
     private fun warmUpManualPipeline() {
@@ -425,7 +440,16 @@ class FgoAccessibilityService : AccessibilityService() {
         setTranslationMode(if (enabled) TranslationMode.AUTO else TranslationMode.MANUAL)
     }
 
-    fun setTranslationMode(mode: TranslationMode) {
+    fun setTranslationMode(mode: TranslationMode, persist: Boolean = true) {
+        applyTranslationMode(mode)
+        if (persist) {
+            serviceScope.launch(Dispatchers.IO) {
+                settingsRepository.setLastTranslationMode(mode.name)
+            }
+        }
+    }
+
+    private fun applyTranslationMode(mode: TranslationMode) {
         TranslationTrigger.setTranslationMode(mode)
         cancelCurrentTranslation()
         cropResultOverlay.hide()
@@ -437,6 +461,12 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "Translation mode set to manual")
         }
         runnerOverlay.refreshButtonMode()
+    }
+
+    private fun String.toTranslationMode(): TranslationMode {
+        return runCatching {
+            TranslationMode.valueOf(SettingsRepository.normalizeTranslationMode(this))
+        }.getOrDefault(TranslationMode.MANUAL)
     }
 
     fun requestManualTranslation(afterMenuDismiss: Boolean = false): Boolean {
@@ -488,7 +518,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    fun requestCropTranslation(bounds: Rect): Boolean {
+    fun requestCropTranslation(bounds: Rect, restoreMode: TranslationMode? = null): Boolean {
         if (!isFgoForeground || TranslationTrigger.isUiBlockingOcr()) {
             FgoLogger.warn(tag, "Crop translation rejected; FGO foreground=$isFgoForeground")
             return false
@@ -496,19 +526,41 @@ class FgoAccessibilityService : AccessibilityService() {
 
         TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
         cancelCurrentTranslation()
+        val cropVersion = stopVersion
         cropTranslationJob = serviceScope.launch {
-            val deadline = SystemClock.elapsedRealtime() + CROP_TRANSLATION_WAIT_TIMEOUT
-            while (isProcessing && SystemClock.elapsedRealtime() < deadline) {
-                delay(CAPTURE_SETTLE_DELAY)
+            var shouldRestoreMode = false
+            try {
+                val deadline = SystemClock.elapsedRealtime() + CROP_TRANSLATION_WAIT_TIMEOUT
+                while (isProcessing && SystemClock.elapsedRealtime() < deadline) {
+                    delay(CAPTURE_SETTLE_DELAY)
+                }
+                if (isProcessing) {
+                    FgoLogger.warn(tag, "Crop translation skipped; previous pipeline is still busy")
+                    showCropStatus(bounds, "请稍后再试")
+                    shouldRestoreMode = true
+                    return@launch
+                }
+                processCropTranslation(Rect(bounds))
+                shouldRestoreMode = true
+            } finally {
+                if (shouldRestoreMode && cropVersion == stopVersion) {
+                    restoreModeAfterCrop(restoreMode)
+                }
             }
-            if (isProcessing) {
-                FgoLogger.warn(tag, "Crop translation skipped; previous pipeline is still busy")
-                showCropStatus(bounds, "请稍后再试")
-                return@launch
-            }
-            processCropTranslation(Rect(bounds))
         }
         return true
+    }
+
+    private fun restoreModeAfterCrop(mode: TranslationMode?) {
+        if (mode == null) return
+        TranslationTrigger.setTranslationMode(mode)
+        if (mode != TranslationMode.MANUAL) {
+            autoScanReadyAt = SystemClock.elapsedRealtime() + MANUAL_MENU_DISMISS_SETTLE_DELAY
+        } else {
+            autoScanReadyAt = 0L
+        }
+        runnerOverlay.refreshButtonMode()
+        FgoLogger.debug(tag, "Restored translation mode after crop: $mode")
     }
 
     fun clearCropTranslationOverlay() {

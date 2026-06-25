@@ -274,7 +274,7 @@ fun ApiSettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                             }
-                            Text(if (testingApi) "测试中" else "测试API")
+                            Text(if (testingApi) "测试中" else "测试 API")
                         }
                     }
                     Row(

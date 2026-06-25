@@ -68,7 +68,7 @@ fun FloatingButton(
     onDrag: (Float, Float) -> Unit
 ) {
     val touchTargetSize = 72.dp
-    val visualButtonSize = 60.dp
+    val visualButtonSize = 54.dp
     val idleAlpha = 0.38f
     val pressedAlpha = 0.62f
     val baseColor = when (mode) {
@@ -232,16 +232,16 @@ fun FloatingActionGlyph(
             Text(
                 text = when (icon) {
                     FloatingActionIcon.GO -> "GO"
-                    FloatingActionIcon.SEMI -> "SEMI"
-                    else -> "AUTO"
+                    FloatingActionIcon.SEMI -> "半"
+                    else -> "自"
                 },
                 color = color,
                 fontSize = when {
                     icon == FloatingActionIcon.GO && prominent -> 15.sp
-                    icon == FloatingActionIcon.SEMI && prominent -> 9.sp
-                    icon == FloatingActionIcon.SEMI -> 8.sp
-                    icon == FloatingActionIcon.AUTO && prominent -> 10.sp
-                    icon == FloatingActionIcon.AUTO -> 8.sp
+                    icon == FloatingActionIcon.SEMI && prominent -> 21.sp
+                    icon == FloatingActionIcon.SEMI -> 17.sp
+                    icon == FloatingActionIcon.AUTO && prominent -> 21.sp
+                    icon == FloatingActionIcon.AUTO -> 17.sp
                     else -> 13.sp
                 },
                 fontWeight = FontWeight.Bold,

@@ -54,9 +54,11 @@ class SettingsRepository @Inject constructor(
         val KEY_FLOATING_BUTTON_PORTRAIT_Y = intPreferencesKey("floating_button_portrait_y")
         val KEY_FLOATING_BUTTON_LANDSCAPE_X = intPreferencesKey("floating_button_landscape_x")
         val KEY_FLOATING_BUTTON_LANDSCAPE_Y = intPreferencesKey("floating_button_landscape_y")
+        val KEY_LAST_TRANSLATION_MODE = stringPreferencesKey("last_translation_mode")
 
         const val DEFAULT_FLOATING_BUTTON_X = 8
         const val DEFAULT_FLOATING_BUTTON_Y = 300
+        const val DEFAULT_TRANSLATION_MODE = "MANUAL"
 
         /** DeepSeek Chat API (default). */
         const val BACKEND_DEEPSEEK = "deepseek"
@@ -99,9 +101,13 @@ class SettingsRepository @Inject constructor(
             BACKEND_GEMINI,
             BACKEND_CUSTOM_OPENAI
         )
+        private val SUPPORTED_TRANSLATION_MODES = setOf("MANUAL", "SEMI_AUTO", "AUTO")
 
         fun normalizeBackend(backend: String): String =
             backend.takeIf { it in SUPPORTED_BACKENDS } ?: BACKEND_DEEPSEEK
+
+        fun normalizeTranslationMode(mode: String): String =
+            mode.takeIf { it in SUPPORTED_TRANSLATION_MODES } ?: DEFAULT_TRANSLATION_MODE
 
         fun normalizeTargetChineseLocale(locale: String): String = when (locale) {
             TARGET_LOCALE_TRADITIONAL -> TARGET_LOCALE_TRADITIONAL
@@ -251,6 +257,21 @@ class SettingsRepository @Inject constructor(
     /** Last user-positioned floating button y coordinate. */
     val floatingButtonY: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[KEY_FLOATING_BUTTON_Y] ?: DEFAULT_FLOATING_BUTTON_Y
+    }
+
+    /** Last translation mode selected by the user from the floating menu. */
+    val lastTranslationMode: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeTranslationMode(prefs[KEY_LAST_TRANSLATION_MODE] ?: DEFAULT_TRANSLATION_MODE)
+    }
+
+    suspend fun getLastTranslationMode(): String {
+        return lastTranslationMode.first()
+    }
+
+    suspend fun setLastTranslationMode(mode: String) {
+        val normalizedMode = normalizeTranslationMode(mode)
+        context.dataStore.edit { it[KEY_LAST_TRANSLATION_MODE] = normalizedMode }
+        FgoLogger.debug(tag, "Setting updated: last_translation_mode=$normalizedMode")
     }
 
     suspend fun saveApiSettings(

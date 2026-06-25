@@ -21,6 +21,7 @@ FgoGotran is a Fate/Grand Order Japanese-to-Chinese translation overlay. This po
 - The player name is used locally to preserve the user's FGO Master name in translations.
 - API keys are stored locally on the device and are sent only to the selected translation provider as required for translation requests.
 - The glossary updater may contact `https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json` and download a verified glossary database package.
+- The version checker may contact `https://cdn.fgogotran.com/app/android/latest/manifest.json` to compare the installed app version with the latest public version.
 
 ## Data The App Does Not Access Intentionally
 

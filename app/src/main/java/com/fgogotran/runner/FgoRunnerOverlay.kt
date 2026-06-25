@@ -68,6 +68,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var onCloseRequested: (() -> Unit)? = null
     private var shown = false
     private var cropModeState = CropModeState.IDLE
+    private var modeBeforeCrop: TranslationMode? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val overlayScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
@@ -163,6 +164,7 @@ class FgoRunnerOverlay @Inject constructor(
         overlayScope.launch {
             try {
                 loadButtonPositionIfNeeded()
+                restoreLastTranslationMode()
                 if (!shown || requestVersion != showRequestVersion) return@launch
 
                 val wm = windowManager
@@ -194,6 +196,25 @@ class FgoRunnerOverlay @Inject constructor(
                 FgoLogger.warn(tag, "Failed to show floating button", e)
             }
         }
+    }
+
+    private suspend fun restoreLastTranslationMode() {
+        val mode = runCatching {
+            TranslationMode.valueOf(
+                SettingsRepository.normalizeTranslationMode(settingsRepository.getLastTranslationMode())
+            )
+        }.getOrElse { error ->
+            FgoLogger.warn(tag, "Failed to restore runner translation mode; using manual", error)
+            TranslationMode.MANUAL
+        }
+        val accessibility = FgoAccessibilityService.instance
+        if (accessibility != null) {
+            accessibility.setTranslationMode(mode, persist = false)
+        } else {
+            TranslationTrigger.setTranslationMode(mode)
+            refreshButtonMode()
+        }
+        FgoLogger.debug(tag, "Runner restored translation mode: $mode")
     }
 
     /** Hides the floating button and saves its position. */
@@ -452,6 +473,9 @@ class FgoRunnerOverlay @Inject constructor(
                         accessibility.setTranslationMode(mode)
                     } else {
                         TranslationTrigger.setTranslationMode(mode)
+                        overlayScope.launch(Dispatchers.IO) {
+                            settingsRepository.setLastTranslationMode(mode.name)
+                        }
                         refreshButtonMode()
                     }
                     dismissMenu()
@@ -501,7 +525,10 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun armOneShotCropMode() {
-        FgoAccessibilityService.instance?.setTranslationMode(TranslationMode.MANUAL)
+        if (cropModeState != CropModeState.SELECTING) {
+            modeBeforeCrop = TranslationTrigger.translationMode()
+        }
+        FgoAccessibilityService.instance?.setTranslationMode(TranslationMode.MANUAL, persist = false)
             ?: TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
         FgoAccessibilityService.instance?.clearCropTranslationOverlay()
         TranslationTrigger.cancelPendingTranslation()
@@ -515,19 +542,23 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun requestOneShotCropTranslation() {
         val bounds = cropSelectionOverlay.selectedBounds()
+        val restoreMode = modeBeforeCrop
+        modeBeforeCrop = null
         cropSelectionOverlay.hide()
         cropModeState = CropModeState.IDLE
         refreshButtonMode()
 
         if (bounds == null || bounds.width() <= 0 || bounds.height() <= 0) {
+            restoreModeAfterCropSelection(restoreMode)
             FgoLogger.warn(tag, "Crop translation requested without valid bounds")
             return
         }
 
         val requested = FgoAccessibilityService.instance
-            ?.requestCropTranslation(Rect(bounds))
+            ?.requestCropTranslation(Rect(bounds), restoreMode)
             ?: false
         if (!requested) {
+            restoreModeAfterCropSelection(restoreMode)
             FgoLogger.warn(tag, "Accessibility service unavailable; crop translation ignored")
         }
     }
@@ -535,7 +566,15 @@ class FgoRunnerOverlay @Inject constructor(
     private fun cancelCropMode() {
         cropModeState = CropModeState.IDLE
         cropSelectionOverlay.hide()
+        restoreModeAfterCropSelection(modeBeforeCrop)
+        modeBeforeCrop = null
         refreshButtonMode()
+    }
+
+    private fun restoreModeAfterCropSelection(mode: TranslationMode?) {
+        if (mode == null) return
+        FgoAccessibilityService.instance?.setTranslationMode(mode, persist = false)
+            ?: TranslationTrigger.setTranslationMode(mode)
     }
 
     private fun updateButtonMode() {
