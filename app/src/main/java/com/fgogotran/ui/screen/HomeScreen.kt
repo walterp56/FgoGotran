@@ -241,6 +241,15 @@ fun HomeScreen(
                 }
             }
 
+            Text(
+                text = "可选稳定性",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+            )
+
             // 3. Battery Optimization Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
