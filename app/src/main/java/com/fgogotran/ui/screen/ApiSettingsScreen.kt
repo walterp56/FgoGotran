@@ -1,5 +1,6 @@
 package com.fgogotran.ui.screen
 
+import android.os.SystemClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,6 +23,13 @@ private data class BackendOption(
     val value: String,
     val note: String? = null
 )
+
+private fun formatApiResponseTime(durationMs: Long): String {
+    val safeDuration = durationMs.coerceAtLeast(0L)
+    val seconds = safeDuration / 1000
+    val hundredths = ((safeDuration % 1000) / 10).toString().padStart(2, '0')
+    return "$seconds.${hundredths}s"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,19 +119,22 @@ fun ApiSettingsScreen(
         saveMessage = ""
         saveMessageIsError = false
         scope.launch {
+            val startedAt = SystemClock.elapsedRealtime()
             try {
-                val response = translator.testApiSettings(
+                translator.testApiSettings(
                     backend = selectedBackend,
                     apiKey = apiKey,
                     apiBaseUrl = apiBaseUrl,
                     apiModel = apiModel
                 )
-                saveMessage = "API 测试成功：${response.take(80)}"
+                val elapsedMs = SystemClock.elapsedRealtime() - startedAt
+                saveMessage = "响应时间：${formatApiResponseTime(elapsedMs)}"
                 saveMessageIsError = false
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                saveMessage = "API 测试失败：${e.message ?: e.javaClass.simpleName}"
+                val elapsedMs = SystemClock.elapsedRealtime() - startedAt
+                saveMessage = "测试失败，响应时间：${formatApiResponseTime(elapsedMs)}"
                 saveMessageIsError = true
             } finally {
                 testingApi = false
