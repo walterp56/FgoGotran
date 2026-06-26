@@ -41,3 +41,4 @@ image/
 app/release/
 release/
 temp/
+tmp_video_frames/

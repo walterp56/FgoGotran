@@ -28,8 +28,9 @@ object FgoViewportLayout {
     // OCR starts inside the nameplate arrow; rendering keeps the original plate alignment.
     private val nameOcrRegion = RectF(32f, 739f, 1172f, 821f)
     private val nameRenderRegion = RectF(0f, 735f, 1085f, 825f)
-    private val dialogueRegion = RectF(35f, 830f, 1810f, 1055f)
-    private val dialogueCompleteRegion = RectF(1810f, 965f, 1888f, 1078f)
+    private val dialogueRegion = RectF(106f, 833f, 1805f, 1052f)
+    private val dialogueRenderRegion = RectF(35f, 830f, 1810f, 1055f)
+    private val dialogueCompleteRegion = RectF(1810f, 945f, 1888f, 1078f)
     private val skipConfirmationNoButtonRegion = RectF(430f, 605f, 785f, 685f)
     private val skipConfirmationYesButtonRegion = RectF(925f, 605f, 1280f, 685f)
     private val skipRegion = RectF(1690f, 10f, 1915f, 112f)
@@ -39,6 +40,7 @@ object FgoViewportLayout {
         return FgoScreenRegions(
             viewport = viewport.toRect(),
             dialogue = mapToScreen(dialogueRegion, viewport),
+            dialogueRender = mapToScreen(dialogueRenderRegion, viewport),
             dialogueComplete = mapToScreen(dialogueCompleteRegion, viewport),
             skipConfirmationNoButton = mapToScreen(skipConfirmationNoButtonRegion, viewport),
             skipConfirmationYesButton = mapToScreen(skipConfirmationYesButtonRegion, viewport),
@@ -93,6 +95,7 @@ object FgoViewportLayout {
 data class FgoScreenRegions(
     val viewport: Rect,
     val dialogue: Rect,
+    val dialogueRender: Rect,
     val dialogueComplete: Rect,
     val skipConfirmationNoButton: Rect,
     val skipConfirmationYesButton: Rect,

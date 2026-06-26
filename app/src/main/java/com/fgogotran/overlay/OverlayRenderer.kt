@@ -340,7 +340,7 @@ class OverlayRenderer @Inject constructor(
 
         return boundedRect(
             left = minOf(sourceLeft, textArea.left - clearLeftInsetX),
-            top = minOf(sourceTop, textArea.top - clearInsetY),
+            top = minOf(sourceTop, textArea.top - clearInsetY) - 12f * scale,
             right = maxOf(sourceRight, textArea.left + textWidth + clearInsetX, clearRightForRiskyTail),
             bottom = maxOf(sourceBottom, textBottom + clearInsetY),
             bounds = panelBox

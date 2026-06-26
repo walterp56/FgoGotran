@@ -36,7 +36,9 @@ class BackgroundDetector @Inject constructor() {
 
         private const val MIN_SKIP_WHITE_RATIO = 0.08f
         private const val MAX_SKIP_WHITE_RATIO = 0.55f
-        private const val MIN_COMPLETE_MARKER_WHITE_RATIO = 0.018f
+        private const val COMPLETE_MARKER_MIN_ASPECT = 0.42f
+        private const val COMPLETE_MARKER_MAX_ASPECT = 0.95f
+        private const val COMPLETE_MARKER_EDGE_GUARD_PX = 2
         private const val MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO = 0.35f
     }
 
@@ -271,7 +273,7 @@ class BackgroundDetector @Inject constructor() {
         val markerProfile = completeMarkerColorProfile(bitmap, baseBounds)
         val baseScore = completeMarkerWhiteScore(bitmap, baseBounds, markerProfile)
         val markerShapeVisible = hasCompleteMarkerShape(bitmap, baseBounds, markerProfile)
-        val visible = markerShapeVisible || baseScore.ratio >= MIN_COMPLETE_MARKER_WHITE_RATIO
+        val visible = markerShapeVisible
         FgoLogger.debug(
             tag,
             "Dialogue complete marker visible=$visible markerRatio=${baseScore.ratio} " +
@@ -356,10 +358,15 @@ class BackgroundDetector @Inject constructor() {
                 val componentWidth = maxX - minX + 1
                 val componentHeight = maxY - minY + 1
                 val aspect = componentWidth.toFloat() / componentHeight.coerceAtLeast(1)
+                val touchesRegionEdge = minX <= COMPLETE_MARKER_EDGE_GUARD_PX ||
+                    minY <= COMPLETE_MARKER_EDGE_GUARD_PX ||
+                    maxX >= width - 1 - COMPLETE_MARKER_EDGE_GUARD_PX ||
+                    maxY >= height - 1 - COMPLETE_MARKER_EDGE_GUARD_PX
                 if (count >= minPixels &&
                     componentWidth in minWidth..maxWidth &&
                     componentHeight in minHeight..maxHeight &&
-                    aspect in 0.32f..1.18f
+                    aspect in COMPLETE_MARKER_MIN_ASPECT..COMPLETE_MARKER_MAX_ASPECT &&
+                    !touchesRegionEdge
                 ) {
                     return true
                 }
