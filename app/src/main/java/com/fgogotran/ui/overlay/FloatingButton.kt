@@ -67,7 +67,6 @@ fun FloatingButton(
     onLongClick: () -> Unit,
     onDrag: (Float, Float) -> Unit
 ) {
-    val touchTargetSize = 72.dp
     val visualButtonSize = 54.dp
     val idleAlpha = 0.38f
     val pressedAlpha = 0.62f
@@ -90,7 +89,7 @@ fun FloatingButton(
 
     Box(
         modifier = Modifier
-            .size(touchTargetSize)
+            .size(visualButtonSize)
             .pointerInput(onClick, onLongClick, onDrag) {
                 try {
                     awaitEachGesture {

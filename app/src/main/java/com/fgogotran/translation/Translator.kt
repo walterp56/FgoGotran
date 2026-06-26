@@ -171,7 +171,8 @@ class Translator @Inject constructor(
                     role = "user",
                     content = "API connectivity test. Reply with OK only."
                 )
-            )
+            ),
+            maxTokens = API_TEST_MAX_TOKENS
         ).trim()
         if (response.isBlank()) {
             throw IllegalStateException("API returned an empty response")
@@ -223,6 +224,10 @@ class Translator @Inject constructor(
         private const val TRANSLATION_SOCKET_TIMEOUT_MS = 20_000L
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
         private const val CHAT_COMPLETION_MAX_TOKENS = 1024
+        private const val API_TEST_MAX_TOKENS = 16
+        private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
+        private const val BATCH_TRANSLATION_MAX_TOKENS = 384
+        private const val SCENE_TRANSLATION_MAX_TOKENS = 512
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val UNTRANSLATED_FALLBACK = ""
         private const val MASKED_TEXT_BACKEND = "masked-source"
@@ -233,6 +238,8 @@ class Translator @Inject constructor(
         private const val PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH = 16
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
         private val maskedTextPattern = Regex("[■□▇█]+")
+        private val returnedRubyAnglePattern = Regex("""([^《》\s]{1,24})《([^》]{1,32})》""")
+        private val returnedRubyParenPattern = Regex("""([^（）()\s]{1,24})[（(]([^（）()]{1,32})[）)]""")
         private val maskedSourceIgnoredChars = setOf(
             '、', '。', '，', '．', '.', ',', '・', '･', '·', '：', ':',
             '；', ';', '！', '!', '？', '?', '…', '‥', '—', '―', '–',
@@ -362,7 +369,9 @@ class Translator @Inject constructor(
     suspend fun translate(
         japaneseText: String,
         choiceTexts: List<String> = emptyList(),
-        preserveRubyMeaning: Boolean = false
+        preserveRubyMeaning: Boolean = false,
+        maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
+        useDialogueFastPrompt: Boolean = false
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -433,9 +442,14 @@ class Translator @Inject constructor(
             emptyList()
         }
         val protectedInput = protectText(normalizedText, matchedTerms, playerName)
+        val systemPrompt = if (useDialogueFastPrompt && normalizedChoices.isEmpty() && !preserveRubyMeaning) {
+            promptBuilder.buildDialogueFastSystemPrompt(matchedTerms, playerName)
+        } else {
+            promptBuilder.buildSystemPrompt(matchedTerms, playerName)
+        }
 
         val messages = listOf(
-            ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName)),
+            ChatMessage("system", systemPrompt),
             ChatMessage(
                 "user",
                 buildSingleUserPrompt(
@@ -448,7 +462,7 @@ class Translator @Inject constructor(
 
         FgoLogger.info(tag, "Calling $backend API")
         val result = try {
-            callTranslationBackend(config, messages)
+            callTranslationBackend(config, messages, maxTokens = maxTokens)
         } catch (e: Exception) {
             FgoLogger.error(tag, "$backend API call failed: ${e.message}", e)
             return TranslateResult(
@@ -477,7 +491,8 @@ class Translator @Inject constructor(
                 normalizedText = normalizedText,
                 normalizedChoices = normalizedChoices,
                 matchedTerms = matchedTerms,
-                protectedInput = protectedInput
+                protectedInput = protectedInput,
+                maxTokens = maxTokens
             )
             if (retryResult == null) {
                 FgoLogger.warn(tag, "Retry still looked untranslated; skipping overlay render")
@@ -601,12 +616,19 @@ class Translator @Inject constructor(
 
         FgoLogger.info(tag, "Calling $backend API for batch (${uncachedTexts.size} items)")
         val translatedTexts = try {
-            val rawResult = callTranslationBackend(config, messages)
+            val rawResult = callTranslationBackend(
+                config,
+                messages,
+                maxTokens = BATCH_TRANSLATION_MAX_TOKENS
+            )
             parseBatchResult(rawResult, uncachedTexts.size)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Batch translation failed, falling back to single calls", e)
             for (index in uncachedIndices) {
-                results[index] = translate(japaneseTexts[index])
+                results[index] = translate(
+                    japaneseTexts[index],
+                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS
+                )
             }
             return results.completeForTargetLocale(config)
         }
@@ -778,7 +800,11 @@ class Translator @Inject constructor(
 
         if (needsDialogue && !needsName && neededChoiceIndices.isEmpty()) {
             FgoLogger.info(tag, "Scene fast path: dialogue only")
-            dialogueResult = translate(input.dialogue.orEmpty())
+            dialogueResult = translate(
+                input.dialogue.orEmpty(),
+                maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
+                useDialogueFastPrompt = true
+            )
             return SceneTranslateResult(
                 name = nameResult,
                 dialogue = dialogueResult,
@@ -851,7 +877,11 @@ class Translator @Inject constructor(
             "Calling $backend API for structured scene (name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size})"
         )
         val translatedScene = try {
-            val rawResult = callTranslationBackend(config, messages)
+            val rawResult = callTranslationBackend(
+                config,
+                messages,
+                maxTokens = SCENE_TRANSLATION_MAX_TOKENS
+            )
             parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Structured scene translation failed, falling back to one batch call", e)
@@ -1990,14 +2020,84 @@ class Translator @Inject constructor(
     }
 
     private fun cleanReturnedRubyMarkup(text: String): String {
-        return Regex("""([^《》\s]{1,24})《([^》]{1,32})》""").replace(text) { match ->
+        val angleCleaned = returnedRubyAnglePattern.replace(text) { match ->
             val base = match.groupValues[1]
             val reading = match.groupValues[2].trim()
             when {
                 reading.isBlank() -> base
+                isDuplicateReturnedRuby(base, reading) -> duplicateReturnedRubyText(base, reading)
                 reading.any { it in '\u3040'..'\u30ff' } -> base
                 else -> "$base（$reading）"
             }
+        }
+        return returnedRubyParenPattern.replace(angleCleaned) { match ->
+            val base = match.groupValues[1]
+            val reading = match.groupValues[2].trim()
+            if (reading.isNotBlank() && isDuplicateReturnedRuby(base, reading)) {
+                duplicateReturnedRubyText(base, reading)
+            } else {
+                match.value
+            }
+        }
+    }
+
+    private fun isDuplicateReturnedRuby(base: String, reading: String): Boolean {
+        return duplicateReturnedRubySuffixStart(base, reading) != null
+    }
+
+    private fun duplicateReturnedRubyText(base: String, reading: String): String {
+        val suffixStart = duplicateReturnedRubySuffixStart(base, reading) ?: return base
+        val suffix = base.substring(suffixStart)
+        val replacement = normalizeDuplicateRubyDisplayText(suffix)
+        return base.take(suffixStart) + replacement.ifBlank { normalizeDuplicateRubyDisplayText(reading) }
+    }
+
+    private fun duplicateReturnedRubySuffixStart(base: String, reading: String): Int? {
+        val readingKey = duplicateRubyCompareKey(reading)
+        if (readingKey.isBlank()) return null
+
+        val baseKey = duplicateRubyCompareKey(base)
+        if (baseKey == readingKey) return 0
+        if (readingKey.length < 2) return null
+
+        for (start in base.indices) {
+            if (!isDuplicateRubyCompareChar(base[start])) continue
+            if (duplicateRubyCompareKey(base.substring(start)) == readingKey) {
+                return start
+            }
+        }
+        return null
+    }
+
+    private fun duplicateRubyCompareKey(text: String): String {
+        val simplified = toSimplifiedChinese(Normalizer.normalize(text.trim(), Normalizer.Form.NFKC))
+        return buildString(simplified.length) {
+            for (char in simplified) {
+                val normalized = duplicateRubyComparableChar(char)
+                if (normalized.isLetterOrDigit()) {
+                    append(normalized.lowercaseChar())
+                }
+            }
+        }
+    }
+
+    private fun normalizeDuplicateRubyDisplayText(text: String): String {
+        val simplified = toSimplifiedChinese(Normalizer.normalize(text.trim(), Normalizer.Form.NFKC))
+        return buildString(simplified.length) {
+            for (char in simplified) {
+                append(duplicateRubyComparableChar(char))
+            }
+        }.trim()
+    }
+
+    private fun isDuplicateRubyCompareChar(char: Char): Boolean {
+        return duplicateRubyComparableChar(toSimplifiedChinese(char.toString()).first()).isLetterOrDigit()
+    }
+
+    private fun duplicateRubyComparableChar(char: Char): Char {
+        return when (char) {
+            '帯' -> '带'
+            else -> char
         }
     }
 
@@ -2949,7 +3049,8 @@ class Translator @Inject constructor(
         normalizedText: String,
         normalizedChoices: List<String>,
         matchedTerms: List<TermEntity>,
-        protectedInput: ProtectedText
+        protectedInput: ProtectedText,
+        maxTokens: Int
     ): String? {
         val retryMessages = listOf(
             ChatMessage(
@@ -2960,7 +3061,7 @@ class Translator @Inject constructor(
         )
 
         val retryRaw = try {
-            callTranslationBackend(config, retryMessages)
+            callTranslationBackend(config, retryMessages, maxTokens = maxTokens)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Strict retry API call failed: ${e.message}", e)
             return null
@@ -3088,7 +3189,8 @@ class Translator @Inject constructor(
         apiKey: String,
         apiBaseUrl: String,
         apiModel: String,
-        messages: List<ChatMessage>
+        messages: List<ChatMessage>,
+        maxTokens: Int
     ): String {
         val response = httpClient.post(apiBaseUrl) {
             if (apiKey.isNotBlank()) {
@@ -3098,7 +3200,7 @@ class Translator @Inject constructor(
             setBody(
                 buildJsonObject {
                     put("model", JsonPrimitive(apiModel))
-                    put("max_tokens", JsonPrimitive(1024))
+                    put("max_tokens", JsonPrimitive(maxTokens))
                     put("temperature", JsonPrimitive(0.3))
                     put("messages", chatMessagesJson(messages))
                     if (apiModel.startsWith("deepseek-v4")) {
@@ -3118,7 +3220,8 @@ class Translator @Inject constructor(
         apiKey: String,
         apiBaseUrl: String,
         apiModel: String,
-        messages: List<ChatMessage>
+        messages: List<ChatMessage>,
+        maxTokens: Int
     ): String {
         val response = httpClient.post(apiBaseUrl) {
             header("x-api-key", apiKey)
@@ -3127,7 +3230,7 @@ class Translator @Inject constructor(
             setBody(
                 buildJsonObject {
                     put("model", JsonPrimitive(apiModel))
-                    put("max_tokens", JsonPrimitive(1024))
+                    put("max_tokens", JsonPrimitive(maxTokens))
                     put("temperature", JsonPrimitive(0.3))
                     put("messages", chatMessagesJson(messages))
                 }
@@ -3277,14 +3380,16 @@ class Translator @Inject constructor(
 
     private suspend fun callTranslationBackend(
         config: RuntimeConfig,
-        messages: List<ChatMessage>
+        messages: List<ChatMessage>,
+        maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS
     ): String {
         return when (config.backend) {
             SettingsRepository.BACKEND_CLAUDE -> translateClaude(
                 apiKey = config.apiKey,
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
-                messages = messages
+                messages = messages,
+                maxTokens = maxTokens
             )
 
             SettingsRepository.BACKEND_ZHIPU -> translateOpenAiCompatible(
@@ -3292,7 +3397,7 @@ class Translator @Inject constructor(
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
-                maxTokens = ZHIPU_TRANSLATION_MAX_TOKENS,
+                maxTokens = maxTokens.coerceAtMost(ZHIPU_TRANSLATION_MAX_TOKENS),
                 disableThinking = true
             )
 
@@ -3302,7 +3407,8 @@ class Translator @Inject constructor(
                 apiKey = config.apiKey,
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
-                messages = messages
+                messages = messages,
+                maxTokens = maxTokens
             )
 
             SettingsRepository.BACKEND_GEMINI -> translateOpenAiCompatible(
@@ -3310,6 +3416,7 @@ class Translator @Inject constructor(
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
+                maxTokens = maxTokens,
                 reasoningEffort = "low"
             )
 
@@ -3317,7 +3424,8 @@ class Translator @Inject constructor(
                 apiKey = config.apiKey,
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
-                messages = messages
+                messages = messages,
+                maxTokens = maxTokens
             )
         }
     }

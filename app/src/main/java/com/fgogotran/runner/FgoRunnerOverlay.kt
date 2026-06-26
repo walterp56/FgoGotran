@@ -100,7 +100,7 @@ class FgoRunnerOverlay @Inject constructor(
     private companion object {
         const val FAILURE_FEEDBACK_MS = 1800L
         const val POSITION_SAVE_DEBOUNCE_MS = 300L
-        const val FLOATING_BUTTON_SIZE_DP = 72f
+        const val FLOATING_BUTTON_SIZE_DP = 54f
     }
 
     private enum class ButtonScreen {
@@ -302,14 +302,12 @@ class FgoRunnerOverlay @Inject constructor(
         val height = view.height.takeIf { it > 0 } ?: view.measuredHeight
         if (width <= 0 || height <= 0) return false
 
-        val slop = (12f * context.resources.displayMetrics.density).toInt()
-        val bounds = Rect(
-            btnX - slop,
-            btnY - slop,
-            btnX + width + slop,
-            btnY + height + slop
-        )
-        return bounds.contains(rawX.toInt(), rawY.toInt())
+        val centerX = btnX + width / 2f
+        val centerY = btnY + height / 2f
+        val radius = minOf(width, height) / 2f
+        val dx = rawX - centerX
+        val dy = rawY - centerY
+        return dx * dx + dy * dy <= radius * radius
     }
 
     private fun onButtonClick() {

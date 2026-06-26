@@ -28,7 +28,7 @@ class PromptBuilder @Inject constructor() {
 
     companion object {
         const val PROMPT_VERSION = "jp-cn-fgo-simplified-v31"
-        private const val MAX_RAG_TERMS = 10
+        private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
 
         /**
@@ -99,6 +99,22 @@ CN: 灵基（身体）正在发出悲鸣。
 JP: [Choice 1] 行こう
 CN: [Choice 1] 走吧
 """.trimIndent()
+
+        private val DIALOGUE_FAST_SYSTEM_PROMPT = """
+Translate Fate/Grand Order Japanese story dialogue into natural, compact Simplified Chinese for an in-game overlay.
+
+Rules:
+- Return ONLY the translated Chinese text. No notes, markdown, source text, or explanations.
+- Use supplied official terminology exactly. Unknown proper nouns should be naturally transliterated, not described.
+- Translate マスター as 御主 by default. Keep the player's name "{player_name}" exactly if it appears.
+- Preserve placeholders starting with __FGOTERM_ or __FGOPLAYER_ exactly.
+- Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden content.
+- If OCR includes ruby as base《ruby》, omit pronunciation-only ruby; reflect important added meaning naturally.
+- Preserve ellipses, dashes, quotes, brackets, and dramatic rhythm.
+- Keep Japanese name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿 unchanged when attached to a name.
+- Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
+- Keep the line short enough for a two-line FGO dialogue box.
+""".trimIndent()
     }
 
     private val tag = "PromptBuilder"
@@ -123,17 +139,30 @@ CN: [Choice 1] 走吧
         val sb = StringBuilder(
             SYSTEM_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
         )
+        appendMatchedTerminology(sb, matchedTerms)
+        FgoLogger.debug(tag, "System prompt: ${sb.length} chars, ${matchedTerms.size} RAG terms")
+        return sb.toString()
+    }
 
-        // Append matched terminology as a reference table for the LLM
+    fun buildDialogueFastSystemPrompt(
+        matchedTerms: List<TermEntity>,
+        playerName: String
+    ): String {
+        val sb = StringBuilder(
+            DIALOGUE_FAST_SYSTEM_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
+        )
+        appendMatchedTerminology(sb, matchedTerms)
+        FgoLogger.debug(tag, "Dialogue fast system prompt: ${sb.length} chars, ${matchedTerms.size} RAG terms")
+        return sb.toString()
+    }
+
+    private fun appendMatchedTerminology(sb: StringBuilder, matchedTerms: List<TermEntity>) {
         if (matchedTerms.isNotEmpty()) {
             sb.append("\n\n=== OFFICIAL TERMINOLOGY (MUST USE) ===\n")
             for (term in matchedTerms) {
                 sb.append("${term.jpTerm} -> ${term.cnTerm} [${term.category}]\n")
             }
         }
-
-        FgoLogger.debug(tag, "System prompt: ${sb.length} chars, ${matchedTerms.size} RAG terms")
-        return sb.toString()
     }
 
     /**
