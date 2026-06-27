@@ -110,15 +110,19 @@ class GlossaryUpdateManager @Inject constructor(
             val installedSha = settingsRepository.dbSha256.first()
             val currentSha = dbFile.takeIf { it.exists() && it.length() > 0L }?.let(::sha256File).orEmpty()
             val packageMetadata = TermDatabase.onlinePackageMetadata(context)
+            val dbHasRows = TermDatabase.hasUsableDb(context)
             val verifiedPackageMetadata = packageMetadata?.takeIf { metadata ->
                 currentSha.isNotBlank() && metadata.sha256.equals(currentSha, ignoreCase = true)
             }
             if (packageMetadata != null && verifiedPackageMetadata == null) {
-                FgoLogger.warn(
-                    tag,
-                    "DB update: package metadata sha mismatch; " +
+                val message =
+                    "DB update: live DB sha differs from package metadata; " +
                         "package=${packageMetadata.sha256.take(12)}..., current=${currentSha.take(12)}..."
-                )
+                if (dbHasRows) {
+                    FgoLogger.debug(tag, "$message; using installed metadata after SQLite open")
+                } else {
+                    FgoLogger.warn(tag, message)
+                }
             }
             val settingsMatchCurrentFile =
                 installedVersion.isNotBlank() &&
@@ -137,7 +141,11 @@ class GlossaryUpdateManager @Inject constructor(
             val knownCurrentMetadata = when {
                 verifiedPackageMetadata != null ->
                     KnownDbMetadata(verifiedPackageMetadata.contentVersion, verifiedPackageMetadata.sha256)
+                packageMetadata != null && dbHasRows ->
+                    KnownDbMetadata(packageMetadata.contentVersion, packageMetadata.sha256)
                 settingsMatchCurrentFile ->
+                    KnownDbMetadata(installedVersion, installedSha)
+                installedVersion.isNotBlank() && installedSha.isNotBlank() && dbHasRows ->
                     KnownDbMetadata(installedVersion, installedSha)
                 else -> null
             }
@@ -178,8 +186,7 @@ class GlossaryUpdateManager @Inject constructor(
 
             if (
                 effectiveInstalledSha.equals(manifest.dbSha256, ignoreCase = true) &&
-                    dbFile.exists() &&
-                    dbFile.length() > 0L
+                    installedDbMatchesManifest(dbFile, manifest)
             ) {
                 settingsRepository.saveDbUpdateMetadata(
                     contentVersion = manifest.contentVersion,
@@ -209,7 +216,9 @@ class GlossaryUpdateManager @Inject constructor(
                 return
             }
 
-            if (currentSha.equals(manifest.dbSha256, ignoreCase = true)) {
+            if (currentSha.equals(manifest.dbSha256, ignoreCase = true) &&
+                installedDbMatchesManifest(dbFile, manifest)
+            ) {
                 settingsRepository.saveDbUpdateMetadata(
                     contentVersion = manifest.contentVersion,
                     sha256 = manifest.dbSha256,
@@ -453,6 +462,30 @@ class GlossaryUpdateManager @Inject constructor(
             }
         }
         FgoLogger.info(tag, "DB update: downloaded DB verified")
+    }
+
+    private fun installedDbMatchesManifest(file: File, manifest: GlossaryDbManifest): Boolean {
+        if (!file.exists() || file.length() <= 0L) return false
+        return runCatching {
+            SQLiteDatabase.openDatabase(
+                file.absolutePath,
+                null,
+                SQLiteDatabase.OPEN_READONLY
+            ).use { db ->
+                val schemaVersion = db.rawQuery("PRAGMA user_version", null).use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getInt(0) else 0
+                }
+                schemaVersion == manifest.schemaVersion &&
+                    tableExists(db, "character_names") &&
+                    tableExists(db, "terms") &&
+                    countRows(db, "character_names") == manifest.characterNameCount &&
+                    countRows(db, "terms") == manifest.termCount
+            }
+        }
+            .onFailure { error ->
+                FgoLogger.warn(tag, "DB update: installed DB validation failed", error)
+            }
+            .getOrDefault(false)
     }
 
     private fun installDb(downloadedDb: File, manifest: GlossaryDbManifest) {

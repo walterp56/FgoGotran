@@ -37,6 +37,7 @@ import com.fgogotran.translation.SceneTranslateInput
 import com.fgogotran.translation.SceneTranslateResult
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
+import com.fgogotran.translation.FgoDialogueSymbols
 import com.fgogotran.translation.TextNormalizer
 import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
@@ -1874,9 +1875,12 @@ class FgoAccessibilityService : AccessibilityService() {
         if (meaningfulLines.isEmpty()) return emptyList()
 
         val noiseLines = sorted.filter { line ->
-            isRubyDotNoiseLine(line) && meaningfulLines.any { main ->
-                isLikelyRubyAboveMain(line, main, medianHeight)
-            }
+            isRubyDotNoiseLine(line) &&
+                !isStandaloneDialoguePauseLine(line, meaningfulLines, medianHeight) &&
+                isRubyDotNoiseSized(line, medianHeight) &&
+                meaningfulLines.any { main ->
+                    isLikelyRubyAboveMain(line, main, medianHeight)
+                }
         }.toSet()
 
         return sorted.filterNot { it in noiseLines }
@@ -1890,6 +1894,31 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         val dotLikeCount = text.count { it.isRubyDotNoiseChar() }
         return dotLikeCount > 0 && text.all { it.isRubyDotNoiseChar() || it.isWhitespace() }
+    }
+
+    private fun isRubyDotNoiseSized(line: OcrTextLine, medianHeight: Int): Boolean {
+        val height = line.boundingBox.height().coerceAtLeast(1)
+        return height <= medianHeight * RUBY_HEIGHT_RATIO
+    }
+
+    private fun isStandaloneDialoguePauseLine(
+        line: OcrTextLine,
+        meaningfulLines: List<OcrTextLine>,
+        medianHeight: Int
+    ): Boolean {
+        val text = line.text.trim()
+        if (!FgoDialogueSymbols.containsLongPause(text)) return false
+        val hasSentenceEnd = text.any { it in setOf('。', '！', '!', '？', '?') }
+        val dotLikeCount = text.count { it.isRubyDotNoiseChar() }
+        if (!hasSentenceEnd && dotLikeCount < 2) return false
+
+        return meaningfulLines.any { main ->
+            val verticalDistance = main.boundingBox.top - line.boundingBox.bottom
+            val startsNearMain = kotlin.math.abs(line.boundingBox.left - main.boundingBox.left) <= medianHeight * 3
+            verticalDistance >= 0 &&
+                    verticalDistance <= medianHeight * 2 &&
+                    startsNearMain
+        }
     }
 
     private fun isLikelyRubyAboveMain(

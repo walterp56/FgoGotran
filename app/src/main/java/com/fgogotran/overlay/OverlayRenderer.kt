@@ -3,6 +3,7 @@ package com.fgogotran.overlay
 import android.content.Context
 import android.graphics.*
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.translation.FgoDialogueSymbols
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -94,11 +95,6 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_TEXT_SIZE = 53f
         private const val CHOICE_TEXT_MIN_SIZE = 29f
         private const val WIDE_RENDER_SPACE = "\u3000"
-        private const val FGO_PAUSE_ELLIPSIS = "……"
-        private const val FGO_LONG_DASH_RUN = "———"
-        private val FGO_PAUSE_DOT_RUN = Regex("""[·・･]{2,}|\.{2,}|…+|‥+|⋯+""")
-        private val LONG_HORIZONTAL_LINE_RUN =
-            Regex("""[—―─━ー－-]{2,}|(?<![\p{IsHan}A-Za-z0-9])一{2,}(?![\p{IsHan}A-Za-z0-9])""")
         private val TRAILING_DASH_CLEAR_RISK = Regex("""[-ー‐‑‒–—―−─━－一]{2,}\s*$""")
         private val COUNTDOWN_CLEAR_RISK = Regex("""(?:[0-9\uFF10-\uFF19][ \t\u3000]+){2,}[0-9\uFF10-\uFF19]\s*[-ー‐‑‒–—―−─━－一]*\s*$""")
         private val WIDE_RENDER_CONNECTORS = listOf(
@@ -763,16 +759,7 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun String.normalizeDialogueSymbolsAndSpacing(): String {
-        return this
-            .replace('－', '-')
-            .replace('―', '—')
-            .replace(LONG_HORIZONTAL_LINE_RUN, FGO_LONG_DASH_RUN)
-            .replace(Regex("(?m)(^|[「『（(\\[\\s　])-+(?=[\\u3400-\\u9FFFA-Za-z0-9_])")) {
-                "${it.groupValues[1]}$FGO_LONG_DASH_RUN"
-            }
-            .replace(FGO_PAUSE_DOT_RUN, FGO_PAUSE_ELLIPSIS)
-            .replace(Regex("[ \\t]+"), " ")
-            .trim()
+        return FgoDialogueSymbols.normalizeForRender(this)
     }
 
     private fun String.isStandaloneDialoguePrefix(): Boolean {

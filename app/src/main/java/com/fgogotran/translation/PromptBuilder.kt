@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v31"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v32"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -48,10 +48,10 @@ Priority rules:
 2. Unknown Servant, character, NPC, place, organization, class, skill, and Noble Phantasm names must be natural Chinese transliterations, not descriptions or another known FGO name.
 3. Player name: "{player_name}". Keep it exactly if it appears, even if it contains Japanese kana.
 4. Use Simplified Chinese. If an official term is Traditional Chinese, convert to natural Simplified Chinese unless it is a fixed stylized proper noun.
-5. Keep every placeholder starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly, including _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, and _MASTER__ variants.
+5. Keep every placeholder starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly, including _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, _SHI__, and _MASTER__ variants.
 6. Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden text. If a line is mostly masks with too little readable text, return that line unchanged.
 7. Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
-8. Name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿 unchanged. Apply only when attached to a name or player name. Do not apply to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
+8. Name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged. Apply only when attached to a name or player name. Do not apply to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
 9. Name plural ズ means an English-style group marker. Use X们 by default; use X组 or X队 only when context clearly means a team/unit.
 10. Preserve brackets, quotes, exclamation/question marks, unusual symbols, and wide phrase spacing. In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as ……. Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
 11. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
@@ -62,6 +62,7 @@ Style:
 - Translate choices as short player-facing options in the same order.
 - Japanese may omit subjects/objects. Add 你/我/他/她 only when Chinese needs it.
 - Katakana common English-style words may stay compact English when natural, but never for names, organizations, classes, Noble Phantasms, skills, or supplied official terms.
+- アテシ, アタシ, and あたし are first-person pronouns, not names. Translate them by speaker voice as 我, 咱, or 人家, including when they appear sentence-final after punctuation.
 - ロマン is a character/name only when clearly a person; otherwise translate it as 浪漫.
 - Ruby/furigana may appear as base《ruby》. Omit pronunciation-only ruby. If ruby adds alias, joke, hidden meaning, or intended wording, reflect it naturally. Use a short Chinese parenthetical only when both meanings matter. Do not mechanically output base（ruby）.
 """.trimIndent()
@@ -77,7 +78,8 @@ Rules:
 - Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden content.
 - If OCR includes ruby as base《ruby》, omit pronunciation-only ruby; reflect important added meaning naturally.
 - Preserve quotes, brackets, and dramatic rhythm. In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as ……. Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
-- Keep Japanese name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿 unchanged when attached to a name.
+- Keep Japanese name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged when attached to a name.
+- アテシ, アタシ, and あたし are first-person pronouns, not names; translate them as 我/咱/人家 by speaker voice, even sentence-final.
 - Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
 - Keep the line short enough for a two-line FGO dialogue box.
 """.trimIndent()

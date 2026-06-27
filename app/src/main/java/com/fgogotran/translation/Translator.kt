@@ -217,6 +217,11 @@ class Translator @Inject constructor(
         val cnLookupKey: String
     )
 
+    private data class CharacterNameState(
+        val baseName: String,
+        val stateText: String
+    )
+
     companion object {
         private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
@@ -236,15 +241,11 @@ class Translator @Inject constructor(
         private const val LOG_SAMPLE_MAX_CHARS = 120
         private const val PLAYER_NAME_OCR_MIN_LOOKUP_LENGTH = 4
         private const val PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH = 16
-        private const val FGO_PAUSE_ELLIPSIS = "……"
-        private const val FGO_LONG_DASH_RUN = "———"
+        private const val NAME_STATE_MAX_SOURCE_LENGTH = 24
+        private const val NAME_STATE_MAX_TRANSLATED_LENGTH = 18
+        private const val NAME_WITH_STATE_MAX_TRANSLATED_LENGTH = 32
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
         private val maskedTextPattern = Regex("[■□▇█]+")
-        private val fgoLongPauseSourcePattern = Regex("[·・･]{2,}|\\.{2,}|…+|‥+|⋯+")
-        private val translatedEllipsisPattern = Regex("[·・･]{2,}|\\.{2,}|…+|‥+|⋯+")
-        private val translatedDashRunPattern =
-            Regex("[—―─━ー－-]{2,}|(?<![\\p{IsHan}A-Za-z0-9])一{2,}(?![\\p{IsHan}A-Za-z0-9])")
-        private val trailingDashRunPattern = Regex("[—―─━ー－\\-一]{2,}\\s*$")
         private val returnedRubyAnglePattern = Regex("""([^《》\s]{1,24})《([^》]{1,32})》""")
         private val returnedRubyParenPattern = Regex("""([^（）()\s]{1,24})[（(]([^（）()]{1,32})[）)]""")
         private val maskedSourceIgnoredChars = setOf(
@@ -264,13 +265,26 @@ class Translator @Inject constructor(
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})様")
         private val nameTonoHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})殿")
+        private val nameShiHonorificPattern =
+            Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})氏")
         private val wrongSanHonorificSuffixes = listOf("先生", "小姐", "女士", "大人", "阁下")
         private val wrongKunHonorificSuffixes = listOf("同学", "先生", "小姐", "女士", "大人", "阁下", "桑")
         private val wrongChanHonorificSuffixes = listOf("小妹妹", "妹妹", "小姐", "同学", "亲", "桑")
         private val wrongSamaHonorificSuffixes = listOf("大人", "阁下", "先生", "小姐", "女士", "同学", "桑", "殿")
         private val wrongTonoHonorificSuffixes = listOf("大人", "阁下", "先生", "小姐", "女士", "同学", "桑", "様")
+        private val wrongShiHonorificSuffixes = listOf("先生", "小姐", "女士", "大人", "阁下", "桑", "君", "酱")
         private val leakedMasterTitlePattern = Regex("(?i)\\bmaster\\b|マスター")
         private val standaloneMasterTitleWrongSuffixes = listOf("御主人", "主人", "大师")
+        private const val STYLIZED_FIRST_PERSON_TARGET = "咱"
+        private val stylizedFirstPersonPronounSources = setOf("アテシ", "アタシ", "あたし")
+        private val stylizedFirstPersonWrongNameTranslations = listOf(
+            "阿蒂斯",
+            "阿特西",
+            "阿特希",
+            "阿塔西",
+            "阿塔希",
+            "阿忒西"
+        )
         private val sanHonorificExceptionPhrases = setOf(
             "皆さん",
             "みなさん",
@@ -326,20 +340,24 @@ class Translator @Inject constructor(
             "殿堂",
             "殿方"
         )
+        private val shiHonorificExceptionPhrases = setOf(
+            "彼氏"
+        )
         private val NAME_PLURAL_ZU_SUFFIXES = listOf("ズ", "ず")
         private const val NAME_HONORIFIC_KUN_SUFFIX = "君"
         private const val NAME_HONORIFIC_CHAN_SOURCE_SUFFIX = "ちゃん"
         private const val NAME_HONORIFIC_CHAN_TARGET_SUFFIX = "酱"
         private const val NAME_HONORIFIC_SAMA_SUFFIX = "様"
         private const val NAME_HONORIFIC_TONO_SUFFIX = "殿"
+        private const val NAME_HONORIFIC_SHI_SUFFIX = "氏"
         private const val MASTER_TITLE_SOURCE = "マスター"
         private const val MASTER_TITLE_OFFICIAL = "御主"
         private val malformedProtectedTokenPattern =
-            Regex("__FGO(?:TERM|PLAYER)_([^_\\s]{1,64})(?:_(PLURAL|KUN|CHAN|SAMA|TONO|MASTER))?__")
+            Regex("__FGO(?:TERM|PLAYER)_([^_\\s]{1,64})(?:_(PLURAL|KUN|CHAN|SAMA|TONO|SHI|MASTER))?__")
         private val anyProtectedTokenPattern =
             Regex("__FGO(?:TERM|PLAYER)_[^\\s]{1,96}__")
         private val protectedTokenNumericVariantBodyPattern =
-            Regex("\\d+_(PLURAL|KUN|CHAN|SAMA|TONO|MASTER)")
+            Regex("\\d+_(PLURAL|KUN|CHAN|SAMA|TONO|SHI|MASTER)")
         private val protectedTokenMarkerBodies = setOf(
             "MASTER",
             "PLAYER",
@@ -347,7 +365,8 @@ class Translator @Inject constructor(
             "KUN",
             "CHAN",
             "SAMA",
-            "TONO"
+            "TONO",
+            "SHI"
         )
     }
 
@@ -718,6 +737,11 @@ class Translator @Inject constructor(
             }
         }
         normalizedName?.let { normalized ->
+            if (nameResult != null) return@let
+            resolveCharacterNameWithState(normalized)?.let {
+                FgoLogger.info(tag, "Character TSV HIT name state")
+                nameResult = it
+            }
             if (nameResult != null) return@let
             findCharacterNameTranslation(normalized, allowOcrWrappedMatch = true)?.let {
                 FgoLogger.info(tag, "Character TSV HIT name")
@@ -1223,6 +1247,138 @@ class Translator @Inject constructor(
             }
 
         return null
+    }
+
+    private suspend fun resolveCharacterNameWithState(normalizedName: String): TranslateResult? {
+        val stateName = parseCharacterNameState(normalizedName) ?: return null
+        val baseTranslation = findCharacterNameTranslation(
+            stateName.baseName,
+            allowOcrWrappedMatch = true
+        ) ?: return null
+        val baseName = sanitizeCharacterNameResult(baseTranslation).takeIf { it.isNotBlank() } ?: return null
+
+        val stateTranslation = translateCharacterNameState(stateName.stateText)
+        if (stateTranslation == null) {
+            FgoLogger.warn(tag, "Character name state could not be translated safely: ${stateName.stateText}")
+            return TranslateResult(baseName, "character-db", true)
+        }
+
+        val composed = composeCharacterNameWithState(baseName, stateTranslation.translatedText)
+            ?: return TranslateResult(baseName, "character-db", true)
+        val backend = if (stateTranslation.backend == "character-state") {
+            "character-db"
+        } else {
+            "character-db+${stateTranslation.backend}"
+        }
+        return TranslateResult(composed, backend, stateTranslation.cached)
+    }
+
+    private fun parseCharacterNameState(normalizedName: String): CharacterNameState? {
+        val text = normalizedName.trim()
+        if (text.length < 4 || text.any { it == '\n' || it == '\r' }) return null
+        val close = text.lastOrNull() ?: return null
+        if (close != ')' && close != '）') return null
+
+        val openIndex = maxOf(text.lastIndexOf('('), text.lastIndexOf('（'))
+        if (openIndex <= 0 || openIndex >= text.lastIndex) return null
+
+        val baseName = text.substring(0, openIndex).trim()
+        val stateText = text.substring(openIndex + 1, text.lastIndex).trim()
+        if (baseName.isBlank() || stateText.isBlank()) return null
+        if (stateText.length > NAME_STATE_MAX_SOURCE_LENGTH) return null
+        if (!containsJapaneseScript(baseName)) return null
+        if (!TextNormalizer.hasTranslatableContent(stateText)) return null
+        return CharacterNameState(baseName, stateText)
+    }
+
+    private suspend fun translateCharacterNameState(stateText: String): TranslateResult? {
+        fallbackCharacterNameState(stateText)?.let { fallback ->
+            if (!stateText.any(::isJapaneseKana)) return fallback
+        }
+
+        translationMemory.lookupNormalized(stateText)?.let {
+            val state = sanitizeNameStateTranslation(stateText, it)
+            if (isUsableNameStateTranslation(stateText, state)) {
+                return TranslateResult(state, "official-cn", true)
+            }
+        }
+        findTermTranslation(stateText)?.let {
+            val state = sanitizeNameStateTranslation(stateText, it)
+            if (isUsableNameStateTranslation(stateText, state)) {
+                return TranslateResult(state, "glossary", true)
+            }
+        }
+
+        val translated = translate(
+            japaneseText = stateText,
+            maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
+            useDialogueFastPrompt = true
+        )
+        val state = sanitizeNameStateTranslation(stateText, translated.translatedText)
+        if (isUsableNameStateTranslation(stateText, state)) {
+            return translated.copy(translatedText = state)
+        }
+        return fallbackCharacterNameState(stateText)
+    }
+
+    private fun fallbackCharacterNameState(stateText: String): TranslateResult? {
+        val state = sanitizeNameStateTranslation(stateText, toSimplifiedChinese(stateText))
+        return if (isUsableNameStateTranslation(stateText, state)) {
+            TranslateResult(state, "character-state", true)
+        } else {
+            null
+        }
+    }
+
+    private fun composeCharacterNameWithState(baseName: String, stateText: String): String? {
+        if (baseName.isBlank() || stateText.isBlank()) return null
+        val composed = "$baseName（$stateText）"
+        if (composed.length > NAME_WITH_STATE_MAX_TRANSLATED_LENGTH) return null
+        if (composed.any(::isJapaneseKana)) return null
+        return composed
+    }
+
+    private fun sanitizeNameStateTranslation(sourceText: String, translatedText: String): String {
+        return sanitizeTranslation(sourceText, translatedText)
+            .lineSequence()
+            .firstOrNull()
+            .orEmpty()
+            .trim()
+            .stripOuterNameStateBrackets()
+            .trim()
+            .trimEnd { it.isNameStateTrailingPunctuation() }
+            .trim()
+    }
+
+    private fun isUsableNameStateTranslation(sourceText: String, stateText: String): Boolean {
+        if (stateText.isBlank()) return false
+        if (stateText.length > NAME_STATE_MAX_TRANSLATED_LENGTH) return false
+        if (stateText.any(::isJapaneseKana)) return false
+        if (stateText.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') }) return false
+        if (stateText.any { it in setOf('(', ')', '（', '）', '[', ']', '［', '］') }) return false
+        return !(
+            sourceText.any(::isJapaneseKana) &&
+                normalizeNameLookup(sourceText) == normalizeNameLookup(stateText)
+            )
+    }
+
+    private fun String.stripOuterNameStateBrackets(): String {
+        var text = trim()
+        var changed = true
+        while (changed && text.length >= 2) {
+            changed = false
+            val first = text.first()
+            val last = text.last()
+            if ((first == '(' || first == '（') && (last == ')' || last == '）')) {
+                text = text.substring(1, text.lastIndex).trim()
+                changed = true
+            }
+        }
+        return text
+    }
+
+    private fun Char.isNameStateTrailingPunctuation(): Boolean {
+        return this in setOf('。', '.', '．', '、', ',', '，', '!', '！', '?', '？')
     }
 
     private fun findOcrWrappedCharacterNameTranslation(
@@ -1785,8 +1941,10 @@ class Translator @Inject constructor(
         val chanAdjusted = applyChanHonorificPolicy(sourceText, kunAdjusted)
         val samaAdjusted = applySamaHonorificPolicy(sourceText, chanAdjusted)
         val tonoAdjusted = applyTonoHonorificPolicy(sourceText, samaAdjusted)
-        val masterAdjusted = applyMasterTitlePolicy(sourceText, tonoAdjusted)
-        return preserveSourcePunctuation(sourceText, masterAdjusted)
+        val shiAdjusted = applyShiHonorificPolicy(sourceText, tonoAdjusted)
+        val masterAdjusted = applyMasterTitlePolicy(sourceText, shiAdjusted)
+        val firstPersonAdjusted = applyStylizedFirstPersonPronounPolicy(sourceText, masterAdjusted)
+        return preserveSourcePunctuation(sourceText, firstPersonAdjusted)
     }
 
     private fun applySanHonorificPolicy(sourceText: String, translatedText: String): String {
@@ -1919,12 +2077,63 @@ class Translator @Inject constructor(
         }
     }
 
+    private fun applyShiHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameShiHonorific(sourceText)) return translatedText
+        val adjusted = replaceStandaloneWrongHonorificIfNeeded(
+            sourceText,
+            translatedText,
+            nameShiHonorificPattern,
+            wrongShiHonorificSuffixes,
+            NAME_HONORIFIC_SHI_SUFFIX
+        )
+        return appendHonorificToStandaloneNameIfMissing(
+            sourceText,
+            adjusted,
+            nameShiHonorificPattern,
+            NAME_HONORIFIC_SHI_SUFFIX
+        )
+    }
+
+    private fun sourceContainsNameShiHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameShiHonorificPattern.findAll(normalized).any { match ->
+            val contextStart = (match.range.first - 2).coerceAtLeast(0)
+            val context = normalized.substring(contextStart, match.range.last + 1)
+            shiHonorificExceptionPhrases.none { exception ->
+                match.value == exception || context.endsWith(exception)
+            }
+        }
+    }
+
     private fun applyMasterTitlePolicy(sourceText: String, translatedText: String): String {
         val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
         if (!normalized.contains(MASTER_TITLE_SOURCE)) return translatedText
         val leakedAdjusted = leakedMasterTitlePattern.replace(translatedText, MASTER_TITLE_OFFICIAL)
         if (!sourceIsStandaloneText(sourceText, MASTER_TITLE_SOURCE)) return leakedAdjusted
         return replaceStandaloneWrongTerm(leakedAdjusted, standaloneMasterTitleWrongSuffixes, MASTER_TITLE_OFFICIAL)
+    }
+
+    private fun applyStylizedFirstPersonPronounPolicy(sourceText: String, translatedText: String): String {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        if (stylizedFirstPersonPronounSources.none { normalized.contains(it) }) return translatedText
+
+        var adjusted = translatedText
+        for (wrongName in stylizedFirstPersonWrongNameTranslations) {
+            adjusted = replaceStandaloneWrongPronounName(adjusted, wrongName, STYLIZED_FIRST_PERSON_TARGET)
+        }
+        if (adjusted != translatedText) {
+            FgoLogger.debug(tag, "Adjusted stylized first-person pronoun rendering")
+        }
+        return adjusted
+    }
+
+    private fun replaceStandaloneWrongPronounName(
+        text: String,
+        wrongName: String,
+        replacement: String
+    ): String {
+        val pattern = Regex("(?<![\\p{IsHan}A-Za-z0-9])${Regex.escape(wrongName)}(?![\\p{IsHan}A-Za-z0-9])")
+        return pattern.replace(text, replacement)
     }
 
     private fun appendKunToStandaloneNameIfMissing(sourceText: String, translatedText: String): String {
@@ -2447,6 +2656,11 @@ class Translator @Inject constructor(
                 token = "${tokenPrefix}_TONO__",
                 sourceSuffix = NAME_HONORIFIC_TONO_SUFFIX,
                 officialSuffix = NAME_HONORIFIC_TONO_SUFFIX
+            ),
+            HonorificProtectionVariant(
+                token = "${tokenPrefix}_SHI__",
+                sourceSuffix = NAME_HONORIFIC_SHI_SUFFIX,
+                officialSuffix = NAME_HONORIFIC_SHI_SUFFIX
             )
         )
     }
@@ -2672,58 +2886,44 @@ class Translator @Inject constructor(
     }
 
     private fun preserveSourceFgoLongPause(sourceText: String, translatedText: String): String {
-        if (!fgoLongPauseSourcePattern.containsMatchIn(sourceText)) return translatedText
-        val normalized = translatedEllipsisPattern.replace(translatedText, FGO_PAUSE_ELLIPSIS)
-        if (normalized.contains(FGO_PAUSE_ELLIPSIS)) return normalized
+        if (!FgoDialogueSymbols.containsLongPause(sourceText)) return translatedText
+        val normalized = FgoDialogueSymbols.normalizePauseDots(translatedText)
+        if (normalized.contains(FgoDialogueSymbols.PAUSE_ELLIPSIS)) return normalized
 
-        val startsWithPause = sourceText.trimStart().startsWithFgoLongPause()
-        val endsWithPause = sourceText.trimEnd().endsWithFgoLongPause()
+        val startsWithPause = FgoDialogueSymbols.startsWithLongPause(sourceText.trimStart())
+        val endsWithPause = FgoDialogueSymbols.endsWithLongPause(sourceText.trimEnd())
         return buildString {
-            if (startsWithPause) append(FGO_PAUSE_ELLIPSIS)
+            if (startsWithPause) append(FgoDialogueSymbols.PAUSE_ELLIPSIS)
             append(normalized)
-            if (endsWithPause) append(FGO_PAUSE_ELLIPSIS)
+            if (endsWithPause) append(FgoDialogueSymbols.PAUSE_ELLIPSIS)
         }
     }
 
-    private fun String.startsWithFgoLongPause(): Boolean {
-        return fgoLongPauseSourcePattern.find(this)?.range?.first == 0
-    }
-
-    private fun String.endsWithFgoLongPause(): Boolean {
-        val match = fgoLongPauseSourcePattern.findAll(this).lastOrNull() ?: return false
-        return match.range.last == lastIndex
-    }
-
     private fun preserveSourceTrailingDashRun(sourceText: String, translatedText: String): String {
-        val sourceDashRun = sourceText.takeLastWhile { it.isDashRunChar() }
+        val sourceDashRun = sourceText.takeLastWhile(FgoDialogueSymbols::isDashRunChar)
         if (sourceDashRun.length < 2) return translatedText
         if (sourceDashRun.all { it == '一' }) {
             val beforeRun = sourceText.dropLast(sourceDashRun.length).lastOrNull()
             if (beforeRun != null && Character.isLetterOrDigit(beforeRun)) return translatedText
         }
 
-        val normalizedSourceDashRun = FGO_LONG_DASH_RUN
-        val withoutDashRun = trailingDashRunPattern.replace(translatedText.trimEnd(), "")
+        val withoutDashRun = FgoDialogueSymbols.trailingDashRunPattern.replace(translatedText.trimEnd(), "")
         val withoutSentenceTail = withoutDashRun.trimEnd {
             it in setOf('。', '．', '.', '！', '!', '？', '?')
         }
-        return withoutSentenceTail + normalizedSourceDashRun
+        return withoutSentenceTail + FgoDialogueSymbols.LONG_DASH_RUN
     }
 
     private fun normalizeTranslatedDashRuns(translatedText: String): String {
-        return translatedDashRunPattern.replace(translatedText, FGO_LONG_DASH_RUN)
+        return FgoDialogueSymbols.normalizeDashRuns(translatedText)
     }
 
     private fun trailingEllipsis(text: String): String? {
         val trimmed = text.trimEnd()
         return when {
-            fgoLongPauseSourcePattern.containsMatchIn(trimmed.takeLast(12)) -> FGO_PAUSE_ELLIPSIS
+            FgoDialogueSymbols.containsLongPause(trimmed.takeLast(12)) -> FgoDialogueSymbols.PAUSE_ELLIPSIS
             else -> null
         }
-    }
-
-    private fun Char.isDashRunChar(): Boolean {
-        return this in setOf('—', '―', '─', '━', 'ー', '－', '-', '一')
     }
 
     private fun Char.isPreservedTrailingSymbol(): Boolean {
@@ -2991,6 +3191,7 @@ class Translator @Inject constructor(
             appendLine("- Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
             appendLine("- Translate name only if name is not null; otherwise return null.")
             appendLine("- If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order character name. Never return the original Japanese name unchanged.")
+            appendLine("- アテシ, アタシ, and あたし in dialogue are first-person pronouns, not short katakana names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
             appendLine("- For short katakana names, transliterate the sound literally (example: レオン -> 莱昂). Do not replace it with another known FGO character.")
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
             appendLine("- For obvious English-origin katakana common words in dialogue or choices, keep compact English flavor when natural, unless a glossary/name/official term applies.")
@@ -3166,6 +3367,7 @@ class Translator @Inject constructor(
             appendLine("Keep every full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ exactly unchanged.")
             appendLine("Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden words.")
             appendLine("Keep the FGO dialogue tone natural, compact, and suitable for a two-line in-game overlay.")
+            appendLine("アテシ, アタシ, and あたし are first-person pronouns, not names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
             appendLine("For obvious English-origin katakana common words, compact English flavor is allowed when natural; never apply this to names or official terms.")
             if (playerName.isNotBlank()) {
                 appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
