@@ -17,13 +17,25 @@ object OcrTextCorrector {
         "普段",
         "転移孔",
         "彷徨海",
+        "頷く",
+        "頷いた",
+        "頷いて",
+        "頷き",
+        "頷ける",
+        "了解",
+        "了解した",
+        "了解して",
+        "了解しました",
+        "了解する",
     )
 
     private val confusableGlyphs = mapOf(
+        '了' to setOf('3'),
         '普' to setOf('善'),
         '孔' to setOf('乳', '乱'),
         '彷' to setOf('紡'),
-        '徨' to setOf('律', '僧', '管')
+        '徨' to setOf('律', '僧', '管'),
+        '頷' to setOf('領')
     )
 
     private val rules: List<CorrectionRule> = likelyDialogueWords

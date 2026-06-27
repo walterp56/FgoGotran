@@ -849,7 +849,11 @@ class FgoAccessibilityService : AccessibilityService() {
 
             val translationStartedAt = SystemClock.elapsedRealtime()
             val translationResult = withContext(Dispatchers.IO) {
-                translator.translate(sourceText, preserveRubyMeaning = true)
+                translator.translate(
+                    sourceText,
+                    preserveRubyMeaning = true,
+                    useTranslationCache = false
+                )
             }
             val translated = translationResult.translatedText.trim().ifBlank {
                 "翻译失败"
@@ -1329,6 +1333,13 @@ class FgoAccessibilityService : AccessibilityService() {
             return false
         }
         if (instructions.isEmpty()) {
+            if (!sceneHasRequiredTranslation(sceneSource)) {
+                FgoLogger.debug(tag, "Scene has no translatable text; skipping overlay render")
+                rememberRenderedSourceText(mode, sourceFingerprint, sceneSource.stabilityKey)
+                clearFailedRenderAttempt(sourceFingerprint)
+                translationOverlay.hide()
+                return true
+            }
             addHistoryEntry(source, sceneSource, instructions)
             runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
             translationOverlay.hide()
@@ -1673,7 +1684,8 @@ class FgoAccessibilityService : AccessibilityService() {
         instructions: List<RenderInstruction>
     ): String? {
         val sourceHasDialogue = sceneSource.regions.any {
-            it.region.region == TextRegion.DIALOGUE_BOX && it.text.isNotBlank()
+            it.region.region == TextRegion.DIALOGUE_BOX &&
+                TextNormalizer.hasTranslatableContent(it.text)
         }
         val renderedHasDialogue = instructions.any {
             it.region.region == TextRegion.DIALOGUE_BOX && it.translatedText.isNotBlank()
@@ -1683,7 +1695,8 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         val sourceChoiceCount = sceneSource.regions.count {
-            it.region.region == TextRegion.CHOICE_BUTTON && it.text.isNotBlank()
+            it.region.region == TextRegion.CHOICE_BUTTON &&
+                TextNormalizer.hasTranslatableContent(it.text)
         }
         if (sourceChoiceCount == 0) return null
 
@@ -1694,6 +1707,16 @@ class FgoAccessibilityService : AccessibilityService() {
             return "choice translation missing ($renderedChoiceCount/$sourceChoiceCount)"
         }
         return null
+    }
+
+    private fun sceneHasRequiredTranslation(sceneSource: SceneSource): Boolean {
+        return sceneSource.regions.any {
+            when (it.region.region) {
+                TextRegion.DIALOGUE_BOX,
+                TextRegion.CHOICE_BUTTON -> TextNormalizer.hasTranslatableContent(it.text)
+                TextRegion.NAME_LABEL -> false
+            }
+        }
     }
 
     private fun renderableNameTranslation(sourceText: String, result: TranslateResult?): String? {

@@ -236,8 +236,15 @@ class Translator @Inject constructor(
         private const val LOG_SAMPLE_MAX_CHARS = 120
         private const val PLAYER_NAME_OCR_MIN_LOOKUP_LENGTH = 4
         private const val PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH = 16
+        private const val FGO_PAUSE_ELLIPSIS = "……"
+        private const val FGO_LONG_DASH_RUN = "———"
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
         private val maskedTextPattern = Regex("[■□▇█]+")
+        private val fgoLongPauseSourcePattern = Regex("[·・･]{2,}|\\.{2,}|…+|‥+|⋯+")
+        private val translatedEllipsisPattern = Regex("[·・･]{2,}|\\.{2,}|…+|‥+|⋯+")
+        private val translatedDashRunPattern =
+            Regex("[—―─━ー－-]{2,}|(?<![\\p{IsHan}A-Za-z0-9])一{2,}(?![\\p{IsHan}A-Za-z0-9])")
+        private val trailingDashRunPattern = Regex("[—―─━ー－\\-一]{2,}\\s*$")
         private val returnedRubyAnglePattern = Regex("""([^《》\s]{1,24})《([^》]{1,32})》""")
         private val returnedRubyParenPattern = Regex("""([^（）()\s]{1,24})[（(]([^（）()]{1,32})[）)]""")
         private val maskedSourceIgnoredChars = setOf(
@@ -371,7 +378,8 @@ class Translator @Inject constructor(
         choiceTexts: List<String> = emptyList(),
         preserveRubyMeaning: Boolean = false,
         maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
-        useDialogueFastPrompt: Boolean = false
+        useDialogueFastPrompt: Boolean = false,
+        useTranslationCache: Boolean = true
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -382,7 +390,7 @@ class Translator @Inject constructor(
         val backend = config.backend
         val apiKey = config.apiKey
         val playerName = config.playerName
-        val cacheEnabled = config.cacheEnabled
+        val cacheEnabled = config.cacheEnabled && useTranslationCache
         val normalizedText = correctPlayerNameOcr(rawNormalizedText, playerName, "TEXT")
         val normalizedChoices = choiceTexts.mapIndexedNotNull { index, choice ->
             TextNormalizer.normalizeForTranslation(choice)
@@ -390,6 +398,10 @@ class Translator @Inject constructor(
                 ?.let { correctPlayerNameOcr(it, playerName, "CHOICE[$index]") }
         }
         maskedSourceFallback(normalizedText)?.let { return it.forTargetLocale(config) }
+        if (!TextNormalizer.hasTranslatableContent(normalizedText)) {
+            FgoLogger.info(tag, "Source has no translatable text; skipping API")
+            return TranslateResult("", "none", true).forTargetLocale(config)
+        }
 
         translationMemory.lookupNormalized(normalizedText)?.let {
             FgoLogger.info(tag, "Official CN memory HIT")
@@ -544,6 +556,11 @@ class Translator @Inject constructor(
             val maskedFallback = maskedSourceFallback(normalizedText)
             if (maskedFallback != null) {
                 results[index] = maskedFallback
+                continue
+            }
+            if (!TextNormalizer.hasTranslatableContent(normalizedText)) {
+                FgoLogger.info(tag, "Batch source[$index] has no translatable text; skipping API")
+                results[index] = TranslateResult("", "none", true)
                 continue
             }
 
@@ -718,6 +735,11 @@ class Translator @Inject constructor(
                 dialogueResult = it
             }
             if (dialogueResult != null) return@let
+            if (!TextNormalizer.hasTranslatableContent(normalized)) {
+                FgoLogger.info(tag, "Scene dialogue has no translatable text; skipping API")
+                dialogueResult = TranslateResult("", "none", true)
+                return@let
+            }
             translationMemory.lookupNormalized(normalized)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT dialogue")
                 dialogueResult = TranslateResult(sanitizeTranslation(normalized, it), "official-cn", true)
@@ -735,6 +757,11 @@ class Translator @Inject constructor(
                 choiceResults[index] = it
             }
             if (choiceResults[index] != null) return@forEachIndexed
+            if (!TextNormalizer.hasTranslatableContent(normalized)) {
+                FgoLogger.info(tag, "Scene choice[$index] has no translatable text; skipping API")
+                choiceResults[index] = TranslateResult("", "none", true)
+                return@forEachIndexed
+            }
             translationMemory.lookupNormalized(normalized)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT choice[$index]")
                 choiceResults[index] = TranslateResult(sanitizeTranslation(normalized, it), "official-cn", true)
@@ -2624,6 +2651,10 @@ class Translator @Inject constructor(
         var result = translatedText.trimEnd()
         val source = sourceText.trimEnd()
 
+        result = preserveSourceFgoLongPause(source, result)
+        result = normalizeTranslatedDashRuns(result)
+        result = preserveSourceTrailingDashRun(source, result)
+
         val sourceEllipsis = trailingEllipsis(source)
         if (sourceEllipsis != null && trailingEllipsis(result) == null) {
             result += sourceEllipsis
@@ -2640,15 +2671,59 @@ class Translator @Inject constructor(
         return result
     }
 
+    private fun preserveSourceFgoLongPause(sourceText: String, translatedText: String): String {
+        if (!fgoLongPauseSourcePattern.containsMatchIn(sourceText)) return translatedText
+        val normalized = translatedEllipsisPattern.replace(translatedText, FGO_PAUSE_ELLIPSIS)
+        if (normalized.contains(FGO_PAUSE_ELLIPSIS)) return normalized
+
+        val startsWithPause = sourceText.trimStart().startsWithFgoLongPause()
+        val endsWithPause = sourceText.trimEnd().endsWithFgoLongPause()
+        return buildString {
+            if (startsWithPause) append(FGO_PAUSE_ELLIPSIS)
+            append(normalized)
+            if (endsWithPause) append(FGO_PAUSE_ELLIPSIS)
+        }
+    }
+
+    private fun String.startsWithFgoLongPause(): Boolean {
+        return fgoLongPauseSourcePattern.find(this)?.range?.first == 0
+    }
+
+    private fun String.endsWithFgoLongPause(): Boolean {
+        val match = fgoLongPauseSourcePattern.findAll(this).lastOrNull() ?: return false
+        return match.range.last == lastIndex
+    }
+
+    private fun preserveSourceTrailingDashRun(sourceText: String, translatedText: String): String {
+        val sourceDashRun = sourceText.takeLastWhile { it.isDashRunChar() }
+        if (sourceDashRun.length < 2) return translatedText
+        if (sourceDashRun.all { it == '一' }) {
+            val beforeRun = sourceText.dropLast(sourceDashRun.length).lastOrNull()
+            if (beforeRun != null && Character.isLetterOrDigit(beforeRun)) return translatedText
+        }
+
+        val normalizedSourceDashRun = FGO_LONG_DASH_RUN
+        val withoutDashRun = trailingDashRunPattern.replace(translatedText.trimEnd(), "")
+        val withoutSentenceTail = withoutDashRun.trimEnd {
+            it in setOf('。', '．', '.', '！', '!', '？', '?')
+        }
+        return withoutSentenceTail + normalizedSourceDashRun
+    }
+
+    private fun normalizeTranslatedDashRuns(translatedText: String): String {
+        return translatedDashRunPattern.replace(translatedText, FGO_LONG_DASH_RUN)
+    }
+
     private fun trailingEllipsis(text: String): String? {
         val trimmed = text.trimEnd()
         return when {
-            trimmed.endsWith("……") -> "……"
-            trimmed.endsWith("...") -> "……"
-            trimmed.endsWith("…") -> "……"
-            trimmed.endsWith("・・・") -> "……"
+            fgoLongPauseSourcePattern.containsMatchIn(trimmed.takeLast(12)) -> FGO_PAUSE_ELLIPSIS
             else -> null
         }
+    }
+
+    private fun Char.isDashRunChar(): Boolean {
+        return this in setOf('—', '―', '─', '━', 'ー', '－', '-', '一')
     }
 
     private fun Char.isPreservedTrailingSymbol(): Boolean {

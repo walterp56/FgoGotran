@@ -24,4 +24,8 @@ object TextNormalizer {
     fun stripRubyAnnotations(text: String): String {
         return normalizeForTranslation(text).replace(rubyAnnotationPattern, "")
     }
+
+    fun hasTranslatableContent(text: String): Boolean {
+        return normalizeForTranslation(text).any { it.isLetterOrDigit() }
+    }
 }

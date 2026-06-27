@@ -94,8 +94,13 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_TEXT_SIZE = 53f
         private const val CHOICE_TEXT_MIN_SIZE = 29f
         private const val WIDE_RENDER_SPACE = "\u3000"
-        private val TRAILING_DASH_CLEAR_RISK = Regex("""[\u002D\u30FC\u2010-\u2015\u2212\u2500\uFF0D]{2,}\s*$""")
-        private val COUNTDOWN_CLEAR_RISK = Regex("""(?:[0-9\uFF10-\uFF19][ \t\u3000]+){2,}[0-9\uFF10-\uFF19]\s*[\u002D\u30FC\u2010-\u2015\u2212\u2500\uFF0D]*\s*$""")
+        private const val FGO_PAUSE_ELLIPSIS = "……"
+        private const val FGO_LONG_DASH_RUN = "———"
+        private val FGO_PAUSE_DOT_RUN = Regex("""[·・･]{2,}|\.{2,}|…+|‥+|⋯+""")
+        private val LONG_HORIZONTAL_LINE_RUN =
+            Regex("""[—―─━ー－-]{2,}|(?<![\p{IsHan}A-Za-z0-9])一{2,}(?![\p{IsHan}A-Za-z0-9])""")
+        private val TRAILING_DASH_CLEAR_RISK = Regex("""[-ー‐‑‒–—―−─━－一]{2,}\s*$""")
+        private val COUNTDOWN_CLEAR_RISK = Regex("""(?:[0-9\uFF10-\uFF19][ \t\u3000]+){2,}[0-9\uFF10-\uFF19]\s*[-ー‐‑‒–—―−─━－一]*\s*$""")
         private val WIDE_RENDER_CONNECTORS = listOf(
             "\u4EE5\u53CA", "\u8FD8\u6709", "\u6216\u8005", "\u4F46\u662F",
             "\u56E0\u6B64", "\u6240\u4EE5", "\u4E0D\u8FC7", "\u7136\u540E",
@@ -761,11 +766,11 @@ class OverlayRenderer @Inject constructor(
         return this
             .replace('－', '-')
             .replace('―', '—')
-            .replace(Regex("[-—ー]{2,}"), "——")
+            .replace(LONG_HORIZONTAL_LINE_RUN, FGO_LONG_DASH_RUN)
             .replace(Regex("(?m)(^|[「『（(\\[\\s　])-+(?=[\\u3400-\\u9FFFA-Za-z0-9_])")) {
-                "${it.groupValues[1]}——"
+                "${it.groupValues[1]}$FGO_LONG_DASH_RUN"
             }
-            .replace(Regex("\\.{3,}|…{2,}"), "……")
+            .replace(FGO_PAUSE_DOT_RUN, FGO_PAUSE_ELLIPSIS)
             .replace(Regex("[ \\t]+"), " ")
             .trim()
     }

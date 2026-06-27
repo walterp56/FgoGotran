@@ -53,7 +53,7 @@ Priority rules:
 7. Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
 8. Name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿 unchanged. Apply only when attached to a name or player name. Do not apply to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, or たくさん.
 9. Name plural ズ means an English-style group marker. Use X们 by default; use X组 or X队 only when context clearly means a team/unit.
-10. Preserve ellipses, dashes, brackets, quotes, exclamation/question marks, unusual symbols, and source separators such as ——, ……, 「」, 『』, ・, and wide phrase spacing.
+10. Preserve brackets, quotes, exclamation/question marks, unusual symbols, and wide phrase spacing. In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as ……. Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
 11. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
 
 Style:
@@ -76,7 +76,7 @@ Rules:
 - Preserve placeholders starting with __FGOTERM_ or __FGOPLAYER_ exactly.
 - Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden content.
 - If OCR includes ruby as base《ruby》, omit pronunciation-only ruby; reflect important added meaning naturally.
-- Preserve ellipses, dashes, quotes, brackets, and dramatic rhythm.
+- Preserve quotes, brackets, and dramatic rhythm. In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as ……. Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
 - Keep Japanese name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿 unchanged when attached to a name.
 - Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
 - Keep the line short enough for a two-line FGO dialogue box.
