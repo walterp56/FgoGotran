@@ -17,6 +17,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.accessibilityservice.AccessibilityServiceInfo
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.data.SettingsRepository
@@ -77,6 +78,7 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var cropResultRenderer: CropResultRenderer
     @Inject lateinit var runnerOverlay: FgoRunnerOverlay
     @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var appAnalytics: AppAnalytics
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isProcessing = false
@@ -271,9 +273,17 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         restoreLastTranslationMode()
         watchPlayerName()
+        reportServiceUsage()
         warmUpManualPipeline()
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
         FgoLogger.info(tag, "Service connected: ${screenWidth}x${screenHeight}")
+    }
+
+    private fun reportServiceUsage() {
+        serviceScope.launch(Dispatchers.IO) {
+            appAnalytics.reportAppUsed()
+            appAnalytics.reportCurrentBackendType()
+        }
     }
 
     private fun watchPlayerName() {
@@ -451,6 +461,7 @@ class FgoAccessibilityService : AccessibilityService() {
         if (persist) {
             serviceScope.launch(Dispatchers.IO) {
                 settingsRepository.setLastTranslationMode(mode.name)
+                appAnalytics.reportTranslationMode(mode)
             }
         }
     }
@@ -532,6 +543,9 @@ class FgoAccessibilityService : AccessibilityService() {
 
         TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
         cancelCurrentTranslation()
+        serviceScope.launch(Dispatchers.IO) {
+            appAnalytics.reportCropModeUsed()
+        }
         val cropVersion = stopVersion
         cropTranslationJob = serviceScope.launch {
             var shouldRestoreMode = false

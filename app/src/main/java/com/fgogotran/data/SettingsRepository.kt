@@ -17,6 +17,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -56,6 +57,9 @@ class SettingsRepository @Inject constructor(
         val KEY_FLOATING_BUTTON_LANDSCAPE_X = intPreferencesKey("floating_button_landscape_x")
         val KEY_FLOATING_BUTTON_LANDSCAPE_Y = intPreferencesKey("floating_button_landscape_y")
         val KEY_LAST_TRANSLATION_MODE = stringPreferencesKey("last_translation_mode")
+        val KEY_ANALYTICS_INSTALL_ID = stringPreferencesKey("analytics_install_id")
+        val KEY_ANALYTICS_FIRST_INSTALL_SENT = booleanPreferencesKey("analytics_first_install_sent")
+        val KEY_ANALYTICS_DAILY_ACTIVE_DATE = stringPreferencesKey("analytics_daily_active_date")
 
         const val DEFAULT_FLOATING_BUTTON_X = 8
         const val DEFAULT_FLOATING_BUTTON_Y = 300
@@ -156,6 +160,19 @@ class SettingsRepository @Inject constructor(
 
         fun apiModelPreferenceKey(backend: String) =
             stringPreferencesKey("api_model_${normalizeBackend(backend)}")
+
+        private fun analyticsModeDatePreferenceKey(mode: String) =
+            stringPreferencesKey("analytics_mode_${analyticsSafeSegment(mode)}_date")
+
+        private fun analyticsBackendDatePreferenceKey(backend: String) =
+            stringPreferencesKey("analytics_backend_${normalizeBackend(backend)}_date")
+
+        private fun analyticsSafeSegment(value: String): String {
+            return value.lowercase()
+                .replace(Regex("[^a-z0-9_]+"), "_")
+                .trim('_')
+                .ifBlank { "unknown" }
+        }
     }
 
     private val tag = "Settings"
@@ -278,6 +295,67 @@ class SettingsRepository @Inject constructor(
         val normalizedMode = normalizeTranslationMode(mode)
         context.dataStore.edit { it[KEY_LAST_TRANSLATION_MODE] = normalizedMode }
         FgoLogger.debug(tag, "Setting updated: last_translation_mode=$normalizedMode")
+    }
+
+    suspend fun getOrCreateAnalyticsInstallId(): String {
+        val existing = context.dataStore.data.map { prefs ->
+            prefs[KEY_ANALYTICS_INSTALL_ID].orEmpty()
+        }.first()
+        if (existing.isNotBlank()) return existing
+
+        val generated = UUID.randomUUID().toString()
+        context.dataStore.edit { prefs ->
+            if (prefs[KEY_ANALYTICS_INSTALL_ID].isNullOrBlank()) {
+                prefs[KEY_ANALYTICS_INSTALL_ID] = generated
+            }
+        }
+        return context.dataStore.data.map { prefs ->
+            prefs[KEY_ANALYTICS_INSTALL_ID] ?: generated
+        }.first()
+    }
+
+    suspend fun shouldSendAnalyticsFirstInstall(): Boolean {
+        return context.dataStore.data.map { prefs ->
+            prefs[KEY_ANALYTICS_FIRST_INSTALL_SENT] != true
+        }.first()
+    }
+
+    suspend fun markAnalyticsFirstInstallSent() {
+        context.dataStore.edit { it[KEY_ANALYTICS_FIRST_INSTALL_SENT] = true }
+    }
+
+    suspend fun shouldSendAnalyticsDailyActive(date: String): Boolean {
+        return context.dataStore.data.map { prefs ->
+            prefs[KEY_ANALYTICS_DAILY_ACTIVE_DATE] != date
+        }.first()
+    }
+
+    suspend fun markAnalyticsDailyActiveSent(date: String) {
+        context.dataStore.edit { it[KEY_ANALYTICS_DAILY_ACTIVE_DATE] = date }
+    }
+
+    suspend fun shouldSendAnalyticsMode(mode: String, date: String): Boolean {
+        val key = analyticsModeDatePreferenceKey(mode)
+        return context.dataStore.data.map { prefs ->
+            prefs[key] != date
+        }.first()
+    }
+
+    suspend fun markAnalyticsModeSent(mode: String, date: String) {
+        val key = analyticsModeDatePreferenceKey(mode)
+        context.dataStore.edit { it[key] = date }
+    }
+
+    suspend fun shouldSendAnalyticsBackend(backend: String, date: String): Boolean {
+        val key = analyticsBackendDatePreferenceKey(backend)
+        return context.dataStore.data.map { prefs ->
+            prefs[key] != date
+        }.first()
+    }
+
+    suspend fun markAnalyticsBackendSent(backend: String, date: String) {
+        val key = analyticsBackendDatePreferenceKey(backend)
+        context.dataStore.edit { it[key] = date }
     }
 
     suspend fun getIgnoredAppUpdateVersionCode(): Long {

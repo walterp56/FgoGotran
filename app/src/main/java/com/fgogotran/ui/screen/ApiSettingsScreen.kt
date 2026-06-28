@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.BackendProviderLabel
@@ -55,6 +56,7 @@ private fun apiTestFailureResult(error: Throwable): String {
 fun ApiSettingsScreen(
     settingsRepository: SettingsRepository,
     translator: Translator,
+    appAnalytics: AppAnalytics,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -146,6 +148,10 @@ fun ApiSettingsScreen(
             )
             saveMessage = "已保存"
             saveMessageIsError = false
+            val savedBackend = selectedBackend
+            scope.launch {
+                appAnalytics.reportBackendType(savedBackend)
+            }
         }
     }
 

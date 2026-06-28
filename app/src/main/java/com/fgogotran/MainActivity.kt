@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
+import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.Translator
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
     @Inject lateinit var appVersionManager: AppVersionManager
     @Inject lateinit var translator: Translator
+    @Inject lateinit var appAnalytics: AppAnalytics
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,9 +56,13 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             glossaryUpdateManager.updateIfNeeded()
         }
+        lifecycleScope.launch(Dispatchers.IO) {
+            appAnalytics.reportAppUsed()
+            appAnalytics.reportCurrentBackendType()
+        }
         setContent {
             FgoGotranTheme {
-                MainScreen(settingsRepository, glossaryUpdateManager, appVersionManager, translator)
+                MainScreen(settingsRepository, glossaryUpdateManager, appVersionManager, translator, appAnalytics)
             }
         }
     }
@@ -75,7 +81,8 @@ fun MainScreen(
     settingsRepository: SettingsRepository,
     glossaryUpdateManager: GlossaryUpdateManager,
     appVersionManager: AppVersionManager,
-    translator: Translator
+    translator: Translator,
+    appAnalytics: AppAnalytics
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -142,6 +149,7 @@ fun MainScreen(
         Screen.API_SETTINGS -> ApiSettingsScreen(
             settingsRepository = settingsRepository,
             translator = translator,
+            appAnalytics = appAnalytics,
             onBack = { currentScreen = Screen.SETTINGS }
         )
     }
