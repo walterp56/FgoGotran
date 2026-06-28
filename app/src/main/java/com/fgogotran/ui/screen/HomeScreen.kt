@@ -145,9 +145,9 @@ fun HomeScreen(
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .padding(padding)
-                .padding(24.dp),
+                .padding(horizontal = 20.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
                 text = "FgoGotran",
@@ -166,7 +166,7 @@ fun HomeScreen(
 //                textAlign = TextAlign.Center
 //            )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
 
             // Service running notice bar
 //            if (serviceRunning) {
@@ -191,58 +191,26 @@ fun HomeScreen(
 //                }
 //            }
 
-            // 1. Accessibility Service Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    //verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    StatusRow(
-                        label = "无障碍服务",
-                        statusText = accessibilityRunningStatusText,
-                        statusColor = accessibilityRunningStatusColor,
-                        enabled = accessibilityRunning
-                    )
-                    TextButton(
-                        onClick = {
-                            showAccessibilityDisclosure(context)
-                        }
-                    ) {
-                        Text("前往无障碍设置 →")
-                    }
-                }
-            }
+            StatusActionCard(
+                label = "无障碍服务",
+                statusText = accessibilityRunningStatusText,
+                statusColor = accessibilityRunningStatusColor,
+                enabled = accessibilityRunning,
+                actionText = "去设置 →",
+                onClick = { showAccessibilityDisclosure(context) }
+            )
 
-            // 2. Overlay Permission Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    StatusRow(
-                        label = "显示在其他应用上层",
-                        statusText = if (canDrawOverlays) "已授权" else "未授权",
-                        statusColor = if (canDrawOverlays) Color(0xFF4CAF50) else Color(0xFFFF9800),
-                        enabled = canDrawOverlays
-                    )
-
-                    TextButton(
-                        onClick = {
-                            showOverlayPermissionDisclosure(context)
-                        }
-                    ) {
-                        Text("前往权限设置 →")
-                    }
-                }
-            }
+            StatusActionCard(
+                label = "显示在其他应用上层",
+                statusText = if (canDrawOverlays) "已授权" else "未授权",
+                statusColor = if (canDrawOverlays) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                enabled = canDrawOverlays,
+                actionText = "去授权 →",
+                onClick = { showOverlayPermissionDisclosure(context) }
+            )
 
             Text(
-                text = "可选稳定性",
+                text = "可选稳定性（非必要）",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
                 modifier = Modifier
@@ -250,30 +218,16 @@ fun HomeScreen(
                     .padding(top = 4.dp)
             )
 
-            // 3. Battery Optimization Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                val batteryColor = if (isIgnoringBatteryOptimizations) Color(0xFF4CAF50) else Color(0xFFFF9800)
-                val batteryText = if (isIgnoringBatteryOptimizations) "已关闭优化" else "优化中（建议关闭）"
-
-                Column(modifier = Modifier.padding(16.dp)) {
-                    StatusRow(
-                        label = "电池优化",
-                        statusText = batteryText,
-                        statusColor = batteryColor,
-                        enabled = isIgnoringBatteryOptimizations
-                    )
-                    TextButton(
-                        onClick = {
-                            context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                        }
-                    ) {
-                        Text("前往管理电池使用量 →")
-                    }
-                }
-            }
+            val batteryColor = if (isIgnoringBatteryOptimizations) Color(0xFF4CAF50) else Color(0xFFFF9800)
+            val batteryText = if (isIgnoringBatteryOptimizations) "已关闭优化" else "优化中"
+            StatusActionCard(
+                label = "电池优化",
+                statusText = batteryText,
+                statusColor = batteryColor,
+                enabled = isIgnoringBatteryOptimizations,
+                actionText = "去管理 →",
+                onClick = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -328,30 +282,134 @@ private fun LanguagePreference(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        ListItem(
-            headlineContent = { Text("Translate To") },
-            supportingContent = {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text(
-                    selectedLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+                    "翻译语言",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-            },
-            trailingContent = {
                 Text(
                     "›",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            },
-            colors = ListItemDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            modifier = Modifier.clickable(onClick = onClick)
-        )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                LanguageDirectionChip(
+                    label = "原文",
+                    value = "日文",
+                    highlighted = false,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "→",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                LanguageDirectionChip(
+                    label = "译文",
+                    value = selectedLabel,
+                    highlighted = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageDirectionChip(
+    label: String,
+    value: String,
+    highlighted: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (highlighted) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val valueColor = if (highlighted) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.small,
+        color = backgroundColor
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = valueColor.copy(alpha = 0.72f)
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyLarge,
+                color = valueColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusActionCard(
+    label: String,
+    statusText: String,
+    statusColor: Color,
+    enabled: Boolean,
+    actionText: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            StatusRow(
+                label = label,
+                statusText = statusText,
+                statusColor = statusColor,
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                onClick = onClick,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(actionText)
+            }
+        }
     }
 }
 
@@ -452,8 +510,15 @@ private fun LanguageDialogOption(
  * A row showing a permission/service status with a colored dot indicator.
  */
 @Composable
-private fun StatusRow(label: String, enabled: Boolean, statusText: String, statusColor: Color) {
+private fun StatusRow(
+    label: String,
+    enabled: Boolean,
+    statusText: String,
+    statusColor: Color,
+    modifier: Modifier = Modifier
+) {
     Row(
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {

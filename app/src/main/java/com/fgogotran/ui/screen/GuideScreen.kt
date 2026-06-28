@@ -20,7 +20,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,6 +61,8 @@ fun GuideScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             GuideWebsiteCard(onOpenWebsite = { openFgoGotranWebsite(context) })
+
+            GuideScopeCard()
 
             GuideSectionCard(
                 number = "1",
@@ -123,6 +124,28 @@ fun GuideScreen(
                     text = "截图、游戏文本、译文、API Key、玩家名、账号信息或设备识别码。"
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun GuideScopeCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("使用范围", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "FgoGotran 的翻译只在正在运行的 FGO 画面上生效。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+            )
+            GuideInfoRow(label = "支持", text = "FGO 游戏内实时画面、剧情、选项，以及裁剪模式框选的画面区域。")
+            GuideInfoRow(label = "不支持", text = "图片、截图、录屏、视频源，或其他应用里的 FGO 素材翻译。")
         }
     }
 }
