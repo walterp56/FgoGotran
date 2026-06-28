@@ -4,12 +4,16 @@ import android.util.Log
 
 // Lightweight logging wrapper around android.util.Log.
 // All messages are tagged with "FGO/ComponentName" for easy filtering with logcat.
-// Set isEnabled = false to suppress all log output in release builds.
+// Logging is opt-in because OCR/debug logs can include user-visible dialogue text.
 
 object FgoLogger {
 
-    // Toggle to suppress all log output without removing log calls.
-    var isEnabled: Boolean = true
+    @Volatile
+    private var isEnabled: Boolean = false
+
+    fun setEnabled(enabled: Boolean) {
+        isEnabled = enabled
+    }
 
     // Flow traces, data sizes, timing info.
     fun debug(tag: String, message: String) {

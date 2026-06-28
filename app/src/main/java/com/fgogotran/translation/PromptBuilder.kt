@@ -27,12 +27,12 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v33"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v34"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
 
         /**
-         * Full prompt used for structured scene and choice translations.
+         * Main prompt used for all API translations.
          * Keep this prompt format-neutral because callers may request plain text,
          * a JSON array, or a JSON object in their user prompt.
          */
@@ -67,23 +67,6 @@ Style:
 - Ruby/furigana may appear as base《ruby》. Omit pronunciation-only ruby. If ruby adds alias, joke, hidden meaning, or intended wording, reflect it naturally. Use a short Chinese parenthetical only when both meanings matter. Do not mechanically output base（ruby）.
 """.trimIndent()
 
-        private val DIALOGUE_FAST_SYSTEM_PROMPT = """
-Translate Fate/Grand Order Japanese story dialogue into natural, compact Simplified Chinese for an in-game overlay.
-
-Rules:
-- Return ONLY the translated Chinese text. No notes, markdown, source text, or explanations.
-- Use supplied official terminology exactly. Unknown proper nouns should be naturally transliterated, not described.
-- Translate マスター as 御主 by default. Keep the player's name "{player_name}" exactly if it appears.
-- Preserve placeholders starting with __FGOTERM_ or __FGOPLAYER_ exactly.
-- Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden content.
-- If OCR includes ruby as base《ruby》, omit pronunciation-only ruby; reflect important added meaning naturally.
-- Preserve quotes, brackets, and dramatic rhythm. In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as ……. Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
-- Keep Japanese name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged when attached to a name.
-- Use 他 as the default third-person pronoun; never output 她.
-- アテシ, アタシ, and あたし are first-person pronouns, not names; translate them as 我/咱/人家 by speaker voice, even sentence-final.
-- Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
-- Keep the line short enough for a two-line FGO dialogue box.
-""".trimIndent()
     }
 
     private val tag = "PromptBuilder"
@@ -110,18 +93,6 @@ Rules:
         )
         appendMatchedTerminology(sb, matchedTerms)
         FgoLogger.debug(tag, "System prompt: ${sb.length} chars, ${matchedTerms.size} RAG terms")
-        return sb.toString()
-    }
-
-    fun buildDialogueFastSystemPrompt(
-        matchedTerms: List<TermEntity>,
-        playerName: String
-    ): String {
-        val sb = StringBuilder(
-            DIALOGUE_FAST_SYSTEM_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
-        )
-        appendMatchedTerminology(sb, matchedTerms)
-        FgoLogger.debug(tag, "Dialogue fast system prompt: ${sb.length} chars, ${matchedTerms.size} RAG terms")
         return sb.toString()
     }
 

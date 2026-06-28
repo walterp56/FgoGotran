@@ -260,6 +260,7 @@ class FgoAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        watchDebugLogging()
         initScreenSize()
         translationOverlay.init(
             serviceContext = this,
@@ -290,6 +291,14 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             settingsRepository.playerName.collect { name ->
                 currentPlayerName = TextNormalizer.normalizeForTranslation(name)
+            }
+        }
+    }
+
+    private fun watchDebugLogging() {
+        serviceScope.launch {
+            settingsRepository.debugLoggingEnabled.collect { enabled ->
+                FgoLogger.setEnabled(enabled)
             }
         }
     }

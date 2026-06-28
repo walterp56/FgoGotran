@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import com.fgogotran.MainActivity
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.util.FgoLogger
@@ -30,6 +31,7 @@ class FgoRunnerService : Service() {
 
     @Inject lateinit var overlay: FgoRunnerOverlay
     @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
+    @Inject lateinit var settingsRepository: SettingsRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -65,6 +67,7 @@ class FgoRunnerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        watchDebugLogging()
         FgoLogger.info(tag, "Service created")
         instance = this
         SessionTranslationHistory.clear()
@@ -92,6 +95,14 @@ class FgoRunnerService : Service() {
     private fun stopFromOverlay() {
         FgoLogger.info(tag, "Stop requested from floating menu")
         stopSelf()
+    }
+
+    private fun watchDebugLogging() {
+        serviceScope.launch {
+            settingsRepository.debugLoggingEnabled.collect { enabled ->
+                FgoLogger.setEnabled(enabled)
+            }
+        }
     }
 
     private fun createNotificationChannel() {

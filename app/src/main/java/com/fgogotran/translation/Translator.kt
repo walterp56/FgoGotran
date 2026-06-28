@@ -182,7 +182,7 @@ class Translator @Inject constructor(
         val response = callTranslationBackend(
             config = config,
             messages = listOf(
-                ChatMessage("system", promptBuilder.buildDialogueFastSystemPrompt(matchedTerms, config.playerName)),
+                ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, config.playerName)),
                 ChatMessage(
                     "user",
                     buildSingleUserPrompt(
@@ -436,7 +436,6 @@ class Translator @Inject constructor(
         choiceTexts: List<String> = emptyList(),
         preserveRubyMeaning: Boolean = false,
         maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
-        useDialogueFastPrompt: Boolean = false,
         useTranslationCache: Boolean = true
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
@@ -512,11 +511,7 @@ class Translator @Inject constructor(
             emptyList()
         }
         val protectedInput = protectText(normalizedText, matchedTerms, playerName)
-        val systemPrompt = if (useDialogueFastPrompt && normalizedChoices.isEmpty() && !preserveRubyMeaning) {
-            promptBuilder.buildDialogueFastSystemPrompt(matchedTerms, playerName)
-        } else {
-            promptBuilder.buildSystemPrompt(matchedTerms, playerName)
-        }
+        val systemPrompt = promptBuilder.buildSystemPrompt(matchedTerms, playerName)
 
         val messages = listOf(
             ChatMessage("system", systemPrompt),
@@ -894,11 +889,10 @@ class Translator @Inject constructor(
         }
 
         if (needsDialogue && !needsName && neededChoiceIndices.isEmpty()) {
-            FgoLogger.info(tag, "Scene fast path: dialogue only")
+            FgoLogger.info(tag, "Scene dialogue-only path")
             dialogueResult = translate(
                 input.dialogue.orEmpty(),
-                maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
-                useDialogueFastPrompt = true
+                maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS
             )
             return SceneTranslateResult(
                 name = nameResult,
@@ -908,7 +902,7 @@ class Translator @Inject constructor(
         }
 
         if (!needsName && !needsDialogue && neededChoiceIndices.isNotEmpty()) {
-            FgoLogger.info(tag, "Scene fast path: choices only (${neededChoiceIndices.size})")
+            FgoLogger.info(tag, "Scene choices-only path (${neededChoiceIndices.size})")
             val translatedChoices = translateBatch(neededChoiceIndices.map { input.choices[it] })
             translatedChoices.forEachIndexed { batchIndex, result ->
                 val choiceIndex = neededChoiceIndices[batchIndex]
@@ -1411,8 +1405,7 @@ class Translator @Inject constructor(
 
         val translated = translate(
             japaneseText = stateText,
-            maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
-            useDialogueFastPrompt = true
+            maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS
         )
         val state = sanitizeNameStateTranslation(stateText, translated.translatedText)
         if (isUsableNameStateTranslation(stateText, state)) {

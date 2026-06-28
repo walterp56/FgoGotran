@@ -43,6 +43,7 @@ class SettingsRepository @Inject constructor(
         val KEY_API_MODEL = stringPreferencesKey("api_model")
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
+        val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
         val KEY_DB_SHA256 = stringPreferencesKey("db_sha256")
@@ -237,6 +238,11 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_CACHE_ENABLED] ?: true
     }
 
+    /** Whether diagnostic Logcat output is enabled. Disabled by default for privacy. */
+    val debugLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_DEBUG_LOGGING_ENABLED] ?: false
+    }
+
     /** Target Chinese script for translated output. */
     val targetChineseLocale: Flow<String> = context.dataStore.data.map { prefs ->
         normalizeTargetChineseLocale(prefs[KEY_TARGET_CHINESE_LOCALE] ?: TARGET_LOCALE_SIMPLIFIED)
@@ -412,6 +418,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setCacheEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_CACHE_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: cache_enabled=$enabled")
+    }
+
+    suspend fun setDebugLoggingEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_DEBUG_LOGGING_ENABLED] = enabled }
+        FgoLogger.setEnabled(enabled)
+        FgoLogger.debug(tag, "Setting updated: debug_logging_enabled=$enabled")
     }
 
     suspend fun setTargetChineseLocale(locale: String) {

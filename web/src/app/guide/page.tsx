@@ -3,6 +3,8 @@ import {
   AlertCircle,
   BookOpen,
   CirclePlay,
+  Gamepad2,
+  ImageOff,
   MessageSquareText,
   MousePointerClick,
   PanelBottom,
@@ -128,6 +130,7 @@ const buttonGuides: ButtonGuide[] = [
 ];
 
 const toc = [
+  { href: "#usage-scope", label: "使用范围" },
   { href: "#setup", label: "初次设置" },
   { href: "#install", label: "安装与权限" },
   { href: "#fgo-text-speed", label: "FGO 文字速度" },
@@ -167,6 +170,10 @@ export default function GuidePage() {
           <BookOpen size={16} aria-hidden="true" />
           初次设置
         </a>
+        <a href="#usage-scope">
+          <Gamepad2 size={16} aria-hidden="true" />
+          使用范围
+        </a>
         <a href="#floating-button">
           <PanelBottom size={16} aria-hidden="true" />
           悬浮按钮与模式
@@ -182,6 +189,33 @@ export default function GuidePage() {
             再了解悬浮按钮与翻译模式的使用方式。
           </p>
         </header>
+
+        <section className="docs-scope-panel" id="usage-scope">
+          <div className="docs-scope-heading">
+            <Gamepad2 size={22} aria-hidden="true" />
+            <div>
+              <h2>使用范围</h2>
+              <p>FgoGotran 是给正在运行的 FGO 日文画面使用的悬浮翻译工具。</p>
+            </div>
+          </div>
+
+          <div className="docs-scope-grid">
+            <article className="docs-scope-card supported">
+              <Smartphone size={20} aria-hidden="true" />
+              <div>
+                <h3>支持</h3>
+                <p>FGO 游戏内实时画面、剧情、选项，以及裁剪模式框选的游戏画面区域。</p>
+              </div>
+            </article>
+            <article className="docs-scope-card unsupported">
+              <ImageOff size={20} aria-hidden="true" />
+              <div>
+                <h3>不支持</h3>
+                <p>图片、截图、录屏、视频源，或其他应用里的 FGO 素材翻译。</p>
+              </div>
+            </article>
+          </div>
+        </section>
 
         <section className="docs-section" id="setup">
           <div className="docs-section-heading">

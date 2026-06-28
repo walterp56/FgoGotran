@@ -51,6 +51,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycleScope.launch {
+            settingsRepository.debugLoggingEnabled.collect { enabled ->
+                FgoLogger.setEnabled(enabled)
+            }
+        }
         FgoLogger.info("MainActivity", "MainActivity created")
         enableEdgeToEdge()
         lifecycleScope.launch(Dispatchers.IO) {

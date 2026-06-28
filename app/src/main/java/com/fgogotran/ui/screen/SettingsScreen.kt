@@ -1,5 +1,7 @@
 package com.fgogotran.ui.screen
 
+import android.os.SystemClock
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +54,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+private const val DEBUG_LOG_TAP_THRESHOLD = 10
+private const val DEBUG_LOG_TAP_WINDOW_MS = 5_000L
+
 /**
  * Settings page for user-facing configuration and maintenance actions.
  *
@@ -86,6 +91,10 @@ fun SettingsScreen(
     var playerName by remember { mutableStateOf("") }
     var playerNameSaveMessage by remember { mutableStateOf("") }
     var cacheEnabled by remember { mutableStateOf(true) }
+    var debugLoggingEnabled by remember { mutableStateOf(false) }
+    var debugLogTapCount by remember { mutableStateOf(0) }
+    var debugLogTapWindowStartedAt by remember { mutableStateOf(0L) }
+    var debugLogMessage by remember { mutableStateOf("") }
     var clearingCache by remember { mutableStateOf(false) }
     var cacheClearMessage by remember { mutableStateOf("") }
     var pendingUpdate by remember { mutableStateOf<AppVersionInfo?>(null) }
@@ -93,6 +102,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         playerName = settingsRepository.playerName.first()
         cacheEnabled = settingsRepository.cacheEnabled.first()
+        debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
     }
 
     fun savePlayerName() {
@@ -124,6 +134,31 @@ fun SettingsScreen(
                     cacheClearMessage = "清除缓存失败"
                 }
             clearingCache = false
+        }
+    }
+
+    fun handleVersionRowTap() {
+        val now = SystemClock.elapsedRealtime()
+        val nextCount = if (
+            debugLogTapWindowStartedAt == 0L ||
+            now - debugLogTapWindowStartedAt > DEBUG_LOG_TAP_WINDOW_MS
+        ) {
+            debugLogTapWindowStartedAt = now
+            1
+        } else {
+            debugLogTapCount + 1
+        }
+
+        if (nextCount >= DEBUG_LOG_TAP_THRESHOLD) {
+            val enabled = !debugLoggingEnabled
+            debugLoggingEnabled = enabled
+            debugLogTapCount = 0
+            debugLogTapWindowStartedAt = 0L
+            debugLogMessage = if (enabled) "调试日志已开启" else "调试日志已关闭"
+            scope.launch { settingsRepository.setDebugLoggingEnabled(enabled) }
+        } else {
+            debugLogTapCount = nextCount
+            debugLogMessage = ""
         }
     }
 
@@ -325,8 +360,10 @@ fun SettingsScreen(
                 Text("应用版本", style = MaterialTheme.typography.titleSmall)
                 SettingsInfoRow(
                     label = "当前版本",
-                    value = "$currentVersionName ($currentVersionCode)"
+                    value = "$currentVersionName ($currentVersionCode)",
+                    modifier = Modifier.clickable { handleVersionRowTap() }
                 )
+                StatusDetailText(text = debugLogMessage)
                 SettingsInfoRow(
                     label = "状态",
                     value = appVersionStatus.message.ifBlank { "手动检查新版本" }
@@ -398,10 +435,11 @@ private fun StatusDetailText(
 private fun SettingsInfoRow(
     label: String,
     value: String = "",
-    valueContent: (@Composable () -> Unit)? = null
+    valueContent: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top
     ) {

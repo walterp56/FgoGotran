@@ -744,6 +744,77 @@ dd {
   font-size: 18px;
 }
 
+.docs-scope-panel {
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px solid rgba(14, 90, 167, 0.18);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(14, 90, 167, 0.08), rgba(25, 166, 191, 0.06)),
+    var(--surface);
+  scroll-margin-top: 96px;
+}
+
+.docs-scope-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.docs-scope-heading svg {
+  flex: 0 0 auto;
+  margin-top: 5px;
+  color: var(--brand);
+}
+
+.docs-scope-heading h2 {
+  font-size: 26px;
+}
+
+.docs-scope-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.docs-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.docs-scope-card {
+  display: flex;
+  gap: 12px;
+  min-height: 120px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.docs-scope-card svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.docs-scope-card.supported svg {
+  color: var(--green);
+}
+
+.docs-scope-card.unsupported svg {
+  color: var(--gold);
+}
+
+.docs-scope-card h3 {
+  font-size: 17px;
+}
+
+.docs-scope-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
 .docs-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1175,6 +1246,7 @@ dd {
     .download-source-grid,
     .step-grid,
     .docs-mode-grid,
+    .docs-scope-grid,
     .guide-card,
     .terms-toolbar {
     grid-template-columns: 1fr;
