@@ -289,7 +289,7 @@ fun ApiSettingsScreen(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = { saveSettings() }) {
-                            Text("保存设置")
+                            Text("应用API设置")
                         }
                     }
                 }

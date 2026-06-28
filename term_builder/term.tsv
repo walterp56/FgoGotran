@@ -108,7 +108,7 @@
 ゲイ・ボルク	穿刺死棘之枪	noble_phantasm	刺し穿つ死棘の槍
 ブラックバレル	Black Barrel	game_term	ブラック・バレル,Black Barrel
 ヤガ	雅嘎	game_term	
-ペーパームーン	平面之月	game_term	
+虚数観測機・ペーパームーン	虛數觀測機・平面之月	game_term   虚数観測機ペーパームーン	
 近未来観測レンズ・シバ	近未来观测透镜·示巴	game_term	
 虚数羅針	虚数罗盘	game_term	
 ポイント・ネモ	尼莫点	place	ポイントネモ
@@ -119,4 +119,5 @@
 マイルーム	My room	place
 オーディール・コール	Ordeal Call	game_term
 ホムンクルス	人造人	game_term
-戦乙女	女武神	place
+戦乙女	女武神	game_term
+リリン	莉莉恩	game_term

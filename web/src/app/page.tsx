@@ -36,8 +36,8 @@ export default function HomePage() {
             <p className="eyebrow">Fate/Grand Order JP story translator</p>
             <h1>FgoGotran</h1>
             <p className="hero-lede">
-              面向 FGO 日服剧情阅读的 Android 悬浮翻译工具。通过 OCR 读取当前画面，
-              使用术语库、缓存和可配置 AI 接口，把角色名、对话和选项渲染回游戏区域。
+              面向 FGO 日服剧情的 Android 悬浮翻译工具。通过 OCR 读取画面，结合在线术语库和 AI
+              翻译，让角色名、专有名词和剧情语气更稳定。
             </p>
             <div className="hero-actions">
               <Link className="primary-button" href="/download">
@@ -46,7 +46,7 @@ export default function HomePage() {
               </Link>
               <Link className="secondary-button" href="/guide">
                 <BookOpen size={19} aria-hidden="true" />
-                查看使用指南
+                使用指南
               </Link>
               <a className="icon-button" href={siteConfig.githubUrl} target="_blank" rel="noreferrer">
                 <GitBranch size={19} aria-hidden="true" />
@@ -54,7 +54,7 @@ export default function HomePage() {
               </a>
             </div>
             <div className="hero-mini-status">
-              <span>Android 11+ · 简体/繁體中文 · Bring Your Own (BYO) API Key</span>
+              <span>Android 11+ · Bring Your Own API Key</span>
             </div>
           </div>
 
@@ -69,8 +69,8 @@ export default function HomePage() {
       <section className="section section-band">
         <SectionHeader
           eyebrow="What it does"
-          title="实时剧情翻译"
-          body="APK下载、术语库预览和更新日志都能从这里进入。"
+          title="为 FGO 剧情阅读而做"
+          body="覆盖剧情对话、选项、角色名和常见专有名词，让日服剧情阅读更顺手。"
         />
         <FeatureGrid items={features} />
       </section>
@@ -78,8 +78,8 @@ export default function HomePage() {
       <section className="section section-band">
         <SectionHeader
           eyebrow="Modes"
-          title="四种翻译模式保持分离"
-          body="手动、半自动、全自动和裁剪模式走不同流程"
+          title="选择适合你的翻译节奏"
+          body="从完全手动到全自动，也可以在识别不准时用裁剪模式处理特殊画面。"
         />
         <FeatureGrid items={modeCards} />
       </section>

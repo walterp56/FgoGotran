@@ -1,10 +1,8 @@
 import {
   Accessibility,
   BrainCircuit,
-  CloudDownload,
   CirclePlay,
   DatabaseZap,
-  Globe,
   History,
   KeyRound,
   MousePointerClick,
@@ -15,14 +13,13 @@ import {
   ServerCog,
   SlidersHorizontal,
   SquareDashedMousePointer,
-  Webhook,
   Workflow
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export const siteConfig = {
   name: "FgoGotran",
-  description: "Fate/Grand Order 日服剧情 OCR + AI 中文翻译悬浮工具。",
+  description: "Fate/Grand Order 日服剧情 OCR + AI 中文翻译工具。",
   githubUrl: "https://github.com/walterp56/FgoGotran",
   cdnBaseUrl: process.env.NEXT_PUBLIC_CDN_BASE_URL ?? "https://cdn.fgogotran.com",
   apkManifestPath: "/app/android/latest/manifest.json",
@@ -38,9 +35,9 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { href: "/guide", label: "使用指南" },
-  { href: "/api-guide", label: "接口指南" },
-  { href: "/terms", label: "术语库" },
-  { href: "/changelog", label: "更新日志" }
+  { href: "/api-guide", label: "API 指南" },
+  { href: "/terms", label: "术语表" },
+  { href: "/changelog", label: "更新记录" }
 ];
 
 export type Feature = {
@@ -51,33 +48,33 @@ export type Feature = {
 
 export const features: Feature[] = [
   {
-    title: "FGO 专用提示词",
-    body: "针对 FGO 原文风格调校 Prompt，并结合术语库 RAG，让角色名、设定词和台词语气更稳定。",
+    title: "FGO 剧情翻译",
+    body: "面向 Fate/Grand Order 日服剧情设计，结合 OCR、术语库和 AI 翻译，尽量保留角色名、专有名词与原作语气。",
     icon: BrainCircuit
   },
   {
-    title: "贴近原生 UI",
-    body: "译文按 FGO 原本的姓名框、对话框和选项框位置渲染，阅读时更像游戏内文本。",
+    title: "贴近游戏的浮层",
+    body: "译文直接覆盖在 FGO 对话框附近，减少来回切换，让阅读节奏更接近原游戏体验。",
     icon: PanelBottom
   },
   {
-    title: "实时悬浮翻译",
-    body: "检测到新的剧情文本后，实时 OCR 并翻译，中文译文直接显示在 FGO 画面上。",
+    title: "自动识别画面",
+    body: "应用会读取当前画面中的角色名、对话和选项，再交给翻译接口处理。",
     icon: ScanText
   },
   {
-    title: "四种模式",
-    body: "手动、半自动、你全自动、裁剪区域翻译分开处理。",
+    title: "多种翻译模式",
+    body: "手动、半自动、全自动和裁剪模式，适合不同阅读习惯和不同游戏场景。",
     icon: SlidersHorizontal
   },
   {
-    title: "术语库更新",
-    body: "从 CDN 拉取最新 SQLite 术语库，校验，角色名、宝具、地点、组织名等固定翻译。",
+    title: "在线术语库",
+    body: "角色名与 FGO 专有名词由在线数据库更新，减少本地旧数据带来的错误。",
     icon: DatabaseZap
   },
   {
-    title: "多接口支持",
-    body: "支持 DeepSeek、智谱 GLM、阿里云百炼 Qwen、OpenAI GPT、Google Gemini、Anthropic Claude 和自定义接口。",
+    title: "自带 API 适配",
+    body: "可接入 DeepSeek、GLM、Qwen、OpenAI、Gemini、Claude 或兼容 OpenAI 格式的服务。",
     icon: ServerCog
   }
 ];
@@ -104,8 +101,8 @@ export const apiProviders: ApiProvider[] = [
     endpoint: "https://api.deepseek.com/v1/chat/completions",
     consoleUrl: "https://platform.deepseek.com/api_keys",
     docsUrl: "https://api-docs.deepseek.com/",
-    regionNote: "大陆用户通常更容易访问，适合作为默认推荐之一。",
-    bestFor: "低成本、中文能力、FGO 长文本翻译。",
+    regionNote: "大陆用户通常访问比较方便，适合先作为默认选择尝试。",
+    bestFor: "追求响应速度、成本和日常剧情翻译平衡。",
     priority: "mainland-first"
   },
   {
@@ -116,20 +113,20 @@ export const apiProviders: ApiProvider[] = [
     endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     consoleUrl: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
     docsUrl: "https://docs.bigmodel.cn/",
-    regionNote: "大陆访问友好，新用户资源包适合测试。",
-    bestFor: "国内模型、中文响应、替代 DeepSeek。",
+    regionNote: "大陆访问友好，适合作为 DeepSeek 之外的备用接口。",
+    bestFor: "希望保留中文表达稳定性，同时兼顾速度的用户。",
     priority: "mainland-first"
   },
   {
     id: "qwen",
-    name: "阿里云百炼 Qwen",
+    name: "阿里云 Qwen",
     shortName: "Qwen",
     recommendedModel: "qwen-flash",
     endpoint: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
     consoleUrl: "https://modelstudio.console.alibabacloud.com/",
     docsUrl: "https://help.aliyun.com/zh/model-studio/",
-    regionNote: "阿里云账号体系适合大陆用户，注意选择对应区域和百炼控制台。",
-    bestFor: "国内可用、速度优先、免费额度测试。",
+    regionNote: "可使用 OpenAI 兼容接口，适合已经在使用阿里云模型服务的用户。",
+    bestFor: "想要一个稳定备用接口，或已经有阿里云账号的用户。",
     priority: "mainland-first"
   },
   {
@@ -140,8 +137,8 @@ export const apiProviders: ApiProvider[] = [
     endpoint: "https://api.openai.com/v1/chat/completions",
     consoleUrl: "https://platform.openai.com/api-keys",
     docsUrl: "https://platform.openai.com/docs",
-    regionNote: "部分地区访问和付款受限，适合海外用户或自备网络环境。",
-    bestFor: "质量稳定、英文/日文理解强。",
+    regionNote: "需要可访问 OpenAI API 的网络与账号。",
+    bestFor: "想要更强的理解能力和更自然的长剧情翻译。",
     priority: "optional"
   },
   {
@@ -152,8 +149,8 @@ export const apiProviders: ApiProvider[] = [
     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     consoleUrl: "https://aistudio.google.com/apikey",
     docsUrl: "https://ai.google.dev/gemini-api/docs",
-    regionNote: "大陆网络环境通常不适合作为默认推荐。",
-    bestFor: "可用免费额度测试、兼容 OpenAI 风格接口。",
+    regionNote: "需要可访问 Google AI Studio 的网络与账号。",
+    bestFor: "想尝试低成本或备用模型的用户。",
     priority: "optional"
   },
   {
@@ -164,70 +161,70 @@ export const apiProviders: ApiProvider[] = [
     endpoint: "https://api.anthropic.com/v1/messages",
     consoleUrl: "https://platform.claude.com/settings/keys",
     docsUrl: "https://platform.claude.com/docs",
-    regionNote: "不建议面向大陆用户作为默认服务，需要确认地区支持和付款。",
-    bestFor: "高级用户、质量验证、长上下文备用。",
+    regionNote: "Claude 官方接口格式与 OpenAI 不完全相同，使用前请确认应用内接口类型。",
+    bestFor: "更看重长文本理解和语气处理的进阶用户。",
     priority: "advanced"
   },
   {
     id: "custom",
     name: "自定义接口",
     shortName: "Custom",
-    recommendedModel: "按服务商填写",
-    endpoint: "兼容 OpenAI Chat Completions 的完整接口地址",
+    recommendedModel: "按服务商文档填写",
+    endpoint: "兼容 OpenAI Chat Completions 的接口地址",
     docsUrl: "https://platform.openai.com/docs/api-reference/chat/create",
-    regionNote: "适合用户已有第三方中转、私有部署或其他兼容接口。",
-    bestFor: "高级用户、自备服务、临时替代官方接口。",
+    regionNote: "适合使用第三方转发、自建网关或其他兼容接口。",
+    bestFor: "已经熟悉模型 API，并希望自己管理接口的用户。",
     priority: "advanced"
   }
 ];
 
-export const workflowSteps = [
+export const workflowSteps: Feature[] = [
   {
     title: "安装 APK",
-    body: "从下载页获取最新版 APK，安装后打开 FgoGotran。",
+    body: "下载并安装 FgoGotran，首次打开后选择要使用的中文翻译语言。",
     icon: PackageCheck
   },
   {
     title: "开启权限",
-    body: "按应用首页提示开启悬浮窗、无障碍服务，并建议关闭电池优化。",
+    body: "按提示开启无障碍、悬浮窗权限，并尽量关闭电池优化。",
     icon: Accessibility
   },
   {
-    title: "配置接口",
-    body: "在设置里选择翻译服务商，填入 API Key、模型和接口地址。",
+    title: "配置 API",
+    body: "选择 API 服务商，填写 API Key 和模型名，测试成功后应用设置。",
     icon: KeyRound
   },
   {
     title: "启动服务",
-    body: "进入 FGO 后点悬浮按钮，选择手动、自动或裁剪翻译。",
+    body: "回到首页启动服务，再打开 FGO，就可以使用悬浮按钮翻译。",
     icon: CirclePlay
   }
 ];
 
-export const modeCards = [
+export const modeCards: Feature[] = [
   {
     title: "手动模式",
-    body: "适合想完全掌控节奏的你。每次点击悬浮按钮后识别当前画面并翻译。",
+    body: "适合想完全掌控节奏的你。点击悬浮按钮后，翻译当前画面。",
     icon: MousePointerClick
   },
   {
     title: "半自动模式",
-    body: "适合想轻松阅读、又想保留选择权的你。贴合FGO中对话佔多、选项佔少的特点。保留手动点击翻译选项，更快自动刷新对话译文。",
+    body: "适合想轻松看剧情、遇到选项再自己确认的你。对话自动翻译，选项出现时手动点击翻译。",
     icon: Workflow
   },
   {
     title: "全自动模式",
-    body: "适合想放松连续阅读的你。应用会观察对话/选项变化并自动刷新译文。",
+    body: "适合想放松阅读的你。应用会观察画面变化，并自动刷新译文。",
     icon: RefreshCw
   },
   {
     title: "裁剪模式",
-    body: "可翻译FGO中非劇情部分，同時适用于自动/手动模式识别不准或漏翻时，手动框选画面区域进行翻译。",
+    body: "适合剧情外画面，或识别不准、漏翻时，手动框选区域再翻译。",
     icon: SquareDashedMousePointer
   },
   {
-    title: "历史记录",
-    body: "保存本次识别过的角色名、对话和选项，方便回看。",
+    title: "翻译 LOG",
+    body: "查看本次识别和翻译过的角色名、对话与选项，方便回看。",
     icon: History
   }
 ];

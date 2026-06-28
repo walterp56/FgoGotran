@@ -2,7 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { apiProviders } from "@/data/site";
 
 const priorityLabel = {
-  "mainland-first": "大陆优先",
+  "mainland-first": "推荐优先",
   optional: "可选",
   advanced: "进阶"
 };
