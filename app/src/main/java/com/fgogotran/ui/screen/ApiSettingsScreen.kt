@@ -26,9 +26,28 @@ private data class BackendOption(
 
 private fun formatApiResponseTime(durationMs: Long): String {
     val safeDuration = durationMs.coerceAtLeast(0L)
-    val seconds = safeDuration / 1000
-    val hundredths = ((safeDuration % 1000) / 10).toString().padStart(2, '0')
-    return "$seconds.${hundredths}s"
+    val tenths = (safeDuration + 50L) / 100L
+    return "${tenths / 10}.${tenths % 10} 秒"
+}
+
+private fun apiTestMessage(status: String, durationMs: Long, result: String): String {
+    return "状态：$status\n用时：${formatApiResponseTime(durationMs)}\n结果：$result"
+}
+
+private fun apiTestFailureResult(error: Throwable): String {
+    val message = error.message.orEmpty()
+    return when {
+        message.contains("Role must be in [user, assistant]", ignoreCase = true) ->
+            "模型不兼容 FgoGotran 翻译格式"
+        message.contains("API Key", ignoreCase = true) || message.contains("401") ->
+            "请检查 API Key"
+        message.contains("empty", ignoreCase = true) ->
+            "模型返回为空"
+        message.contains("untranslated", ignoreCase = true) ->
+            "模型没有按 FgoGotran 翻译格式返回中文"
+        else ->
+            "测试失败，请检查模型和网络连接"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,11 +81,24 @@ fun ApiSettingsScreen(
     var saveMessage by remember { mutableStateOf("") }
     var saveMessageIsError by remember { mutableStateOf(false) }
     var testingApi by remember { mutableStateOf(false) }
+    val isCustomBackend = selectedBackend == SettingsRepository.BACKEND_CUSTOM_OPENAI
+
+    fun effectiveApiBaseUrl(): String {
+        return if (isCustomBackend) {
+            apiBaseUrl
+        } else {
+            SettingsRepository.defaultApiBaseUrl(selectedBackend)
+        }
+    }
 
     LaunchedEffect(Unit) {
         selectedBackend = SettingsRepository.normalizeBackend(settingsRepository.translationBackend.first())
-        apiBaseUrl = settingsRepository.getApiBaseUrlForBackend(selectedBackend)
-            .ifBlank { SettingsRepository.defaultApiBaseUrl(selectedBackend) }
+        apiBaseUrl = if (selectedBackend == SettingsRepository.BACKEND_CUSTOM_OPENAI) {
+            settingsRepository.getApiBaseUrlForBackend(selectedBackend)
+                .ifBlank { SettingsRepository.defaultApiBaseUrl(selectedBackend) }
+        } else {
+            SettingsRepository.defaultApiBaseUrl(selectedBackend)
+        }
         apiModel = settingsRepository.getApiModelForBackend(selectedBackend)
             .ifBlank { SettingsRepository.defaultApiModel(selectedBackend) }
         apiKey = settingsRepository.getApiKeyForBackend(selectedBackend)
@@ -80,8 +112,12 @@ fun ApiSettingsScreen(
         saveMessage = ""
         saveMessageIsError = false
         scope.launch {
-            val savedBaseUrl = settingsRepository.getApiBaseUrlForBackend(backend)
-                .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) }
+            val savedBaseUrl = if (backend == SettingsRepository.BACKEND_CUSTOM_OPENAI) {
+                settingsRepository.getApiBaseUrlForBackend(backend)
+                    .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) }
+            } else {
+                SettingsRepository.defaultApiBaseUrl(backend)
+            }
             val savedModel = settingsRepository.getApiModelForBackend(backend)
                 .ifBlank { SettingsRepository.defaultApiModel(backend) }
             val savedKey = settingsRepository.getApiKeyForBackend(backend)
@@ -105,7 +141,7 @@ fun ApiSettingsScreen(
             settingsRepository.saveApiSettings(
                 backend = selectedBackend,
                 apiKey = apiKey,
-                apiBaseUrl = apiBaseUrl,
+                apiBaseUrl = effectiveApiBaseUrl(),
                 apiModel = apiModel
             )
             saveMessage = "已保存"
@@ -124,17 +160,25 @@ fun ApiSettingsScreen(
                 translator.testApiSettings(
                     backend = selectedBackend,
                     apiKey = apiKey,
-                    apiBaseUrl = apiBaseUrl,
+                    apiBaseUrl = effectiveApiBaseUrl(),
                     apiModel = apiModel
                 )
                 val elapsedMs = SystemClock.elapsedRealtime() - startedAt
-                saveMessage = "响应时间：${formatApiResponseTime(elapsedMs)}"
+                saveMessage = apiTestMessage(
+                    status = "成功",
+                    durationMs = elapsedMs,
+                    result = "可用于 FgoGotran 翻译"
+                )
                 saveMessageIsError = false
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 val elapsedMs = SystemClock.elapsedRealtime() - startedAt
-                saveMessage = "测试失败，响应时间：${formatApiResponseTime(elapsedMs)}"
+                saveMessage = apiTestMessage(
+                    status = "失败",
+                    durationMs = elapsedMs,
+                    result = apiTestFailureResult(e)
+                )
                 saveMessageIsError = true
             } finally {
                 testingApi = false
@@ -208,18 +252,20 @@ fun ApiSettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text("请求设置", style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(
-                        value = apiBaseUrl,
-                        onValueChange = {
-                            apiBaseUrl = it
-                            saveMessage = ""
-                            saveMessageIsError = false
-                        },
-                        label = { Text("API 地址") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                        singleLine = true
-                    )
+                    if (isCustomBackend) {
+                        OutlinedTextField(
+                            value = apiBaseUrl,
+                            onValueChange = {
+                                apiBaseUrl = it
+                                saveMessage = ""
+                                saveMessageIsError = false
+                            },
+                            label = { Text("API 地址") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            singleLine = true
+                        )
+                    }
                     OutlinedTextField(
                         value = apiModel,
                         onValueChange = {

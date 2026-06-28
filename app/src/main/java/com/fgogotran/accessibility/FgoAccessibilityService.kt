@@ -116,6 +116,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var overlayButtonDownX = 0f
     private var overlayButtonDownY = 0f
     private var overlayButtonLongPressJob: Job? = null
+    private var currentPlayerName = ""
 
     companion object {
         const val FGO_PACKAGE = "com.aniplex.fategrandorder"
@@ -269,9 +270,18 @@ class FgoAccessibilityService : AccessibilityService() {
             handleCropResultTap(x, y)
         }
         restoreLastTranslationMode()
+        watchPlayerName()
         warmUpManualPipeline()
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
         FgoLogger.info(tag, "Service connected: ${screenWidth}x${screenHeight}")
+    }
+
+    private fun watchPlayerName() {
+        serviceScope.launch {
+            settingsRepository.playerName.collect { name ->
+                currentPlayerName = TextNormalizer.normalizeForTranslation(name)
+            }
+        }
     }
 
     private fun restoreLastTranslationMode() {
@@ -1731,7 +1741,7 @@ class FgoAccessibilityService : AccessibilityService() {
             return null
         }
         if (samePlainText(sourceText, translated) ||
-            translated.any { it.isJapaneseKana() } ||
+            translated.hasDisallowedNameKana() ||
             translated.length > 32 ||
             translated.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') }
         ) {
@@ -1739,6 +1749,12 @@ class FgoAccessibilityService : AccessibilityService() {
             return null
         }
         return translated
+    }
+
+    private fun String.hasDisallowedNameKana(): Boolean {
+        val playerName = currentPlayerName.takeIf { it.isNotBlank() } ?: return any { it.isJapaneseKana() }
+        val textWithoutPlayerName = replace(playerName, "")
+        return textWithoutPlayerName.any { it.isJapaneseKana() }
     }
 
     private fun isPlaceholderSpeakerName(sourceText: String): Boolean {

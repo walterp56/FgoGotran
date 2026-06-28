@@ -27,11 +27,22 @@ object OcrTextCorrector {
         "了解して",
         "了解しました",
         "了解する",
+        "量子",
+        "量子化",
+        "量子的",
+        "量子コンピューター",
+        "量子コンピュータ",
+        "嗜好",
+        "嗜好品",
+        "嗜好的",
+        "嗜好性",
     )
 
     private val confusableGlyphs = mapOf(
         '了' to setOf('3'),
         '普' to setOf('善'),
+        '子' to setOf('3'),
+        '嗜' to setOf('晴'),
         '孔' to setOf('乳', '乱'),
         '彷' to setOf('紡'),
         '徨' to setOf('律', '僧', '管'),

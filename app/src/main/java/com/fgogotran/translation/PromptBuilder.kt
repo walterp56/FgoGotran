@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v32"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v33"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -60,7 +60,7 @@ Style:
 - Preserve speaker voice and relationship: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful.
 - Keep dialogue concise for a two-line FGO dialogue box. Do not over-explain lore or add hard line breaks unless the source clearly uses separate rows.
 - Translate choices as short player-facing options in the same order.
-- Japanese may omit subjects/objects. Add 你/我/他/她 only when Chinese needs it.
+- Japanese may omit subjects/objects. Add 你/我/他 only when Chinese needs it. Use 他 as the default third-person pronoun; never output 她.
 - Katakana common English-style words may stay compact English when natural, but never for names, organizations, classes, Noble Phantasms, skills, or supplied official terms.
 - アテシ, アタシ, and あたし are first-person pronouns, not names. Translate them by speaker voice as 我, 咱, or 人家, including when they appear sentence-final after punctuation.
 - ロマン is a character/name only when clearly a person; otherwise translate it as 浪漫.
@@ -79,6 +79,7 @@ Rules:
 - If OCR includes ruby as base《ruby》, omit pronunciation-only ruby; reflect important added meaning naturally.
 - Preserve quotes, brackets, and dramatic rhythm. In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as ……. Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
 - Keep Japanese name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged when attached to a name.
+- Use 他 as the default third-person pronoun; never output 她.
 - アテシ, アタシ, and あたし are first-person pronouns, not names; translate them as 我/咱/人家 by speaker voice, even sentence-final.
 - Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
 - Keep the line short enough for a two-line FGO dialogue box.

@@ -164,12 +164,32 @@ class Translator @Inject constructor(
             targetChineseLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
             glossaryCacheKey = "api-test"
         )
+        if (config.requiresApiKey && config.apiKey.isBlank()) {
+            throw IllegalStateException("API Key is empty")
+        }
+
+        val normalizedText = TextNormalizer.normalizeForTranslation(API_TEST_JAPANESE_TEXT)
+        val matchedTerms = try {
+            val allTerms = getCachedTerms()
+            filterDialogueMatchedTerms(
+                promptBuilder.extractTermMatches(normalizedText, allTerms)
+            )
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "API test RAG term lookup failed, continuing without glossary", e)
+            emptyList()
+        }
+        val protectedInput = protectText(normalizedText, matchedTerms, config.playerName)
         val response = callTranslationBackend(
             config = config,
             messages = listOf(
+                ChatMessage("system", promptBuilder.buildDialogueFastSystemPrompt(matchedTerms, config.playerName)),
                 ChatMessage(
-                    role = "user",
-                    content = "API connectivity test. Reply with OK only."
+                    "user",
+                    buildSingleUserPrompt(
+                        japaneseText = protectedInput.text,
+                        choiceTexts = emptyList(),
+                        preserveRubyMeaning = false
+                    )
                 )
             ),
             maxTokens = API_TEST_MAX_TOKENS
@@ -177,8 +197,24 @@ class Translator @Inject constructor(
         if (response.isBlank()) {
             throw IllegalStateException("API returned an empty response")
         }
-        FgoLogger.info(tag, "API test succeeded: backend=$normalizedBackend, model=${config.apiModel}")
-        return response
+        val translated = sanitizeTranslation(
+            normalizedText,
+            restoreProtectedTerms(response, protectedInput.terms)
+        ).trim()
+        if (translated.isBlank()) {
+            throw IllegalStateException("API returned an empty translation")
+        }
+        if (looksUntranslated(normalizedText, translated, config.playerName)) {
+            throw IllegalStateException("API returned untranslated Japanese")
+        }
+        if (!containsCjkIdeograph(translated)) {
+            throw IllegalStateException("API returned no Chinese translation")
+        }
+        FgoLogger.info(
+            tag,
+            "API test succeeded: backend=$normalizedBackend, model=${config.apiModel}, responseLen=${translated.length}"
+        )
+        return translated
     }
 
     private fun clearCharacterNameCaches() {
@@ -229,7 +265,8 @@ class Translator @Inject constructor(
         private const val TRANSLATION_SOCKET_TIMEOUT_MS = 20_000L
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
         private const val CHAT_COMPLETION_MAX_TOKENS = 1024
-        private const val API_TEST_MAX_TOKENS = 16
+        private const val API_TEST_MAX_TOKENS = 96
+        private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
         private const val BATCH_TRANSLATION_MAX_TOKENS = 384
         private const val SCENE_TRANSLATION_MAX_TOKENS = 512
@@ -244,6 +281,8 @@ class Translator @Inject constructor(
         private const val NAME_STATE_MAX_SOURCE_LENGTH = 24
         private const val NAME_STATE_MAX_TRANSLATED_LENGTH = 18
         private const val NAME_WITH_STATE_MAX_TRANSLATED_LENGTH = 32
+        private const val COMBINED_NAME_MAX_PARTS = 4
+        private const val COMBINED_NAME_MAX_TRANSLATED_LENGTH = 48
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
         private val maskedTextPattern = Regex("[■□▇█]+")
         private val returnedRubyAnglePattern = Regex("""([^《》\s]{1,24})《([^》]{1,32})》""")
@@ -740,6 +779,11 @@ class Translator @Inject constructor(
             if (nameResult != null) return@let
             resolveCharacterNameWithState(normalized)?.let {
                 FgoLogger.info(tag, "Character TSV HIT name state")
+                nameResult = it
+            }
+            if (nameResult != null) return@let
+            resolveCombinedCharacterNames(normalized, playerName)?.let {
+                FgoLogger.info(tag, "Character TSV HIT combined name")
                 nameResult = it
             }
             if (nameResult != null) return@let
@@ -1273,6 +1317,62 @@ class Translator @Inject constructor(
         return TranslateResult(composed, backend, stateTranslation.cached)
     }
 
+    private suspend fun resolveCombinedCharacterNames(
+        normalizedName: String,
+        playerName: String
+    ): TranslateResult? {
+        val parts = splitCombinedSpeakerNameParts(normalizedName)
+        if (parts.size !in 2..COMBINED_NAME_MAX_PARTS) return null
+
+        val resolvedParts = parts.map { part ->
+            resolveCombinedCharacterNamePart(part, playerName) ?: return null
+        }
+        val composed = resolvedParts
+            .map { it.translatedText.trim() }
+            .takeIf { translatedParts -> translatedParts.all { it.isNotBlank() } }
+            ?.joinToString("＆")
+            ?: return null
+        if (composed.length > COMBINED_NAME_MAX_TRANSLATED_LENGTH) return null
+
+        return TranslateResult(
+            translatedText = composed,
+            backend = "character-db",
+            cached = resolvedParts.all { it.cached }
+        )
+    }
+
+    private suspend fun resolveCombinedCharacterNamePart(
+        namePart: String,
+        playerName: String
+    ): TranslateResult? {
+        val normalizedPart = TextNormalizer.normalizeForTranslation(namePart)
+        if (normalizedPart.isBlank()) return null
+
+        val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
+        if (normalizedPlayerName.isNotBlank() &&
+            normalizeNameLookup(normalizedPart) == normalizeNameLookup(normalizedPlayerName)
+        ) {
+            return TranslateResult(normalizedPlayerName, "player-name", true)
+        }
+
+        resolveCharacterNameWithState(normalizedPart)?.let { return it }
+
+        return findCharacterNameTranslation(normalizedPart, allowOcrWrappedMatch = true)?.let {
+            TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
+        }
+    }
+
+    private fun splitCombinedSpeakerNameParts(normalizedName: String): List<String> {
+        val text = TextNormalizer.stripRubyAnnotations(normalizedName).trim()
+        if (text.isBlank() || text.any { it == '\n' || it == '\r' }) return emptyList()
+        if (!text.any { it == '＆' || it == '&' }) return emptyList()
+
+        return text
+            .split(Regex("[＆&]+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+    }
+
     private fun parseCharacterNameState(normalizedName: String): CharacterNameState? {
         val text = normalizedName.trim()
         if (text.length < 4 || text.any { it == '\n' || it == '\r' }) return null
@@ -1515,6 +1615,10 @@ class Translator @Inject constructor(
                 char in '\uFF66'..'\uFF9D' ||
                 char in '\u3400'..'\u9FFF'
         }
+    }
+
+    private fun containsCjkIdeograph(text: String): Boolean {
+        return text.any { it in '\u3400'..'\u9FFF' }
     }
 
     private fun characterLookupKeys(character: CharacterNameEntity): List<String> {
@@ -1944,7 +2048,12 @@ class Translator @Inject constructor(
         val shiAdjusted = applyShiHonorificPolicy(sourceText, tonoAdjusted)
         val masterAdjusted = applyMasterTitlePolicy(sourceText, shiAdjusted)
         val firstPersonAdjusted = applyStylizedFirstPersonPronounPolicy(sourceText, masterAdjusted)
-        return preserveSourcePunctuation(sourceText, firstPersonAdjusted)
+        val thirdPersonAdjusted = applyDefaultThirdPersonPronounPolicy(firstPersonAdjusted)
+        return preserveSourcePunctuation(sourceText, thirdPersonAdjusted)
+    }
+
+    private fun applyDefaultThirdPersonPronounPolicy(translatedText: String): String {
+        return translatedText.replace('她', '他')
     }
 
     private fun applySanHonorificPolicy(sourceText: String, translatedText: String): String {
