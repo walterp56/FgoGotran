@@ -1,11 +1,5 @@
 [
   {
-    "jp_name": "BB／GO",
-    "cn_name": "BB／GO",
-    "category": "character",
-    "aliases": "[\"BB/GO\"]"
-  },
-  {
     "jp_name": "Dr.ロマン",
     "cn_name": "Dr.罗曼",
     "category": "character",
@@ -24,14 +18,20 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ひびき＆千鍵",
-    "cn_name": "响＆千键",
+    "jp_name": "ひびき",
+    "cn_name": "响",
     "category": "character",
-    "aliases": "[\"ひびき&千鍵\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "アイリスフィール",
     "cn_name": "爱丽丝菲尔",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "アイン",
+    "cn_name": "Eins",
     "category": "character",
     "aliases": "[]"
   },
@@ -52,12 +52,6 @@
     "cn_name": "Assassin Paraiso",
     "category": "character",
     "aliases": "[\"アサシンパライソ\"]"
-  },
-  {
-    "jp_name": "アサシン・パライソ・一切呪詛",
-    "cn_name": "Assassin Paraiso·一切诅咒",
-    "category": "character",
-    "aliases": "[\"アサシン·パライソ·一切呪詛\", \"アサシンパライソ一切呪詛\"]"
   },
   {
     "jp_name": "アシュヴァッターマン",
@@ -132,16 +126,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "アナスタシア",
-    "cn_name": "阿纳斯塔西娅",
+    "jp_name": "アナスタシア・ニコラエヴナ・ロマノヴァ",
+    "cn_name": "阿纳斯塔西娅·尼古拉耶芙娜·罗曼诺娃",
     "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "アナスタシア＆ヴィイ",
-    "cn_name": "阿纳斯塔西娅＆维",
-    "category": "character",
-    "aliases": "[\"アナスタシア&ヴィイ\"]"
+    "aliases": "[\"アナスタシアニコラエヴナロマノヴァ\"]"
   },
   {
     "jp_name": "アビゲイル・ウィリアムズ",
@@ -177,7 +165,7 @@
     "jp_name": "アモン",
     "cn_name": "亚蒙",
     "category": "character",
-    "aliases": "[\"魔神アモン\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "アルジュナ",
@@ -187,7 +175,7 @@
   },
   {
     "jp_name": "アルジュナ・オルタ",
-    "cn_name": "阿周那・オルタ",
+    "cn_name": "阿周那·Alter",
     "category": "character",
     "aliases": "[\"アルジュナオルタ\"]"
   },
@@ -228,8 +216,8 @@
     "aliases": "[\"アルトリアペンドラゴン\"]"
   },
   {
-    "jp_name": "アルビオンの竜骸",
-    "cn_name": "阿尔比恩的龙骸",
+    "jp_name": "アルビオン",
+    "cn_name": "阿尔比恩",
     "category": "character",
     "aliases": "[]"
   },
@@ -267,13 +255,13 @@
     "jp_name": "アンドラス",
     "cn_name": "安托士",
     "category": "character",
-    "aliases": "[\"魔神アンドラス\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "アンドロマリウス",
     "cn_name": "安杜马利乌士",
     "category": "character",
-    "aliases": "[\"魔神アンドロマリウス\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "アンドロメダ",
@@ -288,10 +276,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "アン・ボニー＆メアリー・リード",
-    "cn_name": "安妮·伯妮＆玛莉·瑞德",
+    "jp_name": "アン・ボニー",
+    "cn_name": "安妮·伯妮",
     "category": "character",
-    "aliases": "[\"アンボニー＆メアリーリード\", \"アン・ボニー&メアリー・リード\"]"
+    "aliases": "[\"アンボニー\"]"
   },
   {
     "jp_name": "アヴィケブロン",
@@ -316,12 +304,6 @@
     "cn_name": "Archer Inferno",
     "category": "character",
     "aliases": "[\"アーチャーインフェルノ\"]"
-  },
-  {
-    "jp_name": "アーチャー・インフェルノ・一切焼却",
-    "cn_name": "Archer Inferno·一切烧却",
-    "category": "character",
-    "aliases": "[\"アーチャー·インフェルノ·一切焼却\", \"アーチャーインフェルノ一切焼却\"]"
   },
   {
     "jp_name": "アーユス",
@@ -378,6 +360,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "インフェルノ",
+    "cn_name": "Inferno",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "イヴァン雷帝",
     "cn_name": "伊凡雷帝",
     "category": "character",
@@ -408,8 +396,14 @@
     "aliases": "[\"ウェイバー·ベルベット\", \"ウェイバーベルベット\"]"
   },
   {
-    "jp_name": "ウェールズの妖精",
-    "cn_name": "威尔士的妖精",
+    "jp_name": "ウェールズ",
+    "cn_name": "威尔士",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ウッドワス",
+    "cn_name": "伍德沃斯",
     "category": "character",
     "aliases": "[]"
   },
@@ -516,16 +510,16 @@
     "aliases": "[\"エレナブラヴァツキー\"]"
   },
   {
-    "jp_name": "エンジン",
-    "cn_name": "引擎",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "オキタ・Ｊ・ソウジ",
     "cn_name": "冲田·J·总司",
     "category": "character",
     "aliases": "[\"オキタ・J・ソウジ\", \"オキタＪソウジ\"]"
+  },
+  {
+    "jp_name": "オクタヴィア",
+    "cn_name": "奥克塔维娅",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "オケアノスのキャスター",
@@ -548,12 +542,6 @@
   {
     "jp_name": "オデュッセウス",
     "cn_name": "奥德修斯",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "オフェリア",
-    "cn_name": "奥菲莉娅",
     "category": "character",
     "aliases": "[]"
   },
@@ -582,12 +570,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "オルガマリー",
-    "cn_name": "奥尔加玛丽",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "オルガマリー・アニムスフィア",
     "cn_name": "奥尔加玛丽·阿尼姆斯菲亚",
     "category": "character",
@@ -596,6 +578,18 @@
   {
     "jp_name": "オルトリンデ",
     "cn_name": "奥特琳德",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "オロチ",
+    "cn_name": "大蛇",
+    "category": "character",
+    "aliases": "[\"大蛇\"]"
+  },
+  {
+    "jp_name": "オーディン",
+    "cn_name": "奥丁",
     "category": "character",
     "aliases": "[]"
   },
@@ -636,6 +630,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "カヤン",
+    "cn_name": "卡扬",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "カラミティ・ジェーン",
     "cn_name": "灾星简",
     "category": "character",
@@ -666,6 +666,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "カワタ",
+    "cn_name": "川田",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "カヴァスⅡ世",
     "cn_name": "卡瓦斯Ⅱ世",
     "category": "character",
@@ -680,6 +686,12 @@
   {
     "jp_name": "カーミラ",
     "cn_name": "卡米拉",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "カール大帝",
+    "cn_name": "卡尔大帝",
     "category": "character",
     "aliases": "[]"
   },
@@ -720,12 +732,6 @@
     "aliases": "[\"Cath Palug\"]"
   },
   {
-    "jp_name": "キャプテン",
-    "cn_name": "船长",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "キャプテン・キッド",
     "cn_name": "基德船长",
     "category": "character",
@@ -733,15 +739,9 @@
   },
   {
     "jp_name": "キャプテン・ネモ",
-    "cn_name": "船长尼莫",
+    "cn_name": "船长·尼莫",
     "category": "character",
-    "aliases": "[\"キャプテンネモ\", \"ネモ船長\"]"
-  },
-  {
-    "jp_name": "キリシュタリア",
-    "cn_name": "基尔什塔利亚",
-    "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"キャプテンネモ\"]"
   },
   {
     "jp_name": "キリシュタリア・ヴォーダイム",
@@ -763,7 +763,7 @@
   },
   {
     "jp_name": "キングプロテア・オルタ",
-    "cn_name": "Kingprotea・Alter",
+    "cn_name": "Kingprotea·Alter",
     "category": "character",
     "aliases": "[]"
   },
@@ -780,6 +780,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "クエーサー",
+    "cn_name": "类星体",
+    "category": "character",
+    "aliases": "[\"类星体\"]"
+  },
+  {
     "jp_name": "ククルカン",
     "cn_name": "库库尔坎",
     "category": "character",
@@ -790,6 +796,12 @@
     "cn_name": "克里斯蒂娜",
     "category": "character",
     "aliases": "[]"
+  },
+  {
+    "jp_name": "クリストファー・コロンブス",
+    "cn_name": "克里斯托弗·哥伦布",
+    "category": "character",
+    "aliases": "[\"クリストファーコロンブス\"]"
   },
   {
     "jp_name": "クリームヒルト",
@@ -885,7 +897,7 @@
     "jp_name": "ゲルダ",
     "cn_name": "格尔达",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"グルダ\"]"
   },
   {
     "jp_name": "ゲーティア",
@@ -939,7 +951,7 @@
     "jp_name": "サブナック",
     "cn_name": "斯伯纳克",
     "category": "character",
-    "aliases": "[\"魔神サブナック\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "サロメ",
@@ -972,12 +984,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "シオン",
-    "cn_name": "希翁",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "シオン・エルトナム・ソカリス",
     "cn_name": "希翁·艾尔特纳姆·索卡里斯",
     "category": "character",
@@ -998,6 +1004,12 @@
   {
     "jp_name": "シドゥリ",
     "cn_name": "西杜丽",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "シバの女王",
+    "cn_name": "示巴女王",
     "category": "character",
     "aliases": "[]"
   },
@@ -1036,6 +1048,12 @@
     "cn_name": "骑士迪昂",
     "category": "character",
     "aliases": "[\"シュヴァリエデオン\"]"
+  },
+  {
+    "jp_name": "シルビア",
+    "cn_name": "西尔维亚",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "シータ",
@@ -1119,7 +1137,7 @@
     "jp_name": "ジングル・アベル・ムニエル",
     "cn_name": "金格尔·阿贝尔·穆尼尔",
     "category": "character",
-    "aliases": "[\"Jingle Abel Meunière\", \"ジングルアベルムニエル\"]"
+    "aliases": "[\"ジングルアベルムニエル\"]"
   },
   {
     "jp_name": "ジーク",
@@ -1152,10 +1170,22 @@
     "aliases": "[\"スカンジナビア·ペペロンチーノ\", \"スカンジナビアペペロンチーノ\"]"
   },
   {
+    "jp_name": "スタッフ",
+    "cn_name": "职员",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ステンノ",
     "cn_name": "斯忒诺",
     "category": "character",
     "aliases": "[]"
+  },
+  {
+    "jp_name": "スパイラル",
+    "cn_name": "漩涡",
+    "category": "character",
+    "aliases": "[\"漩涡\"]"
   },
   {
     "jp_name": "スパルタクス",
@@ -1212,6 +1242,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "セイファート",
+    "cn_name": "赛弗特",
+    "category": "character",
+    "aliases": "[\"赛弗特\"]"
+  },
+  {
     "jp_name": "セタンタ",
     "cn_name": "瑟坦特",
     "category": "character",
@@ -1251,7 +1287,7 @@
     "jp_name": "ゼパル",
     "cn_name": "桀派",
     "category": "character",
-    "aliases": "[\"魔神ゼパル\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "ソドムズビースト",
@@ -1260,14 +1296,32 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ソリア・ナイワー",
+    "cn_name": "索里亚·奈瓦",
+    "category": "character",
+    "aliases": "[\"ソリアナイワー\"]"
+  },
+  {
     "jp_name": "ソロモン",
     "cn_name": "所罗门",
     "category": "character",
     "aliases": "[]"
   },
   {
+    "jp_name": "ソンブレロ",
+    "cn_name": "阔边帽",
+    "category": "character",
+    "aliases": "[\"阔边帽\"]"
+  },
+  {
     "jp_name": "タマモキャット",
     "cn_name": "玉藻猫",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ダストン",
+    "cn_name": "达斯顿",
     "category": "character",
     "aliases": "[]"
   },
@@ -1314,8 +1368,20 @@
     "aliases": "[\"チャールズバベッジ\"]"
   },
   {
+    "jp_name": "チン",
+    "cn_name": "陈",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ツタンカーメン",
     "cn_name": "图坦卡蒙",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ツヴァイ",
+    "cn_name": "Zwei",
     "category": "character",
     "aliases": "[]"
   },
@@ -1362,12 +1428,6 @@
     "aliases": "[\"ディルムッドオディナ\"]"
   },
   {
-    "jp_name": "デイビット",
-    "cn_name": "戴比特",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "デイビット・ゼム・ヴォイド",
     "cn_name": "戴比特·泽姆·沃伊德",
     "category": "character",
@@ -1382,6 +1442,12 @@
   {
     "jp_name": "デメテル",
     "cn_name": "得墨忒耳",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "トマリン",
+    "cn_name": "托玛琳",
     "category": "character",
     "aliases": "[]"
   },
@@ -1434,6 +1500,12 @@
     "aliases": "[\"ドブルイニャニキチッチ\"]"
   },
   {
+    "jp_name": "ドライ",
+    "cn_name": "Drei",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ドラコー",
     "cn_name": "德拉科",
     "category": "character",
@@ -1461,7 +1533,7 @@
     "jp_name": "ナベリウス",
     "cn_name": "纳贝流士",
     "category": "character",
-    "aliases": "[\"魔神ナベリウス\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "ナポレオン",
@@ -1474,12 +1546,6 @@
     "cn_name": "童谣",
     "category": "character",
     "aliases": "[\"ナーサリーライム\"]"
-  },
-  {
-    "jp_name": "ナース",
-    "cn_name": "护士",
-    "category": "character",
-    "aliases": "[]"
   },
   {
     "jp_name": "ニコラ・テスラ",
@@ -1506,38 +1572,32 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ネモ",
-    "cn_name": "尼莫",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "ネモ・エンジン",
-    "cn_name": "尼莫引擎",
+    "cn_name": "尼莫·引擎",
     "category": "character",
     "aliases": "[\"ネモエンジン\"]"
   },
   {
     "jp_name": "ネモ・ナース",
-    "cn_name": "尼莫护士",
+    "cn_name": "尼莫·护士",
     "category": "character",
     "aliases": "[\"ネモナース\"]"
   },
   {
     "jp_name": "ネモ・プロフェッサー",
-    "cn_name": "尼莫教授",
+    "cn_name": "尼莫·教授",
     "category": "character",
     "aliases": "[\"ネモプロフェッサー\"]"
   },
   {
     "jp_name": "ネモ・ベーカリー",
-    "cn_name": "尼莫烘焙坊",
+    "cn_name": "尼莫·烘焙坊",
     "category": "character",
     "aliases": "[\"ネモベーカリー\"]"
   },
   {
     "jp_name": "ネモ・マリーン",
-    "cn_name": "尼莫水兵",
+    "cn_name": "尼莫·水兵",
     "category": "character",
     "aliases": "[\"ネモマリーン\"]"
   },
@@ -1566,6 +1626,12 @@
     "aliases": "[\"ノクナレアヤラアーンドゥ\"]"
   },
   {
+    "jp_name": "ハイド",
+    "cn_name": "海德",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ハデス",
     "cn_name": "哈得斯",
     "category": "character",
@@ -1578,10 +1644,16 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ハリー・茜沢・アンダーソン",
+    "cn_name": "哈利·茜泽·安德森",
+    "category": "character",
+    "aliases": "[\"ハリー茜沢アンダーソン\"]"
+  },
+  {
     "jp_name": "ハルファス",
     "cn_name": "哈帕斯",
     "category": "character",
-    "aliases": "[\"魔神ハルファス\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "ハンス・クリスチャン・アンデルセン",
@@ -1599,7 +1671,7 @@
     "jp_name": "バアル",
     "cn_name": "巴力",
     "category": "character",
-    "aliases": "[\"魔神バアル\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "バゼット",
@@ -1611,7 +1683,7 @@
     "jp_name": "バルバトス",
     "cn_name": "巴巴妥司",
     "category": "character",
-    "aliases": "[\"魔神バルバトス\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "バーゲスト",
@@ -1640,6 +1712,12 @@
   {
     "jp_name": "パツシィ",
     "cn_name": "帕茨希",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "パライソ",
+    "cn_name": "Paraiso",
     "category": "character",
     "aliases": "[]"
   },
@@ -1716,12 +1794,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ピエール・コーション",
-    "cn_name": "皮埃尔·科雄",
-    "category": "character",
-    "aliases": "[\"ピエール·コーション\", \"ピエールコーション\"]"
-  },
-  {
     "jp_name": "ファンタズムーン",
     "cn_name": "Phantasmoon",
     "category": "character",
@@ -1732,6 +1804,12 @@
     "cn_name": "剧院魅影",
     "category": "character",
     "aliases": "[\"ファントムオブジオペラ\"]"
+  },
+  {
+    "jp_name": "ファヴニール",
+    "cn_name": "法納夫",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "ファースト・レディ",
@@ -1749,7 +1827,7 @@
     "jp_name": "フェニクス",
     "cn_name": "菲尼克斯",
     "category": "character",
-    "aliases": "[\"魔神フェニクス\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "フェルグス・マック・ロイ",
@@ -1761,19 +1839,19 @@
     "jp_name": "フォウ",
     "cn_name": "芙芙",
     "category": "character",
-    "aliases": "[\"Cath Palug\", \"Fou\"]"
+    "aliases": "[\"Fou\"]"
   },
   {
     "jp_name": "フォルネウス",
     "cn_name": "佛钮司",
     "category": "character",
-    "aliases": "[\"魔神フォルネウス\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "フラウロス",
     "cn_name": "佛劳洛斯",
     "category": "character",
-    "aliases": "[\"魔神フラウロス\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "フランケンシュタイン",
@@ -1843,13 +1921,7 @@
   },
   {
     "jp_name": "プロテア・オルタ",
-    "cn_name": "Protea・Alter",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "プロフェッサー",
-    "cn_name": "教授",
+    "cn_name": "Protea·Alter",
     "category": "character",
     "aliases": "[]"
   },
@@ -1890,10 +1962,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ヘンリー・ジキル＆ハイド",
-    "cn_name": "亨利·杰基尔＆海德",
+    "jp_name": "ヘンリー・ジキル",
+    "cn_name": "亨利·杰基尔",
     "category": "character",
-    "aliases": "[\"ヘンリージキル＆ハイド\", \"ヘンリー・ジキル&ハイド\"]"
+    "aliases": "[\"ヘンリージキル\"]"
   },
   {
     "jp_name": "ベオウルフ",
@@ -1908,28 +1980,10 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ベリル",
-    "cn_name": "贝里尔",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "ベリル・ガット",
     "cn_name": "贝里尔·伽特",
     "category": "character",
     "aliases": "[\"ベリル·ガット\", \"ベリルガット\"]"
-  },
-  {
-    "jp_name": "ベルギーから来た男",
-    "cn_name": "比利时来的人",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "ベーカリー",
-    "cn_name": "烘焙坊",
-    "category": "character",
-    "aliases": "[]"
   },
   {
     "jp_name": "ペペ",
@@ -1986,6 +2040,12 @@
     "aliases": "[\"マシュキリエライト\"]"
   },
   {
+    "jp_name": "マゼラン",
+    "cn_name": "麦哲伦",
+    "category": "character",
+    "aliases": "[\"麦哲伦\"]"
+  },
+  {
     "jp_name": "マタ・ハリ",
     "cn_name": "玛塔·哈丽",
     "category": "character",
@@ -2010,14 +2070,8 @@
     "aliases": "[\"マナナンマクリール\"]"
   },
   {
-    "jp_name": "マリスビリー",
-    "cn_name": "马里斯比利",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "マリスビリー・アニムスフィア",
-    "cn_name": "马里斯比利",
+    "cn_name": "马里斯比利·阿尼姆斯菲亚",
     "category": "character",
     "aliases": "[\"マリスビリー·アニムスフィア\", \"マリスビリーアニムスフィア\"]"
   },
@@ -2026,12 +2080,6 @@
     "cn_name": "马里斯·迦勒底亚斯",
     "category": "character",
     "aliases": "[\"マリスカルデアス\"]"
-  },
-  {
-    "jp_name": "マリーン",
-    "cn_name": "水兵",
-    "category": "character",
-    "aliases": "[]"
   },
   {
     "jp_name": "マリー・アントワネット",
@@ -2054,6 +2102,12 @@
   {
     "jp_name": "マンドリカルド",
     "cn_name": "曼迪卡尔多",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "マーカス",
+    "cn_name": "马库斯",
     "category": "character",
     "aliases": "[]"
   },
@@ -2100,10 +2154,28 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ムリアン",
+    "cn_name": "缪瑞恩",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "メアリー・アニング",
     "cn_name": "玛丽·安宁",
     "category": "character",
     "aliases": "[\"メアリーアニング\"]"
+  },
+  {
+    "jp_name": "メアリー・リード",
+    "cn_name": "玛莉·瑞德",
+    "category": "character",
+    "aliases": "[\"メアリーリード\"]"
+  },
+  {
+    "jp_name": "メイオール",
+    "cn_name": "马亚尔",
+    "category": "character",
+    "aliases": "[\"马亚尔\"]"
   },
   {
     "jp_name": "メカエリチャン",
@@ -2190,6 +2262,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ヤン・ユーファン",
+    "cn_name": "杨玉环",
+    "category": "character",
+    "aliases": "[\"ヤンユーファン\", \"楊玉環\"]"
+  },
+  {
     "jp_name": "ライネス",
     "cn_name": "莱妮丝",
     "category": "character",
@@ -2199,7 +2277,7 @@
     "jp_name": "ラウム",
     "cn_name": "劳姆",
     "category": "character",
-    "aliases": "[\"魔神ラウム\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "ラクシュミー・バーイー",
@@ -2298,16 +2376,16 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "レッドラ・ビット",
+    "cn_name": "瑞德拉·比特",
+    "category": "character",
+    "aliases": "[\"レッドラビット\"]"
+  },
+  {
     "jp_name": "レディ・アヴァロン",
     "cn_name": "阿瓦隆女士",
     "category": "character",
     "aliases": "[\"レディアヴァロン\"]"
-  },
-  {
-    "jp_name": "レフ",
-    "cn_name": "雷夫",
-    "category": "character",
-    "aliases": "[]"
   },
   {
     "jp_name": "レフ・ライノール・フラウロス",
@@ -2364,6 +2442,12 @@
     "aliases": "[\"ロムルス=クィリヌス\"]"
   },
   {
+    "jp_name": "ロンゴミニアド",
+    "cn_name": "伦戈米尼亚德",
+    "category": "character",
+    "aliases": "[\"Rhongomyniad\"]"
+  },
+  {
     "jp_name": "ロード・ログレス",
     "cn_name": "领主洛格雷斯",
     "category": "character",
@@ -2394,22 +2478,34 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "ヴァン・ゴッホ",
-    "cn_name": "梵高",
-    "category": "character",
-    "aliases": "[\"ヴァンゴッホ\"]"
-  },
-  {
     "jp_name": "ヴァン・ホーエンハイム・パラケルスス",
     "cn_name": "冯·霍恩海姆·帕拉塞尔苏斯",
     "category": "character",
     "aliases": "[\"ヴァンホーエンハイムパラケルスス\"]"
   },
   {
+    "jp_name": "ヴィイ",
+    "cn_name": "维",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "ヴィンセント・ヴァン・ゴッホ",
+    "cn_name": "文森特·梵高",
+    "category": "character",
+    "aliases": "[\"ヴィンセントヴァンゴッホ\"]"
+  },
+  {
     "jp_name": "ヴォルフガング・アマデウス・モーツァルト",
     "cn_name": "沃尔夫冈·阿马德乌斯·莫扎特",
     "category": "character",
     "aliases": "[\"ヴォルフガングアマデウスモーツァルト\"]"
+  },
+  {
+    "jp_name": "ヴクブ",
+    "cn_name": "乌库伯",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "ヴラド三世",
@@ -2454,12 +2550,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "丸顔の神父",
-    "cn_name": "圆脸的神父",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "久遠寺有珠",
     "cn_name": "久远寺有珠",
     "category": "character",
@@ -2470,12 +2560,6 @@
     "cn_name": "九纹龙伊丽莎",
     "category": "character",
     "aliases": "[]"
-  },
-  {
-    "jp_name": "亜種空想樹地獄界曼荼羅",
-    "cn_name": "亚种空想树地狱界曼荼罗",
-    "category": "character",
-    "aliases": "[\"空想樹地獄界曼荼羅\"]"
   },
   {
     "jp_name": "亜鈴百種・排熱大公",
@@ -2544,6 +2628,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "千鍵",
+    "cn_name": "千键",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "卑弥呼",
     "cn_name": "卑弥呼",
     "category": "character",
@@ -2558,12 +2648,6 @@
   {
     "jp_name": "司馬懿",
     "cn_name": "司马懿",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "名もなき亀",
-    "cn_name": "无名之龟",
     "category": "character",
     "aliases": "[]"
   },
@@ -2595,7 +2679,7 @@
     "jp_name": "四元素アイリ",
     "cn_name": "四元素之爱丽",
     "category": "character",
-    "aliases": "[\"土のアイリ\", \"水のアイリ\", \"火のアイリ\", \"風のアイリ\"]"
+    "aliases": "[]"
   },
   {
     "jp_name": "土方歳三",
@@ -2724,6 +2808,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "安倍晴明",
+    "cn_name": "安倍晴明",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "宝蔵院胤舜",
     "cn_name": "宝藏院胤舜",
     "category": "character",
@@ -2760,6 +2850,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "岸波白野",
+    "cn_name": "岸波白野",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "巌窟王",
     "cn_name": "岩窟王",
     "category": "character",
@@ -2786,12 +2882,6 @@
   {
     "jp_name": "平景清",
     "cn_name": "平景清",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "店主妖精",
-    "cn_name": "店主妖精",
     "category": "character",
     "aliases": "[]"
   },
@@ -2850,12 +2940,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "新宿のライダー",
-    "cn_name": "新宿的Rider",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "明智光秀",
     "cn_name": "明智光秀",
     "category": "character",
@@ -2870,6 +2954,12 @@
   {
     "jp_name": "曲亭馬琴",
     "cn_name": "曲亭马琴",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "曼荼羅",
+    "cn_name": "曼荼罗",
     "category": "character",
     "aliases": "[]"
   },
@@ -3030,12 +3120,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "無名のマスター",
-    "cn_name": "无名的御主",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "煙酔のハサン",
     "cn_name": "烟醉哈桑",
     "category": "character",
@@ -3068,12 +3152,6 @@
   {
     "jp_name": "玖賀耳之御笠",
     "cn_name": "玖贺耳之御笠",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "生真面目な紳士",
-    "cn_name": "认真严肃的绅士",
     "category": "character",
     "aliases": "[]"
   },
@@ -3114,6 +3192,12 @@
     "aliases": "[\"百貌ハサン·ちびハサン\", \"百貌ハサンちびハサン\"]"
   },
   {
+    "jp_name": "盈月",
+    "cn_name": "盈月",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "神王ラックランド",
     "cn_name": "神王拉克兰",
     "category": "character",
@@ -3132,48 +3216,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "空想樹オロチ",
-    "cn_name": "空想树大蛇",
-    "category": "character",
-    "aliases": "[\"空想樹大蛇\"]"
-  },
-  {
-    "jp_name": "空想樹クエーサー",
-    "cn_name": "空想树类星体",
-    "category": "character",
-    "aliases": "[\"空想樹类星体\"]"
-  },
-  {
-    "jp_name": "空想樹スパイラル",
-    "cn_name": "空想树漩涡",
-    "category": "character",
-    "aliases": "[\"空想樹漩涡\"]"
-  },
-  {
-    "jp_name": "空想樹セイファート",
-    "cn_name": "空想树赛弗特",
-    "category": "character",
-    "aliases": "[\"空想樹赛弗特\"]"
-  },
-  {
-    "jp_name": "空想樹ソンブレロ",
-    "cn_name": "空想树阔边帽",
-    "category": "character",
-    "aliases": "[\"空想樹阔边帽\"]"
-  },
-  {
-    "jp_name": "空想樹マゼラン",
-    "cn_name": "空想树麦哲伦",
-    "category": "character",
-    "aliases": "[\"空想樹麦哲伦\"]"
-  },
-  {
-    "jp_name": "空想樹メイオール",
-    "cn_name": "空想树马亚尔",
-    "category": "character",
-    "aliases": "[\"空想樹马亚尔\"]"
-  },
-  {
     "jp_name": "紅閻魔",
     "cn_name": "红阎魔",
     "category": "character",
@@ -3182,12 +3224,6 @@
   {
     "jp_name": "紅閻魔・オルタ",
     "cn_name": "红阎魔·Alter",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "紐を弄くる老人",
-    "cn_name": "玩绳结的老人",
     "category": "character",
     "aliases": "[]"
   },
@@ -3252,6 +3288,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "茅 昂昂",
+    "cn_name": "茅 昂昂",
+    "category": "character",
+    "aliases": "[\"マオマオマオ\"]"
+  },
+  {
     "jp_name": "茨木童子",
     "cn_name": "茨木童子",
     "category": "character",
@@ -3283,9 +3325,9 @@
   },
   {
     "jp_name": "藤丸立香",
-    "cn_name": "藤丸立香    ふじまるりつか",
+    "cn_name": "藤丸立香",
     "category": "character",
-    "aliases": "[]"
+    "aliases": "[\"ふじまるりつか\"]"
   },
   {
     "jp_name": "藤原道長",
@@ -3326,6 +3368,12 @@
   {
     "jp_name": "複合神性ゴルゴーン",
     "cn_name": "复合神性戈耳工",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "言峰綺礼",
+    "cn_name": "言峰绮礼",
     "category": "character",
     "aliases": "[]"
   },
@@ -3378,12 +3426,6 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "謎の女ガンナー",
-    "cn_name": "谜之女枪手",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "謎の蘭丸X",
     "cn_name": "谜之兰丸X",
     "category": "character",
@@ -3394,12 +3436,6 @@
     "cn_name": "豹尾神·铃鹿御前",
     "category": "character",
     "aliases": "[\"豹尾神·鈴鹿御前\", \"豹尾神鈴鹿御前\"]"
-  },
-  {
-    "jp_name": "贋作空想樹盈月",
-    "cn_name": "赝作空想树盈月",
-    "category": "character",
-    "aliases": "[\"空想樹盈月\"]"
   },
   {
     "jp_name": "赤兎馬",
@@ -3528,20 +3564,8 @@
     "aliases": "[]"
   },
   {
-    "jp_name": "魔犬バーゲスト",
-    "cn_name": "魔犬巴格斯特",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
     "jp_name": "魔竜ヴォーティガーン",
     "cn_name": "魔龙伏提庚",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "鳥の巣頭の博士",
-    "cn_name": "鸟窝头的博士",
     "category": "character",
     "aliases": "[]"
   },
@@ -3554,12 +3578,6 @@
   {
     "jp_name": "黄飛虎",
     "cn_name": "黄飞虎",
-    "category": "character",
-    "aliases": "[]"
-  },
-  {
-    "jp_name": "黒の聖杯",
-    "cn_name": "黑之圣杯",
     "category": "character",
     "aliases": "[]"
   },
@@ -3621,7 +3639,7 @@
     "jp_name": "ＵＤＫ－バーゲスト",
     "cn_name": "UDK－巴格斯特",
     "category": "character",
-    "aliases": "[\"UDK-バーゲスト\"]"
+    "aliases": "[\"UDK-バーゲスト\", \"UDK巴格斯特\"]"
   },
   {
     "jp_name": "アサシン",
@@ -3678,6 +3696,12 @@
     "aliases": "[\"Berserker\", \"狂战士\"]"
   },
   {
+    "jp_name": "ビースト",
+    "cn_name": "Beast",
+    "category": "class",
+    "aliases": "[\"兽\"]"
+  },
+  {
     "jp_name": "フォーリナー",
     "cn_name": "Foreigner",
     "category": "class",
@@ -3712,12 +3736,6 @@
     "cn_name": "Ruler",
     "category": "class",
     "aliases": "[\"Ruler\", \"裁定者\"]"
-  },
-  {
-    "jp_name": "ビースト",
-    "cn_name": "Beast",
-    "category": "class   兽",
-    "aliases": "[]"
   },
   {
     "jp_name": "アラヤ",
@@ -3804,8 +3822,8 @@
     "aliases": "[\"Black Barrel\", \"ブラック・バレル\"]"
   },
   {
-    "jp_name": "ペーパームーン",
-    "cn_name": "平面之月",
+    "jp_name": "ホムンクルス",
+    "cn_name": "人造人",
     "category": "game_term",
     "aliases": "[]"
   },
@@ -3824,6 +3842,12 @@
   {
     "jp_name": "ヤガ",
     "cn_name": "雅嘎",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "リリン",
+    "cn_name": "莉莉恩",
     "category": "game_term",
     "aliases": "[]"
   },
@@ -3932,6 +3956,12 @@
   {
     "jp_name": "強化",
     "cn_name": "强化",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
+    "jp_name": "戦乙女",
+    "cn_name": "女武神",
     "category": "game_term",
     "aliases": "[]"
   },
@@ -4068,6 +4098,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "虚数観測機・ペーパームーン",
+    "cn_name": "虛數觀測機·平面之月",
+    "category": "game_term",
+    "aliases": "[\"虚数観測機ペーパームーン\"]"
+  },
+  {
     "jp_name": "近未来観測レンズ・シバ",
     "cn_name": "近未来观测透镜·示巴",
     "category": "game_term",
@@ -4180,12 +4216,6 @@
     "cn_name": "万符必应破戒",
     "category": "noble_phantasm",
     "aliases": "[\"破戒すべき全ての符\"]"
-  },
-  {
-    "jp_name": "ロンゴミニアド",
-    "cn_name": "伦戈米尼亚德",
-    "category": "noble_phantasm",
-    "aliases": "[\"Rhongomyniad\"]"
   },
   {
     "jp_name": "ロー・アイアス",

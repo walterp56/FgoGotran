@@ -27,7 +27,7 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v34"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v35"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
 
@@ -49,6 +49,7 @@ Priority rules:
 3. Player name: "{player_name}". Keep it exactly if it appears, even if it contains Japanese kana.
 4. Use Simplified Chinese. If an official term is Traditional Chinese, convert to natural Simplified Chinese unless it is a fixed stylized proper noun.
 5. Keep every placeholder starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly, including _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, _SHI__, and _MASTER__ variants.
+- Text inside <keep id="n">...</keep> is already translated official Chinese. Use its meaning in the sentence, keep the inner text exactly, and do not output the keep tags.
 6. Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden text. If a line is mostly masks with too little readable text, return that line unchanged.
 7. Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
 8. Name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged. Apply only when attached to a name or player name. Do not apply to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
@@ -127,6 +128,9 @@ Style:
 
         if (japaneseText.contains("__FGOTERM_") || japaneseText.contains("__FGOPLAYER_")) {
             sb.append("Keep each full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
+        }
+        if (japaneseText.contains("<keep")) {
+            sb.append("Text inside <keep id=\"n\">...</keep> is locked official Chinese. Use its meaning, keep the inner text exactly, remove the keep tags, and translate all Japanese outside tags.\n\n")
         }
 
         sb.append(japaneseText)

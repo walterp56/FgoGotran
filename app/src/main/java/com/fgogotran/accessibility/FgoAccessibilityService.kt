@@ -400,9 +400,10 @@ class FgoAccessibilityService : AccessibilityService() {
                     if (waitingFor >= TRANSIENT_SYSTEM_UI_FOREGROUND_MAX_DELAY) {
                         FgoLogger.debug(
                             tag,
-                            "Transient system UI persisted for ${waitingFor}ms; clearing FGO foreground"
+                            "Transient system UI persisted for ${waitingFor}ms; keeping last FGO foreground"
                         )
-                        markFgoForegroundLost(packageName, delayed = true)
+                        cancelTransientForegroundLoss()
+                        translationOverlay.showIndicator()
                     } else {
                         FgoLogger.debug(
                             tag,

@@ -9,7 +9,6 @@ import com.fgogotran.terminology.TermDao
 import com.fgogotran.terminology.TermEntity
 import com.fgogotran.util.FgoLogger
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -173,7 +172,12 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "API test RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
-        val protectedInput = protectText(normalizedText, matchedTerms, config.playerName)
+        val protectedInput = protectText(
+            normalizedText,
+            matchedTerms,
+            config.playerName,
+            useVisibleTermLocks = true
+        )
         val response = callTranslationBackend(
             config = config,
             messages = listOf(
@@ -193,15 +197,19 @@ class Translator @Inject constructor(
         if (response.isBlank()) {
             throw IllegalStateException("API returned an empty response")
         }
-        var translated = sanitizeTranslation(
-            normalizedText,
-            restoreProtectedTerms(response, protectedInput.terms)
-        ).trim()
+        val restoredResponse = restoreProtectedTranslation(
+            response,
+            protectedInput,
+            "API test response"
+        )
+        var translated = restoredResponse?.let {
+            sanitizeTranslation(normalizedText, it).trim()
+        }.orEmpty()
         FgoLogger.debug(tag, "API test sanitized content: ${apiResponseLogSample(translated)}")
-        if (translated.isBlank()) {
+        if (translated.isBlank() && restoredResponse != null) {
             throw IllegalStateException("API returned an empty translation")
         }
-        if (looksUntranslated(normalizedText, translated, config.playerName)) {
+        if (restoredResponse == null || looksUntranslated(normalizedText, translated, config.playerName)) {
             FgoLogger.warn(tag, "API test response looked untranslated; trying strict retry")
             translated = retryUntranslatedSingle(
                 config = config,
@@ -400,12 +408,27 @@ class Translator @Inject constructor(
         private const val NAME_HONORIFIC_SAMA_SUFFIX = "様"
         private const val NAME_HONORIFIC_TONO_SUFFIX = "殿"
         private const val NAME_HONORIFIC_SHI_SUFFIX = "氏"
+        private val visibleLockBlockedSuffixes = NAME_PLURAL_ZU_SUFFIXES + listOf(
+            "たち",
+            "達",
+            "ら",
+            "等",
+            NAME_HONORIFIC_KUN_SUFFIX,
+            NAME_HONORIFIC_CHAN_SOURCE_SUFFIX,
+            NAME_HONORIFIC_SAMA_SUFFIX,
+            NAME_HONORIFIC_TONO_SUFFIX,
+            NAME_HONORIFIC_SHI_SUFFIX
+        )
         private const val MASTER_TITLE_SOURCE = "マスター"
         private const val MASTER_TITLE_OFFICIAL = "御主"
         private val malformedProtectedTokenPattern =
             Regex("__FGO(?:TERM|PLAYER)_([^_\\s]{1,64})(?:_(PLURAL|KUN|CHAN|SAMA|TONO|SHI|MASTER))?__")
         private val anyProtectedTokenPattern =
             Regex("__FGO(?:TERM|PLAYER)_[^\\s]{1,96}__")
+        private val visibleKeepTagPattern =
+            Regex("""<keep\s+id="\d+">([^<>]*)</keep>""")
+        private val visibleKeepMarkupPattern =
+            Regex("""</?keep\b[^>]*>""")
         private val protectedTokenNumericVariantBodyPattern =
             Regex("\\d+_(PLURAL|KUN|CHAN|SAMA|TONO|SHI|MASTER)")
         private val protectedTokenMarkerBodies = setOf(
@@ -521,7 +544,12 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
-        val protectedInput = protectText(normalizedText, matchedTerms, playerName)
+        val protectedInput = protectText(
+            normalizedText,
+            matchedTerms,
+            playerName,
+            useVisibleTermLocks = true
+        )
         val systemPrompt = promptBuilder.buildSystemPrompt(matchedTerms, playerName)
 
         val messages = listOf(
@@ -549,16 +577,20 @@ class Translator @Inject constructor(
                 .forTargetLocale(config)
         }
 
-        var simplifiedResult = sanitizeTranslation(
-            normalizedText,
-            restoreProtectedTerms(result, protectedInput.terms)
+        val restoredResult = restoreProtectedTranslation(
+            result,
+            protectedInput,
+            "API response"
         )
+        var simplifiedResult = restoredResult?.let {
+            sanitizeTranslation(normalizedText, it)
+        }.orEmpty()
         simplifiedResult = enforceMaskedTranslationPolicy(normalizedText, simplifiedResult)
         if (isMaskedSourcePreserved(normalizedText, simplifiedResult)) {
             return TranslateResult(simplifiedResult, MASKED_TEXT_BACKEND, true)
                 .forTargetLocale(config)
         }
-        if (looksUntranslated(normalizedText, simplifiedResult, playerName)) {
+        if (restoredResult == null || looksUntranslated(normalizedText, simplifiedResult, playerName)) {
             logUntranslatedResult("API response", normalizedText, simplifiedResult, playerName)
             FgoLogger.warn(tag, "API returned untranslated Japanese; retrying with strict Chinese-only prompt")
             val retryResult = retryUntranslatedSingle(
@@ -688,7 +720,14 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "Batch RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
-        val protectedTexts = uncachedTexts.map { protectText(it, matchedTerms, playerName) }
+        val protectedTexts = uncachedTexts.map {
+            protectText(
+                it,
+                matchedTerms,
+                playerName,
+                useVisibleTermLocks = true
+            )
+        }
 
         val messages = listOf(
             ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName)),
@@ -715,17 +754,21 @@ class Translator @Inject constructor(
         }
 
         for ((batchIndex, originalIndex) in uncachedIndices.withIndex()) {
-            val restored = restoreProtectedTerms(
+            val restored = restoreProtectedTranslation(
                 translatedTexts[batchIndex],
-                protectedTexts[batchIndex].terms
+                protectedTexts[batchIndex],
+                "Batch item[$originalIndex]"
             )
-            val sanitized = sanitizeTranslation(normalizedTexts[originalIndex], restored)
+            val sanitized = restored?.let {
+                sanitizeTranslation(normalizedTexts[originalIndex], it)
+            }.orEmpty()
             val maskedSafe = enforceMaskedTranslationPolicy(normalizedTexts[originalIndex], sanitized)
             if (isMaskedSourcePreserved(normalizedTexts[originalIndex], maskedSafe)) {
                 results[originalIndex] = TranslateResult(maskedSafe, MASKED_TEXT_BACKEND, true)
                 continue
             }
-            val wasUntranslated = looksUntranslated(normalizedTexts[originalIndex], maskedSafe, playerName)
+            val wasUntranslated = restored == null ||
+                looksUntranslated(normalizedTexts[originalIndex], maskedSafe, playerName)
             if (wasUntranslated) {
                 FgoLogger.warn(tag, "Batch item[$originalIndex] returned untranslated Japanese; retrying single strict path")
                 val retryResult = translate(japaneseTexts[originalIndex])
@@ -957,8 +1000,22 @@ class Translator @Inject constructor(
             emptyList()
         }
         val protectedName = uncachedName?.let { protectText(it, matchedTerms, playerName) }
-        val protectedDialogue = uncachedDialogue?.let { protectText(it, matchedTerms, playerName) }
-        val protectedChoices = uncachedChoices.map { protectText(it, matchedTerms, playerName) }
+        val protectedDialogue = uncachedDialogue?.let {
+            protectText(
+                it,
+                matchedTerms,
+                playerName,
+                useVisibleTermLocks = true
+            )
+        }
+        val protectedChoices = uncachedChoices.map {
+            protectText(
+                it,
+                matchedTerms,
+                playerName,
+                useVisibleTermLocks = true
+            )
+        }
 
         val messages = listOf(
             ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName)),
@@ -1023,11 +1080,22 @@ class Translator @Inject constructor(
         if (needsName) {
             val translatedName = translatedScene.name
                 ?: throw IllegalStateException("Structured scene response missing parsed name")
-            val restoredName = restoreProtectedTerms(translatedName, protectedName?.terms.orEmpty())
+            val restoredName = if (protectedName != null) {
+                restoreProtectedTranslation(
+                    translatedName,
+                    protectedName,
+                    "Structured scene name"
+                )
+            } else {
+                translatedName
+            }
             val sourceName = nameForLlm!!
-            val simplifiedName = sanitizeNameTranslation(sourceName, restoredName)
+            val simplifiedName = restoredName?.let { sanitizeNameTranslation(sourceName, it) }.orEmpty()
             val maskedSafeName = enforceMaskedTranslationPolicy(sourceName, simplifiedName)
-            if (isMaskedSourcePreserved(sourceName, maskedSafeName)) {
+            if (restoredName == null) {
+                FgoLogger.warn(tag, "Structured scene name failed locked-term validation")
+                nameResult = TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
+            } else if (isMaskedSourcePreserved(sourceName, maskedSafeName)) {
                 nameResult = TranslateResult(maskedSafeName, MASKED_TEXT_BACKEND, true)
             } else if (isBadLlmNameTranslation(sourceName, maskedSafeName, playerName)) {
                 FgoLogger.warn(tag, "Structured scene name returned unsafe/wrong name; skipping name render")
@@ -1042,41 +1110,80 @@ class Translator @Inject constructor(
         if (needsDialogue) {
             val translatedDialogue = translatedScene.dialogue
                 ?: throw IllegalStateException("Structured scene response missing parsed dialogue")
-            val simplifiedDialogue = sanitizeTranslation(
-                normalizedDialogue!!,
-                restoreProtectedTerms(translatedDialogue, protectedDialogue?.terms.orEmpty())
-            )
+            val restoredDialogue = if (protectedDialogue != null) {
+                restoreProtectedTranslation(
+                    translatedDialogue,
+                    protectedDialogue,
+                    "Structured scene dialogue"
+                )
+            } else {
+                translatedDialogue
+            }
+            val simplifiedDialogue = restoredDialogue?.let {
+                sanitizeTranslation(normalizedDialogue!!, it)
+            }.orEmpty()
             val maskedSafeDialogue = enforceMaskedTranslationPolicy(normalizedDialogue, simplifiedDialogue)
             if (isMaskedSourcePreserved(normalizedDialogue, maskedSafeDialogue)) {
                 dialogueResult = TranslateResult(maskedSafeDialogue, MASKED_TEXT_BACKEND, true)
             } else {
-                val dialogueUntranslated = looksUntranslated(normalizedDialogue, maskedSafeDialogue, playerName)
+                val dialogueUntranslated = restoredDialogue == null ||
+                    looksUntranslated(normalizedDialogue, maskedSafeDialogue, playerName)
                 if (dialogueUntranslated) {
-                    FgoLogger.warn(tag, "Structured scene dialogue returned untranslated Japanese")
-                }
-                val renderedDialogue = if (dialogueUntranslated) UNTRANSLATED_FALLBACK else maskedSafeDialogue
-                dialogueResult = TranslateResult(renderedDialogue, backend, false)
-                if (cacheEnabled && !dialogueUntranslated) {
-                    cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue, maskedSafeDialogue, backend, playerName)
+                    FgoLogger.warn(tag, "Structured scene dialogue returned unsafe/untranslated text; retrying single path")
+                    val retryResult = translate(
+                        input.dialogue.orEmpty(),
+                        maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS
+                    )
+                    if (retryResult.translatedText.isNotBlank()) {
+                        dialogueResult = retryResult
+                        if (cacheEnabled) {
+                            cacheTranslatedText(
+                                dialogueHash!!,
+                                input.dialogue.orEmpty(),
+                                normalizedDialogue,
+                                retryResult.translatedText,
+                                retryResult.backend,
+                                playerName
+                            )
+                        }
+                    } else {
+                        dialogueResult = TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
+                    }
+                } else {
+                    dialogueResult = TranslateResult(maskedSafeDialogue, backend, false)
+                    if (cacheEnabled) {
+                        cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue, maskedSafeDialogue, backend, playerName)
+                    }
                 }
             }
         }
         for ((batchIndex, originalIndex) in neededChoiceIndices.withIndex()) {
             val normalizedChoice = normalizedChoices[originalIndex] ?: continue
             val hash = choiceHashes[originalIndex] ?: continue
-            val restoredChoice = restoreProtectedTerms(
+            val restoredChoice = restoreProtectedTranslation(
                 translatedScene.choices[batchIndex],
-                protectedChoices[batchIndex].terms
+                protectedChoices[batchIndex],
+                "Structured scene choice[$originalIndex]"
             )
-            val translatedChoice = sanitizeTranslation(normalizedChoice, restoredChoice)
+            val translatedChoice = restoredChoice?.let {
+                sanitizeTranslation(normalizedChoice, it)
+            }.orEmpty()
             val maskedSafeChoice = enforceMaskedTranslationPolicy(normalizedChoice, translatedChoice)
             if (isMaskedSourcePreserved(normalizedChoice, maskedSafeChoice)) {
                 choiceResults[originalIndex] = TranslateResult(maskedSafeChoice, MASKED_TEXT_BACKEND, true)
                 continue
             }
-            if (looksUntranslated(normalizedChoice, maskedSafeChoice, playerName)) {
-                FgoLogger.warn(tag, "Structured scene choice[$originalIndex] returned untranslated Japanese")
-                choiceResults[originalIndex] = TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
+            if (restoredChoice == null || looksUntranslated(normalizedChoice, maskedSafeChoice, playerName)) {
+                FgoLogger.warn(tag, "Structured scene choice[$originalIndex] returned unsafe/untranslated text; retrying single path")
+                val retryResult = translate(
+                    input.choices[originalIndex],
+                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS
+                )
+                choiceResults[originalIndex] = if (retryResult.translatedText.isNotBlank()) {
+                    retryResult
+                } else {
+                    TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
+                }
                 continue
             }
             choiceResults[originalIndex] = TranslateResult(maskedSafeChoice, backend, false)
@@ -2452,7 +2559,8 @@ class Translator @Inject constructor(
 
     private data class ProtectedText(
         val text: String,
-        val terms: List<TermProtection>
+        val terms: List<TermProtection>,
+        val locks: List<VisibleTermLock> = emptyList()
     )
 
     private data class TermProtection(
@@ -2460,6 +2568,18 @@ class Translator @Inject constructor(
         val officialText: String,
         val pluralToken: String? = null,
         val pluralOfficialText: String? = null
+    )
+
+    private data class VisibleTermLock(
+        val id: Int,
+        val officialText: String,
+        val minCount: Int
+    )
+
+    private data class VisibleTermLockResult(
+        val text: String,
+        val locks: List<VisibleTermLock>,
+        val unmatchedTerms: List<TermEntity>
     )
 
     private data class HonorificProtectionVariant(
@@ -2472,15 +2592,33 @@ class Translator @Inject constructor(
     private fun protectText(
         sourceText: String,
         matchedTerms: List<TermEntity>,
-        playerName: String
+        playerName: String,
+        useVisibleTermLocks: Boolean = false
     ): ProtectedText {
         val maskProtected = protectMaskedSpans(sourceText)
-        val masterProtected = protectMasterTitle(maskProtected.text)
+        val masterProtected = protectMasterTitle(
+            sourceText = maskProtected.text,
+            protectBaseTitle = !useVisibleTermLocks
+        )
         val playerProtected = protectPlayerName(masterProtected.text, playerName)
-        val termProtected = protectOfficialTerms(playerProtected.text, matchedTerms)
+        val visibleLockResult = if (useVisibleTermLocks) {
+            val (visibleTerms, placeholderTerms) = matchedTerms.partition(::isVisibleTermLockEligible)
+            val visibleProtected = protectVisibleOfficialTerms(playerProtected.text, visibleTerms)
+            visibleProtected.copy(
+                unmatchedTerms = placeholderTerms + visibleProtected.unmatchedTerms
+            )
+        } else {
+            VisibleTermLockResult(
+                text = playerProtected.text,
+                locks = emptyList(),
+                unmatchedTerms = matchedTerms
+            )
+        }
+        val termProtected = protectOfficialTerms(visibleLockResult.text, visibleLockResult.unmatchedTerms)
         return ProtectedText(
             text = termProtected.text,
-            terms = maskProtected.terms + masterProtected.terms + playerProtected.terms + termProtected.terms
+            terms = maskProtected.terms + masterProtected.terms + playerProtected.terms + termProtected.terms,
+            locks = visibleLockResult.locks
         )
     }
 
@@ -2502,7 +2640,10 @@ class Translator @Inject constructor(
         return ProtectedText(protectedText, protections)
     }
 
-    private fun protectMasterTitle(sourceText: String): ProtectedText {
+    private fun protectMasterTitle(
+        sourceText: String,
+        protectBaseTitle: Boolean = true
+    ): ProtectedText {
         val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
         if (sourceText.isBlank() || !normalized.contains(MASTER_TITLE_SOURCE)) {
             return ProtectedText(sourceText, emptyList())
@@ -2529,9 +2670,13 @@ class Translator @Inject constructor(
         protectedText = replaceTermPluralCandidate(protectedText, MASTER_TITLE_SOURCE, pluralToken)
         val pluralMatched = protectedText != pluralBefore
 
-        val baseBefore = protectedText
-        protectedText = replaceTermCandidate(protectedText, MASTER_TITLE_SOURCE, token)
-        val baseMatched = protectedText != baseBefore
+        val baseMatched = if (protectBaseTitle) {
+            val baseBefore = protectedText
+            protectedText = replaceTermCandidate(protectedText, MASTER_TITLE_SOURCE, token)
+            protectedText != baseBefore
+        } else {
+            false
+        }
 
         return if (baseMatched || pluralMatched || honorificVariants.any { it.matched }) {
             if (baseMatched || pluralMatched) {
@@ -2688,6 +2833,58 @@ class Translator @Inject constructor(
         return ProtectedText(protectedText, protections)
     }
 
+    private fun protectVisibleOfficialTerms(
+        sourceText: String,
+        matchedTerms: List<TermEntity>
+    ): VisibleTermLockResult {
+        if (sourceText.isBlank() || matchedTerms.isEmpty()) {
+            return VisibleTermLockResult(sourceText, emptyList(), matchedTerms)
+        }
+
+        var protectedText = sourceText
+        val locks = mutableListOf<VisibleTermLock>()
+        val unmatchedTerms = mutableListOf<TermEntity>()
+        var lockId = 1
+
+        for (term in matchedTerms.distinctBy { it.jpTerm }) {
+            val officialText = toSimplifiedChinese(term.cnTerm).trim()
+            if (!isVisibleTermLockEligible(term) || !isVisibleOfficialTextSafe(officialText)) {
+                unmatchedTerms += term
+                continue
+            }
+
+            val keepTag = visibleKeepTag(lockId, officialText)
+            var matchedCount = 0
+            for (candidate in termProtectionCandidates(term).filter(::containsJapaneseScript)) {
+                val beforeCount = countOccurrences(protectedText, keepTag)
+                protectedText = replaceTermCandidateOutsideVisibleKeepTags(
+                    protectedText,
+                    candidate,
+                    keepTag
+                )
+                matchedCount += countOccurrences(protectedText, keepTag) - beforeCount
+            }
+
+            if (matchedCount > 0) {
+                locks += VisibleTermLock(
+                    id = lockId,
+                    officialText = officialText,
+                    minCount = matchedCount
+                )
+                FgoLogger.debug(tag, "Locked visible DB term ${term.jpTerm} -> $officialText as keep#$lockId")
+                lockId++
+            } else {
+                unmatchedTerms += term
+            }
+        }
+
+        return VisibleTermLockResult(
+            text = protectedText,
+            locks = locks,
+            unmatchedTerms = unmatchedTerms
+        )
+    }
+
     private fun termProtectionCandidates(term: TermEntity): List<String> {
         return buildList {
             add(term.jpTerm)
@@ -2701,6 +2898,111 @@ class Translator @Inject constructor(
             .filter { it.length >= 2 }
             .distinct()
             .sortedByDescending { it.length }
+    }
+
+    private fun isVisibleTermLockEligible(term: TermEntity): Boolean {
+        return when (term.category.trim().lowercase()) {
+            "character", "character_part" -> false
+            else -> true
+        }
+    }
+
+    private fun isVisibleOfficialTextSafe(officialText: String): Boolean {
+        return officialText.isNotBlank() &&
+            officialText.none(::isJapaneseKana) &&
+            officialText.none { it == '<' || it == '>' || it == '&' || it == '\n' || it == '\r' }
+    }
+
+    private fun visibleKeepTag(id: Int, officialText: String): String {
+        return """<keep id="$id">$officialText</keep>"""
+    }
+
+    private fun replaceTermCandidateOutsideVisibleKeepTags(
+        text: String,
+        candidate: String,
+        replacement: String
+    ): String {
+        if (!text.contains("<keep")) {
+            return replaceVisibleTermCandidate(text, candidate, replacement)
+        }
+
+        val result = StringBuilder()
+        var lastIndex = 0
+        for (match in visibleKeepTagPattern.findAll(text)) {
+            val start = match.range.first
+            val endExclusive = match.range.last + 1
+            result.append(
+                replaceVisibleTermCandidate(
+                    text.substring(lastIndex, start),
+                    candidate,
+                    replacement
+                )
+            )
+            result.append(match.value)
+            lastIndex = endExclusive
+        }
+        result.append(
+            replaceVisibleTermCandidate(
+                text.substring(lastIndex),
+                candidate,
+                replacement
+            )
+        )
+        return result.toString()
+    }
+
+    private fun replaceVisibleTermCandidate(text: String, candidate: String, token: String): String {
+        if (candidate.isBlank()) return text
+        val ignoreCase = candidate.any { it.isAsciiLetter() }
+        val requiresKatakanaBoundary = candidate.requiresKatakanaBoundary()
+        val result = StringBuilder()
+        var searchStart = 0
+        var changed = false
+
+        while (searchStart < text.length) {
+            val matchStart = text.indexOf(candidate, searchStart, ignoreCase)
+            if (matchStart < 0) break
+
+            val matchEndExclusive = matchStart + candidate.length
+            result.append(text, searchStart, matchStart)
+            if (hasVisibleTermLockBoundary(text, matchStart, matchEndExclusive, requiresKatakanaBoundary)) {
+                result.append(token)
+                changed = true
+            } else {
+                result.append(text, matchStart, matchEndExclusive)
+            }
+            searchStart = matchEndExclusive
+        }
+
+        if (!changed) return text
+        result.append(text, searchStart, text.length)
+        return result.toString()
+    }
+
+    private fun hasVisibleTermLockBoundary(
+        text: String,
+        start: Int,
+        endExclusive: Int,
+        requiresKatakanaBoundary: Boolean
+    ): Boolean {
+        if (requiresKatakanaBoundary && !hasKatakanaWordBoundary(text, start, endExclusive)) {
+            return false
+        }
+        return visibleLockBlockedSuffixes.none { suffix ->
+            text.startsWith(suffix, endExclusive)
+        }
+    }
+
+    private fun countOccurrences(text: String, needle: String): Int {
+        if (text.isBlank() || needle.isBlank()) return 0
+        var count = 0
+        var searchStart = 0
+        while (true) {
+            val index = text.indexOf(needle, searchStart)
+            if (index < 0) return count
+            count++
+            searchStart = index + needle.length
+        }
     }
 
     private fun replaceTermCandidate(text: String, candidate: String, token: String): String {
@@ -2896,6 +3198,47 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "LLM returned malformed terminology token in translation")
         }
         return restored
+    }
+
+    private fun restoreProtectedTranslation(
+        translatedText: String,
+        protectedText: ProtectedText,
+        stage: String
+    ): String? {
+        val restored = stripVisibleKeepTags(
+            restoreProtectedTerms(translatedText, protectedText.terms)
+        )
+        if (!validateVisibleTermLocks(restored, protectedText.locks, stage)) {
+            return null
+        }
+        return restored
+    }
+
+    private fun stripVisibleKeepTags(text: String): String {
+        val stripped = visibleKeepTagPattern.replace(text) { match ->
+            match.groupValues.getOrNull(1).orEmpty()
+        }
+        return visibleKeepMarkupPattern.replace(stripped, "")
+    }
+
+    private fun validateVisibleTermLocks(
+        translatedText: String,
+        locks: List<VisibleTermLock>,
+        stage: String
+    ): Boolean {
+        if (locks.isEmpty()) return true
+        for (lock in locks) {
+            val actualCount = countOccurrences(translatedText, lock.officialText)
+            if (actualCount < lock.minCount) {
+                FgoLogger.warn(
+                    tag,
+                    "$stage missing locked term keep#${lock.id}: " +
+                        "\"${logSample(lock.officialText, "")}\" expected>=${lock.minCount}, actual=$actualCount"
+                )
+                return false
+            }
+        }
+        return true
     }
 
     private fun restoreMalformedProtectedTokens(
@@ -3310,6 +3653,7 @@ class Translator @Inject constructor(
             appendLine("- For obvious English-origin katakana common words in dialogue or choices, keep compact English flavor when natural, unless a glossary/name/official term applies.")
             appendLine("- Translate choices as short player-facing options in the same order. Preserve intent and emotional nuance, but avoid making choices long.")
             appendLine("- If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
+            appendLine("- If <keep id=\"n\">official Chinese</keep> appears, use it as sentence meaning, keep the inner Chinese exactly, and omit the keep tags in the JSON value.")
             appendLine("- Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
             appendLine("- Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations, no extra keys.")
             appendLine()
@@ -3421,6 +3765,7 @@ class Translator @Inject constructor(
             appendLine("The JSON array must contain exactly ${texts.size} items in the same order.")
             appendLine("Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
             appendLine("If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
+            appendLine("If <keep id=\"n\">official Chinese</keep> appears, use it as sentence meaning, keep the inner Chinese exactly, and omit the keep tags.")
             appendLine("Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
             appendLine("Keep every item aligned one-to-one with input order; do not merge, split, or skip items.")
             appendLine("Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations.")
@@ -3456,9 +3801,14 @@ class Translator @Inject constructor(
             return null
         }
 
+        val retryRestored = restoreProtectedTranslation(
+            retryRaw,
+            protectedInput,
+            "Strict retry response"
+        ) ?: return null
         val retrySimplified = sanitizeTranslation(
             normalizedText,
-            restoreProtectedTerms(retryRaw, protectedInput.terms)
+            retryRestored
         )
         if (looksUntranslated(normalizedText, retrySimplified, playerName)) {
             logUntranslatedResult("Strict retry response", normalizedText, retrySimplified, playerName)
@@ -3478,6 +3828,7 @@ class Translator @Inject constructor(
             appendLine("Return only the final translated text. No source text, notes, markdown, or explanations.")
             appendLine("Do not leave Japanese kana, except inside the fixed player name or unchanged placeholder tokens.")
             appendLine("Keep every full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ exactly unchanged.")
+            appendLine("Text inside <keep id=\"n\">...</keep> is official Chinese already translated. Use its meaning, keep the inner text exactly, and do not output keep tags.")
             appendLine("Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden words.")
             appendLine("Keep the FGO dialogue tone natural, compact, and suitable for a two-line in-game overlay.")
             appendLine("アテシ, アタシ, and あたし are first-person pronouns, not names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
@@ -3505,6 +3856,7 @@ class Translator @Inject constructor(
             appendLine("Translate every Japanese line; preserve line breaks only when they separate complete source rows.")
             appendLine("Do not copy any Japanese kana from the source.")
             appendLine("Keep placeholder tokens exactly unchanged.")
+            appendLine("If <keep id=\"n\">official Chinese</keep> appears, use it as sentence meaning, keep the inner Chinese exactly, and omit the keep tags.")
             appendLine("If the source contains mask blocks such as ■ or □, preserve those masks exactly and do not invent their hidden content.")
             if (choiceTexts.isNotEmpty()) {
                 appendLine("Choice context. Translate choices as short player-facing options:")
@@ -3575,6 +3927,24 @@ class Translator @Inject constructor(
         }
     }
 
+    private fun claudeSystemPrompt(messages: List<ChatMessage>): String {
+        return messages
+            .filter { it.role == "system" }
+            .joinToString("\n\n") { it.content.trim() }
+            .trim()
+    }
+
+    private fun claudeMessagesJson(messages: List<ChatMessage>) = buildJsonArray {
+        for (msg in messages) {
+            if (msg.role == "system") continue
+            add(buildJsonObject {
+                val role = if (msg.role == "assistant") "assistant" else "user"
+                put("role", JsonPrimitive(role))
+                put("content", JsonPrimitive(msg.content))
+            })
+        }
+    }
+
     private suspend fun translateDeepSeek(
         apiKey: String,
         apiBaseUrl: String,
@@ -3632,6 +4002,13 @@ class Translator @Inject constructor(
         messages: List<ChatMessage>,
         maxTokens: Int
     ): String {
+        val systemPrompt = claudeSystemPrompt(messages)
+        FgoLogger.debug(
+            tag,
+            "Claude request: model=$apiModel, baseUrl=$apiBaseUrl, " +
+                "messages=${messages.count { it.role != "system" }}, " +
+                "systemChars=${systemPrompt.length}, maxTokens=$maxTokens, keyChars=${apiKey.length}"
+        )
         val response = httpClient.post(apiBaseUrl) {
             header("x-api-key", apiKey)
             header("anthropic-version", "2023-06-01")
@@ -3641,15 +4018,45 @@ class Translator @Inject constructor(
                     put("model", JsonPrimitive(apiModel))
                     put("max_tokens", JsonPrimitive(maxTokens))
                     put("temperature", JsonPrimitive(0.3))
-                    put("messages", chatMessagesJson(messages))
+                    if (systemPrompt.isNotBlank()) {
+                        put("system", JsonPrimitive(systemPrompt))
+                    }
+                    put("messages", claudeMessagesJson(messages))
                 }
             )
         }
 
-        val body = response.body<JsonObject>()
-        val contentArray = body["content"] as? kotlinx.serialization.json.JsonArray
-        val firstBlock = contentArray?.firstOrNull() as? JsonObject
-        return (firstBlock?.get("text") as? JsonPrimitive)?.content
+        val rawBody = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            val apiError = extractChatApiError(rawBody)
+                ?: "HTTP ${response.status.value}: ${apiResponseLogSample(rawBody, 240)}"
+            FgoLogger.warn(
+                tag,
+                "Claude API error: status=${response.status.value}, " +
+                    "message=$apiError, body=${apiResponseLogSample(rawBody)}"
+            )
+            throw Exception(apiError)
+        }
+        FgoLogger.debug(
+            tag,
+            "Claude API success: status=${response.status.value}, bodyChars=${rawBody.length}"
+        )
+
+        val body = try {
+            responseJson.parseToJsonElement(rawBody).jsonObject
+        } catch (e: Exception) {
+            throw Exception("Claude returned non-JSON response: ${rawBody.take(240)}")
+        }
+        val contentArray = runCatching { body["content"]?.jsonArray }.getOrNull()
+        val text = contentArray
+            ?.mapNotNull { block ->
+                runCatching {
+                    block.jsonObject["text"]?.jsonPrimitive?.contentOrNull
+                }.getOrNull()
+            }
+            ?.joinToString("")
+            ?.trim()
+        return text?.takeIf { it.isNotBlank() }
             ?: throw Exception("Claude returned empty response")
     }
 

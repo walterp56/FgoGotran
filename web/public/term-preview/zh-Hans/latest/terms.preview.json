@@ -104,8 +104,8 @@
   {
     "jp_term": "ビースト",
     "cn_term": "Beast",
-    "category": "class   兽",
-    "aliases": ""
+    "category": "class",
+    "aliases": "兽"
   },
   {
     "jp_term": "グランド",
@@ -654,10 +654,10 @@
     "aliases": ""
   },
   {
-    "jp_term": "ペーパームーン",
-    "cn_term": "平面之月",
+    "jp_term": "虚数観測機・ペーパームーン",
+    "cn_term": "虛數觀測機·平面之月",
     "category": "game_term",
-    "aliases": ""
+    "aliases": "虚数観測機ペーパームーン"
   },
   {
     "jp_term": "近未来観測レンズ・シバ",
@@ -710,6 +710,24 @@
   {
     "jp_term": "オーディール・コール",
     "cn_term": "Ordeal Call",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ホムンクルス",
+    "cn_term": "人造人",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "戦乙女",
+    "cn_term": "女武神",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "リリン",
+    "cn_term": "莉莉恩",
     "category": "game_term",
     "aliases": ""
   }

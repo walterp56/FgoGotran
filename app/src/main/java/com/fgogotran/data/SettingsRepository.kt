@@ -61,6 +61,7 @@ class SettingsRepository @Inject constructor(
         val KEY_ANALYTICS_INSTALL_ID = stringPreferencesKey("analytics_install_id")
         val KEY_ANALYTICS_FIRST_INSTALL_SENT = booleanPreferencesKey("analytics_first_install_sent")
         val KEY_ANALYTICS_DAILY_ACTIVE_DATE = stringPreferencesKey("analytics_daily_active_date")
+        val KEY_QWEN_SITE = stringPreferencesKey("qwen_site")
 
         const val DEFAULT_FLOATING_BUTTON_X = 8
         const val DEFAULT_FLOATING_BUTTON_Y = 300
@@ -83,7 +84,13 @@ class SettingsRepository @Inject constructor(
 
         const val DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1/chat/completions"
         const val DEFAULT_ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-        const val DEFAULT_QWEN_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+        const val QWEN_SITE_CHINA = "china"
+        const val QWEN_SITE_INTERNATIONAL = "international"
+        const val DEFAULT_QWEN_SITE = QWEN_SITE_CHINA
+
+        const val DEFAULT_QWEN_CHINA_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+        const val DEFAULT_QWEN_INTERNATIONAL_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+        const val DEFAULT_QWEN_BASE_URL = DEFAULT_QWEN_CHINA_BASE_URL
         const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
         const val DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         const val DEFAULT_CLAUDE_BASE_URL = "https://api.anthropic.com/v1/messages"
@@ -118,6 +125,28 @@ class SettingsRepository @Inject constructor(
         fun normalizeTargetChineseLocale(locale: String): String = when (locale) {
             TARGET_LOCALE_TRADITIONAL -> TARGET_LOCALE_TRADITIONAL
             else -> TARGET_LOCALE_SIMPLIFIED
+        }
+
+        fun normalizeQwenSite(site: String): String = when (site) {
+            QWEN_SITE_INTERNATIONAL -> QWEN_SITE_INTERNATIONAL
+            else -> QWEN_SITE_CHINA
+        }
+
+        fun defaultQwenBaseUrl(site: String): String = when (normalizeQwenSite(site)) {
+            QWEN_SITE_INTERNATIONAL -> DEFAULT_QWEN_INTERNATIONAL_BASE_URL
+            else -> DEFAULT_QWEN_CHINA_BASE_URL
+        }
+
+        fun inferQwenSiteFromBaseUrl(baseUrl: String): String? {
+            val normalized = baseUrl.trim().lowercase()
+            return when {
+                "dashscope-intl.aliyuncs.com" in normalized -> QWEN_SITE_INTERNATIONAL
+                "ap-southeast-1.maas.aliyuncs.com" in normalized -> QWEN_SITE_INTERNATIONAL
+                "dashscope.aliyuncs.com" in normalized -> QWEN_SITE_CHINA
+                "cn-beijing.maas.aliyuncs.com" in normalized -> QWEN_SITE_CHINA
+                "cn-hongkong.maas.aliyuncs.com" in normalized -> QWEN_SITE_INTERNATIONAL
+                else -> null
+            }
         }
 
         fun defaultApiBaseUrl(backend: String): String = when (normalizeBackend(backend)) {
@@ -199,17 +228,39 @@ class SettingsRepository @Inject constructor(
     /** Chat completions endpoint for the selected backend. Blank means provider default. */
     val apiBaseUrl: Flow<String> = context.dataStore.data.map { prefs ->
         val backend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
-        prefs[apiBaseUrlPreferenceKey(backend)] ?: prefs[KEY_API_BASE_URL] ?: ""
+        if (backend == BACKEND_CUSTOM_OPENAI) {
+            prefs[apiBaseUrlPreferenceKey(backend)] ?: prefs[KEY_API_BASE_URL] ?: ""
+        } else if (backend == BACKEND_QWEN) {
+            defaultQwenBaseUrl(resolveQwenSite(prefs))
+        } else {
+            defaultApiBaseUrl(backend)
+        }
     }
 
     suspend fun getApiBaseUrlForBackend(backend: String): String {
         val normalizedBackend = normalizeBackend(backend)
+        if (normalizedBackend == BACKEND_QWEN) {
+            return context.dataStore.data.map { prefs ->
+                defaultQwenBaseUrl(resolveQwenSite(prefs))
+            }.first()
+        }
+        if (normalizedBackend != BACKEND_CUSTOM_OPENAI) {
+            return defaultApiBaseUrl(normalizedBackend)
+        }
         return context.dataStore.data.map { prefs ->
             val selectedBackend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
             prefs[apiBaseUrlPreferenceKey(normalizedBackend)]
                 ?: prefs[KEY_API_BASE_URL]?.takeIf { normalizedBackend == selectedBackend }
                 ?: ""
         }.first()
+    }
+
+    val qwenSite: Flow<String> = context.dataStore.data.map { prefs ->
+        resolveQwenSite(prefs)
+    }
+
+    suspend fun getQwenSite(): String {
+        return qwenSite.first()
     }
 
     /** Model name for the selected backend. */
@@ -378,9 +429,11 @@ class SettingsRepository @Inject constructor(
         backend: String,
         apiKey: String,
         apiBaseUrl: String,
-        apiModel: String
+        apiModel: String,
+        qwenSite: String = DEFAULT_QWEN_SITE
     ) {
         val normalizedBackend = normalizeBackend(backend)
+        val normalizedQwenSite = normalizeQwenSite(qwenSite)
         context.dataStore.edit {
             it[KEY_TRANSLATION_BACKEND] = normalizedBackend
             it[apiKeyPreferenceKey(normalizedBackend)] = apiKey.trim()
@@ -388,6 +441,9 @@ class SettingsRepository @Inject constructor(
             it[apiModelPreferenceKey(normalizedBackend)] = apiModel.trim()
             it[KEY_API_BASE_URL] = apiBaseUrl.trim()
             it[KEY_API_MODEL] = apiModel.trim()
+            if (normalizedBackend == BACKEND_QWEN) {
+                it[KEY_QWEN_SITE] = normalizedQwenSite
+            }
         }
         FgoLogger.debug(
             tag,
@@ -430,6 +486,17 @@ class SettingsRepository @Inject constructor(
         val normalizedLocale = normalizeTargetChineseLocale(locale)
         context.dataStore.edit { it[KEY_TARGET_CHINESE_LOCALE] = normalizedLocale }
         FgoLogger.debug(tag, "Setting updated: target_chinese_locale=$normalizedLocale")
+    }
+
+    private fun resolveQwenSite(prefs: Preferences): String {
+        prefs[KEY_QWEN_SITE]?.let { return normalizeQwenSite(it) }
+
+        val selectedBackend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
+        val savedQwenBaseUrl = prefs[apiBaseUrlPreferenceKey(BACKEND_QWEN)]
+        val legacySelectedBaseUrl = prefs[KEY_API_BASE_URL]?.takeIf { selectedBackend == BACKEND_QWEN }
+        return inferQwenSiteFromBaseUrl(savedQwenBaseUrl.orEmpty())
+            ?: inferQwenSiteFromBaseUrl(legacySelectedBaseUrl.orEmpty())
+            ?: DEFAULT_QWEN_SITE
     }
 
     suspend fun setFloatingButtonPosition(x: Int, y: Int) {

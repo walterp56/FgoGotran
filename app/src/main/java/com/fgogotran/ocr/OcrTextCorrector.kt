@@ -36,6 +36,11 @@ object OcrTextCorrector {
         "嗜好品",
         "嗜好的",
         "嗜好性",
+        "魔術",
+        "魔術師",
+        "魔術回路",
+        "魔術協会",
+        "投影魔術",
     )
 
     private val confusableGlyphs = mapOf(
@@ -46,7 +51,9 @@ object OcrTextCorrector {
         '孔' to setOf('乳', '乱'),
         '彷' to setOf('紡'),
         '徨' to setOf('律', '僧', '管'),
-        '頷' to setOf('領')
+        '頷' to setOf('領'),
+        '魔' to setOf('廃', '废'),
+        '術' to setOf('术')
     )
 
     private val rules: List<CorrectionRule> = likelyDialogueWords

@@ -16,7 +16,7 @@
 空想樹	空想树	game_term	
 クリプター	隐匿者	game_term	Crypter
 異星の神	异星之神	game_term	
-ビースト	Beast	class   兽	
+ビースト	Beast	class	兽
 グランド	冠位	game_term	Grand
 グランドサーヴァント	冠位从者	game_term	Grand Servant
 サーヴァント	从者	game_term	Servant
@@ -45,7 +45,7 @@
 霊子転移	灵子转移	game_term	レイシフト,Rayshift
 レイシフト	灵子转移	game_term	Rayshift
 霊衣	灵衣	game_term	
-聖杯探索	圣杯探索	game_term
+聖杯探索	圣杯探索	game_term	
 グランドオーダー	冠位指定	game_term	Grand Order
 冠位指定	冠位指定	game_term	Grand Order
 抑止力	抑止力	game_term	
@@ -108,16 +108,16 @@
 ゲイ・ボルク	穿刺死棘之枪	noble_phantasm	刺し穿つ死棘の槍
 ブラックバレル	Black Barrel	game_term	ブラック・バレル,Black Barrel
 ヤガ	雅嘎	game_term	
-虚数観測機・ペーパームーン	虛數觀測機・平面之月	game_term   虚数観測機ペーパームーン	
+虚数観測機・ペーパームーン	虛數觀測機·平面之月	game_term	虚数観測機ペーパームーン
 近未来観測レンズ・シバ	近未来观测透镜·示巴	game_term	
 虚数羅針	虚数罗盘	game_term	
 ポイント・ネモ	尼莫点	place	ポイントネモ
-アーキタイプ	Archetype	game_term
+アーキタイプ	Archetype	game_term	
 ムーン・ドバイ	月面杜拜	place	ムーン・ドバイ
-転移孔	转移孔	place
-バルトアンデルス	波丹德斯	organization
-マイルーム	My room	place
-オーディール・コール	Ordeal Call	game_term
-ホムンクルス	人造人	game_term
-戦乙女	女武神	game_term
-リリン	莉莉恩	game_term
+転移孔	转移孔	place	
+バルトアンデルス	波丹德斯	organization	
+マイルーム	My room	place	
+オーディール・コール	Ordeal Call	game_term	
+ホムンクルス	人造人	game_term	
+戦乙女	女武神	game_term	
+リリン	莉莉恩	game_term	

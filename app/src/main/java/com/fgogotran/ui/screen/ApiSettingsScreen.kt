@@ -93,6 +93,7 @@ fun ApiSettingsScreen(
     }
 
     var selectedBackend by remember { mutableStateOf(SettingsRepository.BACKEND_DEEPSEEK) }
+    var qwenSite by remember { mutableStateOf(SettingsRepository.DEFAULT_QWEN_SITE) }
     var apiBaseUrl by remember { mutableStateOf("") }
     var apiModel by remember { mutableStateOf(SettingsRepository.DEFAULT_DEEPSEEK_MODEL) }
     var apiKey by remember { mutableStateOf("") }
@@ -100,22 +101,25 @@ fun ApiSettingsScreen(
     var saveMessageIsError by remember { mutableStateOf(false) }
     var testingApi by remember { mutableStateOf(false) }
     val isCustomBackend = selectedBackend == SettingsRepository.BACKEND_CUSTOM_OPENAI
+    val isQwenBackend = selectedBackend == SettingsRepository.BACKEND_QWEN
 
     fun effectiveApiBaseUrl(): String {
-        return if (isCustomBackend) {
-            apiBaseUrl
-        } else {
-            SettingsRepository.defaultApiBaseUrl(selectedBackend)
+        return when {
+            isCustomBackend -> apiBaseUrl
+            isQwenBackend -> SettingsRepository.defaultQwenBaseUrl(qwenSite)
+            else -> SettingsRepository.defaultApiBaseUrl(selectedBackend)
         }
     }
 
     LaunchedEffect(Unit) {
         selectedBackend = SettingsRepository.normalizeBackend(settingsRepository.translationBackend.first())
-        apiBaseUrl = if (selectedBackend == SettingsRepository.BACKEND_CUSTOM_OPENAI) {
-            settingsRepository.getApiBaseUrlForBackend(selectedBackend)
+        val savedQwenSite = settingsRepository.getQwenSite()
+        qwenSite = savedQwenSite
+        apiBaseUrl = when (selectedBackend) {
+            SettingsRepository.BACKEND_CUSTOM_OPENAI -> settingsRepository.getApiBaseUrlForBackend(selectedBackend)
                 .ifBlank { SettingsRepository.defaultApiBaseUrl(selectedBackend) }
-        } else {
-            SettingsRepository.defaultApiBaseUrl(selectedBackend)
+            SettingsRepository.BACKEND_QWEN -> SettingsRepository.defaultQwenBaseUrl(savedQwenSite)
+            else -> SettingsRepository.defaultApiBaseUrl(selectedBackend)
         }
         apiModel = settingsRepository.getApiModelForBackend(selectedBackend)
             .ifBlank { SettingsRepository.defaultApiModel(selectedBackend) }
@@ -124,22 +128,30 @@ fun ApiSettingsScreen(
 
     fun selectBackend(backend: String) {
         selectedBackend = backend
-        apiBaseUrl = SettingsRepository.defaultApiBaseUrl(backend)
+        apiBaseUrl = if (backend == SettingsRepository.BACKEND_QWEN) {
+            SettingsRepository.defaultQwenBaseUrl(qwenSite)
+        } else {
+            SettingsRepository.defaultApiBaseUrl(backend)
+        }
         apiModel = SettingsRepository.defaultApiModel(backend)
         apiKey = ""
         saveMessage = ""
         saveMessageIsError = false
         scope.launch {
-            val savedBaseUrl = if (backend == SettingsRepository.BACKEND_CUSTOM_OPENAI) {
-                settingsRepository.getApiBaseUrlForBackend(backend)
+            val savedQwenSite = settingsRepository.getQwenSite()
+            val savedBaseUrl = when (backend) {
+                SettingsRepository.BACKEND_CUSTOM_OPENAI -> settingsRepository.getApiBaseUrlForBackend(backend)
                     .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) }
-            } else {
-                SettingsRepository.defaultApiBaseUrl(backend)
+                SettingsRepository.BACKEND_QWEN -> SettingsRepository.defaultQwenBaseUrl(savedQwenSite)
+                else -> SettingsRepository.defaultApiBaseUrl(backend)
             }
             val savedModel = settingsRepository.getApiModelForBackend(backend)
                 .ifBlank { SettingsRepository.defaultApiModel(backend) }
             val savedKey = settingsRepository.getApiKeyForBackend(backend)
             if (selectedBackend == backend) {
+                if (backend == SettingsRepository.BACKEND_QWEN) {
+                    qwenSite = savedQwenSite
+                }
                 apiBaseUrl = savedBaseUrl
                 apiModel = savedModel
                 apiKey = savedKey
@@ -147,8 +159,20 @@ fun ApiSettingsScreen(
         }
     }
 
+    fun selectQwenSite(site: String) {
+        qwenSite = SettingsRepository.normalizeQwenSite(site)
+        apiBaseUrl = SettingsRepository.defaultQwenBaseUrl(qwenSite)
+        saveMessage = ""
+        saveMessageIsError = false
+    }
+
     fun restoreBackendDefaults() {
-        apiBaseUrl = SettingsRepository.defaultApiBaseUrl(selectedBackend)
+        if (isQwenBackend) {
+            qwenSite = SettingsRepository.DEFAULT_QWEN_SITE
+            apiBaseUrl = SettingsRepository.defaultQwenBaseUrl(qwenSite)
+        } else {
+            apiBaseUrl = SettingsRepository.defaultApiBaseUrl(selectedBackend)
+        }
         apiModel = SettingsRepository.defaultApiModel(selectedBackend)
         saveMessage = ""
         saveMessageIsError = false
@@ -160,7 +184,8 @@ fun ApiSettingsScreen(
                 backend = selectedBackend,
                 apiKey = apiKey,
                 apiBaseUrl = effectiveApiBaseUrl(),
-                apiModel = apiModel
+                apiModel = apiModel,
+                qwenSite = qwenSite
             )
             saveMessage = "已保存"
             saveMessageIsError = false
@@ -295,6 +320,33 @@ fun ApiSettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text("请求设置", style = MaterialTheme.typography.titleMedium)
+                    if (isQwenBackend) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("站点", style = MaterialTheme.typography.bodyMedium)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FilterChip(
+                                    selected = qwenSite == SettingsRepository.QWEN_SITE_CHINA,
+                                    onClick = { selectQwenSite(SettingsRepository.QWEN_SITE_CHINA) },
+                                    label = { Text("中国站") }
+                                )
+                                FilterChip(
+                                    selected = qwenSite == SettingsRepository.QWEN_SITE_INTERNATIONAL,
+                                    onClick = {
+                                        selectQwenSite(SettingsRepository.QWEN_SITE_INTERNATIONAL)
+                                    },
+                                    label = { Text("国际站") }
+                                )
+                            }
+                            Text(
+                                "请使用对应站点的 API Key。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
                     if (isCustomBackend) {
                         OutlinedTextField(
                             value = apiBaseUrl,
