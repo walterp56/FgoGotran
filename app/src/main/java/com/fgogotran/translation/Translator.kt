@@ -46,16 +46,6 @@ data class ChatMessage(
     val content: String
 )
 
-@Serializable
-data class ChatChoice(
-    val message: ChatMessage
-)
-
-@Serializable
-data class ChatResponse(
-    val choices: List<ChatChoice>
-)
-
 data class TranslateResult(
     val translatedText: String,
     val backend: String,
@@ -167,6 +157,11 @@ class Translator @Inject constructor(
         if (config.requiresApiKey && config.apiKey.isBlank()) {
             throw IllegalStateException("API Key is empty")
         }
+        FgoLogger.info(
+            tag,
+            "API test config: backend=${config.backend}, model=${config.apiModel}, " +
+                "baseUrl=${config.apiBaseUrl}, keyChars=${config.apiKey.length}"
+        )
 
         val normalizedText = TextNormalizer.normalizeForTranslation(API_TEST_JAPANESE_TEXT)
         val matchedTerms = try {
@@ -194,18 +189,33 @@ class Translator @Inject constructor(
             ),
             maxTokens = API_TEST_MAX_TOKENS
         ).trim()
+        FgoLogger.debug(tag, "API test model content: ${apiResponseLogSample(response)}")
         if (response.isBlank()) {
             throw IllegalStateException("API returned an empty response")
         }
-        val translated = sanitizeTranslation(
+        var translated = sanitizeTranslation(
             normalizedText,
             restoreProtectedTerms(response, protectedInput.terms)
         ).trim()
+        FgoLogger.debug(tag, "API test sanitized content: ${apiResponseLogSample(translated)}")
         if (translated.isBlank()) {
             throw IllegalStateException("API returned an empty translation")
         }
         if (looksUntranslated(normalizedText, translated, config.playerName)) {
-            throw IllegalStateException("API returned untranslated Japanese")
+            FgoLogger.warn(tag, "API test response looked untranslated; trying strict retry")
+            translated = retryUntranslatedSingle(
+                config = config,
+                playerName = config.playerName,
+                normalizedText = normalizedText,
+                normalizedChoices = emptyList(),
+                matchedTerms = matchedTerms,
+                protectedInput = protectedInput,
+                maxTokens = API_TEST_MAX_TOKENS
+            )?.trim().orEmpty()
+            FgoLogger.debug(tag, "API test retry content: ${apiResponseLogSample(translated)}")
+            if (translated.isBlank() || looksUntranslated(normalizedText, translated, config.playerName)) {
+                throw IllegalStateException("API returned untranslated Japanese")
+            }
         }
         if (!containsCjkIdeograph(translated)) {
             throw IllegalStateException("API returned no Chinese translation")
@@ -276,6 +286,7 @@ class Translator @Inject constructor(
         private const val MASKED_TEXT_MIN_TRANSLATABLE_CHARS = 4
         private const val MAX_STRICT_RETRY_TERMS = 10
         private const val LOG_SAMPLE_MAX_CHARS = 120
+        private const val API_RESPONSE_LOG_SAMPLE_MAX_CHARS = 500
         private const val PLAYER_NAME_OCR_MIN_LOOKUP_LENGTH = 4
         private const val PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH = 16
         private const val NAME_STATE_MAX_SOURCE_LENGTH = 24
@@ -3571,6 +3582,12 @@ class Translator @Inject constructor(
         messages: List<ChatMessage>,
         maxTokens: Int
     ): String {
+        FgoLogger.debug(
+            tag,
+            "DeepSeek request: model=$apiModel, baseUrl=$apiBaseUrl, " +
+                "messages=${messages.size}, maxTokens=$maxTokens, " +
+                "thinkingDisabled=${apiModel.startsWith("deepseek-v4")}, keyChars=${apiKey.length}"
+        )
         val response = httpClient.post(apiBaseUrl) {
             if (apiKey.isNotBlank()) {
                 header("Authorization", "Bearer $apiKey")
@@ -3590,9 +3607,22 @@ class Translator @Inject constructor(
                 }
             )
         }
-        val body = response.body<ChatResponse>()
-        return body.choices.firstOrNull()?.message?.content
-            ?: throw Exception("DeepSeek returned empty response")
+        val rawBody = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            val apiError = extractChatApiError(rawBody)
+                ?: "HTTP ${response.status.value}: ${apiResponseLogSample(rawBody, 240)}"
+            FgoLogger.warn(
+                tag,
+                "DeepSeek API error: status=${response.status.value}, " +
+                    "message=$apiError, body=${apiResponseLogSample(rawBody)}"
+            )
+            throw Exception(apiError)
+        }
+        FgoLogger.debug(
+            tag,
+            "DeepSeek API success: status=${response.status.value}, bodyChars=${rawBody.length}"
+        )
+        return parseChatCompletionContent(rawBody, "DeepSeek API")
     }
 
     private suspend fun translateClaude(
@@ -3659,8 +3689,20 @@ class Translator @Inject constructor(
         }
         val rawBody = response.bodyAsText()
         if (!response.status.isSuccess()) {
-            throw Exception(extractChatApiError(rawBody) ?: "HTTP ${response.status.value}: ${rawBody.take(240)}")
+            val apiError = extractChatApiError(rawBody)
+                ?: "HTTP ${response.status.value}: ${apiResponseLogSample(rawBody, 240)}"
+            FgoLogger.warn(
+                tag,
+                "Chat API error: model=$apiModel, baseUrl=$apiBaseUrl, " +
+                    "status=${response.status.value}, message=$apiError, " +
+                    "body=${apiResponseLogSample(rawBody)}"
+            )
+            throw Exception(apiError)
         }
+        FgoLogger.debug(
+            tag,
+            "Chat API success: model=$apiModel, status=${response.status.value}, bodyChars=${rawBody.length}"
+        )
         return parseChatCompletionContent(rawBody, "Chat completions API")
     }
 
@@ -3700,6 +3742,20 @@ class Translator @Inject constructor(
             responseJson.parseToJsonElement(rawBody).jsonObject
         }.getOrNull() ?: return null
         return extractChatApiError(jsonObject)
+    }
+
+    private fun apiResponseLogSample(
+        rawBody: String,
+        maxChars: Int = API_RESPONSE_LOG_SAMPLE_MAX_CHARS
+    ): String {
+        val compact = rawBody
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return if (compact.length <= maxChars) {
+            compact
+        } else {
+            compact.take(maxChars) + "..."
+        }
     }
 
     private fun extractChatApiError(jsonObject: JsonObject): String? {

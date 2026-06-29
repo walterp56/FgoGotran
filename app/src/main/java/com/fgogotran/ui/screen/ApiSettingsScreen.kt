@@ -16,9 +16,12 @@ import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.BackendProviderLabel
+import com.fgogotran.util.FgoLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+
+private const val API_SETTINGS_LOG_TAG = "ApiSettings"
 
 private data class BackendOption(
     val value: String,
@@ -42,10 +45,23 @@ private fun apiTestFailureResult(error: Throwable): String {
             "模型不兼容 FgoGotran 翻译格式"
         message.contains("API Key", ignoreCase = true) || message.contains("401") ->
             "请检查 API Key"
+        message.contains("model", ignoreCase = true) ||
+            message.contains("not found", ignoreCase = true) ||
+            message.contains("invalid_request", ignoreCase = true) ||
+            message.contains("400") ->
+            "模型或请求参数不被服务商接受：${message.take(160)}"
+        message.contains("quota", ignoreCase = true) ||
+            message.contains("insufficient", ignoreCase = true) ||
+            message.contains("balance", ignoreCase = true) ||
+            message.contains("402") ||
+            message.contains("429") ->
+            "额度或频率限制异常：${message.take(160)}"
         message.contains("empty", ignoreCase = true) ->
             "模型返回为空"
         message.contains("untranslated", ignoreCase = true) ->
             "模型没有按 FgoGotran 翻译格式返回中文"
+        message.isNotBlank() ->
+            "服务商返回错误：${message.take(160)}"
         else ->
             "测试失败，请检查模型和网络连接"
     }
@@ -162,14 +178,28 @@ fun ApiSettingsScreen(
         saveMessageIsError = false
         scope.launch {
             val startedAt = SystemClock.elapsedRealtime()
+            val requestBackend = SettingsRepository.normalizeBackend(selectedBackend)
+            val requestBaseUrl = effectiveApiBaseUrl()
+            val requestModel = apiModel.trim().ifBlank {
+                SettingsRepository.defaultApiModel(requestBackend)
+            }
+            FgoLogger.info(
+                API_SETTINGS_LOG_TAG,
+                "API test started: backend=$requestBackend, model=$requestModel, " +
+                    "baseUrl=$requestBaseUrl, keyChars=${apiKey.trim().length}"
+            )
             try {
                 translator.testApiSettings(
-                    backend = selectedBackend,
+                    backend = requestBackend,
                     apiKey = apiKey,
-                    apiBaseUrl = effectiveApiBaseUrl(),
-                    apiModel = apiModel
+                    apiBaseUrl = requestBaseUrl,
+                    apiModel = requestModel
                 )
                 val elapsedMs = SystemClock.elapsedRealtime() - startedAt
+                FgoLogger.info(
+                    API_SETTINGS_LOG_TAG,
+                    "API test succeeded: backend=$requestBackend, model=$requestModel, elapsedMs=$elapsedMs"
+                )
                 saveMessage = apiTestMessage(
                     status = "成功",
                     durationMs = elapsedMs,
@@ -180,6 +210,13 @@ fun ApiSettingsScreen(
                 throw e
             } catch (e: Exception) {
                 val elapsedMs = SystemClock.elapsedRealtime() - startedAt
+                FgoLogger.warn(
+                    API_SETTINGS_LOG_TAG,
+                    "API test failed: backend=$requestBackend, model=$requestModel, " +
+                        "baseUrl=$requestBaseUrl, elapsedMs=$elapsedMs, " +
+                        "error=${e.javaClass.simpleName}: ${e.message}",
+                    e
+                )
                 saveMessage = apiTestMessage(
                     status = "失败",
                     durationMs = elapsedMs,

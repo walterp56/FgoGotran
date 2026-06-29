@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.data.SettingsRepository
@@ -363,7 +365,10 @@ fun SettingsScreen(
                     value = "$currentVersionName ($currentVersionCode)",
                     modifier = Modifier.clickable { handleVersionRowTap() }
                 )
-                StatusDetailText(text = debugLogMessage)
+                DebugLogNotice(
+                    text = debugLogMessage,
+                    enabled = debugLoggingEnabled
+                )
                 SettingsInfoRow(
                     label = "状态",
                     value = appVersionStatus.message.ifBlank { "手动检查新版本" }
@@ -411,6 +416,39 @@ private fun SettingsCard(
             Text(title, style = MaterialTheme.typography.titleMedium)
             content()
         }
+    }
+}
+
+@Composable
+private fun DebugLogNotice(
+    text: String,
+    enabled: Boolean
+) {
+    if (text.isBlank()) return
+
+    val containerColor = if (enabled) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.primaryContainer
+    }
+    val contentColor = if (enabled) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        color = containerColor,
+        contentColor = contentColor
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 

@@ -107,8 +107,8 @@ fun GuideScreen(
                 title = "看懂悬浮按钮",
                 body = "按钮文字会显示当前模式，长按可打开翻译菜单。"
             ) {
-                GuideBadgeRow(label = "GO", text = "手动翻译当前画面。")
-                GuideBadgeRow(label = "半", text = "半自动阅读。")
+                GuideBadgeRow(label = "GO", text = "点击按钮翻译当前画面。")
+                GuideBadgeRow(label = "半", text = "半自动阅读，点击按钮翻译选项。")
                 GuideBadgeRow(label = "AUTO", text = "全自动运行；此模式下点击按钮不会手动翻译。")
                 GuideBadgeRow(label = "红色外圈", text = "手动或半自动点击后，本次识别/翻译未成功，可再点一次。")
                 GuideBadgeRow(label = "LOG", text = "查看本次识别和翻译历史。")
