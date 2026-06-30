@@ -161,7 +161,7 @@ private fun GuideWebsiteCard(onOpenWebsite: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "FgoGotran 官网",
+                "FgoGotran 网站",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
