@@ -54,7 +54,7 @@ export default function HomePage() {
               </a>
             </div>
             <div className="hero-mini-status">
-              <span>Android 11+ · Bring Your Own API Key</span>
+              <span>Android 11+ · 简体/繁體中文 · Bring Your Own API Key</span>
             </div>
           </div>
 

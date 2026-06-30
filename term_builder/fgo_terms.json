@@ -546,6 +546,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "オトタチバナ",
+    "cn_name": "弟橘",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "オフェリア・ファムルソローネ",
     "cn_name": "奥菲莉娅·法姆索罗涅",
     "category": "character",
@@ -946,6 +952,12 @@
     "cn_name": "黄金BB",
     "category": "character",
     "aliases": "[\"ゴールデンBB\"]"
+  },
+  {
+    "jp_name": "サクラ",
+    "cn_name": "樱",
+    "category": "character",
+    "aliases": "[]"
   },
   {
     "jp_name": "サブナック",
@@ -2406,6 +2418,12 @@
     "aliases": "[]"
   },
   {
+    "jp_name": "ログレス",
+    "cn_name": "洛格雷斯",
+    "category": "character",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "ロビンフッド",
     "cn_name": "罗宾汉",
     "category": "character",
@@ -3792,6 +3810,12 @@
     "aliases": "[\"Grand Servant\"]"
   },
   {
+    "jp_name": "サクラファイブ",
+    "cn_name": "Sakura Five",
+    "category": "game_term",
+    "aliases": "[]"
+  },
+  {
     "jp_name": "サーヴァント",
     "cn_name": "从者",
     "category": "game_term",
@@ -3808,6 +3832,12 @@
     "cn_name": "技能",
     "category": "game_term",
     "aliases": "[\"Skill\"]"
+  },
+  {
+    "jp_name": "タマモナイン",
+    "cn_name": "Tamamo Nine",
+    "category": "game_term",
+    "aliases": "[]"
   },
   {
     "jp_name": "デミ・サーヴァント",
