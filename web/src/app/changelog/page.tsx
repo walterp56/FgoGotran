@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DatabaseZap, PanelsTopLeft, Smartphone } from "lucide-react";
+import { Smartphone } from "lucide-react";
 import { SectionHeader } from "@/components/SectionHeader";
 
 export const metadata: Metadata = {
@@ -7,18 +7,6 @@ export const metadata: Metadata = {
 };
 
 const changelog = [
-  {
-    title: "网站预览",
-    date: "2026-06-27",
-    icon: PanelsTopLeft,
-    items: ["整理使用指南页面", "更新术语预览 JSON 的本地读取方式"]
-  },
-  {
-    title: "在线术语库",
-    date: "2026-06-10",
-    icon: DatabaseZap,
-    items: ["支持在线 DB manifest", "Android App 自动检查并更新数据库"]
-  },
   {
     title: "Android App",
     date: "1.0.0",
@@ -34,7 +22,7 @@ export default function ChangelogPage() {
         <div className="page-hero-inner">
           <p className="eyebrow">Changelog</p>
           <h1>更新记录</h1>
-          <p>记录 FgoGotran 网站、数据库和 Android App 的主要更新。</p>
+          <p>记录 FgoGotran Android App 的主要更新。</p>
         </div>
       </section>
 

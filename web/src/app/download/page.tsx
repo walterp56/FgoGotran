@@ -33,8 +33,8 @@ export default function DownloadPage() {
       <section className="page-hero">
         <div className="page-hero-inner">
           <p className="eyebrow">Download</p>
-          <h1>下载 FgoGotran</h1>
-          <p>下载安装 Android APK 后，按使用指南开启权限并配置翻译 API。</p>
+          <h1>下载链接</h1>
+          <p>感谢下载FgoGotran。</p>
         </div>
       </section>
 
@@ -44,6 +44,7 @@ export default function DownloadPage() {
           <p>请选择一个可用下载源。当前推荐从 GitHub Release 获取最新 APK。</p>
           <div className="download-facts" aria-label="下载说明">
             <span>支持 Android 11+</span>
+            <span>APK 大小：待更新</span>
             <span>需要自备翻译 API Key</span>
           </div>
           <div className="download-reminder" role="note">
