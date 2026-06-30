@@ -21,6 +21,7 @@ export const siteConfig = {
   name: "FgoGotran",
   description: "Fate/Grand Order 日服剧情 OCR + AI 中文翻译工具。",
   githubUrl: "https://github.com/walterp56/FgoGotran",
+  githubReleasesUrl: "https://github.com/walterp56/FgoGotran/releases",
   cdnBaseUrl: process.env.NEXT_PUBLIC_CDN_BASE_URL ?? "https://cdn.fgogotran.com",
   apkManifestPath: "/app/android/latest/manifest.json",
   dbManifestPath: "/db/zh-Hans/latest/manifest.json",

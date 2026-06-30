@@ -17,9 +17,9 @@ const downloadOptions = [
     disabled: true
   },
   {
-    title: "GitHub 下载",
-    subtitle: "Release",
-    href: `${siteConfig.githubUrl}/releases`,
+    title: "GitHub Releases",
+    subtitle: "APK 下载",
+    href: siteConfig.githubReleasesUrl,
     iconSrc: "/download-icons/github.svg",
     iconAlt: "GitHub",
     accentColor: "#181717",
@@ -41,10 +41,10 @@ export default function DownloadPage() {
       <section className="section section-band compact">
         <div className="download-intro">
           <h2>FgoGotran Android APK</h2>
-          <p>请选择一个可用下载源。当前推荐从 GitHub Release 获取最新 APK。</p>
+          <p>请选择一个可用下载源。当前推荐从 GitHub Releases 获取最新 APK。</p>
           <div className="download-facts" aria-label="下载说明">
             <span>支持 Android 11+</span>
-            <span>APK 大小：待更新</span>
+            <span>APK 大小：58.60 MB</span>
             <span>需要自备翻译 API Key</span>
           </div>
           <div className="download-reminder" role="note">

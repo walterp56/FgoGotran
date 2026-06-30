@@ -5,7 +5,7 @@ FgoGotran is an Android floating translation tool for reading **Fate/Grand Order
 It reads the current FGO screen with OCR, matches FGO character names and terminology from a glossary, sends the text to a user-configured AI translation API, and renders the translated speaker name, dialogue, and choices back on top of the game.
 
 - Website: [https://fgogotran.com](https://fgogotran.com)
-- Download: [GitHub Releases](https://github.com/walterp56/FgoGotran/releases/latest)
+- Download: [GitHub Releases](https://github.com/walterp56/FgoGotran/releases)
 - User Guide: [https://fgogotran.com/guide/](https://fgogotran.com/guide/)
 - API Guide: [https://fgogotran.com/api-guide/](https://fgogotran.com/api-guide/)
 
