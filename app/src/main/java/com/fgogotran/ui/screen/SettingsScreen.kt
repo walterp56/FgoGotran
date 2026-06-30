@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -55,9 +56,11 @@ import com.fgogotran.update.AppVersionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private const val DEBUG_LOG_TAP_THRESHOLD = 10
 private const val DEBUG_LOG_TAP_WINDOW_MS = 5_000L
+private const val FLOATING_BUTTON_SIZE_STEP_DP = 2
 
 /**
  * Settings page for user-facing configuration and maintenance actions.
@@ -92,6 +95,9 @@ fun SettingsScreen(
 
     var playerName by remember { mutableStateOf("") }
     var playerNameSaveMessage by remember { mutableStateOf("") }
+    var floatingButtonSizeDp by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
+    }
     var cacheEnabled by remember { mutableStateOf(true) }
     var debugLoggingEnabled by remember { mutableStateOf(false) }
     var debugLogTapCount by remember { mutableStateOf(0) }
@@ -103,6 +109,7 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         playerName = settingsRepository.playerName.first()
+        floatingButtonSizeDp = settingsRepository.getFloatingButtonSizeDp()
         cacheEnabled = settingsRepository.cacheEnabled.first()
         debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
     }
@@ -260,6 +267,46 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsCard(title = "悬浮按钮") {
+                SettingsInfoRow(
+                    label = "大小",
+                    value = floatingButtonSizeLabel(floatingButtonSizeDp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "小",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Slider(
+                        value = floatingButtonSizeDp.toFloat(),
+                        onValueChange = { rawValue ->
+                            val roundedSize = roundFloatingButtonSize(rawValue)
+                            if (roundedSize != floatingButtonSizeDp) {
+                                floatingButtonSizeDp = roundedSize
+                                scope.launch {
+                                    settingsRepository.setFloatingButtonSizeDp(roundedSize)
+                                }
+                            }
+                        },
+                        valueRange = SettingsRepository.MIN_FLOATING_BUTTON_SIZE_DP.toFloat()..
+                            SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP.toFloat(),
+                        steps = floatingButtonSizeSteps(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 12.dp)
+                    )
+                    Text(
+                        "大",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -397,6 +444,32 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+private fun roundFloatingButtonSize(rawValue: Float): Int {
+    val minSize = SettingsRepository.MIN_FLOATING_BUTTON_SIZE_DP
+    val roundedSize = minSize +
+        ((rawValue - minSize) / FLOATING_BUTTON_SIZE_STEP_DP).roundToInt() *
+            FLOATING_BUTTON_SIZE_STEP_DP
+    return SettingsRepository.normalizeFloatingButtonSizeDp(roundedSize)
+}
+
+private fun floatingButtonSizeSteps(): Int {
+    val intervals = (
+        SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -
+            SettingsRepository.MIN_FLOATING_BUTTON_SIZE_DP
+        ) / FLOATING_BUTTON_SIZE_STEP_DP
+    return (intervals - 1).coerceAtLeast(0)
+}
+
+private fun floatingButtonSizeLabel(sizeDp: Int): String {
+    val safeSize = SettingsRepository.normalizeFloatingButtonSizeDp(sizeDp)
+    return when {
+        safeSize < SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> "较小"
+        safeSize == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> "标准"
+        safeSize < SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -> "较大"
+        else -> "最大"
     }
 }
 

@@ -40,6 +40,7 @@ object OcrTextCorrector {
         "魔術師",
         "魔術回路",
         "魔術協会",
+        "魔神柱",
         "投影魔術",
     )
 

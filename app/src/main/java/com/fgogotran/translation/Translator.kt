@@ -335,6 +335,28 @@ class Translator @Inject constructor(
         private val standaloneMasterTitleWrongSuffixes = listOf("御主人", "主人", "大师")
         private const val STYLIZED_FIRST_PERSON_TARGET = "咱"
         private val stylizedFirstPersonPronounSources = setOf("アテシ", "アタシ", "あたし")
+        private val explicitFemaleReferentMarkers = setOf(
+            "彼女",
+            "彼女たち",
+            "彼女達",
+            "彼女ら",
+            "女の子",
+            "女性",
+            "少女",
+            "女たち",
+            "女達",
+            "姫",
+            "王女",
+            "女王",
+            "女神",
+            "魔女",
+            "娘",
+            "妹",
+            "姉",
+            "母"
+        )
+        private val explicitStandaloneFemaleReferentPattern =
+            Regex("女(?=は|が|を|に|の|も|へ|と|だ|です|だった|である|め|よ|か|[、。！？!?」』）)]|$)")
         private val stylizedFirstPersonWrongNameTranslations = listOf(
             "阿蒂斯",
             "阿特西",
@@ -2159,12 +2181,22 @@ class Translator @Inject constructor(
         val shiAdjusted = applyShiHonorificPolicy(sourceText, tonoAdjusted)
         val masterAdjusted = applyMasterTitlePolicy(sourceText, shiAdjusted)
         val firstPersonAdjusted = applyStylizedFirstPersonPronounPolicy(sourceText, masterAdjusted)
-        val thirdPersonAdjusted = applyDefaultThirdPersonPronounPolicy(firstPersonAdjusted)
+        val thirdPersonAdjusted = applyDefaultThirdPersonPronounPolicy(sourceText, firstPersonAdjusted)
         return preserveSourcePunctuation(sourceText, thirdPersonAdjusted)
     }
 
-    private fun applyDefaultThirdPersonPronounPolicy(translatedText: String): String {
-        return translatedText.replace('她', '他')
+    private fun applyDefaultThirdPersonPronounPolicy(sourceText: String, translatedText: String): String {
+        return if (sourceHasExplicitFemaleReferent(sourceText)) {
+            translatedText
+        } else {
+            translatedText.replace('她', '他')
+        }
+    }
+
+    private fun sourceHasExplicitFemaleReferent(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return explicitFemaleReferentMarkers.any { normalized.contains(it) } ||
+            explicitStandaloneFemaleReferentPattern.containsMatchIn(normalized)
     }
 
     private fun applySanHonorificPolicy(sourceText: String, translatedText: String): String {

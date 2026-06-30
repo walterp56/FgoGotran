@@ -37,6 +37,7 @@ export const navItems: NavItem[] = [
   { href: "/guide", label: "使用指南" },
   { href: "/api-guide", label: "API 指南" },
   { href: "/terms", label: "术语表" },
+  { href: "/media", label: "媒体" },
   { href: "/changelog", label: "更新记录" }
 ];
 
@@ -101,7 +102,7 @@ export const apiProviders: ApiProvider[] = [
     endpoint: "https://api.deepseek.com/v1/chat/completions",
     consoleUrl: "https://platform.deepseek.com/api_keys",
     docsUrl: "https://api-docs.deepseek.com/",
-    regionNote: "大陆用户通常访问比较方便，适合先作为默认选择尝试。",
+    regionNote: "通常访问比较方便，适合先作为默认选择尝试。",
     bestFor: "追求响应速度、成本和日常剧情翻译平衡。",
     priority: "mainland-first"
   },
@@ -113,21 +114,33 @@ export const apiProviders: ApiProvider[] = [
     endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     consoleUrl: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
     docsUrl: "https://docs.bigmodel.cn/",
-    regionNote: "大陆访问友好，适合作为 DeepSeek 之外的备用接口。",
+    regionNote: "中国大陆网络环境访问友好，适合作为 DeepSeek 之外的备用接口。",
     bestFor: "希望保留中文表达稳定性，同时兼顾速度的用户。",
     priority: "mainland-first"
   },
   {
-    id: "qwen",
-    name: "阿里云 Qwen",
-    shortName: "Qwen",
+    id: "qwen-cn",
+    name: "阿里云百炼 Qwen（中国站）",
+    shortName: "Qwen CN",
+    recommendedModel: "qwen-flash",
+    endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    consoleUrl: "https://bailian.console.aliyun.com/",
+    docsUrl: "https://help.aliyun.com/zh/model-studio/",
+    regionNote: "适合中国大陆地区。通常不需要 VPN；请使用中国站生成的 API Key。",
+    bestFor: "适合中国大陆网络环境、阿里云中国站账号，或希望少折腾的用户。",
+    priority: "mainland-first"
+  },
+  {
+    id: "qwen-intl",
+    name: "Alibaba Cloud Model Studio Qwen（国际站）",
+    shortName: "Qwen Intl",
     recommendedModel: "qwen-flash",
     endpoint: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
     consoleUrl: "https://modelstudio.console.alibabacloud.com/",
-    docsUrl: "https://help.aliyun.com/zh/model-studio/",
-    regionNote: "可使用 OpenAI 兼容接口，适合已经在使用阿里云模型服务的用户。",
-    bestFor: "想要一个稳定备用接口，或已经有阿里云账号的用户。",
-    priority: "mainland-first"
+    docsUrl: "https://www.alibabacloud.com/help/en/model-studio/",
+    regionNote: "适合海外地区或国际站账号；中国大陆网络环境可能受跨境网络影响，请使用国际站生成的 API Key。",
+    bestFor: "适合海外账号、海外支付，或主要在海外网络环境使用的用户。",
+    priority: "optional"
   },
   {
     id: "openai",

@@ -62,12 +62,14 @@ enum class FloatingActionIcon {
 @Composable
 fun FloatingButton(
     mode: FloatingButtonMode,
+    buttonSize: Dp = 54.dp,
     showFailureRing: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onDrag: (Float, Float) -> Unit
 ) {
-    val visualButtonSize = 54.dp
+    val visualButtonSize = buttonSize
+    val glyphSize = visualButtonSize * 0.78f
     val idleAlpha = 0.38f
     val pressedAlpha = 0.62f
     val baseColor = when (mode) {
@@ -207,7 +209,7 @@ fun FloatingButton(
                     },
                     prominent = true,
                     color = Color.White.copy(alpha = if (pressed) 0.95f else 0.82f),
-                    modifier = Modifier.size(42.dp)
+                    modifier = Modifier.size(glyphSize)
                 )
             }
         }

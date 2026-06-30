@@ -57,6 +57,7 @@ class SettingsRepository @Inject constructor(
         val KEY_FLOATING_BUTTON_PORTRAIT_Y = intPreferencesKey("floating_button_portrait_y")
         val KEY_FLOATING_BUTTON_LANDSCAPE_X = intPreferencesKey("floating_button_landscape_x")
         val KEY_FLOATING_BUTTON_LANDSCAPE_Y = intPreferencesKey("floating_button_landscape_y")
+        val KEY_FLOATING_BUTTON_SIZE_DP = intPreferencesKey("floating_button_size_dp")
         val KEY_LAST_TRANSLATION_MODE = stringPreferencesKey("last_translation_mode")
         val KEY_ANALYTICS_INSTALL_ID = stringPreferencesKey("analytics_install_id")
         val KEY_ANALYTICS_FIRST_INSTALL_SENT = booleanPreferencesKey("analytics_first_install_sent")
@@ -65,6 +66,9 @@ class SettingsRepository @Inject constructor(
 
         const val DEFAULT_FLOATING_BUTTON_X = 8
         const val DEFAULT_FLOATING_BUTTON_Y = 300
+        const val MIN_FLOATING_BUTTON_SIZE_DP = 44
+        const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54
+        const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
 
         /** DeepSeek Chat API (default). */
@@ -121,6 +125,9 @@ class SettingsRepository @Inject constructor(
 
         fun normalizeTranslationMode(mode: String): String =
             mode.takeIf { it in SUPPORTED_TRANSLATION_MODES } ?: DEFAULT_TRANSLATION_MODE
+
+        fun normalizeFloatingButtonSizeDp(sizeDp: Int): Int =
+            sizeDp.coerceIn(MIN_FLOATING_BUTTON_SIZE_DP, MAX_FLOATING_BUTTON_SIZE_DP)
 
         fun normalizeTargetChineseLocale(locale: String): String = when (locale) {
             TARGET_LOCALE_TRADITIONAL -> TARGET_LOCALE_TRADITIONAL
@@ -339,6 +346,11 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_FLOATING_BUTTON_Y] ?: DEFAULT_FLOATING_BUTTON_Y
     }
 
+    /** User-selected floating button diameter in dp. */
+    val floatingButtonSizeDp: Flow<Int> = context.dataStore.data.map { prefs ->
+        normalizeFloatingButtonSizeDp(prefs[KEY_FLOATING_BUTTON_SIZE_DP] ?: DEFAULT_FLOATING_BUTTON_SIZE_DP)
+    }
+
     /** Last translation mode selected by the user from the floating menu. */
     val lastTranslationMode: Flow<String> = context.dataStore.data.map { prefs ->
         normalizeTranslationMode(prefs[KEY_LAST_TRANSLATION_MODE] ?: DEFAULT_TRANSLATION_MODE)
@@ -543,6 +555,16 @@ class SettingsRepository @Inject constructor(
         }
         val orientation = if (isLandscape) "landscape" else "portrait"
         FgoLogger.debug(tag, "Setting updated: floating_button_$orientation=($safeX,$safeY)")
+    }
+
+    suspend fun getFloatingButtonSizeDp(): Int {
+        return floatingButtonSizeDp.first()
+    }
+
+    suspend fun setFloatingButtonSizeDp(sizeDp: Int) {
+        val safeSize = normalizeFloatingButtonSizeDp(sizeDp)
+        context.dataStore.edit { it[KEY_FLOATING_BUTTON_SIZE_DP] = safeSize }
+        FgoLogger.debug(tag, "Setting updated: floating_button_size_dp=$safeSize")
     }
 
     suspend fun setDbLastCheckAt(checkedAt: Long) {

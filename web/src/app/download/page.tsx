@@ -24,15 +24,6 @@ const downloadOptions = [
     iconAlt: "GitHub",
     accentColor: "#181717",
     disabled: false
-  },
-  {
-    title: "AWS S3 下载",
-    subtitle: "准备中",
-    href: "#",
-    iconSrc: "/download-icons/aws.svg",
-    iconAlt: "AWS",
-    accentColor: "#ff9900",
-    disabled: true
   }
 ];
 
@@ -54,6 +45,18 @@ export default function DownloadPage() {
           <div className="download-facts" aria-label="下载说明">
             <span>支持 Android 11+</span>
             <span>需要自备翻译 API Key</span>
+          </div>
+          <div className="download-reminder" role="note">
+            <strong>安装提醒：</strong>
+            若手机提示因为Google Play Protect而无法安装，或下载包需要分包安装，可先安装{" "}
+            <a
+              href="https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod"
+              target="_blank"
+              rel="noreferrer"
+            >
+              APKMirror Installer
+            </a>{" "}
+            后再安装 FgoGotran。
           </div>
         </div>
 

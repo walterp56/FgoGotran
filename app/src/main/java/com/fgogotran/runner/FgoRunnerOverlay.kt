@@ -16,6 +16,7 @@ import android.view.WindowManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.crop.CropModeState
@@ -36,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import javax.inject.Inject
@@ -72,11 +74,13 @@ class FgoRunnerOverlay @Inject constructor(
     private val mainHandler = Handler(Looper.getMainLooper())
     private val overlayScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
+    private var buttonSizeDp by mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
     private var showButtonFailureRing by mutableStateOf(false)
     private var failureFeedbackVersion = 0
     private var buttonPositionScreen: ButtonScreen? = null
     private var buttonPositionLoaded = false
     private var savePositionJob: Job? = null
+    private var buttonSizeJob: Job? = null
     private var showRequestVersion = 0
     private var callbacksRegistered = false
 
@@ -100,7 +104,6 @@ class FgoRunnerOverlay @Inject constructor(
     private companion object {
         const val FAILURE_FEEDBACK_MS = 1800L
         const val POSITION_SAVE_DEBOUNCE_MS = 300L
-        const val FLOATING_BUTTON_SIZE_DP = 54f
     }
 
     private enum class ButtonScreen {
@@ -165,6 +168,7 @@ class FgoRunnerOverlay @Inject constructor(
             try {
                 loadButtonPositionIfNeeded()
                 restoreLastTranslationMode()
+                buttonSizeDp = settingsRepository.getFloatingButtonSizeDp()
                 if (!shown || requestVersion != showRequestVersion) return@launch
 
                 val wm = windowManager
@@ -177,6 +181,7 @@ class FgoRunnerOverlay @Inject constructor(
                 composeHost = FakeComposeHost(context) {
                     FloatingButton(
                         mode = buttonMode,
+                        buttonSize = buttonSizeDp.dp,
                         showFailureRing = showButtonFailureRing && buttonMode != FloatingButtonMode.AUTO,
                         onClick = {
                             onButtonClick()
@@ -188,6 +193,7 @@ class FgoRunnerOverlay @Inject constructor(
 
                 clampButtonPositionToScreen()
                 wm.addView(composeHost!!.view, btnLayoutParams)
+                startButtonSizeObserver()
                 FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
             } catch (e: Exception) {
                 composeHost?.close()
@@ -221,6 +227,8 @@ class FgoRunnerOverlay @Inject constructor(
     fun hide() {
         if (!shown) return
         showRequestVersion += 1
+        buttonSizeJob?.cancel()
+        buttonSizeJob = null
         saveButtonPositionNow()
         val wm = windowManager
         cancelCropMode()
@@ -298,9 +306,9 @@ class FgoRunnerOverlay @Inject constructor(
     fun isPointInsideButton(rawX: Float, rawY: Float): Boolean {
         if (!shown) return false
         val view = composeHost?.view ?: return false
-        val width = view.width.takeIf { it > 0 } ?: view.measuredWidth
-        val height = view.height.takeIf { it > 0 } ?: view.measuredHeight
-        if (width <= 0 || height <= 0) return false
+        val fallbackSize = currentButtonSizePx()
+        val width = view.width.takeIf { it > 0 } ?: view.measuredWidth.takeIf { it > 0 } ?: fallbackSize
+        val height = view.height.takeIf { it > 0 } ?: view.measuredHeight.takeIf { it > 0 } ?: fallbackSize
 
         val centerX = btnX + width / 2f
         val centerY = btnY + height / 2f
@@ -380,13 +388,33 @@ class FgoRunnerOverlay @Inject constructor(
     private fun clampButtonPositionToScreen(buttonWidth: Int? = null, buttonHeight: Int? = null) {
         val wm = windowManager ?: return
         val bounds = wm.currentWindowMetrics.bounds
-        val fallbackSize = (FLOATING_BUTTON_SIZE_DP * context.resources.displayMetrics.density).roundToInt()
+        val fallbackSize = currentButtonSizePx()
         val width = buttonWidth?.takeIf { it > 0 } ?: fallbackSize
         val height = buttonHeight?.takeIf { it > 0 } ?: fallbackSize
         val maxX = (bounds.width() - width).coerceAtLeast(0)
         val maxY = (bounds.height() - height).coerceAtLeast(0)
         btnX = btnX.coerceIn(0, maxX)
         btnY = btnY.coerceIn(0, maxY)
+    }
+
+    private fun currentButtonSizePx(): Int {
+        val safeSize = SettingsRepository.normalizeFloatingButtonSizeDp(buttonSizeDp)
+        return (safeSize * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+    }
+
+    private fun startButtonSizeObserver() {
+        buttonSizeJob?.cancel()
+        buttonSizeJob = overlayScope.launch {
+            settingsRepository.floatingButtonSizeDp.collect { sizeDp ->
+                val safeSize = SettingsRepository.normalizeFloatingButtonSizeDp(sizeDp)
+                if (safeSize == buttonSizeDp) return@collect
+                buttonSizeDp = safeSize
+                composeHost?.view?.post {
+                    clampButtonPositionToScreen()
+                    updateButtonLayout()
+                }
+            }
+        }
     }
 
     private fun saveButtonPositionSoon() {

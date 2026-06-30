@@ -174,7 +174,7 @@ private fun GuideWebsiteCard(onOpenWebsite: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onOpenWebsite
             ) {
-                Text("打开 FgoGotran 官网")
+                Text("打开 FgoGotran 网站")
             }
         }
     }

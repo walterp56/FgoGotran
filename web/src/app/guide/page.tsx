@@ -63,7 +63,7 @@ const setupSteps: SetupStep[] = [
   {
     id: "api",
     title: "配置 API 接口",
-    body: "前往设置页选择 API 服务商，输入 API Key。模型名可以使用默认值，也可以按服务商文档填写。",
+    body: "前往设置页选择 API 服务商，输入 API Key。模型名可以使用默认值，也可以按服务商文档自行选择模型填写。",
     note: "按“测试API”确认成功后，记得按“应用API设置”。",
     images: [
       { src: "/guide/guide-06.jpeg", alt: "FgoGotran 设置入口" },
@@ -184,10 +184,6 @@ export default function GuidePage() {
         <header className="docs-hero">
           <p className="eyebrow">Guide</p>
           <h1>FgoGotran 使用指南</h1>
-          <p>
-            按照下面两部分完成设置：先准备好 Android 权限、FGO 剧情文字速度和 API；
-            再了解悬浮按钮与翻译模式的使用方式。
-          </p>
         </header>
 
         <section className="docs-scope-panel" id="usage-scope">
@@ -222,7 +218,6 @@ export default function GuidePage() {
             <Smartphone size={24} aria-hidden="true" />
             <div>
               <h2>一、初次设置</h2>
-              <p>这一部分只需要按顺序做一次。之后通常只需要启动服务并打开 FGO。</p>
             </div>
           </div>
 
