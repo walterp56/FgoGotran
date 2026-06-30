@@ -7,6 +7,8 @@ app/build/
 web/node_modules/
 web/.next/
 web/out/
+web/tsconfig.tsbuildinfo
+web/.next-dev*.log
 
 # Python virtual environments
 .venv/
@@ -15,7 +17,10 @@ term_builder/.venv/
 term_builder/venv
 term_builder/venv/
 term_builder/venv/**
-term_builder/__pycache__/
+term_builder/**/__pycache__/
+term_builder/**/*.pyc
+term_builder/fgo_terms.db
+term_builder/fgo_terms.json
 
 # Kotlin daemon
 .kotlin/
@@ -26,6 +31,14 @@ term_builder/__pycache__/
 
 # Local machine-specific
 local.properties
+*.jks
+*.keystore
+key.properties
+google-services.json
+.env
+.env.*
+!.env.example
+!web/.env.example
 
 # Claude Code
 .claude/
@@ -42,3 +55,6 @@ app/release/
 release/
 temp/
 tmp_video_frames/
+
+# GitHub Actions typo guard
+.github/workflow/
