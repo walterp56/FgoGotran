@@ -117,7 +117,3 @@ Before committing, make sure the repository does not contain:
 ## Disclaimer
 
 FgoGotran is an unofficial helper tool for understanding FGO JP story text. Fate/Grand Order and related assets belong to their respective rights holders.
-
-## License
-
-No open-source license has been added yet.
