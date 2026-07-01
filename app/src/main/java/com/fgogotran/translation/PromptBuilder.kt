@@ -21,6 +21,7 @@ data class PromptContext(
     val hasPauseMarks: Boolean = false,
     val hasHonorifics: Boolean = false,
     val hasKatakana: Boolean = false,
+    val hasAddressPronouns: Boolean = false,
     val hasSpecialFirstPerson: Boolean = false,
     val hasAmbiguousRoman: Boolean = false,
     val isBatch: Boolean = false,
@@ -49,12 +50,14 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v37"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v39"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val hiddenOrMaskedTextPattern = Regex("""[■□▇█]+|[?？]{3,}""")
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
         private val honorificPattern = Regex("""さん|君|ちゃん|様|殿|氏""")
+        private val addressPronounPattern =
+            Regex("""君[ィぃい]?|あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
         private val katakanaWordPattern = Regex("""[ァ-ヶｦ-ﾟー]{2,}""")
         private val specialFirstPersonPattern = Regex("""アテシ|アタシ|あたし""")
 
@@ -93,7 +96,7 @@ Output:
 General FGO style:
 - Preserve speaker voice and relationship: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful.
 - Keep dialogue concise for a two-line FGO dialogue box. Do not over-explain lore or add hard line breaks unless the source clearly uses separate rows.
-- Japanese may omit subjects/objects. Add 你/我/他/她 only when Chinese needs it. Use 他 when gender is unknown or male. If the source clearly says 彼女, 彼女たち, 女の子, 女性, 少女, 姫, 王女, 女王, 女神, 魔女, 娘, 妹, 姉, 母, or another explicit female referent, use 她.
+- Japanese often omits subjects/objects. Preserve that ambiguity when natural in Chinese; do not add 你/我/他/她 just to fill an omitted Japanese subject/object. Add a pronoun only when the source clearly identifies the speaker/listener/referent, or when Chinese would be misleading or unnatural without it. Use 他 when a third-person pronoun is necessary and gender is unknown or male. If the source clearly says 彼女, 彼女たち, 女の子, 女性, 少女, 姫, 王女, 女王, 女神, 魔女, 娘, 妹, 姉, 母, or another explicit female referent, use 她.
 - Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
 """.trimIndent()
 
@@ -143,8 +146,16 @@ Pause symbol rules:
 Honorific rules:
 - Name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged.
 - Apply only when attached to a name or player name.
+- Standalone 君, including stylized forms such as 君ィ/君ぃ/君い, is not this suffix rule; translate it as second-person 你.
 - Do not apply to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
 - Name plural ズ means an English-style group marker. Use X们 by default; use X组 or X队 only when context clearly means a team/unit.
+""".trimIndent()
+
+        private val ADDRESS_PRONOUN_PROMPT = """
+Address pronoun rules:
+- Explicit second-person address words such as 君, 君ィ, 君ぃ, 君い, あなた, 貴方, あんた, お前, おまえ, 貴様, 汝, そなた, 其方, お主, てめえ, and 卿 mean "you".
+- Translate them naturally as 你 unless the speaker voice clearly needs a stronger Chinese address such as 你这家伙. Do not leave these Japanese words in Chinese output.
+- This rule does not apply when 君 is attached to a real name as an honorific suffix.
 """.trimIndent()
 
         private val KATAKANA_STYLE_PROMPT = """
@@ -194,6 +205,7 @@ Ambiguous name/common-word rule:
             hasPauseMarks = containsPauseMarks(combinedText),
             hasHonorifics = containsHonorifics(combinedText),
             hasKatakana = containsKatakanaWord(combinedText),
+            hasAddressPronouns = containsAddressPronoun(combinedText),
             hasSpecialFirstPerson = containsSpecialFirstPerson(combinedText),
             hasAmbiguousRoman = containsAmbiguousRoman(combinedText),
             isBatch = isBatch,
@@ -259,6 +271,7 @@ Ambiguous name/common-word rule:
             if (context.hasMasks) add("mask" to MASK_PROMPT)
             if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
             if (context.hasHonorifics) add("honorific" to HONORIFIC_PROMPT)
+            if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
             if (context.hasKatakana) add("katakana_style" to KATAKANA_STYLE_PROMPT)
             if (context.hasSpecialFirstPerson) add("special_first_person" to SPECIAL_FIRST_PERSON_PROMPT)
             if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
@@ -323,6 +336,10 @@ Ambiguous name/common-word rule:
 
     private fun containsHonorifics(text: String): Boolean {
         return honorificPattern.containsMatchIn(text)
+    }
+
+    private fun containsAddressPronoun(text: String): Boolean {
+        return addressPronounPattern.containsMatchIn(text)
     }
 
     private fun containsKatakanaWord(text: String): Boolean {

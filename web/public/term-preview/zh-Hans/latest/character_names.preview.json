@@ -225,7 +225,7 @@
     "jp_name": "エルメロイⅡ世",
     "cn_name": "埃尔梅罗Ⅱ世",
     "category": "character",
-    "aliases": ""
+    "aliases": "エルメロイ1世,エルメロイ世"
   },
   {
     "jp_name": "佐々木小次郎",
@@ -1293,7 +1293,7 @@
     "jp_name": "グレイ",
     "cn_name": "格蕾",
     "category": "character",
-    "aliases": ""
+    "aliases": "クレイ"
   },
   {
     "jp_name": "大いなる石像神",
@@ -2424,8 +2424,14 @@
     "aliases": ""
   },
   {
-    "jp_name": "プレラーティ",
-    "cn_name": "普勒拉蒂",
+    "jp_name": "フランソワ・プレラーティ",
+    "cn_name": "弗朗索瓦·普勒拉蒂",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "フランチェスカ・プレラーティ",
+    "cn_name": "弗兰切斯卡·普勒拉蒂",
     "category": "character",
     "aliases": ""
   },
@@ -3693,7 +3699,7 @@
     "jp_name": "グレイ・リリィ",
     "cn_name": "格蕾·Lily",
     "category": "character",
-    "aliases": ""
+    "aliases": "クレイリリィ,グレイ・リリィ"
   },
   {
     "jp_name": "アス",
@@ -3704,6 +3710,18 @@
   {
     "jp_name": "アスカラポス",
     "cn_name": "阿斯卡拉福斯",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "アッド",
+    "cn_name": "亚德",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "トリムマウ",
+    "cn_name": "特里姆玛乌",
     "category": "character",
     "aliases": ""
   }
