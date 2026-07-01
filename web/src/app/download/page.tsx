@@ -27,7 +27,7 @@ const downloadOptions = [
   }
 ];
 
-const currentAppVersion = "v1.0.0";
+const currentAppVersion = "v1.0.1";
 
 export default function DownloadPage() {
   return (
@@ -35,7 +35,7 @@ export default function DownloadPage() {
       <section className="page-hero">
         <div className="page-hero-inner">
           <p className="eyebrow">Download</p>
-          <h1>下载 {currentAppVersion}</h1>
+          <h1>下载</h1>
           <p>感谢下载 FgoGotran Android App。</p>
         </div>
       </section>
@@ -47,7 +47,7 @@ export default function DownloadPage() {
           <div className="download-facts" aria-label="下载说明">
             <span>当前版本：{currentAppVersion}</span>
             <span>支持 Android 11+</span>
-            <span>APK 大小：58.60 MB</span>
+            <span>APK 大小：58.67 MB</span>
             <span>需要自备翻译 API Key</span>
           </div>
           <div className="download-reminder" role="note">
