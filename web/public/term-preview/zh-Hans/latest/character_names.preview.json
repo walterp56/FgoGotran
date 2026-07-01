@@ -2418,8 +2418,8 @@
     "aliases": ""
   },
   {
-    "jp_name": "デメテル",
-    "cn_name": "得墨忒耳",
+    "jp_name": "デメテル・エリニュス",
+    "cn_name": "得墨忒耳·厄里倪厄斯",
     "category": "character",
     "aliases": ""
   },
@@ -3674,6 +3674,36 @@
   {
     "jp_name": "マリーンズ",
     "cn_name": "水兵们",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "テペウ",
+    "cn_name": "特佩乌",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "イシュキック",
+    "cn_name": "希基克",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "グレイ・リリィ",
+    "cn_name": "格蕾·Lily",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "アス",
+    "cn_name": "阿斯",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "アスカラポス",
+    "cn_name": "阿斯卡拉福斯",
     "category": "character",
     "aliases": ""
   }
