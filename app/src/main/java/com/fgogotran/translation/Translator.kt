@@ -178,10 +178,14 @@ class Translator @Inject constructor(
             config.playerName,
             useVisibleTermLocks = true
         )
+        val promptContext = promptBuilder.buildPromptContext(
+            outputFormat = PromptOutputFormat.PLAIN_TEXT,
+            sourceText = normalizedText
+        )
         val response = callTranslationBackend(
             config = config,
             messages = listOf(
-                ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, config.playerName)),
+                ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, config.playerName, promptContext)),
                 ChatMessage(
                     "user",
                     buildSingleUserPrompt(
@@ -572,7 +576,13 @@ class Translator @Inject constructor(
             playerName,
             useVisibleTermLocks = true
         )
-        val systemPrompt = promptBuilder.buildSystemPrompt(matchedTerms, playerName)
+        val promptContext = promptBuilder.buildPromptContext(
+            outputFormat = PromptOutputFormat.PLAIN_TEXT,
+            sourceText = normalizedText,
+            choiceTexts = normalizedChoices,
+            forceRuby = preserveRubyMeaning
+        )
+        val systemPrompt = promptBuilder.buildSystemPrompt(matchedTerms, playerName, promptContext)
 
         val messages = listOf(
             ChatMessage("system", systemPrompt),
@@ -750,9 +760,14 @@ class Translator @Inject constructor(
                 useVisibleTermLocks = true
             )
         }
+        val promptContext = promptBuilder.buildPromptContext(
+            outputFormat = PromptOutputFormat.JSON_ARRAY,
+            sourceText = uncachedTexts.joinToString("\n"),
+            isBatch = true
+        )
 
         val messages = listOf(
-            ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName)),
+            ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName, promptContext)),
             ChatMessage("user", buildBatchUserPrompt(protectedTexts.map { it.text }))
         )
 
@@ -1038,9 +1053,15 @@ class Translator @Inject constructor(
                 useVisibleTermLocks = true
             )
         }
+        val promptContext = promptBuilder.buildPromptContext(
+            outputFormat = PromptOutputFormat.JSON_OBJECT,
+            sourceText = listOfNotNull(uncachedName, uncachedDialogue).joinToString("\n"),
+            choiceTexts = uncachedChoices,
+            hasName = needsName
+        )
 
         val messages = listOf(
-            ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName)),
+            ChatMessage("system", promptBuilder.buildSystemPrompt(matchedTerms, playerName, promptContext)),
             ChatMessage(
                 "user",
                 buildSceneUserPrompt(

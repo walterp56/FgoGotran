@@ -2394,6 +2394,12 @@
     "aliases": "ロードログレス"
   },
   {
+    "jp_name": "ログレス",
+    "cn_name": "洛格雷斯",
+    "category": "character",
+    "aliases": ""
+  },
+  {
     "jp_name": "花咲翁",
     "cn_name": "花咲翁",
     "category": "character",
@@ -3644,6 +3650,30 @@
   {
     "jp_name": "スタッフ",
     "cn_name": "职员",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "オトタチバナ",
+    "cn_name": "弟橘",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "サクラ",
+    "cn_name": "樱",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "フラット",
+    "cn_name": "弗拉特",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "マリーンズ",
+    "cn_name": "水兵们",
     "category": "character",
     "aliases": ""
   }

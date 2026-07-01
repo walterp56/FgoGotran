@@ -6,12 +6,34 @@ import java.text.Normalizer
 import javax.inject.Inject
 import javax.inject.Singleton
 
+enum class PromptOutputFormat(val logName: String) {
+    PLAIN_TEXT("plain_text"),
+    JSON_ARRAY("json_array"),
+    JSON_OBJECT("json_object")
+}
+
+data class PromptContext(
+    val outputFormat: PromptOutputFormat = PromptOutputFormat.PLAIN_TEXT,
+    val hasChoices: Boolean = false,
+    val hasName: Boolean = false,
+    val hasRuby: Boolean = false,
+    val hasMasks: Boolean = false,
+    val hasPauseMarks: Boolean = false,
+    val hasHonorifics: Boolean = false,
+    val hasKatakana: Boolean = false,
+    val hasSpecialFirstPerson: Boolean = false,
+    val hasAmbiguousRoman: Boolean = false,
+    val isBatch: Boolean = false,
+    val isRetry: Boolean = false
+)
+
 /**
  * Constructs system and user prompts for the LLM translation backends.
  *
  * ## System prompt structure
- * 1. Translation rules (terminology, style, names, player name, format, context, fallback)
- * 2. Injected RAG terminology table (JP → official CN with category)
+ * 1. Core role, priority rules, output contract, and general style
+ * 2. Small conditional rule blocks for the current source shape
+ * 3. Injected RAG terminology table (JP → official CN with category)
  *
  * ## User prompt structure
  * 1. Optional choice text context (if player choices are on screen)
@@ -27,45 +49,119 @@ import javax.inject.Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v36"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v37"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
+        private val hiddenOrMaskedTextPattern = Regex("""[■□▇█]+|[?？]{3,}""")
+        private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
+        private val honorificPattern = Regex("""さん|君|ちゃん|様|殿|氏""")
+        private val katakanaWordPattern = Regex("""[ァ-ヶｦ-ﾟー]{2,}""")
+        private val specialFirstPersonPattern = Regex("""アテシ|アタシ|あたし""")
 
         /**
-         * Main prompt used for all API translations.
-         * Keep this prompt format-neutral because callers may request plain text,
-         * a JSON array, or a JSON object in their user prompt.
+         * These blocks are intentionally assembled in a stable order:
+         * core -> priority -> output -> style -> conditional rules -> RAG table.
+         *
+         * Keeping rare rules conditional lowers prompt noise while preserving the
+         * safety rules that must apply to every request.
          */
-        private val SYSTEM_PROMPT = """
+        private val CORE_PROMPT = """
 You localize Fate/Grand Order Japanese story text into natural, compact Simplified Chinese for an in-game overlay.
+Translate meaning, tone, and speaker voice. Prefer short readable Chinese over long literal wording.
+Use Simplified Chinese internally; the app may convert the final result to Traditional Chinese later.
+""".trimIndent()
 
+        private val PRIORITY_RULES_PROMPT = """
+Priority rules:
+1. Keep every placeholder starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly, including _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, _SHI__, and _MASTER__ variants.
+2. Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden text.
+3. Player name: "{player_name}". Keep it exactly if it appears, even if it contains Japanese kana.
+4. Use supplied official terminology exactly. It overrides your knowledge and natural alternatives.
+5. Text inside <keep id="n">...</keep> is already translated official Chinese. Use its meaning in the sentence, keep the inner text exactly, and do not output the keep tags.
+6. If rules conflict, follow this order: placeholders/masks/player name > official terminology > requested output format > meaning > style.
+7. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
+""".trimIndent()
+
+        private val OUTPUT_RULES_PROMPT = """
 Output:
 - Follow the user's requested format exactly: plain text, JSON array, or JSON object.
 - Add no notes, markdown, source text, explanations, lore commentary, or extra JSON keys.
+- For JSON output, return valid JSON only.
+""".trimIndent()
 
-Priority rules:
-1. Use supplied official terminology exactly. It overrides your knowledge and natural alternatives.
-2. Unknown Servant, character, NPC, place, organization, class, skill, and Noble Phantasm names must be natural Chinese transliterations, not descriptions or another known FGO name.
-3. Player name: "{player_name}". Keep it exactly if it appears, even if it contains Japanese kana.
-4. Use Simplified Chinese. If an official term is Traditional Chinese, convert to natural Simplified Chinese unless it is a fixed stylized proper noun.
-5. Keep every placeholder starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly, including _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, _SHI__, and _MASTER__ variants.
-- Text inside <keep id="n">...</keep> is already translated official Chinese. Use its meaning in the sentence, keep the inner text exactly, and do not output the keep tags.
-6. Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden text. If a line is mostly masks with too little readable text, return that line unchanged.
-7. Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
-8. Name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged. Apply only when attached to a name or player name. Do not apply to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
-9. Name plural ズ means an English-style group marker. Use X们 by default; use X组 or X队 only when context clearly means a team/unit.
-10. Preserve brackets, quotes, exclamation/question marks, unusual symbols, and wide phrase spacing. In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as ……. Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
-11. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
-
-Style:
+        private val GENERAL_STYLE_PROMPT = """
+General FGO style:
 - Preserve speaker voice and relationship: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful.
 - Keep dialogue concise for a two-line FGO dialogue box. Do not over-explain lore or add hard line breaks unless the source clearly uses separate rows.
-- Translate choices as short player-facing options in the same order.
 - Japanese may omit subjects/objects. Add 你/我/他/她 only when Chinese needs it. Use 他 when gender is unknown or male. If the source clearly says 彼女, 彼女たち, 女の子, 女性, 少女, 姫, 王女, 女王, 女神, 魔女, 娘, 妹, 姉, 母, or another explicit female referent, use 她.
-- Katakana common English-style words may stay compact English when natural, but never for names, organizations, classes, Noble Phantasms, skills, or supplied official terms.
-- アテシ, アタシ, and あたし are first-person pronouns, not names. Translate them by speaker voice as 我, 咱, or 人家, including when they appear sentence-final after punctuation.
+- Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
+""".trimIndent()
+
+        private val CHOICE_PROMPT = """
+Choice rules:
+- Translate choices as short player-facing options in the same order.
+- Preserve intent and emotional nuance, but avoid making choices long.
+- Do not merge, split, reorder, or explain choices.
+""".trimIndent()
+
+        private val BATCH_PROMPT = """
+Batch/list rules:
+- Keep every item aligned one-to-one with input order.
+- Do not merge, split, skip, or add items.
+""".trimIndent()
+
+        private val NAME_PROMPT = """
+Name rules:
+- Unknown Servant, character, NPC, place, organization, class, skill, and Noble Phantasm names must be natural Chinese transliterations, not descriptions or another known FGO name.
+- If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order character name.
+- Never return an unknown Japanese name unchanged.
+""".trimIndent()
+
+        private val RUBY_PROMPT = """
+Ruby/furigana rules:
+- Source may contain base《ruby》.
+- Omit pronunciation-only ruby.
+- If ruby adds alias, joke, hidden meaning, or intended wording, reflect it naturally.
+- Use a short Chinese parenthetical only when both meanings matter. Do not mechanically output base（ruby）.
+""".trimIndent()
+
+        private val MASK_PROMPT = """
+Mask/hidden-text rules:
+- Preserve hidden text such as ???, ？？？, ■, □, ▇, and █ exactly.
+- Do not guess hidden speaker names or hidden dialogue content.
+- If a line has too little readable text, return that line unchanged or empty according to the requested format.
+""".trimIndent()
+
+        private val PAUSE_PROMPT = """
+Pause symbol rules:
+- Preserve dramatic pauses naturally.
+- In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as …….
+- Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
+""".trimIndent()
+
+        private val HONORIFIC_PROMPT = """
+Honorific rules:
+- Name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged.
+- Apply only when attached to a name or player name.
+- Do not apply to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
+- Name plural ズ means an English-style group marker. Use X们 by default; use X组 or X队 only when context clearly means a team/unit.
+""".trimIndent()
+
+        private val KATAKANA_STYLE_PROMPT = """
+Katakana style rules:
+- Katakana common English-style words may stay compact English when natural.
+- Do not apply this to character names, organizations, classes, Noble Phantasms, skills, or supplied official terms.
+""".trimIndent()
+
+        private val SPECIAL_FIRST_PERSON_PROMPT = """
+First-person pronoun rules:
+- アテシ, アタシ, and あたし are first-person pronouns, not names.
+- Translate them by speaker voice as 我, 咱, or 人家, including when they appear sentence-final after punctuation.
+""".trimIndent()
+
+        private val AMBIGUOUS_ROMAN_PROMPT = """
+Ambiguous name/common-word rule:
 - ロマン is a character/name only when clearly a person; otherwise translate it as 浪漫.
-- Ruby/furigana may appear as base《ruby》. Omit pronunciation-only ruby. If ruby adds alias, joke, hidden meaning, or intended wording, reflect it naturally. Use a short Chinese parenthetical only when both meanings matter. Do not mechanically output base（ruby）.
 """.trimIndent()
 
     }
@@ -78,6 +174,33 @@ Style:
         val sourceIndices: List<Int>
     )
 
+    fun buildPromptContext(
+        outputFormat: PromptOutputFormat,
+        sourceText: String,
+        choiceTexts: List<String> = emptyList(),
+        hasName: Boolean = false,
+        isBatch: Boolean = false,
+        forceRuby: Boolean = false,
+        isRetry: Boolean = false
+    ): PromptContext {
+        val combinedText = (listOf(sourceText) + choiceTexts)
+            .joinToString("\n")
+        return PromptContext(
+            outputFormat = outputFormat,
+            hasChoices = choiceTexts.isNotEmpty(),
+            hasName = hasName,
+            hasRuby = forceRuby || containsRuby(combinedText),
+            hasMasks = containsHiddenOrMaskedText(combinedText),
+            hasPauseMarks = containsPauseMarks(combinedText),
+            hasHonorifics = containsHonorifics(combinedText),
+            hasKatakana = containsKatakanaWord(combinedText),
+            hasSpecialFirstPerson = containsSpecialFirstPerson(combinedText),
+            hasAmbiguousRoman = containsAmbiguousRoman(combinedText),
+            isBatch = isBatch,
+            isRetry = isRetry
+        )
+    }
+
     /**
      * Builds the system prompt with injected RAG terminology and player name.
      *
@@ -87,23 +210,69 @@ Style:
      */
     fun buildSystemPrompt(
         matchedTerms: List<TermEntity>,
-        playerName: String
+        playerName: String,
+        context: PromptContext = PromptContext()
     ): String {
-        val sb = StringBuilder(
-            SYSTEM_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
+        val sb = StringBuilder()
+        val blockNames = mutableListOf<String>()
+        appendPromptBlock(sb, blockNames, "core", CORE_PROMPT)
+        appendPromptBlock(
+            sb,
+            blockNames,
+            "priority",
+            PRIORITY_RULES_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
         )
-        appendMatchedTerminology(sb, matchedTerms)
-        FgoLogger.debug(tag, "System prompt: ${sb.length} chars, ${matchedTerms.size} RAG terms")
+        appendPromptBlock(sb, blockNames, "output", OUTPUT_RULES_PROMPT)
+        appendPromptBlock(sb, blockNames, "style", GENERAL_STYLE_PROMPT)
+        conditionalPromptBlocks(context).forEach { (name, block) ->
+            appendPromptBlock(sb, blockNames, name, block)
+        }
+        if (appendMatchedTerminology(sb, matchedTerms)) {
+            blockNames += "terminology_table"
+        }
+        FgoLogger.debug(
+            tag,
+            "System prompt combination: format=${context.outputFormat.logName}, " +
+                "blocks=${blockNames.joinToString("+")}, rag=${matchedTerms.size}, chars=${sb.length}"
+        )
         return sb.toString()
     }
 
-    private fun appendMatchedTerminology(sb: StringBuilder, matchedTerms: List<TermEntity>) {
-        if (matchedTerms.isNotEmpty()) {
-            sb.append("\n\n=== OFFICIAL TERMINOLOGY (MUST USE) ===\n")
-            for (term in matchedTerms) {
-                sb.append("${term.jpTerm} -> ${term.cnTerm} [${term.category}]\n")
-            }
+    private fun appendPromptBlock(
+        sb: StringBuilder,
+        blockNames: MutableList<String>,
+        name: String,
+        block: String
+    ) {
+        if (block.isBlank()) return
+        if (sb.isNotEmpty()) sb.append("\n\n")
+        sb.append(block.trim())
+        blockNames += name
+    }
+
+    private fun conditionalPromptBlocks(context: PromptContext): List<Pair<String, String>> {
+        return buildList {
+            if (context.isBatch) add("batch" to BATCH_PROMPT)
+            if (context.hasChoices) add("choices" to CHOICE_PROMPT)
+            if (context.hasName) add("name" to NAME_PROMPT)
+            if (context.hasRuby) add("ruby" to RUBY_PROMPT)
+            if (context.hasMasks) add("mask" to MASK_PROMPT)
+            if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
+            if (context.hasHonorifics) add("honorific" to HONORIFIC_PROMPT)
+            if (context.hasKatakana) add("katakana_style" to KATAKANA_STYLE_PROMPT)
+            if (context.hasSpecialFirstPerson) add("special_first_person" to SPECIAL_FIRST_PERSON_PROMPT)
+            if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
         }
+    }
+
+    private fun appendMatchedTerminology(sb: StringBuilder, matchedTerms: List<TermEntity>): Boolean {
+        if (matchedTerms.isEmpty()) return false
+
+        sb.append("\n\n=== OFFICIAL TERMINOLOGY (MUST USE) ===\n")
+        for (term in matchedTerms) {
+            sb.append("${term.jpTerm} -> ${term.cnTerm} [${term.category}]\n")
+        }
+        return true
     }
 
     /**
@@ -137,6 +306,35 @@ Style:
 
         FgoLogger.debug(tag, "User prompt: ${sb.length} chars, choices=${choiceTexts.size}")
         return sb.toString()
+    }
+
+    private fun containsRuby(text: String): Boolean {
+        return '《' in text && '》' in text
+    }
+
+    private fun containsHiddenOrMaskedText(text: String): Boolean {
+        return hiddenOrMaskedTextPattern.containsMatchIn(text)
+    }
+
+    private fun containsPauseMarks(text: String): Boolean {
+        return FgoDialogueSymbols.containsLongPause(text) ||
+                pauseDashPattern.containsMatchIn(text)
+    }
+
+    private fun containsHonorifics(text: String): Boolean {
+        return honorificPattern.containsMatchIn(text)
+    }
+
+    private fun containsKatakanaWord(text: String): Boolean {
+        return katakanaWordPattern.containsMatchIn(text)
+    }
+
+    private fun containsSpecialFirstPerson(text: String): Boolean {
+        return specialFirstPersonPattern.containsMatchIn(text)
+    }
+
+    private fun containsAmbiguousRoman(text: String): Boolean {
+        return "ロマン" in text
     }
 
     /**

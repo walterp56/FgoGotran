@@ -696,41 +696,56 @@ dd {
   font-weight: 780;
 }
 
-.media-empty-panel {
-  padding: 22px;
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.media-card {
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid rgba(14, 90, 167, 0.16);
   border-radius: var(--radius);
   background: #ffffff;
   box-shadow: 0 8px 24px rgba(18, 33, 55, 0.06);
 }
 
-.media-empty-panel h2 {
-  margin-top: 6px;
+.media-frame {
+  aspect-ratio: 16 / 9;
+  background: #0e1b2d;
 }
 
-.media-empty-panel p:not(.guide-label) {
+.media-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.media-card-body {
+  padding: 18px;
+}
+
+.media-card-body h2 {
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.media-card-body p:not(.guide-label) {
   margin: 10px 0 0;
   color: var(--muted);
 }
 
-.media-platform-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
+.media-card-link {
+  display: inline-flex;
+  margin-top: 14px;
+  color: var(--brand);
+  font-weight: 760;
 }
 
-.media-platform-list span {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #fbfcfe;
-  color: var(--brand-strong);
-  font-size: 14px;
-  font-weight: 720;
+.media-card-link:hover {
+  text-decoration: underline;
 }
 
 .api-provider-grid {
@@ -1671,6 +1686,7 @@ dd {
   .api-route-grid,
   .api-provider-grid,
   .api-detail-grid,
+  .media-grid,
   .download-source-grid,
   .step-grid,
   .docs-mode-grid,
@@ -1740,7 +1756,8 @@ dd {
   .step-card,
   .download-card,
   .guide-card,
-  .changelog-card {
+  .changelog-card,
+  .media-card-body {
     padding: 16px;
   }
 }

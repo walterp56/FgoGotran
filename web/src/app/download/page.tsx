@@ -10,7 +10,7 @@ const downloadOptions = [
   {
     title: "OneDrive 下载",
     subtitle: "APK 下载",
-    href: "https://1drv.ms/u/c/9e1fdb13e6d5d039/IQAnTVAWTRNNTovyxyX-fVEVAWTCIBP_CxRWVjI8nJBnMBg?e=BK4FhP",
+    href: "https://1drv.ms/u/c/9e1fdb13e6d5d039/IQBYF80G6VTXSIBfnk5mCAu4AfRGT1y9RkIeayRdZoG4NzE?e=gID2Rn",
     iconSrc: "/download-icons/onedrive.svg",
     iconAlt: "OneDrive",
     accentColor: "#0078d4",
@@ -27,22 +27,25 @@ const downloadOptions = [
   }
 ];
 
+const currentAppVersion = "v1.0.0";
+
 export default function DownloadPage() {
   return (
     <>
       <section className="page-hero">
         <div className="page-hero-inner">
           <p className="eyebrow">Download</p>
-          <h1>下载链接</h1>
-          <p>感谢下载FgoGotran。</p>
+          <h1>下载 {currentAppVersion}</h1>
+          <p>感谢下载 FgoGotran Android App。</p>
         </div>
       </section>
 
       <section className="section section-band compact">
         <div className="download-intro">
-          <h2>FgoGotran Android APK</h2>
+          <h2>FgoGotran Android APK {currentAppVersion}</h2>
           <p>请选择一个可用下载源。OneDrive 与 GitHub Releases 会提供相同 APK。</p>
           <div className="download-facts" aria-label="下载说明">
+            <span>当前版本：{currentAppVersion}</span>
             <span>支持 Android 11+</span>
             <span>APK 大小：58.60 MB</span>
             <span>需要自备翻译 API Key</span>

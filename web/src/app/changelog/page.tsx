@@ -9,7 +9,13 @@ export const metadata: Metadata = {
 const changelog = [
   {
     title: "Android App",
-    date: "1.0.0",
+    date: "v1.0.1",
+    icon: Smartphone,
+    items: ["优化 AI 翻译提示词结构。"]
+  },
+  {
+    title: "Android App",
+    date: "v1.0.0",
     icon: Smartphone,
     items: ["支持手动、半自动、全自动和裁剪模式", "支持自定义翻译 API"]
   }
@@ -32,7 +38,7 @@ export default function ChangelogPage() {
           {changelog.map((entry) => {
             const Icon = entry.icon;
             return (
-              <article className="changelog-card" key={entry.title}>
+              <article className="changelog-card" key={`${entry.title}-${entry.date}`}>
                 <div className="status-title">
                   <Icon size={20} aria-hidden="true" />
                   <h3>{entry.title}</h3>
