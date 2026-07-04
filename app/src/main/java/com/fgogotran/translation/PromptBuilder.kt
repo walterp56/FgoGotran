@@ -50,7 +50,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v39"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v43"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val hiddenOrMaskedTextPattern = Regex("""[■□▇█]+|[?？]{3,}""")
@@ -62,118 +62,96 @@ class PromptBuilder @Inject constructor() {
         private val specialFirstPersonPattern = Regex("""アテシ|アタシ|あたし""")
 
         /**
-         * These blocks are intentionally assembled in a stable order:
-         * core -> priority -> output -> style -> conditional rules -> RAG table.
+         * These blocks are intentionally assembled in a stable order and
+         * concatenated into one natural-language prompt.
          *
          * Keeping rare rules conditional lowers prompt noise while preserving the
          * safety rules that must apply to every request.
          */
         private val CORE_PROMPT = """
-You localize Fate/Grand Order Japanese story text into natural, compact Simplified Chinese for an in-game overlay.
-Translate meaning, tone, and speaker voice. Prefer short readable Chinese over long literal wording.
-Use Simplified Chinese internally; the app may convert the final result to Traditional Chinese later.
-""".trimIndent()
+            You localize Fate/Grand Order Japanese story text into natural, compact Simplified Chinese for an in-game overlay.
+            Translate meaning, tone, and speaker voice. Prefer short readable Chinese over long literal wording.
+            Use Simplified Chinese.
+            Return only the translated content requested by the user message. Do not add notes, markdown, source text, explanations, labels, wrappers, lore commentary, or extra text.
+            """.trimIndent()
 
         private val PRIORITY_RULES_PROMPT = """
-Priority rules:
-1. Keep every placeholder starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly, including _PLURAL__, _KUN__, _CHAN__, _SAMA__, _TONO__, _SHI__, and _MASTER__ variants.
-2. Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden text.
-3. Player name: "{player_name}". Keep it exactly if it appears, even if it contains Japanese kana.
-4. Use supplied official terminology exactly. It overrides your knowledge and natural alternatives.
-5. Text inside <keep id="n">...</keep> is already translated official Chinese. Use its meaning in the sentence, keep the inner text exactly, and do not output the keep tags.
-6. If rules conflict, follow this order: placeholders/masks/player name > official terminology > requested output format > meaning > style.
-7. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
-""".trimIndent()
-
-        private val OUTPUT_RULES_PROMPT = """
-Output:
-- Follow the user's requested format exactly: plain text, JSON array, or JSON object.
-- Add no notes, markdown, source text, explanations, lore commentary, or extra JSON keys.
-- For JSON output, return valid JSON only.
-""".trimIndent()
+            Rules:
+            1. Keep any placeholder token starting with __FGO unchanged exactly.
+            2. Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden text.
+            3. Player name: "{player_name}". Keep it exactly if it appears.
+            4. Use supplied official terminology exactly. It overrides your knowledge and natural alternatives.
+            5. For <keep> tags, use the exact inner Chinese and omit the tags.
+            6. If rules conflict, placeholders, masks, player name, and official terminology take priority.
+            7. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
+            """.trimIndent()
 
         private val GENERAL_STYLE_PROMPT = """
-General FGO style:
-- Preserve speaker voice and relationship: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful.
-- Keep dialogue concise for a two-line FGO dialogue box. Do not over-explain lore or add hard line breaks unless the source clearly uses separate rows.
-- Japanese often omits subjects/objects. Preserve that ambiguity when natural in Chinese; do not add 你/我/他/她 just to fill an omitted Japanese subject/object. Add a pronoun only when the source clearly identifies the speaker/listener/referent, or when Chinese would be misleading or unnatural without it. Use 他 when a third-person pronoun is necessary and gender is unknown or male. If the source clearly says 彼女, 彼女たち, 女の子, 女性, 少女, 姫, 王女, 女王, 女神, 魔女, 娘, 妹, 姉, 母, or another explicit female referent, use 她.
-- Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
-""".trimIndent()
+            Style:
+            - Preserve speaker voice and relationship: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful.
+            - Preserve source line breaks only when meaningful.
+            - Japanese often omits subjects/objects. Preserve ambiguity when natural in Chinese; add pronouns only when the source clearly identifies the speaker/listener/referent, or when Chinese would be misleading without one.
+            - Use 他 for necessary third-person pronouns unless the source clearly identifies a female referent.
+            - Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
+            """.trimIndent()
 
         private val CHOICE_PROMPT = """
-Choice rules:
-- Translate choices as short player-facing options in the same order.
-- Preserve intent and emotional nuance, but avoid making choices long.
-- Do not merge, split, reorder, or explain choices.
-""".trimIndent()
+            - When player choices are requested as output, keep each option short, natural, and in the same order; do not merge, split, or explain them.
+            """.trimIndent()
 
         private val BATCH_PROMPT = """
-Batch/list rules:
-- Keep every item aligned one-to-one with input order.
-- Do not merge, split, skip, or add items.
-""".trimIndent()
+            - For multiple items, keep one output per input in the same order.
+            """.trimIndent()
 
         private val NAME_PROMPT = """
-Name rules:
-- Unknown Servant, character, NPC, place, organization, class, skill, and Noble Phantasm names must be natural Chinese transliterations, not descriptions or another known FGO name.
-- If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order character name.
-- Never return an unknown Japanese name unchanged.
-""".trimIndent()
+            - Unknown names and proper nouns must be natural Chinese transliterations, not descriptions or another known character.
+            - If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order/TYPE-MOON-style name.
+            - Never return an unknown Japanese name unchanged.
+            """.trimIndent()
 
         private val RUBY_PROMPT = """
-Ruby/furigana rules:
-- Source may contain base《ruby》.
-- Omit pronunciation-only ruby.
-- If ruby adds alias, joke, hidden meaning, or intended wording, reflect it naturally.
-- Use a short Chinese parenthetical only when both meanings matter. Do not mechanically output base（ruby）.
-""".trimIndent()
+            - Source may contain ruby/furigana in base《ruby》 form.
+            - Omit pronunciation-only ruby.
+            - If ruby adds alias, joke, hidden meaning, English reading, or intended wording, reflect it naturally.
+            - Compact English is allowed when the ruby itself is English-style and it reads naturally in Chinese.
+            - Use a short Chinese parenthetical only when both base and ruby meanings matter. Do not mechanically output base《ruby》.
+            """.trimIndent()
 
         private val MASK_PROMPT = """
-Mask/hidden-text rules:
-- Preserve hidden text such as ???, ？？？, ■, □, ▇, and █ exactly.
-- Do not guess hidden speaker names or hidden dialogue content.
-- If a line has too little readable text, return that line unchanged or empty according to the requested format.
-""".trimIndent()
+            - Preserve hidden text such as ???, ？？？, ■, □, ▇, and █ exactly; do not guess hidden names or content.
+            """.trimIndent()
 
         private val PAUSE_PROMPT = """
-Pause symbol rules:
-- Preserve dramatic pauses naturally.
-- In FGO dialogue, normalize pause dots to compact ……: OCR variants like ··, ······, ・・, ・・・, .., ..., …, ……, or ……… should render as …….
-- Normalize horizontal line pauses to ———: OCR variants like ——, ———, ----, ーーー, ───, or standalone 一一一 should render as ———.
-""".trimIndent()
+            - Preserve dramatic pauses naturally.
+            - Normalize pause dots to compact …… and long dash pauses to ———.
+            """.trimIndent()
 
         private val HONORIFIC_PROMPT = """
-Honorific rules:
-- Name suffixes: さん -> 桑, 君 -> 君, ちゃん -> 酱, 様/殿/氏 unchanged.
-- Apply only when attached to a name or player name.
-- Standalone 君, including stylized forms such as 君ィ/君ぃ/君い, is not this suffix rule; translate it as second-person 你.
-- Do not apply to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
-- Name plural ズ means an English-style group marker. Use X们 by default; use X组 or X队 only when context clearly means a team/unit.
-""".trimIndent()
+            - Name suffixes: さん -> 桑, ちゃん -> 酱, 君 -> 君, 様/殿/氏 unchanged.
+            - Apply only when attached to a name or player name.
+            - Do not apply suffix rules to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
+            - Name plural ズ means an English-style group marker; use X们 by default.
+            """.trimIndent()
 
         private val ADDRESS_PRONOUN_PROMPT = """
-Address pronoun rules:
-- Explicit second-person address words such as 君, 君ィ, 君ぃ, 君い, あなた, 貴方, あんた, お前, おまえ, 貴様, 汝, そなた, 其方, お主, てめえ, and 卿 mean "you".
-- Translate them naturally as 你 unless the speaker voice clearly needs a stronger Chinese address such as 你这家伙. Do not leave these Japanese words in Chinese output.
-- This rule does not apply when 君 is attached to a real name as an honorific suffix.
-""".trimIndent()
+            - Standalone address words such as 君, 君ィ, 君ぃ, 君い, あなた, 貴方, あんた, お前, おまえ, 貴様, 汝, そなた, 其方, お主, てめえ, and 卿 mean "you".
+            - Translate them naturally as 你 or a fitting Chinese address. Do not leave these Japanese words in Chinese output.
+            - This rule does not apply when 君 is attached to a real name as an honorific suffix.
+            """.trimIndent()
 
         private val KATAKANA_STYLE_PROMPT = """
-Katakana style rules:
-- Katakana common English-style words may stay compact English when natural.
-- Do not apply this to character names, organizations, classes, Noble Phantasms, skills, or supplied official terms.
-""".trimIndent()
+            - Katakana common English-style words may stay compact English when natural.
+            - Do not apply this to names, organizations, classes, Noble Phantasms, skills, or supplied official terms.
+            """.trimIndent()
 
         private val SPECIAL_FIRST_PERSON_PROMPT = """
-First-person pronoun rules:
-- アテシ, アタシ, and あたし are first-person pronouns, not names.
-- Translate them by speaker voice as 我, 咱, or 人家, including when they appear sentence-final after punctuation.
-""".trimIndent()
+            - アテシ, アタシ, and あたし are first-person pronouns, not names.
+            - Translate them by speaker voice as 我, 咱, or 人家.
+            """.trimIndent()
 
         private val AMBIGUOUS_ROMAN_PROMPT = """
-Ambiguous name/common-word rule:
-- ロマン is a character/name only when clearly a person; otherwise translate it as 浪漫.
-""".trimIndent()
+            - ロマン is a character/name only when clearly a person; otherwise translate it as 浪漫.
+            """.trimIndent()
 
     }
 
@@ -234,7 +212,6 @@ Ambiguous name/common-word rule:
             "priority",
             PRIORITY_RULES_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
         )
-        appendPromptBlock(sb, blockNames, "output", OUTPUT_RULES_PROMPT)
         appendPromptBlock(sb, blockNames, "style", GENERAL_STYLE_PROMPT)
         conditionalPromptBlocks(context).forEach { (name, block) ->
             appendPromptBlock(sb, blockNames, name, block)
@@ -298,18 +275,21 @@ Ambiguous name/common-word rule:
     fun buildUserPrompt(japaneseText: String, choiceTexts: List<String>): String {
         val sb = StringBuilder()
 
+        sb.append("Translate this Fate/Grand Order Japanese text into Simplified Chinese for the in-game overlay.\n")
+        sb.append("Return only the translated Chinese text that should appear on screen.\n\n")
+
         // Prepend choice context if present — helps the LLM understand
         // that these are separate interactive elements, not dialogue lines
         if (choiceTexts.isNotEmpty()) {
-            sb.append("This dialogue includes player choices. Translate choices as short player-facing Simplified Chinese; keep intent, order, and concise tone:\n")
+            sb.append("Choice context only. Do not output these choices; use them only to understand the scene, and translate only the main dialogue text:\n")
             for ((i, choice) in choiceTexts.withIndex()) {
                 sb.append("[Choice ${i + 1}] $choice\n")
             }
             sb.append("\nMain dialogue text:\n")
         }
 
-        if (japaneseText.contains("__FGOTERM_") || japaneseText.contains("__FGOPLAYER_")) {
-            sb.append("Keep each full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
+        if (japaneseText.contains("__FGO")) {
+            sb.append("Keep each full placeholder token starting with __FGO unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
         }
         if (japaneseText.contains("<keep")) {
             sb.append("Text inside <keep id=\"n\">...</keep> is locked official Chinese. Use its meaning, keep the inner text exactly, remove the keep tags, and translate all Japanese outside tags.\n\n")

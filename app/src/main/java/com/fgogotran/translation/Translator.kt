@@ -339,6 +339,19 @@ class Translator @Inject constructor(
         private val standaloneMasterTitleWrongSuffixes = listOf("御主人", "主人", "大师")
         private const val STYLIZED_FIRST_PERSON_TARGET = "咱"
         private val stylizedFirstPersonPronounSources = setOf("アテシ", "アタシ", "あたし")
+        private val standaloneJapaneseAddressSourcePattern =
+            Regex("""君[ィぃい]?|あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
+        private val leakedStandaloneAddressWordPattern =
+            Regex("""君|貴方|贵方|貴様|贵样""")
+        private val leakedKunAddressExceptionPhrases = setOf(
+            "主君",
+            "若君",
+            "暴君",
+            "君主",
+            "君王",
+            "君臣",
+            "君临"
+        )
         private val explicitFemaleReferentMarkers = setOf(
             "彼女",
             "彼女たち",
@@ -2081,6 +2094,7 @@ class Translator @Inject constructor(
         val source = TextNormalizer.normalizeForTranslation(sourceText)
         val translated = TextNormalizer.normalizeForTranslation(translatedText)
         if (source.isBlank() || translated.isBlank()) return false
+        if (hasLeakedStandaloneAddressWord(source, translated, playerName)) return true
         val allowedFragments = allowedJapaneseFragments(source, translated, playerName)
         val sourceForCheck = removeAllowedJapaneseFragments(source, allowedFragments)
         val translatedForCheck = removeAllowedJapaneseFragments(translated, allowedFragments)
@@ -2090,6 +2104,72 @@ class Translator @Inject constructor(
         if (kanaCount > 0) return true
         val sourceKanaCount = sourceForCheck.count(::isJapaneseKana)
         return sourceKanaCount >= 2 && translatedForCheck.contains(sourceForCheck)
+    }
+
+    private fun hasLeakedStandaloneAddressWord(
+        sourceText: String,
+        translatedText: String,
+        playerName: String
+    ): Boolean {
+        if (!sourceContainsStandaloneAddressWord(sourceText, playerName)) return false
+        return leakedStandaloneAddressWordPattern.findAll(translatedText).any { match ->
+            isLeakedStandaloneAddressWord(translatedText, match.range, match.value)
+        }
+    }
+
+    private fun sourceContainsStandaloneAddressWord(sourceText: String, playerName: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
+        return standaloneJapaneseAddressSourcePattern.findAll(normalized).any { match ->
+            if (match.value.startsWith("君")) {
+                isStandaloneSourceKunAddress(normalized, match.range, normalizedPlayerName)
+            } else {
+                true
+            }
+        }
+    }
+
+    private fun isStandaloneSourceKunAddress(
+        text: String,
+        range: IntRange,
+        playerName: String
+    ): Boolean {
+        val before = text.substring(0, range.first)
+        if (playerName.isNotBlank() && before.endsWith(playerName)) return false
+        return text.getOrNull(range.first - 1)?.isNameHonorificBaseChar() != true
+    }
+
+    private fun isLeakedStandaloneAddressWord(
+        text: String,
+        range: IntRange,
+        value: String
+    ): Boolean {
+        return if (value == "君") {
+            isLeakedStandaloneKunAddress(text, range)
+        } else {
+            true
+        }
+    }
+
+    private fun isLeakedStandaloneKunAddress(text: String, range: IntRange): Boolean {
+        val windowStart = (range.first - 2).coerceAtLeast(0)
+        val windowEnd = (range.last + 3).coerceAtMost(text.length)
+        val window = text.substring(windowStart, windowEnd)
+        if (leakedKunAddressExceptionPhrases.any { it in window }) return false
+        return text.getOrNull(range.first - 1)?.isNameHonorificBaseChar() != true
+    }
+
+    private fun Char.isNameHonorificBaseChar(): Boolean {
+        return this in '\u3400'..'\u9FFF' ||
+            isKatakanaWordChar() ||
+            isAsciiLetterOrDigit() ||
+            this == '_' ||
+            this == '・' ||
+            this == '･' ||
+            this == '·' ||
+            this == 'ー' ||
+            this == '〇' ||
+            this == '○'
     }
 
     private fun allowedJapaneseFragments(
@@ -3699,13 +3779,13 @@ class Translator @Inject constructor(
             appendLine("Prompt policy:")
             appendLine("- Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
             appendLine("- Translate name only if name is not null; otherwise return null.")
-            appendLine("- If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order character name. Never return the original Japanese name unchanged.")
+            appendLine("- If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order/TYPE-MOON-style name. Never return the original Japanese name unchanged.")
             appendLine("- アテシ, アタシ, and あたし in dialogue are first-person pronouns, not short katakana names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
             appendLine("- For short katakana names, transliterate the sound literally (example: レオン -> 莱昂). Do not replace it with another known FGO character.")
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
             appendLine("- For obvious English-origin katakana common words in dialogue or choices, keep compact English flavor when natural, unless a glossary/name/official term applies.")
             appendLine("- Translate choices as short player-facing options in the same order. Preserve intent and emotional nuance, but avoid making choices long.")
-            appendLine("- If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
+            appendLine("- If placeholders starting with __FGO appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
             appendLine("- If <keep id=\"n\">official Chinese</keep> appears, use it as sentence meaning, keep the inner Chinese exactly, and omit the keep tags in the JSON value.")
             appendLine("- Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
             appendLine("- Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations, no extra keys.")
@@ -3817,7 +3897,7 @@ class Translator @Inject constructor(
             appendLine("Return ONLY a JSON array of strings.")
             appendLine("The JSON array must contain exactly ${texts.size} items in the same order.")
             appendLine("Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
-            appendLine("If placeholders starting with __FGOTERM_ or __FGOPLAYER_ appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
+            appendLine("If placeholders starting with __FGO appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
             appendLine("If <keep id=\"n\">official Chinese</keep> appears, use it as sentence meaning, keep the inner Chinese exactly, and omit the keep tags.")
             appendLine("Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
             appendLine("Keep every item aligned one-to-one with input order; do not merge, split, or skip items.")
@@ -3880,7 +3960,8 @@ class Translator @Inject constructor(
             appendLine("This is a repair retry because the previous answer copied Japanese.")
             appendLine("Return only the final translated text. No source text, notes, markdown, or explanations.")
             appendLine("Do not leave Japanese kana, except inside the fixed player name or unchanged placeholder tokens.")
-            appendLine("Keep every full placeholder token starting with __FGOTERM_ or __FGOPLAYER_ exactly unchanged.")
+            appendLine("Standalone address words such as 君, 君ィ, あなた, お前, 貴様, 汝, そなた, お主, and てめえ mean \"you\"; translate them naturally as 你 or a fitting Chinese address. This does not apply when 君 is attached to a name.")
+            appendLine("Keep every full placeholder token starting with __FGO exactly unchanged.")
             appendLine("Text inside <keep id=\"n\">...</keep> is official Chinese already translated. Use its meaning, keep the inner text exactly, and do not output keep tags.")
             appendLine("Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden words.")
             appendLine("Keep the FGO dialogue tone natural, compact, and suitable for a two-line in-game overlay.")
