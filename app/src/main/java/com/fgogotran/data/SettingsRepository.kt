@@ -43,6 +43,7 @@ class SettingsRepository @Inject constructor(
         val KEY_API_MODEL = stringPreferencesKey("api_model")
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
+        val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
@@ -296,6 +297,11 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_CACHE_ENABLED] ?: true
     }
 
+    /** Whether the dialogue overlay also renders the original game text below translation. */
+    val showOriginalGameText: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_SHOW_ORIGINAL_GAME_TEXT] ?: false
+    }
+
     /** Whether diagnostic Logcat output is enabled. Disabled by default for privacy. */
     val debugLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_DEBUG_LOGGING_ENABLED] ?: false
@@ -486,6 +492,11 @@ class SettingsRepository @Inject constructor(
     suspend fun setCacheEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_CACHE_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: cache_enabled=$enabled")
+    }
+
+    suspend fun setShowOriginalGameText(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SHOW_ORIGINAL_GAME_TEXT] = enabled }
+        FgoLogger.debug(tag, "Setting updated: show_original_game_text=$enabled")
     }
 
     suspend fun setDebugLoggingEnabled(enabled: Boolean) {

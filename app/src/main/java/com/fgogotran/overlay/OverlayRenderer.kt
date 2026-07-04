@@ -16,9 +16,11 @@ import javax.inject.Singleton
 data class RenderInstruction(
     val region: ClassifiedRegion,
     val translatedText: String,
+    val sourceText: String = "",
     val textColor: Int? = null,
     val wideTextSpacing: Boolean = false,
-    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+    val showOriginalText: Boolean = false
 )
 
 /**
@@ -66,6 +68,7 @@ class OverlayRenderer @Inject constructor(
         private val NAME_BACKGROUND = Color.rgb(52, 89, 138)
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
+        private val ORIGINAL_TEXT_COLOR = Color.rgb(80, 235, 235)
         private const val MIN_NAME_PLATE_WIDTH = 160f
         private const val CHOICE_REFERENCE_WIDTH = 1470f
         private const val CHOICE_REFERENCE_HEIGHT = 135f
@@ -76,6 +79,8 @@ class OverlayRenderer @Inject constructor(
         private const val DIALOGUE_TEXT_TOP_INSET = 48f
         private const val DIALOGUE_TEXT_RIGHT_INSET = 46f
         private const val DIALOGUE_TEXT_BOTTOM_INSET = 12f
+        private const val BILINGUAL_DIALOGUE_TEXT_TOP_INSET = 24f
+        private const val BILINGUAL_DIALOGUE_TEXT_BOTTOM_INSET = 2f
         private const val DYNAMIC_DIALOGUE_HORIZONTAL_PADDING = 34f
         private const val DYNAMIC_DIALOGUE_LEFT_PADDING = 14f
         private const val DYNAMIC_DIALOGUE_VERTICAL_PADDING = 18f
@@ -83,6 +88,17 @@ class OverlayRenderer @Inject constructor(
         private const val DYNAMIC_DIALOGUE_TEXT_LEFT_INSET = 14f
         private const val DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET = 10f
         private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.48f
+        private const val ORIGINAL_TEXT_SIZE_RATIO = 0.85f
+        private const val ORIGINAL_LINE_HEIGHT_MULTIPLIER = 1.18f
+        private const val BILINGUAL_PAIR_GAP = 10f
+        private const val BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER = 1.08f
+        private const val BILINGUAL_CHOICE_LINE_HEIGHT_MULTIPLIER = 1.08f
+        private const val BILINGUAL_TRANSLATION_TEXT_SIZE = 53f
+        private const val BILINGUAL_TRANSLATION_MIN_TEXT_SIZE = 24f
+        private const val BILINGUAL_CHOICE_TEXT_SIZE = 53f
+        private const val BILINGUAL_CHOICE_MIN_TEXT_SIZE = 26f
+        private const val BILINGUAL_ORIGINAL_MAX_TEXT_SIZE = 30f
+        private const val BILINGUAL_ORIGINAL_MIN_TEXT_SIZE = 14f
         private const val DIALOGUE_MIN_TEXT_SIZE = 28f
         private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
         private const val NAME_TEXT_SIZE = 56f
@@ -221,6 +237,11 @@ class OverlayRenderer @Inject constructor(
         paint: Paint,
         instruction: RenderInstruction
     ) {
+        if (instruction.shouldRenderOriginalText()) {
+            renderBilingualDialogueBox(canvas, paint, instruction)
+            return
+        }
+
         val scale = screenScale(canvas)
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
         paint.color = textColor
@@ -257,12 +278,119 @@ class OverlayRenderer @Inject constructor(
         val lineHeight: Float
     )
 
+    private data class BilingualDialogueTextLayout(
+        val clearBox: RectF,
+        val textArea: RectF,
+        val translationLines: List<String>,
+        val originalLines: List<String>,
+        val translationLineHeight: Float,
+        val originalLineHeight: Float,
+        val pairGap: Float,
+        val translationTextSize: Float,
+        val originalTextSize: Float
+    )
+
+    private data class BilingualSingleLineLayout(
+        val translationText: String,
+        val originalText: String,
+        val translationLineHeight: Float,
+        val originalLineHeight: Float,
+        val translationTextSize: Float,
+        val originalTextSize: Float
+    )
+
+    private data class BilingualLinePairFit(
+        val translationLines: List<String>,
+        val originalLines: List<String>,
+        val translationLineHeight: Float,
+        val originalLineHeight: Float,
+        val pairGap: Float,
+        val translationTextSize: Float,
+        val originalTextSize: Float
+    )
+
     private data class DialogueRenderCandidates(
         val preferred: List<String>,
         val fallback: List<String>
     ) {
         val all: List<String>
             get() = preferred + fallback
+    }
+
+    private fun renderBilingualDialogueBox(
+        canvas: Canvas,
+        paint: Paint,
+        instruction: RenderInstruction
+    ) {
+        val scale = screenScale(canvas)
+        val textColor = instruction.textColor ?: FGO_TEXT_COLOR
+        val layout = layoutBilingualDialogueText(instruction, paint, scale)
+
+        canvas.drawRoundRect(
+            layout.clearBox.left, layout.clearBox.top,
+            layout.clearBox.right, layout.clearBox.bottom,
+            12f, 12f, dialogueClearPaint
+        )
+
+        canvas.save()
+        canvas.clipRect(layout.textArea)
+        drawBilingualLinePairs(
+            canvas = canvas,
+            paint = paint,
+            translationLines = layout.translationLines,
+            originalLines = layout.originalLines,
+            x = layout.textArea.left,
+            top = layout.textArea.top,
+            translationTextSize = layout.translationTextSize,
+            originalTextSize = layout.originalTextSize,
+            translationLineHeight = layout.translationLineHeight,
+            originalLineHeight = layout.originalLineHeight,
+            pairGap = layout.pairGap,
+            translationColor = textColor
+        )
+        canvas.restore()
+    }
+
+    private fun layoutBilingualDialogueText(
+        instruction: RenderInstruction,
+        paint: Paint,
+        scale: Float
+    ): BilingualDialogueTextLayout {
+        val panelBox = RectF(instruction.region.boundingBox)
+        val textArea = fixedBilingualDialogueTextArea(panelBox, scale)
+        val fit = fitBilingualLinePairs(
+            instruction = instruction,
+            paint = paint,
+            scale = scale,
+            maxWidth = textArea.width(),
+            maxHeight = textArea.height()
+        )
+        val clearBox = bilingualDialogueClearBoxForLayout(
+            instruction = instruction,
+            panelBox = panelBox,
+            textArea = textArea,
+            translationLines = fit.translationLines,
+            originalLines = fit.originalLines,
+            translationLineHeight = fit.translationLineHeight,
+            originalLineHeight = fit.originalLineHeight,
+            pairGap = fit.pairGap,
+            translationTextSize = fit.translationTextSize,
+            originalTextSize = fit.originalTextSize,
+            paint = paint,
+            scale = scale
+        )
+
+        return BilingualDialogueTextLayout(
+            clearBox = clearBox,
+            textArea = textArea,
+            translationLines = fit.translationLines,
+            originalLines = fit.originalLines,
+            translationLineHeight = fit.translationLineHeight,
+            originalLineHeight = fit.originalLineHeight,
+            pairGap = fit.pairGap,
+            translationTextSize = fit.translationTextSize,
+            originalTextSize = fit.originalTextSize
+        )
     }
 
     private fun layoutDialogueText(
@@ -349,6 +477,66 @@ class OverlayRenderer @Inject constructor(
         )
     }
 
+    private fun bilingualDialogueClearBoxForLayout(
+        instruction: RenderInstruction,
+        panelBox: RectF,
+        textArea: RectF,
+        translationLines: List<String>,
+        originalLines: List<String>,
+        translationLineHeight: Float,
+        originalLineHeight: Float,
+        pairGap: Float,
+        translationTextSize: Float,
+        originalTextSize: Float,
+        paint: Paint,
+        scale: Float
+    ): RectF {
+        val originalBounds = originalTextBounds(instruction)?.let(::RectF)
+        val clearInsetX = DYNAMIC_DIALOGUE_TEXT_HORIZONTAL_INSET * scale
+        val clearLeftInsetX = DYNAMIC_DIALOGUE_TEXT_LEFT_INSET * scale
+        val clearInsetY = DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET * scale
+        val sourcePaddingX = DYNAMIC_DIALOGUE_HORIZONTAL_PADDING * scale
+        val sourceLeftPaddingX = DYNAMIC_DIALOGUE_LEFT_PADDING * scale
+        val sourcePaddingY = DYNAMIC_DIALOGUE_VERTICAL_PADDING * scale
+        val translationWidth = measureMaxLineWidth(paint, translationTextSize, translationLines)
+        val originalWidth = measureMaxLineWidth(paint, originalTextSize, originalLines)
+        val textBottom = textArea.top + bilingualLinePairsHeight(
+            translationLines = translationLines,
+            originalLines = originalLines,
+            translationLineHeight = translationLineHeight,
+            originalLineHeight = originalLineHeight,
+            pairGap = pairGap
+        )
+        val sourceLeft = originalBounds?.left?.minus(sourceLeftPaddingX) ?: textArea.left
+        val sourceTop = originalBounds?.top?.minus(sourcePaddingY) ?: textArea.top
+        val sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: textArea.left
+        val sourceBottom = originalBounds?.bottom?.plus(sourcePaddingY) ?: textArea.top
+
+        return boundedRect(
+            left = minOf(sourceLeft, textArea.left - clearLeftInsetX),
+            top = minOf(sourceTop, textArea.top - clearInsetY) - 12f * scale,
+            right = maxOf(
+                sourceRight,
+                textArea.left + translationWidth + clearInsetX,
+                textArea.left + originalWidth + clearInsetX
+            ),
+            bottom = maxOf(sourceBottom, textBottom + clearInsetY),
+            bounds = panelBox
+        )
+    }
+
+    private fun measureMaxLineWidth(
+        paint: Paint,
+        textSize: Float,
+        lines: List<String>
+    ): Float {
+        val previousTextSize = paint.textSize
+        paint.textSize = textSize
+        val width = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
+        paint.textSize = previousTextSize
+        return width
+    }
+
     private fun boundedRect(
         left: Float,
         top: Float,
@@ -374,6 +562,15 @@ class OverlayRenderer @Inject constructor(
             panelBox.top + DIALOGUE_TEXT_TOP_INSET * scale,
             panelBox.right - DIALOGUE_TEXT_RIGHT_INSET * scale,
             panelBox.bottom - DIALOGUE_TEXT_BOTTOM_INSET * scale
+        )
+    }
+
+    private fun fixedBilingualDialogueTextArea(panelBox: RectF, scale: Float): RectF {
+        return RectF(
+            panelBox.left + DIALOGUE_TEXT_LEFT_INSET * scale,
+            panelBox.top + BILINGUAL_DIALOGUE_TEXT_TOP_INSET * scale,
+            panelBox.right - DIALOGUE_TEXT_RIGHT_INSET * scale,
+            panelBox.bottom - BILINGUAL_DIALOGUE_TEXT_BOTTOM_INSET * scale
         )
     }
 
@@ -465,6 +662,77 @@ class OverlayRenderer @Inject constructor(
             COUNTDOWN_CLEAR_RISK.containsMatchIn(sourceTail)
     }
 
+    private fun renderBilingualChoiceButton(
+        canvas: Canvas,
+        paint: Paint,
+        instruction: RenderInstruction
+    ) {
+        val scale = screenScale(canvas)
+        val box = fixedChoiceRenderBox(instruction.region.boundingBox, canvas, scale) ?: run {
+            FgoLogger.debug(
+                tag,
+                "Skipping bilingual choice render with unexpected bounds: ${instruction.region.boundingBox.flattenToString()}"
+            )
+            return
+        }
+        val clearInsetX = 47f * scale
+        val textInsetX = 70f * scale
+
+        canvas.drawRoundRect(
+            box.left + clearInsetX, box.top + 8f * scale,
+            box.right - clearInsetX, box.bottom - 8f * scale,
+            10f, 10f, choiceClearPaint
+        )
+
+        val textArea = RectF(
+            box.left + textInsetX,
+            box.top + 12f * scale,
+            box.right - textInsetX,
+            box.bottom - 12f * scale
+        )
+        val textColor = instruction.textColor ?: FGO_TEXT_COLOR
+        val layout = fitBilingualSingleLine(
+            translationText = instruction.toChoiceRenderText(),
+            originalText = instruction.originalSingleLineText(),
+            paint = paint,
+            scale = scale,
+            initialTranslationTextSize = BILINGUAL_CHOICE_TEXT_SIZE * scale,
+            minimumTranslationTextSize = BILINGUAL_CHOICE_MIN_TEXT_SIZE * scale,
+            translationLineHeightMultiplier = BILINGUAL_CHOICE_LINE_HEIGHT_MULTIPLIER,
+            maxWidth = textArea.width(),
+            maxHeight = textArea.height()
+        )
+
+        val totalHeight = layout.translationLineHeight + layout.originalLineHeight
+        var currentTop = textArea.centerY() - totalHeight / 2f
+
+        canvas.save()
+        canvas.clipRect(textArea)
+        paint.textSize = layout.translationTextSize
+        drawShadowedText(
+            canvas = canvas,
+            paint = paint,
+            text = layout.translationText,
+            x = textArea.centerX() - paint.measureText(layout.translationText) / 2f,
+            y = currentTop - paint.fontMetrics.ascent,
+            textColor = textColor,
+            scale = scale
+        )
+        currentTop += layout.translationLineHeight
+
+        paint.textSize = layout.originalTextSize
+        drawShadowedText(
+            canvas = canvas,
+            paint = paint,
+            text = layout.originalText,
+            x = textArea.centerX() - paint.measureText(layout.originalText) / 2f,
+            y = currentTop - paint.fontMetrics.ascent,
+            textColor = ORIGINAL_TEXT_COLOR,
+            scale = scale
+        )
+        canvas.restore()
+    }
+
     /**
      * Renders a choice button with horizontally centered text.
      */
@@ -473,6 +741,11 @@ class OverlayRenderer @Inject constructor(
         paint: Paint,
         instruction: RenderInstruction
     ) {
+        if (instruction.shouldRenderOriginalText()) {
+            renderBilingualChoiceButton(canvas, paint, instruction)
+            return
+        }
+
         val scale = screenScale(canvas)
         val box = fixedChoiceRenderBox(instruction.region.boundingBox, canvas, scale) ?: run {
             FgoLogger.debug(
@@ -643,6 +916,180 @@ class OverlayRenderer @Inject constructor(
         return limitLines(wrapText(fallbackText, paint, maxWidth), maximumLines, paint, maxWidth) to lineHeight
     }
 
+    private fun fitOriginalText(
+        candidates: List<String>,
+        paint: Paint,
+        initialTextSize: Float,
+        minimumTextSize: Float,
+        maxWidth: Float,
+        maxHeight: Float,
+        maxLines: Int
+    ): Pair<List<String>, Float> {
+        val distinctCandidates = candidates
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .ifEmpty { listOf("") }
+
+        distinctCandidates.forEach { candidate ->
+            fitWrappedTextOrNull(
+                text = candidate,
+                paint = paint,
+                initialTextSize = initialTextSize,
+                minimumTextSize = minimumTextSize,
+                maxWidth = maxWidth,
+                maxHeight = maxHeight,
+                maxLines = maxLines,
+                lineHeightMultiplier = ORIGINAL_LINE_HEIGHT_MULTIPLIER
+            )?.let { return it }
+        }
+
+        val fallbackText = distinctCandidates.last()
+        paint.textSize = minimumTextSize
+        val lineHeight = minimumTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
+        val heightLimitedLines = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
+        val maximumLines = minOf(heightLimitedLines, maxLines.coerceAtLeast(1))
+        return limitLines(wrapText(fallbackText, paint, maxWidth), maximumLines, paint, maxWidth) to lineHeight
+    }
+
+    private fun fitBilingualLinePairs(
+        instruction: RenderInstruction,
+        paint: Paint,
+        scale: Float,
+        maxWidth: Float,
+        maxHeight: Float
+    ): BilingualLinePairFit {
+        val translationCandidates = distinctDialogueCandidates(instruction.dialogueRenderCandidates().all)
+        val originalCandidates = distinctOriginalCandidates(instruction.originalRenderCandidates())
+        val minimumTranslationSize = BILINGUAL_TRANSLATION_MIN_TEXT_SIZE * scale
+        val pairGap = BILINGUAL_PAIR_GAP * scale
+        var translationTextSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale
+
+        while (true) {
+            val originalTextSize = originalTextSizeFor(translationTextSize, scale)
+            val translationLineHeight = translationTextSize * BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER
+            val originalLineHeight = originalTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
+
+            for (translationCandidate in translationCandidates) {
+                paint.textSize = translationTextSize
+                val translationLines = wrapText(translationCandidate, paint, maxWidth)
+                if (translationLines.size > DIALOGUE_MAX_LINES) continue
+
+                for (originalCandidate in originalCandidates) {
+                    paint.textSize = originalTextSize
+                    val originalLines = wrapText(originalCandidate, paint, maxWidth)
+                    if (originalLines.size > DIALOGUE_MAX_LINES) continue
+
+                    val totalHeight = bilingualLinePairsHeight(
+                        translationLines = translationLines,
+                        originalLines = originalLines,
+                        translationLineHeight = translationLineHeight,
+                        originalLineHeight = originalLineHeight,
+                        pairGap = pairGap
+                    )
+                    if (totalHeight <= maxHeight) {
+                        paint.textSize = originalTextSize
+                        return BilingualLinePairFit(
+                            translationLines = translationLines,
+                            originalLines = originalLines,
+                            translationLineHeight = translationLineHeight,
+                            originalLineHeight = originalLineHeight,
+                            pairGap = pairGap,
+                            translationTextSize = translationTextSize,
+                            originalTextSize = originalTextSize
+                        )
+                    }
+                }
+            }
+
+            if (translationTextSize <= minimumTranslationSize) break
+            translationTextSize = (translationTextSize - 2f).coerceAtLeast(minimumTranslationSize)
+        }
+
+        val fallbackTranslationSize = minimumTranslationSize
+        val fallbackOriginalSize = originalTextSizeFor(fallbackTranslationSize, scale)
+        val translationLineHeight = fallbackTranslationSize * BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER
+        val originalLineHeight = fallbackOriginalSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
+        paint.textSize = fallbackTranslationSize
+        val translationLines = limitLines(
+            wrapText(translationCandidates.last(), paint, maxWidth),
+            DIALOGUE_MAX_LINES,
+            paint,
+            maxWidth
+        )
+        paint.textSize = fallbackOriginalSize
+        val originalLines = limitLines(
+            wrapText(originalCandidates.last(), paint, maxWidth),
+            DIALOGUE_MAX_LINES,
+            paint,
+            maxWidth
+        )
+        return BilingualLinePairFit(
+            translationLines = translationLines,
+            originalLines = originalLines,
+            translationLineHeight = translationLineHeight,
+            originalLineHeight = originalLineHeight,
+            pairGap = pairGap,
+            translationTextSize = fallbackTranslationSize,
+            originalTextSize = fallbackOriginalSize
+        )
+    }
+
+    private fun fitBilingualSingleLine(
+        translationText: String,
+        originalText: String,
+        paint: Paint,
+        scale: Float,
+        initialTranslationTextSize: Float,
+        minimumTranslationTextSize: Float,
+        translationLineHeightMultiplier: Float,
+        maxWidth: Float,
+        maxHeight: Float
+    ): BilingualSingleLineLayout {
+        val cleanTranslationText = translationText.trim()
+        val cleanOriginalText = originalText.trim()
+        var translationTextSize = initialTranslationTextSize
+
+        while (true) {
+            val originalTextSize = originalTextSizeFor(translationTextSize, scale)
+            val translationLineHeight = translationTextSize * translationLineHeightMultiplier
+            val originalLineHeight = originalTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
+
+            paint.textSize = translationTextSize
+            val translationFits = paint.measureText(cleanTranslationText) <= maxWidth
+            paint.textSize = originalTextSize
+            val originalFits = paint.measureText(cleanOriginalText) <= maxWidth
+
+            if (translationFits && originalFits && translationLineHeight + originalLineHeight <= maxHeight) {
+                return BilingualSingleLineLayout(
+                    translationText = cleanTranslationText,
+                    originalText = cleanOriginalText,
+                    translationLineHeight = translationLineHeight,
+                    originalLineHeight = originalLineHeight,
+                    translationTextSize = translationTextSize,
+                    originalTextSize = originalTextSize
+                )
+            }
+
+            if (translationTextSize <= minimumTranslationTextSize) break
+            translationTextSize = (translationTextSize - 2f).coerceAtLeast(minimumTranslationTextSize)
+        }
+
+        val fallbackOriginalTextSize = originalTextSizeFor(minimumTranslationTextSize, scale)
+        paint.textSize = minimumTranslationTextSize
+        val fittedTranslation = ellipsize(cleanTranslationText, paint, maxWidth)
+        paint.textSize = fallbackOriginalTextSize
+        val fittedOriginal = ellipsize(cleanOriginalText, paint, maxWidth)
+        return BilingualSingleLineLayout(
+            translationText = fittedTranslation,
+            originalText = fittedOriginal,
+            translationLineHeight = minimumTranslationTextSize * translationLineHeightMultiplier,
+            originalLineHeight = fallbackOriginalTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER,
+            translationTextSize = minimumTranslationTextSize,
+            originalTextSize = fallbackOriginalTextSize
+        )
+    }
+
     private fun fitDialogueTextAtSizeOrNull(
         candidates: List<String>,
         paint: Paint,
@@ -671,6 +1118,39 @@ class OverlayRenderer @Inject constructor(
             .filter { it.isNotBlank() }
             .distinct()
             .ifEmpty { listOf("") }
+    }
+
+    private fun distinctOriginalCandidates(candidates: List<String>): List<String> {
+        return candidates
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .ifEmpty { listOf("") }
+    }
+
+    private fun originalTextSizeFor(translationTextSize: Float, scale: Float): Float {
+        return (translationTextSize * ORIGINAL_TEXT_SIZE_RATIO)
+            .coerceAtMost(BILINGUAL_ORIGINAL_MAX_TEXT_SIZE * scale)
+            .coerceAtLeast(BILINGUAL_ORIGINAL_MIN_TEXT_SIZE * scale)
+    }
+
+    private fun bilingualLinePairsHeight(
+        translationLines: List<String>,
+        originalLines: List<String>,
+        translationLineHeight: Float,
+        originalLineHeight: Float,
+        pairGap: Float
+    ): Float {
+        val pairCount = maxOf(translationLines.size, originalLines.size)
+        if (pairCount == 0) return 0f
+
+        var height = 0f
+        repeat(pairCount) { index ->
+            if (index < translationLines.size) height += translationLineHeight
+            if (index < originalLines.size) height += originalLineHeight
+            if (index < pairCount - 1) height += pairGap
+        }
+        return height
     }
 
     private fun fitWrappedTextOrNull(
@@ -725,6 +1205,45 @@ class OverlayRenderer @Inject constructor(
             add(compact)
         }
         return DialogueRenderCandidates(preferred, fallback)
+    }
+
+    private fun RenderInstruction.shouldRenderOriginalText(): Boolean {
+        return showOriginalText &&
+                region.region in setOf(TextRegion.DIALOGUE_BOX, TextRegion.CHOICE_BUTTON) &&
+                sourceText.trim().isNotBlank()
+    }
+
+    private fun RenderInstruction.originalRenderCandidates(): List<String> {
+        val normalizedLines = sourceText
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .lines()
+            .map { it.replace(Regex("[ \\t]+"), " ").trim() }
+            .filter { it.isNotBlank() }
+        val linePreserved = normalizedLines.joinToString("\n").trim()
+        val flattened = normalizedLines.joinToString(WIDE_RENDER_SPACE)
+            .replace(Regex("[ \\t]+"), " ")
+            .trim()
+        return listOf(linePreserved, flattened)
+            .filter { it.isNotBlank() }
+            .distinct()
+            .ifEmpty { listOf(sourceText.trim()) }
+    }
+
+    private fun RenderInstruction.originalSingleLineText(): String {
+        return originalRenderCandidates()
+            .firstOrNull { '\n' !in it }
+            ?.replace(Regex("[ \\t]+"), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: sourceText
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .lines()
+                .map { it.replace(Regex("[ \\t]+"), " ").trim() }
+                .filter { it.isNotBlank() }
+                .joinToString(WIDE_RENDER_SPACE)
+                .trim()
     }
 
     private fun RenderInstruction.toChoiceRenderText(): String {
@@ -888,6 +1407,72 @@ class OverlayRenderer @Inject constructor(
             null
         )
         return text.take(count).trimEnd() + suffix
+    }
+
+    private fun drawShadowedText(
+        canvas: Canvas,
+        paint: Paint,
+        text: String,
+        x: Float,
+        y: Float,
+        textColor: Int,
+        scale: Float
+    ) {
+        paint.setShadowLayer(2f * scale, shadowOffset * scale, shadowOffset * scale, Color.BLACK)
+        paint.color = textColor
+        canvas.drawText(text, x, y, paint)
+        paint.clearShadowLayer()
+        paint.color = textColor
+        canvas.drawText(text, x, y, paint)
+    }
+
+    private fun drawBilingualLinePairs(
+        canvas: Canvas,
+        paint: Paint,
+        translationLines: List<String>,
+        originalLines: List<String>,
+        x: Float,
+        top: Float,
+        translationTextSize: Float,
+        originalTextSize: Float,
+        translationLineHeight: Float,
+        originalLineHeight: Float,
+        pairGap: Float,
+        translationColor: Int
+    ) {
+        var currentTop = top
+        val pairCount = maxOf(translationLines.size, originalLines.size)
+        repeat(pairCount) { index ->
+            if (index < translationLines.size) {
+                paint.textSize = translationTextSize
+                drawLines(
+                    canvas = canvas,
+                    paint = paint,
+                    lines = listOf(translationLines[index]),
+                    x = x,
+                    firstBaseline = currentTop - paint.fontMetrics.ascent,
+                    lineHeight = translationLineHeight,
+                    textColor = translationColor
+                )
+                currentTop += translationLineHeight
+            }
+            if (index < originalLines.size) {
+                paint.textSize = originalTextSize
+                drawLines(
+                    canvas = canvas,
+                    paint = paint,
+                    lines = listOf(originalLines[index]),
+                    x = x,
+                    firstBaseline = currentTop - paint.fontMetrics.ascent,
+                    lineHeight = originalLineHeight,
+                    textColor = ORIGINAL_TEXT_COLOR
+                )
+                currentTop += originalLineHeight
+            }
+            if (index < pairCount - 1) {
+                currentTop += pairGap
+            }
+        }
     }
 
     private fun drawLines(

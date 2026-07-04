@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.max
 
+private const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54f
+
 enum class FloatingButtonMode {
     MANUAL,
     SEMI_AUTO,
@@ -70,6 +72,8 @@ fun FloatingButton(
 ) {
     val visualButtonSize = buttonSize
     val glyphSize = visualButtonSize * 0.78f
+    val glyphContentScale = (visualButtonSize.value / DEFAULT_FLOATING_BUTTON_SIZE_DP)
+        .coerceIn(0.72f, 1.34f)
     val idleAlpha = 0.38f
     val pressedAlpha = 0.62f
     val baseColor = when (mode) {
@@ -209,6 +213,7 @@ fun FloatingButton(
                     },
                     prominent = true,
                     color = Color.White.copy(alpha = if (pressed) 0.95f else 0.82f),
+                    contentScale = glyphContentScale,
                     modifier = Modifier.size(glyphSize)
                 )
             }
@@ -221,7 +226,8 @@ fun FloatingActionGlyph(
     icon: FloatingActionIcon,
     modifier: Modifier = Modifier,
     color: Color = Color.White,
-    prominent: Boolean = false
+    prominent: Boolean = false,
+    contentScale: Float = 1f
 ) {
     when (icon) {
         FloatingActionIcon.GO,
@@ -237,34 +243,53 @@ fun FloatingActionGlyph(
                     else -> "全"
                 },
                 color = color,
-                fontSize = when {
-                    icon == FloatingActionIcon.GO && prominent -> 15.sp
-                    icon == FloatingActionIcon.SEMI && prominent -> 21.sp
-                    icon == FloatingActionIcon.SEMI -> 17.sp
-                    icon == FloatingActionIcon.AUTO && prominent -> 21.sp
-                    icon == FloatingActionIcon.AUTO -> 17.sp
-                    else -> 13.sp
-                },
+                fontSize = scaledGlyphFontSize(icon, prominent, contentScale),
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
         }
 
-        FloatingActionIcon.CROP -> CropCornerIcon(modifier = modifier, color = color)
-        FloatingActionIcon.HISTORY_LIST -> ListIcon(modifier = modifier, color = color)
-        FloatingActionIcon.CLOSE_CIRCLE -> CloseCircleIcon(modifier = modifier, color = color)
+        FloatingActionIcon.CROP -> CropCornerIcon(
+            modifier = modifier,
+            color = color,
+            contentScale = contentScale
+        )
+        FloatingActionIcon.HISTORY_LIST -> ListIcon(
+            modifier = modifier,
+            color = color,
+            contentScale = contentScale
+        )
+        FloatingActionIcon.CLOSE_CIRCLE -> CloseCircleIcon(
+            modifier = modifier,
+            color = color,
+            contentScale = contentScale
+        )
     }
 }
+
+private fun scaledGlyphFontSize(
+    icon: FloatingActionIcon,
+    prominent: Boolean,
+    contentScale: Float
+) = (when {
+    icon == FloatingActionIcon.GO && prominent -> 15f
+    icon == FloatingActionIcon.SEMI && prominent -> 21f
+    icon == FloatingActionIcon.SEMI -> 17f
+    icon == FloatingActionIcon.AUTO && prominent -> 21f
+    icon == FloatingActionIcon.AUTO -> 17f
+    else -> 13f
+} * contentScale).sp
 
 @Composable
 private fun CropCornerIcon(
     modifier: Modifier,
     color: Color,
-    strokeWidth: Dp = 2.4.dp
+    strokeWidth: Dp = 2.4.dp,
+    contentScale: Float = 1f
 ) {
     Canvas(modifier = modifier) {
-        val stroke = strokeWidth.toPx()
+        val stroke = strokeWidth.toPx() * contentScale
         val inset = stroke / 2f
         val right = size.width - inset
         val bottom = size.height - inset
@@ -285,10 +310,11 @@ private fun CropCornerIcon(
 private fun ListIcon(
     modifier: Modifier,
     color: Color,
-    strokeWidth: Dp = 2.2.dp
+    strokeWidth: Dp = 2.2.dp,
+    contentScale: Float = 1f
 ) {
     Canvas(modifier = modifier) {
-        val stroke = strokeWidth.toPx()
+        val stroke = strokeWidth.toPx() * contentScale
         val left = size.width * 0.18f
         val right = size.width * 0.82f
         listOf(0.28f, 0.5f, 0.72f).forEach { yFraction ->
@@ -302,10 +328,11 @@ private fun ListIcon(
 private fun CloseCircleIcon(
     modifier: Modifier,
     color: Color,
-    strokeWidth: Dp = 2.2.dp
+    strokeWidth: Dp = 2.2.dp,
+    contentScale: Float = 1f
 ) {
     Canvas(modifier = modifier) {
-        val stroke = strokeWidth.toPx()
+        val stroke = strokeWidth.toPx() * contentScale
         val radius = size.minDimension / 2f - stroke / 2f
         drawCircle(color = color, radius = radius, style = Stroke(width = stroke))
 

@@ -98,6 +98,7 @@ fun SettingsScreen(
     var floatingButtonSizeDp by remember {
         mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
     }
+    var showOriginalGameText by remember { mutableStateOf(false) }
     var cacheEnabled by remember { mutableStateOf(true) }
     var debugLoggingEnabled by remember { mutableStateOf(false) }
     var debugLogTapCount by remember { mutableStateOf(0) }
@@ -110,6 +111,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         playerName = settingsRepository.playerName.first()
         floatingButtonSizeDp = settingsRepository.getFloatingButtonSizeDp()
+        showOriginalGameText = settingsRepository.showOriginalGameText.first()
         cacheEnabled = settingsRepository.cacheEnabled.first()
         debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
     }
@@ -303,6 +305,30 @@ fun SettingsScreen(
                         "大",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
+            SettingsCard(title = "翻译显示") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "同時显示日文文本",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = showOriginalGameText,
+                        onCheckedChange = {
+                            showOriginalGameText = it
+                            scope.launch { settingsRepository.setShowOriginalGameText(it) }
+                        }
                     )
                 }
             }

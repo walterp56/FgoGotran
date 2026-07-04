@@ -120,6 +120,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var overlayButtonDownY = 0f
     private var overlayButtonLongPressJob: Job? = null
     private var currentPlayerName = ""
+    private var showOriginalGameText = false
 
     companion object {
         const val FGO_PACKAGE = "com.aniplex.fategrandorder"
@@ -275,6 +276,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         restoreLastTranslationMode()
         watchPlayerName()
+        watchOriginalTextDisplay()
         reportServiceUsage()
         warmUpManualPipeline()
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
@@ -292,6 +294,14 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             settingsRepository.playerName.collect { name ->
                 currentPlayerName = TextNormalizer.normalizeForTranslation(name)
+            }
+        }
+    }
+
+    private fun watchOriginalTextDisplay() {
+        serviceScope.launch {
+            settingsRepository.showOriginalGameText.collect { enabled ->
+                showOriginalGameText = enabled
             }
         }
     }
@@ -1695,15 +1705,24 @@ class FgoAccessibilityService : AccessibilityService() {
                 .trim()
                 .takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
+            val showOriginalForRegion = showOriginalGameText &&
+                regionAndText.region.region in setOf(TextRegion.DIALOGUE_BOX, TextRegion.CHOICE_BUTTON)
+            val renderSourceText = when {
+                showOriginalForRegion && regionAndText.region.region == TextRegion.DIALOGUE_BOX ->
+                    sourceTextForOriginalDisplay(regionAndText.region).ifBlank { regionAndText.text }
+                else -> regionAndText.text
+            }
             RenderInstruction(
                 region = regionAndText.region,
                 translatedText = translatedText,
+                sourceText = renderSourceText,
                 textColor = renderTextColorForRegion(source, regionAndText.region),
                 wideTextSpacing = shouldUseWideRenderSpacing(
                     sourceText = regionAndText.text,
                     region = regionAndText.region.region
                 ),
-                targetLocale = translatedResult.targetLocale
+                targetLocale = translatedResult.targetLocale,
+                showOriginalText = showOriginalForRegion
             )
         }
     }
@@ -1874,6 +1893,34 @@ class FgoAccessibilityService : AccessibilityService() {
             TextRegion.DIALOGUE_BOX,
             TextRegion.CHOICE_BUTTON -> correctOcrSourceText(rawText, region.region.name)
         }
+    }
+
+    private fun sourceTextForOriginalDisplay(region: ClassifiedRegion): String {
+        if (region.region != TextRegion.DIALOGUE_BOX) return sourceTextFor(region)
+
+        val cleanedLines = cleanRubyNoiseLines(region.lines)
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+        if (cleanedLines.size < 2) {
+            return correctOcrSourceText(
+                cleanedLines.joinToString("\n") { it.text }.trim(),
+                "DIALOGUE_BOX_ORIGINAL_DISPLAY"
+            )
+        }
+
+        val heights = cleanedLines.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
+        val medianHeight = heights[heights.size / 2]
+        val rubyLines = cleanedLines.filter { line ->
+            isLikelyRubyLine(line, medianHeight, RubyDetectionMode.STRICT)
+        }.toSet()
+        val mainLines = cleanedLines
+            .filterNot { it in rubyLines }
+            .ifEmpty { cleanedLines }
+
+        return correctOcrSourceText(
+            mainLines.joinToString("\n") { it.text }.trim(),
+            "DIALOGUE_BOX_ORIGINAL_DISPLAY"
+        )
     }
 
     private fun correctOcrSourceText(sourceText: String, label: String): String {
