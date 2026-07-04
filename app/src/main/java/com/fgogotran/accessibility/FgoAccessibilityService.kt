@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
+import com.fgogotran.crop.CropTextLine
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrTextCorrector
@@ -871,7 +872,14 @@ class FgoAccessibilityService : AccessibilityService() {
             val ocrResult = withContext(Dispatchers.Default) {
                 ocrEngine.recognize(ocrBitmap)
             }
-            val sourceText = cropSourceText(ocrResult.lines, ocrResult.fullText)
+            val cropOcrScale = if (scaledForOcr != null) CROP_OCR_SCALE else 1
+            val cropLines = cropLocalOcrLines(
+                lines = ocrResult.lines,
+                coordinateScale = cropOcrScale,
+                cropWidth = cropBitmap.width,
+                cropHeight = cropBitmap.height
+            )
+            val sourceText = cropSourceText(cropLines, ocrResult.fullText)
             val ocrDuration = SystemClock.elapsedRealtime() - ocrStartedAt
             logTranslationDebugText("Crop OCR fullText", ocrResult.fullText.trim())
             logTranslationDebugText("Crop source text", sourceText)
@@ -901,14 +909,19 @@ class FgoAccessibilityService : AccessibilityService() {
 
             val cropTextColor = sampleCropOriginalTextColor(
                 crop = cropBitmap,
-                lines = ocrResult.lines,
-                coordinateScale = if (scaledForOcr != null) CROP_OCR_SCALE else 1
+                lines = cropLines
             )
             val rendered = withContext(Dispatchers.Default) {
-                cropResultRenderer.render(
+                cropResultRenderer.renderOverlay(
                     width = cropBounds.width(),
                     height = cropBounds.height(),
                     text = translated,
+                    sourceLines = cropLines.map {
+                        CropTextLine(
+                            text = it.text,
+                            boundingBox = Rect(it.boundingBox)
+                        )
+                    },
                     textColor = cropTextColor ?: FGO_RENDER_WHITE,
                     targetLocale = translationResult.targetLocale
                 )
@@ -948,6 +961,35 @@ class FgoAccessibilityService : AccessibilityService() {
         if (!clipped.intersect(0, 0, screenWidth, screenHeight)) return null
         if (clipped.width() < 32 || clipped.height() < 32) return null
         return clipped
+    }
+
+    private fun cropLocalOcrLines(
+        lines: List<OcrTextLine>,
+        coordinateScale: Int,
+        cropWidth: Int,
+        cropHeight: Int
+    ): List<OcrTextLine> {
+        val scale = coordinateScale.coerceAtLeast(1)
+        return lines.mapNotNull { line ->
+            val sourceBounds = line.boundingBox
+            val bounds = if (scale == 1) {
+                Rect(sourceBounds)
+            } else {
+                Rect(
+                    sourceBounds.left / scale,
+                    sourceBounds.top / scale,
+                    (sourceBounds.right + scale - 1) / scale,
+                    (sourceBounds.bottom + scale - 1) / scale
+                )
+            }
+            if (!bounds.intersect(0, 0, cropWidth, cropHeight)) return@mapNotNull null
+            if (bounds.width() <= 0 || bounds.height() <= 0) return@mapNotNull null
+            OcrTextLine(
+                text = line.text,
+                boundingBox = bounds,
+                confidence = line.confidence
+            )
+        }
     }
 
     private fun cropSourceText(lines: List<OcrTextLine>, fullText: String): String {
@@ -2226,35 +2268,14 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun sampleCropOriginalTextColor(
         crop: Bitmap,
-        lines: List<OcrTextLine>,
-        coordinateScale: Int
+        lines: List<OcrTextLine>
     ): Int? {
-        val scale = coordinateScale.coerceAtLeast(1)
-        val cropLines = lines.mapNotNull { line ->
-            val sourceBounds = line.boundingBox
-            val bounds = if (scale == 1) {
-                Rect(sourceBounds)
-            } else {
-                Rect(
-                    sourceBounds.left / scale,
-                    sourceBounds.top / scale,
-                    (sourceBounds.right + scale - 1) / scale,
-                    (sourceBounds.bottom + scale - 1) / scale
-                )
-            }
-            if (bounds.width() <= 0 || bounds.height() <= 0) return@mapNotNull null
-            OcrTextLine(
-                text = line.text,
-                boundingBox = bounds,
-                confidence = line.confidence
-            )
-        }
-        if (cropLines.isEmpty()) return null
+        if (lines.isEmpty()) return null
         return sampleOriginalTextColor(
             source = crop,
             region = ClassifiedRegion(
                 region = TextRegion.DIALOGUE_BOX,
-                lines = cropLines,
+                lines = lines,
                 boundingBox = Rect(0, 0, crop.width, crop.height)
             )
         )

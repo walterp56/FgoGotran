@@ -342,15 +342,19 @@ class Translator @Inject constructor(
         private val standaloneJapaneseAddressSourcePattern =
             Regex("""君[ィぃい]?|あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
         private val leakedStandaloneAddressWordPattern =
-            Regex("""君|貴方|贵方|貴様|贵样""")
-        private val leakedKunAddressExceptionPhrases = setOf(
-            "主君",
-            "若君",
-            "暴君",
-            "君主",
-            "君王",
-            "君臣",
-            "君临"
+            Regex("""君[ィぃい]?|貴方|贵方|貴様|贵样""")
+        private val leakedKunAddressTrailingParticles = setOf(
+            '啊',
+            '呀',
+            '呢',
+            '吧',
+            '哦',
+            '喔',
+            '嘛',
+            '啦',
+            '呐',
+            '哪',
+            '哟'
         )
         private val explicitFemaleReferentMarkers = setOf(
             "彼女",
@@ -551,7 +555,7 @@ class Translator @Inject constructor(
                 .forTargetLocale(config)
         }
 
-        val rubyPolicyKey = if (preserveRubyMeaning) "ruby-meaning-v1" else ""
+        val rubyPolicyKey = if (preserveRubyMeaning) "ruby-angle-v2" else ""
         val hash = cacheKey(normalizedText, normalizedChoices, config, rubyPolicyKey)
 
         FgoLogger.debug(tag, "translate: textLen=${normalizedText.length}, choices=${normalizedChoices.size}")
@@ -2112,8 +2116,14 @@ class Translator @Inject constructor(
         playerName: String
     ): Boolean {
         if (!sourceContainsStandaloneAddressWord(sourceText, playerName)) return false
+        val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
         return leakedStandaloneAddressWordPattern.findAll(translatedText).any { match ->
-            isLeakedStandaloneAddressWord(translatedText, match.range, match.value)
+            isLeakedStandaloneAddressWord(
+                translatedText,
+                match.range,
+                match.value,
+                normalizedPlayerName
+            )
         }
     }
 
@@ -2136,15 +2146,18 @@ class Translator @Inject constructor(
     ): Boolean {
         val before = text.substring(0, range.first)
         if (playerName.isNotBlank() && before.endsWith(playerName)) return false
-        return text.getOrNull(range.first - 1)?.isNameHonorificBaseChar() != true
+        if (text.getOrNull(range.first - 1)?.isNameHonorificBaseChar() == true) return false
+        return text.getOrNull(range.last + 1)?.isNameHonorificBaseChar() != true
     }
 
     private fun isLeakedStandaloneAddressWord(
         text: String,
         range: IntRange,
-        value: String
+        value: String,
+        playerName: String
     ): Boolean {
-        return if (value == "君") {
+        if (isRangeInsideFragment(text, range, playerName)) return false
+        return if (value.startsWith("君")) {
             isLeakedStandaloneKunAddress(text, range)
         } else {
             true
@@ -2152,11 +2165,23 @@ class Translator @Inject constructor(
     }
 
     private fun isLeakedStandaloneKunAddress(text: String, range: IntRange): Boolean {
-        val windowStart = (range.first - 2).coerceAtLeast(0)
-        val windowEnd = (range.last + 3).coerceAtMost(text.length)
-        val window = text.substring(windowStart, windowEnd)
-        if (leakedKunAddressExceptionPhrases.any { it in window }) return false
-        return text.getOrNull(range.first - 1)?.isNameHonorificBaseChar() != true
+        if (text.getOrNull(range.first - 1)?.isNameHonorificBaseChar() == true) return false
+        val next = text.getOrNull(range.last + 1) ?: return true
+        return next.isNameHonorificBaseChar() != true ||
+            next in leakedKunAddressTrailingParticles
+    }
+
+    private fun isRangeInsideFragment(text: String, range: IntRange, fragment: String): Boolean {
+        if (fragment.isBlank()) return false
+        var searchStart = 0
+        while (searchStart <= text.length - fragment.length) {
+            val start = text.indexOf(fragment, startIndex = searchStart)
+            if (start < 0) return false
+            val endExclusive = start + fragment.length
+            if (range.first >= start && range.last < endExclusive) return true
+            searchStart = start + 1
+        }
+        return false
     }
 
     private fun Char.isNameHonorificBaseChar(): Boolean {
@@ -2616,7 +2641,7 @@ class Translator @Inject constructor(
                 reading.isBlank() -> base
                 isDuplicateReturnedRuby(base, reading) -> duplicateReturnedRubyText(base, reading)
                 reading.any { it in '\u3040'..'\u30ff' } -> base
-                else -> "$base（$reading）"
+                else -> match.value
             }
         }
         return returnedRubyParenPattern.replace(angleCleaned) { match ->
@@ -3886,8 +3911,8 @@ class Translator @Inject constructor(
             appendLine("- The source includes visible small ruby/furigana in base《ruby》 form.")
             appendLine("- Usually treat base and ruby as one annotated expression, but keep this flexible: ruby can be pronunciation, alias, joke, hidden meaning, spoken/intended wording, or a second layer of dialogue-like meaning.")
             appendLine("- Translate naturally in Chinese according to context. If ruby only gives pronunciation, omit it; if it changes or adds important nuance, reflect that meaning.")
-            appendLine("- Use a short Chinese parenthetical only when both base and ruby meanings matter and it still reads naturally. Do not mechanically output base（ruby）.")
-            appendLine("Example shape: 切り札《ジョーカー》 -> 王牌")
+            appendLine("- When both base and ruby meanings matter, output Chinese base《ruby meaning》. Do not use parentheses for ruby meaning.")
+            appendLine("Example shape: 徳用大景観《グランドチェンジ》 -> 德用大景观《Grand Change》")
         }
     }
 

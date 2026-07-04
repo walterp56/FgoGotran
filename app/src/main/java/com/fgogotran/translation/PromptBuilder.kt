@@ -112,9 +112,9 @@ class PromptBuilder @Inject constructor() {
         private val RUBY_PROMPT = """
             - Source may contain ruby/furigana in base《ruby》 form.
             - Omit pronunciation-only ruby.
-            - If ruby adds alias, joke, hidden meaning, English reading, or intended wording, reflect it naturally.
-            - Compact English is allowed when the ruby itself is English-style and it reads naturally in Chinese.
-            - Use a short Chinese parenthetical only when both base and ruby meanings matter. Do not mechanically output base《ruby》.
+            - If ruby adds alias, joke, hidden meaning, English reading, or intended wording, translate the base naturally and keep the extra ruby meaning in Chinese base《ruby meaning》 form.
+            - Compact English is allowed inside 《》 when the ruby itself is English-style and it reads naturally in Chinese.
+            - Do not use parentheses for ruby meaning; use 《》 only when both base and ruby meanings matter.
             """.trimIndent()
 
         private val MASK_PROMPT = """
