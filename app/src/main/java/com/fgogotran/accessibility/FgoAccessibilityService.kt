@@ -1343,7 +1343,12 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenHeight: Int
     ) {
         val detectedLines = regions.flatMap { it.lines }
-        val storyResult = storyDetector.detect(detectedLines, currentScreenWidth, currentScreenHeight)
+        val storyResult = storyDetector.detect(
+            lines = detectedLines,
+            screenWidth = currentScreenWidth,
+            screenHeight = currentScreenHeight,
+            viewport = FgoViewportLayout.viewportForScreen(currentScreenWidth, currentScreenHeight)
+        )
         FgoLogger.debug(tag, "$label story detection: ${storyResult.isStoryScene}, ${storyResult.reason}")
     }
 
@@ -1369,9 +1374,10 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         val storyResult = storyDetector.detect(
-            regions.flatMap { it.lines },
-            currentScreenWidth,
-            currentScreenHeight
+            lines = regions.flatMap { it.lines },
+            screenWidth = currentScreenWidth,
+            screenHeight = currentScreenHeight,
+            viewport = FgoViewportLayout.viewportForScreen(currentScreenWidth, currentScreenHeight)
         )
         if (!storyResult.isStoryScene) {
             FgoLogger.debug(tag, "Auto tap handoff rejected weak story OCR: ${storyResult.reason}")
@@ -2327,7 +2333,7 @@ class FgoAccessibilityService : AccessibilityService() {
             ?.takeIf { it.isNotBlank() }
         val name = renderedName ?: rawName
         val dialogue = dialogueInstruction
-            ?.let { overlayRenderer.renderedDialogueText(it, source.height) }
+            ?.let { overlayRenderer.renderedDialogueText(it, source.width, source.height) }
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         val choicePairs = choiceInstructions

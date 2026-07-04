@@ -54,11 +54,28 @@ object FgoViewportLayout {
         )
     }
 
+    fun viewportForScreen(screenWidth: Int, screenHeight: Int): Rect {
+        return calculateViewport(screenWidth, screenHeight).toRect()
+    }
+
+    fun viewportScaleForScreen(screenWidth: Int, screenHeight: Int): Float {
+        val viewport = calculateViewport(screenWidth, screenHeight)
+        return (viewport.height() / REFERENCE_HEIGHT).coerceIn(0.6f, 1.4f)
+    }
+
     private fun choiceSlot(top: Float, bottom: Float): RectF {
         return RectF(choiceSearchRegion.left, top, choiceSearchRegion.right, bottom)
     }
 
     private fun calculateViewport(screenWidth: Int, screenHeight: Int): RectF {
+        if (screenWidth <= 0 || screenHeight <= 0) {
+            return RectF(
+                0f,
+                0f,
+                screenWidth.coerceAtLeast(0).toFloat(),
+                screenHeight.coerceAtLeast(0).toFloat()
+            )
+        }
         val screenAspect = screenWidth.toFloat() / screenHeight.toFloat()
         return if (screenAspect >= REFERENCE_ASPECT) {
             val viewportWidth = screenHeight * REFERENCE_ASPECT

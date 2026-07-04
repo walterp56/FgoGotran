@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.overlayType
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -105,12 +106,15 @@ private class CropSelectionView(context: Context) : View(context) {
 
     fun setScreenSize(screenWidth: Int, screenHeight: Int) {
         if (screenWidth <= 0 || screenHeight <= 0) return
-        minWidth = (screenWidth * 0.16f).coerceAtLeast(180f)
-        minHeight = (screenHeight * 0.10f).coerceAtLeast(96f)
-        val defaultWidth = screenWidth * 0.58f
-        val defaultHeight = screenHeight * 0.20f
-        val left = (screenWidth - defaultWidth) / 2f
-        val top = screenHeight * 0.36f
+        val viewport = FgoViewportLayout.viewportForScreen(screenWidth, screenHeight)
+        val viewportWidth = viewport.width().takeIf { it > 0 } ?: screenWidth
+        val viewportHeight = viewport.height().takeIf { it > 0 } ?: screenHeight
+        minWidth = (viewportWidth * 0.16f).coerceAtLeast(180f)
+        minHeight = (viewportHeight * 0.10f).coerceAtLeast(96f)
+        val defaultWidth = viewportWidth * 0.58f
+        val defaultHeight = viewportHeight * 0.20f
+        val left = viewport.left + (viewportWidth - defaultWidth) / 2f
+        val top = viewport.top + viewportHeight * 0.36f
         cropRect.set(left, top, left + defaultWidth, top + defaultHeight)
         clampRect()
         invalidate()

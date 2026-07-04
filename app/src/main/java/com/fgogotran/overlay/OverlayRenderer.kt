@@ -161,7 +161,7 @@ class OverlayRenderer @Inject constructor(
         screenWidth: Int,
         screenHeight: Int
     ): List<Rect> {
-        val scale = screenScale(screenHeight)
+        val scale = screenScale(screenWidth, screenHeight)
         return instructions.mapNotNull { instruction ->
             if (instruction.region.region != TextRegion.CHOICE_BUTTON) return@mapNotNull null
             val box = fixedChoiceRenderBox(
@@ -182,6 +182,7 @@ class OverlayRenderer @Inject constructor(
 
     fun renderedDialogueText(
         instruction: RenderInstruction,
+        screenWidth: Int,
         screenHeight: Int
     ): String {
         if (instruction.region.region != TextRegion.DIALOGUE_BOX) {
@@ -193,7 +194,7 @@ class OverlayRenderer @Inject constructor(
             isSubpixelText = true
             isLinearText = true
         }
-        val scale = screenScale(screenHeight)
+        val scale = screenScale(screenWidth, screenHeight)
         return layoutDialogueText(instruction, historyPaint, scale)
             .lines
             .joinToString("\n")
@@ -910,10 +911,10 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun screenScale(canvas: Canvas): Float {
-        return screenScale(canvas.height)
+        return screenScale(canvas.width, canvas.height)
     }
 
-    private fun screenScale(screenHeight: Int): Float {
-        return (screenHeight / 1080f).coerceIn(0.6f, 1.4f)
+    private fun screenScale(screenWidth: Int, screenHeight: Int): Float {
+        return FgoViewportLayout.viewportScaleForScreen(screenWidth, screenHeight)
     }
 }

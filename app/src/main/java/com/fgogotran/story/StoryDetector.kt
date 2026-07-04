@@ -64,46 +64,59 @@ class StoryDetector @Inject constructor() {
      * Analyzes OCR lines to determine if the current screen is a story scene.
      *
      * @param lines OCR text lines with bounding boxes
-     * @param screenWidth screen width in pixels (for reference, not used in current heuristic)
+     * @param screenWidth screen width in pixels
      * @param screenHeight screen height in pixels
+     * @param viewport centered FGO 16:9 viewport inside the physical screen
      */
     fun detect(
         lines: List<OcrTextLine>,
         screenWidth: Int,
-        screenHeight: Int
+        screenHeight: Int,
+        viewport: Rect? = null
     ): StoryDetectionResult {
         if (lines.isEmpty()) {
             return StoryDetectionResult(false, 0f, "No text detected")
         }
 
-        // Dialogue zone is the bottom strip of the screen
-        val dialogueZoneTop = (screenHeight * (1f - DIALOGUE_ZONE_BOTTOM_RATIO)).toInt()
+        val fgoViewport = viewport
+            ?.takeIf { it.width() > 0 && it.height() > 0 }
+            ?: Rect(0, 0, screenWidth, screenHeight)
+        val viewportLines = lines.filter { line ->
+            Rect.intersects(line.boundingBox, fgoViewport)
+        }
+        if (viewportLines.isEmpty()) {
+            return StoryDetectionResult(false, 0f, "No text detected in FGO viewport")
+        }
+
+        // Dialogue zone is the bottom strip of FGO's centered 16:9 viewport.
+        val dialogueZoneTop = fgoViewport.top + (fgoViewport.height() * (1f - DIALOGUE_ZONE_BOTTOM_RATIO)).toInt()
 
         // Lines whose vertical center falls within the dialogue zone
-        val dialogueLines = lines.filter { line ->
+        val dialogueLines = viewportLines.filter { line ->
             line.boundingBox.centerY() >= dialogueZoneTop
         }
 
-        val concentrationRatio = dialogueLines.size.toFloat() / lines.size.toFloat()
+        val concentrationRatio = dialogueLines.size.toFloat() / viewportLines.size.toFloat()
 
         // Text lines in the middle of the screen (between 25% and dialogue zone top).
         // These could be choice buttons or non-story UI elements.
-        val middleZoneTop = (screenHeight * 0.25).toInt()
+        val middleZoneTop = fgoViewport.top + (fgoViewport.height() * 0.25f).toInt()
         val middleZoneBottom = dialogueZoneTop
-        val middleLines = lines.filter { line ->
+        val middleLines = viewportLines.filter { line ->
             val cy = line.boundingBox.centerY()
             cy in middleZoneTop..middleZoneBottom
         }
 
         // Name label: small text block in the top-left area just above the dialogue zone.
         // FGO places character names here (e.g., "マシュ・キリエライト").
-        val nameLabelCandidates = lines.filter { line ->
+        val nameBandHeight = (fgoViewport.height() * 0.095f).toInt().coerceAtLeast(60)
+        val nameLabelCandidates = viewportLines.filter { line ->
             val box = line.boundingBox
             val cy = box.centerY()
             val cx = box.centerX()
-            // Within 100px above dialogue zone, in the left 40% of screen, ≤10 chars
-            cy in (dialogueZoneTop - 100)..dialogueZoneTop &&
-            cx < screenWidth * 0.4f &&
+            // Above dialogue zone, in the left 40% of the FGO viewport, ≤10 chars
+            cy in (dialogueZoneTop - nameBandHeight)..dialogueZoneTop &&
+            cx < fgoViewport.left + fgoViewport.width() * 0.4f &&
             line.text.length <= 10
         }
 
@@ -127,10 +140,13 @@ class StoryDetector @Inject constructor() {
 
         val reason = buildString {
             append("dialogue_lines=${dialogueLines.size} ")
-            append("total_lines=${lines.size} ")
+            append("total_lines=${viewportLines.size} ")
             append("concentration=${"%.2f".format(concentrationRatio)} ")
             append("middle_lines=${middleLines.size} ")
             append("name_candidates=${nameLabelCandidates.size}")
+            if (viewport != null) {
+                append(" viewport=${fgoViewport.flattenToString()}")
+            }
         }
 
         FgoLogger.debug(tag, "detect: isStory=$isStory, conf=$confidence, $reason")
