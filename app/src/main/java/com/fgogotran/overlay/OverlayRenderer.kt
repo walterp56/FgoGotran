@@ -80,7 +80,7 @@ class OverlayRenderer @Inject constructor(
         private const val DIALOGUE_TEXT_RIGHT_INSET = 46f
         private const val DIALOGUE_TEXT_BOTTOM_INSET = 12f
         private const val BILINGUAL_DIALOGUE_TEXT_TOP_INSET = 24f
-        private const val BILINGUAL_DIALOGUE_TEXT_BOTTOM_INSET = 2f
+        private const val BILINGUAL_DIALOGUE_TEXT_BOTTOM_INSET = 0f
         private const val DYNAMIC_DIALOGUE_HORIZONTAL_PADDING = 34f
         private const val DYNAMIC_DIALOGUE_LEFT_PADDING = 14f
         private const val DYNAMIC_DIALOGUE_VERTICAL_PADDING = 18f
@@ -96,8 +96,8 @@ class OverlayRenderer @Inject constructor(
         private const val BILINGUAL_TRANSLATION_TEXT_SIZE = 53f
         private const val BILINGUAL_TRANSLATION_MIN_TEXT_SIZE = 24f
         private const val BILINGUAL_CHOICE_TEXT_SIZE = 53f
-        private const val BILINGUAL_CHOICE_MIN_TEXT_SIZE = 26f
-        private const val BILINGUAL_ORIGINAL_MAX_TEXT_SIZE = 30f
+        private const val BILINGUAL_CHOICE_MIN_TEXT_SIZE = 24f
+        private const val BILINGUAL_ORIGINAL_MAX_TEXT_SIZE = 31f
         private const val BILINGUAL_ORIGINAL_MIN_TEXT_SIZE = 14f
         private const val DIALOGUE_MIN_TEXT_SIZE = 28f
         private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f

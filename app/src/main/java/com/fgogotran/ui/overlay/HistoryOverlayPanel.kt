@@ -40,10 +40,14 @@ import com.fgogotran.translation.SessionTranslationHistory
 import kotlin.math.roundToInt
 
 private val FGO_CHOICE_HISTORY_RED = AndroidColor.rgb(246, 58, 60)
+private val HISTORY_ORIGINAL_TEXT_COLOR = AndroidColor.rgb(80, 235, 235)
 private const val HISTORY_TEXT_SIZE_SP = 18f
+private const val HISTORY_ORIGINAL_TEXT_SIZE_SP = 14f
 private const val HISTORY_LINE_SPACING_EXTRA_DP = 2
 private const val HISTORY_LINE_SPACING_MULTIPLIER = 1.08f
 private const val HISTORY_TEXT_BOTTOM_MARGIN_DP = 3
+private const val HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_DP = 1
+private const val HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP = 6
 private const val HISTORY_SPEAKER_BOTTOM_MARGIN_DP = 6
 private const val HISTORY_DIALOGUE_BOTTOM_MARGIN_DP = 4
 
@@ -170,15 +174,29 @@ private fun addHistoryEntryViews(
         )
     }
     entry.dialogueText?.takeIf { it.isNotBlank() }?.let {
-        if (speakerName != null) {
-            container.addView(
-                historySpeakerDialogueView(
-                    context = container.context,
-                    text = it,
-                    color = entry.dialogueTextColor ?: AndroidColor.WHITE,
-                    typeface = typeface
+        val originalDialogue = entry.originalDialogueText?.trim()?.takeIf { original -> original.isNotBlank() }
+        if (speakerName != null || originalDialogue != null) {
+            if (speakerName != null) {
+                container.addView(
+                    historySpeakerDialogueView(
+                        context = container.context,
+                        text = it,
+                        originalText = originalDialogue,
+                        color = entry.dialogueTextColor ?: AndroidColor.WHITE,
+                        typeface = typeface
+                    )
                 )
-            )
+            } else if (originalDialogue != null) {
+                container.addView(
+                    historyBilingualLinesView(
+                        context = container.context,
+                        translationText = it,
+                        originalText = originalDialogue,
+                        translationColor = entry.dialogueTextColor ?: AndroidColor.WHITE,
+                        typeface = typeface
+                    )
+                )
+            }
         } else {
             container.addView(
                 historyTextView(
@@ -192,26 +210,47 @@ private fun addHistoryEntryViews(
     }
     entry.choices.forEachIndexed { index, choice ->
         if (choice.isBlank()) return@forEachIndexed
+        val originalChoice = entry.originalChoices
+            .getOrNull(index)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
         container.addView(
             historyTextView(
                 context = container.context,
-                text = "$choice\n",
+                text = if (originalChoice == null) "$choice\n" else choice,
                 color = FGO_CHOICE_HISTORY_RED,
                 gravity = Gravity.CENTER,
-                typeface = typeface
+                typeface = typeface,
+                bottomMarginDp = if (originalChoice == null) {
+                    HISTORY_TEXT_BOTTOM_MARGIN_DP
+                } else {
+                    HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_DP
+                }
             )
         )
+        originalChoice?.let { original ->
+            container.addView(
+                historyOriginalTextView(
+                    context = container.context,
+                    text = original,
+                    gravity = Gravity.CENTER,
+                    typeface = typeface
+                )
+            )
+        }
     }
 }
 
 private fun historySpeakerDialogueView(
     context: Context,
     text: String,
+    originalText: String?,
     typeface: Typeface,
     color: Int
 ): LinearLayout {
     val quoteWidth = historyQuoteIndentPx(context, typeface)
     val bodyText = quoteSpeakerDialogueBody(text)
+    val originalBodyText = originalText?.trim()?.takeIf { it.isNotBlank() }
     return LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         isBaselineAligned = true
@@ -235,19 +274,120 @@ private fun historySpeakerDialogueView(
             }
         )
         addView(
-            historyTextView(
-                context = context,
-                text = quoteSpeakerDialogueClosing(bodyText),
-                color = color,
-                typeface = typeface
-            ).apply {
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1f
                 )
+                if (originalBodyText == null) {
+                    addView(
+                        historyTextView(
+                            context = context,
+                            text = quoteSpeakerDialogueClosing(bodyText),
+                            color = color,
+                            typeface = typeface
+                        )
+                    )
+                } else {
+                    addHistoryBilingualLinePairs(
+                        container = this,
+                        context = context,
+                        translationLines = historyDisplayLines(bodyText)
+                            .withClosingQuoteOnLastLine(),
+                        originalLines = historyDisplayLines(originalBodyText),
+                        translationColor = color,
+                        typeface = typeface
+                    )
+                }
             }
         )
+    }
+}
+
+private fun historyBilingualLinesView(
+    context: Context,
+    translationText: String,
+    originalText: String,
+    translationColor: Int,
+    typeface: Typeface
+): LinearLayout {
+    return LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            bottomMargin = dp(context, HISTORY_DIALOGUE_BOTTOM_MARGIN_DP)
+        }
+        addHistoryBilingualLinePairs(
+            container = this,
+            context = context,
+            translationLines = historyDisplayLines(translationText),
+            originalLines = historyDisplayLines(originalText),
+            translationColor = translationColor,
+            typeface = typeface
+        )
+    }
+}
+
+private fun addHistoryBilingualLinePairs(
+    container: LinearLayout,
+    context: Context,
+    translationLines: List<CharSequence>,
+    originalLines: List<String>,
+    translationColor: Int,
+    typeface: Typeface
+) {
+    val pairCount = maxOf(translationLines.size, originalLines.size)
+    repeat(pairCount) { index ->
+        val hasOriginal = index < originalLines.size
+        if (index < translationLines.size) {
+            container.addView(
+                historyTextView(
+                    context = context,
+                    text = translationLines[index],
+                    color = translationColor,
+                    typeface = typeface,
+                    bottomMarginDp = if (hasOriginal) {
+                        HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_DP
+                    } else {
+                        HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP
+                    }
+                )
+            )
+        }
+        if (hasOriginal) {
+            container.addView(
+                historyOriginalTextView(
+                    context = context,
+                    text = originalLines[index],
+                    typeface = typeface,
+                    bottomMarginDp = if (index == pairCount - 1) {
+                        0
+                    } else {
+                        HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP
+                    }
+                )
+            )
+        }
+    }
+}
+
+private fun historyDisplayLines(text: String): List<String> {
+    return text
+        .replace("\r\n", "\n")
+        .replace('\r', '\n')
+        .lines()
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .ifEmpty { listOf(text.trim()) }
+}
+
+private fun List<String>.withClosingQuoteOnLastLine(): List<CharSequence> {
+    return mapIndexed { index, line ->
+        if (index == lastIndex) quoteSpeakerDialogueClosing(line) else line
     }
 }
 
@@ -290,12 +430,13 @@ private fun historyTextView(
     typeface: Typeface,
     color: Int = AndroidColor.WHITE,
     gravity: Int = Gravity.START,
+    textSizeSp: Float = HISTORY_TEXT_SIZE_SP,
     bottomMarginDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_DP
 ): TextView {
     return TextView(context).apply {
         this.text = text
         setTextColor(color)
-        textSize = HISTORY_TEXT_SIZE_SP
+        textSize = textSizeSp
         this.typeface = typeface
         paint.isFakeBoldText = false
         paint.isSubpixelText = true
@@ -310,6 +451,24 @@ private fun historyTextView(
             bottomMargin = dp(context, bottomMarginDp)
         }
     }
+}
+
+private fun historyOriginalTextView(
+    context: Context,
+    text: String,
+    typeface: Typeface,
+    gravity: Int = Gravity.START,
+    bottomMarginDp: Int = HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP
+): TextView {
+    return historyTextView(
+        context = context,
+        text = text,
+        color = HISTORY_ORIGINAL_TEXT_COLOR,
+        gravity = gravity,
+        typeface = typeface,
+        textSizeSp = HISTORY_ORIGINAL_TEXT_SIZE_SP,
+        bottomMarginDp = bottomMarginDp
+    )
 }
 
 private fun spacerView(context: Context, heightDp: Int): View {

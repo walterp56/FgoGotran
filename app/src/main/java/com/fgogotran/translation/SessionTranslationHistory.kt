@@ -9,7 +9,9 @@ import kotlinx.coroutines.flow.asStateFlow
 data class SessionTranslationEntry(
     val speakerName: String? = null,
     val dialogueText: String? = null,
+    val originalDialogueText: String? = null,
     val choices: List<String> = emptyList(),
+    val originalChoices: List<String?> = emptyList(),
     val speakerNameColor: Int? = null,
     val dialogueTextColor: Int? = null,
     val choiceColors: List<Int?> = emptyList(),
@@ -63,7 +65,9 @@ object SessionTranslationHistory {
         return listOf(
             speakerName.orEmpty(),
             dialogueText.orEmpty(),
-            choices.joinToString("\n")
+            originalDialogueText.orEmpty(),
+            choices.joinToString("\n"),
+            originalChoices.joinToString("\n") { it.orEmpty() }
         )
             .joinToString("\n")
             .normalizeHistoryText()
@@ -118,6 +122,7 @@ object SessionTranslationHistory {
         return copy(
             speakerName = null,
             dialogueText = null,
+            originalDialogueText = null,
             speakerNameColor = null,
             dialogueTextColor = null
         )
@@ -126,7 +131,8 @@ object SessionTranslationHistory {
     private fun SessionTranslationEntry.dialogueKey(): String {
         return listOf(
             speakerName.orEmpty(),
-            dialogueText.orEmpty()
+            dialogueText.orEmpty(),
+            originalDialogueText.orEmpty()
         )
             .joinToString("\n")
             .normalizeHistoryText()

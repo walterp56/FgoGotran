@@ -1707,15 +1707,10 @@ class FgoAccessibilityService : AccessibilityService() {
                 ?: return@mapNotNull null
             val showOriginalForRegion = showOriginalGameText &&
                 regionAndText.region.region in setOf(TextRegion.DIALOGUE_BOX, TextRegion.CHOICE_BUTTON)
-            val renderSourceText = when {
-                showOriginalForRegion && regionAndText.region.region == TextRegion.DIALOGUE_BOX ->
-                    sourceTextForOriginalDisplay(regionAndText.region).ifBlank { regionAndText.text }
-                else -> regionAndText.text
-            }
             RenderInstruction(
                 region = regionAndText.region,
                 translatedText = translatedText,
-                sourceText = renderSourceText,
+                sourceText = regionAndText.text,
                 textColor = renderTextColorForRegion(source, regionAndText.region),
                 wideTextSpacing = shouldUseWideRenderSpacing(
                     sourceText = regionAndText.text,
@@ -1893,34 +1888,6 @@ class FgoAccessibilityService : AccessibilityService() {
             TextRegion.DIALOGUE_BOX,
             TextRegion.CHOICE_BUTTON -> correctOcrSourceText(rawText, region.region.name)
         }
-    }
-
-    private fun sourceTextForOriginalDisplay(region: ClassifiedRegion): String {
-        if (region.region != TextRegion.DIALOGUE_BOX) return sourceTextFor(region)
-
-        val cleanedLines = cleanRubyNoiseLines(region.lines)
-            .filter { it.text.isNotBlank() }
-            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-        if (cleanedLines.size < 2) {
-            return correctOcrSourceText(
-                cleanedLines.joinToString("\n") { it.text }.trim(),
-                "DIALOGUE_BOX_ORIGINAL_DISPLAY"
-            )
-        }
-
-        val heights = cleanedLines.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
-        val medianHeight = heights[heights.size / 2]
-        val rubyLines = cleanedLines.filter { line ->
-            isLikelyRubyLine(line, medianHeight, RubyDetectionMode.STRICT)
-        }.toSet()
-        val mainLines = cleanedLines
-            .filterNot { it in rubyLines }
-            .ifEmpty { cleanedLines }
-
-        return correctOcrSourceText(
-            mainLines.joinToString("\n") { it.text }.trim(),
-            "DIALOGUE_BOX_ORIGINAL_DISPLAY"
-        )
     }
 
     private fun correctOcrSourceText(sourceText: String, label: String): String {
@@ -2383,10 +2350,14 @@ class FgoAccessibilityService : AccessibilityService() {
             ?.let { overlayRenderer.renderedDialogueText(it, source.width, source.height) }
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-        val choicePairs = choiceInstructions
-            .map { it.translatedText.trim() }
-            .zip(choiceInstructions.map { it.textColor })
-            .filter { it.first.isNotBlank() }
+        val originalDialogue = dialogueInstruction?.historyOriginalText()
+        val choiceEntries = choiceInstructions.mapNotNull { instruction ->
+            val translated = instruction.translatedText
+                .trim()
+                .takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            Triple(translated, instruction.historyOriginalText(), instruction.textColor)
+        }
         val targetLocale = listOfNotNull(
             nameInstruction?.targetLocale,
             dialogueInstruction?.targetLocale
@@ -2395,24 +2366,31 @@ class FgoAccessibilityService : AccessibilityService() {
             .firstOrNull { it == SettingsRepository.TARGET_LOCALE_TRADITIONAL }
             ?: SettingsRepository.TARGET_LOCALE_SIMPLIFIED
         val dialogueSourceKey = sceneSource.historyDialogueSourceKey()
-        val entrySourceKey = sceneSource.historySourceKey(hasChoices = choicePairs.isNotEmpty())
+        val entrySourceKey = sceneSource.historySourceKey(hasChoices = choiceEntries.isNotEmpty())
 
-        if (name != null || dialogue != null || choicePairs.isNotEmpty()) {
+        if (name != null || dialogue != null || choiceEntries.isNotEmpty()) {
             SessionTranslationHistory.add(
                 SessionTranslationEntry(
                     speakerName = name,
                     dialogueText = dialogue,
-                    choices = choicePairs.map { it.first },
+                    originalDialogueText = originalDialogue,
+                    choices = choiceEntries.map { it.first },
+                    originalChoices = choiceEntries.map { it.second },
                     speakerNameColor = nameInstruction?.textColor
                         ?: rawNameRegion?.let { sampleOriginalTextColor(source, it.region) },
                     dialogueTextColor = dialogueInstruction?.textColor,
-                    choiceColors = choicePairs.map { it.second },
+                    choiceColors = choiceEntries.map { it.third },
                     targetLocale = targetLocale,
                     sourceKey = entrySourceKey,
                     dialogueSourceKey = dialogueSourceKey
                 )
             )
         }
+    }
+
+    private fun RenderInstruction.historyOriginalText(): String? {
+        if (!showOriginalText) return null
+        return sourceText.trim().takeIf { it.isNotBlank() }
     }
 
     private fun SceneSource.historyDialogueSourceKey(): String {
