@@ -10,7 +10,7 @@ const downloadOptions = [
   {
     title: "OneDrive 下载",
     subtitle: "APK 下载",
-    href: "https://1drv.ms/f/c/9e1fdb13e6d5d039/IgDO_uKE7yZWT6cPSy-v_LlnAWsdfRyZLdRqomIxrtI_pQ0?e=2pAud0",
+    href: "https://1drv.ms/f/c/9e1fdb13e6d5d039/IgDO_uKE7yZWT6cPSy-v_LlnAW4zG9Wv51mwltpuVAVI9HI?e=uEzfCt",
     iconSrc: "/download-icons/onedrive.svg",
     iconAlt: "OneDrive",
     accentColor: "#0078d4",
