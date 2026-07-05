@@ -30,7 +30,9 @@ data class AppVersionStatus(
 
 data class AppVersionInfo(
     val versionName: String,
-    val versionCode: Long
+    val versionCode: Long,
+    val releaseDate: String = "",
+    val changelog: List<String> = emptyList()
 )
 
 sealed class AppVersionCheckResult {
@@ -91,7 +93,12 @@ class AppVersionManager @Inject constructor(
             )
 
             if (manifest.versionCode > currentVersionCode()) {
-                val info = AppVersionInfo(manifest.versionName, manifest.versionCode.toLong())
+                val info = AppVersionInfo(
+                    versionName = manifest.versionName,
+                    versionCode = manifest.versionCode.toLong(),
+                    releaseDate = manifest.releaseDate,
+                    changelog = manifest.changelog
+                )
                 _status.value = AppVersionStatus(
                     message = "发现新版本 ${info.versionName}",
                     detail = "当前版本 ${currentVersionName()}"

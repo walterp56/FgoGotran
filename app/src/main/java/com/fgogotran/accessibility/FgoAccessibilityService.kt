@@ -118,6 +118,9 @@ class FgoAccessibilityService : AccessibilityService() {
     private var overlayButtonTouchCancelled = false
     private var overlayButtonDownX = 0f
     private var overlayButtonDownY = 0f
+    private var overlayButtonLastX = 0f
+    private var overlayButtonLastY = 0f
+    private var overlayButtonDragging = false
     private var overlayButtonLongPressJob: Job? = null
     private var currentPlayerName = ""
     private var showOriginalGameText = false
@@ -271,9 +274,11 @@ class FgoAccessibilityService : AccessibilityService() {
             onOverlayTap = { x, y -> handleTranslatedOverlayTap(x, y) },
             onOverlayTouch = { event -> handleTranslatedOverlayTouch(event) }
         )
-        cropResultOverlay.init(this) { x, y ->
-            handleCropResultTap(x, y)
-        }
+        cropResultOverlay.init(
+            serviceContext = this,
+            onTap = { x, y -> handleCropResultTap(x, y) },
+            onTouch = { event -> handleCropResultOverlayTouch(event) }
+        )
         restoreLastTranslationMode()
         watchPlayerName()
         watchOriginalTextDisplay()
@@ -3394,24 +3399,39 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun handleTranslatedOverlayTouch(event: MotionEvent): Boolean {
+        return handleRenderedOverlayButtonTouch(event) {
+            translationOverlay.hide()
+        }
+    }
+
+    private fun handleCropResultOverlayTouch(event: MotionEvent): Boolean {
+        return handleRenderedOverlayButtonTouch(event) {
+            cropResultOverlay.hide()
+        }
+    }
+
+    private fun handleRenderedOverlayButtonTouch(
+        event: MotionEvent,
+        hideInterceptingOverlay: () -> Unit
+    ): Boolean {
         val x = event.rawX
         val y = event.rawY
         return when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 if (!runnerOverlay.isPointInsideButton(x, y)) {
-                    overlayButtonLongPressJob?.cancel()
-                    overlayButtonLongPressJob = null
-                    overlayButtonTouchActive = false
-                    overlayButtonLongPressHandled = false
-                    overlayButtonTouchCancelled = false
+                    resetOverlayButtonTouch()
                     false
                 } else {
+                    overlayButtonLongPressJob?.cancel()
+                    overlayButtonLongPressJob = null
                     overlayButtonTouchActive = true
                     overlayButtonLongPressHandled = false
                     overlayButtonTouchCancelled = false
+                    overlayButtonDragging = false
                     overlayButtonDownX = x
                     overlayButtonDownY = y
-                    overlayButtonLongPressJob?.cancel()
+                    overlayButtonLastX = x
+                    overlayButtonLastY = y
                     overlayButtonLongPressJob = serviceScope.launch {
                         delay(OVERLAY_BUTTON_LONG_PRESS_TIMEOUT)
                         if (overlayButtonTouchActive &&
@@ -3419,7 +3439,7 @@ class FgoAccessibilityService : AccessibilityService() {
                             !overlayButtonTouchCancelled
                         ) {
                             overlayButtonLongPressHandled = true
-                            translationOverlay.hide()
+                            hideInterceptingOverlay()
                             runnerOverlay.handleInterceptedButtonLongPress()
                         }
                     }
@@ -3434,10 +3454,28 @@ class FgoAccessibilityService : AccessibilityService() {
                     val dx = x - overlayButtonDownX
                     val dy = y - overlayButtonDownY
                     val slop = OVERLAY_BUTTON_TOUCH_SLOP * resources.displayMetrics.density
-                    if (dx * dx + dy * dy > slop * slop) {
+                    if (!overlayButtonDragging && dx * dx + dy * dy > slop * slop) {
                         overlayButtonLongPressJob?.cancel()
                         overlayButtonLongPressJob = null
                         overlayButtonTouchCancelled = true
+                        overlayButtonDragging = true
+                        if (runnerOverlay.handleInterceptedButtonDrag(dx, dy)) {
+                            overlayButtonLastX = x
+                            overlayButtonLastY = y
+                        } else {
+                            resetOverlayButtonTouch()
+                        }
+                    } else if (overlayButtonDragging) {
+                        val dragDx = x - overlayButtonLastX
+                        val dragDy = y - overlayButtonLastY
+                        if (dragDx != 0f || dragDy != 0f) {
+                            if (runnerOverlay.handleInterceptedButtonDrag(dragDx, dragDy)) {
+                                overlayButtonLastX = x
+                                overlayButtonLastY = y
+                            } else {
+                                resetOverlayButtonTouch()
+                            }
+                        }
                     }
                     true
                 }
@@ -3449,11 +3487,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 } else {
                     val wasLongPress = overlayButtonLongPressHandled
                     val wasCancelled = overlayButtonTouchCancelled
-                    overlayButtonLongPressJob?.cancel()
-                    overlayButtonLongPressJob = null
-                    overlayButtonTouchActive = false
-                    overlayButtonLongPressHandled = false
-                    overlayButtonTouchCancelled = false
+                    resetOverlayButtonTouch()
                     if (!wasLongPress && !wasCancelled) {
                         runnerOverlay.handleInterceptedButtonTap(x, y)
                     }
@@ -3465,17 +3499,22 @@ class FgoAccessibilityService : AccessibilityService() {
                 if (!overlayButtonTouchActive) {
                     false
                 } else {
-                    overlayButtonLongPressJob?.cancel()
-                    overlayButtonLongPressJob = null
-                    overlayButtonTouchActive = false
-                    overlayButtonLongPressHandled = false
-                    overlayButtonTouchCancelled = false
+                    resetOverlayButtonTouch()
                     true
                 }
             }
 
             else -> overlayButtonTouchActive
         }
+    }
+
+    private fun resetOverlayButtonTouch() {
+        overlayButtonLongPressJob?.cancel()
+        overlayButtonLongPressJob = null
+        overlayButtonTouchActive = false
+        overlayButtonLongPressHandled = false
+        overlayButtonTouchCancelled = false
+        overlayButtonDragging = false
     }
 
     private suspend fun pollNextCompletedDialogueAfterTap(

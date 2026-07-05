@@ -22,6 +22,7 @@ import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.crop.CropModeState
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
@@ -303,6 +304,12 @@ class FgoRunnerOverlay @Inject constructor(
         return true
     }
 
+    fun handleInterceptedButtonDrag(dx: Float, dy: Float): Boolean {
+        if (!shown || windowManager == null || composeHost?.view == null) return false
+        onDrag(dx, dy)
+        return true
+    }
+
     fun isPointInsideButton(rawX: Float, rawY: Float): Boolean {
         if (!shown) return false
         val view = composeHost?.view ?: return false
@@ -503,6 +510,7 @@ class FgoRunnerOverlay @Inject constructor(
         val menuHost = FakeComposeHost(context) {
             FloatingMenu(
                 translationMode = TranslationTrigger.translationMode(),
+                viewportScale = currentViewportScale(),
                 onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {
@@ -544,6 +552,12 @@ class FgoRunnerOverlay @Inject constructor(
         dialog.show()
 
         return dialog
+    }
+
+    private fun currentViewportScale(): Float {
+        val bounds = windowManager?.currentWindowMetrics?.bounds
+            ?: return 1f
+        return FgoViewportLayout.viewportScaleForScreen(bounds.width(), bounds.height())
     }
 
     private fun dismissMenu() {

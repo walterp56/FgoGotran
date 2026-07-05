@@ -209,7 +209,11 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            SettingsCard(title = "翻译接口") {
+            SettingsCard(
+                number = "1",
+                title = "翻译接口",
+                body = "选择翻译服务和模型；API Key 等敏感信息在接口管理里维护。"
+            ) {
                 SettingsInfoRow(
                     label = "服务商",
                     valueContent = {
@@ -233,7 +237,11 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsCard(title = "御主名称") {
+            SettingsCard(
+                number = "2",
+                title = "御主名称",
+                body = "让翻译在遇到玩家名字和御主称呼时更稳定。"
+            ) {
                 Text(
                     "用于翻译对话里的御主称呼。",
                     style = MaterialTheme.typography.bodySmall,
@@ -269,7 +277,11 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsCard(title = "悬浮按钮") {
+            SettingsCard(
+                number = "3",
+                title = "悬浮按钮",
+                body = "调整游戏内悬浮按钮的大小，图标和文字会一起跟随变化。"
+            ) {
                 SettingsInfoRow(
                     label = "大小",
                     value = floatingButtonSizeLabel(floatingButtonSizeDp)
@@ -309,7 +321,11 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsCard(title = "翻译显示") {
+            SettingsCard(
+                number = "4",
+                title = "翻译显示",
+                body = "控制译文在游戏画面中的显示方式。"
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -317,7 +333,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "同時显示日文文本",
+                            "同时显示日文原文",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -333,67 +349,64 @@ fun SettingsScreen(
                 }
             }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            SettingsCard(
+                number = "5",
+                title = "翻译缓存",
+                body = "相同原文可直接使用上次翻译，速度更快；遇到旧译文时可以清除缓存。"
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("翻译缓存", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "相同原文可直接使用上次翻译，速度更快。",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
+                    Text(
+                        "启用缓存",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = cacheEnabled,
+                        onCheckedChange = {
+                            cacheEnabled = it
+                            scope.launch { settingsRepository.setCacheEnabled(it) }
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Switch(
-                            checked = cacheEnabled,
-                            onCheckedChange = {
-                                cacheEnabled = it
-                                scope.launch { settingsRepository.setCacheEnabled(it) }
-                            }
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (cacheClearMessage.isNotBlank()) {
+                        Text(
+                            cacheClearMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
+                        Spacer(modifier = Modifier.width(12.dp))
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
+                    OutlinedButton(
+                        onClick = { clearTranslationCache() },
+                        enabled = !clearingCache
                     ) {
-                        if (cacheClearMessage.isNotBlank()) {
-                            Text(
-                                cacheClearMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        if (clearingCache) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
-                        OutlinedButton(
-                            onClick = { clearTranslationCache() },
-                            enabled = !clearingCache
-                        ) {
-                            if (clearingCache) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-                            Text(if (clearingCache) "清除中" else "清除缓存")
-                        }
+                        Text(if (clearingCache) "清除中" else "清除缓存")
                     }
                 }
             }
 
-            SettingsCard(title = "维护") {
+            SettingsCard(
+                number = "6",
+                title = "维护",
+                body = "检查术语库和应用版本。"
+            ) {
                 Text("术语库", style = MaterialTheme.typography.titleSmall)
                 SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "等待自动更新" })
                 SettingsInfoRow(
@@ -501,7 +514,9 @@ private fun floatingButtonSizeLabel(sizeDp: Int): String {
 
 @Composable
 private fun SettingsCard(
+    number: String,
     title: String,
+    body: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
@@ -512,9 +527,35 @@ private fun SettingsCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SettingsStepBadge(number)
+                Text(title, style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                body,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+            )
             content()
         }
+    }
+}
+
+@Composable
+private fun SettingsStepBadge(number: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+        shape = MaterialTheme.shapes.small
+    ) {
+        Text(
+            number,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 

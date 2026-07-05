@@ -25,15 +25,18 @@ class CropResultOverlay @Inject constructor(
     private var imageView: ImageView? = null
     private var latestBitmap: Bitmap? = null
     private var onTap: ((Float, Float) -> Unit)? = null
+    private var onTouch: ((MotionEvent) -> Boolean)? = null
     private val tag = "CropResultOverlay"
 
     fun init(
         serviceContext: Context,
-        onTap: (Float, Float) -> Unit
+        onTap: (Float, Float) -> Unit,
+        onTouch: ((MotionEvent) -> Boolean)? = null
     ) {
         overlayContext = serviceContext
         windowManager = serviceContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         this.onTap = onTap
+        this.onTouch = onTouch
         FgoLogger.info(tag, "Crop result overlay initialized")
     }
 
@@ -53,7 +56,10 @@ class CropResultOverlay @Inject constructor(
 
         val newRoot = FrameLayout(overlayContext).apply {
             setOnTouchListener { _, event ->
-                if (event.action == MotionEvent.ACTION_UP) {
+                if (onTouch?.invoke(event) == true) {
+                    return@setOnTouchListener true
+                }
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
                     onTap?.invoke(event.rawX, event.rawY)
                 }
                 true
@@ -92,6 +98,7 @@ class CropResultOverlay @Inject constructor(
         windowManager = null
         overlayContext = appContext
         onTap = null
+        onTouch = null
     }
 
     private fun replaceBitmap(view: ImageView, bitmap: Bitmap) {

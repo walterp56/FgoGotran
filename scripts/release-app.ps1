@@ -75,6 +75,27 @@ function Get-RelativeUrlPath {
     return $Uri.AbsolutePath.TrimStart("/")
 }
 
+function Normalize-Changelog {
+    param([string[]]$Items)
+
+    $Normalized = @()
+    foreach ($Item in $Items) {
+        if (-not [string]::IsNullOrWhiteSpace($Item)) {
+            foreach ($Part in ($Item -split '\s*,\s*')) {
+                $Trimmed = $Part.Trim()
+                if ($Trimmed) {
+                    $Normalized += $Trimmed
+                }
+            }
+        }
+    }
+
+    if ($Normalized.Count -eq 0) {
+        return @("Signed release APK")
+    }
+    return $Normalized
+}
+
 function Publish-AppRelease {
     param([string]$OutputRoot)
 
@@ -172,10 +193,8 @@ if ($ReleaseSlug) {
 if ($ApkName) {
     $Args += @("--apk-name", $ApkName)
 }
-foreach ($Item in $Changelog) {
-    if ($Item) {
-        $Args += @("--changelog", $Item)
-    }
+foreach ($Item in (Normalize-Changelog $Changelog)) {
+    $Args += @("--changelog", $Item)
 }
 
 Push-Location $RepoRoot

@@ -10,7 +10,7 @@ const downloadOptions = [
   {
     title: "OneDrive 下载",
     subtitle: "APK 下载",
-    href: "https://1drv.ms/u/c/9e1fdb13e6d5d039/IQBYF80G6VTXSIBfnk5mCAu4AfRGT1y9RkIeayRdZoG4NzE?e=gID2Rn",
+    href: "https://1drv.ms/f/c/9e1fdb13e6d5d039/IgDO_uKE7yZWT6cPSy-v_LlnAWsdfRyZLdRqomIxrtI_pQ0?e=2pAud0",
     iconSrc: "/download-icons/onedrive.svg",
     iconAlt: "OneDrive",
     accentColor: "#0078d4",
@@ -27,7 +27,7 @@ const downloadOptions = [
   }
 ];
 
-const currentAppVersion = "v1.0.1";
+const currentAppVersion = "v1.0.2";
 
 export default function DownloadPage() {
   return (
@@ -47,7 +47,7 @@ export default function DownloadPage() {
           <div className="download-facts" aria-label="下载说明">
             <span>当前版本：{currentAppVersion}</span>
             <span>支持 Android 11+</span>
-            <span>APK 大小：58.67 MB</span>
+            <span>APK 大小：58.69 MB</span>
             <span>需要自备翻译 API Key</span>
           </div>
           <div className="download-reminder" role="note">
