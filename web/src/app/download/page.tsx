@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { CSSProperties } from "react";
 import { siteConfig } from "@/data/site";
 
@@ -43,7 +44,13 @@ export default function DownloadPage() {
       <section className="section section-band compact">
         <div className="download-intro">
           <h2>FgoGotran Android APK {currentAppVersion}</h2>
-          <p>请选择一个可用下载源。OneDrive 与 GitHub Releases 会提供相同 APK。</p>
+          <p>
+            具体的更新内容请查看{" "}
+            <Link className="download-update-link" href="/changelog">
+              更新记录
+            </Link>
+            。
+          </p>
           <div className="download-facts" aria-label="下载说明">
             <span>当前版本：{currentAppVersion}</span>
             <span>支持 Android 11+</span>

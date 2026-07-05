@@ -546,6 +546,17 @@ dd {
   font-size: 17px;
 }
 
+.download-update-link {
+  color: var(--brand);
+  font-weight: 760;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.download-update-link:hover {
+  color: var(--brand-strong);
+}
+
 .download-facts {
   display: flex;
   gap: 12px;

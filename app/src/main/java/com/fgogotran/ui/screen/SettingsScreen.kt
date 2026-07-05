@@ -91,7 +91,6 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
-    val currentVersionCode = remember(appVersionManager) { appVersionManager.currentVersionCode() }
 
     var playerName by remember { mutableStateOf("") }
     var playerNameSaveMessage by remember { mutableStateOf("") }
@@ -448,7 +447,7 @@ fun SettingsScreen(
                 Text("应用版本", style = MaterialTheme.typography.titleSmall)
                 SettingsInfoRow(
                     label = "当前版本",
-                    value = "$currentVersionName ($currentVersionCode)",
+                    value = currentVersionName,
                     modifier = Modifier.clickable { handleVersionRowTap() }
                 )
                 DebugLogNotice(
