@@ -14,6 +14,9 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://fgogotran.com
 
     steps:
       - uses: actions/checkout@v4
