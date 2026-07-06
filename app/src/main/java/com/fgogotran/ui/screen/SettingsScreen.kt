@@ -211,7 +211,7 @@ fun SettingsScreen(
             SettingsCard(
                 number = "1",
                 title = "翻译接口",
-                body = "选择翻译服务和模型；API Key 等敏感信息在接口管理里维护。"
+                body = ""
             ) {
                 SettingsInfoRow(
                     label = "服务商",
@@ -239,13 +239,13 @@ fun SettingsScreen(
             SettingsCard(
                 number = "2",
                 title = "御主名称",
-                body = "让翻译在遇到玩家名字和御主称呼时更稳定。"
+                body = ""
             ) {
-                Text(
-                    "用于翻译对话里的御主称呼。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
+//                Text(
+//                    "用于翻译对话里的御主称呼。",
+//                    style = MaterialTheme.typography.bodySmall,
+//                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+//                )
                 OutlinedTextField(
                     value = playerName,
                     onValueChange = {
@@ -279,11 +279,22 @@ fun SettingsScreen(
             SettingsCard(
                 number = "3",
                 title = "悬浮按钮",
-                body = "调整游戏内悬浮按钮的大小，图标和文字会一起跟随变化。"
+                body = ""
             ) {
                 SettingsInfoRow(
                     label = "大小",
-                    value = floatingButtonSizeLabel(floatingButtonSizeDp)
+                    valueContent = {
+                        Text(
+                            text = floatingButtonSizeLabel(floatingButtonSizeDp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (floatingButtonSizeDp == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            },
+                            textAlign = TextAlign.End
+                        )
+                    }
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -292,7 +303,7 @@ fun SettingsScreen(
                     Text(
                         "小",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Slider(
                         value = floatingButtonSizeDp.toFloat(),
@@ -315,7 +326,7 @@ fun SettingsScreen(
                     Text(
                         "大",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -323,7 +334,7 @@ fun SettingsScreen(
             SettingsCard(
                 number = "4",
                 title = "翻译显示",
-                body = "控制译文在游戏画面中的显示方式。"
+                body = ""
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -533,11 +544,13 @@ private fun SettingsCard(
                 SettingsStepBadge(number)
                 Text(title, style = MaterialTheme.typography.titleMedium)
             }
-            Text(
-                body,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-            )
+            if (body.isNotBlank()) {
+                Text(
+                    body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
+            }
             content()
         }
     }
