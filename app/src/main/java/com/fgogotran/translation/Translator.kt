@@ -320,7 +320,7 @@ class Translator @Inject constructor(
         private val nameSanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})さん")
         private val nameKunHonorificPattern =
-            Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})君")
+            Regex("([\\p{IsHan}\\u3040-\\u309F\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})くん")
         private val nameChanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})ちゃん")
         private val nameSamaHonorificPattern =
@@ -334,28 +334,15 @@ class Translator @Inject constructor(
         private val wrongChanHonorificSuffixes = listOf("小妹妹", "妹妹", "小姐", "同学", "亲", "桑")
         private val wrongSamaHonorificSuffixes = listOf("大人", "阁下", "先生", "小姐", "女士", "同学", "桑", "殿")
         private val wrongTonoHonorificSuffixes = listOf("大人", "阁下", "先生", "小姐", "女士", "同学", "桑", "様")
-        private val wrongShiHonorificSuffixes = listOf("先生", "小姐", "女士", "大人", "阁下", "桑", "君", "酱")
+        private val wrongShiHonorificSuffixes = listOf("先生", "小姐", "女士", "大人", "阁下", "桑", "酱")
         private val leakedMasterTitlePattern = Regex("(?i)\\bmaster\\b|マスター")
         private val standaloneMasterTitleWrongSuffixes = listOf("御主人", "主人", "大师")
         private const val STYLIZED_FIRST_PERSON_TARGET = "咱"
         private val stylizedFirstPersonPronounSources = setOf("アテシ", "アタシ", "あたし")
         private val standaloneJapaneseAddressSourcePattern =
-            Regex("""君[ィぃい]?|あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
+            Regex("""あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
         private val leakedStandaloneAddressWordPattern =
-            Regex("""君[ィぃい]?|貴方|贵方|貴様|贵样""")
-        private val leakedKunAddressTrailingParticles = setOf(
-            '啊',
-            '呀',
-            '呢',
-            '吧',
-            '哦',
-            '喔',
-            '嘛',
-            '啦',
-            '呐',
-            '哪',
-            '哟'
-        )
+            Regex("""貴方|贵方|貴様|贵样""")
         private val explicitFemaleReferentMarkers = setOf(
             "彼女",
             "彼女たち",
@@ -404,11 +391,6 @@ class Translator @Inject constructor(
             "叔父さん",
             "叔母さん"
         )
-        private val kunHonorificExceptionPhrases = setOf(
-            "主君",
-            "若君",
-            "暴君"
-        )
         private val chanHonorificExceptionPhrases = setOf(
             "赤ちゃん",
             "お父ちゃん",
@@ -445,7 +427,8 @@ class Translator @Inject constructor(
             "彼氏"
         )
         private val NAME_PLURAL_ZU_SUFFIXES = listOf("ズ", "ず")
-        private const val NAME_HONORIFIC_KUN_SUFFIX = "君"
+        private const val NAME_HONORIFIC_KUN_SOURCE_SUFFIX = "くん"
+        private const val NAME_HONORIFIC_KUN_TARGET_SUFFIX = "君"
         private const val NAME_HONORIFIC_CHAN_SOURCE_SUFFIX = "ちゃん"
         private const val NAME_HONORIFIC_CHAN_TARGET_SUFFIX = "酱"
         private const val NAME_HONORIFIC_SAMA_SUFFIX = "様"
@@ -456,7 +439,7 @@ class Translator @Inject constructor(
             "達",
             "ら",
             "等",
-            NAME_HONORIFIC_KUN_SUFFIX,
+            NAME_HONORIFIC_KUN_SOURCE_SUFFIX,
             NAME_HONORIFIC_CHAN_SOURCE_SUFFIX,
             NAME_HONORIFIC_SAMA_SUFFIX,
             NAME_HONORIFIC_TONO_SUFFIX,
@@ -779,8 +762,7 @@ class Translator @Inject constructor(
         }
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_ARRAY,
-            sourceText = uncachedTexts.joinToString("\n"),
-            isBatch = true
+            sourceText = uncachedTexts.joinToString("\n")
         )
 
         val messages = listOf(
@@ -2115,60 +2097,29 @@ class Translator @Inject constructor(
         translatedText: String,
         playerName: String
     ): Boolean {
-        if (!sourceContainsStandaloneAddressWord(sourceText, playerName)) return false
+        if (!sourceContainsStandaloneAddressWord(sourceText)) return false
         val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
         return leakedStandaloneAddressWordPattern.findAll(translatedText).any { match ->
             isLeakedStandaloneAddressWord(
                 translatedText,
                 match.range,
-                match.value,
                 normalizedPlayerName
             )
         }
     }
 
-    private fun sourceContainsStandaloneAddressWord(sourceText: String, playerName: String): Boolean {
+    private fun sourceContainsStandaloneAddressWord(sourceText: String): Boolean {
         val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
-        val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
-        return standaloneJapaneseAddressSourcePattern.findAll(normalized).any { match ->
-            if (match.value.startsWith("君")) {
-                isStandaloneSourceKunAddress(normalized, match.range, normalizedPlayerName)
-            } else {
-                true
-            }
-        }
-    }
-
-    private fun isStandaloneSourceKunAddress(
-        text: String,
-        range: IntRange,
-        playerName: String
-    ): Boolean {
-        val before = text.substring(0, range.first)
-        if (playerName.isNotBlank() && before.endsWith(playerName)) return false
-        if (text.getOrNull(range.first - 1)?.isNameHonorificBaseChar() == true) return false
-        return text.getOrNull(range.last + 1)?.isNameHonorificBaseChar() != true
+        return standaloneJapaneseAddressSourcePattern.containsMatchIn(normalized)
     }
 
     private fun isLeakedStandaloneAddressWord(
         text: String,
         range: IntRange,
-        value: String,
         playerName: String
     ): Boolean {
         if (isRangeInsideFragment(text, range, playerName)) return false
-        return if (value.startsWith("君")) {
-            isLeakedStandaloneKunAddress(text, range)
-        } else {
-            true
-        }
-    }
-
-    private fun isLeakedStandaloneKunAddress(text: String, range: IntRange): Boolean {
-        if (text.getOrNull(range.first - 1)?.isNameHonorificBaseChar() == true) return false
-        val next = text.getOrNull(range.last + 1) ?: return true
-        return next.isNameHonorificBaseChar() != true ||
-            next in leakedKunAddressTrailingParticles
+        return true
     }
 
     private fun isRangeInsideFragment(text: String, range: IntRange, fragment: String): Boolean {
@@ -2182,19 +2133,6 @@ class Translator @Inject constructor(
             searchStart = start + 1
         }
         return false
-    }
-
-    private fun Char.isNameHonorificBaseChar(): Boolean {
-        return this in '\u3400'..'\u9FFF' ||
-            isKatakanaWordChar() ||
-            isAsciiLetterOrDigit() ||
-            this == '_' ||
-            this == '・' ||
-            this == '･' ||
-            this == '·' ||
-            this == 'ー' ||
-            this == '〇' ||
-            this == '○'
     }
 
     private fun allowedJapaneseFragments(
@@ -2355,20 +2293,14 @@ class Translator @Inject constructor(
             translatedText,
             nameKunHonorificPattern,
             wrongKunHonorificSuffixes,
-            NAME_HONORIFIC_KUN_SUFFIX
+            NAME_HONORIFIC_KUN_TARGET_SUFFIX
         )
         return appendKunToStandaloneNameIfMissing(sourceText, adjusted)
     }
 
     private fun sourceContainsNameKunHonorific(sourceText: String): Boolean {
         val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
-        return nameKunHonorificPattern.findAll(normalized).any { match ->
-            val contextStart = (match.range.first - 2).coerceAtLeast(0)
-            val context = normalized.substring(contextStart, match.range.last + 1)
-            kunHonorificExceptionPhrases.none { exception ->
-                match.value == exception || context.endsWith(exception)
-            }
-        }
+        return nameKunHonorificPattern.containsMatchIn(normalized)
     }
 
     private fun applyChanHonorificPolicy(sourceText: String, translatedText: String): String {
@@ -2519,7 +2451,7 @@ class Translator @Inject constructor(
             sourceText,
             translatedText,
             nameKunHonorificPattern,
-            NAME_HONORIFIC_KUN_SUFFIX
+            NAME_HONORIFIC_KUN_TARGET_SUFFIX
         )
     }
 
@@ -3212,8 +3144,8 @@ class Translator @Inject constructor(
         return listOf(
             HonorificProtectionVariant(
                 token = "${tokenPrefix}_KUN__",
-                sourceSuffix = NAME_HONORIFIC_KUN_SUFFIX,
-                officialSuffix = NAME_HONORIFIC_KUN_SUFFIX
+                sourceSuffix = NAME_HONORIFIC_KUN_SOURCE_SUFFIX,
+                officialSuffix = NAME_HONORIFIC_KUN_TARGET_SUFFIX
             ),
             HonorificProtectionVariant(
                 token = "${tokenPrefix}_CHAN__",
@@ -3985,7 +3917,7 @@ class Translator @Inject constructor(
             appendLine("This is a repair retry because the previous answer copied Japanese.")
             appendLine("Return only the final translated text. No source text, notes, markdown, or explanations.")
             appendLine("Do not leave Japanese kana, except inside the fixed player name or unchanged placeholder tokens.")
-            appendLine("Standalone address words such as 君, 君ィ, あなた, お前, 貴様, 汝, そなた, お主, and てめえ mean \"you\"; translate them naturally as 你 or a fitting Chinese address. This does not apply when 君 is attached to a name.")
+            appendLine("Japanese second-person address forms such as あなた, お前, 貴様, 汝, そなた, お主, and てめえ should be translated by tone and relationship; do not leave them as Japanese or treat them as names.")
             appendLine("Keep every full placeholder token starting with __FGO exactly unchanged.")
             appendLine("Text inside <keep id=\"n\">...</keep> is official Chinese already translated. Use its meaning, keep the inner text exactly, and do not output keep tags.")
             appendLine("Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden words.")

@@ -55,6 +55,7 @@ app/release/
 release/
 temp/
 tmp_video_frames/
+showcase/
 
 # GitHub Actions typo guard
 .github/workflow/

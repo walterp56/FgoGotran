@@ -17,14 +17,12 @@ data class PromptContext(
     val hasChoices: Boolean = false,
     val hasName: Boolean = false,
     val hasRuby: Boolean = false,
-    val hasMasks: Boolean = false,
     val hasPauseMarks: Boolean = false,
     val hasHonorifics: Boolean = false,
     val hasKatakana: Boolean = false,
     val hasAddressPronouns: Boolean = false,
     val hasSpecialFirstPerson: Boolean = false,
     val hasAmbiguousRoman: Boolean = false,
-    val isBatch: Boolean = false,
     val isRetry: Boolean = false
 )
 
@@ -50,14 +48,13 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v43"
+        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v46"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
-        private val hiddenOrMaskedTextPattern = Regex("""[■□▇█]+|[?？]{3,}""")
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
-        private val honorificPattern = Regex("""さん|君|ちゃん|様|殿|氏""")
+        private val honorificPattern = Regex("""さん|くん|ちゃん|様|殿|氏""")
         private val addressPronounPattern =
-            Regex("""君[ィぃい]?|あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
+            Regex("""あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
         private val katakanaWordPattern = Regex("""[ァ-ヶｦ-ﾟー]{2,}""")
         private val specialFirstPersonPattern = Regex("""アテシ|アタシ|あたし""")
 
@@ -78,7 +75,7 @@ class PromptBuilder @Inject constructor() {
         private val PRIORITY_RULES_PROMPT = """
             Rules:
             1. Keep any placeholder token starting with __FGO unchanged exactly.
-            2. Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden text.
+            2. Preserve hidden or mask text such as ???, ？？？, ■, □, ▇, and █ exactly; never guess hidden text.
             3. Player name: "{player_name}". Keep it exactly if it appears.
             4. Use supplied official terminology exactly. It overrides your knowledge and natural alternatives.
             5. For <keep> tags, use the exact inner Chinese and omit the tags.
@@ -99,10 +96,6 @@ class PromptBuilder @Inject constructor() {
             - When player choices are requested as output, keep each option short, natural, and in the same order; do not merge, split, or explain them.
             """.trimIndent()
 
-        private val BATCH_PROMPT = """
-            - For multiple items, keep one output per input in the same order.
-            """.trimIndent()
-
         private val NAME_PROMPT = """
             - Unknown names and proper nouns must be natural Chinese transliterations, not descriptions or another known character.
             - If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order/TYPE-MOON-style name.
@@ -117,26 +110,21 @@ class PromptBuilder @Inject constructor() {
             - Do not use parentheses for ruby meaning; use 《》 only when both base and ruby meanings matter.
             """.trimIndent()
 
-        private val MASK_PROMPT = """
-            - Preserve hidden text such as ???, ？？？, ■, □, ▇, and █ exactly; do not guess hidden names or content.
-            """.trimIndent()
-
         private val PAUSE_PROMPT = """
             - Preserve dramatic pauses naturally.
             - Normalize pause dots to compact …… and long dash pauses to ———.
             """.trimIndent()
 
         private val HONORIFIC_PROMPT = """
-            - Name suffixes: さん -> 桑, ちゃん -> 酱, 君 -> 君, 様/殿/氏 unchanged.
+            - Name suffixes: さん -> 桑, くん -> 君, ちゃん -> 酱, 様/殿/氏 unchanged.
             - Apply only when attached to a name or player name.
             - Do not apply suffix rules to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
             - Name plural ズ means an English-style group marker; use X们 by default.
             """.trimIndent()
 
         private val ADDRESS_PRONOUN_PROMPT = """
-            - Standalone address words such as 君, 君ィ, 君ぃ, 君い, あなた, 貴方, あんた, お前, おまえ, 貴様, 汝, そなた, 其方, お主, てめえ, and 卿 mean "you".
-            - Translate them naturally as 你 or a fitting Chinese address. Do not leave these Japanese words in Chinese output.
-            - This rule does not apply when 君 is attached to a real name as an honorific suffix.
+            - Japanese second-person address forms such as あなた, 貴方, あんた, お前, おまえ, 貴様, 汝, そなた, 其方, お主, てめえ, and 卿 should be translated by tone and relationship.
+            - Do not leave these words as Japanese or treat them as names.
             """.trimIndent()
 
         private val KATAKANA_STYLE_PROMPT = """
@@ -168,7 +156,6 @@ class PromptBuilder @Inject constructor() {
         sourceText: String,
         choiceTexts: List<String> = emptyList(),
         hasName: Boolean = false,
-        isBatch: Boolean = false,
         forceRuby: Boolean = false,
         isRetry: Boolean = false
     ): PromptContext {
@@ -179,14 +166,12 @@ class PromptBuilder @Inject constructor() {
             hasChoices = choiceTexts.isNotEmpty(),
             hasName = hasName,
             hasRuby = forceRuby || containsRuby(combinedText),
-            hasMasks = containsHiddenOrMaskedText(combinedText),
             hasPauseMarks = containsPauseMarks(combinedText),
             hasHonorifics = containsHonorifics(combinedText),
             hasKatakana = containsKatakanaWord(combinedText),
             hasAddressPronouns = containsAddressPronoun(combinedText),
             hasSpecialFirstPerson = containsSpecialFirstPerson(combinedText),
             hasAmbiguousRoman = containsAmbiguousRoman(combinedText),
-            isBatch = isBatch,
             isRetry = isRetry
         )
     }
@@ -241,11 +226,9 @@ class PromptBuilder @Inject constructor() {
 
     private fun conditionalPromptBlocks(context: PromptContext): List<Pair<String, String>> {
         return buildList {
-            if (context.isBatch) add("batch" to BATCH_PROMPT)
             if (context.hasChoices) add("choices" to CHOICE_PROMPT)
             if (context.hasName) add("name" to NAME_PROMPT)
             if (context.hasRuby) add("ruby" to RUBY_PROMPT)
-            if (context.hasMasks) add("mask" to MASK_PROMPT)
             if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
             if (context.hasHonorifics) add("honorific" to HONORIFIC_PROMPT)
             if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
@@ -303,10 +286,6 @@ class PromptBuilder @Inject constructor() {
 
     private fun containsRuby(text: String): Boolean {
         return '《' in text && '》' in text
-    }
-
-    private fun containsHiddenOrMaskedText(text: String): Boolean {
-        return hiddenOrMaskedTextPattern.containsMatchIn(text)
     }
 
     private fun containsPauseMarks(text: String): Boolean {
