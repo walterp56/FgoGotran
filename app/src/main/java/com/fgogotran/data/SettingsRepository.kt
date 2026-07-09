@@ -67,7 +67,7 @@ class SettingsRepository @Inject constructor(
 
         const val DEFAULT_FLOATING_BUTTON_X = 8
         const val DEFAULT_FLOATING_BUTTON_Y = 300
-        const val MIN_FLOATING_BUTTON_SIZE_DP = 44
+        const val MIN_FLOATING_BUTTON_SIZE_DP = 38
         const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54
         const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"

@@ -1,5 +1,6 @@
 package com.fgogotran.translation
 
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.TermEntity
 import com.fgogotran.util.FgoLogger
 import java.text.Normalizer
@@ -14,6 +15,7 @@ enum class PromptOutputFormat(val logName: String) {
 
 data class PromptContext(
     val outputFormat: PromptOutputFormat = PromptOutputFormat.PLAIN_TEXT,
+    val targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
     val hasChoices: Boolean = false,
     val hasName: Boolean = false,
     val hasRuby: Boolean = false,
@@ -48,7 +50,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-simplified-v46"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v47"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -66,9 +68,9 @@ class PromptBuilder @Inject constructor() {
          * safety rules that must apply to every request.
          */
         private val CORE_PROMPT = """
-            You localize Fate/Grand Order Japanese story text into natural, compact Simplified Chinese for an in-game overlay.
+            You localize Fate/Grand Order Japanese story text into natural, compact {target_chinese} for an in-game overlay.
             Translate meaning, tone, and speaker voice. Prefer short readable Chinese over long literal wording.
-            Use Simplified Chinese.
+            Use {target_chinese}.
             Return only the translated content requested by the user message. Do not add notes, markdown, source text, explanations, labels, wrappers, lore commentary, or extra text.
             """.trimIndent()
 
@@ -98,7 +100,7 @@ class PromptBuilder @Inject constructor() {
 
         private val NAME_PROMPT = """
             - Unknown names and proper nouns must be natural Chinese transliterations, not descriptions or another known character.
-            - If a name is not in the glossary, transliterate it as a concise Simplified Chinese Fate/Grand Order/TYPE-MOON-style name.
+            - If a name is not in the glossary, transliterate it as a concise {target_chinese} Fate/Grand Order/TYPE-MOON-style name.
             - Never return an unknown Japanese name unchanged.
             """.trimIndent()
 
@@ -155,6 +157,7 @@ class PromptBuilder @Inject constructor() {
         outputFormat: PromptOutputFormat,
         sourceText: String,
         choiceTexts: List<String> = emptyList(),
+        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
         hasName: Boolean = false,
         forceRuby: Boolean = false,
         isRetry: Boolean = false
@@ -163,6 +166,7 @@ class PromptBuilder @Inject constructor() {
             .joinToString("\n")
         return PromptContext(
             outputFormat = outputFormat,
+            targetChineseLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale),
             hasChoices = choiceTexts.isNotEmpty(),
             hasName = hasName,
             hasRuby = forceRuby || containsRuby(combinedText),
@@ -190,7 +194,8 @@ class PromptBuilder @Inject constructor() {
     ): String {
         val sb = StringBuilder()
         val blockNames = mutableListOf<String>()
-        appendPromptBlock(sb, blockNames, "core", CORE_PROMPT)
+        val targetChinese = targetChinesePromptLabel(context.targetChineseLocale)
+        appendPromptBlock(sb, blockNames, "core", applyTargetChinese(CORE_PROMPT, targetChinese))
         appendPromptBlock(
             sb,
             blockNames,
@@ -199,7 +204,7 @@ class PromptBuilder @Inject constructor() {
         )
         appendPromptBlock(sb, blockNames, "style", GENERAL_STYLE_PROMPT)
         conditionalPromptBlocks(context).forEach { (name, block) ->
-            appendPromptBlock(sb, blockNames, name, block)
+            appendPromptBlock(sb, blockNames, name, applyTargetChinese(block, targetChinese))
         }
         if (appendMatchedTerminology(sb, matchedTerms)) {
             blockNames += "terminology_table"
@@ -207,9 +212,21 @@ class PromptBuilder @Inject constructor() {
         FgoLogger.debug(
             tag,
             "System prompt combination: format=${context.outputFormat.logName}, " +
-                "blocks=${blockNames.joinToString("+")}, rag=${matchedTerms.size}, chars=${sb.length}"
+                "target=${context.targetChineseLocale}, blocks=${blockNames.joinToString("+")}, " +
+                "rag=${matchedTerms.size}, chars=${sb.length}"
         )
         return sb.toString()
+    }
+
+    private fun applyTargetChinese(block: String, targetChinese: String): String {
+        return block.replace("{target_chinese}", targetChinese)
+    }
+
+    private fun targetChinesePromptLabel(targetChineseLocale: String): String {
+        return when (SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)) {
+            SettingsRepository.TARGET_LOCALE_TRADITIONAL -> "Traditional Chinese"
+            else -> "Simplified Chinese"
+        }
     }
 
     private fun appendPromptBlock(
@@ -255,10 +272,15 @@ class PromptBuilder @Inject constructor() {
      * @param choiceTexts optional player choice strings appearing on the same screen
      * @return complete user prompt string
      */
-    fun buildUserPrompt(japaneseText: String, choiceTexts: List<String>): String {
+    fun buildUserPrompt(
+        japaneseText: String,
+        choiceTexts: List<String>,
+        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    ): String {
         val sb = StringBuilder()
+        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
 
-        sb.append("Translate this Fate/Grand Order Japanese text into Simplified Chinese for the in-game overlay.\n")
+        sb.append("Translate this Fate/Grand Order Japanese text into $targetChinese for the in-game overlay.\n")
         sb.append("Return only the translated Chinese text that should appear on screen.\n\n")
 
         // Prepend choice context if present — helps the LLM understand

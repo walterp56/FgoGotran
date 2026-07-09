@@ -106,7 +106,7 @@ class OverlayRenderer @Inject constructor(
         private const val NAME_TEXT_LEFT_INSET = 52f
         private const val NAME_TEXT_TOP_INSET = 6f
         private const val NAME_TEXT_BOTTOM_INSET = 6f
-        private const val NAME_TEXT_BASELINE_OFFSET = 2f
+        private const val NAME_TEXT_BASELINE_OFFSET = 12f
         private const val NAME_TEXT_RIGHT_INSET = 20f
         private const val CHOICE_TEXT_SIZE = 53f
         private const val CHOICE_TEXT_MIN_SIZE = 29f
@@ -785,7 +785,7 @@ class OverlayRenderer @Inject constructor(
         // Center the text horizontally within the button bounding box
         val textWidth = paint.measureText(text)
         val x = box.centerX() - textWidth / 2f
-        val y = box.centerY() + paint.textSize / 3f
+        val y = box.centerY() + paint.textSize / 3f + 4f * scale
 
         canvas.save()
         canvas.clipRect(textArea)
