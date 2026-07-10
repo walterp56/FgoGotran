@@ -3724,5 +3724,23 @@
     "cn_name": "特里姆玛乌",
     "category": "character",
     "aliases": ""
+  },
+  {
+    "jp_name": "ガベージ",
+    "cn_name": "垃圾",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ハデス",
+    "cn_name": "哈迪斯",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ペルセポネ",
+    "cn_name": "珀耳塞福涅",
+    "category": "character",
+    "aliases": ""
   }
 ]

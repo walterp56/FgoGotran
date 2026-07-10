@@ -92,7 +92,7 @@ class CropResultRenderer @Inject constructor(
             bitmapWidth = bitmapWidth,
             bitmapHeight = bitmapHeight
         )
-        layouts.forEach { layout ->
+        val renderedRows = layouts.map { layout ->
             textPaint.textSize = layout.textSize
             val renderedWidth = textPaint.measureText(layout.text)
             val clearBox = rowClearBox(
@@ -103,12 +103,20 @@ class CropResultRenderer @Inject constructor(
                 bitmapWidth = bitmapWidth,
                 bitmapHeight = bitmapHeight
             )
+            RenderedCropRow(layout, clearBox)
+        }
+        renderedRows.forEach { row ->
+            val clearBox = row.clearBox
             val radius = (minOf(clearBox.width(), clearBox.height()) * 0.12f).coerceIn(4f, 9f)
             canvas.drawRoundRect(clearBox, radius, radius, overlayClearPaint)
+        }
+        renderedRows.forEach { row ->
+            val layout = row.layout
             if (layout.text.isNotBlank()) {
+                textPaint.textSize = layout.textSize
                 val baseline = rowBaseline(layout.textArea, layout.lineHeight)
                 canvas.save()
-                canvas.clipRect(clearBox)
+                canvas.clipRect(row.clearBox)
                 drawTranslatedLine(canvas, layout.text, layout.textArea.left, baseline, textColor)
                 canvas.restore()
             }
@@ -412,6 +420,11 @@ class CropResultRenderer @Inject constructor(
         val text: String,
         val textSize: Float,
         val lineHeight: Float
+    )
+
+    private data class RenderedCropRow(
+        val layout: CropRowLayout,
+        val clearBox: RectF
     )
 
     private companion object {
