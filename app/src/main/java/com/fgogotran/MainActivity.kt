@@ -1,15 +1,23 @@
 package com.fgogotran
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AutoAppUpdateDialog
@@ -49,6 +57,31 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var translator: Translator
     @Inject lateinit var appAnalytics: AppAnalytics
 
+    private val voiceSubtitleRecordAudioLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            launchVoiceSubtitleCapture()
+        } else {
+            lifecycleScope.launch {
+                settingsRepository.setVoiceSubtitleEnabled(false)
+            }
+        }
+    }
+
+    private val voiceSubtitleCaptureLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            FgoRunnerService.startVoiceSubtitle(this, result.resultCode, data)
+        } else {
+            lifecycleScope.launch {
+                settingsRepository.setVoiceSubtitleEnabled(false)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch {
@@ -70,6 +103,38 @@ class MainActivity : ComponentActivity() {
                 MainScreen(settingsRepository, glossaryUpdateManager, appVersionManager, translator, appAnalytics)
             }
         }
+        handleVoiceSubtitleCaptureIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleVoiceSubtitleCaptureIntent(intent)
+    }
+
+    private fun handleVoiceSubtitleCaptureIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_REQUEST_VOICE_SUBTITLE_CAPTURE, false) != true) return
+        intent.removeExtra(EXTRA_REQUEST_VOICE_SUBTITLE_CAPTURE)
+        if (!hasVoiceSubtitleRecognizerPermission()) {
+            voiceSubtitleRecordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        launchVoiceSubtitleCapture()
+    }
+
+    private fun launchVoiceSubtitleCapture() {
+        val projectionManager = getSystemService(MediaProjectionManager::class.java)
+        voiceSubtitleCaptureLauncher.launch(projectionManager.createScreenCaptureIntent())
+    }
+
+    private fun hasVoiceSubtitleRecognizerPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    companion object {
+        const val EXTRA_REQUEST_VOICE_SUBTITLE_CAPTURE =
+            "com.fgogotran.extra.REQUEST_VOICE_SUBTITLE_CAPTURE"
     }
 }
 

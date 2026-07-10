@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,24 @@ class FgoRunnerService : Service() {
             return context.stopService(intent)
         }
 
+        fun startVoiceSubtitle(context: Context, resultCode: Int, resultData: Intent) {
+            val intent = Intent(context, FgoRunnerService::class.java)
+                .setAction(ACTION_START_VOICE_SUBTITLE)
+                .putExtra(EXTRA_VOICE_SUBTITLE_RESULT_CODE, resultCode)
+                .putExtra(EXTRA_VOICE_SUBTITLE_RESULT_DATA, resultData)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        private const val ACTION_START_VOICE_SUBTITLE =
+            "com.fgogotran.action.START_VOICE_SUBTITLE"
+        private const val EXTRA_VOICE_SUBTITLE_RESULT_CODE =
+            "com.fgogotran.extra.VOICE_SUBTITLE_RESULT_CODE"
+        private const val EXTRA_VOICE_SUBTITLE_RESULT_DATA =
+            "com.fgogotran.extra.VOICE_SUBTITLE_RESULT_DATA"
         private const val CHANNEL_ID = "fgogotran_runner"
         private const val NOTIFICATION_ID = 1001
     }
@@ -72,7 +91,7 @@ class FgoRunnerService : Service() {
         instance = this
         SessionTranslationHistory.clear()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        startOverlayForeground()
         serviceScope.launch {
             glossaryUpdateManager.updateIfNeeded()
         }
@@ -81,6 +100,13 @@ class FgoRunnerService : Service() {
     }
 
     override fun onBind(intent: Intent?) = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_START_VOICE_SUBTITLE) {
+            handleStartVoiceSubtitle(intent)
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         FgoLogger.info(tag, "Service destroyed")
@@ -95,6 +121,62 @@ class FgoRunnerService : Service() {
     private fun stopFromOverlay() {
         FgoLogger.info(tag, "Stop requested from floating menu")
         stopSelf()
+    }
+
+    private fun handleStartVoiceSubtitle(intent: Intent) {
+        val resultCode = intent.getIntExtra(EXTRA_VOICE_SUBTITLE_RESULT_CODE, 0)
+        val resultData = voiceSubtitleResultData(intent)
+        if (resultCode == 0 || resultData == null) {
+            FgoLogger.warn(tag, "Voice subtitle capture grant missing")
+            serviceScope.launch {
+                settingsRepository.setVoiceSubtitleEnabled(false)
+            }
+            return
+        }
+
+        if (!promoteForMediaProjection()) {
+            serviceScope.launch {
+                settingsRepository.setVoiceSubtitleEnabled(false)
+            }
+            return
+        }
+        overlay.startVoiceSubtitleWithProjection(resultCode, resultData)
+    }
+
+    private fun startOverlayForeground() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        }
+    }
+
+    private fun voiceSubtitleResultData(intent: Intent): Intent? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_VOICE_SUBTITLE_RESULT_DATA, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_VOICE_SUBTITLE_RESULT_DATA)
+        }
+    }
+
+    private fun promoteForMediaProjection(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+        return runCatching {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            )
+        }.onSuccess {
+            FgoLogger.info(tag, "Service promoted for media projection")
+        }.onFailure { error ->
+            FgoLogger.warn(tag, "Failed to promote service for media projection", error)
+        }.isSuccess
     }
 
     private fun watchDebugLogging() {

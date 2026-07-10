@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,8 +33,10 @@ private const val MENU_REFERENCE_DENSITY = 3f
 @Composable
 fun FloatingMenu(
     translationMode: TranslationMode,
+    voiceSubtitleEnabled: Boolean = false,
     viewportScale: Float = 1f,
     onTranslationModeChange: (TranslationMode) -> Unit,
+    onVoiceSubtitleChange: (Boolean) -> Unit = {},
     onCropTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onCloseClick: () -> Unit
@@ -68,6 +71,14 @@ fun FloatingMenu(
 
         HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
 
+        VoiceSubtitleRow(
+            enabled = voiceSubtitleEnabled,
+            viewportScale = viewportScale,
+            onCheckedChange = onVoiceSubtitleChange
+        )
+
+        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
+
         MenuRow(
             icon = FloatingActionIcon.CROP,
             viewportScale = viewportScale,
@@ -92,6 +103,42 @@ fun FloatingMenu(
             label = "关闭服务",
             muted = true,
             onClick = onCloseClick
+        )
+    }
+}
+
+@Composable
+private fun VoiceSubtitleRow(
+    enabled: Boolean,
+    viewportScale: Float,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val density = LocalDensity.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!enabled) }
+            .padding(
+                horizontal = scaledMenuDp(20f, viewportScale, density),
+                vertical = scaledMenuDp(10f, viewportScale, density)
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(12f, viewportScale, density))
+    ) {
+        MenuIcon(
+            icon = FloatingActionIcon.VOICE_SUBTITLE,
+            color = Color(0xFF333333),
+            viewportScale = viewportScale
+        )
+        Text(
+            text = "语音字幕",
+            fontSize = scaledMenuSp(15f, viewportScale, density),
+            color = Color(0xFF333333),
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = enabled,
+            onCheckedChange = null
         )
     }
 }

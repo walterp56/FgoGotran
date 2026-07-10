@@ -50,6 +50,7 @@ enum class FloatingActionIcon {
     SEMI,
     AUTO,
     CROP,
+    VOICE_SUBTITLE,
     HISTORY_LIST,
     CLOSE_CIRCLE
 }
@@ -255,6 +256,11 @@ fun FloatingActionGlyph(
             color = color,
             contentScale = contentScale
         )
+        FloatingActionIcon.VOICE_SUBTITLE -> VoiceWaveIcon(
+            modifier = modifier,
+            color = color,
+            contentScale = contentScale
+        )
         FloatingActionIcon.HISTORY_LIST -> ListIcon(
             modifier = modifier,
             color = color,
@@ -303,6 +309,40 @@ private fun CropCornerIcon(
         drawLine(color, Offset(inset, bottom), Offset(inset, bottom - length), stroke, StrokeCap.Round)
         drawLine(color, Offset(right, bottom), Offset(right - length, bottom), stroke, StrokeCap.Round)
         drawLine(color, Offset(right, bottom), Offset(right, bottom - length), stroke, StrokeCap.Round)
+    }
+}
+
+@Composable
+private fun VoiceWaveIcon(
+    modifier: Modifier,
+    color: Color,
+    strokeWidth: Dp = 2.2.dp,
+    contentScale: Float = 1f
+) {
+    Canvas(modifier = modifier) {
+        val stroke = strokeWidth.toPx() * contentScale
+        val centerY = size.height / 2f
+        val left = size.width * 0.18f
+        val right = size.width * 0.82f
+        val centerX = size.width / 2f
+        drawLine(color, Offset(left, centerY), Offset(size.width * 0.32f, centerY), stroke, StrokeCap.Round)
+        drawLine(color, Offset(size.width * 0.68f, centerY), Offset(right, centerY), stroke, StrokeCap.Round)
+        listOf(0.38f, 0.5f, 0.62f).forEachIndexed { index, xFraction ->
+            val halfHeight = size.height * when (index) {
+                0 -> 0.22f
+                1 -> 0.34f
+                else -> 0.22f
+            }
+            val x = size.width * xFraction
+            drawLine(
+                color,
+                Offset(x, centerY - halfHeight),
+                Offset(x, centerY + halfHeight),
+                stroke,
+                StrokeCap.Round
+            )
+        }
+        drawCircle(color, radius = stroke * 0.7f, center = Offset(centerX, centerY))
     }
 }
 

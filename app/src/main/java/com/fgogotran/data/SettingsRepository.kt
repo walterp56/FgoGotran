@@ -44,6 +44,7 @@ class SettingsRepository @Inject constructor(
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
         val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
+        val KEY_VOICE_SUBTITLE_ENABLED = booleanPreferencesKey("voice_subtitle_enabled")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
@@ -59,6 +60,10 @@ class SettingsRepository @Inject constructor(
         val KEY_FLOATING_BUTTON_LANDSCAPE_X = intPreferencesKey("floating_button_landscape_x")
         val KEY_FLOATING_BUTTON_LANDSCAPE_Y = intPreferencesKey("floating_button_landscape_y")
         val KEY_FLOATING_BUTTON_SIZE_DP = intPreferencesKey("floating_button_size_dp")
+        val KEY_VOICE_SUBTITLE_PORTRAIT_X = intPreferencesKey("voice_subtitle_portrait_x")
+        val KEY_VOICE_SUBTITLE_PORTRAIT_Y = intPreferencesKey("voice_subtitle_portrait_y")
+        val KEY_VOICE_SUBTITLE_LANDSCAPE_X = intPreferencesKey("voice_subtitle_landscape_x")
+        val KEY_VOICE_SUBTITLE_LANDSCAPE_Y = intPreferencesKey("voice_subtitle_landscape_y")
         val KEY_LAST_TRANSLATION_MODE = stringPreferencesKey("last_translation_mode")
         val KEY_ANALYTICS_INSTALL_ID = stringPreferencesKey("analytics_install_id")
         val KEY_ANALYTICS_FIRST_INSTALL_SENT = booleanPreferencesKey("analytics_first_install_sent")
@@ -302,6 +307,11 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_SHOW_ORIGINAL_GAME_TEXT] ?: false
     }
 
+    /** Whether Japanese voice subtitles are rendered from recognized speech. */
+    val voiceSubtitleEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_SUBTITLE_ENABLED] ?: false
+    }
+
     /** Whether diagnostic Logcat output is enabled. Disabled by default for privacy. */
     val debugLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_DEBUG_LOGGING_ENABLED] ?: false
@@ -499,6 +509,11 @@ class SettingsRepository @Inject constructor(
         FgoLogger.debug(tag, "Setting updated: show_original_game_text=$enabled")
     }
 
+    suspend fun setVoiceSubtitleEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_VOICE_SUBTITLE_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: voice_subtitle_enabled=$enabled")
+    }
+
     suspend fun setDebugLoggingEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_DEBUG_LOGGING_ENABLED] = enabled }
         FgoLogger.setEnabled(enabled)
@@ -576,6 +591,30 @@ class SettingsRepository @Inject constructor(
         val safeSize = normalizeFloatingButtonSizeDp(sizeDp)
         context.dataStore.edit { it[KEY_FLOATING_BUTTON_SIZE_DP] = safeSize }
         FgoLogger.debug(tag, "Setting updated: floating_button_size_dp=$safeSize")
+    }
+
+    suspend fun getVoiceSubtitlePosition(isLandscape: Boolean): Pair<Int, Int>? {
+        return context.dataStore.data.map { prefs ->
+            val x = prefs[if (isLandscape) KEY_VOICE_SUBTITLE_LANDSCAPE_X else KEY_VOICE_SUBTITLE_PORTRAIT_X]
+            val y = prefs[if (isLandscape) KEY_VOICE_SUBTITLE_LANDSCAPE_Y else KEY_VOICE_SUBTITLE_PORTRAIT_Y]
+            if (x != null && y != null) Pair(x, y) else null
+        }.first()
+    }
+
+    suspend fun setVoiceSubtitlePosition(x: Int, y: Int, isLandscape: Boolean) {
+        val safeX = x.coerceAtLeast(0)
+        val safeY = y.coerceAtLeast(0)
+        context.dataStore.edit {
+            if (isLandscape) {
+                it[KEY_VOICE_SUBTITLE_LANDSCAPE_X] = safeX
+                it[KEY_VOICE_SUBTITLE_LANDSCAPE_Y] = safeY
+            } else {
+                it[KEY_VOICE_SUBTITLE_PORTRAIT_X] = safeX
+                it[KEY_VOICE_SUBTITLE_PORTRAIT_Y] = safeY
+            }
+        }
+        val orientation = if (isLandscape) "landscape" else "portrait"
+        FgoLogger.debug(tag, "Setting updated: voice_subtitle_$orientation=($safeX,$safeY)")
     }
 
     suspend fun setDbLastCheckAt(checkedAt: Long) {

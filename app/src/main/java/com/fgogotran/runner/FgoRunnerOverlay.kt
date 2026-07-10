@@ -2,6 +2,7 @@ package com.fgogotran.runner
 
 import android.content.Context
 import android.content.ComponentCallbacks
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.graphics.Color
@@ -10,6 +11,7 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
@@ -17,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
+import com.fgogotran.MainActivity
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.crop.CropModeState
@@ -32,6 +35,7 @@ import com.fgogotran.ui.overlay.FloatingMenu
 import com.fgogotran.util.FakeComposeHost
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.overlayType
+import com.fgogotran.voice.VoiceSubtitleController
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +66,7 @@ import javax.inject.Singleton
 class FgoRunnerOverlay @Inject constructor(
     @ApplicationContext private val context: Context,
     private val cropSelectionOverlay: CropSelectionOverlay,
+    private val voiceSubtitleController: VoiceSubtitleController,
     private val settingsRepository: SettingsRepository
 ) {
     private var windowManager: WindowManager? = null
@@ -76,12 +81,15 @@ class FgoRunnerOverlay @Inject constructor(
     private val overlayScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
     private var buttonSizeDp by mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
+    private var voiceSubtitleEnabled by mutableStateOf(false)
     private var showButtonFailureRing by mutableStateOf(false)
     private var failureFeedbackVersion = 0
     private var buttonPositionScreen: ButtonScreen? = null
     private var buttonPositionLoaded = false
     private var savePositionJob: Job? = null
     private var buttonSizeJob: Job? = null
+    private var voiceSubtitleJob: Job? = null
+    private var voiceSubtitleStartGuardUntilMs = 0L
     private var showRequestVersion = 0
     private var callbacksRegistered = false
 
@@ -105,6 +113,7 @@ class FgoRunnerOverlay @Inject constructor(
     private companion object {
         const val FAILURE_FEEDBACK_MS = 1800L
         const val POSITION_SAVE_DEBOUNCE_MS = 300L
+        const val VOICE_SUBTITLE_START_GUARD_MS = 5_000L
     }
 
     private enum class ButtonScreen {
@@ -195,6 +204,7 @@ class FgoRunnerOverlay @Inject constructor(
                 clampButtonPositionToScreen()
                 wm.addView(composeHost!!.view, btnLayoutParams)
                 startButtonSizeObserver()
+                startVoiceSubtitleObserver()
                 FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
             } catch (e: Exception) {
                 composeHost?.close()
@@ -230,6 +240,10 @@ class FgoRunnerOverlay @Inject constructor(
         showRequestVersion += 1
         buttonSizeJob?.cancel()
         buttonSizeJob = null
+        voiceSubtitleJob?.cancel()
+        voiceSubtitleJob = null
+        voiceSubtitleStartGuardUntilMs = 0L
+        voiceSubtitleController.stop()
         saveButtonPositionNow()
         val wm = windowManager
         cancelCropMode()
@@ -323,6 +337,19 @@ class FgoRunnerOverlay @Inject constructor(
         val dx = rawX - centerX
         val dy = rawY - centerY
         return dx * dx + dy * dy <= radius * radius
+    }
+
+    fun startVoiceSubtitleWithProjection(resultCode: Int, resultData: Intent) {
+        mainHandler.post {
+            armVoiceSubtitleStartGuard()
+            val started = voiceSubtitleController.start(resultCode, resultData)
+            overlayScope.launch(Dispatchers.IO) {
+                settingsRepository.setVoiceSubtitleEnabled(started)
+                mainHandler.post {
+                    voiceSubtitleStartGuardUntilMs = 0L
+                }
+            }
+        }
     }
 
     private fun onButtonClick() {
@@ -424,6 +451,27 @@ class FgoRunnerOverlay @Inject constructor(
         }
     }
 
+    private fun startVoiceSubtitleObserver() {
+        if (voiceSubtitleJob != null) return
+        voiceSubtitleJob = overlayScope.launch {
+            settingsRepository.voiceSubtitleEnabled.collect { enabled ->
+                voiceSubtitleEnabled = enabled
+                if (enabled) {
+                    if (!voiceSubtitleController.isRunning()) {
+                        FgoLogger.info(tag, "Voice subtitle enabled state needs a fresh capture grant")
+                        settingsRepository.setVoiceSubtitleEnabled(false)
+                    }
+                } else if (isVoiceSubtitleStartGuardActive()) {
+                    FgoLogger.debug(tag, "Voice subtitle disabled state ignored during capture startup")
+                } else if (voiceSubtitleController.isRunning()) {
+                    voiceSubtitleController.stop()
+                } else {
+                    FgoLogger.debug(tag, "Voice subtitle disabled while already stopped")
+                }
+            }
+        }
+    }
+
     private fun saveButtonPositionSoon() {
         val x = btnX
         val y = btnY
@@ -510,6 +558,7 @@ class FgoRunnerOverlay @Inject constructor(
         val menuHost = FakeComposeHost(context) {
             FloatingMenu(
                 translationMode = TranslationTrigger.translationMode(),
+                voiceSubtitleEnabled = voiceSubtitleEnabled,
                 viewportScale = currentViewportScale(),
                 onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
@@ -523,6 +572,9 @@ class FgoRunnerOverlay @Inject constructor(
                         refreshButtonMode()
                     }
                     dismissMenu()
+                },
+                onVoiceSubtitleChange = { enabled ->
+                    handleVoiceSubtitleChange(enabled)
                 },
                 onCropTranslateClick = {
                     dismissMenu()
@@ -564,6 +616,38 @@ class FgoRunnerOverlay @Inject constructor(
         floatingMenuDialog?.dismiss()
         floatingMenuDialog = null
         TranslationTrigger.setMenuVisible(false)
+    }
+
+    private fun handleVoiceSubtitleChange(enabled: Boolean) {
+        if (enabled) {
+            dismissMenu()
+            requestVoiceSubtitleCapture()
+            return
+        }
+        voiceSubtitleStartGuardUntilMs = 0L
+        overlayScope.launch(Dispatchers.IO) {
+            settingsRepository.setVoiceSubtitleEnabled(false)
+        }
+    }
+
+    private fun requestVoiceSubtitleCapture() {
+        armVoiceSubtitleStartGuard()
+        val intent = Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(MainActivity.EXTRA_REQUEST_VOICE_SUBTITLE_CAPTURE, true)
+        runCatching { context.startActivity(intent) }
+            .onFailure { error ->
+                voiceSubtitleStartGuardUntilMs = 0L
+                FgoLogger.warn(tag, "Failed to request voice subtitle capture", error)
+            }
+    }
+
+    private fun armVoiceSubtitleStartGuard() {
+        voiceSubtitleStartGuardUntilMs = SystemClock.elapsedRealtime() + VOICE_SUBTITLE_START_GUARD_MS
+    }
+
+    private fun isVoiceSubtitleStartGuardActive(): Boolean {
+        return SystemClock.elapsedRealtime() < voiceSubtitleStartGuardUntilMs
     }
 
     private fun requestClose() {

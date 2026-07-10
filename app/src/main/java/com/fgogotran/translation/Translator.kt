@@ -296,6 +296,7 @@ class Translator @Inject constructor(
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
         private const val BATCH_TRANSLATION_MAX_TOKENS = 384
         private const val SCENE_TRANSLATION_MAX_TOKENS = 512
+        private const val VOICE_SUBTITLE_MAX_TOKENS = 96
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val UNTRANSLATED_FALLBACK = ""
         private const val MASKED_TEXT_BACKEND = "masked-source"
@@ -660,6 +661,124 @@ class Translator @Inject constructor(
 
         FgoLogger.info(tag, "Translation complete: backend=$backend, chars=${simplifiedResult.length}")
         return modelTranslateResult(simplifiedResult, backend, false, config).forTargetLocale(config)
+    }
+
+    suspend fun translateVoiceSubtitle(japaneseText: String): TranslateResult {
+        val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
+        if (rawNormalizedText.isBlank()) {
+            return TranslateResult("", "none", true)
+        }
+
+        val config = getRuntimeConfig()
+        val backend = config.backend
+        val playerName = config.playerName
+        val normalizedText = correctPlayerNameOcr(rawNormalizedText, playerName, "VOICE")
+
+        maskedSourceFallback(normalizedText)?.let { return it.forTargetLocale(config) }
+        if (!TextNormalizer.hasTranslatableContent(normalizedText)) {
+            FgoLogger.info(tag, "Voice subtitle has no translatable text; skipping API")
+            return TranslateResult("", "none", true).forTargetLocale(config)
+        }
+
+        translationMemory.lookupNormalized(normalizedText)?.let {
+            FgoLogger.info(tag, "Voice subtitle official CN memory HIT")
+            return TranslateResult(sanitizeTranslation(normalizedText, it), "official-cn", true)
+                .forTargetLocale(config)
+        }
+
+        findCharacterNameTranslation(normalizedText, allowAmbiguousDialogueName = false)?.let {
+            FgoLogger.info(tag, "Voice subtitle character exact HIT")
+            return TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
+                .forTargetLocale(config)
+        }
+
+        findTermTranslation(normalizedText)?.let {
+            FgoLogger.info(tag, "Voice subtitle glossary exact HIT")
+            return TranslateResult(sanitizeTranslation(normalizedText, it), "glossary", true)
+                .forTargetLocale(config)
+        }
+
+        if (config.requiresApiKey && config.apiKey.isBlank()) {
+            FgoLogger.warn(tag, "Voice subtitle skipped because API key is missing")
+            return TranslateResult("", "none", false).forTargetLocale(config)
+        }
+
+        val matchedTerms = try {
+            val allTerms = getCachedTerms()
+            val matches = filterDialogueMatchedTerms(
+                promptBuilder.extractTermMatches(normalizedText, allTerms)
+            )
+            FgoLogger.debug(tag, "Voice RAG: matched ${matches.size} of ${allTerms.size} terms")
+            matches
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "Voice RAG term lookup failed, continuing without glossary", e)
+            emptyList()
+        }
+
+        val protectedInput = protectText(
+            normalizedText,
+            matchedTerms,
+            playerName,
+            useVisibleTermLocks = true,
+            targetChineseLocale = config.targetChineseLocale
+        )
+        val promptTerms = termsForTargetPrompt(matchedTerms, config.targetChineseLocale)
+        val messages = listOf(
+            ChatMessage(
+                "system",
+                buildVoiceSubtitleSystemPrompt(promptTerms, playerName, config.targetChineseLocale)
+            ),
+            ChatMessage("user", "Voice line:\n${protectedInput.text}")
+        )
+
+        FgoLogger.info(tag, "Calling $backend API for voice subtitle")
+        val result = try {
+            callTranslationBackend(config, messages, maxTokens = VOICE_SUBTITLE_MAX_TOKENS)
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "Voice subtitle API call failed: ${e.message}", e)
+            return TranslateResult("", backend, false).forTargetLocale(config)
+        }
+
+        val restoredResult = restoreProtectedTranslation(
+            result,
+            protectedInput,
+            "voice API response"
+        )
+        var translated = restoredResult?.let {
+            sanitizeModelTranslation(normalizedText, it, config)
+        }.orEmpty()
+        translated = enforceMaskedTranslationPolicy(normalizedText, translated)
+        if (translated.isBlank() || looksUntranslated(normalizedText, translated, playerName)) {
+            logUntranslatedResult("voice API response", normalizedText, translated, playerName)
+            return TranslateResult("", backend, false).forTargetLocale(config)
+        }
+
+        FgoLogger.info(tag, "Voice subtitle complete: backend=$backend, chars=${translated.length}")
+        return modelTranslateResult(translated, backend, false, config).forTargetLocale(config)
+    }
+
+    private fun buildVoiceSubtitleSystemPrompt(
+        matchedTerms: List<TermEntity>,
+        playerName: String,
+        targetChineseLocale: String
+    ): String {
+        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
+        return buildString {
+            appendLine("Translate Fate/Grand Order Japanese voice lines into concise $targetChinese live subtitles.")
+            appendLine("Return only the Chinese subtitle text. No labels, notes, markdown, source text, or extra explanation.")
+            appendLine("Prefer one short line; use at most 3 short lines.")
+            appendLine("Keep each full placeholder starting with __FGO unchanged exactly.")
+            appendLine("For <keep> tags, use the exact inner Chinese and remove the tags.")
+            appendLine("Player name: \"${playerName.ifBlank { "Master" }}\". Keep it exactly if it appears.")
+            appendLine("Use official terminology exactly.")
+            if (matchedTerms.isNotEmpty()) {
+                appendLine()
+                appendLine("Official terminology:")
+                matchedTerms.forEach { term ->
+                    appendLine("${term.jpTerm} -> ${term.cnTerm} [${term.category}]")
+                }
+            }
+        }.trim()
     }
 
     suspend fun translateBatch(japaneseTexts: List<String>): List<TranslateResult> {
