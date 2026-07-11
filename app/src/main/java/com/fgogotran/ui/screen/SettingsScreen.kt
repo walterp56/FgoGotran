@@ -1,6 +1,8 @@
 package com.fgogotran.ui.screen
 
 import android.os.SystemClock
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +26,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -42,9 +45,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.ui.component.AppUpdateDialog
@@ -98,6 +103,7 @@ fun SettingsScreen(
         mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
     }
     var showOriginalGameText by remember { mutableStateOf(false) }
+    var ocrEngine by remember { mutableStateOf(SettingsRepository.DEFAULT_OCR_ENGINE) }
     var cacheEnabled by remember { mutableStateOf(true) }
     var debugLoggingEnabled by remember { mutableStateOf(false) }
     var debugLogTapCount by remember { mutableStateOf(0) }
@@ -111,6 +117,7 @@ fun SettingsScreen(
         playerName = settingsRepository.playerName.first()
         floatingButtonSizeDp = settingsRepository.getFloatingButtonSizeDp()
         showOriginalGameText = settingsRepository.showOriginalGameText.first()
+        ocrEngine = settingsRepository.getOcrEngine()
         cacheEnabled = settingsRepository.cacheEnabled.first()
         debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
     }
@@ -361,6 +368,33 @@ fun SettingsScreen(
 
             SettingsCard(
                 number = "5",
+                title = "OCR 引擎",
+                body = "选择适合的 OCR（光学字元识别）引擎"
+            ) {
+                OcrEngineOption(
+                    iconRes = R.drawable.ic_mlkit_japanese_mark,
+                    title = "ML Kit Japanese OCR",
+                    body = "当前默认引擎，启动快。由 Google ML Kit 在本机识别。",
+                    selected = ocrEngine == SettingsRepository.OCR_ENGINE_MLKIT,
+                    onClick = {
+                        ocrEngine = SettingsRepository.OCR_ENGINE_MLKIT
+                        scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_MLKIT) }
+                    }
+                )
+                OcrEngineOption(
+                    iconRes = R.drawable.ic_paddleocr_mark,
+                    title = "PaddleOCR",
+                    body = "本地 OCR 引擎，准确度高，识别范围更广。依赖手机算力。",
+                    selected = ocrEngine == SettingsRepository.OCR_ENGINE_PADDLE,
+                    onClick = {
+                        ocrEngine = SettingsRepository.OCR_ENGINE_PADDLE
+                        scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_PADDLE) }
+                    }
+                )
+            }
+
+            SettingsCard(
+                number = "6",
                 title = "翻译缓存",
                 body = "相同原文可直接使用上次翻译，速度更快；遇到旧译文时可以清除缓存。"
             ) {
@@ -413,7 +447,7 @@ fun SettingsScreen(
             }
 
             SettingsCard(
-                number = "6",
+                number = "7",
                 title = "维护",
                 body = "检查术语库和应用版本。"
             ) {
@@ -491,6 +525,52 @@ fun SettingsScreen(
                     }
                     Text(if (appVersionStatus.isChecking) "检查中" else "检查版本")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OcrEngineOption(
+    @DrawableRes iconRes: Int,
+    title: String,
+    body: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.small,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f)
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            RadioButton(selected = selected, onClick = onClick)
+            Image(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(28.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                )
             }
         }
     }

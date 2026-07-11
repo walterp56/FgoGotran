@@ -45,6 +45,7 @@ class SettingsRepository @Inject constructor(
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
         val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
+        val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
         val KEY_DB_SHA256 = stringPreferencesKey("db_sha256")
@@ -71,6 +72,9 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54
         const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
+        const val OCR_ENGINE_MLKIT = "mlkit"
+        const val OCR_ENGINE_PADDLE = "paddle"
+        const val DEFAULT_OCR_ENGINE = OCR_ENGINE_MLKIT
 
         /** DeepSeek Chat API (default). */
         const val BACKEND_DEEPSEEK = "deepseek"
@@ -120,12 +124,21 @@ class SettingsRepository @Inject constructor(
             BACKEND_CUSTOM_OPENAI
         )
         private val SUPPORTED_TRANSLATION_MODES = setOf("MANUAL", "SEMI_AUTO", "AUTO")
+        private val SUPPORTED_OCR_ENGINES = setOf(OCR_ENGINE_MLKIT, OCR_ENGINE_PADDLE)
 
         fun normalizeBackend(backend: String): String =
             backend.takeIf { it in SUPPORTED_BACKENDS } ?: BACKEND_DEEPSEEK
 
         fun normalizeTranslationMode(mode: String): String =
             mode.takeIf { it in SUPPORTED_TRANSLATION_MODES } ?: DEFAULT_TRANSLATION_MODE
+
+        fun normalizeOcrEngine(engine: String): String =
+            engine.takeIf { it in SUPPORTED_OCR_ENGINES } ?: DEFAULT_OCR_ENGINE
+
+        fun ocrEngineDisplayName(engine: String): String = when (normalizeOcrEngine(engine)) {
+            OCR_ENGINE_PADDLE -> "PaddleOCR PP-OCRv6"
+            else -> "ML Kit Japanese OCR"
+        }
 
         fun normalizeFloatingButtonSizeDp(sizeDp: Int): Int =
             sizeDp.coerceIn(MIN_FLOATING_BUTTON_SIZE_DP, MAX_FLOATING_BUTTON_SIZE_DP)
@@ -305,6 +318,15 @@ class SettingsRepository @Inject constructor(
     /** Whether diagnostic Logcat output is enabled. Disabled by default for privacy. */
     val debugLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_DEBUG_LOGGING_ENABLED] ?: false
+    }
+
+    /** Local OCR engine used for screenshot text recognition. */
+    val ocrEngine: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeOcrEngine(prefs[KEY_OCR_ENGINE] ?: DEFAULT_OCR_ENGINE)
+    }
+
+    suspend fun getOcrEngine(): String {
+        return ocrEngine.first()
     }
 
     /** Target Chinese script for translated output. */
@@ -503,6 +525,12 @@ class SettingsRepository @Inject constructor(
         context.dataStore.edit { it[KEY_DEBUG_LOGGING_ENABLED] = enabled }
         FgoLogger.setEnabled(enabled)
         FgoLogger.debug(tag, "Setting updated: debug_logging_enabled=$enabled")
+    }
+
+    suspend fun setOcrEngine(engine: String) {
+        val normalizedEngine = normalizeOcrEngine(engine)
+        context.dataStore.edit { it[KEY_OCR_ENGINE] = normalizedEngine }
+        FgoLogger.debug(tag, "Setting updated: ocr_engine=$normalizedEngine")
     }
 
     suspend fun setTargetChineseLocale(locale: String) {

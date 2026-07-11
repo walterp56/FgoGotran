@@ -41,6 +41,10 @@ android {
     buildFeatures {
         compose = true
     }
+
+    androidResources {
+        noCompress += "onnx"
+    }
 }
 
 dependencies {
@@ -69,6 +73,10 @@ dependencies {
 
     // ML Kit OCR (Japanese, bundled so OCR works without Google Play services/model delivery)
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+
+    // PaddleOCR PP-OCRv6 ONNX runtime and polygon post-processing
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.27.0")
+    implementation("org.locationtech.jts:jts-core:1.19.0")
 
     // Ktor HTTP client
     implementation("io.ktor:ktor-client-android:2.3.12")
