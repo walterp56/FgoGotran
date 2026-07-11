@@ -86,8 +86,8 @@ class OverlayRenderer @Inject constructor(
         private const val DYNAMIC_DIALOGUE_VERTICAL_PADDING = 18f
         private const val DYNAMIC_DIALOGUE_TEXT_HORIZONTAL_INSET = 24f
         private const val DYNAMIC_DIALOGUE_TEXT_LEFT_INSET = 14f
-        private const val DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET = 10f
-        private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.48f
+        private const val DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET = 4f
+        const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.55f
         private const val ORIGINAL_TEXT_SIZE_RATIO = 0.85f
         private const val ORIGINAL_LINE_HEIGHT_MULTIPLIER = 1.18f
         private const val BILINGUAL_PAIR_GAP = 10f
@@ -704,7 +704,7 @@ class OverlayRenderer @Inject constructor(
         )
 
         val totalHeight = layout.translationLineHeight + layout.originalLineHeight
-        var currentTop = textArea.centerY() - totalHeight / 2f
+        var currentTop = textArea.centerY() - totalHeight / 2f + 8f * scale
 
         canvas.save()
         canvas.clipRect(textArea)

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
+import com.fgogotran.overlay.OverlayRenderer
 import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
@@ -237,7 +238,8 @@ private fun addHistoryEntryViews(
                     text = it,
                     color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                     typeface = typeface,
-                    viewportScale = viewportScale
+                    viewportScale = viewportScale,
+                    useDialogueLineHeight = true
                 )
             )
         }
@@ -325,7 +327,8 @@ private fun historySpeakerDialogueView(
                             text = quoteSpeakerDialogueClosing(bodyText),
                             color = color,
                             typeface = typeface,
-                            viewportScale = viewportScale
+                            viewportScale = viewportScale,
+                            useDialogueLineHeight = true
                         )
                     )
                 } else {
@@ -472,20 +475,26 @@ private fun historyTextView(
     gravity: Int = Gravity.START,
     textSizeSp: Float = HISTORY_TEXT_SIZE_SP,
     viewportScale: Float = 1f,
-    bottomMarginDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_DP
+    bottomMarginDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_DP,
+    useDialogueLineHeight: Boolean = false
 ): TextView {
     return TextView(context).apply {
         this.text = text
         setTextColor(color)
-        setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledHistoryTextPx(context, textSizeSp, viewportScale))
+        val textSizePx = scaledHistoryTextPx(context, textSizeSp, viewportScale)
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, textSizePx)
         this.typeface = typeface
         paint.isFakeBoldText = false
         paint.isSubpixelText = true
         paint.isLinearText = true
-        setLineSpacing(
-            scaledHistoryDp(context, HISTORY_LINE_SPACING_EXTRA_DP, viewportScale).toFloat(),
-            HISTORY_LINE_SPACING_MULTIPLIER
-        )
+        if (useDialogueLineHeight) {
+            setLineHeight((textSizePx * OverlayRenderer.DIALOGUE_LINE_HEIGHT_MULTIPLIER).roundToInt())
+        } else {
+            setLineSpacing(
+                scaledHistoryDp(context, HISTORY_LINE_SPACING_EXTRA_DP, viewportScale).toFloat(),
+                HISTORY_LINE_SPACING_MULTIPLIER
+            )
+        }
         includeFontPadding = false
         this.gravity = gravity
         layoutParams = LinearLayout.LayoutParams(
