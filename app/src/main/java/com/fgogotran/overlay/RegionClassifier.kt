@@ -1,6 +1,7 @@
 package com.fgogotran.overlay
 
 import android.graphics.Rect
+import com.fgogotran.ocr.OcrEngineId
 import com.fgogotran.ocr.OcrTextLine
 
 /**
@@ -22,5 +23,6 @@ enum class TextRegion {
 data class ClassifiedRegion(
     val region: TextRegion,
     val lines: List<OcrTextLine>,
-    val boundingBox: Rect
+    val boundingBox: Rect,
+    val ocrEngine: OcrEngineId
 )

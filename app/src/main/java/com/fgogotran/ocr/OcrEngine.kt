@@ -22,14 +22,22 @@ data class OcrTextLine(
     val confidence: Float
 )
 
+enum class OcrEngineId {
+    ML_KIT,
+    PADDLE_OCR,
+    UNKNOWN
+}
+
 /**
  * Complete OCR result for one screenshot.
  * @property lines individual text lines with bounding boxes (for region classification)
  * @property fullText concatenated all-text result (for hashing/dedup and crop fallback)
+ * @property engine OCR provider that produced this result
  */
 data class OcrResult(
     val lines: List<OcrTextLine>,
-    val fullText: String
+    val fullText: String,
+    val engine: OcrEngineId
 )
 
 internal interface OcrProvider {

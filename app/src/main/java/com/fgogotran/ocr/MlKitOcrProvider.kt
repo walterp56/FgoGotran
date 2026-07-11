@@ -70,7 +70,8 @@ internal class MlKitOcrProvider : OcrProvider {
 
         return OcrResult(
             lines = lines,
-            fullText = result.text
+            fullText = result.text,
+            engine = OcrEngineId.ML_KIT
         )
     }
 

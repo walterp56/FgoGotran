@@ -140,7 +140,11 @@ private class PaddleOcrRuntime(
                 "PaddleOCR complete: ${lines.size} lines, ${fullText.length} chars, ${elapsed}ms"
             )
         }
-        return OcrResult(lines = lines, fullText = fullText)
+        return OcrResult(
+            lines = lines,
+            fullText = fullText,
+            engine = OcrEngineId.PADDLE_OCR
+        )
     }
 
     private fun readAsset(path: String): ByteArray {

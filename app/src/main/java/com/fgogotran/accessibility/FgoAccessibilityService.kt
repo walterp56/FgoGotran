@@ -23,6 +23,7 @@ import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.crop.CropTextLine
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ocr.OcrEngine
+import com.fgogotran.ocr.OcrEngineId
 import com.fgogotran.ocr.OcrTextCorrector
 import com.fgogotran.ocr.OcrTextLine
 import com.fgogotran.overlay.BackgroundDetector
@@ -894,7 +895,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 cropWidth = cropBitmap.width,
                 cropHeight = cropBitmap.height
             )
-            val sourceText = cropSourceText(cropLines, ocrResult.fullText)
+            val sourceText = cropSourceText(cropLines, ocrResult.fullText, ocrResult.engine)
             val ocrDuration = SystemClock.elapsedRealtime() - ocrStartedAt
             logTranslationDebugText("Crop OCR fullText", ocrResult.fullText.trim())
             logTranslationDebugText("Crop source text", sourceText)
@@ -1007,12 +1008,16 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun cropSourceText(lines: List<OcrTextLine>, fullText: String): String {
+    private fun cropSourceText(
+        lines: List<OcrTextLine>,
+        fullText: String,
+        ocrEngine: OcrEngineId
+    ): String {
         val cleanedText = formatDialogueForTranslation(lines, RubyDetectionMode.PERMISSIVE)
         val sourceText = cleanedText.ifBlank {
             if (lines.any { isRubyDotNoiseLine(it) }) "" else fullText.trim()
         }
-        return correctOcrSourceText(sourceText, "CROP")
+        return correctMlKitOcrSourceText(sourceText, "CROP", ocrEngine)
     }
 
     private suspend fun processManualScreen(
@@ -1891,14 +1896,24 @@ class FgoAccessibilityService : AccessibilityService() {
         return when (region.region) {
             TextRegion.NAME_LABEL -> rawText
             TextRegion.DIALOGUE_BOX,
-            TextRegion.CHOICE_BUTTON -> correctOcrSourceText(rawText, region.region.name)
+            TextRegion.CHOICE_BUTTON -> correctMlKitOcrSourceText(
+                sourceText = rawText,
+                label = region.region.name,
+                ocrEngine = region.ocrEngine
+            )
         }
     }
 
-    private fun correctOcrSourceText(sourceText: String, label: String): String {
+    private fun correctMlKitOcrSourceText(
+        sourceText: String,
+        label: String,
+        ocrEngine: OcrEngineId
+    ): String {
+        if (ocrEngine != OcrEngineId.ML_KIT) return sourceText
+
         val corrected = OcrTextCorrector.correct(sourceText)
         if (corrected != sourceText) {
-            FgoLogger.debug(tag, "OCR correction ($label): $sourceText -> $corrected")
+            FgoLogger.debug(tag, "ML Kit OCR correction ($label): $sourceText -> $corrected")
         }
         return corrected
     }
@@ -2301,7 +2316,8 @@ class FgoAccessibilityService : AccessibilityService() {
             region = ClassifiedRegion(
                 region = TextRegion.DIALOGUE_BOX,
                 lines = lines,
-                boundingBox = Rect(0, 0, crop.width, crop.height)
+                boundingBox = Rect(0, 0, crop.width, crop.height),
+                ocrEngine = OcrEngineId.UNKNOWN
             )
         )
     }
@@ -2615,7 +2631,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 ClassifiedRegion(
                     region = TextRegion.CHOICE_BUTTON,
                     lines = lines,
-                    boundingBox = choiceBounds
+                    boundingBox = choiceBounds,
+                    ocrEngine = ocrResult.engine
                 )
             }
         } finally {
@@ -2837,7 +2854,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     targetKey(target) to ClassifiedRegion(
                         region = target.region,
                         lines = regionLines,
-                        boundingBox = target.bounds
+                        boundingBox = target.bounds,
+                        ocrEngine = ocrResult.engine
                     )
                 }
             }.toMap().toMutableMap()
@@ -2891,7 +2909,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 ClassifiedRegion(
                     region = target.region,
                     lines = regionLines,
-                    boundingBox = target.bounds
+                    boundingBox = target.bounds,
+                    ocrEngine = ocrResult.engine
                 )
             }
         } finally {
@@ -2979,7 +2998,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 ClassifiedRegion(
                     region = TextRegion.DIALOGUE_BOX,
                     lines = regionLines,
-                    boundingBox = dialogueRenderBounds
+                    boundingBox = dialogueRenderBounds,
+                    ocrEngine = ocrResult.engine
                 )
             }
         } finally {
