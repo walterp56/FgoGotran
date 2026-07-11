@@ -8,7 +8,7 @@ package com.fgogotran.translation
  */
 object FgoDialogueSymbols {
     const val PAUSE_ELLIPSIS = "……"
-    const val LONG_DASH_RUN = "———"
+    const val LONG_DASH_RUN = "───"
 
     val longPausePattern = Regex("[·・･]{2,}|\\.{2,}|…+|‥+|⋯+")
     val trailingDashRunPattern = Regex("[—―─━ー－\\-一]{2,}\\s*$")

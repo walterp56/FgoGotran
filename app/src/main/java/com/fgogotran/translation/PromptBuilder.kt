@@ -114,7 +114,7 @@ class PromptBuilder @Inject constructor() {
 
         private val PAUSE_PROMPT = """
             - Preserve dramatic pauses naturally.
-            - Normalize pause dots to compact …… and long dash pauses to ———.
+            - Normalize pause dots to compact …… and long dash pauses to ───.
             """.trimIndent()
 
         private val HONORIFIC_PROMPT = """
