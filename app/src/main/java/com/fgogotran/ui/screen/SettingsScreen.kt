@@ -23,6 +23,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -216,7 +217,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SettingsCard(
-                number = "1",
+                iconRes = R.drawable.ic_translate,
                 title = "翻译接口",
                 body = ""
             ) {
@@ -244,8 +245,35 @@ fun SettingsScreen(
             }
 
             SettingsCard(
-                number = "2",
-                title = "御主名称",
+                iconRes = R.drawable.ic_settings_document_scanner,
+                title = "OCR 引擎",
+                body = "选择适合的 OCR（光学字元识别）引擎"
+            ) {
+                OcrEngineOption(
+                    iconRes = R.drawable.ic_mlkit_japanese_mark,
+                    title = "ML Kit Japanese OCR",
+                    body = "启动快。由 Google ML Kit 在本机识别。",
+                    selected = ocrEngine == SettingsRepository.OCR_ENGINE_MLKIT,
+                    onClick = {
+                        ocrEngine = SettingsRepository.OCR_ENGINE_MLKIT
+                        scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_MLKIT) }
+                    }
+                )
+                OcrEngineOption(
+                    iconRes = R.drawable.ic_paddleocr_mark,
+                    title = "PaddleOCR",
+                    body = "准确度高，识别范围更广。依赖手机算力。",
+                    selected = ocrEngine == SettingsRepository.OCR_ENGINE_PADDLE,
+                    onClick = {
+                        ocrEngine = SettingsRepository.OCR_ENGINE_PADDLE
+                        scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_PADDLE) }
+                    }
+                )
+            }
+
+            SettingsCard(
+                iconRes = R.drawable.ic_settings_tune,
+                title = "翻译偏好",
                 body = ""
             ) {
 //                Text(
@@ -281,10 +309,36 @@ fun SettingsScreen(
                         Text("保存")
                     }
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "日文原文",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                        )
+                        Text(
+                            "同时显示游戏原文",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = showOriginalGameText,
+                        onCheckedChange = {
+                            showOriginalGameText = it
+                            scope.launch { settingsRepository.setShowOriginalGameText(it) }
+                        }
+                    )
+                }
             }
 
             SettingsCard(
-                number = "3",
+                iconRes = R.drawable.ic_settings_touch_app,
                 title = "悬浮按钮",
                 body = ""
             ) {
@@ -339,62 +393,7 @@ fun SettingsScreen(
             }
 
             SettingsCard(
-                number = "4",
-                title = "翻译显示",
-                body = ""
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "同时显示日文原文",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(
-                        checked = showOriginalGameText,
-                        onCheckedChange = {
-                            showOriginalGameText = it
-                            scope.launch { settingsRepository.setShowOriginalGameText(it) }
-                        }
-                    )
-                }
-            }
-
-            SettingsCard(
-                number = "5",
-                title = "OCR 引擎",
-                body = "选择适合的 OCR（光学字元识别）引擎"
-            ) {
-                OcrEngineOption(
-                    iconRes = R.drawable.ic_mlkit_japanese_mark,
-                    title = "ML Kit Japanese OCR",
-                    body = "当前默认引擎，启动快。由 Google ML Kit 在本机识别。",
-                    selected = ocrEngine == SettingsRepository.OCR_ENGINE_MLKIT,
-                    onClick = {
-                        ocrEngine = SettingsRepository.OCR_ENGINE_MLKIT
-                        scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_MLKIT) }
-                    }
-                )
-                OcrEngineOption(
-                    iconRes = R.drawable.ic_paddleocr_mark,
-                    title = "PaddleOCR",
-                    body = "本地 OCR 引擎，准确度高，识别范围更广。依赖手机算力。",
-                    selected = ocrEngine == SettingsRepository.OCR_ENGINE_PADDLE,
-                    onClick = {
-                        ocrEngine = SettingsRepository.OCR_ENGINE_PADDLE
-                        scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_PADDLE) }
-                    }
-                )
-            }
-
-            SettingsCard(
-                number = "6",
+                iconRes = R.drawable.ic_settings_cached,
                 title = "翻译缓存",
                 body = "相同原文可直接使用上次翻译，速度更快；遇到旧译文时可以清除缓存。"
             ) {
@@ -447,7 +446,7 @@ fun SettingsScreen(
             }
 
             SettingsCard(
-                number = "7",
+                iconRes = R.drawable.ic_settings_build,
                 title = "维护",
                 body = "检查术语库和应用版本。"
             ) {
@@ -604,7 +603,7 @@ private fun floatingButtonSizeLabel(sizeDp: Int): String {
 
 @Composable
 private fun SettingsCard(
-    number: String,
+    @DrawableRes iconRes: Int,
     title: String,
     body: String,
     content: @Composable ColumnScope.() -> Unit
@@ -621,7 +620,7 @@ private fun SettingsCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                SettingsStepBadge(number)
+                SettingsIconBadge(iconRes)
                 Text(title, style = MaterialTheme.typography.titleMedium)
             }
             if (body.isNotBlank()) {
@@ -637,17 +636,20 @@ private fun SettingsCard(
 }
 
 @Composable
-private fun SettingsStepBadge(number: String) {
+private fun SettingsIconBadge(@DrawableRes iconRes: Int) {
     Surface(
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+        modifier = Modifier.size(36.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
         shape = MaterialTheme.shapes.small
     ) {
-        Text(
-            number,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
