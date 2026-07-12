@@ -137,7 +137,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val TAP_TRANSLATION_READ_HOLD_DELAY = 120L
         private const val NEXT_DIALOGUE_POLL_INTERVAL = 120L
         private const val NEXT_DIALOGUE_POLL_TIMEOUT = 2_500L
-        private const val TAP_PASSTHROUGH_SETTLE_DELAY = 32L
+        private const val TAP_PASSTHROUGH_SETTLE_DELAY = 56L
         private const val TAP_REPLAY_TIMEOUT = 500L
         private const val OVERLAY_BUTTON_LONG_PRESS_TIMEOUT = 420L
         private const val OVERLAY_BUTTON_TOUCH_SLOP = 18f
