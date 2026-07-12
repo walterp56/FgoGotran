@@ -15,3 +15,8 @@
 # Room
 -keep class * extends androidx.room.RoomDatabase
 -dontwarn androidx.room.paging.**
+
+# ONNX Runtime
+# Native JNI code looks up these Java classes by name.
+-keep class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**
