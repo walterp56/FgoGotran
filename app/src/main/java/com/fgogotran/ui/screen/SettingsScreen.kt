@@ -252,7 +252,7 @@ fun SettingsScreen(
                 OcrEngineOption(
                     iconRes = R.drawable.ic_mlkit_japanese_mark,
                     title = "ML Kit Japanese OCR",
-                    body = "启动快，耗电低。由 Google ML Kit 在本机识别。",
+                    body = "默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。",
                     selected = ocrEngine == SettingsRepository.OCR_ENGINE_MLKIT,
                     onClick = {
                         ocrEngine = SettingsRepository.OCR_ENGINE_MLKIT
@@ -262,7 +262,7 @@ fun SettingsScreen(
                 OcrEngineOption(
                     iconRes = R.drawable.ic_paddleocr_mark,
                     title = "PaddleOCR",
-                    body = "高准确度，识别范围更广。依赖 CPU 算力。",
+                    body = "进阶引擎。准确度高，识别范围广。依赖 CPU 算力。",
                     selected = ocrEngine == SettingsRepository.OCR_ENGINE_PADDLE,
                     onClick = {
                         ocrEngine = SettingsRepository.OCR_ENGINE_PADDLE
