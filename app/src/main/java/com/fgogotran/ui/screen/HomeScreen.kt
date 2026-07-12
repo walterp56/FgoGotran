@@ -105,7 +105,7 @@ fun HomeScreen(
         }
 
         // Check 2: Accessibility service
-        if (!accessibilityRunning) {
+        if (!FgoAccessibilityService.isEnabledInSettings(context)) {
             showAccessibilityDisclosure(context)
             return
         }

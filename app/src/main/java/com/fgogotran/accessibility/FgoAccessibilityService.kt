@@ -4,11 +4,14 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.AccessibilityService.ScreenshotResult
 import android.accessibilityservice.AccessibilityService.TakeScreenshotCallback
+import android.content.ComponentName
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.Display
 import android.view.MotionEvent
@@ -204,6 +207,29 @@ class FgoAccessibilityService : AccessibilityService() {
                 field = value
                 _serviceStarted.value = value != null
             }
+
+        fun isEnabledInSettings(context: Context): Boolean {
+            if (_serviceStarted.value) return true
+
+            return runCatching {
+                val resolver = context.contentResolver
+                val accessibilityEnabled = Settings.Secure.getInt(
+                    resolver,
+                    Settings.Secure.ACCESSIBILITY_ENABLED,
+                    0
+                ) == 1
+                if (!accessibilityEnabled) return@runCatching false
+
+                val expected = ComponentName(context, FgoAccessibilityService::class.java)
+                Settings.Secure.getString(
+                    resolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                ).orEmpty()
+                    .split(':')
+                    .mapNotNull { ComponentName.unflattenFromString(it.trim()) }
+                    .any { it.packageName == expected.packageName && it.className == expected.className }
+            }.getOrDefault(false)
+        }
     }
 
     private val tag = "Accessibility"
