@@ -748,5 +748,11 @@
     "cn_term": "迦勒迪尼亚",
     "category": "place",
     "aliases": "カルデ二ア"
+  },
+  {
+    "jp_term": "アルスィア",
+    "cn_term": "Althea",
+    "category": "game_term",
+    "aliases": ""
   }
 ]
