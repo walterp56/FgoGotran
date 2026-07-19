@@ -50,7 +50,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v47"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v48"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -80,9 +80,8 @@ class PromptBuilder @Inject constructor() {
             2. Preserve hidden or mask text such as ???, ？？？, ■, □, ▇, and █ exactly; never guess hidden text.
             3. Player name: "{player_name}". Keep it exactly if it appears.
             4. Use supplied official terminology exactly. It overrides your knowledge and natural alternatives.
-            5. For <keep> tags, use the exact inner Chinese and omit the tags.
-            6. If rules conflict, placeholders, masks, player name, and official terminology take priority.
-            7. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
+            5. If rules conflict, placeholders, masks, player name, and official terminology take priority.
+            6. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
             """.trimIndent()
 
         private val GENERAL_STYLE_PROMPT = """
@@ -296,10 +295,6 @@ class PromptBuilder @Inject constructor() {
         if (japaneseText.contains("__FGO")) {
             sb.append("Keep each full placeholder token starting with __FGO unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
         }
-        if (japaneseText.contains("<keep")) {
-            sb.append("Text inside <keep id=\"n\">...</keep> is locked official Chinese. Use its meaning, keep the inner text exactly, remove the keep tags, and translate all Japanese outside tags.\n\n")
-        }
-
         sb.append(japaneseText)
 
         FgoLogger.debug(tag, "User prompt: ${sb.length} chars, choices=${choiceTexts.size}")

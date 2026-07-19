@@ -176,7 +176,6 @@ class Translator @Inject constructor(
             normalizedText,
             matchedTerms,
             config.playerName,
-            useVisibleTermLocks = true,
             targetChineseLocale = config.targetChineseLocale
         )
         val promptContext = promptBuilder.buildPromptContext(
@@ -207,8 +206,7 @@ class Translator @Inject constructor(
         }
         val restoredResponse = restoreProtectedTranslation(
             response,
-            protectedInput,
-            "API test response"
+            protectedInput
         )
         var translated = restoredResponse?.let {
             sanitizeTranslation(normalizedText, it).trim()
@@ -455,10 +453,6 @@ class Translator @Inject constructor(
             Regex("__FGO(?:TERM|PLAYER)_([^_\\s]{1,64})(?:_(PLURAL|KUN|CHAN|SAMA|TONO|SHI|MASTER))?__")
         private val anyProtectedTokenPattern =
             Regex("__FGO(?:TERM|PLAYER)_[^\\s]{1,96}__")
-        private val visibleKeepTagPattern =
-            Regex("""<keep\s+id="\d+">([^<>]*)</keep>""")
-        private val visibleKeepMarkupPattern =
-            Regex("""</?keep\b[^>]*>""")
         private val protectedTokenNumericVariantBodyPattern =
             Regex("\\d+_(PLURAL|KUN|CHAN|SAMA|TONO|SHI|MASTER)")
         private val protectedTokenMarkerBodies = setOf(
@@ -578,7 +572,6 @@ class Translator @Inject constructor(
             normalizedText,
             matchedTerms,
             playerName,
-            useVisibleTermLocks = true,
             targetChineseLocale = config.targetChineseLocale
         )
         val promptContext = promptBuilder.buildPromptContext(
@@ -619,8 +612,7 @@ class Translator @Inject constructor(
 
         val restoredResult = restoreProtectedTranslation(
             result,
-            protectedInput,
-            "API response"
+            protectedInput
         )
         var simplifiedResult = restoredResult?.let {
             sanitizeModelTranslation(normalizedText, it, config)
@@ -765,7 +757,6 @@ class Translator @Inject constructor(
                 it,
                 matchedTerms,
                 playerName,
-                useVisibleTermLocks = true,
                 targetChineseLocale = config.targetChineseLocale
             )
         }
@@ -803,8 +794,7 @@ class Translator @Inject constructor(
         for ((batchIndex, originalIndex) in uncachedIndices.withIndex()) {
             val restored = restoreProtectedTranslation(
                 translatedTexts[batchIndex],
-                protectedTexts[batchIndex],
-                "Batch item[$originalIndex]"
+                protectedTexts[batchIndex]
             )
             val sanitized = restored?.let {
                 sanitizeModelTranslation(normalizedTexts[originalIndex], it, config)
@@ -1063,7 +1053,6 @@ class Translator @Inject constructor(
                 it,
                 matchedTerms,
                 playerName,
-                useVisibleTermLocks = true,
                 targetChineseLocale = config.targetChineseLocale
             )
         }
@@ -1072,7 +1061,6 @@ class Translator @Inject constructor(
                 it,
                 matchedTerms,
                 playerName,
-                useVisibleTermLocks = true,
                 targetChineseLocale = config.targetChineseLocale
             )
         }
@@ -1152,8 +1140,7 @@ class Translator @Inject constructor(
             val restoredName = if (protectedName != null) {
                 restoreProtectedTranslation(
                     translatedName,
-                    protectedName,
-                    "Structured scene name"
+                    protectedName
                 )
             } else {
                 translatedName
@@ -1182,8 +1169,7 @@ class Translator @Inject constructor(
             val restoredDialogue = if (protectedDialogue != null) {
                 restoreProtectedTranslation(
                     translatedDialogue,
-                    protectedDialogue,
-                    "Structured scene dialogue"
+                    protectedDialogue
                 )
             } else {
                 translatedDialogue
@@ -1231,8 +1217,7 @@ class Translator @Inject constructor(
             val hash = choiceHashes[originalIndex] ?: continue
             val restoredChoice = restoreProtectedTranslation(
                 translatedScene.choices[batchIndex],
-                protectedChoices[batchIndex],
-                "Structured scene choice[$originalIndex]"
+                protectedChoices[batchIndex]
             )
             val translatedChoice = restoredChoice?.let {
                 sanitizeModelTranslation(normalizedChoice, it, config)
@@ -2726,8 +2711,7 @@ class Translator @Inject constructor(
 
     private data class ProtectedText(
         val text: String,
-        val terms: List<TermProtection>,
-        val locks: List<VisibleTermLock> = emptyList()
+        val terms: List<TermProtection>
     )
 
     private data class TermProtection(
@@ -2735,18 +2719,6 @@ class Translator @Inject constructor(
         val officialText: String,
         val pluralToken: String? = null,
         val pluralOfficialText: String? = null
-    )
-
-    private data class VisibleTermLock(
-        val id: Int,
-        val officialText: String,
-        val minCount: Int
-    )
-
-    private data class VisibleTermLockResult(
-        val text: String,
-        val locks: List<VisibleTermLock>,
-        val unmatchedTerms: List<TermEntity>
     )
 
     private data class HonorificProtectionVariant(
@@ -2760,42 +2732,23 @@ class Translator @Inject constructor(
         sourceText: String,
         matchedTerms: List<TermEntity>,
         playerName: String,
-        useVisibleTermLocks: Boolean = false,
         targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
     ): ProtectedText {
+        if (matchedTerms.isNotEmpty()) {
+            FgoLogger.debug(
+                tag,
+                "RAG source: leaving ${matchedTerms.size} matched glossary term(s) in original text"
+            )
+        }
         val maskProtected = protectMaskedSpans(sourceText)
         val masterProtected = protectMasterTitle(
             sourceText = maskProtected.text,
-            protectBaseTitle = !useVisibleTermLocks,
             targetChineseLocale = targetChineseLocale
         )
         val playerProtected = protectPlayerName(masterProtected.text, playerName, targetChineseLocale)
-        val visibleLockResult = if (useVisibleTermLocks) {
-            val (visibleTerms, placeholderTerms) = matchedTerms.partition(::isVisibleTermLockEligible)
-            val visibleProtected = protectVisibleOfficialTerms(
-                playerProtected.text,
-                visibleTerms,
-                targetChineseLocale
-            )
-            visibleProtected.copy(
-                unmatchedTerms = placeholderTerms + visibleProtected.unmatchedTerms
-            )
-        } else {
-            VisibleTermLockResult(
-                text = playerProtected.text,
-                locks = emptyList(),
-                unmatchedTerms = matchedTerms
-            )
-        }
-        val termProtected = protectOfficialTerms(
-            visibleLockResult.text,
-            visibleLockResult.unmatchedTerms,
-            targetChineseLocale
-        )
         return ProtectedText(
-            text = termProtected.text,
-            terms = maskProtected.terms + masterProtected.terms + playerProtected.terms + termProtected.terms,
-            locks = visibleLockResult.locks
+            text = playerProtected.text,
+            terms = maskProtected.terms + masterProtected.terms + playerProtected.terms
         )
     }
 
@@ -2940,256 +2893,6 @@ class Translator @Inject constructor(
             )
         } else {
             ProtectedText(sourceText, emptyList())
-        }
-    }
-
-    private fun protectOfficialTerms(
-        sourceText: String,
-        matchedTerms: List<TermEntity>,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
-    ): ProtectedText {
-        if (sourceText.isBlank() || matchedTerms.isEmpty()) {
-            return ProtectedText(sourceText, emptyList())
-        }
-
-        var protectedText = sourceText
-        val protections = mutableListOf<TermProtection>()
-        var tokenIndex = 1
-
-        for (term in matchedTerms.distinctBy { it.jpTerm }) {
-            if (term.cnTerm.isBlank()) continue
-
-            val termIndex = tokenIndex++
-            val token = "__FGOTERM_${termIndex}__"
-            val pluralToken = "__FGOTERM_${termIndex}_PLURAL__"
-            val honorificVariants = honorificProtectionVariants("__FGOTERM_${termIndex}", targetChineseLocale)
-            var matched = false
-            var pluralMatched = false
-            for (candidate in termProtectionCandidates(term)) {
-                for (variant in honorificVariants) {
-                    val before = protectedText
-                    protectedText = replaceTermHonorificCandidate(
-                        protectedText,
-                        candidate,
-                        variant.sourceSuffix,
-                        variant.token
-                    )
-                    variant.matched = variant.matched || protectedText != before
-                }
-
-                val pluralBefore = protectedText
-                protectedText = replaceTermPluralCandidate(
-                    protectedText,
-                    candidate,
-                    pluralToken
-                )
-                val candidatePluralMatched = protectedText != pluralBefore
-
-                val baseBefore = protectedText
-                protectedText = replaceTermCandidate(protectedText, candidate, token)
-                val candidateBaseMatched = protectedText != baseBefore
-
-                pluralMatched = pluralMatched || candidatePluralMatched
-                matched = matched || candidatePluralMatched || candidateBaseMatched
-            }
-
-            if (matched || honorificVariants.any { it.matched }) {
-                val officialText = targetOfficialChinese(term.cnTerm, targetChineseLocale)
-                if (matched) {
-                    protections += TermProtection(
-                        token = token,
-                        officialText = officialText,
-                        pluralToken = pluralToken.takeIf { pluralMatched },
-                        pluralOfficialText = pluralNameText(officialText, targetChineseLocale).takeIf { pluralMatched }
-                    )
-                }
-                for (variant in honorificVariants) {
-                    if (variant.matched) {
-                        protections += TermProtection(
-                            token = variant.token,
-                            officialText = officialText + variant.officialSuffix
-                        )
-                    }
-                }
-                FgoLogger.debug(tag, "Protected DB term ${term.jpTerm} -> ${term.cnTerm} as $token")
-            } else {
-                tokenIndex--
-            }
-        }
-
-        return ProtectedText(protectedText, protections)
-    }
-
-    private fun protectVisibleOfficialTerms(
-        sourceText: String,
-        matchedTerms: List<TermEntity>,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
-    ): VisibleTermLockResult {
-        if (sourceText.isBlank() || matchedTerms.isEmpty()) {
-            return VisibleTermLockResult(sourceText, emptyList(), matchedTerms)
-        }
-
-        var protectedText = sourceText
-        val locks = mutableListOf<VisibleTermLock>()
-        val unmatchedTerms = mutableListOf<TermEntity>()
-        var lockId = 1
-
-        for (term in matchedTerms.distinctBy { it.jpTerm }) {
-            val officialText = targetOfficialChinese(term.cnTerm, targetChineseLocale).trim()
-            if (!isVisibleTermLockEligible(term) || !isVisibleOfficialTextSafe(officialText)) {
-                unmatchedTerms += term
-                continue
-            }
-
-            val keepTag = visibleKeepTag(lockId, officialText)
-            var matchedCount = 0
-            for (candidate in termProtectionCandidates(term).filter(::containsJapaneseScript)) {
-                val beforeCount = countOccurrences(protectedText, keepTag)
-                protectedText = replaceTermCandidateOutsideVisibleKeepTags(
-                    protectedText,
-                    candidate,
-                    keepTag
-                )
-                matchedCount += countOccurrences(protectedText, keepTag) - beforeCount
-            }
-
-            if (matchedCount > 0) {
-                locks += VisibleTermLock(
-                    id = lockId,
-                    officialText = officialText,
-                    minCount = matchedCount
-                )
-                FgoLogger.debug(tag, "Locked visible DB term ${term.jpTerm} -> $officialText as keep#$lockId")
-                lockId++
-            } else {
-                unmatchedTerms += term
-            }
-        }
-
-        return VisibleTermLockResult(
-            text = protectedText,
-            locks = locks,
-            unmatchedTerms = unmatchedTerms
-        )
-    }
-
-    private fun termProtectionCandidates(term: TermEntity): List<String> {
-        return buildList {
-            add(term.jpTerm)
-            term.aliases.orEmpty()
-                .split(',', '\n')
-                .map { it.trim('"', '\'', '[', ']', ' ', '\t', '\r') }
-                .filter { it.isNotBlank() }
-                .forEach(::add)
-        }
-            .map { TextNormalizer.normalizeForTranslation(it) }
-            .filter { it.length >= 2 }
-            .distinct()
-            .sortedByDescending { it.length }
-    }
-
-    private fun isVisibleTermLockEligible(term: TermEntity): Boolean {
-        return when (term.category.trim().lowercase()) {
-            "character", "character_part" -> false
-            else -> true
-        }
-    }
-
-    private fun isVisibleOfficialTextSafe(officialText: String): Boolean {
-        return officialText.isNotBlank() &&
-            officialText.none(::isJapaneseKana) &&
-            officialText.none { it == '<' || it == '>' || it == '&' || it == '\n' || it == '\r' }
-    }
-
-    private fun visibleKeepTag(id: Int, officialText: String): String {
-        return """<keep id="$id">$officialText</keep>"""
-    }
-
-    private fun replaceTermCandidateOutsideVisibleKeepTags(
-        text: String,
-        candidate: String,
-        replacement: String
-    ): String {
-        if (!text.contains("<keep")) {
-            return replaceVisibleTermCandidate(text, candidate, replacement)
-        }
-
-        val result = StringBuilder()
-        var lastIndex = 0
-        for (match in visibleKeepTagPattern.findAll(text)) {
-            val start = match.range.first
-            val endExclusive = match.range.last + 1
-            result.append(
-                replaceVisibleTermCandidate(
-                    text.substring(lastIndex, start),
-                    candidate,
-                    replacement
-                )
-            )
-            result.append(match.value)
-            lastIndex = endExclusive
-        }
-        result.append(
-            replaceVisibleTermCandidate(
-                text.substring(lastIndex),
-                candidate,
-                replacement
-            )
-        )
-        return result.toString()
-    }
-
-    private fun replaceVisibleTermCandidate(text: String, candidate: String, token: String): String {
-        if (candidate.isBlank()) return text
-        val ignoreCase = candidate.any { it.isAsciiLetter() }
-        val requiresKatakanaBoundary = candidate.requiresKatakanaBoundary()
-        val result = StringBuilder()
-        var searchStart = 0
-        var changed = false
-
-        while (searchStart < text.length) {
-            val matchStart = text.indexOf(candidate, searchStart, ignoreCase)
-            if (matchStart < 0) break
-
-            val matchEndExclusive = matchStart + candidate.length
-            result.append(text, searchStart, matchStart)
-            if (hasVisibleTermLockBoundary(text, matchStart, matchEndExclusive, requiresKatakanaBoundary)) {
-                result.append(token)
-                changed = true
-            } else {
-                result.append(text, matchStart, matchEndExclusive)
-            }
-            searchStart = matchEndExclusive
-        }
-
-        if (!changed) return text
-        result.append(text, searchStart, text.length)
-        return result.toString()
-    }
-
-    private fun hasVisibleTermLockBoundary(
-        text: String,
-        start: Int,
-        endExclusive: Int,
-        requiresKatakanaBoundary: Boolean
-    ): Boolean {
-        if (requiresKatakanaBoundary && !hasKatakanaWordBoundary(text, start, endExclusive)) {
-            return false
-        }
-        return visibleLockBlockedSuffixes.none { suffix ->
-            text.startsWith(suffix, endExclusive)
-        }
-    }
-
-    private fun countOccurrences(text: String, needle: String): Int {
-        if (text.isBlank() || needle.isBlank()) return 0
-        var count = 0
-        var searchStart = 0
-        while (true) {
-            val index = text.indexOf(needle, searchStart)
-            if (index < 0) return count
-            count++
-            searchStart = index + needle.length
         }
     }
 
@@ -3393,43 +3096,9 @@ class Translator @Inject constructor(
 
     private fun restoreProtectedTranslation(
         translatedText: String,
-        protectedText: ProtectedText,
-        stage: String
+        protectedText: ProtectedText
     ): String? {
-        val restored = stripVisibleKeepTags(
-            restoreProtectedTerms(translatedText, protectedText.terms)
-        )
-        if (!validateVisibleTermLocks(restored, protectedText.locks, stage)) {
-            return null
-        }
-        return restored
-    }
-
-    private fun stripVisibleKeepTags(text: String): String {
-        val stripped = visibleKeepTagPattern.replace(text) { match ->
-            match.groupValues.getOrNull(1).orEmpty()
-        }
-        return visibleKeepMarkupPattern.replace(stripped, "")
-    }
-
-    private fun validateVisibleTermLocks(
-        translatedText: String,
-        locks: List<VisibleTermLock>,
-        stage: String
-    ): Boolean {
-        if (locks.isEmpty()) return true
-        for (lock in locks) {
-            val actualCount = countOccurrences(translatedText, lock.officialText)
-            if (actualCount < lock.minCount) {
-                FgoLogger.warn(
-                    tag,
-                    "$stage missing locked term keep#${lock.id}: " +
-                        "\"${logSample(lock.officialText, "")}\" expected>=${lock.minCount}, actual=$actualCount"
-                )
-                return false
-            }
-        }
-        return true
+        return restoreProtectedTerms(translatedText, protectedText.terms)
     }
 
     private fun restoreMalformedProtectedTokens(
@@ -3876,7 +3545,6 @@ class Translator @Inject constructor(
             appendLine("- For obvious English-origin katakana common words in dialogue or choices, keep compact English flavor when natural, unless a glossary/name/official term applies.")
             appendLine("- Translate choices as short player-facing options in the same order. Preserve intent and emotional nuance, but avoid making choices long.")
             appendLine("- If placeholders starting with __FGO appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
-            appendLine("- If <keep id=\"n\">official Chinese</keep> appears, use it as sentence meaning, keep the inner Chinese exactly, and omit the keep tags in the JSON value.")
             appendLine("- Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
             appendLine("- Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations, no extra keys.")
             appendLine()
@@ -3993,7 +3661,6 @@ class Translator @Inject constructor(
             appendLine("The JSON array must contain exactly ${texts.size} items in the same order.")
             appendLine("Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
             appendLine("If placeholders starting with __FGO appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
-            appendLine("If <keep id=\"n\">official Chinese</keep> appears, use it as sentence meaning, keep the inner Chinese exactly, and omit the keep tags.")
             appendLine("Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
             appendLine("Keep every item aligned one-to-one with input order; do not merge, split, or skip items.")
             appendLine("Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations.")
@@ -4038,8 +3705,7 @@ class Translator @Inject constructor(
 
         val retryRestored = restoreProtectedTranslation(
             retryRaw,
-            protectedInput,
-            "Strict retry response"
+            protectedInput
         ) ?: return null
         val retrySimplified = sanitizeModelTranslation(
             normalizedText,
@@ -4067,7 +3733,6 @@ class Translator @Inject constructor(
             appendLine("Do not leave Japanese kana, except inside the fixed player name or unchanged placeholder tokens.")
             appendLine("Japanese second-person address forms such as あなた, お前, 貴様, 汝, そなた, お主, and てめえ should be translated by tone and relationship; do not leave them as Japanese or treat them as names.")
             appendLine("Keep every full placeholder token starting with __FGO exactly unchanged.")
-            appendLine("Text inside <keep id=\"n\">...</keep> is official Chinese already translated. Use its meaning, keep the inner text exactly, and do not output keep tags.")
             appendLine("Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden words.")
             appendLine("Keep the FGO dialogue tone natural, compact, and suitable for a two-line in-game overlay.")
             appendLine("アテシ, アタシ, and あたし are first-person pronouns, not names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
@@ -4097,7 +3762,6 @@ class Translator @Inject constructor(
             appendLine("Translate every Japanese line; preserve line breaks only when they separate complete source rows.")
             appendLine("Do not copy any Japanese kana from the source.")
             appendLine("Keep placeholder tokens exactly unchanged.")
-            appendLine("If <keep id=\"n\">official Chinese</keep> appears, use it as sentence meaning, keep the inner Chinese exactly, and omit the keep tags.")
             appendLine("If the source contains mask blocks such as ■ or □, preserve those masks exactly and do not invent their hidden content.")
             if (choiceTexts.isNotEmpty()) {
                 appendLine("Choice context. Translate choices as short player-facing options:")

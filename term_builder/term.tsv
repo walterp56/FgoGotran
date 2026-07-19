@@ -42,8 +42,7 @@
 霊核	灵核	game_term	
 霊脈	灵脉	game_term	
 霊子	灵子	game_term	
-霊子転移	灵子转移	game_term	レイシフト,Rayshift
-レイシフト	灵子转移	game_term	Rayshift
+レイシフト	灵子转移	game_term	Rayshift,霊子転移
 霊衣	灵衣	game_term	
 聖杯探索	圣杯探索	game_term	
 グランドオーダー	冠位指定	game_term	Grand Order
@@ -62,8 +61,7 @@
 英霊召喚	英灵召唤	game_term	
 召喚	召唤	game_term	
 強化	强化	game_term	
-再臨	灵基再临	game_term	霊基再臨
-霊基再臨	灵基再临	game_term	再臨
+再臨	再临	game_term	再臨
 セイバー	Saber	class	剑士
 アーチャー	Archer	class	弓兵
 ランサー	Lancer	class	枪兵
@@ -118,10 +116,13 @@
 バルトアンデルス	波丹德斯	organization	
 マイルーム	My room	place	
 オーディール・コール	Ordeal Call	game_term	
-ホムンクルス	人造人	game_term	
+ホムンクルス	人工生命体	game_term	
 戦乙女	女武神	game_term	
 リリン	莉莉恩	game_term	
 サクラファイブ	Sakura Five	game_term	
 タマモナイン	Tamamo Nine	game_term	
 カルデニア	迦勒迪尼亚	place	カルデ二ア
 アルスィア	Althea	game_term
+パラディーン	Paladin	class	圣骑士
+シールダー・パラディーン	Shielder・Paladin	class	圣骑士盾兵
+シリウスライト	Sirius Light	game_term

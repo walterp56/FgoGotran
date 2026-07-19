@@ -3,6 +3,7 @@ package com.fgogotran.overlay
 import android.content.Context
 import android.graphics.*
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.ocr.OcrTextLine
 import com.fgogotran.translation.FgoDialogueSymbols
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -87,6 +88,8 @@ class OverlayRenderer @Inject constructor(
         private const val DYNAMIC_DIALOGUE_TEXT_HORIZONTAL_INSET = 24f
         private const val DYNAMIC_DIALOGUE_TEXT_LEFT_INSET = 14f
         private const val DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET = 4f
+        private const val SOURCE_BOUNDS_RUBY_MAX_CHARS = 14
+        private const val SOURCE_BOUNDS_RUBY_HEIGHT_RATIO = 0.72f
         const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.55f
         private const val ORIGINAL_TEXT_SIZE_RATIO = 0.85f
         private const val ORIGINAL_LINE_HEIGHT_MULTIPLIER = 1.18f
@@ -646,11 +649,71 @@ class OverlayRenderer @Inject constructor(
         }
         if (sourceLines.isEmpty()) return null
 
-        val bounds = Rect(sourceLines.first().boundingBox)
-        sourceLines.drop(1).forEach { line ->
+        val boundsLines = if (instruction.region.region == TextRegion.DIALOGUE_BOX) {
+            dialogueSourceBoundsLines(sourceLines)
+        } else {
+            sourceLines
+        }
+        return unionTextBounds(boundsLines.ifEmpty { sourceLines })
+    }
+
+    private fun dialogueSourceBoundsLines(lines: List<OcrTextLine>): List<OcrTextLine> {
+        if (lines.size < 2) return lines
+
+        val sorted = lines.sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+        val heights = sorted.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
+        val heightReference = heights[(heights.size * 3 / 4).coerceAtMost(heights.lastIndex)]
+        val rubyCandidates = sorted
+            .filter { isDialogueRubyBoundsCandidate(it, heightReference) }
+            .toSet()
+        if (rubyCandidates.isEmpty()) return sorted
+
+        val mainCandidates = sorted.filterNot { it in rubyCandidates }
+        if (mainCandidates.isEmpty()) return sorted
+
+        val rubyLines = rubyCandidates.filter { ruby ->
+            mainCandidates.any { main -> isDialogueRubyAboveMain(ruby, main, heightReference) }
+        }.toSet()
+
+        return sorted.filterNot { it in rubyLines }
+    }
+
+    private fun isDialogueRubyBoundsCandidate(line: OcrTextLine, heightReference: Int): Boolean {
+        val text = line.text.trim()
+        if (text.length !in 1..SOURCE_BOUNDS_RUBY_MAX_CHARS) return false
+        if (text.none { it.isLetterOrDigit() || it.isJapaneseOrCjkTextChar() }) return false
+
+        val height = line.boundingBox.height().coerceAtLeast(1)
+        return height <= heightReference * SOURCE_BOUNDS_RUBY_HEIGHT_RATIO
+    }
+
+    private fun isDialogueRubyAboveMain(
+        ruby: OcrTextLine,
+        main: OcrTextLine,
+        heightReference: Int
+    ): Boolean {
+        if (main.boundingBox.top < ruby.boundingBox.bottom - heightReference / 3) return false
+        if (main.boundingBox.top - ruby.boundingBox.bottom > heightReference) return false
+        return horizontalOverlap(ruby.boundingBox, main.boundingBox) >= ruby.boundingBox.width() / 4 ||
+                ruby.boundingBox.centerX() in main.boundingBox.left..main.boundingBox.right
+    }
+
+    private fun unionTextBounds(lines: List<OcrTextLine>): Rect {
+        val bounds = Rect(lines.first().boundingBox)
+        lines.drop(1).forEach { line ->
             bounds.union(line.boundingBox)
         }
         return bounds
+    }
+
+    private fun horizontalOverlap(first: Rect, second: Rect): Int {
+        return (minOf(first.right, second.right) - maxOf(first.left, second.left)).coerceAtLeast(0)
+    }
+
+    private fun Char.isJapaneseOrCjkTextChar(): Boolean {
+        return this in '\u3040'..'\u30ff' ||
+                this in '\u3400'..'\u9fff' ||
+                this == '\u3005'
     }
 
     private fun RenderInstruction.hasRiskyTrailingDialogueText(): Boolean {
