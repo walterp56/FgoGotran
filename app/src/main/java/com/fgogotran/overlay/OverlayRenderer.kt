@@ -722,7 +722,7 @@ class OverlayRenderer @Inject constructor(
             .lastOrNull { it.isNotBlank() }
             ?: return false
         return TRAILING_DASH_CLEAR_RISK.containsMatchIn(sourceTail) ||
-            COUNTDOWN_CLEAR_RISK.containsMatchIn(sourceTail)
+                COUNTDOWN_CLEAR_RISK.containsMatchIn(sourceTail)
     }
 
     private fun renderBilingualChoiceButton(
