@@ -145,6 +145,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val OVERLAY_BUTTON_LONG_PRESS_TIMEOUT = 420L
         private const val OVERLAY_BUTTON_TOUCH_SLOP = 18f
         private const val CROP_TRANSLATION_WAIT_TIMEOUT = 700L
+        private const val CROP_TRANSLATION_MAX_TOKENS = 512
         private const val CROP_OCR_SCALE = 2
         private const val EMPTY_CHOICE_OCR_BASE_COOLDOWN = 600L
         private const val EMPTY_CHOICE_OCR_MAX_COOLDOWN = 1_200L
@@ -938,6 +939,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 translator.translate(
                     sourceText,
                     preserveRubyMeaning = true,
+                    cropMode = true,
+                    maxTokens = CROP_TRANSLATION_MAX_TOKENS,
                     useTranslationCache = false
                 )
             }

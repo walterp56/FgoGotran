@@ -16,6 +16,7 @@ enum class PromptOutputFormat(val logName: String) {
 data class PromptContext(
     val outputFormat: PromptOutputFormat = PromptOutputFormat.PLAIN_TEXT,
     val targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+    val isCropMode: Boolean = false,
     val hasChoices: Boolean = false,
     val hasName: Boolean = false,
     val hasRuby: Boolean = false,
@@ -74,6 +75,13 @@ class PromptBuilder @Inject constructor() {
             Return only the translated content requested by the user message. Do not add notes, markdown, source text, explanations, labels, wrappers, lore commentary, or extra text.
             """.trimIndent()
 
+        private val CROP_CORE_PROMPT = """
+            You translate visible Japanese text from a user-selected Fate/Grand Order screen crop into natural, compact {target_chinese}.
+            The crop may contain dialogue, history log text, choices, UI labels, battle text, event missions, item descriptions, skill descriptions, servant profile text, names, titles, or partial sentences.
+            Translate only the visible source text. Do not infer missing text outside the crop.
+            Return only the translated content requested by the user message. Do not add notes, markdown, source text, explanations, labels, wrappers, lore commentary, or extra text.
+            """.trimIndent()
+
         private val PRIORITY_RULES_PROMPT = """
             Rules:
             1. Keep any placeholder token starting with __FGO unchanged exactly.
@@ -91,6 +99,18 @@ class PromptBuilder @Inject constructor() {
             - Japanese often omits subjects/objects. Preserve ambiguity when natural in Chinese; add pronouns only when the source clearly identifies the speaker/listener/referent, or when Chinese would be misleading without one.
             - Use 他 for necessary third-person pronouns unless the source clearly identifies a female referent.
             - Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
+            """.trimIndent()
+
+        private val CROP_STYLE_PROMPT = """
+            Crop mode:
+            - Preserve the source line order.
+            - Preserve line breaks when they separate visible rows, UI items, choices, or dialogue lines.
+            - If the source is a partial sentence, translate only the visible part naturally; do not complete it.
+            - Preserve numbers, percentages, levels, ranks, icons-as-text, and item counts.
+            - If the text is dialogue, preserve tone and speaker voice naturally.
+            - If the text is UI, profile, skill, item, mission, or battle text, translate concisely like game UI text.
+            - Do not add speaker names, labels, or missing context that is not visible in the crop.
+            - Translate マスター as 御主 by default in FGO content, not 主人, 大师, or Master unless clearly an English UI label.
             """.trimIndent()
 
         private val CHOICE_PROMPT = """
@@ -159,6 +179,7 @@ class PromptBuilder @Inject constructor() {
         targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
         hasName: Boolean = false,
         forceRuby: Boolean = false,
+        isCropMode: Boolean = false,
         isRetry: Boolean = false
     ): PromptContext {
         val combinedText = (listOf(sourceText) + choiceTexts)
@@ -166,6 +187,7 @@ class PromptBuilder @Inject constructor() {
         return PromptContext(
             outputFormat = outputFormat,
             targetChineseLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale),
+            isCropMode = isCropMode,
             hasChoices = choiceTexts.isNotEmpty(),
             hasName = hasName,
             hasRuby = forceRuby || containsRuby(combinedText),
@@ -194,15 +216,32 @@ class PromptBuilder @Inject constructor() {
         val sb = StringBuilder()
         val blockNames = mutableListOf<String>()
         val targetChinese = targetChinesePromptLabel(context.targetChineseLocale)
-        appendPromptBlock(sb, blockNames, "core", applyTargetChinese(CORE_PROMPT, targetChinese))
+        val corePrompt = if (context.isCropMode) CROP_CORE_PROMPT else CORE_PROMPT
+        val stylePrompt = if (context.isCropMode) CROP_STYLE_PROMPT else GENERAL_STYLE_PROMPT
+        appendPromptBlock(
+            sb,
+            blockNames,
+            if (context.isCropMode) "crop_core" else "core",
+            applyTargetChinese(corePrompt, targetChinese)
+        )
         appendPromptBlock(
             sb,
             blockNames,
             "priority",
             PRIORITY_RULES_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
         )
-        appendPromptBlock(sb, blockNames, "style", GENERAL_STYLE_PROMPT)
-        conditionalPromptBlocks(context).forEach { (name, block) ->
+        appendPromptBlock(
+            sb,
+            blockNames,
+            if (context.isCropMode) "crop_style" else "style",
+            stylePrompt
+        )
+        val conditionalBlocks = if (context.isCropMode) {
+            cropConditionalPromptBlocks(context)
+        } else {
+            conditionalPromptBlocks(context)
+        }
+        conditionalBlocks.forEach { (name, block) ->
             appendPromptBlock(sb, blockNames, name, applyTargetChinese(block, targetChinese))
         }
         if (appendMatchedTerminology(sb, matchedTerms)) {
@@ -244,6 +283,18 @@ class PromptBuilder @Inject constructor() {
         return buildList {
             if (context.hasChoices) add("choices" to CHOICE_PROMPT)
             if (context.hasName) add("name" to NAME_PROMPT)
+            if (context.hasRuby) add("ruby" to RUBY_PROMPT)
+            if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
+            if (context.hasHonorifics) add("honorific" to HONORIFIC_PROMPT)
+            if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
+            if (context.hasKatakana) add("katakana_style" to KATAKANA_STYLE_PROMPT)
+            if (context.hasSpecialFirstPerson) add("special_first_person" to SPECIAL_FIRST_PERSON_PROMPT)
+            if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
+        }
+    }
+
+    private fun cropConditionalPromptBlocks(context: PromptContext): List<Pair<String, String>> {
+        return buildList {
             if (context.hasRuby) add("ruby" to RUBY_PROMPT)
             if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
             if (context.hasHonorifics) add("honorific" to HONORIFIC_PROMPT)
@@ -298,6 +349,25 @@ class PromptBuilder @Inject constructor() {
         sb.append(japaneseText)
 
         FgoLogger.debug(tag, "User prompt: ${sb.length} chars, choices=${choiceTexts.size}")
+        return sb.toString()
+    }
+
+    fun buildCropUserPrompt(
+        japaneseText: String,
+        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    ): String {
+        val sb = StringBuilder()
+        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
+
+        sb.append("Translate this cropped Fate/Grand Order screen text into $targetChinese.\n")
+        sb.append("Return only the translated visible text.\n\n")
+        if (japaneseText.contains("__FGO")) {
+            sb.append("Keep each full placeholder token starting with __FGO unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
+        }
+        sb.append("Cropped text:\n")
+        sb.append(japaneseText)
+
+        FgoLogger.debug(tag, "Crop user prompt: ${sb.length} chars")
         return sb.toString()
     }
 

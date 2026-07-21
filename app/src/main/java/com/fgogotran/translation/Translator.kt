@@ -288,7 +288,7 @@ class Translator @Inject constructor(
         private const val TRANSLATION_CONNECT_TIMEOUT_MS = 10_000L
         private const val TRANSLATION_SOCKET_TIMEOUT_MS = 20_000L
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
-        private const val CHAT_COMPLETION_MAX_TOKENS = 1024
+        private const val CHAT_COMPLETION_MAX_TOKENS = 256
         private const val API_TEST_MAX_TOKENS = 96
         private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
@@ -493,6 +493,7 @@ class Translator @Inject constructor(
         japaneseText: String,
         choiceTexts: List<String> = emptyList(),
         preserveRubyMeaning: Boolean = false,
+        cropMode: Boolean = false,
         maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
         useTranslationCache: Boolean = true
     ): TranslateResult {
@@ -536,10 +537,17 @@ class Translator @Inject constructor(
                 .forTargetLocale(config)
         }
 
-        val rubyPolicyKey = if (preserveRubyMeaning) "ruby-angle-v2" else ""
-        val hash = cacheKey(normalizedText, normalizedChoices, config, rubyPolicyKey)
+        val promptPolicyKey = when {
+            cropMode -> "crop-screen-v1"
+            preserveRubyMeaning -> "ruby-angle-v2"
+            else -> ""
+        }
+        val hash = cacheKey(normalizedText, normalizedChoices, config, promptPolicyKey)
 
-        FgoLogger.debug(tag, "translate: textLen=${normalizedText.length}, choices=${normalizedChoices.size}")
+        FgoLogger.debug(
+            tag,
+            "translate: textLen=${normalizedText.length}, choices=${normalizedChoices.size}, crop=$cropMode"
+        )
 
         if (cacheEnabled) {
             lookupCachedTranslation(hash, normalizedText, playerName, "Cache")?.let { cached ->
@@ -579,22 +587,28 @@ class Translator @Inject constructor(
             sourceText = normalizedText,
             choiceTexts = normalizedChoices,
             targetChineseLocale = config.targetChineseLocale,
-            forceRuby = preserveRubyMeaning
+            forceRuby = preserveRubyMeaning || cropMode,
+            isCropMode = cropMode
         )
         val promptTerms = termsForTargetPrompt(matchedTerms, config.targetChineseLocale)
         val systemPrompt = promptBuilder.buildSystemPrompt(promptTerms, playerName, promptContext)
+        val userPrompt = if (cropMode) {
+            promptBuilder.buildCropUserPrompt(
+                japaneseText = protectedInput.text,
+                targetChineseLocale = config.targetChineseLocale
+            )
+        } else {
+            buildSingleUserPrompt(
+                japaneseText = protectedInput.text,
+                choiceTexts = normalizedChoices,
+                preserveRubyMeaning = preserveRubyMeaning,
+                targetChineseLocale = config.targetChineseLocale
+            )
+        }
 
         val messages = listOf(
             ChatMessage("system", systemPrompt),
-            ChatMessage(
-                "user",
-                buildSingleUserPrompt(
-                    japaneseText = protectedInput.text,
-                    choiceTexts = normalizedChoices,
-                    preserveRubyMeaning = preserveRubyMeaning,
-                    targetChineseLocale = config.targetChineseLocale
-                )
-            )
+            ChatMessage("user", userPrompt)
         )
 
         FgoLogger.info(tag, "Calling $backend API")
@@ -632,6 +646,7 @@ class Translator @Inject constructor(
                 normalizedChoices = normalizedChoices,
                 matchedTerms = matchedTerms,
                 protectedInput = protectedInput,
+                cropMode = cropMode,
                 maxTokens = maxTokens
             )
             if (retryResult == null) {
@@ -3679,19 +3694,26 @@ class Translator @Inject constructor(
         normalizedChoices: List<String>,
         matchedTerms: List<TermEntity>,
         protectedInput: ProtectedText,
+        cropMode: Boolean = false,
         maxTokens: Int
     ): String? {
         val retryMessages = listOf(
             ChatMessage(
                 "system",
-                buildStrictRetrySystemPrompt(matchedTerms, playerName, config.targetChineseLocale)
+                buildStrictRetrySystemPrompt(
+                    matchedTerms,
+                    playerName,
+                    config.targetChineseLocale,
+                    cropMode
+                )
             ),
             ChatMessage(
                 "user",
                 buildStrictRetryUserPrompt(
                     protectedInput.text,
                     normalizedChoices,
-                    config.targetChineseLocale
+                    config.targetChineseLocale,
+                    cropMode
                 )
             )
         )
@@ -3723,18 +3745,31 @@ class Translator @Inject constructor(
     private fun buildStrictRetrySystemPrompt(
         matchedTerms: List<TermEntity>,
         playerName: String,
-        targetChineseLocale: String
+        targetChineseLocale: String,
+        cropMode: Boolean = false
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            appendLine("You translate Japanese Fate/Grand Order story text into $targetChinese.")
+            if (cropMode) {
+                appendLine("You translate visible Japanese text from a cropped Fate/Grand Order screen into $targetChinese.")
+                appendLine("The crop may contain dialogue, UI text, item/profile/skill descriptions, choices, history log text, names, titles, or partial sentences.")
+                appendLine("Translate only the visible source text; do not infer missing text outside the crop.")
+            } else {
+                appendLine("You translate Japanese Fate/Grand Order story text into $targetChinese.")
+            }
             appendLine("This is a repair retry because the previous answer copied Japanese.")
             appendLine("Return only the final translated text. No source text, notes, markdown, or explanations.")
             appendLine("Do not leave Japanese kana, except inside the fixed player name or unchanged placeholder tokens.")
             appendLine("Japanese second-person address forms such as あなた, お前, 貴様, 汝, そなた, お主, and てめえ should be translated by tone and relationship; do not leave them as Japanese or treat them as names.")
             appendLine("Keep every full placeholder token starting with __FGO exactly unchanged.")
             appendLine("Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden words.")
-            appendLine("Keep the FGO dialogue tone natural, compact, and suitable for a two-line in-game overlay.")
+            if (cropMode) {
+                appendLine("Preserve source line order and useful visible line breaks.")
+                appendLine("If the source is a partial sentence, translate only the visible part naturally; do not complete it.")
+                appendLine("For UI, profile, skill, item, mission, or battle text, translate concisely like game UI text.")
+            } else {
+                appendLine("Keep the FGO dialogue tone natural, compact, and suitable for a two-line in-game overlay.")
+            }
             appendLine("アテシ, アタシ, and あたし are first-person pronouns, not names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
             appendLine("For obvious English-origin katakana common words, compact English flavor is allowed when natural; never apply this to names or official terms.")
             if (playerName.isNotBlank()) {
@@ -3753,13 +3788,22 @@ class Translator @Inject constructor(
     private fun buildStrictRetryUserPrompt(
         japaneseText: String,
         choiceTexts: List<String>,
-        targetChineseLocale: String
+        targetChineseLocale: String,
+        cropMode: Boolean = false
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            appendLine("Translate the Japanese source below into $targetChinese.")
+            if (cropMode) {
+                appendLine("Translate the cropped Fate/Grand Order screen text below into $targetChinese.")
+            } else {
+                appendLine("Translate the Japanese source below into $targetChinese.")
+            }
             appendLine("Return only the translated text, not JSON.")
-            appendLine("Translate every Japanese line; preserve line breaks only when they separate complete source rows.")
+            if (cropMode) {
+                appendLine("Translate only the visible source text. Preserve line breaks when they separate visible rows.")
+            } else {
+                appendLine("Translate every Japanese line; preserve line breaks only when they separate complete source rows.")
+            }
             appendLine("Do not copy any Japanese kana from the source.")
             appendLine("Keep placeholder tokens exactly unchanged.")
             appendLine("If the source contains mask blocks such as ■ or □, preserve those masks exactly and do not invent their hidden content.")
@@ -3770,7 +3814,7 @@ class Translator @Inject constructor(
                 }
             }
             appendLine()
-            appendLine("Japanese source:")
+            appendLine(if (cropMode) "Cropped text:" else "Japanese source:")
             append(japaneseText)
         }
     }
