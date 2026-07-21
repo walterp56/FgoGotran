@@ -167,6 +167,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val LOG_TEXT_CHUNK_SIZE = 900
         private const val MIN_PALETTE_TEXT_PIXELS = 8
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
+        private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
         private val FGO_TEXT_COLOR_SAMPLES = listOf(
             TextColorSample(
                 sampleColor = Color.rgb(245, 245, 240),
@@ -174,8 +175,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 maxDistanceSquared = 120 * 120
             ),
             TextColorSample(
-                sampleColor = Color.rgb(255, 80, 80),
-                renderColor = Color.rgb(255, 80, 80),
+                sampleColor = FGO_RENDER_RED,
+                renderColor = FGO_RENDER_RED,
                 maxDistanceSquared = 100 * 100
             ),
             TextColorSample(
@@ -2302,6 +2303,10 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun sampleOriginalTextColor(source: Bitmap, region: ClassifiedRegion): Int? {
+        if (region.region == TextRegion.CHOICE_BUTTON && hasRedTextPixels(source, region)) {
+            return FGO_RENDER_RED
+        }
+
         val matchCounts = IntArray(FGO_TEXT_COLOR_SAMPLES.size)
 
         for (line in region.lines) {
@@ -2330,6 +2335,25 @@ class FgoAccessibilityService : AccessibilityService() {
         } else {
             null
         }
+    }
+
+    private fun hasRedTextPixels(source: Bitmap, region: ClassifiedRegion): Boolean {
+        var redPixels = 0
+        for (line in region.lines) {
+            val bounds = Rect(line.boundingBox).apply { inset(-4, -4) }
+            if (!bounds.intersect(0, 0, source.width, source.height)) continue
+            if (bounds.width() <= 0 || bounds.height() <= 0) continue
+
+            for (y in bounds.top until bounds.bottom step 2) {
+                for (x in bounds.left until bounds.right step 2) {
+                    if (isLikelyRedDialogueTextPixel(source.getPixel(x, y))) {
+                        redPixels++
+                        if (redPixels >= MIN_PALETTE_TEXT_PIXELS) return true
+                    }
+                }
+            }
+        }
+        return false
     }
 
     private fun sampleCropOriginalTextColor(
@@ -2674,7 +2698,8 @@ class FgoAccessibilityService : AccessibilityService() {
         val b = pixel and 0xFF
         val max = maxOf(r, g, b)
         val min = minOf(r, g, b)
-        return r >= 145 && g >= 145 && b >= 145 && max - min <= 95
+        return isLikelyRedDialogueTextPixel(pixel) ||
+                (r >= 145 && g >= 145 && b >= 145 && max - min <= 95)
     }
 
     private fun shouldExpandChoiceSearch(

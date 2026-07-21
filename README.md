@@ -21,7 +21,7 @@ It reads the current FGO screen with OCR, matches FGO character names and termin
 
 ## Installation Note
 
-On Android 14+, or if installation is blocked by Google Play Protect, please use [APKMirror Installer](https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod) to install FgoGotran. Otherwise, Android may block the Accessibility service from being enabled.
+On Android 11+, or if installation is blocked by Google Play Protect, please use [APKMirror Installer](https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod) to install FgoGotran. Otherwise, Android may block the Accessibility service from being enabled.
 
 ## Before Using
 

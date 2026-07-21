@@ -76,7 +76,7 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
         private const val DIALOGUE_MAX_LINES = 2
-        private const val DIALOGUE_TEXT_LEFT_INSET = 108f
+        private const val DIALOGUE_TEXT_LEFT_INSET = 100f
         private const val DIALOGUE_TEXT_TOP_INSET = 48f
         private const val DIALOGUE_TEXT_RIGHT_INSET = 46f
         private const val DIALOGUE_TEXT_BOTTOM_INSET = 12f
