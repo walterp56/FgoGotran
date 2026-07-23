@@ -44,6 +44,11 @@ class SettingsRepository @Inject constructor(
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
         val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
+        val KEY_AI_VOICE_ENABLED = booleanPreferencesKey("ai_voice_enabled")
+        val KEY_AI_VOICE_LANGUAGE = stringPreferencesKey("ai_voice_language")
+        val KEY_AI_VOICE_VOLUME_PERCENT = intPreferencesKey("ai_voice_volume_percent")
+        val KEY_AZURE_SPEECH_KEY = stringPreferencesKey("azure_speech_key")
+        val KEY_AZURE_SPEECH_REGION = stringPreferencesKey("azure_speech_region")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
@@ -72,6 +77,13 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54
         const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
+        const val DEFAULT_AZURE_SPEECH_REGION = "japaneast"
+        const val AI_VOICE_LANGUAGE_JP_ORIGINAL = "jp_original"
+        const val AI_VOICE_LANGUAGE_CN_TRANSLATION = "cn_translation"
+        const val DEFAULT_AI_VOICE_LANGUAGE = AI_VOICE_LANGUAGE_JP_ORIGINAL
+        const val MIN_AI_VOICE_VOLUME_PERCENT = 0
+        const val DEFAULT_AI_VOICE_VOLUME_PERCENT = 100
+        const val MAX_AI_VOICE_VOLUME_PERCENT = 100
         const val OCR_ENGINE_MLKIT = "mlkit"
         const val OCR_ENGINE_PADDLE = "paddle"
         const val DEFAULT_OCR_ENGINE = OCR_ENGINE_MLKIT
@@ -125,6 +137,10 @@ class SettingsRepository @Inject constructor(
         )
         private val SUPPORTED_TRANSLATION_MODES = setOf("MANUAL", "SEMI_AUTO", "AUTO")
         private val SUPPORTED_OCR_ENGINES = setOf(OCR_ENGINE_MLKIT, OCR_ENGINE_PADDLE)
+        private val SUPPORTED_AI_VOICE_LANGUAGES = setOf(
+            AI_VOICE_LANGUAGE_JP_ORIGINAL,
+            AI_VOICE_LANGUAGE_CN_TRANSLATION
+        )
 
         fun normalizeBackend(backend: String): String =
             backend.takeIf { it in SUPPORTED_BACKENDS } ?: BACKEND_DEEPSEEK
@@ -134,6 +150,12 @@ class SettingsRepository @Inject constructor(
 
         fun normalizeOcrEngine(engine: String): String =
             engine.takeIf { it in SUPPORTED_OCR_ENGINES } ?: DEFAULT_OCR_ENGINE
+
+        fun normalizeAiVoiceLanguage(language: String): String =
+            language.takeIf { it in SUPPORTED_AI_VOICE_LANGUAGES } ?: DEFAULT_AI_VOICE_LANGUAGE
+
+        fun normalizeAiVoiceVolumePercent(volumePercent: Int): Int =
+            volumePercent.coerceIn(MIN_AI_VOICE_VOLUME_PERCENT, MAX_AI_VOICE_VOLUME_PERCENT)
 
         fun ocrEngineDisplayName(engine: String): String = when (normalizeOcrEngine(engine)) {
             OCR_ENGINE_PADDLE -> "PaddleOCR PP-OCRv6"
@@ -313,6 +335,33 @@ class SettingsRepository @Inject constructor(
     /** Whether the dialogue overlay also renders the original game text below translation. */
     val showOriginalGameText: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_SHOW_ORIGINAL_GAME_TEXT] ?: false
+    }
+
+    /** Whether Japanese dialogue should be read aloud with character voice-style profiles. */
+    val aiVoiceEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_VOICE_ENABLED] ?: false
+    }
+
+    /** Voice source language for AI voice: Japanese source or Chinese translation. */
+    val aiVoiceLanguage: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeAiVoiceLanguage(prefs[KEY_AI_VOICE_LANGUAGE] ?: DEFAULT_AI_VOICE_LANGUAGE)
+    }
+
+    /** Local playback volume for AI voice audio. */
+    val aiVoiceVolumePercent: Flow<Int> = context.dataStore.data.map { prefs ->
+        normalizeAiVoiceVolumePercent(
+            prefs[KEY_AI_VOICE_VOLUME_PERCENT] ?: DEFAULT_AI_VOICE_VOLUME_PERCENT
+        )
+    }
+
+    /** Azure Speech resource key used only when AI voice is enabled. */
+    val azureSpeechKey: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AZURE_SPEECH_KEY] ?: ""
+    }
+
+    /** Azure Speech resource region, for example japaneast or eastasia. */
+    val azureSpeechRegion: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AZURE_SPEECH_REGION] ?: DEFAULT_AZURE_SPEECH_REGION
     }
 
     /** Whether diagnostic Logcat output is enabled. Disabled by default for privacy. */
@@ -519,6 +568,31 @@ class SettingsRepository @Inject constructor(
     suspend fun setShowOriginalGameText(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SHOW_ORIGINAL_GAME_TEXT] = enabled }
         FgoLogger.debug(tag, "Setting updated: show_original_game_text=$enabled")
+    }
+
+    suspend fun setAiVoiceEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_AI_VOICE_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_enabled=$enabled")
+    }
+
+    suspend fun setAiVoiceLanguage(language: String) {
+        val normalizedLanguage = normalizeAiVoiceLanguage(language)
+        context.dataStore.edit { it[KEY_AI_VOICE_LANGUAGE] = normalizedLanguage }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_language=$normalizedLanguage")
+    }
+
+    suspend fun setAiVoiceVolumePercent(volumePercent: Int) {
+        val normalizedVolume = normalizeAiVoiceVolumePercent(volumePercent)
+        context.dataStore.edit { it[KEY_AI_VOICE_VOLUME_PERCENT] = normalizedVolume }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_volume_percent=$normalizedVolume")
+    }
+
+    suspend fun saveAzureSpeechSettings(speechKey: String, speechRegion: String) {
+        context.dataStore.edit {
+            it[KEY_AZURE_SPEECH_KEY] = speechKey.trim()
+            it[KEY_AZURE_SPEECH_REGION] = speechRegion.trim().ifBlank { DEFAULT_AZURE_SPEECH_REGION }
+        }
+        FgoLogger.debug(tag, "Setting updated: azure_speech_region=${speechRegion.trim()}")
     }
 
     suspend fun setDebugLoggingEnabled(enabled: Boolean) {

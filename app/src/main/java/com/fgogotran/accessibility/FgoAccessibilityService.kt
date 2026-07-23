@@ -50,6 +50,7 @@ import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.translation.TranslateResult
 import com.fgogotran.translation.Translator
 import com.fgogotran.util.FgoLogger
+import com.fgogotran.voice.AiVoiceService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -84,6 +85,7 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var runnerOverlay: FgoRunnerOverlay
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var appAnalytics: AppAnalytics
+    @Inject lateinit var aiVoiceService: AiVoiceService
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isProcessing = false
@@ -480,6 +482,7 @@ class FgoAccessibilityService : AccessibilityService() {
         resetSemiAutoBackgroundState()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
+        aiVoiceService.stop()
     }
 
     private fun restoreFgoForegroundAfterCapture(reason: String) {
@@ -495,6 +498,7 @@ class FgoAccessibilityService : AccessibilityService() {
         cancelTransientForegroundLoss()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
+        aiVoiceService.stop()
         serviceScope.cancel()
     }
 
@@ -503,6 +507,7 @@ class FgoAccessibilityService : AccessibilityService() {
         cancelTransientForegroundLoss()
         translationOverlay.destroy()
         cropResultOverlay.destroy()
+        aiVoiceService.stop()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -1544,6 +1549,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val overlayStartedAt = SystemClock.elapsedRealtime()
         restoreFgoForegroundAfterCapture(mode.name)
         translationOverlay.updateImage(rendered)
+        maybeSpeakRenderedDialogue(sceneSource, sceneTranslation, instructions)
         val overlayDuration = SystemClock.elapsedRealtime() - overlayStartedAt
         FgoLogger.info(
             tag,
@@ -1552,6 +1558,28 @@ class FgoAccessibilityService : AccessibilityService() {
                     "total=${SystemClock.elapsedRealtime() - processStartedAt}ms"
         )
         return true
+    }
+
+    private fun maybeSpeakRenderedDialogue(
+        sceneSource: SceneSource,
+        sceneTranslation: SceneTranslateResult,
+        instructions: List<RenderInstruction>
+    ) {
+        val renderedDialogue = instructions.any {
+            it.region.region == TextRegion.DIALOGUE_BOX && it.translatedText.isNotBlank()
+        }
+        if (!renderedDialogue) return
+        val speakerName = sceneSource.input.name
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !isPlaceholderSpeakerName(it) }
+            ?: return
+        serviceScope.launch {
+            aiVoiceService.speakDialogue(
+                speakerName = speakerName,
+                japaneseDialogue = sceneSource.input.dialogue,
+                translatedDialogue = sceneTranslation.dialogue?.translatedText
+            )
+        }
     }
 
     private fun isProcessingModeEnabled(mode: ProcessingMode): Boolean {

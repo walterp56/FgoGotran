@@ -1,0 +1,1249 @@
+profile_id	provider	locale	voice_name	style	pitch	rate	volume	description
+default_narrator	azure	ja-JP	ja-JP-NanamiNeural	chat	0%	1.00	100	Default Japanese narrator style
+default_cn_narrator	azure	zh-CN	zh-CN-XiaoxiaoNeural	chat	0%	1.00	100	Default Chinese narrator style
+mashu_soft_female	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	0.96	100	Manual Japanese profile for マシュ
+mashu_cn_gentle	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+4%	0.98	100	Manual Chinese profile for 玛修
+auto_0e2fab7c39_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	0.96	100	Auto female_noble Japanese profile for アルトリア・ペンドラゴン
+auto_0e2fab7c39_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.99	100	Auto female_noble Chinese profile for 阿尔托莉雅·潘德拉贡
+auto_c333c7cde7_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.90	100	Auto alter_shadow Japanese profile for アルトリア・オルタ
+auto_c333c7cde7_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.92	100	Auto alter_shadow Chinese profile for 阿尔托莉雅·Alter
+auto_c97a16c98a_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.93	100	Auto female_shadow Japanese profile for サンタオルタ
+auto_c97a16c98a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-6%	0.92	100	Auto female_shadow Chinese profile for 圣诞Alter
+auto_b4f0f86400_jp	azure	ja-JP	ja-JP-AoiNeural		0%	0.98	100	Auto female_noble Japanese profile for ネロ・クラウディウス
+auto_b4f0f86400_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.97	100	Auto female_noble Chinese profile for 尼禄·克劳狄乌斯
+auto_ef27a2a5cc_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	1.00	100	Auto male_heroic Japanese profile for ジークフリート
+auto_ef27a2a5cc_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	0.99	100	Auto male_heroic Chinese profile for 齐格飞
+auto_549dbfdef3_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	1.01	100	Auto male_heroic Japanese profile for ガイウス・ユリウス・カエサル
+auto_549dbfdef3_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	0.96	100	Auto male_heroic Chinese profile for 盖乌斯·尤利乌斯·恺撒
+auto_ed7450aa21_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.00	100	Auto female_noble Japanese profile for アルテラ
+auto_ed7450aa21_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	1.00	100	Auto female_noble Chinese profile for 阿蒂拉
+auto_2231d3d12f_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_cool Japanese profile for アルテラサンタ
+auto_2231d3d12f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.95	100	Auto female_cool Chinese profile for 阿蒂拉圣诞
+auto_bebeb7393b_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.02	100	Auto male_heroic Japanese profile for ジル・ド・レェ
+auto_bebeb7393b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.97	100	Auto male_heroic Chinese profile for 吉尔·德·雷
+auto_dde1005b70_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.95	100	Auto male_calm Japanese profile for シュヴァリエ・デオン
+auto_dde1005b70_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.95	100	Auto male_calm Chinese profile for 骑士迪昂
+auto_bc03e7095c_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.93	100	Auto male_gruff Japanese profile for エミヤ
+auto_bc03e7095c_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-3%	0.94	100	Auto male_gruff Chinese profile for 卫宫
+auto_0ab06217c0_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	1.03	100	Auto male_heroic Japanese profile for ギルガメッシュ
+auto_0ab06217c0_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	1.01	100	Auto male_heroic Chinese profile for 吉尔伽美什
+auto_8d5922de6d_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.97	100	Auto male_gruff Japanese profile for ロビンフッド
+auto_8d5922de6d_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.95	100	Auto male_gruff Chinese profile for 罗宾汉
+auto_afc03923c2_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.98	100	Auto female_cool Japanese profile for アタランテ
+auto_afc03923c2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.98	100	Auto female_cool Chinese profile for 阿塔兰忒
+auto_44db04cfea_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.93	100	Auto female_cool Japanese profile for エウリュアレ
+auto_44db04cfea_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.95	100	Auto female_cool Chinese profile for 尤瑞艾莉
+auto_adc6c75815_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.98	100	Auto male_gruff Japanese profile for アーラシュ
+auto_adc6c75815_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.98	100	Auto male_gruff Chinese profile for 阿拉什
+auto_b7e46b7abf_jp	azure	ja-JP	ja-JP-DaichiNeural		-3%	1.02	100	Auto male_heroic Japanese profile for クー・フーリン
+auto_b7e46b7abf_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	1.01	100	Auto male_heroic Chinese profile for 库·丘林
+auto_d62e092f94_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	0.96	100	Auto female_noble Japanese profile for エリザベート・バートリー
+auto_d62e092f94_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.94	100	Auto female_noble Chinese profile for 伊丽莎白·巴托里
+auto_70e4f2cdc1_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	1.01	100	Auto male_heroic Japanese profile for 武蔵坊弁慶
+auto_70e4f2cdc1_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-7%	0.97	100	Auto male_heroic Chinese profile for 武藏坊弁庆
+auto_1b6aa1ce5a_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	0.99	100	Auto male_heroic Japanese profile for レオニダス一世
+auto_1b6aa1ce5a_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-7%	0.98	100	Auto male_heroic Chinese profile for 列奥尼达一世
+auto_ea34239935_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.01	100	Auto male_heroic Japanese profile for ロムルス
+auto_ea34239935_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.98	100	Auto male_heroic Chinese profile for 罗穆路斯
+auto_35e5910c4a_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.97	100	Auto female_noble Japanese profile for メドゥーサ
+auto_35e5910c4a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.95	100	Auto female_noble Chinese profile for 美杜莎
+auto_fea188815e_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.97	100	Auto male_heroic Japanese profile for ゲオルギウス
+auto_fea188815e_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	0.98	100	Auto male_heroic Chinese profile for 乔尔乔斯
+auto_0046e3a5b6_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	1.03	100	Auto male_heroic Japanese profile for エドワード・ティーチ
+auto_0046e3a5b6_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.98	100	Auto male_heroic Chinese profile for 爱德华·蒂奇
+auto_3330e1487f_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.96	100	Auto female_noble Japanese profile for ブーディカ
+auto_3330e1487f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.99	100	Auto female_noble Chinese profile for 布狄卡
+auto_2ebd9f152a_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.96	100	Auto female_noble Japanese profile for 牛若丸
+auto_2ebd9f152a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.96	100	Auto female_noble Chinese profile for 牛若丸
+auto_0049528354_jp	azure	ja-JP	ja-JP-DaichiNeural		-3%	0.98	100	Auto male_heroic Japanese profile for アレキサンダー
+auto_0049528354_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	0.95	100	Auto male_heroic Chinese profile for 亚历山大
+auto_03294f5b15_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.95	100	Auto female_noble Japanese profile for マリー・アントワネット
+auto_03294f5b15_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.98	100	Auto female_noble Chinese profile for 玛丽·安托瓦内特
+auto_42826e1936_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	0.96	100	Auto female_noble Japanese profile for マルタ
+auto_42826e1936_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.96	100	Auto female_noble Chinese profile for 玛尔达
+auto_203bb2dc53_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.05	100	Auto female_bright Japanese profile for サンタマルタ
+auto_203bb2dc53_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.05	100	Auto female_bright Chinese profile for 圣诞玛尔达
+auto_4f48dbef74_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.91	100	Auto female_mystic Japanese profile for メディア
+auto_4f48dbef74_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.92	100	Auto female_mystic Chinese profile for 美狄亚
+auto_9fcd9e640e_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.97	100	Auto male_calm Japanese profile for ハンス・クリスチャン・アンデルセン
+auto_9fcd9e640e_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.92	100	Auto male_calm Chinese profile for 汉斯·克里斯蒂安·安徒生
+auto_cf8c65ccd6_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.91	100	Auto male_calm Japanese profile for ウィリアム・シェイクスピア
+auto_cf8c65ccd6_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.93	100	Auto male_calm Chinese profile for 威廉·莎士比亚
+auto_a4b4f6f061_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.93	100	Auto male_calm Japanese profile for メフィストフェレス
+auto_a4b4f6f061_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.96	100	Auto male_calm Chinese profile for 梅菲斯托费勒斯
+auto_79c0f103a3_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.93	100	Auto male_calm Japanese profile for ヴォルフガング・アマデウス・モーツァルト
+auto_79c0f103a3_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.96	100	Auto male_calm Chinese profile for 沃尔夫冈·阿马德乌斯·莫扎特
+auto_3c9ee6c747_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.94	100	Auto male_calm Japanese profile for 諸葛孔明
+auto_3c9ee6c747_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.92	100	Auto male_calm Chinese profile for 诸葛孔明
+auto_869cdaf6d6_jp	azure	ja-JP	ja-JP-NaokiNeural		+2%	1.02	100	Auto male_bright Japanese profile for エルメロイⅡ世
+auto_869cdaf6d6_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-3%	1.00	100	Auto male_bright Chinese profile for 埃尔梅罗Ⅱ世
+auto_29ee071d98_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.95	100	Auto male_calm Japanese profile for 佐々木小次郎
+auto_29ee071d98_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.91	100	Auto male_calm Chinese profile for 佐佐木小次郎
+auto_3e10f79e87_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.92	100	Auto male_calm Japanese profile for 呪腕のハサン
+auto_3e10f79e87_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.95	100	Auto male_calm Chinese profile for 咒腕哈桑
+auto_16635e4a9e_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.91	100	Auto female_mystic Japanese profile for ステンノ
+auto_16635e4a9e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.91	100	Auto female_mystic Chinese profile for 斯忒诺
+auto_06c07ee875_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.93	100	Auto female_mystic Japanese profile for 荊軻
+auto_06c07ee875_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.91	100	Auto female_mystic Chinese profile for 荆轲
+auto_cc96be27f9_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.97	100	Auto male_calm Japanese profile for シャルル＝アンリ・サンソン
+auto_cc96be27f9_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.93	100	Auto male_calm Chinese profile for 夏尔·亨利·桑松
+auto_ba40243f3d_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.94	100	Auto male_calm Japanese profile for ファントム・オブ・ジ・オペラ
+auto_ba40243f3d_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	0%	0.97	100	Auto male_calm Chinese profile for 剧院魅影
+auto_3556ce7914_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.92	100	Auto female_mystic Japanese profile for マタ・ハリ
+auto_3556ce7914_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.95	100	Auto female_mystic Chinese profile for 玛塔·哈丽
+auto_d3e8cb4615_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.92	100	Auto female_mystic Japanese profile for カーミラ
+auto_d3e8cb4615_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_mystic Chinese profile for 卡米拉
+auto_1b20d66d89_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.94	100	Auto male_gruff Japanese profile for ヘラクレス
+auto_1b20d66d89_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.98	100	Auto male_gruff Chinese profile for 赫拉克勒斯
+auto_19125e0620_jp	azure	ja-JP	ja-JP-DaichiNeural		-8%	0.98	100	Auto male_gruff Japanese profile for ランスロット
+auto_19125e0620_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.92	100	Auto male_gruff Chinese profile for 兰斯洛特
+auto_089013a31d_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.93	100	Auto male_gruff Japanese profile for 呂布奉先
+auto_089013a31d_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-9%	0.92	100	Auto male_gruff Chinese profile for 吕布奉先
+auto_89d461e0bf_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.96	100	Auto male_gruff Japanese profile for スパルタクス
+auto_89d461e0bf_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.96	100	Auto male_gruff Chinese profile for 斯巴达克斯
+auto_0273066368_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.98	100	Auto male_gruff Japanese profile for 坂田金時
+auto_0273066368_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-8%	0.96	100	Auto male_gruff Chinese profile for 坂田金时
+auto_b491c5aee9_jp	azure	ja-JP	ja-JP-DaichiNeural		-9%	0.93	100	Auto male_gruff Japanese profile for ヴラド三世
+auto_b491c5aee9_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-8%	0.96	100	Auto male_gruff Chinese profile for 弗拉德三世
+auto_3762fa4bb0_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.93	100	Auto male_gruff Japanese profile for アステリオス
+auto_3762fa4bb0_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.94	100	Auto male_gruff Chinese profile for 阿斯忒里俄斯
+auto_a45c9e3584_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.92	100	Auto male_gruff Japanese profile for カリギュラ
+auto_a45c9e3584_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-8%	0.92	100	Auto male_gruff Chinese profile for 卡利古拉
+auto_426863fe7e_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.95	100	Auto male_gruff Japanese profile for ダレイオス三世
+auto_426863fe7e_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.94	100	Auto male_gruff Chinese profile for 大流士三世
+auto_f71ff7676f_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.94	100	Auto female_shadow Japanese profile for 清姫
+auto_f71ff7676f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-7%	0.92	100	Auto female_shadow Chinese profile for 清姬
+auto_5e84119e66_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.97	100	Auto male_gruff Japanese profile for エイリーク・ブラッドアクス
+auto_5e84119e66_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.97	100	Auto male_gruff Chinese profile for 血斧埃里克
+auto_c6ca40504d_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.90	100	Auto female_shadow Japanese profile for タマモキャット
+auto_c6ca40504d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-4%	0.91	100	Auto female_shadow Chinese profile for 玉藻猫
+auto_17ca3e3e5c_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.99	100	Auto female_noble Japanese profile for ジャンヌ・ダルク
+auto_17ca3e3e5c_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.99	100	Auto female_noble Chinese profile for 贞德
+auto_354f261f81_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	1.00	100	Auto male_heroic Japanese profile for オリオン
+auto_354f261f81_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	1.01	100	Auto male_heroic Chinese profile for 俄里翁
+auto_5b142684fa_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.94	100	Auto female_mystic Japanese profile for 玉藻の前
+auto_5b142684fa_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.91	100	Auto female_mystic Chinese profile for 玉藻前
+auto_ad75ea283d_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.98	100	Auto male_gruff Japanese profile for ダビデ
+auto_ad75ea283d_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.93	100	Auto male_gruff Chinese profile for 大卫
+auto_f82814b359_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.98	100	Auto male_heroic Japanese profile for ヘクトール
+auto_f82814b359_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.98	100	Auto male_heroic Chinese profile for 赫克托耳
+auto_5375882cfe_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	0.98	100	Auto female_noble Japanese profile for フランシス・ドレイク
+auto_5375882cfe_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.99	100	Auto female_noble Chinese profile for 弗朗西斯·德雷克
+auto_876eaa6f90_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.99	100	Auto female_cool Japanese profile for アン・ボニー
+auto_876eaa6f90_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.96	100	Auto female_cool Chinese profile for 安妮·伯妮
+auto_cdc3cb53f4_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.91	100	Auto female_mystic Japanese profile for メアリー・リード
+auto_cdc3cb53f4_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.94	100	Auto female_mystic Chinese profile for 玛莉·瑞德
+auto_9431b0ac85_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	0.96	100	Auto female_noble Japanese profile for 沖田総司
+auto_9431b0ac85_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	1.00	100	Auto female_noble Chinese profile for 冲田总司
+auto_6eaf66c3d7_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.94	100	Auto female_cool Japanese profile for 織田信長
+auto_6eaf66c3d7_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.97	100	Auto female_cool Chinese profile for 织田信长
+auto_b5fac8e8e9_jp	azure	ja-JP	ja-JP-AoiNeural		0%	0.99	100	Auto female_noble Japanese profile for スカサハ
+auto_b5fac8e8e9_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.97	100	Auto female_noble Chinese profile for 斯卡哈
+auto_46b8c67c23_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.99	100	Auto male_heroic Japanese profile for ディルムッド・オディナ
+auto_46b8c67c23_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	0.97	100	Auto male_heroic Chinese profile for 迪尔姆德·奥迪那
+auto_381f71a888_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	1.02	100	Auto male_heroic Japanese profile for フェルグス・マック・ロイ
+auto_381f71a888_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.99	100	Auto male_heroic Chinese profile for 弗格斯·马克·罗伊
+auto_263df3d6e4_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+6%	1.02	100	Auto child_light Japanese profile for ナーサリー・ライム
+auto_263df3d6e4_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+7%	1.05	100	Auto child_light Chinese profile for 童谣
+auto_4631072fda_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+9%	1.06	100	Auto child_light Japanese profile for ジャック・ザ・リッパー
+auto_4631072fda_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+3%	1.07	100	Auto child_light Chinese profile for 开膛手杰克
+auto_dde6946db3_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.95	100	Auto female_noble Japanese profile for モードレッド
+auto_dde6946db3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	1.00	100	Auto female_noble Chinese profile for 莫德雷德
+auto_979898ea0c_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	1.02	100	Auto male_bright Japanese profile for ニコラ・テスラ
+auto_979898ea0c_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+1%	1.02	100	Auto male_bright Chinese profile for 尼古拉·特斯拉
+auto_10d06de46f_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.94	100	Auto male_calm Japanese profile for ヴァン・ホーエンハイム・パラケルスス
+auto_10d06de46f_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.94	100	Auto male_calm Chinese profile for 冯·霍恩海姆·帕拉塞尔苏斯
+auto_54e9cf6669_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.92	100	Auto male_calm Japanese profile for チャールズ・バベッジ
+auto_54e9cf6669_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	0%	0.92	100	Auto male_calm Chinese profile for 查尔斯·巴贝奇
+auto_6ab7e44767_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.90	100	Auto female_mystic Japanese profile for ヘンリー・ジキル
+auto_6ab7e44767_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.95	100	Auto female_mystic Chinese profile for 亨利·杰基尔
+auto_117ea43135_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.94	100	Auto female_shadow Japanese profile for ハイド
+auto_117ea43135_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-6%	0.97	100	Auto female_shadow Chinese profile for 海德
+auto_63ef930958_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.96	100	Auto female_shadow Japanese profile for フランケンシュタイン
+auto_63ef930958_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.93	100	Auto female_shadow Chinese profile for 弗兰肯斯坦
+auto_c82de0c8b2_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.91	100	Auto male_calm Japanese profile for ソロモン
+auto_c82de0c8b2_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.92	100	Auto male_calm Chinese profile for 所罗门
+auto_0453177242_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.94	100	Auto male_calm Japanese profile for アルジュナ
+auto_0453177242_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	0%	0.91	100	Auto male_calm Chinese profile for 阿周那
+auto_7c54e212fe_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	1.01	100	Auto male_heroic Japanese profile for カルナ
+auto_7c54e212fe_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.99	100	Auto male_heroic Chinese profile for 迦尔纳
+auto_a375274857_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	1.02	100	Auto male_heroic Japanese profile for サンタカルナ
+auto_a375274857_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.99	100	Auto male_heroic Chinese profile for 圣诞迦尔纳
+auto_3b1be70cc1_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_mystic Japanese profile for 謎のヒロインX
+auto_3b1be70cc1_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.94	100	Auto female_mystic Chinese profile for 谜之女主角X
+auto_15bbcb1965_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.03	100	Auto male_heroic Japanese profile for フィン・マックール
+auto_15bbcb1965_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	1.00	100	Auto male_heroic Chinese profile for 芬恩·麦克库尔
+auto_b376e0b095_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	0.95	100	Auto female_noble Japanese profile for ブリュンヒルデ
+auto_b376e0b095_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.94	100	Auto female_noble Chinese profile for 布伦希尔德
+auto_4ef167e6ba_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.96	100	Auto male_gruff Japanese profile for ベオウルフ
+auto_4ef167e6ba_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-9%	0.94	100	Auto male_gruff Chinese profile for 贝奥武夫
+auto_aca62d163b_jp	azure	ja-JP	ja-JP-AoiNeural		0%	0.95	100	Auto female_noble Japanese profile for 両儀式
+auto_aca62d163b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.99	100	Auto female_noble Chinese profile for 两仪式
+amakusa_shirou_young_male	azure	ja-JP	ja-JP-NaokiNeural		+1%	0.97	100	Manual Japanese profile for 天草四郎
+amakusa_shirou_cn_young_male	azure	zh-CN	zh-CN-YunxiNeural	serious	+1%	0.97	100	Manual Chinese profile for 天草四郎
+auto_3b260bbb73_jp	azure	ja-JP	ja-JP-NaokiNeural		+1%	1.06	100	Auto male_bright Japanese profile for アストルフォ
+auto_3b260bbb73_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.04	100	Auto male_bright Chinese profile for 阿斯托尔福
+auto_92c1b3a20b_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.05	100	Auto male_bright Japanese profile for 子ギル
+auto_92c1b3a20b_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.04	100	Auto male_bright Chinese profile for 幼吉尔
+auto_10be688b81_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.97	100	Auto male_gruff Japanese profile for 巌窟王
+auto_10be688b81_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-7%	0.92	100	Auto male_gruff Chinese profile for 岩窟王
+auto_122e5e30f1_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.96	100	Auto female_shadow Japanese profile for ナイチンゲール
+auto_122e5e30f1_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.96	100	Auto female_shadow Chinese profile for 南丁格尔
+auto_54ebaa9818_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.99	100	Auto female_cool Japanese profile for ナイチンゲール・サンタ
+auto_54ebaa9818_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_cool Chinese profile for 南丁格尔·圣诞
+auto_909057af66_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.95	100	Auto alter_shadow Japanese profile for クー・フーリン・オルタ
+auto_909057af66_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.92	100	Auto alter_shadow Chinese profile for 库·丘林·Alter
+auto_b8d3b84730_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	0.97	100	Auto female_noble Japanese profile for 女王メイヴ
+auto_b8d3b84730_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.96	100	Auto female_noble Chinese profile for 女王梅芙
+auto_adf9263de3_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_mystic Japanese profile for エレナ・ブラヴァツキー
+auto_adf9263de3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.96	100	Auto female_mystic Chinese profile for 海伦娜·布拉瓦茨基
+auto_ae03183dab_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	1.03	100	Auto male_heroic Japanese profile for ラーマ
+auto_ae03183dab_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	1.01	100	Auto male_heroic Chinese profile for 罗摩
+auto_5dda1713ff_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.02	100	Auto male_heroic Japanese profile for 李書文
+auto_5dda1713ff_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	1.01	100	Auto male_heroic Chinese profile for 李书文
+auto_367ae7123c_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.92	100	Auto male_calm Japanese profile for トーマス・エジソン
+auto_367ae7123c_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.94	100	Auto male_calm Chinese profile for 托马斯·爱迪生
+auto_fbfd9cdb08_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.96	100	Auto male_calm Japanese profile for ジェロニモ
+auto_fbfd9cdb08_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.94	100	Auto male_calm Chinese profile for 杰罗尼莫
+auto_e8d5ac03e9_jp	azure	ja-JP	ja-JP-DaichiNeural		-8%	0.97	100	Auto male_gruff Japanese profile for ビリー・ザ・キッド
+auto_e8d5ac03e9_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.96	100	Auto male_gruff Chinese profile for 比利小子
+auto_dde840ae31_jp	azure	ja-JP	ja-JP-NaokiNeural		-7%	0.92	100	Auto alter_shadow Japanese profile for ジャンヌ・オルタ
+auto_dde840ae31_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-8%	0.94	100	Auto alter_shadow Chinese profile for 贞德·Alter
+auto_a94ad5a747_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.97	100	Auto male_gruff Japanese profile for アンリマユ
+auto_a94ad5a747_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.94	100	Auto male_gruff Chinese profile for 安哥拉曼纽
+auto_c079554b6b_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.03	100	Auto male_heroic Japanese profile for イスカンダル
+auto_c079554b6b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.95	100	Auto male_heroic Chinese profile for 伊斯坎达尔
+auto_86337d51eb_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.93	100	Auto female_mystic Japanese profile for 百貌のハサン
+auto_86337d51eb_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.93	100	Auto female_mystic Chinese profile for 百貌哈桑
+auto_65c896cbd2_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+1%	0.98	100	Auto female_gentle Japanese profile for アイリスフィール
+auto_65c896cbd2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+6%	0.95	100	Auto female_gentle Chinese profile for 爱丽丝菲尔
+auto_23b10ea742_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.94	100	Auto male_calm Japanese profile for 天の衣
+auto_23b10ea742_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.97	100	Auto male_calm Chinese profile for 天之衣
+auto_ef924f1379_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+10%	1.07	100	Auto child_light Japanese profile for 酒呑童子
+auto_ef924f1379_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+9%	1.07	100	Auto child_light Chinese profile for 酒吞童子
+auto_a3d559ed80_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.93	100	Auto female_mystic Japanese profile for 玄奘三蔵
+auto_a3d559ed80_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.95	100	Auto female_mystic Chinese profile for 玄奘三藏
+auto_61fbd80b0d_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.96	100	Auto female_shadow Japanese profile for 源頼光
+auto_61fbd80b0d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.95	100	Auto female_shadow Chinese profile for 源赖光
+auto_7db3a5e32c_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	1.05	100	Auto child_light Japanese profile for 茨木童子
+auto_7db3a5e32c_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+7%	1.02	100	Auto child_light Chinese profile for 茨木童子
+auto_5c51eb7232_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.92	100	Auto male_calm Japanese profile for 風魔小太郎
+auto_5c51eb7232_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.93	100	Auto male_calm Chinese profile for 风魔小太郎
+auto_67f477126d_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.03	100	Auto male_heroic Japanese profile for オジマンディアス
+auto_67f477126d_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-7%	0.98	100	Auto male_heroic Chinese profile for 奥斯曼狄斯
+auto_87bf9a17d8_jp	azure	ja-JP	ja-JP-NanamiNeural		+2%	0.94	100	Auto female_mystic Japanese profile for ニトクリス
+auto_87bf9a17d8_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.92	100	Auto female_mystic Chinese profile for 尼托克丽丝
+auto_91697070e1_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.95	100	Auto male_gruff Japanese profile for トリスタン
+auto_91697070e1_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.95	100	Auto male_gruff Chinese profile for 崔斯坦
+auto_dbd75daf37_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.97	100	Auto male_heroic Japanese profile for ガウェイン
+auto_dbd75daf37_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	1.00	100	Auto male_heroic Chinese profile for 高文
+auto_e3d83ceef9_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.96	100	Auto female_mystic Japanese profile for 静謐のハサン
+auto_e3d83ceef9_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.96	100	Auto female_mystic Chinese profile for 静谧哈桑
+auto_49d7207425_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.98	100	Auto male_gruff Japanese profile for 俵藤太
+auto_49d7207425_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.96	100	Auto male_gruff Chinese profile for 俵藤太
+auto_e088b2eddc_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	0.97	100	Auto male_heroic Japanese profile for ベディヴィエール
+auto_e088b2eddc_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.99	100	Auto male_heroic Chinese profile for 贝德维尔
+davinci_bright_female	azure	ja-JP	ja-JP-AoiNeural		+2%	1.08	100	Manual Japanese profile for ダ・ヴィンチ
+davinci_cn_cheerful	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+2%	1.06	100	Manual Chinese profile for 达·芬奇
+auto_6ca0a4309d_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.93	100	Auto female_mystic Japanese profile for イリヤスフィール・フォン・アインツベルン
+auto_6ca0a4309d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.93	100	Auto female_mystic Chinese profile for 伊莉雅丝菲尔·冯·爱因兹贝伦
+auto_ac8860cde1_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.99	100	Auto female_cool Japanese profile for クロエ・フォン・アインツベルン
+auto_ac8860cde1_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.93	100	Auto female_cool Chinese profile for 克洛伊·冯·爱因兹贝伦
+auto_cc937d4d54_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.96	100	Auto female_mystic Japanese profile for クレオパトラ
+auto_cc937d4d54_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.96	100	Auto female_mystic Chinese profile for 克娄巴特拉
+auto_24611ef5be_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+7%	1.05	100	Auto child_light Japanese profile for ジャンヌ・オルタ・サンタ・リリィ
+auto_24611ef5be_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+5%	1.04	100	Auto child_light Chinese profile for 贞德·Alter·圣诞·Lily
+auto_0de46ea97e_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_cool Japanese profile for イシュタル
+auto_0de46ea97e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.93	100	Auto female_cool Chinese profile for 伊什塔尔
+auto_b8d2f5157e_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	0.97	100	Auto male_heroic Japanese profile for エルキドゥ
+auto_b8d2f5157e_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.97	100	Auto male_heroic Chinese profile for 恩奇都
+auto_9303cb65ca_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.01	100	Auto female_noble Japanese profile for ケツァル・コアトル
+auto_9303cb65ca_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.95	100	Auto female_noble Chinese profile for 魁札尔·科亚特尔
+auto_f19d126a1b_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.06	100	Auto female_bright Japanese profile for ケツァル・コアトル・サンバ・サンタ
+auto_f19d126a1b_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.03	100	Auto female_bright Chinese profile for 魁札尔·科亚特尔·桑巴·圣诞
+auto_5a306a8f0e_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.91	100	Auto female_shadow Japanese profile for ゴルゴーン
+auto_5a306a8f0e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-4%	0.97	100	Auto female_shadow Chinese profile for 戈耳工
+auto_abc22444cc_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.99	100	Auto female_noble Japanese profile for ジャガーマン
+auto_abc22444cc_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.96	100	Auto female_noble Chinese profile for 豹人
+auto_a9f4a47719_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.92	100	Auto female_mystic Japanese profile for ティアマト
+auto_a9f4a47719_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_mystic Chinese profile for 提亚马特
+auto_a4d9eb86f9_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.97	100	Auto male_calm Japanese profile for マーリン
+auto_a4d9eb86f9_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.93	100	Auto male_calm Chinese profile for 梅林
+auto_4c1b2489e8_jp	azure	ja-JP	ja-JP-DaichiNeural		-9%	0.95	100	Auto male_gruff Japanese profile for ゲーティア
+auto_4c1b2489e8_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.95	100	Auto male_gruff Chinese profile for 盖提亚
+auto_413deb1e9d_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.96	100	Auto female_noble Japanese profile for 宮本武蔵
+auto_413deb1e9d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.95	100	Auto female_noble Chinese profile for 宫本武藏
+auto_65b629e089_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.91	100	Auto male_calm Japanese profile for “山の翁”
+auto_65b629e089_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	0%	0.97	100	Auto male_calm Chinese profile for “山中老人”
+auto_e6fabd0def_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.92	100	Auto alter_shadow Japanese profile for 謎のヒロインＸ・オルタ
+auto_e6fabd0def_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-8%	0.96	100	Auto alter_shadow Chinese profile for 谜之女主角X·Alter
+auto_8b890a408e_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.97	100	Auto female_cool Japanese profile for 新宿のアーチャー
+auto_8b890a408e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.94	100	Auto female_cool Chinese profile for 新宿的Archer
+auto_36523cfb0c_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.92	100	Auto alter_shadow Japanese profile for エミヤ・オルタ
+auto_36523cfb0c_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.94	100	Auto alter_shadow Chinese profile for 卫宫·Alter
+auto_f5ac076eff_jp	azure	ja-JP	ja-JP-NaokiNeural		-5%	0.90	100	Auto alter_shadow Japanese profile for 新宿のアヴェンジャー
+auto_f5ac076eff_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.93	100	Auto alter_shadow Chinese profile for 新宿的Avenger
+auto_d606bb1677_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	1.00	100	Auto female_noble Japanese profile for 新宿のアサシン
+auto_d606bb1677_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	0.95	100	Auto female_noble Chinese profile for 新宿的Assassin
+auto_7b898e2f52_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.99	100	Auto male_heroic Japanese profile for アーサー・ペンドラゴン
+auto_7b898e2f52_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	1.01	100	Auto male_heroic Chinese profile for 亚瑟·潘德拉贡
+auto_d82f67e4f3_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.97	100	Auto male_gruff Japanese profile for 土方歳三
+auto_d82f67e4f3_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-7%	0.93	100	Auto male_gruff Chinese profile for 土方岁三
+auto_cdb9582dec_jp	azure	ja-JP	ja-JP-NanamiNeural		-6%	0.93	100	Auto female_shadow Japanese profile for 茶々
+auto_cdb9582dec_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.91	100	Auto female_shadow Chinese profile for 茶茶
+auto_b59dacd51f_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.90	100	Auto female_shadow Japanese profile for メルトリリス
+auto_b59dacd51f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.96	100	Auto female_shadow Chinese profile for Meltryllis
+auto_45a289e112_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	1.04	100	Auto male_bright Japanese profile for メルト
+auto_45a289e112_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+1%	1.04	100	Auto male_bright Chinese profile for Melt
+auto_7630d851a3_jp	azure	ja-JP	ja-JP-NanamiNeural		-6%	0.96	100	Auto female_shadow Japanese profile for パッションリップ
+auto_7630d851a3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-4%	0.93	100	Auto female_shadow Chinese profile for Passionlip
+auto_51236a9c64_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.97	100	Auto female_noble Japanese profile for 鈴鹿御前
+auto_51236a9c64_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.96	100	Auto female_noble Chinese profile for 铃鹿御前
+auto_cf9d370a0d_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.94	100	Auto female_mystic Japanese profile for ＢＢ
+auto_cf9d370a0d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.95	100	Auto female_mystic Chinese profile for BB
+auto_c37eda3129_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.94	100	Auto female_shadow Japanese profile for 殺生院キアラ
+auto_c37eda3129_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.95	100	Auto female_shadow Chinese profile for 杀生院祈荒
+auto_232fe5d606_jp	azure	ja-JP	ja-JP-AoiNeural		+4%	1.06	100	Auto female_bright Japanese profile for ビーストⅢ／R
+auto_232fe5d606_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+4%	1.08	100	Auto female_bright Chinese profile for BeastⅢ/R
+auto_c70abf53d4_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	1.03	100	Auto male_heroic Japanese profile for 不夜城のキャスター
+auto_c70abf53d4_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	1.01	100	Auto male_heroic Chinese profile for 不夜城的Caster
+auto_910671775d_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	1.02	100	Auto male_bright Japanese profile for 不夜城のアサシン
+auto_910671775d_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-4%	1.03	100	Auto male_bright Chinese profile for 不夜城的Assassin
+auto_39843b12c0_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_cool Japanese profile for エルドラドのバーサーカー
+auto_39843b12c0_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.94	100	Auto female_cool Chinese profile for 黄金国的Berserker
+auto_b2a56873e7_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+2%	0.94	100	Auto female_gentle Japanese profile for レジスタンスのライダー
+auto_b2a56873e7_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+6%	0.99	100	Auto female_gentle Chinese profile for 反抗军的Rider
+holmes_calm_male	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.94	100	Manual Japanese profile for ホームズ
+holmes_cn_serious	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.94	100	Manual Chinese profile for 福尔摩斯
+auto_2975b34907_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.90	100	Auto female_shadow Japanese profile for ポール・バニヤン
+auto_2975b34907_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-4%	0.97	100	Auto female_shadow Chinese profile for 保罗·班扬
+auto_a9cb5164b0_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.98	100	Auto female_noble Japanese profile for パールヴァティー
+auto_a9cb5164b0_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.98	100	Auto female_noble Chinese profile for 帕尔瓦蒂
+auto_0567ce8809_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.95	100	Auto female_noble Japanese profile for アーチャー・インフェルノ
+auto_0567ce8809_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.94	100	Auto female_noble Chinese profile for Archer Inferno
+auto_20a1733203_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.99	100	Auto male_heroic Japanese profile for アサシン・パライソ
+auto_20a1733203_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	0.95	100	Auto male_heroic Chinese profile for Assassin Paraiso
+auto_f7ed4d9230_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	1.00	100	Auto male_heroic Japanese profile for 宝蔵院胤舜
+auto_f7ed4d9230_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.95	100	Auto male_heroic Chinese profile for 宝藏院胤舜
+auto_54188c4817_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	1.03	100	Auto male_heroic Japanese profile for 柳生但馬守宗矩
+auto_54188c4817_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-7%	0.99	100	Auto male_heroic Chinese profile for 柳生但马守宗矩
+auto_2dc3ca0e66_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.93	100	Auto female_mystic Japanese profile for 加藤段蔵
+auto_2dc3ca0e66_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.93	100	Auto female_mystic Chinese profile for 加藤段藏
+auto_e88b813f20_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.92	100	Auto female_mystic Japanese profile for 刑部姫
+auto_e88b813f20_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.93	100	Auto female_mystic Chinese profile for 刑部姬
+auto_f7d6f8f473_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.92	100	Auto female_shadow Japanese profile for メカエリチャン
+auto_f7d6f8f473_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-5%	0.96	100	Auto female_shadow Chinese profile for 机械伊丽亲
+auto_85ab1f954e_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.93	100	Auto female_shadow Japanese profile for メカエリチャンⅡ号機
+auto_85ab1f954e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-6%	0.93	100	Auto female_shadow Chinese profile for 机械伊丽亲Ⅱ号机
+auto_ef7222af49_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	1.01	100	Auto male_heroic Japanese profile for オケアノスのキャスター
+auto_ef7222af49_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.99	100	Auto male_heroic Chinese profile for 俄刻阿诺斯的Caster
+auto_8205e7a1d4_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	1.00	100	Auto female_noble Japanese profile for 哪吒
+auto_8205e7a1d4_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.98	100	Auto female_noble Chinese profile for 哪吒
+auto_73cb79b9bc_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	0.98	100	Auto female_noble Japanese profile for ミドラーシュのキャスター
+auto_73cb79b9bc_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.96	100	Auto female_noble Chinese profile for 米德拉什的Caster
+auto_daac7edc58_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.95	100	Auto female_mystic Japanese profile for アビゲイル・ウィリアムズ
+auto_daac7edc58_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.93	100	Auto female_mystic Chinese profile for 阿比盖尔·威廉姆斯
+auto_d23b8c1963_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	1.04	100	Auto female_bright Japanese profile for アビゲイル・サンタ
+auto_d23b8c1963_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.02	100	Auto female_bright Chinese profile for 阿比盖尔·圣诞
+auto_65a020c951_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	1.01	100	Auto female_noble Japanese profile for エレシュキガル
+auto_65a020c951_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.94	100	Auto female_noble Chinese profile for 埃列什基伽勒
+auto_7545fa2e84_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.96	100	Auto alter_shadow Japanese profile for エレシュキガル・オルタ
+auto_7545fa2e84_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.91	100	Auto alter_shadow Chinese profile for 埃列什基伽勒·Alter
+auto_29ce18cdf2_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.96	100	Auto female_noble Japanese profile for ニンキガル
+auto_29ce18cdf2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	0.94	100	Auto female_noble Chinese profile for 宁基伽勒
+auto_219d3e3d46_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.96	100	Auto female_mystic Japanese profile for 葛飾北斎
+auto_219d3e3d46_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.96	100	Auto female_mystic Chinese profile for 葛饰北斋
+auto_26878fc39f_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_mystic Japanese profile for セミラミス
+auto_26878fc39f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.93	100	Auto female_mystic Chinese profile for 塞弥拉弥斯
+auto_1ab0df8409_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.96	100	Auto female_cool Japanese profile for 浅上藤乃
+auto_1ab0df8409_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.98	100	Auto female_cool Chinese profile for 浅上藤乃
+auto_8379dcb289_jp	azure	ja-JP	ja-JP-DaichiNeural		-8%	0.96	100	Auto male_gruff Japanese profile for アナスタシア・ニコラエヴナ・ロマノヴァ
+auto_8379dcb289_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.94	100	Auto male_gruff Chinese profile for 阿纳斯塔西娅·尼古拉耶芙娜·罗曼诺娃
+auto_b57110cab0_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.94	100	Auto female_shadow Japanese profile for アタランテ・オルタ
+auto_b57110cab0_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.96	100	Auto female_shadow Chinese profile for 阿塔兰忒·Alter
+auto_1e135ae196_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.93	100	Auto male_calm Japanese profile for アヴィケブロン
+auto_1e135ae196_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.95	100	Auto male_calm Chinese profile for 阿维斯布隆
+auto_2c810689a5_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.98	100	Auto male_gruff Japanese profile for アントニオ・サリエリ
+auto_2c810689a5_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.93	100	Auto male_gruff Chinese profile for 安东尼奥·萨列里
+auto_7bdd76b969_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.99	100	Auto male_heroic Japanese profile for イヴァン雷帝
+auto_7bdd76b969_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.99	100	Auto male_heroic Chinese profile for 伊凡雷帝
+auto_d5911f1682_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	1.01	100	Auto male_heroic Japanese profile for アキレウス
+auto_d5911f1682_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.98	100	Auto male_heroic Chinese profile for 阿喀琉斯
+auto_3eb2aaf5bb_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.97	100	Auto male_calm Japanese profile for ケイローン
+auto_3eb2aaf5bb_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.91	100	Auto male_calm Chinese profile for 喀戎
+auto_97b11b8d00_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	0.96	100	Auto male_calm Japanese profile for ジーク
+auto_97b11b8d00_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	0%	0.96	100	Auto male_calm Chinese profile for 齐格
+auto_4e229966d7_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.94	100	Auto alter_shadow Japanese profile for 沖田総司・オルタ
+auto_4e229966d7_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.95	100	Auto alter_shadow Chinese profile for 冲田总司·Alter
+auto_a0f59e47f2_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.97	100	Auto male_calm Japanese profile for 岡田以蔵
+auto_a0f59e47f2_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.94	100	Auto male_calm Chinese profile for 冈田以藏
+auto_e3c31b443b_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	1.01	100	Auto male_heroic Japanese profile for 坂本龍馬
+auto_e3c31b443b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.99	100	Auto male_heroic Chinese profile for 坂本龙马
+auto_f169866e63_jp	azure	ja-JP	ja-JP-DaichiNeural		-3%	1.03	100	Auto male_heroic Japanese profile for ナポレオン
+auto_f169866e63_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	1.00	100	Auto male_heroic Chinese profile for 拿破仑
+auto_f27864398e_jp	azure	ja-JP	ja-JP-DaichiNeural		-3%	0.97	100	Auto male_heroic Japanese profile for シグルド
+auto_f27864398e_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.96	100	Auto male_heroic Chinese profile for 齐格鲁德
+auto_aca476b9a6_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.98	100	Auto female_noble Japanese profile for ワルキューレ
+auto_aca476b9a6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	0.98	100	Auto female_noble Chinese profile for 瓦尔基里
+auto_5d2a0ae394_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_mystic Japanese profile for スカサハ＝スカディ
+auto_5d2a0ae394_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.93	100	Auto female_mystic Chinese profile for 斯卡哈·斯卡蒂
+auto_9ce2f11bbb_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.93	100	Auto female_mystic Japanese profile for 謎のヒロインXX
+auto_9ce2f11bbb_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.91	100	Auto female_mystic Chinese profile for 谜之女主角XX
+auto_50aa591255_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.92	100	Auto female_shadow Japanese profile for シトナイ
+auto_50aa591255_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.91	100	Auto female_shadow Chinese profile for 志度内
+auto_b92afa5696_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.96	100	Auto male_gruff Japanese profile for 項羽
+auto_b92afa5696_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-7%	0.92	100	Auto male_gruff Chinese profile for 项羽
+auto_ebba22e595_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	0.97	100	Auto male_heroic Japanese profile for 蘭陵王
+auto_ebba22e595_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.95	100	Auto male_heroic Chinese profile for 兰陵王
+auto_a598ea7134_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.99	100	Auto female_noble Japanese profile for 秦良玉
+auto_a598ea7134_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.98	100	Auto female_noble Chinese profile for 秦良玉
+auto_80dcbc0d9a_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	0.99	100	Auto male_heroic Japanese profile for 始皇帝
+auto_80dcbc0d9a_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	0.98	100	Auto male_heroic Chinese profile for 始皇帝
+auto_425d7a2f45_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_mystic Japanese profile for 虞美人
+auto_425d7a2f45_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.96	100	Auto female_mystic Chinese profile for 虞美人
+auto_e902620e14_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.02	100	Auto male_heroic Japanese profile for 赤兎馬
+auto_e902620e14_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	0.96	100	Auto male_heroic Chinese profile for 赤兔马
+auto_307fcca7aa_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.99	100	Auto female_noble Japanese profile for ブラダマンテ
+auto_307fcca7aa_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.96	100	Auto female_noble Chinese profile for 布拉达曼特
+auto_f005d35ef5_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	0.97	100	Auto female_noble Japanese profile for 紅閻魔
+auto_f005d35ef5_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	1.00	100	Auto female_noble Chinese profile for 红阎魔
+auto_2bb6e60554_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.92	100	Auto alter_shadow Japanese profile for 紅閻魔・オルタ
+auto_2bb6e60554_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.91	100	Auto alter_shadow Chinese profile for 红阎魔·Alter
+auto_ab0c958f38_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.91	100	Auto female_mystic Japanese profile for 美遊・エーデルフェルト
+auto_ab0c958f38_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.91	100	Auto female_mystic Chinese profile for 美游·艾德费尔特
+auto_e723f506bb_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.95	100	Auto female_mystic Japanese profile for 紫式部
+auto_e723f506bb_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.91	100	Auto female_mystic Chinese profile for 紫式部
+auto_9f715746c6_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.92	100	Auto female_shadow Japanese profile for キングプロテア
+auto_9f715746c6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.96	100	Auto female_shadow Chinese profile for Kingprotea
+auto_1cdd9a01c0_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_mystic Japanese profile for プロテア
+auto_1cdd9a01c0_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_mystic Chinese profile for Protea
+auto_d377796a41_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.95	100	Auto alter_shadow Japanese profile for キングプロテア・オルタ
+auto_d377796a41_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-8%	0.94	100	Auto alter_shadow Chinese profile for Kingprotea·Alter
+auto_4eb2d2637d_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.92	100	Auto alter_shadow Japanese profile for プロテア・オルタ
+auto_4eb2d2637d_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.92	100	Auto alter_shadow Chinese profile for Protea·Alter
+auto_8cba7a31c2_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_mystic Japanese profile for カーマ
+auto_8cba7a31c2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.93	100	Auto female_mystic Chinese profile for 迦摩
+auto_e0c98bb85a_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	0.96	100	Auto female_gentle Japanese profile for ビーストⅢ／L
+auto_e0c98bb85a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+4%	1.01	100	Auto female_gentle Chinese profile for BeastⅢ/L
+auto_c84c508d95_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	0.99	100	Auto female_noble Japanese profile for 司馬懿
+auto_c84c508d95_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	1.00	100	Auto female_noble Chinese profile for 司马懿
+auto_c1f309832c_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	1.01	100	Auto male_heroic Japanese profile for ライネス
+auto_c1f309832c_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	0.99	100	Auto male_heroic Chinese profile for 莱妮丝
+auto_257d6a7be2_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.00	100	Auto female_noble Japanese profile for アストライア
+auto_257d6a7be2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.94	100	Auto female_noble Chinese profile for 阿斯特赖亚
+auto_cd9c710b15_jp	azure	ja-JP	ja-JP-NanamiNeural		+2%	0.91	100	Auto female_mystic Japanese profile for グレイ
+auto_cd9c710b15_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.91	100	Auto female_mystic Chinese profile for 格蕾
+auto_f4b5e5dc1b_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.95	100	Auto female_mystic Japanese profile for 大いなる石像神
+auto_f4b5e5dc1b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.95	100	Auto female_mystic Chinese profile for 伟大的石像神
+auto_fc42c98f0e_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	1.00	100	Auto female_noble Japanese profile for ラクシュミー・バーイー
+auto_fc42c98f0e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.96	100	Auto female_noble Chinese profile for 拉克什米·芭伊
+auto_bf5a8f809a_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.95	100	Auto male_gruff Japanese profile for ウィリアム・テル
+auto_bf5a8f809a_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.92	100	Auto male_gruff Chinese profile for 威廉·退尔
+auto_c3965c08b7_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.96	100	Auto alter_shadow Japanese profile for アルジュナ・オルタ
+auto_c3965c08b7_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.91	100	Auto alter_shadow Chinese profile for 阿周那·Alter
+auto_d1a73b535d_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.96	100	Auto male_calm Japanese profile for アシュヴァッターマン
+auto_d1a73b535d_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.93	100	Auto male_calm Chinese profile for 马嘶
+auto_770b46ec24_jp	azure	ja-JP	ja-JP-NaokiNeural		-5%	0.95	100	Auto male_calm Japanese profile for アスクレピオス
+auto_770b46ec24_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.96	100	Auto male_calm Chinese profile for 阿斯克勒庇俄斯
+auto_884e73caf7_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.98	100	Auto male_gruff Japanese profile for 森長可
+auto_884e73caf7_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-8%	0.94	100	Auto male_gruff Chinese profile for 森长可
+auto_513297867e_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	0.98	100	Auto female_noble Japanese profile for 長尾景虎
+auto_513297867e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	1.00	100	Auto female_noble Chinese profile for 长尾景虎
+auto_10274f357a_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.99	100	Auto male_heroic Japanese profile for イアソン
+auto_10274f357a_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.98	100	Auto male_heroic Chinese profile for 伊阿宋
+auto_38f4804755_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.95	100	Auto male_calm Japanese profile for パリス
+auto_38f4804755_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.95	100	Auto male_calm Chinese profile for 帕里斯
+auto_0c4b9b51e6_jp	azure	ja-JP	ja-JP-AoiNeural		0%	0.97	100	Auto female_noble Japanese profile for ガレス
+auto_0c4b9b51e6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.98	100	Auto female_noble Chinese profile for 加雷斯
+auto_d2e2493008_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	1.00	100	Auto male_heroic Japanese profile for バーソロミュー・ロバーツ
+auto_d2e2493008_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	0.96	100	Auto male_heroic Chinese profile for 巴沙洛缪·罗伯茨
+auto_5b35df1434_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.95	100	Auto male_calm Japanese profile for 陳宮
+auto_5b35df1434_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.92	100	Auto male_calm Chinese profile for 陈宫
+auto_cc80bd83e6_jp	azure	ja-JP	ja-JP-NanamiNeural		+2%	0.93	100	Auto female_mystic Japanese profile for シャルロット・コルデー
+auto_cc80bd83e6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.97	100	Auto female_mystic Chinese profile for 夏洛特·科黛
+auto_cc821a740f_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.94	100	Auto female_shadow Japanese profile for サロメ
+auto_cc821a740f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.96	100	Auto female_shadow Chinese profile for 莎乐美
+auto_ac3e3e9a5d_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_shadow Japanese profile for 謎のアルターエゴ・Λ
+auto_ac3e3e9a5d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.91	100	Auto female_shadow Chinese profile for 谜之Alterego·Λ
+auto_aa2ff382cf_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.96	100	Auto female_mystic Japanese profile for オキタ・Ｊ・ソウジ
+auto_aa2ff382cf_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.95	100	Auto female_mystic Chinese profile for 冲田·J·总司
+auto_8ed73e22e2_jp	azure	ja-JP	ja-JP-NanamiNeural		-6%	0.94	100	Auto female_shadow Japanese profile for スペース・イシュタル
+auto_8ed73e22e2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.97	100	Auto female_shadow Chinese profile for 太空伊什塔尔
+auto_037c0b2030_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.98	100	Auto female_cool Japanese profile for カラミティ・ジェーン
+auto_037c0b2030_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.98	100	Auto female_cool Chinese profile for 灾星简
+auto_deeaf06218_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.98	100	Auto male_gruff Japanese profile for 超人オリオン
+auto_deeaf06218_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.95	100	Auto male_gruff Chinese profile for 超人俄里翁
+auto_43d1c07f95_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	1.02	100	Auto male_heroic Japanese profile for マンドリカルド
+auto_43d1c07f95_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	0.98	100	Auto male_heroic Chinese profile for 曼迪卡尔多
+auto_249146b8c5_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.99	100	Auto female_noble Japanese profile for エウロペ
+auto_249146b8c5_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	1.00	100	Auto female_noble Chinese profile for 欧罗巴
+auto_08e320d6ce_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.93	100	Auto female_mystic Japanese profile for 楊貴妃
+auto_08e320d6ce_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.91	100	Auto female_mystic Chinese profile for 杨贵妃
+auto_8dab68c79d_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.98	100	Auto female_cool Japanese profile for 清少納言
+auto_8dab68c79d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.96	100	Auto female_cool Chinese profile for 清少纳言
+auto_149319583e_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	1.01	100	Auto male_heroic Japanese profile for オデュッセウス
+auto_149319583e_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.96	100	Auto male_heroic Chinese profile for 奥德修斯
+auto_f64bc659d9_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.94	100	Auto male_gruff Japanese profile for ディオスクロイ
+auto_f64bc659d9_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-8%	0.93	100	Auto male_gruff Chinese profile for 狄俄斯库里
+auto_bc1b987772_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+6%	0.95	100	Auto female_gentle Japanese profile for カイニス
+auto_bc1b987772_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+3%	0.99	100	Auto female_gentle Chinese profile for 凯妮斯
+auto_7d33fe6ce6_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.95	100	Auto male_gruff Japanese profile for ロムルス＝クィリヌス
+auto_7d33fe6ce6_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.93	100	Auto male_gruff Chinese profile for 罗穆路斯·奎里努斯
+auto_22e61ad897_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.93	100	Auto male_calm Japanese profile for ボイジャー
+auto_22e61ad897_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.92	100	Auto male_calm Chinese profile for 旅行者
+auto_348ef69d8d_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.93	100	Auto female_shadow Japanese profile for 鬼女紅葉
+auto_348ef69d8d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.94	100	Auto female_shadow Chinese profile for 鬼女红叶
+auto_323f334db6_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	1.00	100	Auto female_noble Japanese profile for 宇津見エリセ
+auto_323f334db6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.98	100	Auto female_noble Chinese profile for 宇津见绘里濑
+auto_85c1db4349_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.94	100	Auto female_mystic Japanese profile for アルトリア・キャスター
+auto_85c1db4349_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.92	100	Auto female_mystic Chinese profile for 阿尔托莉雅·卡斯特
+auto_5451981743_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.99	100	Auto female_cool Japanese profile for 巴御前
+auto_5451981743_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_cool Chinese profile for 巴御前
+auto_15c45504fd_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	0.96	100	Auto female_noble Japanese profile for 卑弥呼
+auto_15c45504fd_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	1.00	100	Auto female_noble Chinese profile for 卑弥呼
+auto_f83403765a_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	1.01	100	Auto male_heroic Japanese profile for 斎藤一
+auto_f83403765a_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	1.01	100	Auto male_heroic Chinese profile for 斋藤一
+auto_dc42c21066_jp	azure	ja-JP	ja-JP-DaichiNeural		-9%	0.94	100	Auto male_gruff Japanese profile for 織田信勝
+auto_dc42c21066_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-7%	0.96	100	Auto male_gruff Chinese profile for 织田信胜
+auto_6ca4a66991_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	1.06	100	Auto female_bright Japanese profile for ヴィンセント・ヴァン・ゴッホ
+auto_6ca4a66991_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	-1%	1.05	100	Auto female_bright Chinese profile for 文森特·梵高
+auto_24f97eba11_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.92	100	Auto alter_shadow Japanese profile for 蘆屋道満
+auto_24f97eba11_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.97	100	Auto alter_shadow Chinese profile for 芦屋道满
+auto_96ed43761d_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	1.01	100	Auto male_heroic Japanese profile for 渡辺綱
+auto_96ed43761d_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.96	100	Auto male_heroic Chinese profile for 渡边纲
+auto_50369f511f_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	1.05	100	Auto child_light Japanese profile for 伊吹童子
+auto_50369f511f_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+4%	1.04	100	Auto child_light Chinese profile for 伊吹童子
+auto_9c18cdd82c_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	1.01	100	Auto female_noble Japanese profile for ヴリトラ
+auto_9c18cdd82c_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	1.00	100	Auto female_noble Chinese profile for 弗栗多
+auto_007a482bb0_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	1.00	100	Auto male_heroic Japanese profile for 千子村正
+auto_007a482bb0_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	0.96	100	Auto male_heroic Chinese profile for 千子村正
+auto_61aa8672a2_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.96	100	Auto male_calm Japanese profile for 平景清
+auto_61aa8672a2_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.93	100	Auto male_calm Chinese profile for 平景清
+auto_30a8007c9e_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.03	100	Auto male_heroic Japanese profile for 鬼一法眼
+auto_30a8007c9e_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.98	100	Auto male_heroic Chinese profile for 鬼一法眼
+auto_f576d7decf_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	1.01	100	Auto female_noble Japanese profile for アムール
+auto_f576d7decf_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.96	100	Auto female_noble Chinese profile for 阿摩耳
+auto_d2756db805_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.95	100	Auto male_gruff Japanese profile for カレン
+auto_d2756db805_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.93	100	Auto male_gruff Chinese profile for 卡莲
+auto_340e5a5b1e_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.92	100	Auto female_shadow Japanese profile for ガラテア
+auto_340e5a5b1e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.96	100	Auto female_shadow Chinese profile for 伽拉忒亚
+auto_17716dc333_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.93	100	Auto female_mystic Japanese profile for ミス・クレーン
+auto_17716dc333_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.91	100	Auto female_mystic Chinese profile for 克莱恩小姐
+auto_462940dfce_jp	azure	ja-JP	ja-JP-NaokiNeural		-7%	0.94	100	Auto alter_shadow Japanese profile for 謎のアイドルX・オルタ
+auto_462940dfce_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.96	100	Auto alter_shadow Chinese profile for 谜之偶像X·Alter
+auto_67166ec215_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.93	100	Auto female_shadow Japanese profile for モルガン
+auto_67166ec215_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-5%	0.94	100	Auto female_shadow Chinese profile for 摩根
+auto_85b41182c5_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.95	100	Auto female_noble Japanese profile for 妖精騎士ガウェイン
+auto_85b41182c5_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.97	100	Auto female_noble Chinese profile for 妖精骑士高文
+auto_bc4483f667_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.95	100	Auto female_mystic Japanese profile for バーヴァン・シー
+auto_bc4483f667_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.93	100	Auto female_mystic Chinese profile for 芭万·希
+auto_3fbf8e4596_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.99	100	Auto female_cool Japanese profile for 妖精騎士トリスタン
+auto_3fbf8e4596_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.96	100	Auto female_cool Chinese profile for 妖精骑士崔斯坦
+auto_8a93a78dc7_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.96	100	Auto female_cool Japanese profile for バーゲスト
+auto_8a93a78dc7_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.95	100	Auto female_cool Chinese profile for 巴格斯特
+auto_e69c652adc_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.98	100	Auto female_noble Japanese profile for 妖精騎士ランスロット
+auto_e69c652adc_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.95	100	Auto female_noble Chinese profile for 妖精骑士兰斯洛特
+auto_c0df2fd332_jp	azure	ja-JP	ja-JP-DaichiNeural		-3%	1.00	100	Auto male_heroic Japanese profile for パーシヴァル
+auto_c0df2fd332_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.99	100	Auto male_heroic Chinese profile for 珀西瓦尔
+auto_4f13010510_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.95	100	Auto female_mystic Japanese profile for 光のコヤンスカヤ
+auto_4f13010510_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_mystic Chinese profile for 光之高扬斯卡娅
+auto_d763224508_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.97	100	Auto female_noble Japanese profile for ハベトロット
+auto_d763224508_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.98	100	Auto female_noble Chinese profile for 哈贝特洛特
+auto_07114f8dba_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.00	100	Auto male_bright Japanese profile for オベロン·ヴォーティガーン
+auto_07114f8dba_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-3%	1.04	100	Auto male_bright Chinese profile for 奥伯龙·伏提庚
+auto_1180055940_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.94	100	Auto male_gruff Japanese profile for ヴィイ
+auto_1180055940_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-3%	0.97	100	Auto male_gruff Chinese profile for 维
+auto_17678d461e_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	1.05	100	Auto child_light Japanese profile for ジャック・ド・モレー
+auto_17678d461e_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+9%	1.06	100	Auto child_light Chinese profile for 雅克·德·莫莱
+auto_764ce51d5f_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.99	100	Auto female_cool Japanese profile for ゼノビア
+auto_764ce51d5f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.96	100	Auto female_cool Chinese profile for 芝诺比阿
+auto_40551a6423_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.91	100	Auto female_mystic Japanese profile for 出雲阿国
+auto_40551a6423_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.95	100	Auto female_mystic Chinese profile for 出云阿国
+auto_dac5013e5e_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.92	100	Auto male_gruff Japanese profile for 謎の蘭丸X
+auto_dac5013e5e_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-7%	0.94	100	Auto male_gruff Chinese profile for 谜之兰丸X
+auto_25adf5fce8_jp	azure	ja-JP	ja-JP-DaichiNeural		-3%	1.03	100	Auto male_heroic Japanese profile for 太公望
+auto_25adf5fce8_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	0.97	100	Auto male_heroic Chinese profile for 太公望
+auto_b038d84eba_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	0.95	100	Auto female_noble Japanese profile for ドブルイニャ・ニキチッチ
+auto_b038d84eba_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	1.00	100	Auto female_noble Chinese profile for 多布雷尼亚·尼基季奇
+auto_60ab881846_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	1.07	100	Auto female_bright Japanese profile for ビーストⅣ
+auto_60ab881846_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	-1%	1.05	100	Auto female_bright Chinese profile for BeastⅣ
+auto_9735d042d4_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.94	100	Auto female_shadow Japanese profile for 闇のコヤンスカヤ
+auto_9735d042d4_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-6%	0.93	100	Auto female_shadow Chinese profile for 暗之高扬斯卡娅
+auto_87ace05475_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.96	100	Auto female_mystic Japanese profile for ヘファイスティオン
+auto_87ace05475_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.94	100	Auto female_mystic Chinese profile for 赫费斯提翁
+auto_964bff0e28_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+5%	0.99	100	Auto female_gentle Japanese profile for マナナン・マク・リール
+auto_964bff0e28_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+6%	0.95	100	Auto female_gentle Chinese profile for 马纳南·麦克·利尔
+auto_cad731b059_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.91	100	Auto female_shadow Japanese profile for バゼット
+auto_cad731b059_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-4%	0.91	100	Auto female_shadow Chinese profile for 巴泽特
+auto_8b63aa58b7_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	0.96	100	Auto female_noble Japanese profile for 徴姉妹
+auto_8b63aa58b7_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.94	100	Auto female_noble Chinese profile for 征氏姐妹
+auto_7399a00591_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.93	100	Auto alter_shadow Japanese profile for 太歳星君
+auto_7399a00591_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.91	100	Auto alter_shadow Chinese profile for 太岁星君
+auto_9f489c9782_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.94	100	Auto female_shadow Japanese profile for スーパーバニヤン
+auto_9f489c9782_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-7%	0.91	100	Auto female_shadow Chinese profile for 超级班扬
+auto_acfd50eb69_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.92	100	Auto female_shadow Japanese profile for 大黒天
+auto_acfd50eb69_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-4%	0.92	100	Auto female_shadow Chinese profile for 大黑天
+auto_8a6a6d4ca4_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	1.01	100	Auto female_noble Japanese profile for メアリー・アニング
+auto_8a6a6d4ca4_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	0.96	100	Auto female_noble Chinese profile for 玛丽·安宁
+auto_e989c6e7a3_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.98	100	Auto male_heroic Japanese profile for コンスタンティノス11世
+auto_e989c6e7a3_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	0.99	100	Auto male_heroic Chinese profile for 君士坦丁十一世
+auto_6590abd91b_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	1.03	100	Auto male_heroic Japanese profile for シャルルマーニュ
+auto_6590abd91b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	1.00	100	Auto male_heroic Chinese profile for 查理曼
+auto_cd96aa4fab_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.03	100	Auto male_heroic Japanese profile for ローラン
+auto_cd96aa4fab_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.96	100	Auto male_heroic Chinese profile for 罗兰
+auto_9d15ba01f4_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.96	100	Auto female_shadow Japanese profile for クリームヒルト
+auto_9d15ba01f4_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.94	100	Auto female_shadow Chinese profile for 克里姆希尔德
+auto_997a62c477_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	1.03	100	Auto male_bright Japanese profile for ジェームズ・モリアーティ
+auto_997a62c477_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	0%	1.02	100	Auto male_bright Chinese profile for 詹姆斯·莫里亚蒂
+auto_8b677b14c8_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	1.01	100	Auto male_heroic Japanese profile for ドン・キホーテ
+auto_8b677b14c8_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.96	100	Auto male_heroic Chinese profile for 堂·吉诃德
+auto_681739c6c8_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.93	100	Auto male_calm Japanese profile for 張角
+auto_681739c6c8_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.96	100	Auto male_calm Chinese profile for 张角
+auto_25982807ce_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	1.00	100	Auto female_noble Japanese profile for 曲亭馬琴
+auto_25982807ce_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.98	100	Auto female_noble Chinese profile for 曲亭马琴
+auto_c6cfb40263_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.95	100	Auto male_calm Japanese profile for 源為朝
+auto_c6cfb40263_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.92	100	Auto male_calm Chinese profile for 源为朝
+auto_9a68c2b503_jp	azure	ja-JP	ja-JP-NanamiNeural		+2%	0.93	100	Auto female_mystic Japanese profile for アーキタイプ：アース
+auto_9a68c2b503_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.91	100	Auto female_mystic Chinese profile for Archetype：Earth
+auto_12d38389c6_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.91	100	Auto female_shadow Japanese profile for 徐福
+auto_12d38389c6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-5%	0.94	100	Auto female_shadow Chinese profile for 徐福
+auto_d1bd7a5572_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.94	100	Auto female_mystic Japanese profile for レディ・アヴァロン
+auto_d1bd7a5572_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.91	100	Auto female_mystic Chinese profile for 阿瓦隆女士
+auto_85bb4884ba_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.91	100	Auto female_mystic Japanese profile for 武則天
+auto_85bb4884ba_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.96	100	Auto female_mystic Chinese profile for 武则天
+auto_226b868d91_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.94	100	Auto female_mystic Japanese profile for スルーズ
+auto_226b868d91_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.95	100	Auto female_mystic Chinese profile for 斯露德
+auto_30bbeffaae_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.95	100	Auto female_mystic Japanese profile for ヒルド
+auto_30bbeffaae_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.95	100	Auto female_mystic Chinese profile for 希露德
+auto_1f43226646_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.92	100	Auto female_mystic Japanese profile for オルトリンデ
+auto_1f43226646_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.95	100	Auto female_mystic Chinese profile for 奥特琳德
+auto_31e7289f77_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.92	100	Auto female_shadow Japanese profile for 千利休
+auto_31e7289f77_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.94	100	Auto female_shadow Chinese profile for 千利休
+auto_6e3bd4f951_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	1.00	100	Auto male_heroic Japanese profile for 山南敬助
+auto_6e3bd4f951_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.97	100	Auto male_heroic Chinese profile for 山南敬助
+auto_63162ec442_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	1.00	100	Auto female_noble Japanese profile for 壱与
+auto_63162ec442_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.99	100	Auto female_noble Chinese profile for 壹与
+auto_998db704c9_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_mystic Japanese profile for 呼延灼
+auto_998db704c9_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.93	100	Auto female_mystic Chinese profile for 呼延灼
+auto_6830dcc278_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	1.01	100	Auto male_heroic Japanese profile for 黄飛虎
+auto_6830dcc278_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	1.01	100	Auto male_heroic Chinese profile for 黄飞虎
+auto_6e39dade05_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.91	100	Auto female_mystic Japanese profile for 九紋竜エリザ
+auto_6e39dade05_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.97	100	Auto female_mystic Chinese profile for 九纹龙伊丽莎
+auto_7a817b2dd8_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	1.00	100	Auto female_noble Japanese profile for ブリトマート
+auto_7a817b2dd8_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.94	100	Auto female_noble Chinese profile for 布里托玛特
+auto_e5a9af4600_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.92	100	Auto alter_shadow Japanese profile for グレゴリー・ラスプーチン
+auto_e5a9af4600_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.91	100	Auto alter_shadow Chinese profile for 格里戈里·拉斯普京
+auto_1442526ddc_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.93	100	Auto female_shadow Japanese profile for ニトクリス・オルタ
+auto_1442526ddc_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-5%	0.97	100	Auto female_shadow Chinese profile for 尼托克丽丝·Alter
+auto_e9fdd7347f_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	0.95	100	Auto male_calm Japanese profile for テスカトリポカ
+auto_e9fdd7347f_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.91	100	Auto male_calm Chinese profile for 特斯卡特利波卡
+auto_cbb01bd730_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.91	100	Auto female_mystic Japanese profile for トラロック
+auto_cbb01bd730_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.93	100	Auto female_mystic Chinese profile for 特拉洛克
+auto_d7f029b16d_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.96	100	Auto female_mystic Japanese profile for ククルカン
+auto_d7f029b16d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.93	100	Auto female_mystic Chinese profile for 库库尔坎
+auto_edbca2c0a2_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	0.98	100	Auto female_noble Japanese profile for 女教皇ヨハンナ
+auto_edbca2c0a2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.95	100	Auto female_noble Chinese profile for 女教皇若安
+auto_88a7178b71_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.96	100	Auto male_calm Japanese profile for 高杉晋作
+auto_88a7178b71_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.92	100	Auto male_calm Chinese profile for 高杉晋作
+auto_c2f906d6d4_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+9%	1.06	100	Auto child_light Japanese profile for ラーヴァ
+auto_c2f906d6d4_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+8%	1.08	100	Auto child_light Chinese profile for 幼体
+auto_55b81345e0_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.03	100	Auto female_bright Japanese profile for ソドムズビースト
+auto_55b81345e0_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.03	100	Auto female_bright Chinese profile for 所多玛之兽
+auto_6d87252c8e_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	0.94	100	Auto female_gentle Japanese profile for ドラコー
+auto_6d87252c8e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	1.00	100	Auto female_gentle Chinese profile for 德拉科
+auto_3a220c7ea6_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.91	100	Auto female_mystic Japanese profile for ロクスタ
+auto_3a220c7ea6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.94	100	Auto female_mystic Chinese profile for 洛库斯塔
+auto_a0137691d5_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.99	100	Auto male_heroic Japanese profile for セタンタ
+auto_a0137691d5_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	0.99	100	Auto male_heroic Chinese profile for 瑟坦特
+auto_f6b83b63f3_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	0.97	100	Auto female_gentle Japanese profile for 果心居士
+auto_f6b83b63f3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+4%	0.95	100	Auto female_gentle Chinese profile for 果心居士
+auto_8221bcc461_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	0.98	100	Auto male_heroic Japanese profile for ビーマ
+auto_8221bcc461_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	0.96	100	Auto male_heroic Chinese profile for 怖军
+auto_efa184080b_jp	azure	ja-JP	ja-JP-DaichiNeural		-9%	0.94	100	Auto male_gruff Japanese profile for ドゥリーヨダナ
+auto_efa184080b_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-3%	0.98	100	Auto male_gruff Chinese profile for 难敌
+auto_74eac1a88f_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.93	100	Auto female_cool Japanese profile for ドゥルガー
+auto_74eac1a88f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.96	100	Auto female_cool Chinese profile for 杜尔伽
+auto_5e7757049e_jp	azure	ja-JP	ja-JP-NanamiNeural		+2%	0.95	100	Auto female_mystic Japanese profile for 雨の魔女トネリコ
+auto_5e7757049e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.95	100	Auto female_mystic Chinese profile for 雨之魔女梣
+auto_dcc2d4510b_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.96	100	Auto female_mystic Japanese profile for ノクナレア・ヤラアーンドゥ
+auto_dcc2d4510b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.97	100	Auto female_mystic Chinese profile for 诺克娜蕾·雅兰杜
+auto_f5af000613_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.99	100	Auto female_noble Japanese profile for メリュジーヌ
+auto_f5af000613_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.95	100	Auto female_noble Chinese profile for 梅柳齐娜
+auto_955b3a5c94_jp	azure	ja-JP	ja-JP-AoiNeural		+5%	1.05	100	Auto female_bright Japanese profile for メリュジーヌ・オンディーヌ
+auto_955b3a5c94_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+4%	1.08	100	Auto female_bright Chinese profile for 梅柳齐娜·翁蒂娜
+auto_ea2552cde0_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.98	100	Auto female_cool Japanese profile for ＵＤＫ－バーゲスト
+auto_ea2552cde0_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.96	100	Auto female_cool Chinese profile for UDK－巴格斯特
+auto_0344b4262b_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.90	100	Auto female_mystic Japanese profile for ケット・クー・ミコケル
+auto_0344b4262b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.95	100	Auto female_mystic Chinese profile for 凯特·库·米可科尔
+auto_e7a682571b_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.95	100	Auto male_calm Japanese profile for ワンジナ
+auto_e7a682571b_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	0%	0.94	100	Auto male_calm Chinese profile for 旺吉娜
+auto_811bf3da27_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	1.06	100	Auto male_bright Japanese profile for プトレマイオス
+auto_811bf3da27_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.03	100	Auto male_bright Chinese profile for 托勒密
+auto_f110fc6343_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.99	100	Auto female_cool Japanese profile for 杉谷善住坊
+auto_f110fc6343_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.96	100	Auto female_cool Chinese profile for 杉谷善住坊
+auto_b9a75a6c5a_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.02	100	Auto male_heroic Japanese profile for テセウス
+auto_b9a75a6c5a_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	0.98	100	Auto male_heroic Chinese profile for 忒修斯
+auto_fb60684b76_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	0.99	100	Auto male_heroic Japanese profile for 武田晴信
+auto_fb60684b76_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-7%	1.01	100	Auto male_heroic Chinese profile for 武田晴信
+auto_9dd936eb90_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.95	100	Auto male_gruff Japanese profile for 永倉新八
+auto_9dd936eb90_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.96	100	Auto male_gruff Chinese profile for 永仓新八
+auto_24ec12c662_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.99	100	Auto female_cool Japanese profile for 雑賀孫一
+auto_24ec12c662_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.95	100	Auto female_cool Chinese profile for 杂贺孙一
+auto_dc8c550d87_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.01	100	Auto female_noble Japanese profile for 上杉謙信
+auto_dc8c550d87_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.96	100	Auto female_noble Chinese profile for 上杉谦信
+auto_11d01ef12d_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.96	100	Auto female_mystic Japanese profile for ヤマトタケル
+auto_11d01ef12d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.91	100	Auto female_mystic Chinese profile for 大和武尊
+auto_42e9c3d3b2_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.96	100	Auto female_shadow Japanese profile for 丑御前
+auto_42e9c3d3b2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.95	100	Auto female_shadow Chinese profile for 丑御前
+auto_e6207b4d82_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.93	100	Auto female_mystic Japanese profile for 由井正雪
+auto_e6207b4d82_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.94	100	Auto female_mystic Chinese profile for 由井正雪
+auto_1d8f0e1158_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	1.03	100	Auto male_heroic Japanese profile for 宮本伊織
+auto_1d8f0e1158_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	1.01	100	Auto male_heroic Chinese profile for 宫本伊织
+auto_2caa7a3754_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	0.96	100	Auto female_noble Japanese profile for アンドロメダ
+auto_2caa7a3754_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	1.00	100	Auto female_noble Chinese profile for 安德洛墨达
+auto_828dbe14d9_jp	azure	ja-JP	ja-JP-NaokiNeural		-7%	0.93	100	Auto alter_shadow Japanese profile for マリー・オルタ
+auto_828dbe14d9_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.97	100	Auto alter_shadow Chinese profile for 玛丽·Alter
+auto_c39b27cbd2_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.96	100	Auto male_calm Japanese profile for 耀星のハサン
+auto_c39b27cbd2_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.92	100	Auto male_calm Chinese profile for 耀星哈桑
+auto_1d90786d97_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.98	100	Auto male_gruff Japanese profile for 巌窟王 モンテ・クリスト
+auto_1d90786d97_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.92	100	Auto male_gruff Chinese profile for 岩窟王 基督山
+auto_477c7f6527_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.93	100	Auto male_calm Japanese profile for アレッサンドロ・ディ・カリオストロ
+auto_477c7f6527_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.92	100	Auto male_calm Chinese profile for 亚历山德罗·迪·卡利奥斯特罗
+auto_74965521ae_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+2%	0.97	100	Auto female_gentle Japanese profile for Ｅ－フレアマリー
+auto_74965521ae_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	0%	1.00	100	Auto female_gentle Chinese profile for E－火玛丽
+auto_f1ac374bda_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.96	100	Auto female_cool Japanese profile for Ｅ－アクアマリー
+auto_f1ac374bda_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_cool Chinese profile for E－水玛丽
+auto_4ffe001d40_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.94	100	Auto female_mystic Japanese profile for 蒼崎青子
+auto_4ffe001d40_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.91	100	Auto female_mystic Chinese profile for 苍崎青子
+auto_ca83bbc9b8_jp	azure	ja-JP	ja-JP-DaichiNeural		-8%	0.97	100	Auto male_gruff Japanese profile for 静希草十郎
+auto_ca83bbc9b8_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-8%	0.95	100	Auto male_gruff Chinese profile for 静希草十郎
+auto_ae2d3cde66_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.92	100	Auto female_mystic Japanese profile for 久遠寺有珠
+auto_ae2d3cde66_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.96	100	Auto female_mystic Chinese profile for 久远寺有珠
+auto_c643f3b531_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.94	100	Auto male_gruff Japanese profile for ひびき
+auto_c643f3b531_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.94	100	Auto male_gruff Chinese profile for 响
+auto_cee2a8cfa7_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	0.98	100	Auto female_gentle Japanese profile for 千鍵
+auto_cee2a8cfa7_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	0%	0.97	100	Auto female_gentle Chinese profile for 千键
+auto_612dfd54a9_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+2%	0.99	100	Auto female_gentle Japanese profile for アンキ・エレシュキガル
+auto_612dfd54a9_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+4%	0.95	100	Auto female_gentle Chinese profile for 安基埃列什基伽勒
+auto_450d1478b4_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	0%	0.95	100	Auto female_gentle Japanese profile for スペース・エレシュキガル
+auto_450d1478b4_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+1%	0.97	100	Auto female_gentle Chinese profile for 太空埃列什基伽勒
+auto_694025029a_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.96	100	Auto female_mystic Japanese profile for 謎の代行者C.I.E.L
+auto_694025029a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.93	100	Auto female_mystic Chinese profile for 谜之代行者C.I.E.L
+auto_1e8760d9cb_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.93	100	Auto female_mystic Japanese profile for ＢＢドバイ
+auto_1e8760d9cb_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.97	100	Auto female_mystic Chinese profile for BB迪拜
+auto_696f95462d_jp	azure	ja-JP	ja-JP-NaokiNeural		+1%	1.06	100	Auto male_bright Japanese profile for ＢＢコスモ
+auto_696f95462d_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-1%	1.04	100	Auto male_bright Chinese profile for BB宇宙
+auto_de6bb30c3f_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.93	100	Auto male_gruff Japanese profile for ゴールデンＢＢ
+auto_de6bb30c3f_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-7%	0.95	100	Auto male_gruff Chinese profile for 黄金BB
+auto_c23fbe844e_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.94	100	Auto female_mystic Japanese profile for テノチティトラン
+auto_c23fbe844e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.92	100	Auto female_mystic Chinese profile for 特诺奇蒂特兰
+auto_5c5a211532_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.90	100	Auto alter_shadow Japanese profile for 謎のヒロインXX・オルタ
+auto_5c5a211532_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-7%	0.97	100	Auto alter_shadow Chinese profile for 谜之女主角XX·Alter
+auto_56161b8eec_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.94	100	Auto female_shadow Japanese profile for カズラドロップ
+auto_56161b8eec_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-4%	0.95	100	Auto female_shadow Chinese profile for Kazuradrop
+auto_78c3322088_jp	azure	ja-JP	ja-JP-NaokiNeural		+1%	1.04	100	Auto male_bright Japanese profile for ツタンカーメン
+auto_78c3322088_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-3%	1.01	100	Auto male_bright Chinese profile for 图坦卡蒙
+auto_4fc1f67404_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.92	100	Auto female_shadow Japanese profile for ロウヒ
+auto_4fc1f67404_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.94	100	Auto female_shadow Chinese profile for 娄希
+auto_6bc4191a4b_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_mystic Japanese profile for ファンタズムーン
+auto_6bc4191a4b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.95	100	Auto female_mystic Chinese profile for Phantasmoon
+auto_76a2b5af2a_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.97	100	Auto female_cool Japanese profile for スペース・ファンタズムーンＶ
+auto_76a2b5af2a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.93	100	Auto female_cool Chinese profile for Space PhantasmoonⅤ
+auto_d8e499123d_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	1.05	100	Auto female_bright Japanese profile for サンタズムーン
+auto_d8e499123d_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+2%	1.03	100	Auto female_bright Chinese profile for Santasmoon
+auto_702587e84b_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	1.03	100	Auto male_heroic Japanese profile for リチャードⅠ世
+auto_702587e84b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	1.00	100	Auto male_heroic Chinese profile for 理查一世
+auto_eb8e6f40b6_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	1.01	100	Auto female_noble Japanese profile for ビショーネ
+auto_eb8e6f40b6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-3%	0.98	100	Auto female_noble Chinese profile for 比肖内
+auto_1e73d7e97f_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.93	100	Auto female_shadow Japanese profile for 黒姫
+auto_1e73d7e97f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.97	100	Auto female_shadow Chinese profile for 黑姬
+auto_16522ca8f8_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.95	100	Auto female_mystic Japanese profile for 小野小町
+auto_16522ca8f8_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_mystic Chinese profile for 小野小町
+auto_c9ba617705_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.91	100	Auto female_mystic Japanese profile for Ｅ－グランマリー
+auto_c9ba617705_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.97	100	Auto female_mystic Chinese profile for E－宏玛丽
+auto_c739917f18_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.92	100	Auto male_calm Japanese profile for ダンテ・アリギエーリ
+auto_c739917f18_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.93	100	Auto male_calm Chinese profile for 但丁·阿利吉耶里
+auto_37b5e8ec5c_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	0.95	100	Auto female_noble Japanese profile for メタトロン・ジャンヌ
+auto_37b5e8ec5c_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.96	100	Auto female_noble Chinese profile for 梅塔特隆·贞德
+auto_77ff5d6c9a_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	1.02	100	Auto male_heroic Japanese profile for アショカ王
+auto_77ff5d6c9a_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-7%	0.99	100	Auto male_heroic Chinese profile for 阿育王
+auto_a56bd8e6cd_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.95	100	Auto female_shadow Japanese profile for リリス
+auto_a56bd8e6cd_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.95	100	Auto female_shadow Chinese profile for 莉莉丝
+auto_eb12c771bb_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.91	100	Auto female_mystic Japanese profile for テュフォン・エフェメロス
+auto_eb12c771bb_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.95	100	Auto female_mystic Chinese profile for 堤丰·厄斐墨洛斯
+auto_e78e3efb2f_jp	azure	ja-JP	ja-JP-NanamiNeural		+2%	0.93	100	Auto female_mystic Japanese profile for イプシロン
+auto_e78e3efb2f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.94	100	Auto female_mystic Chinese profile for 伊普西龙
+auto_5c6b4d1ed4_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.97	100	Auto male_heroic Japanese profile for インドラ
+auto_5c6b4d1ed4_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	1.00	100	Auto male_heroic Chinese profile for 因陀罗
+auto_4a1d0629dd_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.93	100	Auto female_mystic Japanese profile for Ｅ－ステラマリー
+auto_4a1d0629dd_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.91	100	Auto female_mystic Chinese profile for E－星玛丽
+auto_856eedaca9_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	1.03	100	Auto female_bright Japanese profile for Ｕ－オルガマリー
+auto_856eedaca9_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.08	100	Auto female_bright Chinese profile for U－奥尔加玛丽
+auto_857bb9255a_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.96	100	Auto female_mystic Japanese profile for 玉兎
+auto_857bb9255a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.93	100	Auto female_mystic Chinese profile for 玉兔
+auto_b2b566a487_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_shadow Japanese profile for ジュネス・クレーン
+auto_b2b566a487_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-5%	0.93	100	Auto female_shadow Chinese profile for 热内斯·克莱恩
+auto_60b9f88d77_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	0.96	100	Auto female_noble Japanese profile for ノア
+auto_60b9f88d77_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.99	100	Auto female_noble Chinese profile for 诺亚
+auto_36187658c2_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.95	100	Auto female_mystic Japanese profile for 河上彦斎
+auto_36187658c2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.93	100	Auto female_mystic Chinese profile for 河上彦斋
+auto_2835406643_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.96	100	Auto male_gruff Japanese profile for 藤堂平助
+auto_2835406643_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.97	100	Auto male_gruff Chinese profile for 藤堂平助
+auto_9e938a181d_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	1.01	100	Auto male_heroic Japanese profile for 原田左之助
+auto_9e938a181d_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-7%	1.01	100	Auto male_heroic Chinese profile for 原田左之助
+auto_65b3d68214_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.99	100	Auto male_heroic Japanese profile for 近藤勇
+auto_65b3d68214_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	1.01	100	Auto male_heroic Chinese profile for 近藤勇
+auto_c969e5946b_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.94	100	Auto female_shadow Japanese profile for 終わりのエリザベート
+auto_c969e5946b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.91	100	Auto female_shadow Chinese profile for 终结之伊丽莎白
+auto_a12c7b92bd_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	1.05	100	Auto male_bright Japanese profile for マリス・カルデアス
+auto_a12c7b92bd_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-3%	1.05	100	Auto male_bright Chinese profile for 马里斯·迦勒底亚斯
+auto_e4ede17ff3_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	0.97	100	Auto female_noble Japanese profile for ロード・ログレス
+auto_e4ede17ff3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	0.95	100	Auto female_noble Chinese profile for 领主洛格雷斯
+auto_2b30aa1568_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.03	100	Auto female_bright Japanese profile for ログレス
+auto_2b30aa1568_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.02	100	Auto female_bright Chinese profile for 洛格雷斯
+auto_266896c88c_jp	azure	ja-JP	ja-JP-NaokiNeural		-5%	0.94	100	Auto male_calm Japanese profile for 花咲翁
+auto_266896c88c_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.96	100	Auto male_calm Chinese profile for 花咲翁
+auto_bb9d2228c6_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.94	100	Auto female_mystic Japanese profile for 蛇女房
+auto_bb9d2228c6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.92	100	Auto female_mystic Chinese profile for 蛇女房
+auto_a79887e544_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.96	100	Auto female_shadow Japanese profile for フローラ
+auto_a79887e544_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.96	100	Auto female_shadow Chinese profile for 芙萝拉
+auto_1b4b824f79_jp	azure	ja-JP	ja-JP-NaokiNeural		+1%	1.04	100	Auto male_bright Japanese profile for デメテル・エリニュス
+auto_1b4b824f79_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-4%	1.01	100	Auto male_bright Chinese profile for 得墨忒耳·厄里倪厄斯
+auto_c291ac7aed_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	0.93	100	Auto male_calm Japanese profile for フランソワ・プレラーティ
+auto_c291ac7aed_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	0%	0.91	100	Auto male_calm Chinese profile for 弗朗索瓦·普勒拉蒂
+auto_4751cbb7be_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.91	100	Auto female_shadow Japanese profile for フランチェスカ・プレラーティ
+auto_4751cbb7be_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.94	100	Auto female_shadow Chinese profile for 弗兰切斯卡·普勒拉蒂
+auto_38be251eb1_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	1.00	100	Auto female_noble Japanese profile for ヒッポリュテ
+auto_38be251eb1_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.95	100	Auto female_noble Chinese profile for 希波吕忒
+auto_f0a59dbd9c_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.93	100	Auto male_gruff Japanese profile for ジョン・ラックランド
+auto_f0a59dbd9c_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.92	100	Auto male_gruff Chinese profile for 无地王约翰
+auto_d940f6173b_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.96	100	Auto female_cool Japanese profile for ウルズ
+auto_d940f6173b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.96	100	Auto female_cool Chinese profile for 乌尔德
+auto_65ac802418_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.94	100	Auto female_cool Japanese profile for カマソッソ
+auto_65ac802418_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.98	100	Auto female_cool Chinese profile for 卡玛佐茨
+auto_ea795edbff_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.96	100	Auto male_calm Japanese profile for 朱瑞鳥・紅閻魔
+auto_ea795edbff_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.97	100	Auto male_calm Chinese profile for 朱瑞鸟·红阎魔
+auto_066644993c_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.98	100	Auto male_heroic Japanese profile for 恐竜王
+auto_066644993c_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-7%	0.96	100	Auto male_heroic Chinese profile for 恐龙王
+auto_efe19a280a_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.07	100	Auto female_bright Japanese profile for イスカリ
+auto_efe19a280a_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	-1%	1.02	100	Auto female_bright Chinese profile for 伊斯卡利
+auto_b89cfc8d53_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	0.95	100	Auto female_gentle Japanese profile for ORT
+auto_b89cfc8d53_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+1%	1.00	100	Auto female_gentle Chinese profile for ORT
+auto_3509fe7585_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.94	100	Auto female_cool Japanese profile for スカンジナビア・ペペロンチーノ
+auto_3509fe7585_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.98	100	Auto female_cool Chinese profile for 斯堪的纳维亚·佩佩隆奇诺
+auto_f0404c3264_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.95	100	Auto female_mystic Japanese profile for 妙漣寺鴉郎
+auto_f0404c3264_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.93	100	Auto female_mystic Chinese profile for 妙漣寺鴉郎
+auto_e494d2c846_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.94	100	Auto female_mystic Japanese profile for コヤンスカヤ
+auto_e494d2c846_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_mystic Chinese profile for 高扬斯卡娅
+auto_c1db5936b4_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	1.06	100	Auto male_bright Japanese profile for ブランカ
+auto_c1db5936b4_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	0%	1.03	100	Auto male_bright Chinese profile for 布兰卡
+auto_eb243af902_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.07	100	Auto female_bright Japanese profile for ウェールズ
+auto_eb243af902_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.02	100	Auto female_bright Chinese profile for 威尔士
+auto_20ae4f1504_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.96	100	Auto female_cool Japanese profile for オーロラ
+auto_20ae4f1504_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.97	100	Auto female_cool Chinese profile for 欧若拉
+auto_799d0af091_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	0.96	100	Auto female_gentle Japanese profile for コーラル
+auto_799d0af091_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	0.98	100	Auto female_gentle Chinese profile for 科拉尔
+auto_ca42c3348b_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	1.02	100	Auto female_bright Japanese profile for スプリガン
+auto_ca42c3348b_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.02	100	Auto female_bright Chinese profile for 斯普里根
+auto_c646a180ed_jp	azure	ja-JP	ja-JP-AoiNeural		+4%	1.06	100	Auto female_bright Japanese profile for 亜鈴百種・排熱大公
+auto_c646a180ed_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	-1%	1.07	100	Auto female_bright Chinese profile for 亚铃百种·散热大公
+auto_97293d8770_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+2%	0.98	100	Auto female_gentle Japanese profile for ボガード
+auto_97293d8770_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+4%	1.00	100	Auto female_gentle Chinese profile for 博格特
+auto_0d43f4a62b_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+2%	0.94	100	Auto female_gentle Japanese profile for エインセル
+auto_0d43f4a62b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	0.97	100	Auto female_gentle Chinese profile for 艾因塞尔
+auto_051930fd3d_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.03	100	Auto male_bright Japanese profile for ノクナレア
+auto_051930fd3d_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+1%	1.05	100	Auto male_bright Chinese profile for 诺克娜蕾
+auto_ac3240f47a_jp	azure	ja-JP	ja-JP-AoiNeural		+4%	1.06	100	Auto female_bright Japanese profile for ウィンキー
+auto_ac3240f47a_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.08	100	Auto female_bright Chinese profile for 温基
+auto_aa8c98fd16_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	0.96	100	Auto female_gentle Japanese profile for ワグ
+auto_aa8c98fd16_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	0.99	100	Auto female_gentle Chinese profile for 瓦格
+auto_8d356b369e_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.95	100	Auto male_calm Japanese profile for ロブ
+auto_8d356b369e_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.93	100	Auto male_calm Chinese profile for 罗布
+auto_55ab62c40b_jp	azure	ja-JP	ja-JP-AoiNeural		+4%	1.05	100	Auto female_bright Japanese profile for ホープ
+auto_55ab62c40b_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.08	100	Auto female_bright Chinese profile for 霍普
+auto_1da3df5026_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.99	100	Auto female_cool Japanese profile for 白狼
+auto_1da3df5026_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.94	100	Auto female_cool Chinese profile for 白狼
+auto_d4f63546c4_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.01	100	Auto female_bright Japanese profile for エクター
+auto_d4f63546c4_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+5%	1.02	100	Auto female_bright Chinese profile for 埃克特
+auto_16fad58dbf_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	1.04	100	Auto male_bright Japanese profile for モース
+auto_16fad58dbf_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	0%	1.02	100	Auto male_bright Chinese profile for 摩耳斯
+auto_737429d646_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.91	100	Auto male_calm Japanese profile for ケルヌンノス
+auto_737429d646_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.97	100	Auto male_calm Chinese profile for 科尔努诺斯
+auto_4636d0836a_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.90	100	Auto female_mystic Japanese profile for 祭神ケルヌンノス
+auto_4636d0836a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.95	100	Auto female_mystic Chinese profile for 祭神科尔努诺斯
+auto_a2a5e7d583_jp	azure	ja-JP	ja-JP-AoiNeural		+4%	1.07	100	Auto female_bright Japanese profile for セファール
+auto_a2a5e7d583_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+4%	1.08	100	Auto female_bright Chinese profile for 赛法卢
+auto_9b92d87549_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	0.95	100	Auto female_noble Japanese profile for アルビオン
+auto_9b92d87549_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.98	100	Auto female_noble Chinese profile for 阿尔比恩
+auto_c53ec525f7_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	1.03	100	Auto male_bright Japanese profile for 魔竜ヴォーティガーン
+auto_c53ec525f7_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.00	100	Auto male_bright Chinese profile for 魔龙伏提庚
+auto_40d943a4e6_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	1.03	100	Auto female_bright Japanese profile for インフェルノ
+auto_40d943a4e6_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+3%	1.07	100	Auto female_bright Chinese profile for Inferno
+auto_080d7ecf14_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.99	100	Auto female_cool Japanese profile for パライソ
+auto_080d7ecf14_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-5%	0.99	100	Auto female_cool Chinese profile for Paraiso
+auto_696f41c0e4_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.92	100	Auto male_gruff Japanese profile for アグラヴェイン
+auto_696f41c0e4_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.98	100	Auto male_gruff Chinese profile for 阿格规文
+auto_ee31c3a01d_jp	azure	ja-JP	ja-JP-NaokiNeural		+2%	1.05	100	Auto male_bright Japanese profile for アトラス
+auto_ee31c3a01d_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.02	100	Auto male_bright Chinese profile for 阿特拉斯
+auto_d68220a07e_jp	azure	ja-JP	ja-JP-NanamiNeural		+2%	0.95	100	Auto female_mystic Japanese profile for 豹尾神・鈴鹿御前
+auto_d68220a07e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.92	100	Auto female_mystic Chinese profile for 豹尾神·铃鹿御前
+auto_2d3f90c28c_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.93	100	Auto male_gruff Japanese profile for 柴田勝家
+auto_2d3f90c28c_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-3%	0.94	100	Auto male_gruff Chinese profile for 柴田胜家
+auto_fe2d2cd416_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	0.92	100	Auto male_calm Japanese profile for ダユー
+auto_fe2d2cd416_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.94	100	Auto male_calm Chinese profile for 达尤
+auto_44ce165070_jp	azure	ja-JP	ja-JP-DaichiNeural		-8%	0.93	100	Auto male_gruff Japanese profile for ドゥムジ
+auto_44ce165070_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-7%	0.93	100	Auto male_gruff Chinese profile for 杜木兹
+auto_599a47a830_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	0.98	100	Auto female_noble Japanese profile for ファースト・レディ
+auto_599a47a830_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	1.00	100	Auto female_noble Chinese profile for First Lady
+auto_cf949220c2_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.94	100	Auto female_mystic Japanese profile for 複合神性ゴルゴーン
+auto_cf949220c2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.92	100	Auto female_mystic Chinese profile for 复合神性戈耳工
+auto_f500acd37e_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.95	100	Auto female_mystic Japanese profile for 韓信
+auto_f500acd37e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.92	100	Auto female_mystic Chinese profile for 韩信
+auto_cfdee835d2_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	0.96	100	Auto female_gentle Japanese profile for キングゥ
+auto_cfdee835d2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+3%	0.98	100	Auto female_gentle Chinese profile for 金固
+auto_eac770a825_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	1.00	100	Auto male_heroic Japanese profile for 玖賀耳之御笠
+auto_eac770a825_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.96	100	Auto male_heroic Chinese profile for 玖贺耳之御笠
+auto_866a807408_jp	azure	ja-JP	ja-JP-AoiNeural		+4%	1.02	100	Auto female_bright Japanese profile for ギャラハッド
+auto_866a807408_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+5%	1.04	100	Auto female_bright Chinese profile for 加拉哈德
+auto_8fb3bb690f_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	1.06	100	Auto male_bright Japanese profile for 巨英雄
+auto_8fb3bb690f_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-2%	1.04	100	Auto male_bright Chinese profile for 巨英雄
+auto_bf874d2cc1_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	0.96	100	Auto female_noble Japanese profile for ランサー・プルガトリオ・一切穿通
+auto_bf874d2cc1_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.99	100	Auto female_noble Chinese profile for Lancer Purgatorio·一切穿通
+auto_867d621a6b_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.96	100	Auto female_cool Japanese profile for マックスウェルの悪魔
+auto_867d621a6b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.98	100	Auto female_cool Chinese profile for 麦克斯韦妖
+auto_e8c3937fc3_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	0.96	100	Auto female_gentle Japanese profile for ミノタウロス
+auto_e8c3937fc3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	1.00	100	Auto female_gentle Chinese profile for 弥诺陶洛斯
+auto_a94db8113d_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.03	100	Auto female_bright Japanese profile for 明智光秀
+auto_a94db8113d_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.08	100	Auto female_bright Chinese profile for 明智光秀
+auto_b126043f61_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.91	100	Auto female_mystic Japanese profile for 女神ロンゴミニアド
+auto_b126043f61_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.94	100	Auto female_mystic Chinese profile for 女神伦戈米尼亚德
+auto_3d6435bbdc_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.97	100	Auto female_cool Japanese profile for ロンゴミニアド
+auto_3d6435bbdc_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.97	100	Auto female_cool Chinese profile for 伦戈米尼亚德
+auto_4340972c73_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.94	100	Auto male_calm Japanese profile for 芹沢鴨
+auto_4340972c73_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.91	100	Auto male_calm Chinese profile for 芹泽鸭
+auto_883d008c54_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.94	100	Auto male_calm Japanese profile for 歳殺神・俵藤太
+auto_883d008c54_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.95	100	Auto male_calm Chinese profile for 岁杀神·俵藤太
+auto_11b5252e5d_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	1.04	100	Auto female_bright Japanese profile for 四元素アイリ
+auto_11b5252e5d_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.03	100	Auto female_bright Chinese profile for 四元素之爱丽
+auto_58907135ce_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.99	100	Auto male_heroic Japanese profile for シータ
+auto_58907135ce_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.99	100	Auto male_heroic Chinese profile for 悉多
+auto_29a23bfb6b_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.94	100	Auto male_calm Japanese profile for 煙酔のハサン
+auto_29a23bfb6b_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.95	100	Auto male_calm Chinese profile for 烟醉哈桑
+auto_e06e18e3cd_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.03	100	Auto male_bright Japanese profile for 春日局
+auto_e06e18e3cd_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-1%	1.03	100	Auto male_bright Chinese profile for 春日局
+auto_b37bbbf48b_jp	azure	ja-JP	ja-JP-NaokiNeural		-5%	0.97	100	Auto male_calm Japanese profile for 長尾晴景
+auto_b37bbbf48b_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.93	100	Auto male_calm Chinese profile for 长尾晴景
+auto_72d7ac4a76_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.96	100	Auto male_gruff Japanese profile for ダーニック・プレストーン・ユグドミレニア
+auto_72d7ac4a76_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-8%	0.93	100	Auto male_gruff Chinese profile for 达尼克·普雷斯通·尤格多米雷尼亚
+auto_96c0449f40_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.91	100	Auto female_mystic Japanese profile for ハーゲン
+auto_96c0449f40_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.92	100	Auto female_mystic Chinese profile for 哈根
+auto_3e246ebd3c_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+5%	0.94	100	Auto female_gentle Japanese profile for キャプテン・キッド
+auto_3e246ebd3c_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	0%	0.96	100	Auto female_gentle Chinese profile for 基德船长
+auto_08eed7e756_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	0.95	100	Auto female_gentle Japanese profile for 間桐雁夜
+auto_08eed7e756_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+1%	0.95	100	Auto female_gentle Chinese profile for 间桐雁夜
+auto_0711ebd99b_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	1.02	100	Auto male_heroic Japanese profile for 間桐臓硯
+auto_0711ebd99b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	1.00	100	Auto male_heroic Chinese profile for 间桐脏砚
+auto_51d0c6ca47_jp	azure	ja-JP	ja-JP-DaichiNeural		-8%	0.96	100	Auto male_gruff Japanese profile for クリスティーヌ
+auto_51d0c6ca47_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-9%	0.97	100	Auto male_gruff Chinese profile for 克里斯蒂娜
+auto_767d8dcc73_jp	azure	ja-JP	ja-JP-NaokiNeural		+1%	1.04	100	Auto male_bright Japanese profile for ケイネス・エルメロイ・アーチボルト
+auto_767d8dcc73_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-1%	1.05	100	Auto male_bright Chinese profile for 肯尼斯·埃尔梅罗·阿奇博尔德
+auto_7f2dc3b24f_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+5%	1.00	100	Auto female_gentle Japanese profile for 綾
+auto_7f2dc3b24f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	0.98	100	Auto female_gentle Chinese profile for 绫
+auto_e3ca12b3c6_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	1.00	100	Auto female_gentle Japanese profile for ランドルフ・カーター
+auto_e3ca12b3c6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+6%	0.99	100	Auto female_gentle Chinese profile for 伦道夫·卡特
+auto_c64faa66ac_jp	azure	ja-JP	ja-JP-DaichiNeural		-3%	1.02	100	Auto male_heroic Japanese profile for リア王
+auto_c64faa66ac_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	0.95	100	Auto male_heroic Chinese profile for 李尔王
+auto_6cf8f02c2a_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_mystic Japanese profile for ロミオとジュリエット
+auto_6cf8f02c2a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.92	100	Auto female_mystic Chinese profile for 罗密欧与朱丽叶
+auto_5fef403111_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.99	100	Auto female_cool Japanese profile for ラヴィニア・ウェイトリー
+auto_5fef403111_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-5%	0.95	100	Auto female_cool Chinese profile for 拉维尼娅·维特利
+auto_e5f29e21e1_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.06	100	Auto male_bright Japanese profile for 摩玖主大僧正
+auto_e5f29e21e1_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-1%	1.00	100	Auto male_bright Chinese profile for 摩玖主大僧正
+auto_ebbecb49d2_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.96	100	Auto female_mystic Japanese profile for マクベス
+auto_ebbecb49d2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.95	100	Auto female_mystic Chinese profile for 麦克白
+auto_6e97a913a5_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.94	100	Auto female_mystic Japanese profile for マックスウェル
+auto_6e97a913a5_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.95	100	Auto female_mystic Chinese profile for 麦克斯韦
+auto_63f31b99b5_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.91	100	Auto male_calm Japanese profile for ムネーモシュネー
+auto_63f31b99b5_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.96	100	Auto male_calm Chinese profile for 谟涅摩叙涅
+auto_db8e574243_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.97	100	Auto male_calm Japanese profile for 松平信綱
+auto_db8e574243_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.97	100	Auto male_calm Chinese profile for 松平信纲
+auto_2e8eecd614_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.96	100	Auto female_mystic Japanese profile for 土田御前
+auto_2e8eecd614_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.94	100	Auto female_mystic Chinese profile for 土田御前
+auto_ff07863a30_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.98	100	Auto female_noble Japanese profile for 藤原道長
+auto_ff07863a30_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.96	100	Auto female_noble Chinese profile for 藤原道长
+auto_bc2322dd8d_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.91	100	Auto male_calm Japanese profile for 田中新兵衛
+auto_bc2322dd8d_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.96	100	Auto male_calm Chinese profile for 田中新兵卫
+auto_367de64b28_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.95	100	Auto male_calm Japanese profile for ウェイバー・ベルベット
+auto_367de64b28_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.92	100	Auto male_calm Chinese profile for 韦伯·维尔维特
+auto_e3efb9773f_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.94	100	Auto female_mystic Japanese profile for 武市瑞山
+auto_e3efb9773f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.94	100	Auto female_mystic Chinese profile for 武市瑞山
+auto_0ab9669a64_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+2%	0.96	100	Auto female_gentle Japanese profile for シドゥリ
+auto_0ab9669a64_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	0.96	100	Auto female_gentle Chinese profile for 西杜丽
+auto_996d48af99_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.96	100	Auto male_calm Japanese profile for 鵺
+auto_996d48af99_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-5%	0.94	100	Auto male_calm Chinese profile for 鵺
+auto_5c8a016983_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.98	100	Auto female_cool Japanese profile for スペース遠坂時臣
+auto_5c8a016983_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.96	100	Auto female_cool Chinese profile for 宇宙远坂时臣
+auto_30b78aa76e_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+1%	0.99	100	Auto female_gentle Japanese profile for アポロン
+auto_30b78aa76e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	1.00	100	Auto female_gentle Chinese profile for 阿波罗
+auto_5941ac52a5_jp	azure	ja-JP	ja-JP-NaokiNeural		+2%	1.00	100	Auto male_bright Japanese profile for アルテミス
+auto_5941ac52a5_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-2%	1.04	100	Auto male_bright Chinese profile for 阿耳忒弥斯
+auto_047ff7f349_jp	azure	ja-JP	ja-JP-AoiNeural		0%	0.95	100	Auto female_noble Japanese profile for アフロディーテ
+auto_047ff7f349_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.96	100	Auto female_noble Chinese profile for 阿佛洛狄忒
+auto_f07cd4440a_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+6%	0.96	100	Auto female_gentle Japanese profile for アレス
+auto_f07cd4440a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+2%	0.98	100	Auto female_gentle Chinese profile for 阿瑞斯
+auto_96b4119475_jp	azure	ja-JP	ja-JP-NaokiNeural		+1%	1.00	100	Auto male_bright Japanese profile for ポセイドン
+auto_96b4119475_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+1%	1.06	100	Auto male_bright Chinese profile for 波塞冬
+auto_5748fc296a_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+5%	0.94	100	Auto female_gentle Japanese profile for ヘファイストス
+auto_5748fc296a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+4%	0.97	100	Auto female_gentle Chinese profile for 赫淮斯托斯
+auto_183c8cbd55_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.95	100	Auto male_gruff Japanese profile for ヘラ
+auto_183c8cbd55_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.97	100	Auto male_gruff Chinese profile for 赫拉
+auto_e6ef7e5052_jp	azure	ja-JP	ja-JP-NaokiNeural		+1%	1.03	100	Auto male_bright Japanese profile for ヘスティア
+auto_e6ef7e5052_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	0%	1.01	100	Auto male_bright Chinese profile for 赫斯提亚
+auto_2937d0bc09_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	1.00	100	Auto female_noble Japanese profile for アテナ
+auto_2937d0bc09_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.99	100	Auto female_noble Chinese profile for 雅典娜
+auto_2560298ee8_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.96	100	Auto female_mystic Japanese profile for ゼウス
+auto_2560298ee8_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.97	100	Auto female_mystic Chinese profile for 宙斯
+auto_564a088369_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	1.02	100	Auto female_bright Japanese profile for シャンシャン
+auto_564a088369_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.06	100	Auto female_bright Chinese profile for 香香
+auto_15cc7e75c3_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.98	100	Auto male_gruff Japanese profile for オフェリア・ファムルソローネ
+auto_15cc7e75c3_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-8%	0.98	100	Auto male_gruff Chinese profile for 奥菲莉娅·法姆索罗涅
+auto_c238be7abc_jp	azure	ja-JP	ja-JP-NaokiNeural		+2%	1.06	100	Auto male_bright Japanese profile for ベリル・ガット
+auto_c238be7abc_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.01	100	Auto male_bright Chinese profile for 贝里尔·伽特
+auto_998430348b_jp	azure	ja-JP	ja-JP-NaokiNeural		-5%	0.96	100	Auto male_calm Japanese profile for 百貌ハサン・ちびハサン
+auto_998430348b_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.97	100	Auto male_calm Chinese profile for 百貌哈桑·小哈桑
+auto_126ed90e6f_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_mystic Japanese profile for デイビット・ゼム・ヴォイド
+auto_126ed90e6f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.94	100	Auto female_mystic Chinese profile for 戴比特·泽姆·沃伊德
+auto_7762c23336_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	0.98	100	Auto male_heroic Japanese profile for エキドナ
+auto_7762c23336_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.98	100	Auto male_heroic Chinese profile for 厄喀德那
+goredolf_adult_male	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.98	100	Manual Japanese profile for ゴルドルフ
+goredolf_cn_grumble	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.98	100	Manual Chinese profile for 戈尔德鲁夫
+auto_11b26d1bf0_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.97	100	Auto male_calm Japanese profile for 芥ヒナコ
+auto_11b26d1bf0_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.97	100	Auto male_calm Chinese profile for 芥雏子
+auto_26cfe91f99_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	1.07	100	Auto female_bright Japanese profile for キリシュタリア・ヴォーダイム
+auto_26cfe91f99_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+5%	1.06	100	Auto female_bright Chinese profile for 基尔什塔利亚·沃戴姆
+auto_3b98e57e4b_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_mystic Japanese profile for カドック・ゼムルプス
+auto_3b98e57e4b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.93	100	Auto female_mystic Chinese profile for 卡多克·泽姆露普斯
+auto_b6f4917fc2_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.95	100	Auto female_mystic Japanese profile for ロマニ・アーキマン
+auto_b6f4917fc2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.97	100	Auto female_mystic Chinese profile for 罗玛尼·阿其曼
+auto_04cde782aa_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	0.95	100	Auto male_gruff Japanese profile for マーブル・マッキントッシュ
+auto_04cde782aa_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-4%	0.95	100	Auto male_gruff Chinese profile for 玛布尔·玛金托修
+auto_681a03e286_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.90	100	Auto female_mystic Japanese profile for スルト
+auto_681a03e286_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.95	100	Auto female_mystic Chinese profile for 苏鲁特
+auto_3b1f84746a_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	1.06	100	Auto male_bright Japanese profile for マリスビリー・アニムスフィア
+auto_3b1f84746a_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.02	100	Auto male_bright Chinese profile for 马里斯比利·阿尼姆斯菲亚
+auto_524b95fdc1_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.95	100	Auto female_cool Japanese profile for シオン・エルトナム・ソカリス
+auto_524b95fdc1_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.93	100	Auto female_cool Chinese profile for 希翁·艾尔特纳姆·索卡里斯
+auto_f0e194c05b_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.92	100	Auto female_mystic Japanese profile for 異星の巫女
+auto_f0e194c05b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.96	100	Auto female_mystic Chinese profile for 异星巫女
+auto_585f46281a_jp	azure	ja-JP	ja-JP-NanamiNeural		+2%	0.90	100	Auto female_mystic Japanese profile for セレシェイラ・エルロン
+auto_585f46281a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.94	100	Auto female_mystic Chinese profile for 塞蕾雪拉·艾尔隆
+auto_006782144a_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.90	100	Auto female_mystic Japanese profile for フォウ
+auto_006782144a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.94	100	Auto female_mystic Chinese profile for 芙芙
+auto_2b813551a7_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.97	100	Auto female_cool Japanese profile for キャスパリーグ
+auto_2b813551a7_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.98	100	Auto female_cool Chinese profile for 凯茜帕鲁格
+auto_04b0c8c9ea_jp	azure	ja-JP	ja-JP-NaokiNeural		-5%	0.97	100	Auto male_calm Japanese profile for ムニエル
+auto_04b0c8c9ea_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.93	100	Auto male_calm Chinese profile for 穆尼尔
+auto_45953c3fb3_jp	azure	ja-JP	ja-JP-NaokiNeural		+2%	1.03	100	Auto male_bright Japanese profile for ジングル・アベル・ムニエル
+auto_45953c3fb3_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+1%	1.06	100	Auto male_bright Chinese profile for 金格尔·阿贝尔·穆尼尔
+auto_54fecbaa4b_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.93	100	Auto male_gruff Japanese profile for カドック
+auto_54fecbaa4b_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.98	100	Auto male_gruff Chinese profile for 卡多克
+auto_2076c78f82_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.96	100	Auto female_cool Japanese profile for キャプテン・ネモ
+auto_2076c78f82_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	0%	0.95	100	Auto female_cool Chinese profile for 船长·尼莫
+auto_21503780af_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	1.03	100	Auto female_bright Japanese profile for ネモ・マリーン
+auto_21503780af_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+4%	1.04	100	Auto female_bright Chinese profile for 尼莫·水兵
+auto_29449e1983_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.93	100	Auto male_calm Japanese profile for ネモ・プロフェッサー
+auto_29449e1983_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.95	100	Auto male_calm Chinese profile for 尼莫·教授
+auto_122427c669_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.04	100	Auto female_bright Japanese profile for ネモ・エンジン
+auto_122427c669_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+4%	1.03	100	Auto female_bright Chinese profile for 尼莫·引擎
+auto_04678f77ad_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.03	100	Auto female_bright Japanese profile for ネモ・ナース
+auto_04678f77ad_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.04	100	Auto female_bright Chinese profile for 尼莫·护士
+auto_57753d91d9_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	0.99	100	Auto male_heroic Japanese profile for ネモ・ベーカリー
+auto_57753d91d9_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	1.01	100	Auto male_heroic Chinese profile for 尼莫·烘焙坊
+auto_dcf0cbf6c3_jp	azure	ja-JP	ja-JP-AoiNeural		-3%	0.96	100	Auto female_noble Japanese profile for オルガマリー・アニムスフィア
+auto_dcf0cbf6c3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.98	100	Auto female_noble Chinese profile for 奥尔加玛丽·阿尼姆斯菲亚
+auto_f22c27bf82_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.04	100	Auto female_bright Japanese profile for レフ・ライノール・フラウロス
+auto_f22c27bf82_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+3%	1.03	100	Auto female_bright Chinese profile for 雷夫·莱诺尔·佛劳洛斯
+auto_5612cfebd1_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.96	100	Auto male_gruff Japanese profile for バアル
+auto_5612cfebd1_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.93	100	Auto male_gruff Chinese profile for 巴力
+auto_caf7d73e87_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+5%	0.96	100	Auto female_gentle Japanese profile for ゼパル
+auto_caf7d73e87_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+1%	0.96	100	Auto female_gentle Chinese profile for 桀派
+auto_610f7f812a_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.94	100	Auto male_gruff Japanese profile for フェニクス
+auto_610f7f812a_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.95	100	Auto male_gruff Chinese profile for 菲尼克斯
+auto_dbf8a6b702_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	1.04	100	Auto male_bright Japanese profile for ラウム
+auto_dbf8a6b702_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.02	100	Auto male_bright Chinese profile for 劳姆
+auto_bf9da37d48_jp	azure	ja-JP	ja-JP-NaokiNeural		+1%	1.03	100	Auto male_bright Japanese profile for アンドラス
+auto_bf9da37d48_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-1%	1.01	100	Auto male_bright Chinese profile for 安托士
+auto_9cc224f50b_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	1.03	100	Auto male_heroic Japanese profile for ナベリウス
+auto_9cc224f50b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-4%	0.97	100	Auto male_heroic Chinese profile for 纳贝流士
+auto_f68e205ea9_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.97	100	Auto male_gruff Japanese profile for フラウロス
+auto_f68e205ea9_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-7%	0.97	100	Auto male_gruff Chinese profile for 佛劳洛斯
+auto_700699ef75_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+4%	0.98	100	Auto female_gentle Japanese profile for フォルネウス
+auto_700699ef75_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+6%	1.01	100	Auto female_gentle Chinese profile for 佛钮司
+auto_f773eec963_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.93	100	Auto female_mystic Japanese profile for バルバトス
+auto_f773eec963_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.96	100	Auto female_mystic Chinese profile for 巴巴妥司
+auto_a658ebcb7f_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	1.06	100	Auto male_bright Japanese profile for ハルファス
+auto_a658ebcb7f_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-2%	1.02	100	Auto male_bright Chinese profile for 哈帕斯
+auto_ec31a79ea2_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.98	100	Auto female_noble Japanese profile for アモン
+auto_ec31a79ea2_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.94	100	Auto female_noble Chinese profile for 亚蒙
+auto_c9c5c6b2ca_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.91	100	Auto male_calm Japanese profile for サブナック
+auto_c9c5c6b2ca_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-6%	0.92	100	Auto male_calm Chinese profile for 斯伯纳克
+auto_6031577435_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	0.94	100	Auto male_calm Japanese profile for アンドロマリウス
+auto_6031577435_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.96	100	Auto male_calm Chinese profile for 安杜马利乌士
+auto_6621348873_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	1.04	100	Auto male_bright Japanese profile for ラフム
+auto_6621348873_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-3%	1.04	100	Auto male_bright Chinese profile for 拉赫穆
+auto_28c826d3c5_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.95	100	Auto male_gruff Japanese profile for パツシィ
+auto_28c826d3c5_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.96	100	Auto male_gruff Chinese profile for 帕茨希
+auto_868656b823_jp	azure	ja-JP	ja-JP-AoiNeural		+5%	1.02	100	Auto female_bright Japanese profile for ゲルダ
+auto_868656b823_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+4%	1.03	100	Auto female_bright Chinese profile for 格尔达
+auto_df9ea84b73_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	1.05	100	Auto female_bright Japanese profile for デイヴィット・ブルーブック
+auto_df9ea84b73_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.07	100	Auto female_bright Chinese profile for 大卫·布鲁布克
+auto_229f2def0b_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.98	100	Auto female_cool Japanese profile for オセロトル
+auto_229f2def0b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.98	100	Auto female_cool Chinese profile for 奥塞洛特尔
+auto_9a800695d6_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.98	100	Auto male_heroic Japanese profile for クワウテモク
+auto_9a800695d6_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.96	100	Auto male_heroic Chinese profile for 夸乌特莫克
+auto_5900a04b73_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+5%	0.96	100	Auto female_gentle Japanese profile for オロチ
+auto_5900a04b73_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+6%	0.99	100	Auto female_gentle Chinese profile for 大蛇
+auto_192c9b3829_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.93	100	Auto male_calm Japanese profile for ソンブレロ
+auto_192c9b3829_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.96	100	Auto male_calm Chinese profile for 阔边帽
+auto_347b8db547_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.96	100	Auto male_gruff Japanese profile for メイオール
+auto_347b8db547_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-3%	0.96	100	Auto male_gruff Chinese profile for 马亚尔
+auto_4061282db8_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.96	100	Auto female_cool Japanese profile for スパイラル
+auto_4061282db8_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.94	100	Auto female_cool Chinese profile for 漩涡
+auto_1bb2649358_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	0.99	100	Auto male_heroic Japanese profile for マゼラン
+auto_1bb2649358_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-3%	0.96	100	Auto male_heroic Chinese profile for 麦哲伦
+auto_9e173875fc_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	0.95	100	Auto female_noble Japanese profile for 曼荼羅
+auto_9e173875fc_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.98	100	Auto female_noble Chinese profile for 曼荼罗
+auto_3ccd1682bc_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.95	100	Auto male_calm Japanese profile for セイファート
+auto_3ccd1682bc_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-3%	0.92	100	Auto male_calm Chinese profile for 赛弗特
+auto_fb97b81d19_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	1.05	100	Auto female_bright Japanese profile for クエーサー
+auto_fb97b81d19_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.04	100	Auto female_bright Chinese profile for 类星体
+auto_2fb7e52a73_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.94	100	Auto female_mystic Japanese profile for 盈月
+auto_2fb7e52a73_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.93	100	Auto female_mystic Chinese profile for 盈月
+auto_3be4fcc98b_jp	azure	ja-JP	ja-JP-DaichiNeural		-2%	1.03	100	Auto male_heroic Japanese profile for オルガ
+auto_3be4fcc98b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-6%	0.95	100	Auto male_heroic Chinese profile for 奥尔加
+auto_f12018262e_jp	azure	ja-JP	ja-JP-AoiNeural		0%	1.03	100	Auto female_bright Japanese profile for ペペ
+auto_f12018262e_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.06	100	Auto female_bright Chinese profile for 佩佩
+auto_41b94c2ead_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.94	100	Auto male_gruff Japanese profile for ヒナコ
+auto_41b94c2ead_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.93	100	Auto male_gruff Chinese profile for 雏子
+auto_c1a4187197_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.05	100	Auto male_bright Japanese profile for アズライール
+auto_c1a4187197_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-3%	1.06	100	Auto male_bright Chinese profile for 亚兹拉尔
+auto_03ebe4236a_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	0.97	100	Auto female_gentle Japanese profile for 検体:E
+auto_03ebe4236a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	0%	0.99	100	Auto female_gentle Chinese profile for 检体:E
+auto_b5971b521c_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	1.04	100	Auto male_bright Japanese profile for アナウンス
+auto_b5971b521c_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	0%	1.04	100	Auto male_bright Chinese profile for 广播
+auto_280a9275de_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	1.00	100	Auto female_gentle Japanese profile for ラニ=Ⅻ
+auto_280a9275de_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+3%	0.95	100	Auto female_gentle Chinese profile for 拉妮-Ⅻ
+auto_8b5412e044_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.96	100	Auto male_gruff Japanese profile for アーユス
+auto_8b5412e044_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.98	100	Auto male_gruff Chinese profile for 阿愈丝
+auto_110fc1c31c_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	0.98	100	Auto female_noble Japanese profile for 神王ラックランド
+auto_110fc1c31c_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	0.96	100	Auto female_noble Chinese profile for 神王拉克兰
+auto_9599fc057d_jp	azure	ja-JP	ja-JP-AoiNeural		-1%	0.99	100	Auto female_noble Japanese profile for ジョン
+auto_9599fc057d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+1%	0.95	100	Auto female_noble Chinese profile for 约翰
+auto_cf71285bb6_jp	azure	ja-JP	ja-JP-AoiNeural		-2%	0.99	100	Auto female_noble Japanese profile for カヴァスⅡ世
+auto_cf71285bb6_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.99	100	Auto female_noble Chinese profile for 卡瓦斯Ⅱ世
+auto_e2abda09a3_jp	azure	ja-JP	ja-JP-NanamiNeural		-3%	0.98	100	Auto female_cool Japanese profile for ラニ=B
+auto_e2abda09a3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.97	100	Auto female_cool Chinese profile for 拉妮-B
+auto_8936375a51_jp	azure	ja-JP	ja-JP-NaokiNeural		-3%	0.92	100	Auto male_calm Japanese profile for Dr.ロマン
+auto_8936375a51_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.92	100	Auto male_calm Chinese profile for Dr.罗曼
+auto_c62e157263_jp	azure	ja-JP	ja-JP-NanamiNeural		+1%	0.91	100	Auto female_mystic Japanese profile for 藤丸立香
+auto_c62e157263_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.91	100	Auto female_mystic Chinese profile for 藤丸立香
+auto_a4936135ac_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.07	100	Auto female_bright Japanese profile for カレイドスコープ
+auto_a4936135ac_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+2%	1.02	100	Auto female_bright Chinese profile for 宝石翁
+auto_473f973b21_jp	azure	ja-JP	ja-JP-AoiNeural		+5%	1.02	100	Auto female_bright Japanese profile for キシュア・ゼルレッチ・シュバインオーグ
+auto_473f973b21_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+4%	1.08	100	Auto female_bright Chinese profile for 基修亚·泽尔里奇·修拜因奥古
+auto_2369b93d59_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.94	100	Auto female_cool Japanese profile for ドクター
+auto_2369b93d59_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.98	100	Auto female_cool Chinese profile for 医生
+auto_7c6b99c21f_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.05	100	Auto male_bright Japanese profile for 先輩
+auto_7c6b99c21f_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.03	100	Auto male_bright Chinese profile for 前辈
+auto_b94961b967_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.07	100	Auto female_bright Japanese profile for オーディン
+auto_b94961b967_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.03	100	Auto female_bright Chinese profile for 奥丁
+auto_88c326c063_jp	azure	ja-JP	ja-JP-NanamiNeural		-7%	0.90	100	Auto female_shadow Japanese profile for ムリアン
+auto_88c326c063_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-5%	0.96	100	Auto female_shadow Chinese profile for 缪瑞恩
+auto_dbd953601e_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.99	100	Auto female_cool Japanese profile for レッドラ・ビット
+auto_dbd953601e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-3%	0.96	100	Auto female_cool Chinese profile for 瑞德拉·比特
+auto_0a65ffc915_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	1.01	100	Auto female_bright Japanese profile for アイン
+auto_0a65ffc915_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+3%	1.04	100	Auto female_bright Chinese profile for Eins
+auto_89f0a96f5b_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	1.01	100	Auto female_bright Japanese profile for ツヴァイ
+auto_89f0a96f5b_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	-1%	1.08	100	Auto female_bright Chinese profile for Zwei
+auto_0e3241e196_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	0.97	100	Auto male_gruff Japanese profile for ドライ
+auto_0e3241e196_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-5%	0.96	100	Auto male_gruff Chinese profile for Drei
+auto_098025c850_jp	azure	ja-JP	ja-JP-AoiNeural		+5%	1.05	100	Auto female_bright Japanese profile for 安倍晴明
+auto_098025c850_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	0%	1.04	100	Auto female_bright Chinese profile for 安倍晴明
+auto_b43a0d030a_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.97	100	Auto female_noble Japanese profile for 言峰綺礼
+auto_b43a0d030a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-1%	0.96	100	Auto female_noble Chinese profile for 言峰绮礼
+auto_1a250cfd00_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.95	100	Auto female_mystic Japanese profile for シバの女王
+auto_1a250cfd00_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.97	100	Auto female_mystic Chinese profile for 示巴女王
+auto_27be3f63ae_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.96	100	Auto female_noble Japanese profile for カール大帝
+auto_27be3f63ae_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	0%	0.96	100	Auto female_noble Chinese profile for 卡尔大帝
+auto_9b14a21581_jp	azure	ja-JP	ja-JP-DaichiNeural		-7%	1.03	100	Auto male_heroic Japanese profile for クリストファー・コロンブス
+auto_9b14a21581_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-1%	0.97	100	Auto male_heroic Chinese profile for 克里斯托弗·哥伦布
+auto_c79acb5b4b_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+6%	0.98	100	Auto female_gentle Japanese profile for ヤン・ユーファン
+auto_c79acb5b4b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+4%	0.97	100	Auto female_gentle Chinese profile for 杨玉环
+auto_6ec8e876cb_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	0.97	100	Auto male_calm Japanese profile for 岸波白野
+auto_6ec8e876cb_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-1%	0.97	100	Auto male_calm Chinese profile for 岸波白野
+auto_926862dd74_jp	azure	ja-JP	ja-JP-AoiNeural		+5%	1.03	100	Auto female_bright Japanese profile for ウッドワス
+auto_926862dd74_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+5%	1.02	100	Auto female_bright Chinese profile for 伍德沃斯
+auto_af371cbd57_jp	azure	ja-JP	ja-JP-NanamiNeural		-5%	0.98	100	Auto female_cool Japanese profile for ヴクブ
+auto_af371cbd57_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.97	100	Auto female_cool Chinese profile for 乌库伯
+auto_cc1dbff47d_jp	azure	ja-JP	ja-JP-AoiNeural		0%	0.95	100	Auto female_noble Japanese profile for オクタヴィア
+auto_cc1dbff47d_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	0.96	100	Auto female_noble Chinese profile for 奥克塔维娅
+auto_a0c390a29a_jp	azure	ja-JP	ja-JP-AoiNeural		+2%	0.98	100	Auto female_noble Japanese profile for トマリン
+auto_a0c390a29a_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+2%	0.94	100	Auto female_noble Chinese profile for 托玛琳
+auto_792f43766b_jp	azure	ja-JP	ja-JP-NaokiNeural		0%	1.02	100	Auto male_bright Japanese profile for カワタ
+auto_792f43766b_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	0%	1.04	100	Auto male_bright Chinese profile for 川田
+auto_3bc763c41a_jp	azure	ja-JP	ja-JP-AoiNeural		+5%	1.07	100	Auto female_bright Japanese profile for カヤン
+auto_3bc763c41a_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+3%	1.03	100	Auto female_bright Chinese profile for 卡扬
+auto_5ae63bf5df_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.92	100	Auto female_mystic Japanese profile for ダストン
+auto_5ae63bf5df_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-2%	0.95	100	Auto female_mystic Chinese profile for 达斯顿
+auto_6da4ded0a3_jp	azure	ja-JP	ja-JP-NanamiNeural		-2%	0.95	100	Auto female_cool Japanese profile for マーカス
+auto_6da4ded0a3_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.95	100	Auto female_cool Chinese profile for 马库斯
+auto_8467042284_jp	azure	ja-JP	ja-JP-AoiNeural		+5%	1.04	100	Auto female_bright Japanese profile for チン
+auto_8467042284_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+1%	1.06	100	Auto female_bright Chinese profile for 陈
+auto_5b9293c94b_jp	azure	ja-JP	ja-JP-DaichiNeural		-1%	0.99	100	Auto male_heroic Japanese profile for 茅 昂昂
+auto_5b9293c94b_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	0.96	100	Auto male_heroic Chinese profile for 茅 昂昂
+auto_d0ce7a529e_jp	azure	ja-JP	ja-JP-NanamiNeural		-1%	0.90	100	Auto female_mystic Japanese profile for シルビア
+auto_d0ce7a529e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-1%	0.91	100	Auto female_mystic Chinese profile for 西尔维亚
+auto_52ca6f4b81_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.93	100	Auto female_mystic Japanese profile for ソリア・ナイワー
+auto_52ca6f4b81_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+2%	0.95	100	Auto female_mystic Chinese profile for 索里亚·奈瓦
+auto_9ccf20f411_jp	azure	ja-JP	ja-JP-DaichiNeural		-5%	1.01	100	Auto male_heroic Japanese profile for ハリー・茜沢・アンダーソン
+auto_9ccf20f411_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-2%	0.96	100	Auto male_heroic Chinese profile for 哈利·茜泽·安德森
+auto_7b0ac0cc38_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	0.92	100	Auto male_calm Japanese profile for ファヴニール
+auto_7b0ac0cc38_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.95	100	Auto male_calm Chinese profile for 法納夫
+auto_3ec1136d47_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.00	100	Auto male_bright Japanese profile for スタッフ
+auto_3ec1136d47_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+2%	1.00	100	Auto male_bright Chinese profile for 职员
+auto_83c1e67a1f_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.97	100	Auto female_cool Japanese profile for オトタチバナ
+auto_83c1e67a1f_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	+1%	0.94	100	Auto female_cool Chinese profile for 弟橘
+auto_c86cc9b89b_jp	azure	ja-JP	ja-JP-NanamiNeural		-4%	0.93	100	Auto female_cool Japanese profile for サクラ
+auto_c86cc9b89b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-5%	0.97	100	Auto female_cool Chinese profile for 樱
+auto_64ce72be02_jp	azure	ja-JP	ja-JP-NanamiNeural		0%	0.95	100	Auto female_mystic Japanese profile for フラット
+auto_64ce72be02_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	calm	-4%	0.93	100	Auto female_mystic Chinese profile for 弗拉特
+auto_18ae99ca0e_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+6%	0.99	100	Auto female_gentle Japanese profile for マリーンズ
+auto_18ae99ca0e_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+4%	1.01	100	Auto female_gentle Chinese profile for 水兵们
+auto_3227846e4f_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.95	100	Auto male_gruff Japanese profile for テペウ
+auto_3227846e4f_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-3%	0.93	100	Auto male_gruff Chinese profile for 特佩乌
+auto_d63f1c8c2c_jp	azure	ja-JP	ja-JP-NaokiNeural		-5%	0.92	100	Auto male_calm Japanese profile for イシュキック
+auto_d63f1c8c2c_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.91	100	Auto male_calm Chinese profile for 希基克
+auto_320f097bfb_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+10%	1.07	100	Auto child_light Japanese profile for グレイ・リリィ
+auto_320f097bfb_cn	azure	zh-CN	zh-CN-XiaoyiNeural	cheerful	+3%	1.05	100	Auto child_light Chinese profile for 格蕾·Lily
+auto_dcc93cb3c2_jp	azure	ja-JP	ja-JP-NaokiNeural		-4%	0.97	100	Auto male_calm Japanese profile for アス
+auto_dcc93cb3c2_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-4%	0.94	100	Auto male_calm Chinese profile for 阿斯
+auto_f011d9344a_jp	azure	ja-JP	ja-JP-NaokiNeural		-8%	0.90	100	Auto alter_shadow Japanese profile for アスカラポス
+auto_f011d9344a_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-8%	0.92	100	Auto alter_shadow Chinese profile for 阿斯卡拉福斯
+auto_085aeec17b_jp	azure	ja-JP	ja-JP-AoiNeural		+3%	0.98	100	Auto female_noble Japanese profile for アッド
+auto_085aeec17b_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	+3%	0.94	100	Auto female_noble Chinese profile for 亚德
+auto_9ce7f6a4d0_jp	azure	ja-JP	ja-JP-DaichiNeural		-4%	1.01	100	Auto male_heroic Japanese profile for トリムマウ
+auto_9ce7f6a4d0_cn	azure	zh-CN	zh-CN-YunyeNeural	serious	-5%	0.95	100	Auto male_heroic Chinese profile for 特里姆玛乌
+auto_834b7bd1e9_jp	azure	ja-JP	ja-JP-AoiNeural		+1%	0.95	100	Auto female_noble Japanese profile for ガベージ
+auto_834b7bd1e9_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	serious	-2%	0.96	100	Auto female_noble Chinese profile for 垃圾
+auto_8bf6957132_jp	azure	ja-JP	ja-JP-DaichiNeural		-6%	0.94	100	Auto male_gruff Japanese profile for ハデス
+auto_8bf6957132_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-9%	0.94	100	Auto male_gruff Chinese profile for 哈迪斯
+auto_ec6c943e99_jp	azure	ja-JP	ja-JP-DaichiNeural		-10%	0.96	100	Auto male_gruff Japanese profile for ペルセポネ
+auto_ec6c943e99_cn	azure	zh-CN	zh-CN-YunyeNeural	disgruntled	-6%	0.92	100	Auto male_gruff Chinese profile for 珀耳塞福涅
+auto_1b4da1069e_jp	azure	ja-JP	ja-JP-NaokiNeural		-1%	1.06	100	Auto male_bright Japanese profile for オルガ·カルデアス
+auto_1b4da1069e_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	+1%	1.04	100	Auto male_bright Chinese profile for 奥尔加·迦勒底亚斯
+auto_44a67787ee_jp	azure	ja-JP	ja-JP-NaokiNeural		-2%	1.02	100	Auto male_bright Japanese profile for グリム
+auto_44a67787ee_cn	azure	zh-CN	zh-CN-YunxiNeural	cheerful	-4%	1.06	100	Auto male_bright Chinese profile for 格里姆
+auto_36cd2e19ac_jp	azure	ja-JP	ja-JP-NanamiNeural	chat	+3%	1.00	100	Auto female_gentle Japanese profile for 賢人グリム
+auto_36cd2e19ac_cn	azure	zh-CN	zh-CN-XiaoxiaoNeural	gentle	+3%	1.00	100	Auto female_gentle Chinese profile for 贤人格里姆
+auto_2ab44b58fb_jp	azure	ja-JP	ja-JP-NaokiNeural		-6%	0.92	100	Auto male_calm Japanese profile for ゴフ
+auto_2ab44b58fb_cn	azure	zh-CN	zh-CN-YunxiNeural	serious	-2%	0.97	100	Auto male_calm Chinese profile for 戈夫

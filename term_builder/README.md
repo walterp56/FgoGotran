@@ -111,3 +111,95 @@ The APK does not include this DB. The app downloads the latest verified package 
 ```text
 https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json
 ```
+
+## AI Voice Profiles
+
+AI voice speaker routing is generated from `character_names.tsv` so every known character can resolve to a stable draft voice profile.
+
+Edit the manual override file for important speakers:
+
+```text
+term_builder/character_voice_overrides.tsv
+```
+
+Build the app voice assets from the repo root:
+
+```powershell
+python term_builder\py\build_voice_profiles.py
+```
+
+Atlas Academy can be used as the source for Servant gender/class metadata, which improves the generated draft voice family:
+
+```powershell
+python term_builder\py\build_voice_profiles.py --fetch-atlas
+```
+
+To also fill Japanese CV names in the review TSV, fetch the larger lore export:
+
+```powershell
+python term_builder\py\build_voice_profiles.py --fetch-atlas-lore
+```
+
+Output:
+
+```text
+app/src/main/assets/voice/character_voice_map.tsv
+app/src/main/assets/voice/voice_profiles.tsv
+term_builder/character_voice_profiles.tsv
+```
+
+`character_voice_map.tsv` keeps the app-required columns first: `jp_name`, `cn_name`, `aliases`, `jp_profile_id`, `cn_profile_id`. Extra columns are for review and tuning. Manual overrides always win. Atlas metadata guides only the generated draft rows; tune important characters in `character_voice_overrides.tsv` after listening tests.
+
+## Atlas Official Voice Audio
+
+Atlas servant lore exposes the official FGO character voice MP3 URLs. These files are copyrighted game assets, so keep them local for research/testing and do not commit them or bundle them into releases.
+
+Create a manifest first:
+
+```powershell
+python term_builder\py\download_atlas_voice_audio.py --dry-run
+```
+
+Download a small sample:
+
+```powershell
+python term_builder\py\download_atlas_voice_audio.py --limit-characters 1
+```
+
+Download all matched `character_names.tsv` audio:
+
+```powershell
+python term_builder\py\download_atlas_voice_audio.py
+```
+
+Useful filters:
+
+```powershell
+python term_builder\py\download_atlas_voice_audio.py --include-types home
+python term_builder\py\download_atlas_voice_audio.py --limit-assets 100
+python term_builder\py\download_atlas_voice_audio.py --fetch-atlas-lore
+python term_builder\py\download_atlas_voice_audio.py --workers 16
+```
+
+Output:
+
+```text
+term_builder/atlas_voice_audio/manifest.tsv
+term_builder/atlas_voice_audio/unmatched.tsv
+term_builder/atlas_voice_audio/failed.tsv
+term_builder/atlas_voice_audio/audio/JP_NAME__CN_NAME__SERVANT_ID/VOICE_TYPE/VOICE_ID__LINE_NAME.mp3
+```
+
+By default the audio folder uses character names. To keep Atlas's raw `ChrVoice_*` layout instead, add `--folder-style atlas`.
+
+Downloads are resumable. Existing non-empty MP3 files are skipped unless `--overwrite` is set.
+Missing remote files are reported as warnings and do not stop the run; add `--strict` if you want any failed MP3 to make the command fail.
+
+Rows that cannot be matched safely are written to `unmatched.tsv`. If a short local speaker name needs a specific servant ID, create `term_builder/character_audio_overrides.tsv` with:
+
+```tsv
+jp_name	svt_id	aliases
+アルトリア・オルタ	100200	アルトリアオルタ
+```
+
+Use comma-separated `svt_id` values when one TSV speaker should intentionally download several Atlas servant variants.

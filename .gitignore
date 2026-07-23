@@ -21,6 +21,9 @@ term_builder/**/__pycache__/
 term_builder/**/*.pyc
 term_builder/fgo_terms.db
 term_builder/fgo_terms.json
+term_builder/atlas_*.json
+term_builder/atlas_*.json.tmp
+term_builder/atlas_voice_audio/
 
 # Kotlin daemon
 .kotlin/
