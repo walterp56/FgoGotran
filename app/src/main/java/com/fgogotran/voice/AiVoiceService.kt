@@ -30,13 +30,12 @@ class AiVoiceService @Inject constructor(
     ) {
         if (!settingsRepository.aiVoiceEnabled.first()) return
 
-        val voiceLanguage = settingsRepository.aiVoiceLanguage.first()
         val speaker = speakerName
             ?.let(TextNormalizer::stripRubyAnnotations)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?: return
-        val profile = characterVoiceRepository.resolveProfileOrNull(speaker, voiceLanguage) ?: run {
+        val profile = characterVoiceRepository.resolveProfileOrNull(speaker) ?: run {
             FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
             return
         }
@@ -46,7 +45,7 @@ class AiVoiceService @Inject constructor(
         )
 
         val dialogue = voiceTextFor(
-            voiceLanguage = voiceLanguage,
+            profile = profile,
             japaneseDialogue = japaneseDialogue,
             translatedDialogue = translatedDialogue
         )
@@ -64,7 +63,6 @@ class AiVoiceService @Inject constructor(
             .ifBlank { SettingsRepository.DEFAULT_AZURE_SPEECH_REGION }
         val voiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
         val styleOverride = emotionStyleFor(
-            voiceLanguage = voiceLanguage,
             profile = profile,
             dialogue = dialogue
         )
@@ -104,12 +102,12 @@ class AiVoiceService @Inject constructor(
     }
 
     private fun voiceTextFor(
-        voiceLanguage: String,
+        profile: VoiceProfile,
         japaneseDialogue: String?,
         translatedDialogue: String?
     ): String? {
-        val sourceText = when (SettingsRepository.normalizeAiVoiceLanguage(voiceLanguage)) {
-            SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION -> translatedDialogue
+        val sourceText = when (profile.locale) {
+            CN_LOCALE -> translatedDialogue
             else -> japaneseDialogue
         }
         return sourceText
@@ -119,13 +117,10 @@ class AiVoiceService @Inject constructor(
     }
 
     private fun emotionStyleFor(
-        voiceLanguage: String,
         profile: VoiceProfile,
         dialogue: String
     ): String? {
-        if (SettingsRepository.normalizeAiVoiceLanguage(voiceLanguage) !=
-            SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
-        ) {
+        if (profile.locale != CN_LOCALE) {
             return null
         }
         return ChineseVoiceEmotionStyle.styleFor(profile, dialogue)
@@ -134,5 +129,9 @@ class AiVoiceService @Inject constructor(
 
     fun stop() {
         playbackEngine.stop()
+    }
+
+    private companion object {
+        const val CN_LOCALE = "zh-CN"
     }
 }

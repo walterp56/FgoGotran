@@ -12,14 +12,6 @@ data class VoiceProfile(
     val description: String
 )
 
-data class CharacterVoiceMapping(
-    val jpName: String,
-    val cnName: String,
-    val aliases: List<String>,
-    val jpProfileId: String,
-    val cnProfileId: String
-)
-
 data class AzureSpeechConfig(
     val key: String,
     val region: String

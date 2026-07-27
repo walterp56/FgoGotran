@@ -27,8 +27,7 @@ REPO_ROOT = ROOT.parent
 DEFAULT_CHARACTERS = ROOT / "character_names.tsv"
 DEFAULT_OVERRIDES = ROOT / "character_voice_overrides.tsv"
 DEFAULT_REVIEW = ROOT / "character_voice_profiles.tsv"
-DEFAULT_MAP = REPO_ROOT / "app" / "src" / "main" / "assets" / "voice" / "character_voice_map.tsv"
-DEFAULT_PROFILES = REPO_ROOT / "app" / "src" / "main" / "assets" / "voice" / "voice_profiles.tsv"
+DEFAULT_APP_CN_PROFILES = REPO_ROOT / "app" / "src" / "main" / "assets" / "voice" / "character_voice_profiles_cn.tsv"
 DEFAULT_ATLAS_SERVANTS = ROOT / "atlas_basic_servant.json"
 DEFAULT_ATLAS_LORE = ROOT / "atlas_nice_servant_lore.json"
 
@@ -449,6 +448,17 @@ REVIEW_HEADER = MAP_HEADER + (
     "cn_style",
     "cn_pitch",
     "cn_rate",
+)
+
+APP_CN_PROFILE_HEADER = (
+    "speaker_id",
+    "aliases",
+    "gender",
+    "cn_voice_name",
+    "cn_style",
+    "cn_pitch",
+    "cn_rate",
+    "cn_volume",
 )
 
 
@@ -1201,14 +1211,38 @@ def write_tsv(path: Path, header: tuple[str, ...], rows: list[dict[str, str]] | 
                 writer.writerow(tuple(row.get(column, "") for column in header))
 
 
+def app_cn_profile_rows(review_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for row in review_rows:
+        speaker_id = row.get("jp_name", "").strip()
+        if not speaker_id:
+            continue
+        aliases = merge_aliases(
+            (row.get("cn_name", ""),),
+            split_aliases(row.get("aliases", "")),
+        )
+        rows.append(
+            {
+                "speaker_id": speaker_id,
+                "aliases": "|".join(aliases),
+                "gender": row.get("gender", ""),
+                "cn_voice_name": row.get("cn_voice_name", ""),
+                "cn_style": row.get("cn_style", ""),
+                "cn_pitch": row.get("cn_pitch", "") or "0%",
+                "cn_rate": row.get("cn_rate", "") or "1.00",
+                "cn_volume": "100",
+            }
+        )
+    return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--characters", type=Path, default=DEFAULT_CHARACTERS)
     parser.add_argument("--overrides", type=Path, default=DEFAULT_OVERRIDES)
     parser.add_argument("--atlas-servants", type=Path, default=DEFAULT_ATLAS_SERVANTS)
     parser.add_argument("--atlas-lore", type=Path, default=DEFAULT_ATLAS_LORE)
-    parser.add_argument("--voice-map", type=Path, default=DEFAULT_MAP)
-    parser.add_argument("--profiles", type=Path, default=DEFAULT_PROFILES)
+    parser.add_argument("--app-cn-profiles", type=Path, default=DEFAULT_APP_CN_PROFILES)
     parser.add_argument("--review", type=Path, default=DEFAULT_REVIEW)
     parser.add_argument(
         "--fetch-atlas",
@@ -1232,8 +1266,8 @@ def main() -> None:
     overrides = read_overrides(args.overrides)
     atlas_index = {} if args.no_atlas else read_atlas_index(args.atlas_servants, args.atlas_lore)
     map_rows, profiles, review_rows = build_voice_data(characters, overrides, atlas_index)
-    write_tsv(args.voice_map, MAP_HEADER, map_rows)
-    write_tsv(args.profiles, PROFILE_HEADER, profiles)
+    app_cn_rows = app_cn_profile_rows(review_rows)
+    write_tsv(args.app_cn_profiles, APP_CN_PROFILE_HEADER, app_cn_rows)
     write_tsv(args.review, REVIEW_HEADER, review_rows)
 
     manual_count = sum(1 for row in map_rows if row["confidence"] == "manual")
@@ -1242,10 +1276,11 @@ def main() -> None:
     print(f"Read characters: {len(characters)}")
     print(f"Read manual overrides: {len(overrides)}")
     print(f"Read Atlas name keys: {len(atlas_index)}")
-    print(f"Wrote voice map rows: {len(map_rows)} ({manual_count} manual-mapped)")
+    print(f"Built voice map rows: {len(map_rows)} ({manual_count} manual-mapped)")
     print(f"Wrote Atlas-guided rows: {atlas_count}")
     print(f"Wrote rows with CV metadata: {cv_count}")
-    print(f"Wrote voice profiles: {len(profiles)}")
+    print(f"Built draft voice profiles: {len(profiles)}")
+    print(f"Wrote app CN voice profiles: {args.app_cn_profiles} ({len(app_cn_rows)} rows)")
     print(f"Wrote review TSV: {args.review}")
 
 

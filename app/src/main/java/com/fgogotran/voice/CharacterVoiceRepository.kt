@@ -1,7 +1,6 @@
 package com.fgogotran.voice
 
 import android.content.Context
-import com.fgogotran.data.SettingsRepository
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.text.Normalizer
@@ -14,40 +13,21 @@ class CharacterVoiceRepository @Inject constructor(
 ) {
     private val tag = "VoiceProfiles"
 
-    private val profiles: Map<String, VoiceProfile> by lazy { loadProfiles() }
-    private val aliasToProfileIds: Map<String, VoiceProfileIds> by lazy { loadAliasMap() }
+    private val profiles: List<CharacterVoiceProfile> by lazy { loadProfiles() }
+    private val aliasToProfile: Map<String, VoiceProfile> by lazy { loadAliasMap() }
 
     fun resolveProfileOrNull(
-        speakerName: String?,
-        voiceLanguage: String
+        speakerName: String?
     ): VoiceProfile? {
-        val profileIds = speakerName
+        return speakerName
             ?.let(::normalizeSpeakerName)
             ?.takeIf { it.isNotBlank() }
-            ?.let(::findProfileIds)
-            ?: return null
-        val profileId = profileIds.forVoiceLanguage(voiceLanguage)
-
-        return profiles[profileId]
+            ?.let(::findProfile)
     }
 
-    fun resolveProfile(speakerName: String?, voiceLanguage: String): VoiceProfile {
-        val defaultProfileId = defaultProfileIdFor(voiceLanguage)
-        val profileId = speakerName
-            ?.let(::normalizeSpeakerName)
-            ?.takeIf { it.isNotBlank() }
-            ?.let(::findProfileIds)
-            ?.forVoiceLanguage(voiceLanguage)
-            ?: defaultProfileId
-
-        return profiles[profileId]
-            ?: profiles[defaultProfileId]
-            ?: fallbackProfile()
-    }
-
-    private fun findProfileIds(normalizedSpeakerName: String): VoiceProfileIds? {
-        aliasToProfileIds[normalizedSpeakerName]?.let { return it }
-        return aliasToProfileIds.entries
+    private fun findProfile(normalizedSpeakerName: String): VoiceProfile? {
+        aliasToProfile[normalizedSpeakerName]?.let { return it }
+        return aliasToProfile.entries
             .sortedByDescending { it.key.length }
             .firstOrNull { (alias, _) ->
                 alias.length >= MIN_PARTIAL_ALIAS_LENGTH && normalizedSpeakerName.contains(alias)
@@ -55,49 +35,53 @@ class CharacterVoiceRepository @Inject constructor(
             ?.value
     }
 
-    private fun loadProfiles(): Map<String, VoiceProfile> {
+    private fun loadProfiles(): List<CharacterVoiceProfile> {
         return runCatching {
-            readTsv(VOICE_PROFILES_ASSET).mapNotNull { columns ->
-                if (columns.size < 9) return@mapNotNull null
-                VoiceProfile(
-                    profileId = columns[0],
-                    provider = columns[1],
-                    locale = columns[2],
-                    voiceName = columns[3],
-                    style = columns[4],
-                    pitch = columns[5],
-                    rate = columns[6],
-                    volume = columns[7],
-                    description = columns[8]
-                )
-            }.associateBy { it.profileId }
+            readProfileAsset(CHARACTER_VOICE_PROFILES_CN_ASSET)
         }.onFailure { e ->
-            FgoLogger.warn(tag, "Failed to load voice profiles TSV", e)
-        }.getOrDefault(emptyMap())
+            FgoLogger.warn(tag, "Failed to load CN character voice profiles TSV", e)
+        }.getOrDefault(emptyList())
     }
 
-    private fun loadAliasMap(): Map<String, VoiceProfileIds> {
+    private fun readProfileAsset(assetPath: String): List<CharacterVoiceProfile> {
+        return readTsv(assetPath).mapNotNull { columns ->
+            if (columns.size < 8) return@mapNotNull null
+            val speakerId = columns[0].trim()
+            val gender = columns[2].trim()
+            if (speakerId.isBlank()) return@mapNotNull null
+            CharacterVoiceProfile(
+                speakerId = speakerId,
+                aliases = columns[1]
+                    .split('|')
+                    .map(String::trim)
+                    .filter(String::isNotBlank),
+                profile = VoiceProfile(
+                    profileId = speakerId,
+                    provider = AZURE_PROVIDER,
+                    locale = CN_LOCALE,
+                    voiceName = columns[3].trim(),
+                    style = columns[4].trim(),
+                    pitch = columns[5].trim().ifBlank { "0%" },
+                    rate = columns[6].trim().ifBlank { "1.00" },
+                    volume = columns[7].trim().ifBlank { "100" },
+                    description = gender
+                )
+            )
+        }
+    }
+
+    private fun loadAliasMap(): Map<String, VoiceProfile> {
         return runCatching {
             buildMap {
-                readTsv(CHARACTER_VOICE_MAP_ASSET).forEach { columns ->
-                    if (columns.size < 4) return@forEach
-                    val jpName = columns[0]
-                    val cnName = columns[1]
-                    val aliases = columns[2]
-                        .split('|')
-                        .map(String::trim)
-                        .filter(String::isNotBlank)
-                    val jpProfileId = columns[3]
-                    val cnProfileId = columns.getOrNull(4)?.takeIf { it.isNotBlank() } ?: jpProfileId
-                    val profileIds = VoiceProfileIds(jpProfileId, cnProfileId)
-                    (listOf(jpName, cnName) + aliases).forEach { name ->
+                profiles.forEach { characterProfile ->
+                    (listOf(characterProfile.speakerId) + characterProfile.aliases).forEach { name ->
                         val key = normalizeSpeakerName(name)
-                        if (key.isNotBlank()) put(key, profileIds)
+                        if (key.isNotBlank()) put(key, characterProfile.profile)
                     }
                 }
             }
         }.onFailure { e ->
-            FgoLogger.warn(tag, "Failed to load character voice map TSV", e)
+            FgoLogger.warn(tag, "Failed to build CN character voice alias map", e)
         }.getOrDefault(emptyMap())
     }
 
@@ -119,42 +103,16 @@ class CharacterVoiceRepository @Inject constructor(
             .replace(Regex("\\s+"), "")
     }
 
-    private fun VoiceProfileIds.forVoiceLanguage(voiceLanguage: String): String {
-        return when (SettingsRepository.normalizeAiVoiceLanguage(voiceLanguage)) {
-            SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION -> cnProfileId
-            else -> jpProfileId
-        }
-    }
-
-    private fun defaultProfileIdFor(voiceLanguage: String): String {
-        return when (SettingsRepository.normalizeAiVoiceLanguage(voiceLanguage)) {
-            SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION -> DEFAULT_CN_PROFILE_ID
-            else -> DEFAULT_JP_PROFILE_ID
-        }
-    }
-
-    private fun fallbackProfile(): VoiceProfile = VoiceProfile(
-        profileId = DEFAULT_JP_PROFILE_ID,
-        provider = "azure",
-        locale = "ja-JP",
-        voiceName = "ja-JP-NanamiNeural",
-        style = "",
-        pitch = "0%",
-        rate = "1.00",
-        volume = "100",
-        description = "Default Japanese narrator style"
-    )
-
     private companion object {
-        const val VOICE_PROFILES_ASSET = "voice/voice_profiles.tsv"
-        const val CHARACTER_VOICE_MAP_ASSET = "voice/character_voice_map.tsv"
-        const val DEFAULT_JP_PROFILE_ID = "default_narrator"
-        const val DEFAULT_CN_PROFILE_ID = "default_cn_narrator"
+        const val CHARACTER_VOICE_PROFILES_CN_ASSET = "voice/character_voice_profiles_cn.tsv"
+        const val AZURE_PROVIDER = "azure"
+        const val CN_LOCALE = "zh-CN"
         const val MIN_PARTIAL_ALIAS_LENGTH = 3
     }
 }
 
-private data class VoiceProfileIds(
-    val jpProfileId: String,
-    val cnProfileId: String
+private data class CharacterVoiceProfile(
+    val speakerId: String,
+    val aliases: List<String>,
+    val profile: VoiceProfile
 )

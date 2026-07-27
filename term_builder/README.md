@@ -143,12 +143,11 @@ python term_builder\py\build_voice_profiles.py --fetch-atlas-lore
 Output:
 
 ```text
-app/src/main/assets/voice/character_voice_map.tsv
-app/src/main/assets/voice/voice_profiles.tsv
+app/src/main/assets/voice/character_voice_profiles_cn.tsv
 term_builder/character_voice_profiles.tsv
 ```
 
-`character_voice_map.tsv` keeps the app-required columns first: `jp_name`, `cn_name`, `aliases`, `jp_profile_id`, `cn_profile_id`. Extra columns are for review and tuning. Manual overrides always win. Atlas metadata guides only the generated draft rows; tune important characters in `character_voice_overrides.tsv` after listening tests.
+`character_voice_profiles_cn.tsv` is the app runtime file. It uses one row per speaker with `speaker_id`, `aliases`, `gender`, and the `cn_voice_*` Azure values. `term_builder/character_voice_profiles.tsv` remains the review/tuning file with JP and CN fields. Manual overrides always win. Atlas metadata guides only the generated draft rows; tune important characters in `character_voice_overrides.tsv` after listening tests.
 
 ## Atlas Official Voice Audio
 

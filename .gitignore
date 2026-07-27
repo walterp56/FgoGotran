@@ -62,3 +62,7 @@ showcase/
 
 # GitHub Actions typo guard
 .github/workflow/
+
+.agents/
+term_builder/voice_tuning/
+helper/
