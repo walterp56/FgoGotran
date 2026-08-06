@@ -48,6 +48,7 @@ class CharacterVoiceRepository @Inject constructor(
             if (columns.size < 8) return@mapNotNull null
             val speakerId = columns[0].trim()
             val gender = columns[2].trim()
+            val voiceName = columns[3].trim()
             if (speakerId.isBlank()) return@mapNotNull null
             CharacterVoiceProfile(
                 speakerId = speakerId,
@@ -58,8 +59,8 @@ class CharacterVoiceRepository @Inject constructor(
                 profile = VoiceProfile(
                     profileId = speakerId,
                     provider = AZURE_PROVIDER,
-                    locale = CN_LOCALE,
-                    voiceName = columns[3].trim(),
+                    locale = VoiceLocaleSupport.localeFromAzureVoiceName(voiceName),
+                    voiceName = voiceName,
                     style = columns[4].trim(),
                     pitch = columns[5].trim().ifBlank { "0%" },
                     rate = columns[6].trim().ifBlank { "1.00" },
@@ -106,7 +107,6 @@ class CharacterVoiceRepository @Inject constructor(
     private companion object {
         const val CHARACTER_VOICE_PROFILES_CN_ASSET = "voice/character_voice_profiles_cn.tsv"
         const val AZURE_PROVIDER = "azure"
-        const val CN_LOCALE = "zh-CN"
         const val MIN_PARTIAL_ALIAS_LENGTH = 3
     }
 }

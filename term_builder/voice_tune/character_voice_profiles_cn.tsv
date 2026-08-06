@@ -1,0 +1,181 @@
+speaker_id	aliases	voice_type	cn_voice_name	cn_style	cn_pitch	cn_rate	cn_volume
+マシュ	マシュ	young_female	zh-TW-HsiaoChenNeural		+3%	0.97	100
+ダ・ヴィンチ	ダ・ヴィンチ	child_female	zh-CN-XiaochenNeural		+2%	1.03	100
+？？？	？？？	androgynous	zh-CN-YunxiaNeural		+2%	0.98	100
+ゴルドルフ	ゴルドルフ	mature_male	zh-CN-YunzeNeural		-4%	0.94	100
+ホームズ	ホームズ	mature_male	zh-CN-YunjianNeural		-2%	0.95	100
+Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
+カドック	カドック	young_male	zh-TW-YunJheNeural		0%	0.96	100
+ジャンヌ・オルタ	ジャンヌ・オルタ	young_female	zh-CN-XiaoruiNeural		-3%	0.94	100
+モリアーティ	モリアーティ	mature_male	zh-CN-YunzeNeural		-5%	0.93	100
+エリザベート	エリザベート	young_female	zh-TW-HsiaoYuNeural		+5%	1.04	100
+シオン	シオン	young_female	zh-CN-XiaochenNeural		+1%	0.98	100
+坂田金時	坂田金時	mature_male	zh-CN-YunfengNeural		-2%	1.00	100
+武蔵	武蔵	young_female	zh-TW-HsiaoYuNeural		+1%	1.02	100
+アルトリア	アルトリア	young_female	zh-TW-HsiaoChenNeural		0%	0.96	100
+フォウ	フォウ	monster	zh-CN-XiaoshuangNeural		+6%	1.05	100
+刑部姫	刑部姫	young_female	zh-CN-XiaomengNeural	chat	+4%	1.02	100
+カーマ	カーマ	young_female	zh-CN-XiaomoNeural		+1%	0.95	100
+モードレッド	モードレッド	androgynous	zh-CN-YunxiaNeural		+1%	0.99	100
+オベロン	オベロン	androgynous	zh-CN-YunyeNeural		-1%	0.96	100
+イアソン	イアソン	young_male	zh-CN-YunxiNeural	chat	+1%	1.03	100
+ネモ	ネモ	young_male	zh-CN-YunxiaoMultilingualNeural		+2%	0.98	100
+オルガマリー	オルガマリー	young_female	zh-CN-XiaozhenNeural	serious	0%	0.96	100
+黒髭	黒髭	mature_male	zh-CN-YunfengNeural	cheerful	-4%	1.02	100
+エルメロイⅡ世	エルメロイⅡ世	mature_male	zh-CN-YunjianNeural	serious	-3%	0.94	100
+コヤンスカヤ	コヤンスカヤ	mature_female	zh-CN-XiaomoNeural	calm	0%	0.95	100
+ロビンフッド	ロビンフッド	young_male	zh-CN-YunfanMultilingualNeural		0%	0.98	100
+紫式部	紫式部	mature_female	zh-CN-XiaoqiuNeural		-1%	0.94	100
+イシュタル	イシュタル	young_female	zh-CN-XiaoyiNeural	cheerful	+3%	1.02	100
+メドゥーサ	メドゥーサ	mature_female	zh-CN-XiaoruiNeural	calm	-2%	0.94	100
+葛飾北斎	葛飾北斎	young_female	zh-CN-XiaoyuMultilingualNeural		+2%	1.02	100
+ニトクリス	ニトクリス	young_female	zh-CN-XiaohanNeural	embarrassed	+2%	0.99	100
+アビゲイル	アビゲイル	child_female	zh-CN-XiaoyouNeural	cute	+7%	0.96	100
+ネロ	ネロ	young_female	zh-CN-XiaomengNeural	chat	+5%	1.05	100
+ギルガメッシュ	ギルガメッシュ	mature_male	zh-CN-YunhaoNeural		-4%	0.94	100
+茨木童子	茨木童子	child_female	zh-CN-XiaoyouNeural	angry	+5%	1.02	100
+源頼光	源頼光	mature_female	zh-CN-XiaorouNeural		-1%	0.94	100
+マンドリカルド	マンドリカルド	young_male	zh-CN-YunyiMultilingualNeural		0%	0.96	100
+ＢＢ	ＢＢ	young_female	zh-CN-XiaochenMultilingualNeural		+3%	1.03	100
+エミヤ	エミヤ	mature_male	zh-CN-YunjieNeural		-3%	0.95	100
+太公望	太公望	young_male	zh-CN-YunyeNeural	cheerful	+1%	0.99	100
+プトレマイオス	プトレマイオス	mature_male	zh-CN-YunyangNeural		-3%	0.95	100
+天草四郎	天草四郎	young_male	zh-TW-YunJheNeural		+1%	0.97	100
+カイニス	カイニス	androgynous	zh-CN-YunxiaNeural	angry	-1%	0.98	100
+清姫	清姫	young_female	zh-CN-XiaoyiNeural	affectionate	+4%	0.99	100
+ジャンヌ	ジャンヌ	young_female	zh-CN-XiaoxiaoMultilingualNeural	empathetic	+1%	0.96	100
+清少納言	清少納言	young_female	zh-CN-XiaoyanNeural		+5%	1.05	100
+スカサハ＝スカディ	スカサハ＝スカディ	mature_female	zh-CN-XiaohanNeural	calm	-2%	0.94	100
+ラーマ	ラーマ	young_male	zh-CN-YunxiaNeural	cheerful	+3%	1.00	100
+段蔵	段蔵	mechanical	zh-CN-XiaoxiaoNeural	assistant	-1%	0.92	100
+千子村正	千子村正	mature_male	zh-CN-YunzeNeural	serious	-4%	0.94	100
+スカサハ	スカサハ	mature_female	zh-CN-XiaomoNeural	serious	-3%	0.94	100
+牛若丸	牛若丸	young_female	zh-CN-XiaozhenNeural	cheerful	+4%	1.03	100
+オリオン	オリオン	mature_male	zh-CN-YunhaoNeural		-3%	0.96	100
+エリセ	エリセ	young_female	zh-CN-XiaohanNeural	serious	+1%	0.97	100
+シャルロット・コルデー	シャルロット・コルデー	young_female	zh-TW-HsiaoYuNeural		+2%	0.97	100
+ペペロンチーノ	ペペロンチーノ	androgynous	zh-CN-YunxiNeural	chat	+1%	1.02	100
+メイヴ	メイヴ	mature_female	zh-CN-XiaomoNeural	affectionate	+1%	0.96	100
+アストルフォ	アストルフォ	androgynous	zh-CN-XiaoyouMultilingualNeural	cheerful	+5%	1.04	100
+アスクレピオス	アスクレピオス	young_male	zh-CN-YunyangNeural		-1%	0.96	100
+クー・フーリン	クー・フーリン	mature_male	zh-CN-YunfengNeural	cheerful	-2%	1.00	100
+パーシヴァル	パーシヴァル	mature_male	zh-TW-YunJheNeural		-2%	0.96	100
+マーリン	マーリン	mature_male	zh-CN-YunyiMultilingualNeural		+1%	1.01	100
+虞美人	虞美人	young_female	zh-TW-HsiaoChenNeural		-1%	0.95	100
+アナスタシア	アナスタシア	young_female	zh-TW-HsiaoYuNeural		+1%	0.95	100
+ナポレオン	ナポレオン	mature_male	zh-CN-YunjianNeural	cheerful	-2%	1.02	100
+呼延灼	呼延灼	young_female	zh-CN-XiaohanNeural	embarrassed	+2%	1.00	100
+ダンテ	ダンテ	young_male	zh-CN-YunyiMultilingualNeural		-2%	0.96	100
+風魔小太郎	風魔小太郎	young_male	zh-TW-YunJheNeural		+1%	0.98	100
+キルケー	キルケー	mature_female	zh-TW-HsiaoYuNeural		+1%	0.98	100
+ガレス	ガレス	young_female	zh-TW-HsiaoChenNeural		+3%	1.01	100
+イリヤ	イリヤ	child_female	zh-CN-XiaoshuangNeural	chat	+7%	0.99	100
+酒呑童子	酒呑童子	mature_female	zh-CN-XiaomoNeural	affectionate	+1%	0.93	100
+モレー	モレー	androgynous	zh-TW-HsiaoChenNeural		0%	0.96	100
+沖田総司	沖田総司	young_female	zh-CN-XiaoyiNeural	cheerful	+4%	1.04	100
+三蔵	三蔵	young_female	zh-TW-HsiaoYuNeural		+2%	1.03	100
+武則天	武則天	child_female	zh-CN-XiaoyouMultilingualNeural	angry	+5%	0.98	100
+アキレウス	アキレウス	mature_male	zh-CN-YunjianNeural	cheerful	-1%	1.04	100
+ライネス	ライネス	young_female	zh-CN-XiaochenMultilingualNeural		+1%	0.96	100
+カルナ	カルナ	mature_male	zh-CN-YunjieNeural		-2%	0.94	100
+トリスタン	トリスタン	mature_male	zh-CN-YunzeNeural	sad	-3%	0.92	100
+キリシュタリア	キリシュタリア	young_male	zh-CN-YunfanMultilingualNeural		-1%	0.96	100
+エジソン	エジソン	mature_male	zh-CN-YunhaoNeural		-1%	1.02	100
+パッションリップ	パッションリップ	young_female	zh-CN-XiaorouNeural		+2%	0.96	100
+ゴッホ	ゴッホ	young_female	zh-CN-XiaoruiNeural	sad	+1%	0.94	100
+エレシュキガル	エレシュキガル	young_female	zh-CN-XiaoxiaoMultilingualNeural	empathetic	+2%	0.97	100
+アルジュナ	アルジュナ	mature_male	zh-CN-YunyangNeural		-2%	0.95	100
+巴御前	巴御前	mature_female	zh-CN-XiaozhenNeural	serious	+1%	0.97	100
+玉藻の前	玉藻の前	mature_female	zh-CN-XiaohanNeural	affectionate	+1%	0.98	100
+ムニエル	ムニエル	mature_male	zh-CN-YunxiNeural	chat	+1%	1.03	100
+バーソロミュー	バーソロミュー	mature_male	zh-CN-YunxiaoMultilingualNeural		0%	1.00	100
+シグルド	シグルド	mature_male	zh-CN-YunjieNeural		-3%	0.94	100
+徐福	徐福	young_female	zh-CN-XiaomengNeural	chat	+3%	1.02	100
+織田信長	織田信長	young_female	zh-CN-XiaozhenNeural	angry	+3%	1.03	100
+サリエリ	サリエリ	mature_male	zh-CN-YunjianNeural	serious	-3%	0.93	100
+ヴラド三世	ヴラド三世	elder_male	zh-CN-YunzeNeural	serious	-5%	0.91	100
+ハベトロット	ハベトロット	child_female	zh-CN-XiaoyouMultilingualNeural	cute	+6%	1.03	100
+シェヘラザード	シェヘラザード	mature_female	zh-CN-XiaorouNeural		-1%	0.93	100
+マリー	マリー	young_female	zh-TW-HsiaoChenNeural		+2%	1.00	100
+宮本伊織	宮本伊織	young_male	zh-CN-YunyiMultilingualNeural		0%	0.97	100
+マルタ	マルタ	mature_female	zh-CN-XiaohanNeural	cheerful	+1%	0.98	100
+エルキドゥ	エルキドゥ	androgynous	zh-CN-XiaoyuMultilingualNeural		+1%	0.96	100
+高杉晋作	高杉晋作	young_male	zh-TW-YunJheNeural		+1%	1.03	100
+エレナ	エレナ	young_female	zh-TW-HsiaoYuNeural		+3%	1.02	100
+テペウ	テペウ	mature_male	zh-CN-YunyangNeural		-4%	0.93	100
+クリームヒルト	クリームヒルト	mature_female	zh-CN-XiaoruiNeural	sad	-3%	0.93	100
+伊吹童子	伊吹童子	mature_female	zh-CN-XiaomoNeural		-1%	0.96	100
+ヨハンナ	ヨハンナ	young_female	zh-TW-HsiaoChenNeural		+1%	0.97	100
+オデュッセウス	オデュッセウス	mature_male	zh-CN-YunfengNeural		-2%	0.96	100
+鈴鹿御前	鈴鹿御前	young_female	zh-CN-XiaoyiNeural	cheerful	+4%	1.04	100
+アンデルセン	アンデルセン	child_male	zh-CN-YunxiaNeural		+5%	0.98	100
+長尾景虎	長尾景虎	young_female	zh-CN-XiaozhenNeural	cheerful	+2%	1.03	100
+Ｘ・オルタ	Ｘ・オルタ	young_female	zh-CN-XiaoshuangMultilingualNeural		+2%	0.96	100
+ガネーシャ	ガネーシャ	young_female	zh-CN-XiaomengNeural	chat	+1%	0.98	100
+フェルグス	フェルグス	mature_male	zh-CN-YunyeNeural	cheerful	-3%	1.02	100
+坂本龍馬	坂本龍馬	young_male	zh-TW-YunJheNeural		0%	0.97	100
+Ｓイシュタル	Ｓイシュタル	young_female	zh-CN-XiaoyuMultilingualNeural		+3%	1.03	100
+サンソン	サンソン	young_male	zh-CN-YunfanMultilingualNeural		-1%	0.95	100
+ナイチンゲール	ナイチンゲール	mature_female	zh-CN-XiaozhenNeural	serious	-1%	0.96	100
+燕青	燕青	young_male	zh-CN-YunxiNeural	chat	+1%	1.04	100
+岸波白野	岸波白野	androgynous	zh-CN-XiaoyuMultilingualNeural		0%	0.98	100
+フローラ	フローラ	young_female	zh-CN-XiaoqiuNeural		+3%	1.01	100
+ニキチッチ	ニキチッチ	androgynous	zh-CN-XiaoshuangNeural		+1%	0.98	100
+アマゾネスＣＥＯ	アマゾネスＣＥＯ	mature_female	zh-CN-XiaozhenNeural	angry	-1%	1.03	100
+ブリュンヒルデ	ブリュンヒルデ	mature_female	zh-TW-HsiaoChenNeural		-1%	0.94	100
+殺生院キアラ	殺生院キアラ	mature_female	zh-CN-XiaomoNeural	affectionate	-1%	0.93	100
+パールヴァティー	パールヴァティー	young_female	zh-TW-HsiaoYuNeural		+1%	0.97	100
+ナーサリー・ライム	ナーサリー・ライム	child_female	zh-CN-XiaoyouNeural	cute	+7%	1.02	100
+斎藤一	斎藤一	young_male	zh-CN-YunxiaoMultilingualNeural		0%	1.01	100
+Ｘ	Ｘ	young_female	zh-CN-XiaoyiNeural	cheerful	+4%	1.04	100
+メカエリチャン	メカエリチャン	mechanical	zh-CN-XiaoxiaoNeural	assistant	-2%	0.92	100
+ブラダマンテ	ブラダマンテ	young_female	zh-TW-HsiaoYuNeural		+3%	1.03	100
+ドゥリーヨダナ	ドゥリーヨダナ	mature_male	zh-CN-YunhaoNeural		-2%	1.03	100
+ジークフリート	ジークフリート	mature_male	zh-CN-YunjieNeural		-3%	0.94	100
+グレイ	グレイ	young_female	zh-CN-XiaorouNeural		+1%	0.95	100
+メルトリリス	メルトリリス	young_female	zh-CN-XiaohanNeural		+2%	1.01	100
+クロエ	クロエ	child_female	zh-CN-XiaoshuangMultilingualNeural		+6%	1.04	100
+ブーディカ	ブーディカ	mature_female	zh-CN-XiaorouNeural		-1%	0.95	100
+ケイローン	ケイローン	mature_male	zh-CN-YunyangNeural		-3%	0.92	100
+沖田オルタ	沖田オルタ	young_female	zh-CN-XiaoruiNeural	calm	+1%	0.96	100
+オジマンディアス	オジマンディアス	mature_male	zh-CN-YunjianNeural	serious	-3%	0.96	100
+ビリー	ビリー	young_male	zh-CN-YunxiaoMultilingualNeural		+2%	1.04	100
+クレオパトラ	クレオパトラ	mature_female	zh-TW-HsiaoChenNeural		-1%	0.94	100
+ベディヴィエール	ベディヴィエール|ベディヴィエール？	young_male	zh-CN-YunyiMultilingualNeural		+1%	0.96	100
+ドレイク	ドレイク|ドレイク？	mature_female	zh-CN-XiaoyanNeural		-1%	1.00	100
+バーゲスト	バーゲスト	mature_female	zh-CN-XiaozhenNeural		-3%	0.93	100
+哪吒	哪吒	young_female	zh-CN-XiaoyuMultilingualNeural		+2%	1.00	100
+シェイクスピア	シェイクスピア	mature_male	zh-TW-YunJheNeural		0%	0.96	100
+アストライア	アストライア|神霊アストライア	mature_female	zh-CN-XiaoxiaoMultilingualNeural		+1%	0.98	100
+アタランテ・オルタ	アタランテ・オルタ	mature_female	zh-CN-XiaoruiNeural		-3%	0.94	100
+シャルルマーニュ	シャルルマーニュ	young_male	zh-CN-YunfanMultilingualNeural		+2%	1.04	100
+Ｕ－オルガマリー	Ｕ－オルガマリー|Ｕ－オルガマリー？	young_female	zh-CN-XiaozhenNeural		-2%	0.94	100
+ジーク	ジーク	young_male	zh-CN-YunxiNeural		+1%	0.97	100
+ガウェイン	ガウェイン|ガウェイン？	mature_male	zh-CN-YunhaoNeural		-1%	0.96	100
+タマモキャット	タマモキャット	young_female	zh-CN-XiaomengNeural		+5%	1.05	100
+ヴリトラ	ヴリトラ	mature_female	zh-CN-XiaomoNeural		-2%	0.95	100
+ヘクトール	ヘクトール|ヘクトール？	mature_male	zh-CN-YunyeNeural		-4%	0.91	100
+ジェロニモ	ジェロニモ	mature_male	zh-CN-YunzeNeural		-4%	0.92	100
+荊軻	荊軻	mature_female	zh-CN-XiaoqiuNeural		0%	0.98	100
+ビショーネ	ビショーネ|ビショーネ？	young_female	zh-CN-XiaorouNeural		+1%	0.96	100
+メタトロン・ジャンヌ	メタトロン・ジャンヌ	young_female	zh-CN-XiaoxiaoMultilingualNeural		0%	0.95	100
+シトナイ	シトナイ	child_female	zh-CN-XiaoshuangMultilingualNeural		+5%	0.98	100
+ノッブ	ノッブ	young_female	zh-CN-XiaozhenNeural		+3%	1.03	100
+紅閻魔	紅閻魔	child_female	zh-CN-XiaoshuangNeural		+6%	1.03	100
+楊貴妃	楊貴妃|楊貴妃？	mature_female	zh-CN-XiaohanNeural		+1%	0.95	100
+岡田以蔵	岡田以蔵|岡田以蔵？	mature_male	zh-CN-YunfengNeural		-2%	1.02	100
+アルトリア・オルタ	アルトリア・オルタ	mature_female	zh-TW-HsiaoChenNeural		-3%	0.92	100
+デオン	デオン|デオン？	androgynous	zh-CN-YunxiaNeural		+1%	0.98	100
+柳生但馬守	柳生但馬守	elder_male	zh-CN-YunyangNeural		-6%	0.90	100
+アルトリア・キャスター	アルトリア・キャスター	young_female	zh-TW-HsiaoChenNeural		+1%	0.98	100
+鬼一法眼	鬼一法眼	mature_female	zh-CN-XiaochenNeural		+1%	0.98	100
+カエサル	カエサル|カエサル？	mature_male	zh-CN-YunjianNeural		-3%	0.92	100
+おみぃさん	おみぃさん|蛇女房	mature_female	zh-CN-XiaorouNeural		0%	0.94	100
+カズラドロップ	カズラドロップ	child_female	zh-CN-XiaoyouMultilingualNeural		+4%	0.99	100
+ボイジャー	ボイジャー	child_male	zh-CN-YunxiaNeural		+5%	1.02	100
+ケツァル・コアトル	ケツァル・コアトル	mature_female	zh-CN-XiaomengNeural		+2%	1.04	100
+ＢＢコスモ	ＢＢコスモ	young_female	zh-CN-XiaochenMultilingualNeural		+2%	1.02	100
+セミラミス	セミラミス|セミラミス？|セミラミス？？	mature_female	zh-CN-XiaoruiNeural		-3%	0.92	100
+テスカトリポカ	テスカトリポカ	mature_male	zh-CN-YunjieNeural		-3%	0.94	100
+マタ・ハリ	マタ・ハリ|マタ・ハリ？	mature_female	zh-CN-XiaomoNeural		0%	0.96	100
+ラクシュミー	ラクシュミー	mature_female	zh-CN-XiaoqiuNeural		0%	0.94	100

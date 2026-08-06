@@ -21,7 +21,8 @@ data class VoiceSynthesisRequest(
     val speakerName: String?,
     val spokenText: String,
     val profile: VoiceProfile,
-    val styleOverride: String? = null
+    val styleOverride: String? = null,
+    val rateOverride: String? = null
 ) {
     fun cacheMaterial(): String = buildString {
         append(profile.profileId)
@@ -36,8 +37,15 @@ data class VoiceSynthesisRequest(
         append('|')
         append(profile.rate)
         append('|')
+        append(rateOverride.orEmpty())
+        append('|')
         append(speakerName.orEmpty())
         append('|')
         append(spokenText)
     }
 }
+
+data class VoiceExpression(
+    val styleOverride: String? = null,
+    val rateOverride: String? = null
+)

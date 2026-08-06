@@ -28,6 +28,57 @@ FULL_JP_NAME	OFFICIAL_CN_NAME	ALIAS_1,ALIAS_2
 
 Keep full character names here. `build_db.py` automatically adds component records for separator-based names, so a full official row can also become searchable through its name parts. Curated TSV rows still win over generated component rows.
 
+## `jp_cn_name_map.tsv`
+
+Optional helper map for visible FGO speaker/name-box labels. It is generated
+from Atlas Academy JP/CN/TW script speaker labels, not servant roster names.
+
+Columns:
+
+```tsv
+jp_name	cn_name_simp	cn_name_trad
+JP_NAME_BOX_LABEL	SIMPLIFIED_CN_NAME	TRADITIONAL_CN_NAME
+```
+
+Dry-run and review changes:
+
+```powershell
+python term_builder\py\update_jp_cn_name_map.py
+```
+
+Write the TSV and its metadata sidecar after reviewing the printed update
+summary:
+
+```powershell
+python term_builder\py\update_jp_cn_name_map.py --write
+```
+
+The updater counts JP name-box labels from Atlas JP scripts, sorts output rows
+by that JP count, and aligns CN/TW labels by the same script id plus speaker
+occurrence index. If a CN/TW label is missing or ambiguous, it reports that in
+the dry-run summary instead of guessing.
+
+The default source discovers script ids from Atlas `nice_war`, downloads static
+script text files, and caches Atlas responses under
+`term_builder/atlas_cache/jp_cn_name_map`.
+
+For faster API testing, limit the number of discovered scripts:
+
+```powershell
+python term_builder\py\update_jp_cn_name_map.py --max-scripts 20
+```
+
+Use more or fewer parallel fetch workers depending on your network:
+
+```powershell
+python term_builder\py\update_jp_cn_name_map.py --workers 24
+```
+
+Force a fresh Atlas download with `--refresh-cache`, or disable cache reads and
+writes with `--no-cache`.
+
+The visible TSV intentionally stays three columns.
+
 ## `term.tsv`
 
 Used for terminology RAG and exact term matches in dialogue or choice text.
@@ -148,6 +199,76 @@ term_builder/character_voice_profiles.tsv
 ```
 
 `character_voice_profiles_cn.tsv` is the app runtime file. It uses one row per speaker with `speaker_id`, `aliases`, `gender`, and the `cn_voice_*` Azure values. `term_builder/character_voice_profiles.tsv` remains the review/tuning file with JP and CN fields. Manual overrides always win. Atlas metadata guides only the generated draft rows; tune important characters in `character_voice_overrides.tsv` after listening tests.
+
+## Resumable AI Voice Profile Agent Runs
+
+Use one clean workspace for long Codex voice-review tasks:
+
+```text
+term_builder/voice_build_batch/
+```
+
+The helper splits multi-speaker labels such as `マシュ＆ダ・ヴィンチ`, generates pack prompts with multiple mini-batches, validates checkpoint TSVs, and only builds the final TSV after the checkpoints are safe.
+
+On this machine, use the bundled Python runtime if `python` is not on `PATH`:
+
+```powershell
+& "C:\Users\user\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" term_builder\py\voice_batch.py status
+```
+
+Start or reset the workspace:
+
+```powershell
+python term_builder\py\voice_batch.py init
+```
+
+Check progress:
+
+```powershell
+python term_builder\py\voice_batch.py status
+```
+
+Generate the next Codex pack prompt. By default, each manual pack contains 20 speakers:
+
+```powershell
+python term_builder\py\voice_batch.py next-pack
+```
+
+Generated pack prompts show only `speaker_id`, aliases, count, tier, and identity status. Old app TSV voice choices are not shown to the agent.
+
+Manual quality loop:
+
+```text
+next-pack -> paste prompt into Codex -> inspect changed checkpoint TSVs -> status -> next-pack
+```
+
+Use a larger pack only after the first few manual runs look good:
+
+```powershell
+python term_builder\py\voice_batch.py next-pack --batch-size 20 --batches 5
+```
+
+Open the generated prompt:
+
+```text
+term_builder/voice_build_batch/prompts/pack_0001.md
+```
+
+Paste it into Codex. The prompt tells Codex to process all mini-batches in the pack, checkpoint after every mini-batch, update memory files, and never write the final app TSV.
+
+Validate before building:
+
+```powershell
+python term_builder\py\voice_batch.py validate
+```
+
+Build the final TSV only after validation is clean and no rows are pending:
+
+```powershell
+python term_builder\py\voice_batch.py final
+```
+
+The final TSV is built only from `auto_ok_high.tsv + auto_ok_low.tsv`. `needs_review.tsv`, placeholder labels, and combined multi-speaker labels are never included automatically.
 
 ## Atlas Official Voice Audio
 

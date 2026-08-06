@@ -62,7 +62,7 @@ class AiVoiceService @Inject constructor(
             .trim()
             .ifBlank { SettingsRepository.DEFAULT_AZURE_SPEECH_REGION }
         val voiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
-        val styleOverride = emotionStyleFor(
+        val expression = voiceExpressionFor(
             profile = profile,
             dialogue = dialogue
         )
@@ -70,7 +70,8 @@ class AiVoiceService @Inject constructor(
             speakerName = speaker,
             spokenText = dialogue,
             profile = profile,
-            styleOverride = styleOverride
+            styleOverride = expression?.styleOverride,
+            rateOverride = expression?.rateOverride
         )
         val cacheMaterial = request.cacheMaterial()
         if (cacheMaterial == lastSpokenCacheMaterial) return
@@ -85,7 +86,8 @@ class AiVoiceService @Inject constructor(
                             config = AzureSpeechConfig(key = speechKey, region = speechRegion),
                             profile = profile,
                             text = dialogue,
-                            styleOverride = styleOverride
+                            styleOverride = expression?.styleOverride,
+                            rateOverride = expression?.rateOverride
                         )
                     )
                 }
@@ -106,9 +108,10 @@ class AiVoiceService @Inject constructor(
         japaneseDialogue: String?,
         translatedDialogue: String?
     ): String? {
-        val sourceText = when (profile.locale) {
-            CN_LOCALE -> translatedDialogue
-            else -> japaneseDialogue
+        val sourceText = if (VoiceLocaleSupport.isChineseLocale(profile.locale)) {
+            translatedDialogue
+        } else {
+            japaneseDialogue
         }
         return sourceText
             ?.let(TextNormalizer::stripRubyAnnotations)
@@ -116,22 +119,17 @@ class AiVoiceService @Inject constructor(
             ?.takeIf { it.isNotBlank() }
     }
 
-    private fun emotionStyleFor(
+    private fun voiceExpressionFor(
         profile: VoiceProfile,
         dialogue: String
-    ): String? {
-        if (profile.locale != CN_LOCALE) {
+    ): VoiceExpression? {
+        if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) {
             return null
         }
-        return ChineseVoiceEmotionStyle.styleFor(profile, dialogue)
-            ?.takeUnless { it == profile.style }
+        return ChineseVoiceEmotionStyle.expressionFor(profile, dialogue)
     }
 
     fun stop() {
         playbackEngine.stop()
-    }
-
-    private companion object {
-        const val CN_LOCALE = "zh-CN"
     }
 }

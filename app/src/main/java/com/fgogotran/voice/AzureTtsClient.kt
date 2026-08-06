@@ -32,7 +32,8 @@ class AzureTtsClient @Inject constructor() {
         config: AzureSpeechConfig,
         profile: VoiceProfile,
         text: String,
-        styleOverride: String? = null
+        styleOverride: String? = null,
+        rateOverride: String? = null
     ): ByteArray {
         val region = config.region.trim().lowercase().ifBlank {
             throw IllegalArgumentException("Azure Speech region is blank")
@@ -48,7 +49,7 @@ class AzureTtsClient @Inject constructor() {
                 header("User-Agent", "FgoGotran")
                 header("Accept", "audio/mpeg")
                 contentType(ContentType.parse("application/ssml+xml"))
-                setBody(buildSsml(profile, text, styleOverride))
+                setBody(buildSsml(profile, text, styleOverride, rateOverride))
             }
         } catch (e: HttpRequestTimeoutException) {
             FgoLogger.warn(tag, "Azure TTS request timed out")
@@ -64,12 +65,20 @@ class AzureTtsClient @Inject constructor() {
         return response.body()
     }
 
-    private fun buildSsml(profile: VoiceProfile, text: String, styleOverride: String?): String {
+    private fun buildSsml(
+        profile: VoiceProfile,
+        text: String,
+        styleOverride: String?,
+        rateOverride: String?
+    ): String {
         val locale = profile.locale.ifBlank { "ja-JP" }
         val voiceName = profile.voiceName.ifBlank { "ja-JP-NanamiNeural" }
         val pitch = profile.pitch.ifBlank { "0%" }
-        val rate = normalizeRate(profile.rate)
-        val style = styleOverride?.takeIf { it.isNotBlank() } ?: profile.style
+        val rate = normalizeRate(rateOverride?.takeIf { it.isNotBlank() } ?: profile.rate)
+        val style = ChineseVoiceEmotionStyle.resolveStyle(
+            profile = profile,
+            styleOverride = styleOverride
+        )
         val dialogueContent = buildDialogueContent(text)
         val spokenContent = "<prosody pitch=\"$pitch\" rate=\"$rate\">$dialogueContent</prosody>"
         val content = if (style.isBlank()) {

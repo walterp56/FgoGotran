@@ -66,3 +66,4 @@ showcase/
 .agents/
 term_builder/voice_tuning/
 helper/
+atlas_cache/
