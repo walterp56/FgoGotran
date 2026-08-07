@@ -2,6 +2,7 @@ package com.fgogotran.voice
 
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 object ChineseVoiceEmotionStyle {
     fun expressionFor(profile: VoiceProfile, text: String): VoiceExpression? {
@@ -12,18 +13,31 @@ object ChineseVoiceEmotionStyle {
         val baseStyle = resolveStyle(profile, styleOverride = null)
         val styleOverride = detectedStyle
             ?.takeIf { it != baseStyle }
+            ?.takeIf { isNaturalDialogueStyle(it) }
             ?.takeIf { supportsStyle(profile.voiceName, it) }
+        val resolvedStyle = resolveStyle(profile, styleOverride)
         val rateOverride = rateOverrideFor(
             baseRate = profile.rate,
             voiceType = profile.description,
             text = normalized,
             detectedStyle = detectedStyle
         )
+        val pitchOverride = pitchOverrideFor(
+            basePitch = profile.pitch,
+            voiceType = profile.description,
+            detectedStyle = detectedStyle
+        )
+        val styleDegree = resolvedStyle
+            .takeIf { it.isNotBlank() }
+            ?.let(::styleDegreeFor)
 
         return VoiceExpression(
             styleOverride = styleOverride,
-            rateOverride = rateOverride
-        ).takeIf { it.styleOverride != null || it.rateOverride != null }
+            rateOverride = rateOverride,
+            pitchOverride = pitchOverride,
+            styleDegree = styleDegree,
+            ssmlModeVersion = NATURAL_DIALOGUE_MODE_VERSION
+        )
     }
 
     fun styleFor(profile: VoiceProfile, text: String): String? {
@@ -37,9 +51,18 @@ object ChineseVoiceEmotionStyle {
                 ?: ""
         }
 
-        return sequenceOf(styleOverride, profile.style)
-            .mapNotNull { it?.trim()?.takeIf(String::isNotBlank) }
-            .firstOrNull { supportsStyle(profile.voiceName, it) }
+        styleOverride
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+            ?.takeIf { isNaturalDialogueStyle(it) }
+            ?.takeIf { supportsStyle(profile.voiceName, it) }
+            ?.let { return it }
+
+        return profile.style
+            .trim()
+            .takeIf(String::isNotBlank)
+            ?.takeIf { it in BASE_DIALOGUE_STYLES }
+            ?.takeIf { supportsStyle(profile.voiceName, it) }
             .orEmpty()
     }
 
@@ -50,7 +73,6 @@ object ChineseVoiceEmotionStyle {
             normalizedText.hasAny(ANGRY_HINTS) -> "angry"
             normalizedText.hasAny(CHEERFUL_HINTS) -> "cheerful"
             normalizedText.hasAny(DISGRUNTLED_HINTS) -> "disgruntled"
-            normalizedText.hasAny(SERIOUS_HINTS) -> "serious"
             normalizedText.shortExcitedLine() -> "cheerful"
             else -> null
         }
@@ -63,24 +85,20 @@ object ChineseVoiceEmotionStyle {
         detectedStyle: String?
     ): String? {
         val base = rateMultiplier(baseRate) ?: return null
-        var delta = 0.0
+        val minimumRate = minDialogueRateFor(voiceType)
+        val maximumRate = maxDialogueRateFor(voiceType)
+        var adjusted = base.coerceIn(minimumRate, maximumRate)
 
         when (detectedStyle) {
-            "sad", "fearful" -> delta -= 0.04
-            "serious", "disgruntled" -> delta -= 0.03
-            "angry", "cheerful" -> delta += 0.03
+            "sad", "fearful" -> adjusted -= 0.02
+            "angry", "cheerful" -> adjusted += 0.02
         }
-        if (text.hasLongPause()) delta -= 0.04
-        if (text.hasExcitedMark()) delta += 0.02
-        if (text.length >= LONG_EXPOSITION_LENGTH) delta -= 0.02
+        if (text.hasExcitedMark()) adjusted += 0.02
         if (text.length <= SHORT_LINE_LENGTH && detectedStyle in setOf("angry", "cheerful")) {
-            delta += 0.02
+            adjusted += 0.01
         }
 
-        val adjusted = (base + delta).coerceIn(
-            minimumValue = minRateFor(voiceType),
-            maximumValue = maxRateFor(voiceType)
-        )
+        adjusted = adjusted.coerceIn(minimumRate, maximumRate)
         if (abs(adjusted - base) < MIN_RATE_DELTA) return null
         return String.format(Locale.US, "%.2f", adjusted)
     }
@@ -96,19 +114,82 @@ object ChineseVoiceEmotionStyle {
         return rate.toDoubleOrNull()
     }
 
-    private fun minRateFor(voiceType: String): Double {
+    private fun minDialogueRateFor(voiceType: String): Double {
         return when (voiceType) {
-            "elder_male" -> 0.84
-            "mature_male", "mature_female" -> 0.88
-            else -> 0.86
+            "child_female", "child_male" -> 1.08
+            "young_female", "young_male" -> 1.07
+            "mature_male", "mature_female" -> 1.03
+            "androgynous" -> 1.05
+            "elder_male", "elder_female" -> 0.98
+            "mechanical", "monster" -> 1.00
+            else -> 1.04
         }
     }
 
-    private fun maxRateFor(voiceType: String): Double {
+    private fun maxDialogueRateFor(voiceType: String): Double {
         return when (voiceType) {
-            "child", "young_female" -> 1.10
-            "young_male", "androgynous" -> 1.08
-            else -> 1.06
+            "child_female", "child_male" -> 1.16
+            "young_female", "young_male" -> 1.14
+            "mature_male", "mature_female" -> 1.10
+            "androgynous" -> 1.12
+            "elder_male", "elder_female" -> 1.04
+            "mechanical", "monster" -> 1.08
+            else -> 1.10
+        }
+    }
+
+    private fun pitchOverrideFor(
+        basePitch: String,
+        voiceType: String,
+        detectedStyle: String?
+    ): String? {
+        val base = pitchPercent(basePitch) ?: return null
+        val minimumPitch = minPitchFor(voiceType)
+        val maximumPitch = maxPitchFor(voiceType)
+        var adjusted = base.coerceIn(minimumPitch, maximumPitch)
+
+        when (detectedStyle) {
+            "sad", "fearful" -> adjusted -= 0.5
+            "angry", "cheerful" -> adjusted += 0.5
+        }
+
+        adjusted = adjusted.coerceIn(minimumPitch, maximumPitch)
+        val rounded = adjusted.roundToInt()
+        if (abs(rounded - base) < MIN_PITCH_DELTA) return null
+        return if (rounded >= 0) "+$rounded%" else "$rounded%"
+    }
+
+    private fun pitchPercent(rawPitch: String): Double? {
+        val pitch = rawPitch.trim()
+        if (pitch.isBlank()) return 0.0
+        if (pitch.endsWith("%")) {
+            return pitch.dropLast(1).toDoubleOrNull()
+        }
+        return pitch.toDoubleOrNull()
+    }
+
+    private fun minPitchFor(voiceType: String): Double {
+        return when (voiceType) {
+            "elder_male", "elder_female", "monster", "mechanical" -> -4.0
+            "mature_male", "mature_female" -> -3.0
+            else -> -2.0
+        }
+    }
+
+    private fun maxPitchFor(voiceType: String): Double {
+        return when (voiceType) {
+            "child_female", "child_male" -> 4.0
+            "young_female", "young_male", "androgynous" -> 3.0
+            else -> 2.0
+        }
+    }
+
+    private fun styleDegreeFor(style: String): String {
+        return when (style) {
+            "angry", "cheerful", "fearful" -> "0.25"
+            "sad", "disgruntled" -> "0.22"
+            "cute" -> "0.24"
+            else -> "0.25"
         }
     }
 
@@ -120,16 +201,12 @@ object ChineseVoiceEmotionStyle {
         return SUPPORTED_STYLES_BY_VOICE[voiceName] ?: emptySet()
     }
 
-    private fun String.hasAny(hints: Set<String>): Boolean {
-        return hints.any { contains(it) }
+    private fun isNaturalDialogueStyle(style: String): Boolean {
+        return style in NATURAL_DIALOGUE_STYLES
     }
 
-    private fun String.hasLongPause(): Boolean {
-        return contains("……") ||
-            contains("⋯⋯") ||
-            contains("...") ||
-            contains("。。。") ||
-            count { it == '…' || it == '⋯' } >= 2
+    private fun String.hasAny(hints: Set<String>): Boolean {
+        return hints.any { contains(it) }
     }
 
     private fun String.hasExcitedMark(): Boolean {
@@ -148,6 +225,26 @@ object ChineseVoiceEmotionStyle {
         "sad",
         "serious"
     )
+
+    private val BASE_DIALOGUE_STYLES = setOf(
+        "affectionate",
+        "chat",
+        "chat-casual",
+        "cute",
+        "empathetic",
+        "gentle"
+    )
+
+    private val EMOTION_DIALOGUE_STYLES = setOf(
+        "angry",
+        "cheerful",
+        "disgruntled",
+        "embarrassed",
+        "fearful",
+        "sad"
+    )
+
+    private val NATURAL_DIALOGUE_STYLES = BASE_DIALOGUE_STYLES + EMOTION_DIALOGUE_STYLES
 
     private val SUPPORTED_STYLES_BY_VOICE = mapOf(
         "zh-CN-XiaohanNeural" to setOf(
@@ -354,19 +451,9 @@ object ChineseVoiceEmotionStyle {
         "为什么"
     )
 
-    private val SERIOUS_HINTS = setOf(
-        "必须",
-        "一定要",
-        "绝对",
-        "真相",
-        "使命",
-        "责任",
-        "命令",
-        "报告"
-    )
-
-    private const val LONG_EXPOSITION_LENGTH = 80
     private const val SHORT_LINE_LENGTH = 28
     private const val MIN_RATE_DELTA = 0.005
+    private const val MIN_PITCH_DELTA = 0.5
+    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v4"
     private val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
 }

@@ -1,6 +1,6 @@
 speaker_id	aliases	voice_type	cn_voice_name	cn_style	cn_pitch	cn_rate	cn_volume
 マシュ	マシュ	young_female	zh-TW-HsiaoChenNeural		+3%	0.97	100
-ダ・ヴィンチ	ダ・ヴィンチ|ダ・ヴィンチちゃん	child_female	zh-CN-XiaochenNeural		+2%	1.03	100
+ダ・ヴィンチ	ダ・ヴィンチ|ダ・ヴィンチちゃん	child_female	zh-CN-XiaoyouMultilingualNeural	cute	+7%	1.06	100
 ？？？	？？？	androgynous	zh-CN-YunxiaNeural		+2%	0.98	100
 ゴルドルフ	ゴルドルフ	mature_male	zh-CN-YunzeNeural		-4%	0.94	100
 ホームズ	ホームズ	mature_male	zh-CN-YunjianNeural		-2%	0.95	100

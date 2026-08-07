@@ -71,7 +71,10 @@ class AiVoiceService @Inject constructor(
             spokenText = dialogue,
             profile = profile,
             styleOverride = expression?.styleOverride,
-            rateOverride = expression?.rateOverride
+            rateOverride = expression?.rateOverride,
+            pitchOverride = expression?.pitchOverride,
+            styleDegree = expression?.styleDegree,
+            ssmlModeVersion = expression?.ssmlModeVersion
         )
         val cacheMaterial = request.cacheMaterial()
         if (cacheMaterial == lastSpokenCacheMaterial) return
@@ -87,7 +90,9 @@ class AiVoiceService @Inject constructor(
                             profile = profile,
                             text = dialogue,
                             styleOverride = expression?.styleOverride,
-                            rateOverride = expression?.rateOverride
+                            rateOverride = expression?.rateOverride,
+                            pitchOverride = expression?.pitchOverride,
+                            styleDegree = expression?.styleDegree
                         )
                     )
                 }

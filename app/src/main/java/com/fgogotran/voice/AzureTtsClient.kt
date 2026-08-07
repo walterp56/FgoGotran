@@ -33,7 +33,9 @@ class AzureTtsClient @Inject constructor() {
         profile: VoiceProfile,
         text: String,
         styleOverride: String? = null,
-        rateOverride: String? = null
+        rateOverride: String? = null,
+        pitchOverride: String? = null,
+        styleDegree: String? = null
     ): ByteArray {
         val region = config.region.trim().lowercase().ifBlank {
             throw IllegalArgumentException("Azure Speech region is blank")
@@ -49,7 +51,7 @@ class AzureTtsClient @Inject constructor() {
                 header("User-Agent", "FgoGotran")
                 header("Accept", "audio/mpeg")
                 contentType(ContentType.parse("application/ssml+xml"))
-                setBody(buildSsml(profile, text, styleOverride, rateOverride))
+                setBody(buildSsml(profile, text, styleOverride, rateOverride, pitchOverride, styleDegree))
             }
         } catch (e: HttpRequestTimeoutException) {
             FgoLogger.warn(tag, "Azure TTS request timed out")
@@ -69,22 +71,31 @@ class AzureTtsClient @Inject constructor() {
         profile: VoiceProfile,
         text: String,
         styleOverride: String?,
-        rateOverride: String?
+        rateOverride: String?,
+        pitchOverride: String?,
+        styleDegree: String?
     ): String {
         val locale = profile.locale.ifBlank { "ja-JP" }
         val voiceName = profile.voiceName.ifBlank { "ja-JP-NanamiNeural" }
-        val pitch = profile.pitch.ifBlank { "0%" }
+        val pitch = pitchOverride?.takeIf { it.isNotBlank() } ?: profile.pitch.ifBlank { "0%" }
         val rate = normalizeRate(rateOverride?.takeIf { it.isNotBlank() } ?: profile.rate)
         val style = ChineseVoiceEmotionStyle.resolveStyle(
             profile = profile,
             styleOverride = styleOverride
         )
-        val dialogueContent = buildDialogueContent(text)
+        val dialogueContent = buildDialogueContent(
+            text = text,
+            naturalDialogue = VoiceLocaleSupport.isChineseLocale(locale)
+        )
         val spokenContent = "<prosody pitch=\"$pitch\" rate=\"$rate\">$dialogueContent</prosody>"
         val content = if (style.isBlank()) {
             spokenContent
         } else {
-            "<mstts:express-as style=\"${escapeXml(style)}\">$spokenContent</mstts:express-as>"
+            val styleDegreeAttribute = styleDegree
+                ?.takeIf { it.isNotBlank() }
+                ?.let { " styledegree=\"${escapeXml(it)}\"" }
+                .orEmpty()
+            "<mstts:express-as style=\"${escapeXml(style)}\"$styleDegreeAttribute>$spokenContent</mstts:express-as>"
         }
         val msttsNamespace = if (style.isBlank()) {
             ""
@@ -94,14 +105,23 @@ class AzureTtsClient @Inject constructor() {
 
         return """
             <speak version="1.0" xml:lang="$locale"$msttsNamespace>
-                <voice xml:lang="$locale" name="$voiceName">$content</voice>
+                <voice xml:lang="$locale" name="${escapeXml(voiceName)}">$content</voice>
             </speak>
         """.trimIndent()
     }
 
-    private fun buildDialogueContent(text: String): String {
+    private fun buildDialogueContent(text: String, naturalDialogue: Boolean): String {
         val result = StringBuilder()
         var index = 0
+        var spokenCharsSinceBreak = 0
+
+        fun appendBreak(milliseconds: Int) {
+            if (milliseconds > 0) {
+                result.append(dialogueBreak(milliseconds))
+            }
+            spokenCharsSinceBreak = 0
+        }
+
         while (index < text.length) {
             when (val char = text[index]) {
                 '…', '⋯' -> {
@@ -110,7 +130,7 @@ class AzureTtsClient @Inject constructor() {
                         index++
                     }
                     result.append(escapeXml(text.substring(start, index)))
-                    result.append(dialogueBreak(ELLIPSIS_BREAK_MS))
+                    appendBreak(ELLIPSIS_BREAK_MS)
                     continue
                 }
                 '.', '．' -> {
@@ -120,26 +140,43 @@ class AzureTtsClient @Inject constructor() {
                     }
                     result.append(escapeXml(text.substring(start, index)))
                     if (index - start >= 2) {
-                        result.append(dialogueBreak(ELLIPSIS_BREAK_MS))
+                        appendBreak(ELLIPSIS_BREAK_MS)
+                    } else {
+                        spokenCharsSinceBreak = 0
                     }
                     continue
                 }
                 '、', ',', '，' -> {
                     result.append(escapeXml(char.toString()))
-                    result.append(dialogueBreak(SHORT_BREAK_MS))
+                    appendBreak(SHORT_BREAK_MS)
                 }
                 '。', '｡' -> {
                     result.append(escapeXml(char.toString()))
-                    result.append(dialogueBreak(SENTENCE_BREAK_MS))
+                    appendBreak(SENTENCE_BREAK_MS)
                 }
                 '！', '!', '？', '?' -> {
                     result.append(escapeXml(char.toString()))
-                    result.append(dialogueBreak(EMOTIONAL_BREAK_MS))
+                    appendBreak(EMOTIONAL_BREAK_MS)
                 }
                 '\n', '\r' -> {
-                    result.append(dialogueBreak(LINE_BREAK_MS))
+                    appendBreak(LINE_BREAK_MS)
                 }
-                else -> result.append(escapeXml(char.toString()))
+                else -> {
+                    result.append(escapeXml(char.toString()))
+                    if (!char.isWhitespace()) {
+                        spokenCharsSinceBreak++
+                    }
+                    if (
+                        naturalDialogue &&
+                        index < text.lastIndex &&
+                        (
+                            spokenCharsSinceBreak >= HARD_PHRASE_CHARS ||
+                                (spokenCharsSinceBreak >= SOFT_PHRASE_CHARS && char in SOFT_PHRASE_END_CHARS)
+                            )
+                    ) {
+                        appendBreak(PHRASE_BREAK_MS)
+                    }
+                }
             }
             index++
         }
@@ -169,15 +206,35 @@ class AzureTtsClient @Inject constructor() {
     }
 
     private companion object {
-        const val AZURE_AUDIO_FORMAT = "audio-24khz-48kbitrate-mono-mp3"
+        const val AZURE_AUDIO_FORMAT = "audio-24khz-160kbitrate-mono-mp3"
         const val AZURE_TTS_CONNECT_TIMEOUT_MS = 8_000L
         const val AZURE_TTS_SOCKET_TIMEOUT_MS = 20_000L
         const val AZURE_TTS_REQUEST_TIMEOUT_MS = 25_000L
-        const val SHORT_BREAK_MS = 120
-        const val SENTENCE_BREAK_MS = 220
-        const val EMOTIONAL_BREAK_MS = 180
-        const val ELLIPSIS_BREAK_MS = 360
-        const val LINE_BREAK_MS = 240
+        const val SHORT_BREAK_MS = 0
+        const val SENTENCE_BREAK_MS = 110
+        const val EMOTIONAL_BREAK_MS = 120
+        const val ELLIPSIS_BREAK_MS = 240
+        const val LINE_BREAK_MS = 140
+        const val PHRASE_BREAK_MS = 60
+        const val SOFT_PHRASE_CHARS = 72
+        const val HARD_PHRASE_CHARS = 96
         val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
+        val SOFT_PHRASE_END_CHARS = setOf(
+            '的',
+            '了',
+            '着',
+            '过',
+            '吗',
+            '呢',
+            '吧',
+            '啊',
+            '呀',
+            '哦',
+            '嘛',
+            '啦',
+            '也',
+            '就',
+            '而'
+        )
     }
 }

@@ -22,9 +22,14 @@ data class VoiceSynthesisRequest(
     val spokenText: String,
     val profile: VoiceProfile,
     val styleOverride: String? = null,
-    val rateOverride: String? = null
+    val rateOverride: String? = null,
+    val pitchOverride: String? = null,
+    val styleDegree: String? = null,
+    val ssmlModeVersion: String? = null
 ) {
     fun cacheMaterial(): String = buildString {
+        append(ssmlModeVersion.orEmpty())
+        append('|')
         append(profile.profileId)
         append('|')
         append(profile.voiceName)
@@ -39,6 +44,10 @@ data class VoiceSynthesisRequest(
         append('|')
         append(rateOverride.orEmpty())
         append('|')
+        append(pitchOverride.orEmpty())
+        append('|')
+        append(styleDegree.orEmpty())
+        append('|')
         append(speakerName.orEmpty())
         append('|')
         append(spokenText)
@@ -47,5 +56,8 @@ data class VoiceSynthesisRequest(
 
 data class VoiceExpression(
     val styleOverride: String? = null,
-    val rateOverride: String? = null
+    val rateOverride: String? = null,
+    val pitchOverride: String? = null,
+    val styleDegree: String? = null,
+    val ssmlModeVersion: String? = null
 )
