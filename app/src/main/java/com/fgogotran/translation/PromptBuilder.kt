@@ -121,6 +121,7 @@ class PromptBuilder @Inject constructor() {
         private val NAME_PROMPT = """
             - Unknown names and proper nouns must be natural Chinese transliterations, not descriptions or another known character.
             - If a name is not in the glossary, transliterate it as a concise {target_chinese} Fate/Grand Order/TYPE-MOON-style name.
+            - For speaker name-box text, every visible part belongs to the rendered name. Preserve and translate visible annotations such as base《role》, base（state）, titles, suffixes, and question marks; do not drop them as pronunciation ruby.
             - Never return an unknown Japanese name unchanged.
             """.trimIndent()
 

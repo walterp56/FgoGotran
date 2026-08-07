@@ -1,40 +1,40 @@
 speaker_id	aliases	voice_type	cn_voice_name	cn_style	cn_pitch	cn_rate	cn_volume
-マシュ	マシュ	young_female	zh-CN-XiaoxiaoNeural	gentle	+3%	1.06	100
+マシュ	マシュ|家老マシュ|キリエ|マシュ《ナレーター》	young_female	zh-CN-Xiaoxiao:DragonHDFlashLatestNeural	gentle	+3%	1.06	100
 ダ・ヴィンチ	ダ・ヴィンチ|ダ・ヴィンチちゃん	child_female	zh-CN-XiaoyouMultilingualNeural	cute	+7%	1.06	100
 ？？？	？？？	androgynous	zh-CN-YunxiaNeural		+2%	0.98	100
 ゴルドルフ	ゴルドルフ	mature_male	zh-CN-YunzeNeural		-4%	0.94	100
 ホームズ	ホームズ	mature_male	zh-CN-YunjianNeural		-2%	0.95	100
-Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
+Dr.ロマン	Dr.ロマン|ロマニ・アーキマン	young_male	zh-CN-Yunxi:DragonHDFlashLatestNeural	chat	+1%	1.06	100
 カドック	カドック	young_male	zh-CN-YunxiNeural	chat	0%	1.04	100
-ジャンヌ・オルタ	ジャンヌ・オルタ	young_female	zh-CN-XiaoruiNeural		-3%	0.94	100
-モリアーティ	モリアーティ	mature_male	zh-CN-YunzeNeural		-5%	0.93	100
-エリザベート	エリザベート	young_female	zh-CN-XiaoyiNeural	cheerful	+5%	1.07	100
+ジャンヌ・オルタ	ジャンヌ・オルタ|エリス	young_female	zh-CN-XiaoruiNeural		-3%	0.94	100
+モリアーティ	モリアーティ|プロフェッサーＭ	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	chat	-4%	1.04	100
+エリザベート	エリザベート|終わりのエリザベート	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural	cheerful	+5%	1.08	100
 シオン	シオン	young_female	zh-CN-XiaochenNeural		+1%	0.98	100
 坂田金時	坂田金時	mature_male	zh-CN-YunfengNeural		-2%	1.00	100
 武蔵	武蔵	young_female	zh-CN-XiaohanNeural	cheerful	+2%	1.06	100
 アルトリア	アルトリア	young_female	zh-CN-XiaochenMultilingualNeural		+1%	1.05	100
 フォウ	フォウ	monster	zh-CN-XiaoshuangNeural		+6%	1.05	100
-刑部姫	刑部姫	young_female	zh-CN-XiaomengNeural	chat	+4%	1.02	100
+刑部姫	刑部姫|姫子	young_female	zh-CN-XiaomengNeural	chat	+4%	1.02	100
 カーマ	カーマ	young_female	zh-CN-XiaomoNeural		+1%	0.95	100
 モードレッド	モードレッド	androgynous	zh-CN-YunxiaNeural		+1%	0.99	100
-オベロン	オベロン	androgynous	zh-CN-YunyeNeural		-1%	0.96	100
+オベロン	オベロン|オベロン・ヴォーティガーン	androgynous	zh-CN-Yunxi:DragonHDFlashLatestNeural	debating	+1%	1.05	100
 イアソン	イアソン	young_male	zh-CN-YunxiNeural	chat	+1%	1.03	100
-ネモ	ネモ	young_male	zh-CN-YunxiaoMultilingualNeural		+2%	0.98	100
+ネモ	ネモ|ネモサンタ|キャプテン	young_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	cheerful	+2%	1.07	100
 オルガマリー	オルガマリー	young_female	zh-CN-XiaozhenNeural	serious	0%	0.96	100
-黒髭	黒髭	mature_male	zh-CN-YunfengNeural	cheerful	-4%	1.02	100
+黒髭	黒髭|髭黒	mature_male	zh-CN-YunfengNeural	cheerful	-4%	1.02	100
 エルメロイⅡ世	エルメロイⅡ世	mature_male	zh-CN-YunjianNeural	serious	-3%	0.94	100
 コヤンスカヤ	コヤンスカヤ	mature_female	zh-CN-XiaomoNeural	calm	0%	0.95	100
 ロビンフッド	ロビンフッド	young_male	zh-CN-YunfanMultilingualNeural		0%	0.98	100
-紫式部	紫式部	mature_female	zh-CN-XiaoqiuNeural		-1%	0.94	100
-イシュタル	イシュタル	young_female	zh-CN-XiaoyiNeural	cheerful	+3%	1.02	100
+紫式部	紫式部|藤原香子	mature_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	gentle	-1%	1.05	100
+イシュタル	イシュタル|イシュタル実況	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural		+4%	1.08	100
 メドゥーサ	メドゥーサ	mature_female	zh-CN-XiaoruiNeural	calm	-2%	0.94	100
-葛飾北斎	葛飾北斎	young_female	zh-CN-XiaoyuMultilingualNeural		+2%	1.02	100
+葛飾北斎	葛飾北斎|お栄	young_female	zh-CN-XiaoyuMultilingualNeural	chat	+2%	1.07	100
 ニトクリス	ニトクリス	young_female	zh-CN-XiaohanNeural	embarrassed	+2%	0.99	100
 アビゲイル	アビゲイル	child_female	zh-CN-XiaoyouNeural	cute	+7%	0.96	100
-ネロ	ネロ	young_female	zh-CN-XiaomengNeural	chat	+5%	1.05	100
+ネロ	ネロ|ネロ・ブライド	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural	cheerful	+5%	1.07	100
 ギルガメッシュ	ギルガメッシュ	mature_male	zh-CN-YunhaoNeural		-4%	0.94	100
 茨木童子	茨木童子	child_female	zh-CN-XiaoyouNeural	angry	+5%	1.02	100
-源頼光	源頼光	mature_female	zh-CN-XiaorouNeural		-1%	0.94	100
+源頼光	源頼光|ライダー・黒縄地獄	mature_female	zh-CN-Xiaoyu:DragonHDFlashLatestNeural	strict	-1%	1.05	100
 マンドリカルド	マンドリカルド	young_male	zh-CN-YunyiMultilingualNeural		0%	0.96	100
 ＢＢ	ＢＢ	young_female	zh-CN-XiaochenMultilingualNeural		+3%	1.03	100
 エミヤ	エミヤ	mature_male	zh-CN-YunjieNeural		-3%	0.95	100
@@ -42,7 +42,7 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 プトレマイオス	プトレマイオス	mature_male	zh-CN-YunyangNeural		-3%	0.95	100
 天草四郎	天草四郎	young_male	zh-CN-YunfanMultilingualNeural		+1%	1.05	100
 カイニス	カイニス	androgynous	zh-CN-XiaohanNeural	angry	-1%	1.06	100
-清姫	清姫	young_female	zh-CN-XiaoyiNeural	affectionate	+4%	0.99	100
+清姫	清姫|乙姫清姫	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural	affectionate	+4%	1.06	100
 ジャンヌ	ジャンヌ	young_female	zh-CN-XiaoxiaoMultilingualNeural	empathetic	+1%	0.96	100
 清少納言	清少納言|なぎこ	young_female	zh-CN-XiaoyanNeural		+5%	1.05	100
 スカサハ＝スカディ	スカサハ＝スカディ	mature_female	zh-CN-XiaohanNeural	calm	-2%	0.94	100
@@ -54,14 +54,14 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 オリオン	オリオン	mature_male	zh-CN-YunhaoNeural		-3%	0.96	100
 エリセ	エリセ	young_female	zh-CN-XiaohanNeural	serious	+1%	0.97	100
 シャルロット・コルデー	シャルロット・コルデー	young_female	zh-CN-XiaoxiaoMultilingualNeural	empathetic	+2%	1.04	100
-ペペロンチーノ	ペペロンチーノ	androgynous	zh-CN-YunxiNeural	chat	+1%	1.02	100
+ペペロンチーノ	ペペロンチーノ|ペペロン伯爵	androgynous	zh-CN-YunxiNeural	chat	+1%	1.06	100
 メイヴ	メイヴ	mature_female	zh-CN-XiaomoNeural	affectionate	+1%	0.96	100
 アストルフォ	アストルフォ	androgynous	zh-CN-XiaoyouMultilingualNeural	cheerful	+5%	1.04	100
 アスクレピオス	アスクレピオス	young_male	zh-CN-YunyangNeural		-1%	0.96	100
 クー・フーリン	クー・フーリン	mature_male	zh-CN-YunfengNeural	cheerful	-2%	1.00	100
 パーシヴァル	パーシヴァル	mature_male	zh-CN-YunyeNeural		-2%	1.03	100
 マーリン	マーリン	mature_male	zh-CN-YunyiMultilingualNeural		+1%	1.01	100
-虞美人	虞美人	young_female	zh-CN-XiaomoNeural		0%	1.04	100
+虞美人	虞美人|芥ヒナコ	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	calm	0%	1.05	100
 アナスタシア	アナスタシア	young_female	zh-CN-XiaochenMultilingualNeural		+1%	1.04	100
 ナポレオン	ナポレオン	mature_male	zh-CN-YunjianNeural	cheerful	-2%	1.02	100
 呼延灼	呼延灼	young_female	zh-CN-XiaohanNeural	embarrassed	+2%	1.00	100
@@ -71,10 +71,10 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 ガレス	ガレス	young_female	zh-CN-XiaoyouMultilingualNeural	cheerful	+4%	1.06	100
 イリヤ	イリヤ	child_female	zh-CN-XiaoshuangNeural	chat	+7%	0.99	100
 酒呑童子	酒呑童子	mature_female	zh-CN-XiaomoNeural	affectionate	+1%	0.93	100
-モレー	モレー	androgynous	zh-CN-XiaoyuMultilingualNeural		0%	1.04	100
-沖田総司	沖田総司	young_female	zh-CN-XiaoyiNeural	cheerful	+4%	1.04	100
+モレー	モレー|モレーちゃん	androgynous	zh-CN-Xiaoyu:DragonHDFlashLatestNeural	chat	+1%	1.06	100
+沖田総司	沖田総司|沖田	young_female	zh-CN-XiaoyiNeural	cheerful	+4%	1.06	100
 三蔵	三蔵	young_female	zh-CN-XiaoyiNeural	cheerful	+3%	1.06	100
-武則天	武則天	child_female	zh-CN-XiaoyouMultilingualNeural	angry	+5%	0.98	100
+武則天	武則天|ふーやーちゃん	child_female	zh-CN-Xiaoyou:DragonHDFlashLatestNeural	angry	+5%	1.06	100
 アキレウス	アキレウス	mature_male	zh-CN-YunjianNeural	cheerful	-1%	1.04	100
 ライネス	ライネス	young_female	zh-CN-XiaochenMultilingualNeural		+1%	0.96	100
 カルナ	カルナ	mature_male	zh-CN-YunjieNeural		-2%	0.94	100
@@ -85,37 +85,37 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 ゴッホ	ゴッホ	young_female	zh-CN-XiaoruiNeural	sad	+1%	0.94	100
 エレシュキガル	エレシュキガル	young_female	zh-CN-XiaoxiaoMultilingualNeural	empathetic	+2%	0.97	100
 アルジュナ	アルジュナ	mature_male	zh-CN-YunyangNeural		-2%	0.95	100
-巴御前	巴御前	mature_female	zh-CN-XiaozhenNeural	serious	+1%	0.97	100
+巴御前	巴御前|節分大将	mature_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	strict	+1%	1.05	100
 玉藻の前	玉藻の前	mature_female	zh-CN-XiaohanNeural	affectionate	+1%	0.98	100
 ムニエル	ムニエル	mature_male	zh-CN-YunxiNeural	chat	+1%	1.03	100
 バーソロミュー	バーソロミュー	mature_male	zh-CN-YunxiaoMultilingualNeural		0%	1.00	100
 シグルド	シグルド	mature_male	zh-CN-YunjieNeural		-3%	0.94	100
 徐福	徐福	young_female	zh-CN-XiaomengNeural	chat	+3%	1.02	100
-織田信長	織田信長	young_female	zh-CN-XiaozhenNeural	angry	+3%	1.03	100
-サリエリ	サリエリ	mature_male	zh-CN-YunjianNeural	serious	-3%	0.93	100
+織田信長	織田信長|信長|水着ノッブ|織田吉法師	young_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	angry	+2%	1.06	100
+サリエリ	サリエリ|アントニオ	mature_male	zh-CN-YunjianNeural	serious	-3%	1.03	100
 ヴラド三世	ヴラド三世	elder_male	zh-CN-YunzeNeural	serious	-5%	0.91	100
 ハベトロット	ハベトロット	child_female	zh-CN-XiaoyouMultilingualNeural	cute	+6%	1.03	100
 シェヘラザード	シェヘラザード	mature_female	zh-CN-XiaorouNeural		-1%	0.93	100
-マリー	マリー	young_female	zh-CN-XiaoxiaoMultilingualNeural	affectionate	+3%	1.05	100
+マリー	マリー|マリー・アントワネット	young_female	zh-CN-XiaoxiaoMultilingualNeural	affectionate	+3%	1.05	100
 宮本伊織	宮本伊織	young_male	zh-CN-YunyiMultilingualNeural		0%	0.97	100
 マルタ	マルタ	mature_female	zh-CN-XiaohanNeural	cheerful	+1%	0.98	100
 エルキドゥ	エルキドゥ	androgynous	zh-CN-XiaoyuMultilingualNeural		+1%	0.96	100
 高杉晋作	高杉晋作	young_male	zh-CN-YunxiaNeural	cheerful	+2%	1.07	100
-エレナ	エレナ	young_female	zh-CN-XiaomengNeural	chat	+2%	1.06	100
+エレナ	エレナ|ブラヴァツキー	young_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural	chat	+3%	1.07	100
 テペウ	テペウ	mature_male	zh-CN-YunyangNeural		-4%	0.93	100
 クリームヒルト	クリームヒルト	mature_female	zh-CN-XiaoruiNeural	sad	-3%	0.93	100
 伊吹童子	伊吹童子	mature_female	zh-CN-XiaomoNeural		-1%	0.96	100
 ヨハンナ	ヨハンナ	young_female	zh-CN-XiaohanNeural	gentle	+1%	1.04	100
-オデュッセウス	オデュッセウス	mature_male	zh-CN-YunfengNeural		-2%	0.96	100
+オデュッセウス	オデュッセウス|サバージオス	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	calm	-3%	1.05	100
 鈴鹿御前	鈴鹿御前	young_female	zh-CN-XiaoyiNeural	cheerful	+4%	1.04	100
 アンデルセン	アンデルセン	child_male	zh-CN-YunxiaNeural		+5%	0.98	100
 長尾景虎	長尾景虎	young_female	zh-CN-XiaozhenNeural	cheerful	+2%	1.03	100
 Ｘ・オルタ	Ｘ・オルタ	young_female	zh-CN-XiaoshuangMultilingualNeural		+2%	0.96	100
 ガネーシャ	ガネーシャ	young_female	zh-CN-XiaomengNeural	chat	+1%	0.98	100
 フェルグス	フェルグス	mature_male	zh-CN-YunyeNeural	cheerful	-3%	1.02	100
-坂本龍馬	坂本龍馬	young_male	zh-CN-YunxiaoMultilingualNeural		+1%	1.05	100
+坂本龍馬	坂本龍馬|龍馬	young_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	chat	+1%	1.06	100
 Ｓイシュタル	Ｓイシュタル	young_female	zh-CN-XiaoyuMultilingualNeural		+3%	1.03	100
-サンソン	サンソン	young_male	zh-CN-YunfanMultilingualNeural		-1%	0.95	100
+サンソン	サンソン|クロード	mature_male	zh-CN-YunzeNeural	sad	-2%	1.04	100
 ナイチンゲール	ナイチンゲール	mature_female	zh-CN-XiaozhenNeural	serious	-1%	0.96	100
 燕青	燕青|新宿のアサシン	young_male	zh-CN-YunxiNeural		+1%	1.04	100
 岸波白野	岸波白野	androgynous	zh-CN-XiaoyuMultilingualNeural		0%	0.98	100
@@ -140,16 +140,16 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 沖田オルタ	沖田オルタ	young_female	zh-CN-XiaoruiNeural	calm	+1%	0.96	100
 オジマンディアス	オジマンディアス	mature_male	zh-CN-YunjianNeural	serious	-3%	0.96	100
 ビリー	ビリー	young_male	zh-CN-YunxiaoMultilingualNeural		+2%	1.04	100
-クレオパトラ	クレオパトラ	mature_female	zh-CN-XiaomoNeural	affectionate	-1%	1.03	100
+クレオパトラ	クレオパトラ|コスモティック・ビューティ夫人	mature_female	zh-CN-XiaomoNeural	affectionate	-1%	1.03	100
 ベディヴィエール	ベディヴィエール|ベディヴィエール？	young_male	zh-CN-YunyiMultilingualNeural		+1%	0.96	100
 ドレイク	ドレイク|ドレイク？	mature_female	zh-CN-XiaoyanNeural		-1%	1.00	100
-バーゲスト	バーゲスト	mature_female	zh-CN-XiaozhenNeural		-3%	0.93	100
+バーゲスト	バーゲスト|妖精騎士ガウェイン	mature_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	strict	-3%	1.04	100
 哪吒	哪吒	young_female	zh-CN-XiaoyuMultilingualNeural		+2%	1.00	100
 シェイクスピア	シェイクスピア	mature_male	zh-CN-YunjianNeural	cheerful	-1%	1.05	100
 アストライア	アストライア|神霊アストライア	mature_female	zh-CN-XiaoxiaoMultilingualNeural		+1%	0.98	100
 アタランテ・オルタ	アタランテ・オルタ	mature_female	zh-CN-XiaoruiNeural		-3%	0.94	100
 シャルルマーニュ	シャルルマーニュ	young_male	zh-CN-YunfanMultilingualNeural		+2%	1.04	100
-Ｕ－オルガマリー	Ｕ－オルガマリー|Ｕ－オルガマリー？|大統領	young_female	zh-CN-XiaozhenNeural		-2%	0.94	100
+Ｕ－オルガマリー	Ｕ－オルガマリー|Ｕ－オルガマリー？|大統領|ミカ	young_female	zh-CN-XiaozhenNeural		-1%	1.03	100
 ジーク	ジーク	young_male	zh-CN-YunxiNeural		+1%	0.97	100
 ガウェイン	ガウェイン|ガウェイン？	mature_male	zh-CN-YunhaoNeural		-1%	0.96	100
 タマモキャット	タマモキャット	young_female	zh-CN-XiaomengNeural		+5%	1.05	100
@@ -165,34 +165,34 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 楊貴妃	楊貴妃|楊貴妃？	mature_female	zh-CN-XiaohanNeural		+1%	0.95	100
 岡田以蔵	岡田以蔵|岡田以蔵？	mature_male	zh-CN-YunfengNeural		-2%	1.02	100
 アルトリア・オルタ	アルトリア・オルタ	mature_female	zh-CN-XiaoruiNeural		-3%	1.02	100
-デオン	デオン|デオン？	androgynous	zh-CN-YunxiaNeural		+1%	0.98	100
+デオン	デオン|デオン？|レオン	androgynous	zh-CN-YunxiaNeural		+1%	0.98	100
 柳生但馬守	柳生但馬守	elder_male	zh-CN-YunyangNeural		-6%	0.90	100
 アルトリア・キャスター	アルトリア・キャスター	young_female	zh-CN-XiaochenMultilingualNeural		+2%	1.06	100
 鬼一法眼	鬼一法眼	mature_female	zh-CN-XiaochenNeural		+1%	0.98	100
 カエサル	カエサル|カエサル？	mature_male	zh-CN-YunjianNeural		-3%	0.92	100
 おみぃさん	おみぃさん|蛇女房	mature_female	zh-CN-XiaorouNeural		0%	0.94	100
-カズラドロップ	カズラドロップ	child_female	zh-CN-XiaoyouMultilingualNeural		+4%	0.99	100
+カズラドロップ	カズラドロップ|ムリアン|ＢＢリリィ	young_female	zh-CN-XiaomengNeural	chat	+5%	1.07	100
 ボイジャー	ボイジャー	child_male	zh-CN-YunxiaNeural		+5%	1.02	100
 ケツァル・コアトル	ケツァル・コアトル	mature_female	zh-CN-XiaomengNeural		+2%	1.04	100
 ＢＢコスモ	ＢＢコスモ	young_female	zh-CN-XiaochenMultilingualNeural		+2%	1.02	100
 セミラミス	セミラミス|セミラミス？|セミラミス？？	mature_female	zh-CN-XiaoruiNeural		-3%	0.92	100
-テスカトリポカ	テスカトリポカ	mature_male	zh-CN-YunjieNeural		-3%	0.94	100
+テスカトリポカ	テスカトリポカ|恐竜王	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	chat	-2%	1.06	100
 マタ・ハリ	マタ・ハリ|マタ・ハリ？	mature_female	zh-CN-XiaomoNeural		0%	0.96	100
 ラクシュミー	ラクシュミー	mature_female	zh-CN-XiaoqiuNeural		0%	0.94	100
 ジャンヌ・オルタ・サンタ・リリィ	ジャンヌ・オルタ・サンタ・リリィ	child_female	zh-CN-XiaoyouNeural		+5%	1.02	100
 張角	張角	elder_male	zh-CN-YunzeNeural		-5%	0.91	100
 ジャガーマン	ジャガーマン	young_female	zh-CN-XiaoyiNeural		+3%	1.06	100
-カレン	カレン|カレン？	young_female	zh-CN-XiaochenMultilingualNeural		0%	0.97	100
+カレン	カレン|カレン？|アムール	young_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural		+1%	1.06	100
 アルテラサンタ	アルテラサンタ	young_female	zh-CN-XiaohanNeural		+1%	0.98	100
 サンチョ	サンチョ	mature_female	zh-CN-XiaorouNeural		0%	0.95	100
 スーパーバニヤン	スーパーバニヤン	young_female	zh-CN-XiaomengNeural		+3%	1.04	100
 アシュヴァッターマン	アシュヴァッターマン	mature_male	zh-CN-YunfengNeural		-1%	1.06	100
 アヴィケブロン	アヴィケブロン	mature_male	zh-CN-YunyeNeural		-4%	0.92	100
 カーミラ	カーミラ|カーミラ？	mature_female	zh-CN-XiaoruiNeural		-4%	0.91	100
-ミス・クレーン	ミス・クレーン	mature_female	zh-CN-XiaoqiuNeural		+1%	1.00	100
+ミス・クレーン	ミス・クレーン|ミス・ブーツライン	mature_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural	cheerful	+2%	1.07	100
 ベリル	ベリル	mature_male	zh-CN-YunjieNeural		-2%	0.96	100
 エミヤ・オルタ	エミヤ・オルタ|エミヤ・オルタ？	mature_male	zh-CN-YunhaoNeural		-5%	0.92	100
-リリス	リリス	young_female	zh-CN-XiaoxiaoNeural		-2%	0.94	100
+リリス	リリス|アイリーン	young_female	zh-CN-Xiaoke:DragonHDFlashLatestNeural	curious	-2%	1.05	100
 パツシィ	パツシィ	young_male	zh-CN-YunxiNeural		-1%	0.96	100
 レディ・アヴァロン	レディ・アヴァロン	mature_female	zh-CN-XiaohanNeural		+1%	0.94	100
 徴側	徴側	mature_female	zh-CN-XiaoyanNeural		0%	0.96	100
@@ -203,7 +203,7 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 新宿のアーチャー	新宿のアーチャー	elder_male	zh-CN-YunzeNeural		-6%	0.93	100
 織田信勝	織田信勝|織田信勝？	young_male	zh-CN-YunxiaoMultilingualNeural		+3%	1.03	100
 始皇帝	始皇帝	androgynous	zh-CN-YunyiMultilingualNeural		-1%	0.92	100
-ノクナレア	ノクナレア	young_female	zh-CN-XiaochenNeural		+2%	1.01	100
+ノクナレア	ノクナレア|ヤラアーンドゥ	young_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural	cheerful	+3%	1.07	100
 蒼崎青子	蒼崎青子	young_female	zh-CN-XiaoyuMultilingualNeural		+2%	1.04	100
 ディルムッド	ディルムッド	mature_male	zh-CN-YunyeNeural		-1%	0.97	100
 ドラコー	ドラコー|ドラコー？	child_female	zh-CN-XiaoshuangNeural		+4%	0.94	100
@@ -212,7 +212,7 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 ビーマ	ビーマ	mature_male	zh-CN-YunfengNeural		-1%	1.04	100
 ベオウルフ	ベオウルフ	mature_male	zh-CN-YunjieNeural		-2%	1.02	100
 ニコラ・テスラ	ニコラ・テスラ|ニコラ・テスラ？	mature_male	zh-CN-YunyangNeural		0%	1.02	100
-モルガン	モルガン	young_female	zh-CN-XiaoyanNeural		-2%	0.94	100
+モルガン	モルガン|水妃モルガン	mature_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	calm	-1%	1.05	100
 ラムダ	ラムダ	young_female	zh-CN-XiaoxiaoMultilingualNeural		0%	0.97	100
 アルテミス	アルテミス	young_female	zh-CN-XiaomengNeural		+2%	1.04	100
 ランスロット	ランスロット|ランスロット？	mature_male	zh-CN-YunhaoNeural		-2%	0.96	100
@@ -226,13 +226,13 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 春日局	春日局	mature_female	zh-CN-XiaorouNeural		-1%	0.94	100
 オフェリア	オフェリア	young_female	zh-CN-XiaoxiaoNeural		-1%	0.95	100
 蘭陵王	蘭陵王|蘭陵王（沈痛）	androgynous	zh-CN-YunyiMultilingualNeural		0%	0.97	100
-バーヴァン・シー	バーヴァン・シー	young_female	zh-CN-XiaochenMultilingualNeural		+1%	0.99	100
+バーヴァン・シー	バーヴァン・シー|妖精騎士トリスタン	young_female	zh-CN-Xiaoke:DragonHDFlashLatestNeural	angry	+2%	1.07	100
 アンドロメダ	アンドロメダ	young_female	zh-CN-XiaoyuMultilingualNeural		+2%	1.04	100
 パラケルスス	パラケルスス|パラケルスス？	mature_male	zh-CN-YunyeNeural		-3%	0.93	100
-バゼット	バゼット	mature_female	zh-CN-XiaoyanNeural		-1%	0.98	100
+バゼット	バゼット|マナナン	mature_female	zh-CN-XiaoyanNeural		-1%	1.05	100
 呪腕のハサン	呪腕のハサン|呪腕のハサン（？）|呪腕のハサン？	mature_male	zh-CN-YunjianNeural		-5%	0.90	100
 武田晴信	武田晴信	mature_male	zh-CN-YunfengNeural		0%	1.03	100
-土方歳三	土方歳三	mature_male	zh-CN-YunjieNeural		-3%	0.96	100
+土方歳三	土方歳三|土方	mature_male	zh-CN-YunjieNeural	angry	-3%	1.06	100
 ククルカン	ククルカン	young_female	zh-CN-XiaochenNeural		+2%	1.03	100
 ネモ・マリーン	ネモ・マリーン	child_male	zh-CN-YunxiaNeural		+4%	1.05	100
 巌窟王	巌窟王	mature_male	zh-CN-YunhaoNeural		-5%	0.91	100
@@ -245,10 +245,10 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 ジキル	ジキル	mature_male	zh-CN-YunfanMultilingualNeural		-1%	0.96	100
 ジュネス	ジュネス	young_female	zh-CN-XiaoyouMultilingualNeural		+3%	1.04	100
 ワンジナ	ワンジナ|ワンジナ？	child_female	zh-CN-XiaoyouNeural		+5%	1.05	100
-エウリュアレ	エウリュアレ	young_female	zh-CN-XiaoyiNeural		+2%	1.02	100
+エウリュアレ	エウリュアレ|ジュリエット	young_female	zh-CN-XiaoyiNeural		+2%	1.02	100
 ヒッポリュテ	ヒッポリュテ	young_female	zh-CN-XiaoyanNeural		-1%	0.97	100
 ＢＢドバイ	ＢＢドバイ	young_female	zh-CN-XiaochenMultilingualNeural		+1%	1.01	100
-アマデウス	アマデウス|アマデウス？	mature_male	zh-CN-YunyeNeural		-1%	0.98	100
+アマデウス	アマデウス|アマデウス？|天塚先輩	mature_male	zh-CN-YunyeNeural		-1%	0.98	100
 メフィストフェレス	メフィストフェレス|メフィスト|メフィストフェレス（敵）|メフィストフェレス（？）	mature_male	zh-CN-YunjieNeural		+1%	1.06	100
 アス	アス|アスカラポス	young_male	zh-CN-YunxiaoMultilingualNeural		+2%	1.04	100
 エレシュキガル・オルタ	エレシュキガル・オルタ	young_female	zh-CN-XiaoxiaoMultilingualNeural		0%	0.95	100
@@ -257,7 +257,7 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 ガラテア	ガラテア	mature_female	zh-CN-XiaoxiaoNeural		-1%	0.94	100
 コンスタンティノス	コンスタンティノス	mature_male	zh-CN-YunhaoNeural		-2%	0.94	100
 ドン・キホーテ	ドン・キホーテ	elder_male	zh-CN-YunzeNeural		-6%	0.91	100
-蘆屋道満	蘆屋道満	androgynous	zh-CN-YunyiMultilingualNeural		-3%	0.96	100
+蘆屋道満	蘆屋道満|ＤＯＭＡＮ|黄幡神・蘆屋道満	androgynous	zh-CN-Yunyi:DragonHDFlashLatestNeural	poet	-3%	1.06	100
 子ギル	子ギル	child_male	zh-CN-YunxiNeural		+3%	1.03	100
 バベッジ	バベッジ	mechanical	zh-CN-YunzeNeural		-5%	0.90	100
 インドラ	インドラ	mature_male	zh-CN-YunyangNeural		-2%	0.98	100
@@ -282,7 +282,7 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 サンタマルタ	サンタマルタ	young_female	zh-CN-XiaohanNeural		+3%	1.03	100
 フラン	フラン|フランケンシュタイン	young_female	zh-CN-XiaoshuangMultilingualNeural		+1%	0.92	100
 スルーズ	スルーズ|スルーズ（しっかりもの）	young_female	zh-CN-XiaoxiaoNeural		0%	0.96	100
-アルジュナ・オルタ	アルジュナ・オルタ	mature_male	zh-CN-YunyangNeural		-5%	0.90	100
+アルジュナ・オルタ	アルジュナ・オルタ|神たるアルジュナ	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	calm	-4%	1.04	100
 ゲオルギウス	ゲオルギウス	mature_male	zh-CN-YunhaoNeural		-2%	0.94	100
 ラニ＝ⅩⅡ	ラニ＝ⅩⅡ	mature_female	zh-CN-XiaomoNeural		-1%	0.96	100
 アン	アン	mature_female	zh-CN-XiaoyanNeural		0%	1.02	100
@@ -296,7 +296,7 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 アタランテ	アタランテ	mature_female	zh-CN-XiaoruiNeural		-1%	0.96	100
 サロメ	サロメ	young_female	zh-CN-XiaomengNeural		+1%	0.95	100
 静謐のハサン	静謐のハサン	young_female	zh-CN-XiaorouNeural		-1%	0.92	100
-望月千代女	望月千代女|千代女	young_female	zh-CN-XiaoxiaoMultilingualNeural		0%	0.95	100
+望月千代女	望月千代女|千代女|アサシン・パライソ	young_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	strict	0%	1.05	100
 河上彦斎	河上彦斎	young_female	zh-CN-XiaomoNeural		-2%	0.94	100
 アデーレ	アデーレ	young_female	zh-CN-XiaoyouMultilingualNeural		+2%	1.02	100
 両儀式	両儀式	young_female	zh-CN-XiaoqiuNeural		-2%	0.95	100
@@ -308,7 +308,7 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 平景清	平景清|平景清？	androgynous	zh-CN-XiaomoNeural		-4%	0.92	100
 百貌のハサン	百貌のハサン	androgynous	zh-CN-XiaoyuMultilingualNeural		-1%	0.96	100
 ペンテシレイア	ペンテシレイア	young_female	zh-CN-XiaozhenNeural		0%	1.04	100
-ヒロインＸＸ	ヒロインＸＸ	young_female	zh-CN-XiaoxiaoNeural		+1%	1.03	100
+ヒロインＸＸ	ヒロインＸＸ|ＸＸ・オルタ	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural	curious	+2%	1.06	100
 言峰綺礼	言峰綺礼|神父|言峰神父	mature_male	zh-CN-YunzeNeural		-5%	0.91	100
 久遠寺有珠	久遠寺有珠	young_female	zh-CN-XiaoxiaoMultilingualNeural		-1%	0.93	100
 蘭丸Ｘ	蘭丸Ｘ	androgynous	zh-CN-XiaoshuangNeural		+3%	1.04	100
@@ -327,10 +327,163 @@ Dr.ロマン	Dr.ロマン	young_male	zh-CN-YunxiNeural	chat	+1%	1.00	100
 ゴルゴーン	ゴルゴーン	monster	zh-CN-XiaoruiNeural		-7%	0.88	100
 伊東甲子太郎	伊東甲子太郎	mature_male	zh-CN-YunyeNeural		-1%	0.96	100
 賢人グリム	賢人グリム	mature_male	zh-CN-YunfengNeural		-2%	0.98	100
-近藤勇	近藤勇	mature_male	zh-CN-YunjianNeural		-3%	0.94	100
+近藤勇	近藤勇|黒の剣士	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	strict	-2%	1.05	100
 デイビット	デイビット	young_male	zh-CN-YunyiMultilingualNeural		-1%	0.93	100
 メカエリチャンⅡ号機	メカエリチャンⅡ号機|Ⅱ号機	mechanical	zh-CN-XiaoxiaoNeural		-3%	0.90	100
 俵藤太	俵藤太	mature_male	zh-CN-YunyangNeural		-1%	1.03	100
 テル	テル	mature_male	zh-CN-YunjieNeural		-3%	1.03	100
 秦良玉	秦良玉	mature_female	zh-CN-XiaozhenNeural		-1%	0.96	100
 オキタ・Ｊ・ソウジ	オキタ・Ｊ・ソウジ	young_female	zh-CN-XiaoyiNeural		+5%	1.06	100
+ジル	ジル	mature_male	zh-CN-YunzeNeural	sad	-4%	1.02	100
+ローラン	ローラン	mature_male	zh-CN-YunfengNeural	cheerful	-1%	1.06	100
+藤堂平助	藤堂平助	young_male	zh-CN-YunxiaNeural	cheerful	+2%	1.07	100
+エウロペ	エウロペ	mature_female	zh-CN-XiaoxiaoNeural	gentle	-1%	1.02	100
+小野小町	小野小町	mature_female	zh-CN-XiaoxiaoMultilingualNeural	empathetic	+1%	1.04	100
+美遊	美遊	child_female	zh-CN-XiaoshuangMultilingualNeural	chat	+5%	1.06	100
+ハサン	ハサン	unknown	zh-CN-YunzeNeural		-3%	1.04	100
+ゼウス	ゼウス	mechanical	zh-CN-YunyangNeural		-5%	1.00	100
+キングプロテア	キングプロテア	child_female	zh-CN-XiaoyouMultilingualNeural	cute	+5%	1.05	100
+テノチティトラン	テノチティトラン	young_female	zh-CN-XiaochenMultilingualNeural		+1%	1.05	100
+アヴェンジャー	アヴェンジャー	npc	zh-CN-YunfengNeural		-2%	1.05	100
+原田左之助	原田左之助	mature_male	zh-CN-YunyeNeural	cheerful	-2%	1.06	100
+お竜さん	お竜さん	mature_female	zh-CN-XiaomoNeural	cheerful	+1%	1.06	100
+妖精騎士ランスロット	妖精騎士ランスロット|メリュジーヌ	young_female	zh-CN-XiaoruiNeural		-1%	1.04	100
+マリー・オルタ	マリー・オルタ	mature_female	zh-CN-XiaomoNeural	sad	-2%	1.03	100
+ナイチンゲール・サンタ	ナイチンゲール・サンタ	mature_female	zh-CN-XiaozhenNeural	cheerful	0%	1.06	100
+静希草十郎	静希草十郎	young_male	zh-CN-YunxiaoMultilingualNeural		+1%	1.04	100
+オルトリンデ	オルトリンデ	young_female	zh-CN-XiaochenMultilingualNeural		+1%	1.04	100
+アレキサンダー	アレキサンダー	young_male	zh-CN-Yunxia:DragonHDFlashLatestNeural	prince	+2%	1.04	100
+イヴァン雷帝	イヴァン雷帝	elder_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	strict	-6%	1.00	100
+フィン・マックール	フィン・マックール|フィン	mature_male	zh-CN-YunyiMultilingualNeural	chat	-1%	1.05	100
+カリギュラ	カリギュラ	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	angry	-5%	1.02	100
+レオニダス	レオニダス	mature_male	zh-CN-YunjianNeural	cheerful	-3%	1.07	100
+トネリコ	トネリコ	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	gentle	+2%	1.05	100
+巌窟王モンテ・クリスト	巌窟王モンテ・クリスト	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	serious	-4%	1.03	100
+ドゥムジ	ドゥムジ	young_male	zh-CN-Yunxi:DragonHDFlashLatestNeural	curious	+1%	1.06	100
+アステリオス	アステリオス	child_male	zh-CN-YunxiaNeural	gentle	+2%	1.05	100
+バニヤン	バニヤン	child_female	zh-CN-Xiaoyou:DragonHDFlashLatestNeural	cute	+4%	1.07	100
+カリオストロ	カリオストロ	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	debating	-3%	1.04	100
+項羽	項羽	mechanical	zh-CN-YunyangNeural		-6%	1.03	100
+イスカリ	イスカリ	young_male	zh-CN-YunfanMultilingualNeural	angry	0%	1.06	100
+丑御前	丑御前	mature_female	zh-CN-XiaoruiNeural	angry	-2%	1.05	100
+赤兎	赤兎|レッドラ・ビット	mature_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	cheerful	-1%	1.08	100
+ゲルダ	ゲルダ	child_female	zh-CN-Xiaoshuang:DragonHDFlashLatestNeural	gentle	+4%	1.06	100
+ステンノ	ステンノ	young_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural	affectionate	+3%	1.05	100
+男	男	generic_male	zh-CN-YunfengNeural		-1%	1.07	100
+ヒルド	ヒルド|ヒルド（はたらきもの）	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural	cheerful	+3%	1.07	100
+シエル	シエル|謎の代行者C.I.E.L|スターシエル|シエル先生|蒼く輝くシエル	young_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural	strict	+1%	1.06	100
+ハサラ	ハサラ	young_male	zh-CN-YunfanMultilingualNeural	chat	0%	1.06	100
+佐々木小次郎	佐々木小次郎|小次郎	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	chat	-2%	1.04	100
+ウッドワス	ウッドワス	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	strict	-4%	1.03	100
+アポロン	アポロン|ユニヴァース・アポロン	young_male	zh-CN-Yunxia:DragonHDFlashLatestNeural	cheerful	+3%	1.07	100
+カマソッソ	カマソッソ	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	angry	-4%	1.04	100
+お路	お路|お路？|馬琴あらためお路	young_female	zh-CN-Xiaoxiao:DragonHDFlashLatestNeural	gentle	+2%	1.06	100
+ヘファイスティオン	ヘファイスティオン|フェイカー	mature_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	strict	-1%	1.05	100
+アニング	アニング|アニング？	young_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	chat	+3%	1.07	100
+二人	二人	unknown	zh-CN-YunfanMultilingualNeural		0%	1.06	100
+キャスター	キャスター	unknown	zh-CN-YunfanMultilingualNeural		0%	1.06	100
+勝海舟	勝海舟	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	chat	-2%	1.05	100
+紅玉の書	紅玉の書	mechanical	zh-CN-Yunxia:DragonHDFlashLatestNeural	curious	+2%	1.07	100
+テセウス	テセウス	mature_male	zh-CN-YunfanMultilingualNeural	chat	0%	1.06	100
+ボガード	ボガード	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	strict	-4%	1.04	100
+アイリスフィール	アイリスフィール	mature_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	gentle	0%	1.04	100
+ウルズ	ウルズ|ときこ	young_female	zh-CN-Xiaoxiao:DragonHDFlashLatestNeural	gentle	+1%	1.06	100
+セレシェイラ	セレシェイラ|エルロン	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	calm	+1%	1.05	100
+蛇竜人	蛇竜人	monster	zh-CN-Yunxia:DragonHDFlashLatestNeural	curious	0%	1.07	100
+桂木千鍵	桂木千鍵	young_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	chat	+3%	1.07	100
+キングプロテア・オルタ	キングプロテア・オルタ	child_female	zh-CN-Xiaoshuang:DragonHDFlashLatestNeural	angry	+4%	1.06	100
+ドゥルガー	ドゥルガー	mature_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	strict	0%	1.05	100
+マリスビリー	マリスビリー	mature_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	debating	-2%	1.04	100
+芹沢鴨	芹沢鴨	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	angry	-4%	1.06	100
+サクラ	サクラ	young_female	zh-CN-Xiaoke:DragonHDFlashLatestNeural	gentle	+2%	1.06	100
+アナ	アナ	child_female	zh-CN-Xiaoyou:DragonHDFlashLatestNeural	gentle	+5%	1.06	100
+オーロラ	オーロラ	mature_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural	gentle	+1%	1.05	100
+石田三成	石田三成	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	debating	-2%	1.05	100
+ディオスクロイ・ポルクス	ディオスクロイ・ポルクス	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	gentle	+1%	1.06	100
+木乃美芳助	木乃美芳助|隈乃院ヨシスケ	mature_male	zh-CN-Yunxi:DragonHDFlashLatestNeural	cheerful	-1%	1.07	100
+シラノ	シラノ	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	poet	0%	1.05	100
+雑賀孫一	雑賀孫一|蛍	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural	cheerful	+4%	1.07	100
+エジソン・オルタ	エジソン・オルタ	mature_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	debating	-2%	1.05	100
+松永弾正	松永弾正	young_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	angry	+1%	1.07	100
+飛竜	飛竜	monster	zh-CN-Yunhan:DragonHDFlashLatestNeural	angry	-2%	1.07	100
+魔王信長	魔王信長	androgynous	zh-CN-Xiaohan:DragonHDFlashLatestNeural	angry	-1%	1.06	100
+カーター	カーター	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	chat	-1%	1.04	100
+スプリガン	スプリガン	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	debating	-3%	1.04	100
+ジョン	ジョン|黒獅子	young_male	zh-CN-Yunxi:DragonHDFlashLatestNeural	debating	+1%	1.06	100
+ザッハーク	ザッハーク	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	angry	-5%	1.05	100
+アショカ王	アショカ王	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	gentle	-2%	1.04	100
+クリストファー君	クリストファー君	child_male	zh-CN-Yunxia:DragonHDFlashLatestNeural	cheerful	+4%	1.08	100
+ファントム	ファントム	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	poet	-4%	1.04	100
+藤乃	藤乃	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	gentle	+1%	1.05	100
+ラヴィニア	ラヴィニア	child_female	zh-CN-Xiaoshuang:DragonHDFlashLatestNeural	shy	+5%	1.05	100
+マキリ	マキリ	young_male	zh-CN-Yunxi:DragonHDFlashLatestNeural	debating	+1%	1.06	100
+全員	全員	multi_speaker	zh-CN-YunfanMultilingualNeural		0%	1.07	100
+アナウンス	アナウンス	mechanical	zh-CN-XiaozhenNeural	serious	0%	1.02	100
+デュマ	デュマ	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	poet	-1%	1.06	100
+館長	館長	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	chat	-1%	1.05	100
+セイバー	セイバー|クラス・セイバー	common_npc	zh-CN-Yunxiao:DragonHDFlashLatestNeural	strict	0%	1.06	100
+陳宮	陳宮	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	debating	-2%	1.05	100
+ホプキンス	ホプキンス	elder_male	zh-CN-Yunye:DragonHDFlashLatestNeural	strict	-5%	1.03	100
+おぬい	おぬい	child_female	zh-CN-Xiaoyou:DragonHDFlashLatestNeural	cheerful	+6%	1.07	100
+バーサーカー・衆合地獄	バーサーカー・衆合地獄	mature_female	zh-CN-Xiaoyu:DragonHDFlashLatestNeural	angry	0%	1.06	100
+イプシロン	イプシロン	young_female	zh-CN-Xiaoke:DragonHDFlashLatestNeural	cheerful	+4%	1.08	100
+ブリトマート	ブリトマート	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	strict	+1%	1.06	100
+フレッカス	フレッカス	monster	zh-CN-Yunxia:DragonHDFlashLatestNeural	chat	+2%	1.08	100
+レフ	レフ|ライノール	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	debating	-2%	1.06	100
+マリス	マリス	mechanical	zh-CN-XiaozhenNeural	serious	0%	1.03	100
+アンソニー	アンソニー	young_male	zh-CN-Yunxi:DragonHDFlashLatestNeural	chat	0%	1.07	100
+ジル・ド・レェ	ジル・ド・レェ	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	angry	-4%	1.05	100
+ニトクリス・オルタ	ニトクリス・オルタ	mature_female	zh-CN-Xiaoyu:DragonHDFlashLatestNeural	strict	-1%	1.05	100
+アグラヴェイン	アグラヴェイン	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	strict	-3%	1.04	100
+トラロック	トラロック	young_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural	strict	+1%	1.06	100
+上杉謙信	上杉謙信	young_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	strict	+1%	1.06	100
+以蔵	以蔵	mature_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	chat	-1%	1.06	100
+足軽ノッブ	足軽ノッブ	young_female	zh-CN-Xiaoke:DragonHDFlashLatestNeural	cheerful	+3%	1.07	100
+邪竜	邪竜	monster	zh-CN-Yunhan:DragonHDFlashLatestNeural	angry	-5%	1.04	100
+クラス・アサシン	クラス・アサシン	common_npc	zh-CN-Yunxia:DragonHDFlashLatestNeural	calm	+1%	1.06	100
+イシュキック	イシュキック	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	gentle	0%	1.05	100
+キングゥ	キングゥ	androgynous	zh-CN-Yunxia:DragonHDFlashLatestNeural	calm	+1%	1.06	100
+声	声	common_npc	zh-CN-XiaochenNeural		0%	1.05	100
+服部武雄	服部武雄	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	strict	-3%	1.05	100
+アーシャ	アーシャ	child_female	zh-CN-Xiaoyou:DragonHDFlashLatestNeural	gentle	+5%	1.06	100
+エフェメロス	エフェメロス	young_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	strict	+1%	1.06	100
+リンド	リンド	young_female	zh-CN-Xiaoke:DragonHDFlashLatestNeural	cheerful	+3%	1.07	100
+日比乃ひびき	日比乃ひびき	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural	cheerful	+4%	1.08	100
+クラス・ライダー	クラス・ライダー	common_npc	zh-CN-Yunxiao:DragonHDFlashLatestNeural	cheerful	0%	1.07	100
+ファンタズムーン	ファンタズムーン|アーキタイプ：アース	young_female	zh-CN-Xiaochen:DragonHDFlashLatestNeural	cheerful	+3%	1.08	100
+ロムルス	ロムルス|ロムルス・クィリヌス|ローマ	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	poet	-3%	1.04	100
+獅子王	獅子王|アルトリア・ルーラー	mature_female	zh-CN-Xiaohan:DragonHDFlashLatestNeural	strict	-1%	1.04	100
+駒姫	駒姫	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural	gentle	+2%	1.05	100
+暗黒武者ＭＵＮＥＮＯＲＩ	暗黒武者ＭＵＮＥＮＯＲＩ	elder_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	strict	-5%	1.04	100
+ネモ・エンジン	ネモ・エンジン	young_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	cheerful	+1%	1.08	100
+わらし	わらし	child_male	zh-CN-Yunxia:DragonHDFlashLatestNeural	cheerful	+4%	1.07	100
+アズライール	アズライール	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	calm	-4%	1.04	100
+太歳星君	太歳星君	child_male	zh-CN-Yunxia:DragonHDFlashLatestNeural	cheerful	+5%	1.07	100
+海幸彦	海幸彦	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	calm	-2%	1.05	100
+クコチヒコ	クコチヒコ	monster	zh-CN-Yunyi:DragonHDFlashLatestNeural	angry	-3%	1.04	100
+吉田松陰	吉田松陰|吉田総帥	mature_male	zh-CN-Yunyi:DragonHDFlashLatestNeural	debating	-1%	1.06	100
+伍	伍	mature_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	chat	-1%	1.06	100
+武市瑞山	武市瑞山	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	strict	-2%	1.05	100
+アフロディーテ	アフロディーテ	mature_female	zh-CN-Xiaoyu:DragonHDFlashLatestNeural	affectionate	0%	1.05	100
+偽ゲオルギウス	偽ゲオルギウス	mature_male	zh-CN-Yunye:DragonHDFlashLatestNeural	strict	-2%	1.05	100
+アトランティス防衛兵	アトランティス防衛兵	generic_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	strict	-1%	1.06	100
+キレーちゃん	キレーちゃん	mechanical	zh-CN-YunzeNeural		-5%	1.03	100
+ノア	ノア	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	calm	0%	1.05	100
+フランチェスカ	フランチェスカ|フランチェスカ・プレラーティ	young_female	zh-CN-Xiaoke:DragonHDFlashLatestNeural	cheerful	+3%	1.08	100
+少女	少女	young_female	zh-CN-Xiaoyi:DragonHDFlashLatestNeural	gentle	+3%	1.06	100
+ランサー	ランサー	generic_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	strict	-1%	1.06	100
+海賊	海賊	generic_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural	cheerful	-1%	1.07	100
+ヤガ叛逆軍	ヤガ叛逆軍	generic_male	zh-CN-Yunhan:DragonHDFlashLatestNeural	angry	-2%	1.05	100
+名無しの亀	名無しの亀	elder_male	zh-CN-Yunye:DragonHDFlashLatestNeural	calm	-5%	1.03	100
+少年	少年	child_male	zh-CN-Yunxia:DragonHDFlashLatestNeural	cheerful	+4%	1.07	100
+ムネーモシュネー	ムネーモシュネー	mechanical	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural		0%	1.04	100
+源為朝	源為朝	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural		-3%	1.04	100
+アーチャー	アーチャー	generic_male	zh-CN-Yunxiao:DragonHDFlashLatestNeural		-1%	1.06	100
+松平信綱	松平信綱	mature_male	zh-CN-Yunhan:DragonHDFlashLatestNeural		-1%	1.04	100
+ゲーティア	ゲーティア	mature_male	zh-CN-YunzeNeural		-5%	1.02	100
+阿曇磯良	阿曇磯良	androgynous	zh-CN-Xiaochen:DragonHDFlashLatestNeural		+2%	1.07	100
+神官ヴクブ	神官ヴクブ	mature_male	zh-CN-YunfengNeural		-3%	1.04	100
+魔術師	魔術師	generic_male	zh-CN-Yunhan:DragonHDFlashLatestNeural		-1%	1.05	100
+アッド	アッド	mechanical	zh-CN-Yunxi:DragonHDFlashLatestNeural		0%	1.08	100
+アンキ・エレシュキガル	アンキ・エレシュキガル	young_female	zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural		+1%	1.05	100
+フラット	フラット	young_male	zh-CN-Yunxi:DragonHDFlashLatestNeural		+2%	1.08	100

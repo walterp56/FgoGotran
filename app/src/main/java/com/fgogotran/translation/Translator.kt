@@ -895,24 +895,37 @@ class Translator @Inject constructor(
         }
         normalizedName?.let { normalized ->
             if (nameResult != null) return@let
-            resolveCharacterNameWithState(normalized)?.let {
-                FgoLogger.info(tag, "Character TSV HIT name state")
-                nameResult = it
-            }
-            if (nameResult != null) return@let
-            resolveCombinedCharacterNames(normalized, playerName)?.let {
-                FgoLogger.info(tag, "Character TSV HIT combined name")
-                nameResult = it
-            }
-            if (nameResult != null) return@let
-            findCharacterNameTranslation(normalized, allowOcrWrappedMatch = true)?.let {
-                FgoLogger.info(tag, "Character TSV HIT name")
-                nameResult = TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
-            } ?: run {
-                if (nameForLlm != null) {
-                    FgoLogger.info(tag, "Character TSV MISS name; will ask LLM")
-                } else {
-                    FgoLogger.info(tag, "Character TSV MISS name; skipping player/plain name API")
+            if (shouldPreserveFullNameBoxText(normalized)) {
+                findExactVisibleCharacterNameTranslation(normalized)?.let {
+                    FgoLogger.info(tag, "Character TSV HIT exact visible name")
+                    nameResult = TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
+                } ?: run {
+                    if (nameForLlm != null) {
+                        FgoLogger.info(tag, "Character TSV MISS exact visible name; will ask LLM")
+                    } else {
+                        FgoLogger.info(tag, "Character TSV MISS exact visible name; skipping player/plain name API")
+                    }
+                }
+            } else {
+                resolveCharacterNameWithState(normalized)?.let {
+                    FgoLogger.info(tag, "Character TSV HIT name state")
+                    nameResult = it
+                }
+                if (nameResult != null) return@let
+                resolveCombinedCharacterNames(normalized, playerName)?.let {
+                    FgoLogger.info(tag, "Character TSV HIT combined name")
+                    nameResult = it
+                }
+                if (nameResult != null) return@let
+                findCharacterNameTranslation(normalized, allowOcrWrappedMatch = true)?.let {
+                    FgoLogger.info(tag, "Character TSV HIT name")
+                    nameResult = TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
+                } ?: run {
+                    if (nameForLlm != null) {
+                        FgoLogger.info(tag, "Character TSV MISS name; will ask LLM")
+                    } else {
+                        FgoLogger.info(tag, "Character TSV MISS name; skipping player/plain name API")
+                    }
                 }
             }
         }
@@ -973,7 +986,7 @@ class Translator @Inject constructor(
         if (cacheEnabled) {
             if (nameForLlm != null && nameHash != null && nameResult == null) {
                 lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name")?.let { cached ->
-                    val cachedName = sanitizeNameTranslation(nameForLlm, cached)
+                    val cachedName = sanitizeSceneNameTranslation(nameForLlm, cached)
                     if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName)) {
                         FgoLogger.warn(tag, "Dropping unsafe cached name translation, hash=${nameHash.take(8)}...")
                         removeMemoryCachedTranslation(nameHash)
@@ -1493,6 +1506,18 @@ class Translator @Inject constructor(
         return loaded
     }
 
+    private suspend fun findExactVisibleCharacterNameTranslation(normalizedText: String): String? {
+        val lookupKey = visibleNameBoxLookupKey(normalizedText)
+        if (lookupKey.isBlank()) return null
+        return getCachedCharacterNames()
+            .asSequence()
+            .flatMap { characterNameVariants(it).asSequence() }
+            .firstOrNull { variant ->
+                variant.cnName.isNotBlank() && visibleNameBoxLookupKey(variant.jpName) == lookupKey
+            }
+            ?.cnName
+    }
+
     private suspend fun findCharacterNameTranslation(
         normalizedText: String,
         allowOcrWrappedMatch: Boolean = false,
@@ -1890,11 +1915,43 @@ class Translator @Inject constructor(
             .replace('ョ', 'ヨ')
     }
 
+    private fun shouldPreserveFullNameBoxText(text: String): Boolean {
+        val normalized = TextNormalizer.normalizeForTranslation(text)
+        return normalized.hasPairedNameBoxBrackets('《', '》') ||
+            normalized.hasPairedNameBoxBrackets('（', '）') ||
+            normalized.hasPairedNameBoxBrackets('(', ')') ||
+            normalized.lastOrNull()?.isVisibleNameBoxTrailingMark() == true
+    }
+
+    private fun visibleNameBoxLookupKey(text: String): String {
+        return Normalizer.normalize(
+            TextNormalizer.normalizeForTranslation(text),
+            Normalizer.Form.NFKC
+        )
+            .replace(Regex("""[\s　]+"""), "")
+    }
+
+    private fun String.hasPairedNameBoxBrackets(open: Char, close: Char): Boolean {
+        val openIndex = indexOf(open)
+        val closeIndex = lastIndexOf(close)
+        return openIndex >= 0 && closeIndex > openIndex
+    }
+
+    private fun Char.isVisibleNameBoxTrailingMark(): Boolean {
+        return this in setOf('?', '？', '!', '！', '…')
+    }
+
     private fun sanitizeCharacterNameResult(name: String): String {
         return toSimplifiedChinese(name)
             .normalizeTranslatedNameSeparators()
             .trim()
             .trimEnd { it.isNameTrailingPunctuation() }
+    }
+
+    private fun sanitizeVisibleCharacterNameResult(name: String): String {
+        return toSimplifiedChinese(name)
+            .normalizeTranslatedNameSeparators()
+            .trim()
     }
 
     private fun correctPlayerNameOcr(
@@ -1985,7 +2042,7 @@ class Translator @Inject constructor(
         result: TranslateResult,
         playerName: String
     ): TranslateResult {
-        val simplifiedName = sanitizeNameTranslation(normalizedName, result.translatedText)
+        val simplifiedName = sanitizeSceneNameTranslation(normalizedName, result.translatedText)
         val maskedSafeName = enforceMaskedTranslationPolicy(normalizedName, simplifiedName)
         return if (isMaskedSourcePreserved(normalizedName, maskedSafeName)) {
             TranslateResult(maskedSafeName, MASKED_TEXT_BACKEND, true)
@@ -1999,6 +2056,18 @@ class Translator @Inject constructor(
                 cached = result.cached,
                 targetLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
             )
+        }
+    }
+
+    private fun sanitizeSceneNameTranslation(sourceText: String, translatedText: String): String {
+        return if (shouldPreserveFullNameBoxText(sourceText)) {
+            sanitizeTranslation(sourceText, translatedText)
+                .lineSequence()
+                .firstOrNull()
+                .orEmpty()
+                .trim()
+        } else {
+            sanitizeNameTranslation(sourceText, translatedText)
         }
     }
 
@@ -2020,7 +2089,11 @@ class Translator @Inject constructor(
         if (translated.isBlank()) return true
         if (translated.length > 32) return true
         if (translated.any(::isJapaneseKana)) return true
-        if (translated.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') }) return true
+        if (translated.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') } &&
+            !hasAllowedVisibleNameTrailingMark(sourceText, translated)
+        ) {
+            return true
+        }
         if (normalizeNameLookup(sourceText) == normalizeNameLookup(translated)) return true
 
         val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
@@ -2044,6 +2117,28 @@ class Translator @Inject constructor(
             .filter { variant -> variant.cnLookupKey == translatedKey }
         return matchingTranslatedNames.isNotEmpty() &&
             matchingTranslatedNames.none { variant -> variant.lookupKey == sourceKey }
+    }
+
+    private fun hasAllowedVisibleNameTrailingMark(sourceText: String, translatedText: String): Boolean {
+        val sourceMark = TextNormalizer.normalizeForTranslation(sourceText)
+            .lastOrNull()
+            ?.takeIf { it.isVisibleNameBoxTrailingMark() }
+            ?: return false
+        val translated = translatedText.trim()
+        val translatedMark = translated.lastOrNull()
+            ?.takeIf { it.isVisibleNameBoxTrailingMark() }
+            ?: return false
+        if (!sourceMark.isCompatibleVisibleNameTrailingMark(translatedMark)) return false
+        val core = translated.dropLast(1)
+        return core.isNotBlank() && core.none { it in setOf('\n', '\r', '。', '！', '？', '!', '?') }
+    }
+
+    private fun Char.isCompatibleVisibleNameTrailingMark(translatedMark: Char): Boolean {
+        return when (this) {
+            '?', '？' -> translatedMark == '?' || translatedMark == '？'
+            '!', '！' -> translatedMark == '!' || translatedMark == '！'
+            else -> translatedMark == this
+        }
     }
 
     private fun isShortKanaOnlyName(lookupText: String): Boolean {
@@ -3607,6 +3702,7 @@ class Translator @Inject constructor(
             appendLine("- Use $targetChinese consistently in name, dialogue, and choices; do not mix Chinese scripts.")
             appendLine("- Translate name only if name is not null; otherwise return null.")
             appendLine("- If a name is not in the glossary, transliterate it as a concise $targetChinese Fate/Grand Order/TYPE-MOON-style name. Never return the original Japanese name unchanged.")
+            appendLine("- For name-box text, preserve every visible part, including 《...》 or （...） annotations, titles, suffixes, and question marks; translate annotation content and keep the original bracket shape.")
             appendLine("- アテシ, アタシ, and あたし in dialogue are first-person pronouns, not short katakana names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
             appendLine("- For short katakana names, transliterate the sound literally (example: レオン -> 莱昂). Do not replace it with another known FGO character.")
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
