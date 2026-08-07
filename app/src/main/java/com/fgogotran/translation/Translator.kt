@@ -61,7 +61,19 @@ data class SceneTranslateInput(
 data class SceneTranslateResult(
     val name: TranslateResult?,
     val dialogue: TranslateResult?,
-    val choices: List<TranslateResult>
+    val choices: List<TranslateResult>,
+    val voiceHint: VoiceLineHint? = null
+)
+
+data class VoiceLineHint(
+    val emotion: String? = null,
+    val intensity: Double? = null,
+    val energy: String? = null,
+    val delivery: String? = null,
+    val attitude: String? = null,
+    val pace: String? = null,
+    val pitch: String? = null,
+    val pause: String? = null
 )
 
 /**
@@ -293,7 +305,7 @@ class Translator @Inject constructor(
         private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
         private const val BATCH_TRANSLATION_MAX_TOKENS = 384
-        private const val SCENE_TRANSLATION_MAX_TOKENS = 512
+        private const val SCENE_TRANSLATION_MAX_TOKENS = 704
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val UNTRANSLATED_FALLBACK = ""
         private const val MASKED_TEXT_BACKEND = "masked-source"
@@ -863,6 +875,7 @@ class Translator @Inject constructor(
         val backend = config.backend
         val apiKey = config.apiKey
         val cacheEnabled = config.cacheEnabled
+        val voiceApiHintsEnabled = settingsRepository.aiVoiceApiHintsEnabled.first()
         val playerName = config.playerName
         val normalizedName = rawNormalizedName?.let { correctPlayerNameOcr(it, playerName, "SCENE_NAME") }
         val normalizedDialogue = rawNormalizedDialogue?.let { correctPlayerNameOcr(it, playerName, "SCENE_DIALOGUE") }
@@ -989,8 +1002,11 @@ class Translator @Inject constructor(
         val needsDialogue = normalizedDialogue != null && dialogueResult == null
         val neededChoiceIndices = normalizedChoices.indices
             .filter { normalizedChoices[it] != null && choiceResults[it] == null }
+        val requestVoiceHint = voiceApiHintsEnabled &&
+            normalizedDialogue != null &&
+            TextNormalizer.hasTranslatableContent(normalizedDialogue)
 
-        if (!needsName && !needsDialogue && neededChoiceIndices.isEmpty()) {
+        if (!needsName && !needsDialogue && neededChoiceIndices.isEmpty() && !requestVoiceHint) {
             return SceneTranslateResult(
                 name = nameResult,
                 dialogue = dialogueResult,
@@ -998,7 +1014,7 @@ class Translator @Inject constructor(
             ).forTargetLocale(config)
         }
 
-        if (needsDialogue && !needsName && neededChoiceIndices.isEmpty()) {
+        if (needsDialogue && !needsName && neededChoiceIndices.isEmpty() && !requestVoiceHint) {
             FgoLogger.info(tag, "Scene dialogue-only path")
             dialogueResult = translate(
                 input.dialogue.orEmpty(),
@@ -1011,7 +1027,7 @@ class Translator @Inject constructor(
             ).forTargetLocale(config)
         }
 
-        if (!needsName && !needsDialogue && neededChoiceIndices.isNotEmpty()) {
+        if (!needsName && !needsDialogue && neededChoiceIndices.isNotEmpty() && !requestVoiceHint) {
             FgoLogger.info(tag, "Scene choices-only path (${neededChoiceIndices.size})")
             val translatedChoices = translateBatch(neededChoiceIndices.map { input.choices[it] })
             translatedChoices.forEachIndexed { batchIndex, result ->
@@ -1026,7 +1042,11 @@ class Translator @Inject constructor(
         }
 
         if (config.requiresApiKey && apiKey.isBlank()) {
-            FgoLogger.warn(tag, "No API key configured; returning placeholders for scene")
+            if (!needsName && !needsDialogue && neededChoiceIndices.isEmpty()) {
+                FgoLogger.warn(tag, "No API key configured; skipping AI voice hints")
+            } else {
+                FgoLogger.warn(tag, "No API key configured; returning placeholders for scene")
+            }
             val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
             if (needsName) nameResult = TranslateResult("", "none", false)
             if (needsDialogue) dialogueResult = TranslateResult(placeholder, "none", false)
@@ -1039,9 +1059,10 @@ class Translator @Inject constructor(
         }
 
         val uncachedName = if (needsName) nameForLlm else null
+        val sceneDialogueForApi = normalizedDialogue.takeIf { needsDialogue || requestVoiceHint }
         val uncachedDialogue = normalizedDialogue.takeIf { needsDialogue }
         val uncachedChoices = neededChoiceIndices.mapNotNull { normalizedChoices[it] }
-        val combinedText = listOfNotNull(uncachedName, uncachedDialogue)
+        val combinedText = listOfNotNull(uncachedName, sceneDialogueForApi)
             .plus(uncachedChoices)
             .joinToString("\n")
         val matchedTerms = try {
@@ -1063,7 +1084,7 @@ class Translator @Inject constructor(
                 targetChineseLocale = config.targetChineseLocale
             )
         }
-        val protectedDialogue = uncachedDialogue?.let {
+        val protectedDialogue = sceneDialogueForApi?.let {
             protectText(
                 it,
                 matchedTerms,
@@ -1081,7 +1102,7 @@ class Translator @Inject constructor(
         }
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_OBJECT,
-            sourceText = listOfNotNull(uncachedName, uncachedDialogue).joinToString("\n"),
+            sourceText = listOfNotNull(uncachedName, sceneDialogueForApi).joinToString("\n"),
             choiceTexts = uncachedChoices,
             targetChineseLocale = config.targetChineseLocale,
             hasName = needsName
@@ -1096,14 +1117,16 @@ class Translator @Inject constructor(
                     protectedName?.text,
                     protectedDialogue?.text,
                     protectedChoices.map { it.text },
-                    config.targetChineseLocale
+                    config.targetChineseLocale,
+                    requestVoiceHint
                 )
             )
         )
 
         FgoLogger.info(
             tag,
-            "Calling $backend API for structured scene (name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size})"
+            "Calling $backend API for structured scene " +
+                "(name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size}, voiceHint=$requestVoiceHint)"
         )
         val translatedScene = try {
             val rawResult = callTranslationBackend(
@@ -1111,9 +1134,16 @@ class Translator @Inject constructor(
                 messages,
                 maxTokens = SCENE_TRANSLATION_MAX_TOKENS
             )
-            parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size)
+            parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size, requestVoiceHint)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Structured scene translation failed, falling back to one batch call", e)
+            if (!needsName && !needsDialogue && neededChoiceIndices.isEmpty()) {
+                return SceneTranslateResult(
+                    name = nameResult,
+                    dialogue = dialogueResult,
+                    choices = choiceResults.map { it ?: TranslateResult("", "none", true) }
+                ).forTargetLocale(config)
+            }
             val fallbackTexts = mutableListOf<String>()
             var nameFallbackIndex: Int? = null
             var dialogueFallbackIndex: Int? = null
@@ -1265,7 +1295,9 @@ class Translator @Inject constructor(
         return SceneTranslateResult(
             name = nameResult,
             dialogue = dialogueResult,
-            choices = choiceResults.map { it ?: TranslateResult("", "none", true) }
+            choices = choiceResults.map { it ?: TranslateResult("", "none", true) },
+            voiceHint = translatedScene.voiceHint
+                ?.takeIf { voiceApiHintsEnabled && dialogueResult?.translatedText?.isNotBlank() == true }
         ).forTargetLocale(config)
     }
 
@@ -1303,6 +1335,12 @@ class Translator @Inject constructor(
 
     private fun TranslateResult.forTargetLocale(config: RuntimeConfig): TranslateResult {
         val normalizedTargetLocale = SettingsRepository.normalizeTargetChineseLocale(config.targetChineseLocale)
+        if (isTraditionalTarget(normalizedTargetLocale)) {
+            return copy(
+                translatedText = toTraditionalChinese(translatedText),
+                targetLocale = normalizedTargetLocale
+            )
+        }
         if (targetLocale == normalizedTargetLocale) {
             return copy(targetLocale = normalizedTargetLocale)
         }
@@ -1322,7 +1360,8 @@ class Translator @Inject constructor(
         return SceneTranslateResult(
             name = name?.forTargetLocale(config),
             dialogue = dialogue?.forTargetLocale(config),
-            choices = choices.map { it.forTargetLocale(config) }
+            choices = choices.map { it.forTargetLocale(config) },
+            voiceHint = voiceHint
         )
     }
 
@@ -1954,7 +1993,12 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "LLM name fallback returned unsafe/wrong name; skipping name render")
             result.copy(translatedText = UNTRANSLATED_FALLBACK)
         } else {
-            result.copy(translatedText = maskedSafeName)
+            TranslateResult(
+                translatedText = maskedSafeName,
+                backend = result.backend,
+                cached = result.cached,
+                targetLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+            )
         }
     }
 
@@ -2323,7 +2367,7 @@ class Translator @Inject constructor(
         val masterAdjusted = applyMasterTitlePolicy(sourceText, shiAdjusted)
         val firstPersonAdjusted = applyStylizedFirstPersonPronounPolicy(sourceText, masterAdjusted)
         val thirdPersonAdjusted = applyDefaultThirdPersonPronounPolicy(sourceText, firstPersonAdjusted)
-        return preserveSourcePunctuation(sourceText, thirdPersonAdjusted)
+        return toTraditionalChinese(preserveSourcePunctuation(sourceText, thirdPersonAdjusted))
     }
 
     private fun applyDefaultThirdPersonPronounPolicy(sourceText: String, translatedText: String): String {
@@ -3536,22 +3580,31 @@ class Translator @Inject constructor(
     private data class ParsedSceneResult(
         val name: String?,
         val dialogue: String?,
-        val choices: List<String>
+        val choices: List<String>,
+        val voiceHint: VoiceLineHint? = null
     )
 
     private fun buildSceneUserPrompt(
         name: String?,
         dialogue: String?,
         choices: List<String>,
-        targetChineseLocale: String
+        targetChineseLocale: String,
+        requestVoiceHint: Boolean = false
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
             appendLine("Localize this Fate/Grand Order story scene to $targetChinese for an in-game overlay.")
             appendLine("Return ONLY a JSON object with exactly these keys:")
-            appendLine("""{"name": string|null, "dialogue": string|null, "choices": string[]}""")
+            if (requestVoiceHint) {
+                appendLine(
+                    """{"name": string|null, "dialogue": string|null, "choices": string[], "voice_hint": {"emotion": string, "intensity": number, "energy": string, "delivery": string, "attitude": string, "pace": string, "pitch": string, "pause": string}|null}"""
+                )
+            } else {
+                appendLine("""{"name": string|null, "dialogue": string|null, "choices": string[]}""")
+            }
             appendLine("Prompt policy:")
             appendLine("- Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
+            appendLine("- Use $targetChinese consistently in name, dialogue, and choices; do not mix Chinese scripts.")
             appendLine("- Translate name only if name is not null; otherwise return null.")
             appendLine("- If a name is not in the glossary, transliterate it as a concise $targetChinese Fate/Grand Order/TYPE-MOON-style name. Never return the original Japanese name unchanged.")
             appendLine("- アテシ, アタシ, and あたし in dialogue are first-person pronouns, not short katakana names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
@@ -3559,6 +3612,19 @@ class Translator @Inject constructor(
             appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
             appendLine("- For obvious English-origin katakana common words in dialogue or choices, keep compact English flavor when natural, unless a glossary/name/official term applies.")
             appendLine("- Translate choices as short player-facing options in the same order. Preserve intent and emotional nuance, but avoid making choices long.")
+            if (requestVoiceHint) {
+                appendLine("- voice_hint is for Azure TTS acting direction only. It must describe this line's delivery, not character identity, and must not change the translation.")
+                appendLine("- voice_hint values must use the English enum labels below; do not translate voice_hint values into Chinese.")
+                appendLine("- Return voice_hint as null when dialogue is null, neutral, or the acting direction is unclear.")
+                appendLine("- voice_hint.emotion must be one of: neutral, cheerful, sad, angry, fearful, gentle, shy, strict, serious, complaining, surprised, tired.")
+                appendLine("- voice_hint.intensity must be a number from 0.0 to 1.0.")
+                appendLine("- voice_hint.energy must be one of: low, normal, high.")
+                appendLine("- voice_hint.delivery must be one of: soft, bright, sharp, cold, formal, playful, commanding, whispered.")
+                appendLine("- voice_hint.attitude must be one of: calm, warm, teasing, nervous, confident, threatening, regretful, distant.")
+                appendLine("- voice_hint.pace must be one of: slower, normal, faster.")
+                appendLine("- voice_hint.pitch must be one of: lower, normal, higher.")
+                appendLine("- voice_hint.pause must be one of: shorter, normal, longer.")
+            }
             appendLine("- If placeholders starting with __FGO appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
             appendLine("- Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
             appendLine("- Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations, no extra keys.")
@@ -3581,7 +3647,8 @@ class Translator @Inject constructor(
         rawResult: String,
         expectName: Boolean,
         expectDialogue: Boolean,
-        expectedChoiceCount: Int
+        expectedChoiceCount: Int,
+        expectVoiceHint: Boolean = false
     ): ParsedSceneResult {
         val trimmed = rawResult.trim()
         val start = trimmed.indexOf('{')
@@ -3616,6 +3683,7 @@ class Translator @Inject constructor(
             ?.jsonArray
             ?.map { it.jsonPrimitive.content.trim() }
             ?: emptyList()
+        val voiceHint = if (expectVoiceHint) parseVoiceHint(obj) else null
 
         if (expectName && name.isNullOrBlank()) {
             throw IllegalArgumentException("Scene response missing name")
@@ -3631,8 +3699,64 @@ class Translator @Inject constructor(
         return ParsedSceneResult(
             name = name,
             dialogue = dialogue,
-            choices = choices
+            choices = choices,
+            voiceHint = voiceHint
         )
+    }
+
+    private fun parseVoiceHint(obj: JsonObject): VoiceLineHint? {
+        val hintObject = (obj["voice_hint"] ?: obj["voiceHint"])
+            ?.takeUnless { it is JsonNull }
+            ?.let { runCatching { it.jsonObject }.getOrNull() }
+            ?: return null
+        val emotion = hintObject.stringOrNull("emotion")
+        val intensity = hintObject.doubleOrNull("intensity")?.coerceIn(0.0, 1.0)
+        val energy = hintObject.stringOrNull("energy")
+        val delivery = hintObject.stringOrNull("delivery")
+        val attitude = hintObject.stringOrNull("attitude")
+        val pace = hintObject.stringOrNull("pace")
+        val pitch = hintObject.stringOrNull("pitch")
+        val pause = hintObject.stringOrNull("pause")
+        if (
+            emotion == null &&
+            intensity == null &&
+            energy == null &&
+            delivery == null &&
+            attitude == null &&
+            pace == null &&
+            pitch == null &&
+            pause == null
+        ) {
+            return null
+        }
+        return VoiceLineHint(
+            emotion = emotion,
+            intensity = intensity,
+            energy = energy,
+            delivery = delivery,
+            attitude = attitude,
+            pace = pace,
+            pitch = pitch,
+            pause = pause
+        )
+    }
+
+    private fun JsonObject.stringOrNull(key: String): String? {
+        return this[key]
+            ?.takeUnless { it is JsonNull }
+            ?.jsonPrimitive
+            ?.contentOrNull
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun JsonObject.doubleOrNull(key: String): Double? {
+        return this[key]
+            ?.takeUnless { it is JsonNull }
+            ?.jsonPrimitive
+            ?.contentOrNull
+            ?.trim()
+            ?.toDoubleOrNull()
     }
 
     private fun cleanModelText(text: String): String {
@@ -3758,6 +3882,7 @@ class Translator @Inject constructor(
                 appendLine("You translate Japanese Fate/Grand Order story text into $targetChinese.")
             }
             appendLine("This is a repair retry because the previous answer copied Japanese.")
+            appendLine("Use $targetChinese consistently; do not mix Chinese scripts.")
             appendLine("Return only the final translated text. No source text, notes, markdown, or explanations.")
             appendLine("Do not leave Japanese kana, except inside the fixed player name or unchanged placeholder tokens.")
             appendLine("Japanese second-person address forms such as あなた, お前, 貴様, 汝, そなた, お主, and てめえ should be translated by tone and relationship; do not leave them as Japanese or treat them as names.")

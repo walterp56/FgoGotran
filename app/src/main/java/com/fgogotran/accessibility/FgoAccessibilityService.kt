@@ -1576,8 +1576,9 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             aiVoiceService.speakDialogue(
                 speakerName = speakerName,
-                japaneseDialogue = sceneSource.input.dialogue,
-                translatedDialogue = sceneTranslation.dialogue?.translatedText
+                sourceDialogue = sceneSource.input.dialogue,
+                translatedDialogue = sceneTranslation.dialogue?.translatedText,
+                voiceHint = sceneTranslation.voiceHint
             )
         }
     }

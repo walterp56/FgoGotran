@@ -19,6 +19,7 @@ import com.fgogotran.ui.screen.ApiSettingsScreen
 import com.fgogotran.ui.screen.GuideScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
+import com.fgogotran.ui.screen.VoiceSettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
 import com.fgogotran.update.AppVersionCheckResult
 import com.fgogotran.update.AppVersionInfo
@@ -33,7 +34,7 @@ import javax.inject.Inject
  *
  * ## Screen navigation
  * Uses a simple `when` block on [Screen] enum rather than Navigation Compose —
- * the app has only 3 screens and no deep-linking requirements, so a full
+ * the app has only a handful of screens and no deep-linking requirements, so a full
  * NavController would be overkill.
  *
  * ## Edge-to-edge
@@ -76,10 +77,10 @@ class MainActivity : ComponentActivity() {
 /**
  * Top-level navigation state and routing.
  */
-enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS }
+enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS, VOICE_SETTINGS }
 
 /**
- * Root composable managing 3-screen navigation.
+ * Root composable managing top-level navigation.
  */
 @Composable
 fun MainScreen(
@@ -128,7 +129,11 @@ fun MainScreen(
 
     // enable backscreen
     BackHandler(enabled = currentScreen != Screen.HOME) {
-        currentScreen = if (currentScreen == Screen.API_SETTINGS) Screen.SETTINGS else Screen.HOME
+        currentScreen = when (currentScreen) {
+            Screen.API_SETTINGS,
+            Screen.VOICE_SETTINGS -> Screen.SETTINGS
+            else -> Screen.HOME
+        }
     }
 
     when (currentScreen) {
@@ -148,6 +153,7 @@ fun MainScreen(
             appVersionManager = appVersionManager,
             onClearTranslationCache = { translator.clearTranslationCache() },
             onApiSettings = { currentScreen = Screen.API_SETTINGS },
+            onVoiceSettings = { currentScreen = Screen.VOICE_SETTINGS },
             onBack = { currentScreen = Screen.HOME }
         )
 
@@ -155,6 +161,11 @@ fun MainScreen(
             settingsRepository = settingsRepository,
             translator = translator,
             appAnalytics = appAnalytics,
+            onBack = { currentScreen = Screen.SETTINGS }
+        )
+
+        Screen.VOICE_SETTINGS -> VoiceSettingsScreen(
+            settingsRepository = settingsRepository,
             onBack = { currentScreen = Screen.SETTINGS }
         )
     }

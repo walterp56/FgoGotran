@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -49,8 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
@@ -85,6 +82,7 @@ fun SettingsScreen(
     appVersionManager: AppVersionManager,
     onClearTranslationCache: suspend () -> Int,
     onApiSettings: () -> Unit,
+    onVoiceSettings: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -99,6 +97,13 @@ fun SettingsScreen(
     val apiModel by settingsRepository.apiModel.collectAsState(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
+    val aiVoiceEnabled by settingsRepository.aiVoiceEnabled.collectAsState(initial = false)
+    val aiVoiceLanguage by settingsRepository.aiVoiceLanguage.collectAsState(
+        initial = SettingsRepository.DEFAULT_AI_VOICE_LANGUAGE
+    )
+    val aiVoiceApiHintsEnabled by settingsRepository.aiVoiceApiHintsEnabled.collectAsState(
+        initial = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
+    )
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
     var playerName by remember { mutableStateOf("") }
@@ -107,14 +112,6 @@ fun SettingsScreen(
         mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
     }
     var showOriginalGameText by remember { mutableStateOf(false) }
-    var aiVoiceEnabled by remember { mutableStateOf(false) }
-    var aiVoiceLanguage by remember { mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_LANGUAGE) }
-    var aiVoiceVolumePercent by remember {
-        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_VOLUME_PERCENT)
-    }
-    var azureSpeechKey by remember { mutableStateOf("") }
-    var azureSpeechRegion by remember { mutableStateOf(SettingsRepository.DEFAULT_AZURE_SPEECH_REGION) }
-    var azureSpeechSaveMessage by remember { mutableStateOf("") }
     var ocrEngine by remember { mutableStateOf(SettingsRepository.DEFAULT_OCR_ENGINE) }
     var cacheEnabled by remember { mutableStateOf(true) }
     var debugLoggingEnabled by remember { mutableStateOf(false) }
@@ -129,11 +126,6 @@ fun SettingsScreen(
         playerName = settingsRepository.playerName.first()
         floatingButtonSizeDp = settingsRepository.getFloatingButtonSizeDp()
         showOriginalGameText = settingsRepository.showOriginalGameText.first()
-        aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
-        aiVoiceLanguage = settingsRepository.aiVoiceLanguage.first()
-        aiVoiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
-        azureSpeechKey = settingsRepository.azureSpeechKey.first()
-        azureSpeechRegion = settingsRepository.azureSpeechRegion.first()
         ocrEngine = settingsRepository.getOcrEngine()
         cacheEnabled = settingsRepository.cacheEnabled.first()
         debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
@@ -143,16 +135,6 @@ fun SettingsScreen(
         scope.launch {
             settingsRepository.setPlayerName(playerName)
             playerNameSaveMessage = "已保存"
-        }
-    }
-
-    fun saveAzureSpeechSettings() {
-        scope.launch {
-            settingsRepository.saveAzureSpeechSettings(azureSpeechKey, azureSpeechRegion)
-            azureSpeechRegion = azureSpeechRegion.trim().ifBlank {
-                SettingsRepository.DEFAULT_AZURE_SPEECH_REGION
-            }
-            azureSpeechSaveMessage = "已保存"
         }
     }
 
@@ -361,139 +343,30 @@ fun SettingsScreen(
                         }
                     )
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "AI 语音朗读",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
-                        )
-                        Text(
-                            "可朗读日文原文或中文译文，并按角色使用固定语音风格。非官方语音。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(
-                        checked = aiVoiceEnabled,
-                        onCheckedChange = {
-                            aiVoiceEnabled = it
-                            scope.launch { settingsRepository.setAiVoiceEnabled(it) }
-                        }
-                    )
-                }
-                VoiceLanguageOption(
-                    title = "日文原文",
-                    body = "使用 OCR 识别到的 FGO 日文台词朗读。",
-                    selected = aiVoiceLanguage == SettingsRepository.AI_VOICE_LANGUAGE_JP_ORIGINAL,
-                    onClick = {
-                        aiVoiceLanguage = SettingsRepository.AI_VOICE_LANGUAGE_JP_ORIGINAL
-                        scope.launch {
-                            settingsRepository.setAiVoiceLanguage(
-                                SettingsRepository.AI_VOICE_LANGUAGE_JP_ORIGINAL
-                            )
-                        }
-                    }
-                )
-                VoiceLanguageOption(
-                    title = "中文译文",
-                    body = "使用当前翻译结果朗读，中文语音情绪表现更自然。",
-                    selected = aiVoiceLanguage == SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION,
-                    onClick = {
-                        aiVoiceLanguage = SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
-                        scope.launch {
-                            settingsRepository.setAiVoiceLanguage(
-                                SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
-                            )
-                        }
-                    }
+            }
+
+            SettingsCard(
+                iconRes = R.drawable.ic_settings_voice,
+                title = "语音设置",
+                body = "AI 语音朗读、朗读文本和语气增强。"
+            ) {
+                SettingsInfoRow(
+                    label = "状态",
+                    value = if (aiVoiceEnabled) "已开启" else "未开启"
                 )
                 SettingsInfoRow(
-                    label = "语音音量",
-                    value = "$aiVoiceVolumePercent%"
+                    label = "朗读文本",
+                    value = aiVoiceSourceLabel(aiVoiceLanguage)
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                SettingsInfoRow(
+                    label = "语气增强",
+                    value = if (aiVoiceApiHintsEnabled) "开启" else "关闭"
+                )
+                Button(
+                    onClick = onVoiceSettings,
+                    modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text(
-                        "静音",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Slider(
-                        value = aiVoiceVolumePercent.toFloat(),
-                        onValueChange = { rawValue ->
-                            val roundedVolume = SettingsRepository.normalizeAiVoiceVolumePercent(
-                                rawValue.roundToInt()
-                            )
-                            if (roundedVolume != aiVoiceVolumePercent) {
-                                aiVoiceVolumePercent = roundedVolume
-                                scope.launch {
-                                    settingsRepository.setAiVoiceVolumePercent(roundedVolume)
-                                }
-                            }
-                        },
-                        valueRange = SettingsRepository.MIN_AI_VOICE_VOLUME_PERCENT.toFloat()..
-                            SettingsRepository.MAX_AI_VOICE_VOLUME_PERCENT.toFloat(),
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 12.dp)
-                    )
-                    Text(
-                        "最大",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                OutlinedTextField(
-                    value = azureSpeechRegion,
-                    onValueChange = {
-                        azureSpeechRegion = it
-                        azureSpeechSaveMessage = ""
-                    },
-                    label = { Text("Azure 区域") },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(SettingsRepository.DEFAULT_AZURE_SPEECH_REGION) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = azureSpeechKey,
-                    onValueChange = {
-                        azureSpeechKey = it
-                        azureSpeechSaveMessage = ""
-                    },
-                    label = { Text("Azure Speech Key") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    supportingText = {
-                        Text("仅保存在本机，用于 AI 语音朗读。")
-                    },
-                    singleLine = true
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (azureSpeechSaveMessage.isNotBlank()) {
-                        Text(
-                            azureSpeechSaveMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                    }
-                    Button(onClick = { saveAzureSpeechSettings() }) {
-                        Text("保存语音设置")
-                    }
+                    Text("打开语音设置")
                 }
             }
 
@@ -735,46 +608,6 @@ private fun OcrEngineOption(
     }
 }
 
-@Composable
-private fun VoiceLanguageOption(
-    title: String,
-    body: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.small,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.40f)
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
-        }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            RadioButton(selected = selected, onClick = onClick)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    body,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
-                )
-            }
-        }
-    }
-}
-
 private fun roundFloatingButtonSize(rawValue: Float): Int {
     val minSize = SettingsRepository.MIN_FLOATING_BUTTON_SIZE_DP
     val roundedSize = minSize +
@@ -798,6 +631,13 @@ private fun floatingButtonSizeLabel(sizeDp: Int): String {
         safeSize == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> "标准"
         safeSize < SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -> "较大"
         else -> "最大"
+    }
+}
+
+private fun aiVoiceSourceLabel(language: String): String {
+    return when (SettingsRepository.normalizeAiVoiceLanguage(language)) {
+        SettingsRepository.AI_VOICE_LANGUAGE_JP_ORIGINAL -> "游戏原文"
+        else -> "中文译文"
     }
 }
 

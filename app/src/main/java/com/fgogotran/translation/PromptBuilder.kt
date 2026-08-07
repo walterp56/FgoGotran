@@ -71,7 +71,7 @@ class PromptBuilder @Inject constructor() {
         private val CORE_PROMPT = """
             You localize Fate/Grand Order Japanese story text into natural, compact {target_chinese} for an in-game overlay.
             Translate meaning, tone, and speaker voice. Prefer short readable Chinese over long literal wording.
-            Use {target_chinese}.
+            Use {target_chinese} consistently; do not mix Chinese scripts.
             Return only the translated content requested by the user message. Do not add notes, markdown, source text, explanations, labels, wrappers, lore commentary, or extra text.
             """.trimIndent()
 
@@ -79,6 +79,7 @@ class PromptBuilder @Inject constructor() {
             You translate visible Japanese text from a user-selected Fate/Grand Order screen crop into natural, compact {target_chinese}.
             The crop may contain dialogue, history log text, choices, UI labels, battle text, event missions, item descriptions, skill descriptions, servant profile text, names, titles, or partial sentences.
             Translate only the visible source text. Do not infer missing text outside the crop.
+            Use {target_chinese} consistently; do not mix Chinese scripts.
             Return only the translated content requested by the user message. Do not add notes, markdown, source text, explanations, labels, wrappers, lore commentary, or extra text.
             """.trimIndent()
 

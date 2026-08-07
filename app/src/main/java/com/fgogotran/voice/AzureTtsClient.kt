@@ -35,7 +35,8 @@ class AzureTtsClient @Inject constructor() {
         styleOverride: String? = null,
         rateOverride: String? = null,
         pitchOverride: String? = null,
-        styleDegree: String? = null
+        styleDegree: String? = null,
+        pauseScale: Double? = null
     ): ByteArray {
         val region = config.region.trim().lowercase().ifBlank {
             throw IllegalArgumentException("Azure Speech region is blank")
@@ -51,7 +52,7 @@ class AzureTtsClient @Inject constructor() {
                 header("User-Agent", "FgoGotran")
                 header("Accept", "audio/mpeg")
                 contentType(ContentType.parse("application/ssml+xml"))
-                setBody(buildSsml(profile, text, styleOverride, rateOverride, pitchOverride, styleDegree))
+                setBody(buildSsml(profile, text, styleOverride, rateOverride, pitchOverride, styleDegree, pauseScale))
             }
         } catch (e: HttpRequestTimeoutException) {
             FgoLogger.warn(tag, "Azure TTS request timed out")
@@ -73,7 +74,8 @@ class AzureTtsClient @Inject constructor() {
         styleOverride: String?,
         rateOverride: String?,
         pitchOverride: String?,
-        styleDegree: String?
+        styleDegree: String?,
+        pauseScale: Double?
     ): String {
         val locale = profile.locale.ifBlank { "ja-JP" }
         val voiceName = profile.voiceName.ifBlank { "ja-JP-NanamiNeural" }
@@ -85,7 +87,8 @@ class AzureTtsClient @Inject constructor() {
         )
         val dialogueContent = buildDialogueContent(
             text = text,
-            naturalDialogue = VoiceLocaleSupport.isChineseLocale(locale)
+            naturalDialogue = VoiceLocaleSupport.isChineseLocale(locale),
+            pauseScale = pauseScale ?: 1.0
         )
         val spokenContent = "<prosody pitch=\"$pitch\" rate=\"$rate\">$dialogueContent</prosody>"
         val content = if (style.isBlank()) {
@@ -110,14 +113,20 @@ class AzureTtsClient @Inject constructor() {
         """.trimIndent()
     }
 
-    private fun buildDialogueContent(text: String, naturalDialogue: Boolean): String {
+    private fun buildDialogueContent(
+        text: String,
+        naturalDialogue: Boolean,
+        pauseScale: Double
+    ): String {
         val result = StringBuilder()
         var index = 0
         var spokenCharsSinceBreak = 0
+        val normalizedPauseScale = pauseScale.coerceIn(MIN_PAUSE_SCALE, MAX_PAUSE_SCALE)
 
         fun appendBreak(milliseconds: Int) {
-            if (milliseconds > 0) {
-                result.append(dialogueBreak(milliseconds))
+            val scaledMilliseconds = (milliseconds * normalizedPauseScale).roundToInt()
+            if (scaledMilliseconds > 0) {
+                result.append(dialogueBreak(scaledMilliseconds))
             }
             spokenCharsSinceBreak = 0
         }
@@ -218,6 +227,8 @@ class AzureTtsClient @Inject constructor() {
         const val PHRASE_BREAK_MS = 60
         const val SOFT_PHRASE_CHARS = 72
         const val HARD_PHRASE_CHARS = 96
+        const val MIN_PAUSE_SCALE = 0.4
+        const val MAX_PAUSE_SCALE = 1.2
         val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
         val SOFT_PHRASE_END_CHARS = setOf(
             '的',

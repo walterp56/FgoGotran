@@ -46,6 +46,7 @@ class SettingsRepository @Inject constructor(
         val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
         val KEY_AI_VOICE_ENABLED = booleanPreferencesKey("ai_voice_enabled")
         val KEY_AI_VOICE_LANGUAGE = stringPreferencesKey("ai_voice_language")
+        val KEY_AI_VOICE_API_HINTS_ENABLED = booleanPreferencesKey("ai_voice_api_hints_enabled")
         val KEY_AI_VOICE_VOLUME_PERCENT = intPreferencesKey("ai_voice_volume_percent")
         val KEY_AZURE_SPEECH_KEY = stringPreferencesKey("azure_speech_key")
         val KEY_AZURE_SPEECH_REGION = stringPreferencesKey("azure_speech_region")
@@ -80,7 +81,8 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_AZURE_SPEECH_REGION = "japaneast"
         const val AI_VOICE_LANGUAGE_JP_ORIGINAL = "jp_original"
         const val AI_VOICE_LANGUAGE_CN_TRANSLATION = "cn_translation"
-        const val DEFAULT_AI_VOICE_LANGUAGE = AI_VOICE_LANGUAGE_JP_ORIGINAL
+        const val DEFAULT_AI_VOICE_LANGUAGE = AI_VOICE_LANGUAGE_CN_TRANSLATION
+        const val DEFAULT_AI_VOICE_API_HINTS_ENABLED = false
         const val MIN_AI_VOICE_VOLUME_PERCENT = 0
         const val DEFAULT_AI_VOICE_VOLUME_PERCENT = 100
         const val MAX_AI_VOICE_VOLUME_PERCENT = 100
@@ -337,14 +339,19 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_SHOW_ORIGINAL_GAME_TEXT] ?: false
     }
 
-    /** Whether Japanese dialogue should be read aloud with character voice-style profiles. */
+    /** Whether story dialogue should be read aloud with character voice-style profiles. */
     val aiVoiceEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_AI_VOICE_ENABLED] ?: false
     }
 
-    /** Voice source language for AI voice: Japanese source or Chinese translation. */
+    /** Voice source for AI voice: OCR game text or translated Chinese. */
     val aiVoiceLanguage: Flow<String> = context.dataStore.data.map { prefs ->
         normalizeAiVoiceLanguage(prefs[KEY_AI_VOICE_LANGUAGE] ?: DEFAULT_AI_VOICE_LANGUAGE)
+    }
+
+    /** Whether translation API scene responses may include optional voice emotion hints. */
+    val aiVoiceApiHintsEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_VOICE_API_HINTS_ENABLED] ?: DEFAULT_AI_VOICE_API_HINTS_ENABLED
     }
 
     /** Local playback volume for AI voice audio. */
@@ -579,6 +586,11 @@ class SettingsRepository @Inject constructor(
         val normalizedLanguage = normalizeAiVoiceLanguage(language)
         context.dataStore.edit { it[KEY_AI_VOICE_LANGUAGE] = normalizedLanguage }
         FgoLogger.debug(tag, "Setting updated: ai_voice_language=$normalizedLanguage")
+    }
+
+    suspend fun setAiVoiceApiHintsEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_AI_VOICE_API_HINTS_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_api_hints_enabled=$enabled")
     }
 
     suspend fun setAiVoiceVolumePercent(volumePercent: Int) {

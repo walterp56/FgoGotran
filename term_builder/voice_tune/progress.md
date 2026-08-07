@@ -7,19 +7,20 @@ review_target: C:\mywork\FgoGotran\term_builder\voice_tune\needs_review.tsv
 
 batch_size: 20
 processed_speaker_groups: 340
-last_speaker_id: オキタ・Ｊ・ソウジ
+last_speaker_id: カイニス
 approved_profiles_count: 335
 needs_review_count: 0
-last_updated: 2026-08-07 13:42:07 +08:00
+last_updated: 2026-08-07 17:51:28 +08:00
 
 ## Last Batch
 
-- range: 黄飛虎 through オキタ・Ｊ・ソウジ
-- approved: 20 speaker groups; 18 new profile rows plus 裁判長 and なぎこ alias updates
-- needs_review: 0
+- operation: rebuilt カイニス as 女漢子 / tough androgynous warrior voice.
+- approved replacement rows: 1
+- needs_review: 0 new rows
+- selected voice: zh-CN-XiaohanNeural angry, pitch -1%, rate 1.06
 
 ## Notes
 
 - Manual review workflow: propose first, write only after approval.
-- 裁判長 is processed as an alias of メタトロン・ジャンヌ.
-- なぎこ is processed as an alias of 清少納言.
+- This pass preserved speaker_id, aliases, voice_type, and cn_volume for カイニス.
+- No needs_review rows were added in this pass.

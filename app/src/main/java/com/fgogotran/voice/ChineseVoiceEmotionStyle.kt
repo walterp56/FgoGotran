@@ -1,41 +1,65 @@
 package com.fgogotran.voice
 
+import com.fgogotran.translation.VoiceLineHint
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 object ChineseVoiceEmotionStyle {
-    fun expressionFor(profile: VoiceProfile, text: String): VoiceExpression? {
+    fun expressionFor(
+        profile: VoiceProfile,
+        text: String,
+        voiceHint: VoiceLineHint? = null
+    ): VoiceExpression? {
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) return null
 
         val normalized = text.replace(Regex("\\s+"), "")
-        val detectedStyle = detectStyle(normalized)
+        val voiceTuning = AzureVoiceModelTuning.forVoice(profile.voiceName)
         val baseStyle = resolveStyle(profile, styleOverride = null)
+        val hintedStyle = styleFromVoiceHint(voiceHint)
+        val localStyle = detectStyle(normalized)
+        val detectedStyle = preferredStyleFor(
+            profile = profile,
+            voiceTuning = voiceTuning,
+            hintedStyle = hintedStyle,
+            localStyle = localStyle
+        )
         val styleOverride = detectedStyle
             ?.takeIf { it != baseStyle }
-            ?.takeIf { isNaturalDialogueStyle(it) }
-            ?.takeIf { supportsStyle(profile.voiceName, it) }
+            ?.takeIf { canApplyStyle(profile.voiceName, voiceTuning, it) }
         val resolvedStyle = resolveStyle(profile, styleOverride)
         val rateOverride = rateOverrideFor(
             baseRate = profile.rate,
             voiceType = profile.description,
             text = normalized,
-            detectedStyle = detectedStyle
+            detectedStyle = detectedStyle,
+            voiceTuning = voiceTuning,
+            voiceHint = voiceHint
         )
         val pitchOverride = pitchOverrideFor(
             basePitch = profile.pitch,
             voiceType = profile.description,
-            detectedStyle = detectedStyle
+            detectedStyle = detectedStyle,
+            voiceTuning = voiceTuning,
+            voiceHint = voiceHint
         )
         val styleDegree = resolvedStyle
             .takeIf { it.isNotBlank() }
-            ?.let(::styleDegreeFor)
+            ?.let {
+                styleDegreeFor(
+                    style = it,
+                    voiceTuning = voiceTuning,
+                    voiceHint = voiceHint,
+                    hintControlsStyle = hintedStyle != null && resolvedStyle == hintedStyle
+                )
+            }
 
         return VoiceExpression(
             styleOverride = styleOverride,
             rateOverride = rateOverride,
             pitchOverride = pitchOverride,
             styleDegree = styleDegree,
+            pauseScale = pauseScaleFor(voiceTuning.pauseScale, voiceHint),
             ssmlModeVersion = NATURAL_DIALOGUE_MODE_VERSION
         )
     }
@@ -55,13 +79,16 @@ object ChineseVoiceEmotionStyle {
             ?.trim()
             ?.takeIf(String::isNotBlank)
             ?.takeIf { isNaturalDialogueStyle(it) }
+            ?.takeIf { AzureVoiceModelTuning.forVoice(profile.voiceName).allowsStyle(it) }
             ?.takeIf { supportsStyle(profile.voiceName, it) }
             ?.let { return it }
 
+        val voiceTuning = AzureVoiceModelTuning.forVoice(profile.voiceName)
         return profile.style
             .trim()
             .takeIf(String::isNotBlank)
-            ?.takeIf { it in BASE_DIALOGUE_STYLES }
+            ?.takeIf { isNaturalDialogueStyle(it) }
+            ?.takeIf(voiceTuning::allowsStyle)
             ?.takeIf { supportsStyle(profile.voiceName, it) }
             .orEmpty()
     }
@@ -78,16 +105,176 @@ object ChineseVoiceEmotionStyle {
         }
     }
 
+    private fun preferredStyleFor(
+        profile: VoiceProfile,
+        voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
+        hintedStyle: String?,
+        localStyle: String?
+    ): String? {
+        return listOfNotNull(hintedStyle, localStyle)
+            .firstOrNull { canApplyStyle(profile.voiceName, voiceTuning, it) }
+            ?: localStyle
+            ?: hintedStyle
+    }
+
+    private fun canApplyStyle(
+        voiceName: String,
+        voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
+        style: String
+    ): Boolean {
+        return isNaturalDialogueStyle(style) &&
+            voiceTuning.allowsStyle(style) &&
+            supportsStyle(voiceName, style)
+    }
+
+    private fun styleFromVoiceHint(voiceHint: VoiceLineHint?): String? {
+        return voiceHint?.emotion?.let(::normalizeHintEmotionStyle)
+            ?: styleFromDelivery(voiceHint?.delivery)
+            ?: styleFromAttitude(voiceHint?.attitude)
+    }
+
+    private fun normalizeHintEmotionStyle(rawEmotion: String): String? {
+        return when (hintKey(rawEmotion)) {
+            "happy", "joyful", "excited", "cheerful" -> "cheerful"
+            "sad", "sorrowful" -> "sad"
+            "angry", "furious", "irritated" -> "angry"
+            "fear", "fearful", "scared", "anxious", "nervous" -> "fearful"
+            "gentle", "soft", "comforting" -> "gentle"
+            "shy", "embarrassed" -> "shy"
+            "strict", "stern" -> "strict"
+            "serious", "solemn" -> "serious"
+            "complaining" -> "complaining"
+            "disgruntled" -> "disgruntled"
+            "surprised" -> "surprised"
+            "tired", "weary" -> "tired"
+            else -> null
+        }
+    }
+
+    private fun styleFromDelivery(rawDelivery: String?): String? {
+        return when (hintKey(rawDelivery)) {
+            "soft" -> "gentle"
+            "bright", "playful" -> "cheerful"
+            "sharp", "commanding" -> "strict"
+            "cold", "formal" -> "serious"
+            "whispered" -> "whispering"
+            else -> null
+        }
+    }
+
+    private fun styleFromAttitude(rawAttitude: String?): String? {
+        return when (hintKey(rawAttitude)) {
+            "warm" -> "gentle"
+            "teasing", "confident" -> "cheerful"
+            "nervous" -> "fearful"
+            "threatening" -> "angry"
+            "regretful" -> "sad"
+            "calm", "distant" -> "serious"
+            else -> null
+        }
+    }
+
+    private fun hintKey(rawValue: String?): String? {
+        return rawValue
+            ?.trim()
+            ?.lowercase(Locale.US)
+            ?.replace('_', '-')
+            ?.takeIf { it.isNotBlank() && it != "normal" && it != "neutral" }
+    }
+
+    private fun paceBiasFor(voiceHint: VoiceLineHint?): Double {
+        return when (hintKey(voiceHint?.pace)) {
+            "slower", "slow" -> -0.02
+            "faster", "fast" -> 0.02
+            else -> 0.0
+        }
+    }
+
+    private fun energyRateBiasFor(voiceHint: VoiceLineHint?): Double {
+        return when (hintKey(voiceHint?.energy)) {
+            "low" -> -0.015
+            "high" -> 0.015
+            else -> 0.0
+        }
+    }
+
+    private fun deliveryRateBiasFor(voiceHint: VoiceLineHint?): Double {
+        return when (hintKey(voiceHint?.delivery)) {
+            "soft", "whispered" -> -0.012
+            "bright", "playful" -> 0.012
+            "sharp", "commanding" -> 0.008
+            "cold", "formal" -> -0.006
+            else -> 0.0
+        }
+    }
+
+    private fun attitudeRateBiasFor(voiceHint: VoiceLineHint?): Double {
+        return when (hintKey(voiceHint?.attitude)) {
+            "nervous" -> 0.008
+            "threatening" -> 0.006
+            "regretful" -> -0.010
+            "calm", "distant" -> -0.006
+            "teasing", "confident" -> 0.006
+            else -> 0.0
+        }
+    }
+
+    private fun pitchBiasFor(voiceHint: VoiceLineHint?): Double {
+        return when (hintKey(voiceHint?.pitch)) {
+            "lower", "low" -> -0.5
+            "higher", "high" -> 0.5
+            else -> 0.0
+        }
+    }
+
+    private fun energyPitchBiasFor(voiceHint: VoiceLineHint?): Double {
+        return when (hintKey(voiceHint?.energy)) {
+            "low" -> -0.35
+            "high" -> 0.35
+            else -> 0.0
+        }
+    }
+
+    private fun deliveryPitchBiasFor(voiceHint: VoiceLineHint?): Double {
+        return when (hintKey(voiceHint?.delivery)) {
+            "bright", "playful" -> 0.35
+            "soft" -> -0.15
+            "cold", "commanding", "whispered" -> -0.25
+            else -> 0.0
+        }
+    }
+
+    private fun attitudePitchBiasFor(voiceHint: VoiceLineHint?): Double {
+        return when (hintKey(voiceHint?.attitude)) {
+            "teasing", "nervous" -> 0.25
+            "threatening", "regretful", "distant" -> -0.25
+            else -> 0.0
+        }
+    }
+
     private fun rateOverrideFor(
         baseRate: String,
         voiceType: String,
         text: String,
-        detectedStyle: String?
+        detectedStyle: String?,
+        voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
+        voiceHint: VoiceLineHint?
     ): String? {
         val base = rateMultiplier(baseRate) ?: return null
-        val minimumRate = minDialogueRateFor(voiceType)
-        val maximumRate = maxDialogueRateFor(voiceType)
-        var adjusted = base.coerceIn(minimumRate, maximumRate)
+        val typeMaxRate = maxDialogueRateFor(voiceType)
+        val typeMinRate = minDialogueRateFor(voiceType)
+        val tuningMinRate = voiceTuning.minRate.coerceAtMost(typeMaxRate)
+        val minimumRate = if (voiceTuning.softenTypeRateFloor) {
+            minOf(typeMinRate, tuningMinRate)
+        } else {
+            maxOf(typeMinRate, tuningMinRate)
+        }
+        val maximumRate = minOf(typeMaxRate, voiceTuning.maxRate).coerceAtLeast(minimumRate)
+        val hintedRateBias = paceBiasFor(voiceHint) +
+            energyRateBiasFor(voiceHint) +
+            deliveryRateBiasFor(voiceHint) +
+            attitudeRateBiasFor(voiceHint)
+        var adjusted = (base + voiceTuning.rateBias + hintedRateBias).coerceIn(minimumRate, maximumRate)
 
         when (detectedStyle) {
             "sad", "fearful" -> adjusted -= 0.02
@@ -141,12 +328,18 @@ object ChineseVoiceEmotionStyle {
     private fun pitchOverrideFor(
         basePitch: String,
         voiceType: String,
-        detectedStyle: String?
+        detectedStyle: String?,
+        voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
+        voiceHint: VoiceLineHint?
     ): String? {
         val base = pitchPercent(basePitch) ?: return null
         val minimumPitch = minPitchFor(voiceType)
         val maximumPitch = maxPitchFor(voiceType)
-        var adjusted = base.coerceIn(minimumPitch, maximumPitch)
+        val hintedPitchBias = pitchBiasFor(voiceHint) +
+            energyPitchBiasFor(voiceHint) +
+            deliveryPitchBiasFor(voiceHint) +
+            attitudePitchBiasFor(voiceHint)
+        var adjusted = (base + voiceTuning.pitchBias + hintedPitchBias).coerceIn(minimumPitch, maximumPitch)
 
         when (detectedStyle) {
             "sad", "fearful" -> adjusted -= 0.5
@@ -184,13 +377,84 @@ object ChineseVoiceEmotionStyle {
         }
     }
 
-    private fun styleDegreeFor(style: String): String {
-        return when (style) {
-            "angry", "cheerful", "fearful" -> "0.25"
-            "sad", "disgruntled" -> "0.22"
-            "cute" -> "0.24"
-            else -> "0.25"
+    private fun styleDegreeFor(
+        style: String,
+        voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
+        voiceHint: VoiceLineHint?,
+        hintControlsStyle: Boolean
+    ): String {
+        val baseDegree = when (style) {
+            "angry", "cheerful", "fearful" -> 0.25
+            "sad", "disgruntled" -> 0.22
+            "cute" -> 0.24
+            "cutesy" -> 0.24
+            "story-telling" -> 0.18
+            "shy", "sorry", "tired", "whispering" -> 0.20
+            "assassin", "captain", "cavalier", "game-narrator", "geomancer", "poet", "prince" -> 0.18
+            else -> 0.25
         }
+        val hintedBase = voiceHint?.intensity
+            ?.takeIf { hintControlsStyle }
+            ?.let { 0.14 + it.coerceIn(0.0, 1.0) * 0.18 }
+            ?.coerceAtMost(baseDegree)
+            ?: baseDegree
+        val minDegree = minOf(0.12, baseDegree)
+        val maxDegree = baseDegree + 0.05
+        val degree = (hintedBase + styleDegreeBiasFor(voiceHint)).coerceIn(minDegree, maxDegree)
+        return String.format(Locale.US, "%.2f", minOf(degree, voiceTuning.maxStyleDegree))
+    }
+
+    private fun styleDegreeBiasFor(voiceHint: VoiceLineHint?): Double {
+        val energyBias = when (hintKey(voiceHint?.energy)) {
+            "low" -> -0.02
+            "high" -> 0.03
+            else -> 0.0
+        }
+        val deliveryBias = when (hintKey(voiceHint?.delivery)) {
+            "sharp", "commanding" -> 0.03
+            "bright", "playful" -> 0.02
+            "soft", "whispered" -> -0.02
+            "cold", "formal" -> 0.005
+            else -> 0.0
+        }
+        val attitudeBias = when (hintKey(voiceHint?.attitude)) {
+            "threatening" -> 0.03
+            "warm", "teasing" -> 0.015
+            "nervous", "regretful" -> 0.01
+            "calm", "distant" -> -0.01
+            else -> 0.0
+        }
+        return energyBias + deliveryBias + attitudeBias
+    }
+
+    private fun pauseScaleFor(
+        basePauseScale: Double,
+        voiceHint: VoiceLineHint?
+    ): Double {
+        var multiplier = 1.0
+        multiplier *= when (hintKey(voiceHint?.pause)) {
+            "shorter", "short" -> 0.88
+            "longer", "long" -> 1.12
+            else -> 1.0
+        }
+        multiplier *= when (hintKey(voiceHint?.energy)) {
+            "low" -> 1.08
+            "high" -> 0.92
+            else -> 1.0
+        }
+        multiplier *= when (hintKey(voiceHint?.delivery)) {
+            "soft", "whispered" -> 1.06
+            "sharp", "commanding" -> 0.92
+            "cold", "formal" -> 1.03
+            else -> 1.0
+        }
+        multiplier *= when (hintKey(voiceHint?.attitude)) {
+            "regretful", "calm", "distant" -> 1.05
+            "nervous", "threatening" -> 0.94
+            "teasing", "confident" -> 0.96
+            else -> 1.0
+        }
+        return (basePauseScale * multiplier).coerceIn(MIN_HINTED_PAUSE_SCALE, MAX_HINTED_PAUSE_SCALE)
     }
 
     private fun supportsStyle(voiceName: String, style: String): Boolean {
@@ -230,23 +494,202 @@ object ChineseVoiceEmotionStyle {
         "affectionate",
         "chat",
         "chat-casual",
+        "comforting",
         "cute",
+        "cutesy",
+        "curious",
         "empathetic",
+        "encouraging",
         "gentle"
     )
 
     private val EMOTION_DIALOGUE_STYLES = setOf(
         "angry",
+        "anxious",
         "cheerful",
+        "complaining",
+        "debating",
+        "disappointed",
         "disgruntled",
         "embarrassed",
         "fearful",
-        "sad"
+        "guilty",
+        "lonely",
+        "nervous",
+        "sad",
+        "sentimental",
+        "serious",
+        "shy",
+        "sorry",
+        "story-telling",
+        "strict",
+        "surprised",
+        "tired",
+        "whispering"
     )
 
-    private val NATURAL_DIALOGUE_STYLES = BASE_DIALOGUE_STYLES + EMOTION_DIALOGUE_STYLES
+    private val ROLE_DIALOGUE_STYLES = setOf(
+        "assassin",
+        "captain",
+        "cavalier",
+        "game-narrator",
+        "geomancer",
+        "poet",
+        "prince"
+    )
+
+    private val NATURAL_DIALOGUE_STYLES = BASE_DIALOGUE_STYLES + EMOTION_DIALOGUE_STYLES + ROLE_DIALOGUE_STYLES
 
     private val SUPPORTED_STYLES_BY_VOICE = mapOf(
+        "zh-CN-Xiaoxiao:DragonHDFlashLatestNeural" to setOf(
+            "angry",
+            "chat",
+            "cheerful",
+            "comforting",
+            "customer-service",
+            "debating",
+            "disappointed",
+            "excited",
+            "fearful",
+            "sad",
+            "shy",
+            "sorry",
+            "strict",
+            "voice-assistant",
+            "whispering"
+        ),
+        "zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural" to setOf(
+            "affectionate",
+            "angry",
+            "anxious",
+            "cheerful",
+            "curious",
+            "disappointed",
+            "empathetic",
+            "encouraging",
+            "excited",
+            "fearful",
+            "guilty",
+            "lonely",
+            "poetry-reading",
+            "sad",
+            "sentimental",
+            "sorry",
+            "story-telling",
+            "surprised",
+            "tired",
+            "whispering"
+        ),
+        "zh-CN-Xiaochen:DragonHDFlashLatestNeural" to setOf(
+            "cheerful",
+            "debating",
+            "empathetic",
+            "live-commercial",
+            "poetry-reading",
+            "sad",
+            "sorry"
+        ),
+        "zh-CN-Xiaohan:DragonHDFlashLatestNeural" to setOf(
+            "affectionate",
+            "angry",
+            "cheerful",
+            "complaining",
+            "fearful",
+            "gentle",
+            "sad",
+            "shy",
+            "strict"
+        ),
+        "zh-CN-Xiaoke:DragonHDFlashLatestNeural" to setOf(
+            "angry",
+            "customer-service",
+            "cutesy",
+            "excited",
+            "fearful",
+            "sad",
+            "sorry",
+            "whispering"
+        ),
+        "zh-CN-Xiaoshuang:DragonHDFlashLatestNeural" to setOf("chat"),
+        "zh-CN-Xiaoyi:DragonHDFlashLatestNeural" to setOf(
+            "angry",
+            "cheerful",
+            "complaining",
+            "cute",
+            "gentle",
+            "nervous",
+            "sad",
+            "shy",
+            "strict"
+        ),
+        "zh-CN-Xiaoyou:DragonHDFlashLatestNeural" to setOf(
+            "angry",
+            "chat",
+            "cheerful",
+            "cute",
+            "poetry-reading",
+            "sad",
+            "story-telling"
+        ),
+        "zh-CN-Xiaoyu:DragonHDFlashLatestNeural" to setOf(
+            "angry",
+            "cheerful",
+            "comforting",
+            "debating",
+            "sad",
+            "sorry"
+        ),
+        "zh-CN-Yunhan:DragonHDFlashLatestNeural" to setOf(
+            "angry",
+            "cheerful",
+            "curious",
+            "empathetic",
+            "encouraging",
+            "excited",
+            "guilty",
+            "lonely",
+            "sad",
+            "serious",
+            "sorry",
+            "surprised",
+            "tired",
+            "whispering"
+        ),
+        "zh-CN-Yunxi:DragonHDFlashLatestNeural" to setOf(
+            "angry",
+            "chat",
+            "cheerful",
+            "complaining",
+            "depressed",
+            "fearful",
+            "news",
+            "sad",
+            "shy",
+            "strict",
+            "voice-assistant"
+        ),
+        "zh-CN-Yunxia:DragonHDFlashLatestNeural" to setOf(
+            "affectionate",
+            "angry",
+            "cheerful",
+            "comforting",
+            "encouraging",
+            "excited",
+            "fearful",
+            "sad",
+            "surprised"
+        ),
+        "zh-CN-Yunxiao:DragonHDFlashLatestNeural" to emptySet(),
+        "zh-CN-Yunyi:DragonHDFlashLatestNeural" to setOf(
+            "assassin",
+            "captain",
+            "cavalier",
+            "game-narrator",
+            "geomancer",
+            "poet",
+            "prince"
+        ),
+        "zh-CN-Yunye:DragonHDFlashLatestNeural" to emptySet(),
         "zh-CN-XiaohanNeural" to setOf(
             "affectionate",
             "angry",
@@ -454,6 +897,8 @@ object ChineseVoiceEmotionStyle {
     private const val SHORT_LINE_LENGTH = 28
     private const val MIN_RATE_DELTA = 0.005
     private const val MIN_PITCH_DELTA = 0.5
-    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v4"
+    private const val MIN_HINTED_PAUSE_SCALE = 0.4
+    private const val MAX_HINTED_PAUSE_SCALE = 1.2
+    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v9"
     private val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
 }

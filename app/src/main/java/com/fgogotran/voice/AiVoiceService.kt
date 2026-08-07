@@ -2,6 +2,7 @@ package com.fgogotran.voice
 
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.TextNormalizer
+import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.util.FgoLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -25,8 +26,9 @@ class AiVoiceService @Inject constructor(
 
     suspend fun speakDialogue(
         speakerName: String?,
-        japaneseDialogue: String?,
-        translatedDialogue: String?
+        sourceDialogue: String?,
+        translatedDialogue: String?,
+        voiceHint: VoiceLineHint? = null
     ) {
         if (!settingsRepository.aiVoiceEnabled.first()) return
 
@@ -39,18 +41,20 @@ class AiVoiceService @Inject constructor(
             FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
             return
         }
-        FgoLogger.debug(
-            tag,
-            "AI voice profile speaker=$speaker profile=${profile.profileId} voice=${profile.voiceName}"
-        )
-
+        val voiceLanguage = settingsRepository.aiVoiceLanguage.first()
         val dialogue = voiceTextFor(
             profile = profile,
-            japaneseDialogue = japaneseDialogue,
+            voiceLanguage = voiceLanguage,
+            sourceDialogue = sourceDialogue,
             translatedDialogue = translatedDialogue
         )
             ?.takeIf { TextNormalizer.hasTranslatableContent(it) }
             ?: return
+        FgoLogger.debug(
+            tag,
+            "AI voice profile speaker=$speaker profile=${profile.profileId} " +
+                "voice=${profile.voiceName} source=${voiceTextSourceFor(profile, voiceLanguage)}"
+        )
 
         val speechKey = settingsRepository.azureSpeechKey.first().trim()
         if (speechKey.isBlank()) {
@@ -64,7 +68,8 @@ class AiVoiceService @Inject constructor(
         val voiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
         val expression = voiceExpressionFor(
             profile = profile,
-            dialogue = dialogue
+            dialogue = dialogue,
+            voiceHint = voiceHint
         )
         val request = VoiceSynthesisRequest(
             speakerName = speaker,
@@ -74,6 +79,7 @@ class AiVoiceService @Inject constructor(
             rateOverride = expression?.rateOverride,
             pitchOverride = expression?.pitchOverride,
             styleDegree = expression?.styleDegree,
+            pauseScale = expression?.pauseScale,
             ssmlModeVersion = expression?.ssmlModeVersion
         )
         val cacheMaterial = request.cacheMaterial()
@@ -92,7 +98,8 @@ class AiVoiceService @Inject constructor(
                             styleOverride = expression?.styleOverride,
                             rateOverride = expression?.rateOverride,
                             pitchOverride = expression?.pitchOverride,
-                            styleDegree = expression?.styleDegree
+                            styleDegree = expression?.styleDegree,
+                            pauseScale = expression?.pauseScale
                         )
                     )
                 }
@@ -110,31 +117,55 @@ class AiVoiceService @Inject constructor(
 
     private fun voiceTextFor(
         profile: VoiceProfile,
-        japaneseDialogue: String?,
+        voiceLanguage: String,
+        sourceDialogue: String?,
         translatedDialogue: String?
     ): String? {
-        val sourceText = if (VoiceLocaleSupport.isChineseLocale(profile.locale)) {
-            translatedDialogue
-        } else {
-            japaneseDialogue
+        val source = voiceTextSourceFor(profile, voiceLanguage)
+        val preferredText = when (source) {
+            VoiceTextSource.TRANSLATED_CHINESE -> translatedDialogue
+            VoiceTextSource.GAME_TEXT -> sourceDialogue
         }
-        return sourceText
+        val fallbackText = when (source) {
+            VoiceTextSource.TRANSLATED_CHINESE -> sourceDialogue
+            VoiceTextSource.GAME_TEXT -> translatedDialogue
+        }
+        return (preferredText?.takeIf { it.isNotBlank() } ?: fallbackText)
             ?.let(TextNormalizer::stripRubyAnnotations)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
     }
 
+    private fun voiceTextSourceFor(
+        profile: VoiceProfile,
+        voiceLanguage: String
+    ): VoiceTextSource {
+        if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) {
+            return VoiceTextSource.GAME_TEXT
+        }
+        return when (SettingsRepository.normalizeAiVoiceLanguage(voiceLanguage)) {
+            SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION -> VoiceTextSource.TRANSLATED_CHINESE
+            else -> VoiceTextSource.GAME_TEXT
+        }
+    }
+
     private fun voiceExpressionFor(
         profile: VoiceProfile,
-        dialogue: String
+        dialogue: String,
+        voiceHint: VoiceLineHint?
     ): VoiceExpression? {
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) {
             return null
         }
-        return ChineseVoiceEmotionStyle.expressionFor(profile, dialogue)
+        return ChineseVoiceEmotionStyle.expressionFor(profile, dialogue, voiceHint)
     }
 
     fun stop() {
         playbackEngine.stop()
+    }
+
+    private enum class VoiceTextSource {
+        GAME_TEXT,
+        TRANSLATED_CHINESE
     }
 }

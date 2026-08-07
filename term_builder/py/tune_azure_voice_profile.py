@@ -44,7 +44,7 @@ REPO_ROOT = ROOT.parent
 DEFAULT_CHARACTER_PROFILES = ROOT / "character_voice_profiles.tsv"
 DEFAULT_RESULTS_DIR = ROOT / "voice_tuning" / "results"
 DEFAULT_CN_CANDIDATE_TEXT = "前辈，我们走吧。|我会努力成为您的力量。|请放心交给我。"
-DEFAULT_EXCLUDED_VOICE_PATTERNS = ("MAI-Voice", "Flash")
+DEFAULT_EXCLUDED_VOICE_PATTERNS = ("MAI-Voice",)
 DEFAULT_WINDOWS_FFMPEG = Path(r"C:\mywork\GPT-SoVITS-v2pro-20250604-nvidia50\runtime\ffmpeg.exe")
 DEFAULT_REFERENCE_SCAN_COUNT = 60
 
