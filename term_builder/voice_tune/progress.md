@@ -10,18 +10,19 @@ processed_speaker_groups: 560
 last_speaker_id: アントニオ
 approved_profiles_count: 488
 needs_review_count: 0
-last_updated: 2026-08-07 22:32:41 +08:00
+last_updated: 2026-08-08 10:43:05 +08:00
 
 ## Last Batch
 
-- operation: approved manual voice tune batch for ＢＢリリィ through アントニオ
-- approved source labels accepted: 20
-- profile rows inserted: 11
-- profile rows updated: 9
+- operation: approved focused rebuild to separate カドック, ペペロンチーノ, and ムニエル voices
+- profile rows inserted: 0
+- profile rows updated: 3
+- rows with actual value changes: 2
 - needs_review rows added: 0
-- stale needs_review rows removed for approved speaker IDs/aliases: 0
-- alias merges: ＢＢリリィ -> カズラドロップ; ローマ -> ロムルス; レオン -> デオン; 姫子 -> 刑部姫; エリス -> ジャンヌ・オルタ; アムール -> カレン; イシュタル実況 -> イシュタル; 黒獅子 -> ジョン; アントニオ -> サリエリ
-- DragonHD Flash voices used where they improved dialogue-like delivery and reduced 人機感.
+- カドック: keep zh-CN-Yunxi:DragonHDFlashLatestNeural / chat / 0% / 1.07
+- ペペロンチーノ: zh-CN-Yunxi:DragonHDFlashLatestNeural / chat / +1% / 1.07 -> zh-CN-Yunxia:DragonHDFlashLatestNeural / cheerful / +2% / 1.08
+- ムニエル: zh-CN-Yunxi:DragonHDFlashLatestNeural / chat / +1% / 1.06 -> zh-CN-Yunhan:DragonHDFlashLatestNeural / cheerful / 0% / 1.06
+- result: the three rows now use distinct exact voice models.
 
 ## Notes
 

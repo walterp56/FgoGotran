@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             FgoGotranTheme {
-                MainScreen(settingsRepository, glossaryUpdateManager, appVersionManager, translator, appAnalytics)
+                MainScreen(settingsRepository, appVersionManager, translator, appAnalytics)
             }
         }
     }
@@ -85,7 +85,6 @@ enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS, VOICE_SETTINGS }
 @Composable
 fun MainScreen(
     settingsRepository: SettingsRepository,
-    glossaryUpdateManager: GlossaryUpdateManager,
     appVersionManager: AppVersionManager,
     translator: Translator,
     appAnalytics: AppAnalytics
@@ -149,7 +148,6 @@ fun MainScreen(
 
         Screen.SETTINGS -> SettingsScreen(
             settingsRepository = settingsRepository,
-            glossaryUpdateManager = glossaryUpdateManager,
             appVersionManager = appVersionManager,
             onClearTranslationCache = { translator.clearTranslationCache() },
             onApiSettings = { currentScreen = Screen.API_SETTINGS },

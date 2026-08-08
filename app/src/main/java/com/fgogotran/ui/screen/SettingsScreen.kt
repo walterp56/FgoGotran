@@ -22,7 +22,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -52,14 +51,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
-import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.ui.component.AppUpdateDialog
 import com.fgogotran.ui.component.BackendProviderLabel
 import com.fgogotran.ui.component.openAppDownloadPage
 import com.fgogotran.update.AppVersionCheckResult
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.update.AppVersionManager
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -78,7 +75,6 @@ private const val FLOATING_BUTTON_SIZE_STEP_DP = 2
 @Composable
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
-    glossaryUpdateManager: GlossaryUpdateManager,
     appVersionManager: AppVersionManager,
     onClearTranslationCache: suspend () -> Int,
     onApiSettings: () -> Unit,
@@ -89,8 +85,6 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val appVersionStatus by appVersionManager.status.collectAsState()
-    val dbContentVersion by settingsRepository.dbContentVersion.collectAsState(initial = "")
-    val dbUpdateStatus by glossaryUpdateManager.updateStatus.collectAsState()
     val translationBackend by settingsRepository.translationBackend.collectAsState(
         initial = SettingsRepository.BACKEND_DEEPSEEK
     )
@@ -98,9 +92,6 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
     val aiVoiceEnabled by settingsRepository.aiVoiceEnabled.collectAsState(initial = false)
-    val aiVoiceLanguage by settingsRepository.aiVoiceLanguage.collectAsState(
-        initial = SettingsRepository.DEFAULT_AI_VOICE_LANGUAGE
-    )
     val aiVoiceApiHintsEnabled by settingsRepository.aiVoiceApiHintsEnabled.collectAsState(
         initial = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
     )
@@ -348,7 +339,7 @@ fun SettingsScreen(
             SettingsCard(
                 iconRes = R.drawable.ic_settings_voice,
                 title = "语音设置",
-                body = "AI 语音朗读、朗读文本和语气增强。"
+                body = ""
             ) {
                 SettingsInfoRow(
                     label = "状态",
@@ -356,7 +347,7 @@ fun SettingsScreen(
                 )
                 SettingsInfoRow(
                     label = "朗读文本",
-                    value = aiVoiceSourceLabel(aiVoiceLanguage)
+                    value = "中文"
                 )
                 SettingsInfoRow(
                     label = "语气增强",
@@ -481,47 +472,8 @@ fun SettingsScreen(
             SettingsCard(
                 iconRes = R.drawable.ic_settings_build,
                 title = "维护",
-                body = "检查术语库和应用版本。"
+                body = ""
             ) {
-                Text("术语库", style = MaterialTheme.typography.titleSmall)
-                SettingsInfoRow(label = "版本", value = dbContentVersion.ifBlank { "等待自动更新" })
-                SettingsInfoRow(
-                    label = "状态",
-                    value = when {
-                        dbUpdateStatus.visible && dbUpdateStatus.message.isNotBlank() -> dbUpdateStatus.message
-                        else -> "打开应用时自动检查"
-                    }
-                )
-                StatusDetailText(
-                    text = dbUpdateStatus.detail.takeIf {
-                        dbUpdateStatus.visible && dbUpdateStatus.detail.isNotBlank()
-                    }.orEmpty()
-                )
-                OutlinedButton(
-                    onClick = {
-                        scope.launch(Dispatchers.IO) {
-                            glossaryUpdateManager.updateIfNeeded(force = true)
-                        }
-                    },
-                    enabled = !dbUpdateStatus.isChecking,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    if (dbUpdateStatus.isChecking) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    Text(if (dbUpdateStatus.isChecking) "检查中" else "检查术语库")
-                }
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                )
-
-                Text("应用版本", style = MaterialTheme.typography.titleSmall)
                 SettingsInfoRow(
                     label = "当前版本",
                     value = currentVersionName,
@@ -534,14 +486,6 @@ fun SettingsScreen(
                 SettingsInfoRow(
                     label = "状态",
                     value = appVersionStatus.message.ifBlank { "手动检查新版本" }
-                )
-                StatusDetailText(
-                    text = appVersionStatus.detail.takeIf {
-                        appVersionStatus.isChecking ||
-                            appVersionStatus.isError ||
-                            appVersionStatus.message != "当前版本 $currentVersionName"
-                    }.orEmpty(),
-                    isError = appVersionStatus.isError
                 )
                 OutlinedButton(
                     onClick = { checkAppVersion() },
@@ -631,13 +575,6 @@ private fun floatingButtonSizeLabel(sizeDp: Int): String {
         safeSize == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> "标准"
         safeSize < SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -> "较大"
         else -> "最大"
-    }
-}
-
-private fun aiVoiceSourceLabel(language: String): String {
-    return when (SettingsRepository.normalizeAiVoiceLanguage(language)) {
-        SettingsRepository.AI_VOICE_LANGUAGE_JP_ORIGINAL -> "游戏原文"
-        else -> "中文译文"
     }
 }
 

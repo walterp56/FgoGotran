@@ -78,7 +78,7 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54
         const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
-        const val DEFAULT_AZURE_SPEECH_REGION = "japaneast"
+        const val DEFAULT_AZURE_SPEECH_REGION = "southeastasia"
         const val AI_VOICE_LANGUAGE_JP_ORIGINAL = "jp_original"
         const val AI_VOICE_LANGUAGE_CN_TRANSLATION = "cn_translation"
         const val DEFAULT_AI_VOICE_LANGUAGE = AI_VOICE_LANGUAGE_CN_TRANSLATION
@@ -139,11 +139,6 @@ class SettingsRepository @Inject constructor(
         )
         private val SUPPORTED_TRANSLATION_MODES = setOf("MANUAL", "SEMI_AUTO", "AUTO")
         private val SUPPORTED_OCR_ENGINES = setOf(OCR_ENGINE_MLKIT, OCR_ENGINE_PADDLE)
-        private val SUPPORTED_AI_VOICE_LANGUAGES = setOf(
-            AI_VOICE_LANGUAGE_JP_ORIGINAL,
-            AI_VOICE_LANGUAGE_CN_TRANSLATION
-        )
-
         fun normalizeBackend(backend: String): String =
             backend.takeIf { it in SUPPORTED_BACKENDS } ?: BACKEND_DEEPSEEK
 
@@ -154,7 +149,7 @@ class SettingsRepository @Inject constructor(
             engine.takeIf { it in SUPPORTED_OCR_ENGINES } ?: DEFAULT_OCR_ENGINE
 
         fun normalizeAiVoiceLanguage(language: String): String =
-            language.takeIf { it in SUPPORTED_AI_VOICE_LANGUAGES } ?: DEFAULT_AI_VOICE_LANGUAGE
+            language.takeIf { it == AI_VOICE_LANGUAGE_CN_TRANSLATION } ?: DEFAULT_AI_VOICE_LANGUAGE
 
         fun normalizeAiVoiceVolumePercent(volumePercent: Int): Int =
             volumePercent.coerceIn(MIN_AI_VOICE_VOLUME_PERCENT, MAX_AI_VOICE_VOLUME_PERCENT)
@@ -345,8 +340,8 @@ class SettingsRepository @Inject constructor(
     }
 
     /** Voice source for AI voice: OCR game text or translated Chinese. */
-    val aiVoiceLanguage: Flow<String> = context.dataStore.data.map { prefs ->
-        normalizeAiVoiceLanguage(prefs[KEY_AI_VOICE_LANGUAGE] ?: DEFAULT_AI_VOICE_LANGUAGE)
+    val aiVoiceLanguage: Flow<String> = context.dataStore.data.map {
+        DEFAULT_AI_VOICE_LANGUAGE
     }
 
     /** Whether translation API scene responses may include optional voice emotion hints. */
@@ -366,9 +361,9 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_AZURE_SPEECH_KEY] ?: ""
     }
 
-    /** Azure Speech resource region, for example japaneast or eastasia. */
-    val azureSpeechRegion: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_AZURE_SPEECH_REGION] ?: DEFAULT_AZURE_SPEECH_REGION
+    /** Azure Speech resource region. Fixed so users only need to enter a Speech key. */
+    val azureSpeechRegion: Flow<String> = context.dataStore.data.map {
+        DEFAULT_AZURE_SPEECH_REGION
     }
 
     /** Whether diagnostic Logcat output is enabled. Disabled by default for privacy. */
@@ -583,9 +578,8 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setAiVoiceLanguage(language: String) {
-        val normalizedLanguage = normalizeAiVoiceLanguage(language)
-        context.dataStore.edit { it[KEY_AI_VOICE_LANGUAGE] = normalizedLanguage }
-        FgoLogger.debug(tag, "Setting updated: ai_voice_language=$normalizedLanguage")
+        context.dataStore.edit { it[KEY_AI_VOICE_LANGUAGE] = DEFAULT_AI_VOICE_LANGUAGE }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_language=$DEFAULT_AI_VOICE_LANGUAGE")
     }
 
     suspend fun setAiVoiceApiHintsEnabled(enabled: Boolean) {
@@ -599,12 +593,12 @@ class SettingsRepository @Inject constructor(
         FgoLogger.debug(tag, "Setting updated: ai_voice_volume_percent=$normalizedVolume")
     }
 
-    suspend fun saveAzureSpeechSettings(speechKey: String, speechRegion: String) {
+    suspend fun saveAzureSpeechSettings(speechKey: String) {
         context.dataStore.edit {
             it[KEY_AZURE_SPEECH_KEY] = speechKey.trim()
-            it[KEY_AZURE_SPEECH_REGION] = speechRegion.trim().ifBlank { DEFAULT_AZURE_SPEECH_REGION }
+            it[KEY_AZURE_SPEECH_REGION] = DEFAULT_AZURE_SPEECH_REGION
         }
-        FgoLogger.debug(tag, "Setting updated: azure_speech_region=${speechRegion.trim()}")
+        FgoLogger.debug(tag, "Setting updated: azure_speech_region=$DEFAULT_AZURE_SPEECH_REGION")
     }
 
     suspend fun setDebugLoggingEnabled(enabled: Boolean) {

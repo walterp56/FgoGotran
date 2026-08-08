@@ -41,11 +41,7 @@ class AiVoiceService @Inject constructor(
             FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
             return
         }
-        val voiceLanguage = settingsRepository.aiVoiceLanguage.first()
         val dialogue = voiceTextFor(
-            profile = profile,
-            voiceLanguage = voiceLanguage,
-            sourceDialogue = sourceDialogue,
             translatedDialogue = translatedDialogue
         )
             ?.takeIf { TextNormalizer.hasTranslatableContent(it) }
@@ -53,7 +49,7 @@ class AiVoiceService @Inject constructor(
         FgoLogger.debug(
             tag,
             "AI voice profile speaker=$speaker profile=${profile.profileId} " +
-                "voice=${profile.voiceName} source=${voiceTextSourceFor(profile, voiceLanguage)}"
+                "voice=${profile.voiceName} source=translated_chinese"
         )
 
         val speechKey = settingsRepository.azureSpeechKey.first().trim()
@@ -116,37 +112,12 @@ class AiVoiceService @Inject constructor(
     }
 
     private fun voiceTextFor(
-        profile: VoiceProfile,
-        voiceLanguage: String,
-        sourceDialogue: String?,
         translatedDialogue: String?
     ): String? {
-        val source = voiceTextSourceFor(profile, voiceLanguage)
-        val preferredText = when (source) {
-            VoiceTextSource.TRANSLATED_CHINESE -> translatedDialogue
-            VoiceTextSource.GAME_TEXT -> sourceDialogue
-        }
-        val fallbackText = when (source) {
-            VoiceTextSource.TRANSLATED_CHINESE -> sourceDialogue
-            VoiceTextSource.GAME_TEXT -> translatedDialogue
-        }
-        return (preferredText?.takeIf { it.isNotBlank() } ?: fallbackText)
+        return translatedDialogue
             ?.let(TextNormalizer::stripRubyAnnotations)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-    }
-
-    private fun voiceTextSourceFor(
-        profile: VoiceProfile,
-        voiceLanguage: String
-    ): VoiceTextSource {
-        if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) {
-            return VoiceTextSource.GAME_TEXT
-        }
-        return when (SettingsRepository.normalizeAiVoiceLanguage(voiceLanguage)) {
-            SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION -> VoiceTextSource.TRANSLATED_CHINESE
-            else -> VoiceTextSource.GAME_TEXT
-        }
     }
 
     private fun voiceExpressionFor(
@@ -164,8 +135,4 @@ class AiVoiceService @Inject constructor(
         playbackEngine.stop()
     }
 
-    private enum class VoiceTextSource {
-        GAME_TEXT,
-        TRANSLATED_CHINESE
-    }
 }
