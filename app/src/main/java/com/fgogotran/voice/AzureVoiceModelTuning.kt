@@ -184,63 +184,63 @@ internal object AzureVoiceModelTuning {
 
     private fun femaleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.B,
-        rateBias = 0.04,
-        minRate = 1.08,
-        maxRate = 1.15,
+        rateBias = -0.02,
+        minRate = 0.96,
+        maxRate = 1.07,
         maxStyleDegree = 0.22,
         allowedStyles = FEMALE_DIALOGUE_STYLES,
-        pauseScale = 0.75
+        pauseScale = 1.00
     )
 
     private fun multilingualDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.A,
-        rateBias = 0.03,
-        minRate = 1.07,
-        maxRate = 1.14,
+        rateBias = -0.01,
+        minRate = 0.96,
+        maxRate = 1.07,
         maxStyleDegree = 0.20,
         allowedStyles = MULTILINGUAL_DIALOGUE_STYLES,
-        pauseScale = 0.82
+        pauseScale = 1.00
     )
 
     private fun youngMaleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.B,
-        rateBias = 0.05,
-        minRate = 1.08,
-        maxRate = 1.15,
+        rateBias = -0.02,
+        minRate = 0.96,
+        maxRate = 1.07,
         maxStyleDegree = 0.20,
         allowedStyles = MALE_DIALOGUE_STYLES,
-        pauseScale = 0.72
+        pauseScale = 1.00
     )
 
     private fun matureMaleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.C,
-        rateBias = 0.06,
-        minRate = 1.06,
-        maxRate = 1.13,
+        rateBias = -0.03,
+        minRate = 0.93,
+        maxRate = 1.04,
         maxStyleDegree = 0.16,
         allowedStyles = MALE_DIALOGUE_STYLES,
-        pauseScale = 0.62
+        pauseScale = 1.05
     )
 
     private fun childDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.B,
-        rateBias = 0.03,
-        minRate = 1.09,
-        maxRate = 1.17,
+        rateBias = -0.01,
+        minRate = 0.98,
+        maxRate = 1.08,
         maxStyleDegree = 0.20,
         allowedStyles = CHILD_DIALOGUE_STYLES,
         pitchBias = -0.5,
-        pauseScale = 0.78
+        pauseScale = 1.00
     )
 
     private fun noStyleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.B,
-        rateBias = 0.05,
-        minRate = 1.06,
-        maxRate = 1.13,
+        rateBias = -0.02,
+        minRate = 0.95,
+        maxRate = 1.06,
         maxStyleDegree = 0.0,
         allowedStyles = emptySet(),
-        pauseScale = 0.72
+        pauseScale = 1.02
     )
 
     private fun taiwanDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
@@ -256,69 +256,69 @@ internal object AzureVoiceModelTuning {
 
     private fun dragonHdFlashDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.A,
-        rateBias = 0.0,
-        minRate = 0.96,
-        maxRate = 1.11,
+        rateBias = -0.02,
+        minRate = 0.94,
+        maxRate = 1.07,
         maxStyleDegree = 0.34,
         allowedStyles = DRAGON_HD_FLASH_DIALOGUE_STYLES,
         blockedStyles = DRAGON_HD_FLASH_BLOCKED_STYLES,
-        pauseScale = 0.96,
+        pauseScale = 1.05,
         softenTypeRateFloor = true
     )
 
     private fun dragonHdFlashChildDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.A,
-        rateBias = 0.0,
-        minRate = 1.00,
-        maxRate = 1.15,
+        rateBias = -0.01,
+        minRate = 0.97,
+        maxRate = 1.08,
         maxStyleDegree = 0.32,
         allowedStyles = DRAGON_HD_FLASH_DIALOGUE_STYLES,
         blockedStyles = DRAGON_HD_FLASH_BLOCKED_STYLES,
         pitchBias = -0.5,
-        pauseScale = 0.98,
+        pauseScale = 1.04,
         softenTypeRateFloor = true
     )
 
     private fun dragonHdFlashMaleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.A,
-        rateBias = 0.0,
-        minRate = 0.95,
-        maxRate = 1.10,
+        rateBias = -0.02,
+        minRate = 0.92,
+        maxRate = 1.05,
         maxStyleDegree = 0.32,
         allowedStyles = DRAGON_HD_FLASH_DIALOGUE_STYLES,
         blockedStyles = DRAGON_HD_FLASH_BLOCKED_STYLES,
-        pauseScale = 0.94,
+        pauseScale = 1.06,
         softenTypeRateFloor = true
     )
 
     private fun scenarioDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.D,
-        rateBias = 0.08,
-        minRate = 1.08,
-        maxRate = 1.14,
+        rateBias = -0.03,
+        minRate = 0.94,
+        maxRate = 1.04,
         maxStyleDegree = 0.0,
         allowedStyles = emptySet(),
-        pauseScale = 0.55
+        pauseScale = 1.08
     )
 
     private fun cautiousDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.C,
-        rateBias = 0.06,
-        minRate = 1.06,
-        maxRate = 1.13,
+        rateBias = -0.03,
+        minRate = 0.94,
+        maxRate = 1.05,
         maxStyleDegree = 0.12,
         allowedStyles = CAUTIOUS_DIALOGUE_STYLES,
-        pauseScale = 0.62
+        pauseScale = 1.06
     )
 
     private fun accentDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.C,
-        rateBias = 0.06,
-        minRate = 1.05,
-        maxRate = 1.12,
+        rateBias = -0.03,
+        minRate = 0.93,
+        maxRate = 1.04,
         maxStyleDegree = 0.0,
         allowedStyles = emptySet(),
-        pauseScale = 0.68
+        pauseScale = 1.08
     )
 
     private val TUNING_BY_VOICE = mapOf(

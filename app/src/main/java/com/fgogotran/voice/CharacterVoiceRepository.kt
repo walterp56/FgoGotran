@@ -15,14 +15,20 @@ class CharacterVoiceRepository @Inject constructor(
 
     private val profiles: List<CharacterVoiceProfile> by lazy { loadProfiles() }
     private val aliasToProfile: Map<String, VoiceProfile> by lazy { loadAliasMap() }
+    private val cnNameToJapaneseName: Map<String, String> by lazy { loadChineseNameMap() }
 
     fun resolveProfileOrNull(
         speakerName: String?
     ): VoiceProfile? {
-        return speakerName
+        val normalizedSpeakerName = speakerName
             ?.let(::normalizeSpeakerName)
             ?.takeIf { it.isNotBlank() }
-            ?.let(::findProfile)
+            ?: return null
+
+        findProfile(normalizedSpeakerName)?.let { return it }
+
+        val japaneseName = mappedJapaneseNameFor(normalizedSpeakerName) ?: return null
+        return findProfile(normalizeSpeakerName(japaneseName))
     }
 
     private fun findProfile(normalizedSpeakerName: String): VoiceProfile? {
@@ -31,6 +37,17 @@ class CharacterVoiceRepository @Inject constructor(
             .sortedByDescending { it.key.length }
             .firstOrNull { (alias, _) ->
                 alias.length >= MIN_PARTIAL_ALIAS_LENGTH && normalizedSpeakerName.contains(alias)
+            }
+            ?.value
+    }
+
+    private fun mappedJapaneseNameFor(normalizedSpeakerName: String): String? {
+        cnNameToJapaneseName[normalizedSpeakerName]?.let { return it }
+        return cnNameToJapaneseName.entries
+            .sortedByDescending { it.key.length }
+            .firstOrNull { (cnName, _) ->
+                cnName.length >= MIN_CHINESE_PARTIAL_ALIAS_LENGTH &&
+                    normalizedSpeakerName.contains(cnName)
             }
             ?.value
     }
@@ -86,6 +103,35 @@ class CharacterVoiceRepository @Inject constructor(
         }.getOrDefault(emptyMap())
     }
 
+    private fun loadChineseNameMap(): Map<String, String> {
+        return runCatching {
+            buildMap {
+                readTsv(JP_CN_NAME_MAP_ASSET).forEach { columns ->
+                    if (columns.size < 3) return@forEach
+                    val japaneseName = columns[0].trim()
+                    if (japaneseName.isBlank()) return@forEach
+
+                    listOf(columns[1], columns[2])
+                        .flatMap(::splitNameMapAliases)
+                        .map(::normalizeSpeakerName)
+                        .filter(String::isNotBlank)
+                        .forEach { cnName ->
+                            putIfAbsent(cnName, japaneseName)
+                        }
+                }
+            }
+        }.onFailure { e ->
+            FgoLogger.warn(tag, "Failed to load JP/CN voice name map TSV", e)
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun splitNameMapAliases(value: String): List<String> {
+        return value
+            .split(Regex("[|/&＆／]"))
+            .map(String::trim)
+            .filter(String::isNotBlank)
+    }
+
     private fun readTsv(assetPath: String): List<List<String>> {
         return context.assets.open(assetPath).bufferedReader(Charsets.UTF_8).useLines { lines ->
             lines.drop(1)
@@ -106,8 +152,10 @@ class CharacterVoiceRepository @Inject constructor(
 
     private companion object {
         const val CHARACTER_VOICE_PROFILES_CN_ASSET = "voice/character_voice_profiles_cn.tsv"
+        const val JP_CN_NAME_MAP_ASSET = "voice/jp_cn_name_map.tsv"
         const val AZURE_PROVIDER = "azure"
         const val MIN_PARTIAL_ALIAS_LENGTH = 3
+        const val MIN_CHINESE_PARTIAL_ALIAS_LENGTH = 2
     }
 }
 

@@ -53,6 +53,7 @@ class SettingsRepository @Inject constructor(
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
+        val KEY_GAME_SERVER = stringPreferencesKey("game_server")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
         val KEY_DB_SHA256 = stringPreferencesKey("db_sha256")
         val KEY_DB_LOCALE = stringPreferencesKey("db_locale")
@@ -87,6 +88,7 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_AI_VOICE_VOLUME_PERCENT = 100
         const val MAX_AI_VOICE_VOLUME_PERCENT = 100
         const val OCR_ENGINE_MLKIT = "mlkit"
+        const val OCR_ENGINE_MLKIT_CHINESE = "mlkit_chinese"
         const val OCR_ENGINE_PADDLE = "paddle"
         const val DEFAULT_OCR_ENGINE = OCR_ENGINE_MLKIT
 
@@ -127,6 +129,10 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_CUSTOM_MODEL = "deepseek-v4-flash"
         const val TARGET_LOCALE_SIMPLIFIED = "zh-Hans"
         const val TARGET_LOCALE_TRADITIONAL = "zh-Hant"
+        const val GAME_SERVER_JP = "jp"
+        const val GAME_SERVER_CN = "cn"
+        const val GAME_SERVER_TW = "tw"
+        const val DEFAULT_GAME_SERVER = GAME_SERVER_JP
 
         private val SUPPORTED_BACKENDS = setOf(
             BACKEND_DEEPSEEK,
@@ -139,6 +145,7 @@ class SettingsRepository @Inject constructor(
         )
         private val SUPPORTED_TRANSLATION_MODES = setOf("MANUAL", "SEMI_AUTO", "AUTO")
         private val SUPPORTED_OCR_ENGINES = setOf(OCR_ENGINE_MLKIT, OCR_ENGINE_PADDLE)
+        private val SUPPORTED_GAME_SERVERS = setOf(GAME_SERVER_JP, GAME_SERVER_CN, GAME_SERVER_TW)
         fun normalizeBackend(backend: String): String =
             backend.takeIf { it in SUPPORTED_BACKENDS } ?: BACKEND_DEEPSEEK
 
@@ -146,7 +153,11 @@ class SettingsRepository @Inject constructor(
             mode.takeIf { it in SUPPORTED_TRANSLATION_MODES } ?: DEFAULT_TRANSLATION_MODE
 
         fun normalizeOcrEngine(engine: String): String =
-            engine.takeIf { it in SUPPORTED_OCR_ENGINES } ?: DEFAULT_OCR_ENGINE
+            when (engine) {
+                OCR_ENGINE_MLKIT_CHINESE -> OCR_ENGINE_MLKIT
+                in SUPPORTED_OCR_ENGINES -> engine
+                else -> DEFAULT_OCR_ENGINE
+            }
 
         fun normalizeAiVoiceLanguage(language: String): String =
             language.takeIf { it == AI_VOICE_LANGUAGE_CN_TRANSLATION } ?: DEFAULT_AI_VOICE_LANGUAGE
@@ -156,7 +167,7 @@ class SettingsRepository @Inject constructor(
 
         fun ocrEngineDisplayName(engine: String): String = when (normalizeOcrEngine(engine)) {
             OCR_ENGINE_PADDLE -> "PaddleOCR PP-OCRv6"
-            else -> "ML Kit Japanese OCR"
+            else -> "ML Kit OCR"
         }
 
         fun normalizeFloatingButtonSizeDp(sizeDp: Int): Int =
@@ -165,6 +176,15 @@ class SettingsRepository @Inject constructor(
         fun normalizeTargetChineseLocale(locale: String): String = when (locale) {
             TARGET_LOCALE_TRADITIONAL -> TARGET_LOCALE_TRADITIONAL
             else -> TARGET_LOCALE_SIMPLIFIED
+        }
+
+        fun normalizeGameServer(server: String): String =
+            server.takeIf { it in SUPPORTED_GAME_SERVERS } ?: DEFAULT_GAME_SERVER
+
+        fun gameServerDisplayName(server: String): String = when (normalizeGameServer(server)) {
+            GAME_SERVER_CN -> "简中服"
+            GAME_SERVER_TW -> "繁中服"
+            else -> "日服"
         }
 
         fun normalizeQwenSite(site: String): String = when (site) {
@@ -383,6 +403,11 @@ class SettingsRepository @Inject constructor(
     /** Target Chinese script for translated output. */
     val targetChineseLocale: Flow<String> = context.dataStore.data.map { prefs ->
         normalizeTargetChineseLocale(prefs[KEY_TARGET_CHINESE_LOCALE] ?: TARGET_LOCALE_SIMPLIFIED)
+    }
+
+    /** FGO server source currently being read from the game screen. */
+    val gameServer: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeGameServer(prefs[KEY_GAME_SERVER] ?: DEFAULT_GAME_SERVER)
     }
 
     /** Latest installed CDN terminology DB content version, blank before online DB install. */
@@ -617,6 +642,16 @@ class SettingsRepository @Inject constructor(
         val normalizedLocale = normalizeTargetChineseLocale(locale)
         context.dataStore.edit { it[KEY_TARGET_CHINESE_LOCALE] = normalizedLocale }
         FgoLogger.debug(tag, "Setting updated: target_chinese_locale=$normalizedLocale")
+    }
+
+    suspend fun getGameServer(): String {
+        return gameServer.first()
+    }
+
+    suspend fun setGameServer(server: String) {
+        val normalizedServer = normalizeGameServer(server)
+        context.dataStore.edit { it[KEY_GAME_SERVER] = normalizedServer }
+        FgoLogger.debug(tag, "Setting updated: game_server=$normalizedServer")
     }
 
     private fun resolveQwenSite(prefs: Preferences): String {

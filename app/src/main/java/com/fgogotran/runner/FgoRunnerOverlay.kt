@@ -77,6 +77,7 @@ class FgoRunnerOverlay @Inject constructor(
     private val overlayScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
     private var buttonSizeDp by mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
+    private var gameServer by mutableStateOf(SettingsRepository.DEFAULT_GAME_SERVER)
     private var aiVoiceEnabled by mutableStateOf(false)
     private var aiVoiceVolumePercent by mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_VOLUME_PERCENT)
     private var showButtonFailureRing by mutableStateOf(false)
@@ -85,6 +86,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var buttonPositionLoaded = false
     private var savePositionJob: Job? = null
     private var buttonSizeJob: Job? = null
+    private var gameServerJob: Job? = null
     private var voiceEnabledJob: Job? = null
     private var voiceVolumeJob: Job? = null
     private var showRequestVersion = 0
@@ -175,6 +177,7 @@ class FgoRunnerOverlay @Inject constructor(
                 loadButtonPositionIfNeeded()
                 restoreLastTranslationMode()
                 buttonSizeDp = settingsRepository.getFloatingButtonSizeDp()
+                gameServer = settingsRepository.getGameServer()
                 aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
                 if (!shown || requestVersion != showRequestVersion) return@launch
 
@@ -201,6 +204,7 @@ class FgoRunnerOverlay @Inject constructor(
                 clampButtonPositionToScreen()
                 wm.addView(composeHost!!.view, btnLayoutParams)
                 startButtonSizeObserver()
+                startGameServerObserver()
                 startVoiceEnabledObserver()
                 startVoiceVolumeObserver()
                 FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
@@ -238,6 +242,8 @@ class FgoRunnerOverlay @Inject constructor(
         showRequestVersion += 1
         buttonSizeJob?.cancel()
         buttonSizeJob = null
+        gameServerJob?.cancel()
+        gameServerJob = null
         voiceEnabledJob?.cancel()
         voiceEnabledJob = null
         voiceVolumeJob?.cancel()
@@ -339,6 +345,10 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun onButtonClick() {
         if (cropModeState == CropModeState.SELECTING) {
+            if (!isJapaneseServer()) {
+                cancelCropMode()
+                return
+            }
             requestOneShotCropTranslation()
             return
         }
@@ -432,6 +442,22 @@ class FgoRunnerOverlay @Inject constructor(
                     clampButtonPositionToScreen()
                     updateButtonLayout()
                 }
+            }
+        }
+    }
+
+    private fun startGameServerObserver() {
+        gameServerJob?.cancel()
+        gameServerJob = overlayScope.launch {
+            settingsRepository.gameServer.collect { server ->
+                val normalizedServer = SettingsRepository.normalizeGameServer(server)
+                if (normalizedServer == gameServer) return@collect
+                gameServer = normalizedServer
+                if (!isJapaneseServer()) {
+                    cancelCropMode()
+                    dismissHistoryPanel()
+                }
+                refreshButtonMode()
             }
         }
     }
@@ -551,6 +577,7 @@ class FgoRunnerOverlay @Inject constructor(
             FloatingMenu(
                 translationMode = TranslationTrigger.translationMode(),
                 viewportScale = currentViewportScale(),
+                gameServer = gameServer,
                 voiceEnabled = aiVoiceEnabled,
                 voiceVolumePercent = aiVoiceVolumePercent,
                 onTranslationModeChange = { mode ->
@@ -570,12 +597,16 @@ class FgoRunnerOverlay @Inject constructor(
                     updateAiVoiceVolume(volumePercent)
                 },
                 onCropTranslateClick = {
-                    dismissMenu()
-                    armOneShotCropMode()
+                    if (isJapaneseServer()) {
+                        dismissMenu()
+                        armOneShotCropMode()
+                    }
                 },
                 onHistoryClick = {
-                    dismissMenu()
-                    showHistoryPanel()
+                    if (isJapaneseServer()) {
+                        dismissMenu()
+                        showHistoryPanel()
+                    }
                 },
                 onCloseClick = { requestClose() }
             )
@@ -620,6 +651,7 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun armOneShotCropMode() {
+        if (!isJapaneseServer()) return
         if (cropModeState != CropModeState.SELECTING) {
             modeBeforeCrop = TranslationTrigger.translationMode()
         }
@@ -672,9 +704,14 @@ class FgoRunnerOverlay @Inject constructor(
             ?: TranslationTrigger.setTranslationMode(mode)
     }
 
+    private fun isJapaneseServer(): Boolean {
+        return SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
+    }
+
     private fun updateButtonMode() {
+        val japaneseServer = isJapaneseServer()
         buttonMode = when {
-            cropModeState == CropModeState.SELECTING -> FloatingButtonMode.CROP
+            cropModeState == CropModeState.SELECTING && japaneseServer -> FloatingButtonMode.CROP
             TranslationTrigger.translationMode() == TranslationMode.SEMI_AUTO -> FloatingButtonMode.SEMI_AUTO
             TranslationTrigger.translationMode() == TranslationMode.AUTO -> FloatingButtonMode.AUTO
             else -> FloatingButtonMode.MANUAL

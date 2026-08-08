@@ -75,8 +75,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // ML Kit OCR (Japanese, bundled so OCR works without Google Play services/model delivery)
+    // ML Kit OCR (bundled so OCR works without Google Play services/model delivery)
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
 
     // PaddleOCR PP-OCRv6 ONNX runtime and polygon post-processing
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.27.0")

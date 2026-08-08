@@ -50,6 +50,7 @@ private const val MENU_REFERENCE_DENSITY = 3f
 fun FloatingMenu(
     translationMode: TranslationMode,
     viewportScale: Float = 1f,
+    gameServer: String,
     voiceEnabled: Boolean,
     voiceVolumePercent: Int,
     onTranslationModeChange: (TranslationMode) -> Unit,
@@ -59,6 +60,8 @@ fun FloatingMenu(
     onCloseClick: () -> Unit
 ) {
     val density = LocalDensity.current
+    val isJapaneseServer =
+        SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(8f, viewportScale, density))
@@ -96,6 +99,7 @@ fun FloatingMenu(
             TranslationModeSelector(
                 selectedMode = translationMode,
                 viewportScale = viewportScale,
+                label = if (isJapaneseServer) "翻译模式" else "朗读模式",
                 onModeChange = onTranslationModeChange
             )
 
@@ -105,6 +109,7 @@ fun FloatingMenu(
                 icon = FloatingActionIcon.CROP,
                 viewportScale = viewportScale,
                 label = "区域翻译",
+                enabled = isJapaneseServer,
                 onClick = onCropTranslateClick
             )
 
@@ -114,6 +119,7 @@ fun FloatingMenu(
                 icon = FloatingActionIcon.HISTORY_LIST,
                 viewportScale = viewportScale,
                 label = "翻译LOG",
+                enabled = isJapaneseServer,
                 onClick = onHistoryClick
             )
 
@@ -140,7 +146,11 @@ private fun MenuRow(
     onClick: () -> Unit
 ) {
     val density = LocalDensity.current
-    val color = if (muted) Color(0xFF999999) else Color(0xFF333333)
+    val color = when {
+        !enabled -> Color(0xFFBBBBBB)
+        muted -> Color(0xFF999999)
+        else -> Color(0xFF333333)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -165,11 +175,12 @@ private fun MenuRow(
 private fun TranslationModeSelector(
     selectedMode: TranslationMode,
     viewportScale: Float,
+    label: String,
     onModeChange: (TranslationMode) -> Unit
 ) {
     val density = LocalDensity.current
     Text(
-        text = "翻译模式",
+        text = label,
         fontSize = scaledMenuSp(12f, viewportScale, density),
         fontWeight = FontWeight.Bold,
         color = Color(0xFF777777),

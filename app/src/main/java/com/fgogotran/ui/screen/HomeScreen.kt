@@ -56,8 +56,8 @@ fun HomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
-    val targetChineseLocale by settingsRepository.targetChineseLocale.collectAsState(
-        initial = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    val gameServer by settingsRepository.gameServer.collectAsState(
+        initial = SettingsRepository.DEFAULT_GAME_SERVER
     )
     val serviceRunning = FgoRunnerService.serviceStarted.value
     val accessibilityRunning = FgoAccessibilityService.serviceStarted.value
@@ -71,7 +71,7 @@ fun HomeScreen(
         val pm = context.getSystemService(PowerManager::class.java)
         mutableStateOf(pm.isIgnoringBatteryOptimizations(context.packageName))
     }
-    var showLanguageDialog by remember { mutableStateOf(false) }
+    var showServerDialog by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // update permissions state
@@ -155,9 +155,9 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            LanguagePreference(
-                selectedLabel = targetChineseLocaleLabel(targetChineseLocale),
-                onClick = { showLanguageDialog = true }
+            ServerPreference(
+                selectedLabel = SettingsRepository.gameServerDisplayName(gameServer),
+                onClick = { showServerDialog = true }
             )
 
 //            Text(
@@ -249,14 +249,14 @@ fun HomeScreen(
             }
         }
 
-        if (showLanguageDialog) {
-            LanguageChoiceDialog(
-                selectedLocale = targetChineseLocale,
-                onDismiss = { showLanguageDialog = false },
-                onSelect = { locale ->
-                    showLanguageDialog = false
+        if (showServerDialog) {
+            ServerChoiceDialog(
+                selectedServer = gameServer,
+                onDismiss = { showServerDialog = false },
+                onSelect = { server ->
+                    showServerDialog = false
                     scope.launch {
-                        settingsRepository.setTargetChineseLocale(locale)
+                        settingsRepository.setGameServer(server)
                     }
                 }
             )
@@ -264,19 +264,14 @@ fun HomeScreen(
     }
 }
 
-private val targetChineseLocaleOptions = listOf(
-    SettingsRepository.TARGET_LOCALE_SIMPLIFIED to "简体中文",
-    SettingsRepository.TARGET_LOCALE_TRADITIONAL to "繁體中文"
+private val gameServerOptions = listOf(
+    SettingsRepository.GAME_SERVER_JP to "日服",
+    SettingsRepository.GAME_SERVER_CN to "简中服",
+    SettingsRepository.GAME_SERVER_TW to "繁中服"
 )
 
-private fun targetChineseLocaleLabel(locale: String): String {
-    val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(locale)
-    return targetChineseLocaleOptions.firstOrNull { it.first == normalizedLocale }?.second
-        ?: "简体中文"
-}
-
 @Composable
-private fun LanguagePreference(
+private fun ServerPreference(
     selectedLabel: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -297,12 +292,12 @@ private fun LanguagePreference(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "翻译语言",
+                    "FGO 服务器",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    "›",
+                    selectedLabel,
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -314,8 +309,8 @@ private fun LanguagePreference(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 LanguageDirectionChip(
-                    label = "原文",
-                    value = "日文",
+                    label = "当前",
+                    value = selectedLabel,
                     highlighted = false,
                     modifier = Modifier.weight(1f)
                 )
@@ -325,11 +320,67 @@ private fun LanguagePreference(
                     color = MaterialTheme.colorScheme.primary
                 )
                 LanguageDirectionChip(
-                    label = "译文",
-                    value = selectedLabel,
+                    label = "模式",
+                    value = serverFeatureLabel(selectedLabel),
                     highlighted = true,
                     modifier = Modifier.weight(1f)
                 )
+            }
+        }
+    }
+}
+
+private fun serverFeatureLabel(selectedLabel: String): String {
+    val server = gameServerOptions.firstOrNull { it.second == selectedLabel }?.first
+        ?: SettingsRepository.DEFAULT_GAME_SERVER
+    return if (SettingsRepository.normalizeGameServer(server) == SettingsRepository.GAME_SERVER_JP) {
+        "翻译 + 语音"
+    } else {
+        "语音"
+    }
+}
+
+@Composable
+private fun ServerChoiceDialog(
+    selectedServer: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    val normalizedServer = SettingsRepository.normalizeGameServer(selectedServer)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "FGO 服务器",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    gameServerOptions.forEach { (server, label) ->
+                        LanguageDialogOption(
+                            label = label,
+                            selected = server == normalizedServer,
+                            onClick = { onSelect(server) }
+                        )
+                    }
+                }
             }
         }
     }
@@ -408,52 +459,6 @@ private fun StatusActionCard(
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(actionText)
-            }
-        }
-    }
-}
-
-@Composable
-private fun LanguageChoiceDialog(
-    selectedLocale: String,
-    onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
-) {
-    val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(selectedLocale)
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    "Translate To",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                )
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    targetChineseLocaleOptions.forEach { (locale, label) ->
-                        LanguageDialogOption(
-                            label = label,
-                            selected = locale == normalizedLocale,
-                            onClick = { onSelect(locale) }
-                        )
-                    }
-                }
             }
         }
     }

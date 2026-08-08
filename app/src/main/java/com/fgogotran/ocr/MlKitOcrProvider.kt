@@ -6,16 +6,34 @@ import com.fgogotran.util.FgoLogger
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-internal class MlKitOcrProvider : OcrProvider {
-    private val recognizer = TextRecognition.getClient(
-        JapaneseTextRecognizerOptions.Builder().build()
-    )
+internal enum class MlKitOcrScript(
+    val displayName: String,
+    val modelLabel: String,
+    val engineId: OcrEngineId
+) {
+    JAPANESE("ML Kit Japanese OCR", "Japanese", OcrEngineId.ML_KIT),
+    CHINESE("ML Kit Chinese OCR", "Chinese", OcrEngineId.ML_KIT_CHINESE)
+}
+
+internal class MlKitOcrProvider(
+    private val script: MlKitOcrScript = MlKitOcrScript.JAPANESE
+) : OcrProvider {
+    private val recognizer: TextRecognizer = when (script) {
+        MlKitOcrScript.CHINESE -> TextRecognition.getClient(
+            ChineseTextRecognizerOptions.Builder().build()
+        )
+        MlKitOcrScript.JAPANESE -> TextRecognition.getClient(
+            JapaneseTextRecognizerOptions.Builder().build()
+        )
+    }
     private val tag = "OCR"
     @Volatile
     private var warmedUp = false
@@ -24,10 +42,10 @@ internal class MlKitOcrProvider : OcrProvider {
         if (warmedUp) return
         val bitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         try {
-            FgoLogger.debug(tag, "ML Kit OCR warm-up starting")
+            FgoLogger.debug(tag, "${script.displayName} warm-up starting")
             val image = InputImage.fromBitmap(bitmap, 0)
             recognizer.processSuspending(image)
-            FgoLogger.info(tag, "ML Kit OCR warm-up complete")
+            FgoLogger.info(tag, "${script.displayName} warm-up complete")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -40,7 +58,7 @@ internal class MlKitOcrProvider : OcrProvider {
 
     override suspend fun recognize(bitmap: Bitmap): OcrResult {
         val startTime = System.currentTimeMillis()
-        FgoLogger.debug(tag, "ML Kit OCR starting on ${bitmap.width}x${bitmap.height}")
+        FgoLogger.debug(tag, "${script.displayName} starting on ${bitmap.width}x${bitmap.height}")
 
         val image = InputImage.fromBitmap(bitmap, 0)
         val result = recognizer.processSuspending(image)
@@ -60,18 +78,18 @@ internal class MlKitOcrProvider : OcrProvider {
 
         val elapsed = System.currentTimeMillis() - startTime
         if (lines.isEmpty()) {
-            FgoLogger.warn(tag, "ML Kit OCR returned 0 text lines after ${elapsed}ms")
+            FgoLogger.warn(tag, "${script.displayName} returned 0 text lines after ${elapsed}ms")
         } else {
             FgoLogger.info(
                 tag,
-                "ML Kit OCR complete: ${lines.size} lines, ${result.text.length} chars, ${elapsed}ms"
+                "${script.displayName} complete: ${lines.size} lines, ${result.text.length} chars, ${elapsed}ms"
             )
         }
 
         return OcrResult(
             lines = lines,
             fullText = result.text,
-            engine = OcrEngineId.ML_KIT
+            engine = script.engineId
         )
     }
 
@@ -80,7 +98,7 @@ internal class MlKitOcrProvider : OcrProvider {
         warmedUp = false
     }
 
-    private suspend fun com.google.mlkit.vision.text.TextRecognizer.processSuspending(
+    private suspend fun TextRecognizer.processSuspending(
         image: InputImage
     ): Text = suspendCancellableCoroutine { continuation ->
         process(image)

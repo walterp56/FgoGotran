@@ -24,6 +24,7 @@ data class OcrTextLine(
 
 enum class OcrEngineId {
     ML_KIT,
+    ML_KIT_CHINESE,
     PADDLE_OCR,
     UNKNOWN
 }
@@ -77,21 +78,37 @@ class OcrEngine @Inject constructor(
 
     private suspend fun selectedProviderLocked(): OcrProvider {
         val requestedEngine = settingsRepository.getOcrEngine()
+        val mlKitScript = if (requestedEngine == SettingsRepository.OCR_ENGINE_MLKIT) {
+            val gameServer = SettingsRepository.normalizeGameServer(settingsRepository.getGameServer())
+            if (gameServer == SettingsRepository.GAME_SERVER_JP) {
+                MlKitOcrScript.JAPANESE
+            } else {
+                MlKitOcrScript.CHINESE
+            }
+        } else {
+            null
+        }
+        val providerKey = mlKitScript
+            ?.let { "${SettingsRepository.OCR_ENGINE_MLKIT}:${it.name}" }
+            ?: requestedEngine
         val existingProvider = activeProvider
-        if (existingProvider != null && requestedEngine == activeEngine) {
+        if (existingProvider != null && providerKey == activeEngine) {
             return existingProvider
         }
 
         existingProvider?.close()
         val nextProvider = when (requestedEngine) {
             SettingsRepository.OCR_ENGINE_PADDLE -> PaddleOcrProvider(appContext)
-            else -> MlKitOcrProvider()
+            else -> MlKitOcrProvider(mlKitScript ?: MlKitOcrScript.JAPANESE)
         }
-        activeEngine = requestedEngine
+        activeEngine = providerKey
         activeProvider = nextProvider
+        val displayName = mlKitScript
+            ?.let { "${SettingsRepository.ocrEngineDisplayName(requestedEngine)} (${it.modelLabel})" }
+            ?: SettingsRepository.ocrEngineDisplayName(requestedEngine)
         FgoLogger.info(
             tag,
-            "OCR engine selected: ${SettingsRepository.ocrEngineDisplayName(requestedEngine)}"
+            "OCR engine selected: $displayName"
         )
         return nextProvider
     }

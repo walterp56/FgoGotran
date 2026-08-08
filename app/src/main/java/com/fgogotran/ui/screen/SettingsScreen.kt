@@ -49,6 +49,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ui.component.AppUpdateDialog
@@ -95,6 +96,9 @@ fun SettingsScreen(
     val aiVoiceApiHintsEnabled by settingsRepository.aiVoiceApiHintsEnabled.collectAsState(
         initial = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
     )
+    val targetChineseLocale by settingsRepository.targetChineseLocale.collectAsState(
+        initial = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    )
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
     var playerName by remember { mutableStateOf("") }
@@ -112,6 +116,7 @@ fun SettingsScreen(
     var clearingCache by remember { mutableStateOf(false) }
     var cacheClearMessage by remember { mutableStateOf("") }
     var pendingUpdate by remember { mutableStateOf<AppVersionInfo?>(null) }
+    var showTranslationLanguageDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         playerName = settingsRepository.playerName.first()
@@ -195,6 +200,19 @@ fun SettingsScreen(
         )
     }
 
+    if (showTranslationLanguageDialog) {
+        TranslationLanguageChoiceDialog(
+            selectedLocale = targetChineseLocale,
+            onDismiss = { showTranslationLanguageDialog = false },
+            onSelect = { locale ->
+                showTranslationLanguageDialog = false
+                scope.launch {
+                    settingsRepository.setTargetChineseLocale(locale)
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -250,8 +268,8 @@ fun SettingsScreen(
             ) {
                 OcrEngineOption(
                     iconRes = R.drawable.ic_mlkit_japanese_mark,
-                    title = "ML Kit Japanese OCR",
-                    body = "默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。",
+                    title = "ML Kit OCR",
+                    body = "按服务器自动使用日文或中文 ML Kit 模型。",
                     selected = ocrEngine == SettingsRepository.OCR_ENGINE_MLKIT,
                     onClick = {
                         ocrEngine = SettingsRepository.OCR_ENGINE_MLKIT
@@ -280,6 +298,11 @@ fun SettingsScreen(
 //                    style = MaterialTheme.typography.bodySmall,
 //                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
 //                )
+                SettingsInfoRow(
+                    label = "日服译文语言",
+                    value = targetChineseLocaleLabel(targetChineseLocale),
+                    modifier = Modifier.clickable { showTranslationLanguageDialog = true }
+                )
                 OutlinedTextField(
                     value = playerName,
                     onValueChange = {
@@ -501,6 +524,108 @@ fun SettingsScreen(
                     }
                     Text(if (appVersionStatus.isChecking) "检查中" else "检查版本")
                 }
+            }
+        }
+    }
+}
+
+private val targetChineseLocaleOptions = listOf(
+    SettingsRepository.TARGET_LOCALE_SIMPLIFIED to "简体中文",
+    SettingsRepository.TARGET_LOCALE_TRADITIONAL to "繁體中文"
+)
+
+private fun targetChineseLocaleLabel(locale: String): String {
+    val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(locale)
+    return targetChineseLocaleOptions.firstOrNull { it.first == normalizedLocale }?.second
+        ?: "简体中文"
+}
+
+@Composable
+private fun TranslationLanguageChoiceDialog(
+    selectedLocale: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(selectedLocale)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "日服译文语言",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    targetChineseLocaleOptions.forEach { (locale, label) ->
+                        SettingsChoiceDialogOption(
+                            label = label,
+                            selected = locale == normalizedLocale,
+                            onClick = { onSelect(locale) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsChoiceDialogOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.small,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.weight(1f)
+            )
+            if (selected) {
+                Text(
+                    "✓",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

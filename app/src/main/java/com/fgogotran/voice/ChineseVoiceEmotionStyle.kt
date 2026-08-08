@@ -278,9 +278,9 @@ object ChineseVoiceEmotionStyle {
 
         when (detectedStyle) {
             "sad", "fearful" -> adjusted -= 0.02
-            "angry", "cheerful" -> adjusted += 0.02
+            "angry", "cheerful" -> adjusted += 0.01
         }
-        if (text.hasExcitedMark()) adjusted += 0.02
+        if (text.hasExcitedMark()) adjusted += 0.01
         if (text.length <= SHORT_LINE_LENGTH && detectedStyle in setOf("angry", "cheerful")) {
             adjusted += 0.01
         }
@@ -303,25 +303,25 @@ object ChineseVoiceEmotionStyle {
 
     private fun minDialogueRateFor(voiceType: String): Double {
         return when (voiceType) {
-            "child_female", "child_male" -> 1.08
-            "young_female", "young_male" -> 1.07
-            "mature_male", "mature_female" -> 1.03
-            "androgynous" -> 1.05
-            "elder_male", "elder_female" -> 0.98
-            "mechanical", "monster" -> 1.00
-            else -> 1.04
+            "child_female", "child_male" -> 0.98
+            "young_female", "young_male" -> 0.96
+            "mature_male", "mature_female" -> 0.93
+            "androgynous" -> 0.95
+            "elder_male", "elder_female" -> 0.88
+            "mechanical", "monster" -> 0.92
+            else -> 0.95
         }
     }
 
     private fun maxDialogueRateFor(voiceType: String): Double {
         return when (voiceType) {
-            "child_female", "child_male" -> 1.16
-            "young_female", "young_male" -> 1.14
-            "mature_male", "mature_female" -> 1.10
-            "androgynous" -> 1.12
-            "elder_male", "elder_female" -> 1.04
-            "mechanical", "monster" -> 1.08
-            else -> 1.10
+            "child_female", "child_male" -> 1.08
+            "young_female", "young_male" -> 1.07
+            "mature_male", "mature_female" -> 1.04
+            "androgynous" -> 1.06
+            "elder_male", "elder_female" -> 0.99
+            "mechanical", "monster" -> 1.02
+            else -> 1.06
         }
     }
 
@@ -899,6 +899,6 @@ object ChineseVoiceEmotionStyle {
     private const val MIN_PITCH_DELTA = 0.5
     private const val MIN_HINTED_PAUSE_SCALE = 0.4
     private const val MAX_HINTED_PAUSE_SCALE = 1.2
-    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v9"
+    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v10"
     private val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
 }

@@ -130,6 +130,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var overlayButtonLongPressJob: Job? = null
     private var currentPlayerName = ""
     private var showOriginalGameText = false
+    private var gameServer = SettingsRepository.DEFAULT_GAME_SERVER
 
     companion object {
         const val FGO_PACKAGE = "com.aniplex.fategrandorder"
@@ -237,11 +238,21 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private val tag = "Accessibility"
-    private val supportedFgoPackages = setOf(
+    private val supportedFgoPackageNames = setOf(
         FGO_PACKAGE,
         "com.aniplex.fategrandorder.en",
         "com.bilibili.fatego",
+        "com.bilibili.fatego.sharejoy",
+        "com.bilibili.fgo.mi",
+        "com.xiaomeng.fategrandorder",
         "com.komoe.fgo"
+    )
+    private val supportedFgoPackagePrefixes = setOf(
+        "$FGO_PACKAGE.",
+        "com.bilibili.fatego.",
+        "com.bilibili.fgo.",
+        "com.xiaomeng.fategrandorder.",
+        "com.komoe.fgo."
     )
 
     private data class RegionSourceText(
@@ -311,6 +322,7 @@ class FgoAccessibilityService : AccessibilityService() {
             onTouch = { event -> handleCropResultOverlayTouch(event) }
         )
         restoreLastTranslationMode()
+        watchGameServer()
         watchPlayerName()
         watchOriginalTextDisplay()
         reportServiceUsage()
@@ -342,12 +354,33 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun watchGameServer() {
+        serviceScope.launch {
+            settingsRepository.gameServer.collect { server ->
+                val normalizedServer = SettingsRepository.normalizeGameServer(server)
+                if (normalizedServer == gameServer) return@collect
+                gameServer = normalizedServer
+                cancelCurrentTranslation()
+                if (!isJapaneseServer()) {
+                    translationOverlay.hideAll()
+                    cropResultOverlay.hide()
+                }
+                runnerOverlay.refreshButtonMode()
+                FgoLogger.info(tag, "Game server mode changed: $normalizedServer")
+            }
+        }
+    }
+
     private fun watchDebugLogging() {
         serviceScope.launch {
             settingsRepository.debugLoggingEnabled.collect { enabled ->
                 FgoLogger.setEnabled(enabled)
             }
         }
+    }
+
+    private fun isJapaneseServer(): Boolean {
+        return SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
     }
 
     private fun restoreLastTranslationMode() {
@@ -596,6 +629,10 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     fun requestCropTranslation(bounds: Rect, restoreMode: TranslationMode? = null): Boolean {
+        if (!isJapaneseServer()) {
+            FgoLogger.debug(tag, "Crop translation rejected outside JP server mode")
+            return false
+        }
         if (!isFgoForeground || TranslationTrigger.isUiBlockingOcr()) {
             FgoLogger.warn(tag, "Crop translation rejected; FGO foreground=$isFgoForeground")
             return false
@@ -814,6 +851,17 @@ class FgoAccessibilityService : AccessibilityService() {
             val currentScreenHeight = source.height
             val screenRegions = FgoViewportLayout.regionsForScreen(currentScreenWidth, currentScreenHeight)
             FgoLogger.debug(tag, "FGO viewport=${screenRegions.viewport}")
+
+            if (!isJapaneseServer()) {
+                processVoiceOnlyScreen(
+                    source = source,
+                    screenRegions = screenRegions,
+                    processStartedAt = processStartedAt,
+                    mode = mode
+                )
+                restoreHiddenOverlay = false
+                return
+            }
 
             restoreHiddenOverlay = when (mode) {
                 ProcessingMode.MANUAL_TAP -> processManualScreen(
@@ -1053,6 +1101,102 @@ class FgoAccessibilityService : AccessibilityService() {
             if (lines.any { isRubyDotNoiseLine(it) }) "" else fullText.trim()
         }
         return correctMlKitOcrSourceText(sourceText, "CROP", ocrEngine)
+    }
+
+    private suspend fun processVoiceOnlyScreen(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        processStartedAt: Long,
+        mode: ProcessingMode
+    ) {
+        val sceneSource = when (mode) {
+            ProcessingMode.MANUAL_TAP,
+            ProcessingMode.SEMI_AUTO_CHOICE_TAP -> scanVoiceOnlyDialogueScene(source, screenRegions)
+            ProcessingMode.SEMI_AUTO_BACKGROUND,
+            ProcessingMode.AUTO_BACKGROUND -> scanVoiceOnlyCompletedDialogueScene(source, screenRegions, mode)
+        }
+
+        if (sceneSource == null) {
+            if (mode.userInitiated) {
+                runnerOverlay.showTranslationFailureFeedback()
+            }
+            translationOverlay.hide()
+            return
+        }
+
+        if (isAlreadyRenderedSource(mode, sceneSource)) {
+            FgoLogger.debug(tag, "Voice-only source unchanged; waiting for new OCR text")
+            translationOverlay.hide()
+            return
+        }
+
+        requestVoiceOnlyDialogue(sceneSource)
+        rememberRenderedSourceText(mode, sceneSource.fingerprint, sceneSource.stabilityKey)
+        if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
+            resetSemiAutoBackoff()
+        }
+        translationOverlay.hide()
+        FgoLogger.info(
+            tag,
+            "Voice-only pipeline ready ($mode): ocr=${SystemClock.elapsedRealtime() - processStartedAt}ms"
+        )
+    }
+
+    private suspend fun scanVoiceOnlyDialogueScene(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions
+    ): SceneSource? {
+        val dialogueRegions = recognizeDialogueRegions(
+            source = source,
+            screenRegions = screenRegions,
+            allowRedTextFallback = true
+        )
+        return sceneSourceFor(dialogueRegions)
+            ?.takeIf { it.hasDialogue }
+    }
+
+    private suspend fun scanVoiceOnlyCompletedDialogueScene(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        mode: ProcessingMode
+    ): SceneSource? {
+        val dialogueComplete = backgroundDetector.isDialogueCompleteMarkerVisible(
+            source,
+            screenRegions.dialogueComplete
+        )
+        if (!dialogueComplete) {
+            if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
+                rememberSemiAutoBlankOcr()
+            }
+            FgoLogger.debug(tag, "Voice-only waiting for completed dialogue marker")
+            return null
+        }
+
+        val sceneSource = scanVoiceOnlyDialogueScene(source, screenRegions)
+        if (sceneSource == null && mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
+            rememberSemiAutoBlankOcr()
+        }
+        return sceneSource
+    }
+
+    private fun requestVoiceOnlyDialogue(sceneSource: SceneSource) {
+        val speakerName = sceneSource.input.name
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !isPlaceholderSpeakerName(it) }
+            ?: return
+        val dialogue = sceneSource.input.dialogue
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: return
+
+        serviceScope.launch {
+            aiVoiceService.speakDialogue(
+                speakerName = speakerName,
+                sourceDialogue = null,
+                translatedDialogue = dialogue,
+                voiceHint = null
+            )
+        }
     }
 
     private suspend fun processManualScreen(
@@ -3699,7 +3843,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun String.isSupportedFgoPackage(): Boolean {
-        return this in supportedFgoPackages || startsWith("$FGO_PACKAGE.")
+        return this in supportedFgoPackageNames || supportedFgoPackagePrefixes.any { startsWith(it) }
     }
 
     private fun String.isTransientSystemUiPackage(): Boolean {
