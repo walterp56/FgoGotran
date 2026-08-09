@@ -3,7 +3,7 @@ package com.fgogotran.voice
 import android.content.Context
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.text.Normalizer
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,10 +12,10 @@ class CharacterVoiceRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val tag = "VoiceProfiles"
+    private val lock = Any()
 
-    private val profiles: List<CharacterVoiceProfile> by lazy { loadProfiles() }
-    private val aliasToProfile: Map<String, VoiceProfile> by lazy { loadAliasMap() }
-    private val cnNameToJapaneseName: Map<String, String> by lazy { loadChineseNameMap() }
+    @Volatile
+    private var snapshot: VoiceDataSnapshot? = null
 
     fun resolveProfileOrNull(
         speakerName: String?
@@ -24,44 +24,105 @@ class CharacterVoiceRepository @Inject constructor(
             ?.let(::normalizeSpeakerName)
             ?.takeIf { it.isNotBlank() }
             ?: return null
+        val data = currentSnapshot()
 
-        findProfile(normalizedSpeakerName)?.let { return it }
+        findProfile(normalizedSpeakerName, data)?.let { return it }
 
-        val japaneseName = mappedJapaneseNameFor(normalizedSpeakerName) ?: return null
-        return findProfile(normalizeSpeakerName(japaneseName))
+        val japaneseName = mappedJapaneseNameFor(normalizedSpeakerName, data) ?: return null
+        return findProfile(normalizeSpeakerName(japaneseName), data)
     }
 
-    private fun findProfile(normalizedSpeakerName: String): VoiceProfile? {
-        aliasToProfile[normalizedSpeakerName]?.let { return it }
-        return aliasToProfile.entries
-            .sortedByDescending { it.key.length }
+    fun reload() {
+        synchronized(lock) {
+            snapshot = loadSnapshot()
+        }
+    }
+
+    private fun currentSnapshot(): VoiceDataSnapshot {
+        snapshot?.let { return it }
+        return synchronized(lock) {
+            snapshot ?: loadSnapshot().also { snapshot = it }
+        }
+    }
+
+    private fun findProfile(
+        normalizedSpeakerName: String,
+        data: VoiceDataSnapshot
+    ): VoiceProfile? {
+        data.aliasToProfile[normalizedSpeakerName]?.let { return it }
+        return data.aliasEntriesByLength
             .firstOrNull { (alias, _) ->
                 alias.length >= MIN_PARTIAL_ALIAS_LENGTH && normalizedSpeakerName.contains(alias)
             }
-            ?.value
+            ?.second
     }
 
-    private fun mappedJapaneseNameFor(normalizedSpeakerName: String): String? {
-        cnNameToJapaneseName[normalizedSpeakerName]?.let { return it }
-        return cnNameToJapaneseName.entries
-            .sortedByDescending { it.key.length }
+    private fun mappedJapaneseNameFor(
+        normalizedSpeakerName: String,
+        data: VoiceDataSnapshot
+    ): String? {
+        data.cnNameToJapaneseName[normalizedSpeakerName]?.let { return it }
+        return data.cnNameEntriesByLength
             .firstOrNull { (cnName, _) ->
                 cnName.length >= MIN_CHINESE_PARTIAL_ALIAS_LENGTH &&
                     normalizedSpeakerName.contains(cnName)
             }
-            ?.value
+            ?.second
     }
 
-    private fun loadProfiles(): List<CharacterVoiceProfile> {
+    private fun loadSnapshot(): VoiceDataSnapshot {
         return runCatching {
-            readProfileAsset(CHARACTER_VOICE_PROFILES_CN_ASSET)
+            val rows = loadInstalledRowsOrNull() ?: loadAssetRows()
+            val profiles = readProfiles(rows.profileRows)
+            val aliasToProfile = buildAliasMap(profiles)
+            val cnNameToJapaneseName = buildChineseNameMap(rows.nameMapRows)
+            FgoLogger.info(
+                tag,
+                "Loaded voice data source=${rows.source}, profiles=${profiles.size}, nameMap=${cnNameToJapaneseName.size}"
+            )
+            VoiceDataSnapshot(
+                profiles = profiles,
+                aliasToProfile = aliasToProfile,
+                aliasEntriesByLength = aliasToProfile.entries
+                    .map { it.key to it.value }
+                    .sortedByDescending { it.first.length },
+                cnNameToJapaneseName = cnNameToJapaneseName,
+                cnNameEntriesByLength = cnNameToJapaneseName.entries
+                    .map { it.key to it.value }
+                    .sortedByDescending { it.first.length }
+            )
         }.onFailure { e ->
-            FgoLogger.warn(tag, "Failed to load CN character voice profiles TSV", e)
-        }.getOrDefault(emptyList())
+            FgoLogger.warn(tag, "Failed to load voice data", e)
+        }.getOrDefault(VoiceDataSnapshot.EMPTY)
     }
 
-    private fun readProfileAsset(assetPath: String): List<CharacterVoiceProfile> {
-        return readTsv(assetPath).mapNotNull { columns ->
+    private fun loadInstalledRowsOrNull(): LoadedVoiceRows? {
+        if (!VoiceDataFiles.installedPackageExists(context)) return null
+        return runCatching {
+            val profileRows = readTsvFile(VoiceDataFiles.installedProfileFile(context))
+            val nameMapRows = readTsvFile(VoiceDataFiles.installedNameMapFile(context))
+            require(profileRows.isNotEmpty()) { "Installed voice profile TSV has no rows" }
+            require(nameMapRows.isNotEmpty()) { "Installed JP/CN name map TSV has no rows" }
+            LoadedVoiceRows(
+                source = "installed",
+                profileRows = profileRows,
+                nameMapRows = nameMapRows
+            )
+        }.onFailure { e ->
+            FgoLogger.warn(tag, "Installed voice data is invalid; falling back to bundled assets", e)
+        }.getOrNull()
+    }
+
+    private fun loadAssetRows(): LoadedVoiceRows {
+        return LoadedVoiceRows(
+            source = "asset",
+            profileRows = readTsvAsset(VoiceDataFiles.PROFILE_ASSET),
+            nameMapRows = readTsvAsset(VoiceDataFiles.NAME_MAP_ASSET)
+        )
+    }
+
+    private fun readProfiles(rows: List<List<String>>): List<CharacterVoiceProfile> {
+        return rows.mapNotNull { columns ->
             if (columns.size < 8) return@mapNotNull null
             val speakerId = columns[0].trim()
             val gender = columns[2].trim()
@@ -88,7 +149,7 @@ class CharacterVoiceRepository @Inject constructor(
         }
     }
 
-    private fun loadAliasMap(): Map<String, VoiceProfile> {
+    private fun buildAliasMap(profiles: List<CharacterVoiceProfile>): Map<String, VoiceProfile> {
         return runCatching {
             buildMap {
                 profiles.forEach { characterProfile ->
@@ -103,10 +164,10 @@ class CharacterVoiceRepository @Inject constructor(
         }.getOrDefault(emptyMap())
     }
 
-    private fun loadChineseNameMap(): Map<String, String> {
+    private fun buildChineseNameMap(rows: List<List<String>>): Map<String, String> {
         return runCatching {
             buildMap {
-                readTsv(JP_CN_NAME_MAP_ASSET).forEach { columns ->
+                rows.forEach { columns ->
                     if (columns.size < 3) return@forEach
                     val japaneseName = columns[0].trim()
                     if (japaneseName.isBlank()) return@forEach
@@ -127,35 +188,63 @@ class CharacterVoiceRepository @Inject constructor(
 
     private fun splitNameMapAliases(value: String): List<String> {
         return value
-            .split(Regex("[|/&＆／]"))
+            .split(Regex("[|/&\\uFF06\\uFF0F]"))
             .map(String::trim)
             .filter(String::isNotBlank)
     }
 
-    private fun readTsv(assetPath: String): List<List<String>> {
+    private fun readTsvAsset(assetPath: String): List<List<String>> {
         return context.assets.open(assetPath).bufferedReader(Charsets.UTF_8).useLines { lines ->
-            lines.drop(1)
-                .map(String::trim)
-                .filter { it.isNotBlank() && !it.startsWith("#") }
-                .map { line -> line.split('\t') }
-                .toList()
+            parseTsvLines(lines)
         }
     }
 
+    private fun readTsvFile(file: File): List<List<String>> {
+        return file.bufferedReader(Charsets.UTF_8).useLines { lines ->
+            parseTsvLines(lines)
+        }
+    }
+
+    private fun parseTsvLines(lines: Sequence<String>): List<List<String>> {
+        return lines.drop(1)
+            .map { line -> line.trimEnd('\r', '\n') }
+            .filter { it.isNotBlank() && !it.startsWith("#") }
+            .map { line -> line.split('\t') }
+            .toList()
+    }
+
     private fun normalizeSpeakerName(name: String): String {
-        return Normalizer.normalize(name, Normalizer.Form.NFKC)
-            .trim()
-            .trim('「', '」', '『', '』', '【', '】', '[', ']', '（', '）', '(', ')')
-            .replace(Regex("[\\u30FB\\uFF65\\u00B7\\u2022\\u2219]"), "")
-            .replace(Regex("\\s+"), "")
+        return VoiceNameNormalizer.normalize(name)
     }
 
     private companion object {
-        const val CHARACTER_VOICE_PROFILES_CN_ASSET = "voice/character_voice_profiles_cn.tsv"
-        const val JP_CN_NAME_MAP_ASSET = "voice/jp_cn_name_map.tsv"
         const val AZURE_PROVIDER = "azure"
         const val MIN_PARTIAL_ALIAS_LENGTH = 3
         const val MIN_CHINESE_PARTIAL_ALIAS_LENGTH = 2
+    }
+}
+
+private data class LoadedVoiceRows(
+    val source: String,
+    val profileRows: List<List<String>>,
+    val nameMapRows: List<List<String>>
+)
+
+private data class VoiceDataSnapshot(
+    val profiles: List<CharacterVoiceProfile>,
+    val aliasToProfile: Map<String, VoiceProfile>,
+    val aliasEntriesByLength: List<Pair<String, VoiceProfile>>,
+    val cnNameToJapaneseName: Map<String, String>,
+    val cnNameEntriesByLength: List<Pair<String, String>>
+) {
+    companion object {
+        val EMPTY = VoiceDataSnapshot(
+            profiles = emptyList(),
+            aliasToProfile = emptyMap(),
+            aliasEntriesByLength = emptyList(),
+            cnNameToJapaneseName = emptyMap(),
+            cnNameEntriesByLength = emptyList()
+        )
     }
 }
 

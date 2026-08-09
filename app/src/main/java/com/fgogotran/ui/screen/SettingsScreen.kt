@@ -80,6 +80,7 @@ fun SettingsScreen(
     onClearTranslationCache: suspend () -> Int,
     onApiSettings: () -> Unit,
     onVoiceSettings: () -> Unit,
+    onDiagnosticLog: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -489,6 +490,19 @@ fun SettingsScreen(
                         }
                         Text(if (clearingCache) "清除中" else "清除缓存")
                     }
+                }
+            }
+
+            SettingsCard(
+                iconRes = R.drawable.ic_settings_error_log,
+                title = "错误纪录",
+                body = "查看最近错误、缺少语音档案、临时语音 API 建立结果。"
+            ) {
+                Button(
+                    onClick = onDiagnosticLog,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("打开错误纪录")
                 }
             }
 

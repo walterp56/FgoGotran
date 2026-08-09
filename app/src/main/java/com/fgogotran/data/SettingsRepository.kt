@@ -59,6 +59,13 @@ class SettingsRepository @Inject constructor(
         val KEY_DB_LOCALE = stringPreferencesKey("db_locale")
         val KEY_DB_LAST_CHECK_AT = longPreferencesKey("db_last_check_at")
         val KEY_DB_LAST_UPDATE_AT = longPreferencesKey("db_last_update_at")
+        val KEY_VOICE_DATA_CONTENT_VERSION = stringPreferencesKey("voice_data_content_version")
+        val KEY_VOICE_DATA_PACKAGE_SHA256 = stringPreferencesKey("voice_data_package_sha256")
+        val KEY_VOICE_DATA_PROFILE_SHA256 = stringPreferencesKey("voice_data_profile_sha256")
+        val KEY_VOICE_DATA_NAME_MAP_SHA256 = stringPreferencesKey("voice_data_name_map_sha256")
+        val KEY_VOICE_DATA_LOCALE = stringPreferencesKey("voice_data_locale")
+        val KEY_VOICE_DATA_LAST_CHECK_AT = longPreferencesKey("voice_data_last_check_at")
+        val KEY_VOICE_DATA_LAST_UPDATE_AT = longPreferencesKey("voice_data_last_update_at")
         val KEY_IGNORED_APP_UPDATE_VERSION_CODE = longPreferencesKey("ignored_app_update_version_code")
         val KEY_FLOATING_BUTTON_X = intPreferencesKey("floating_button_x")
         val KEY_FLOATING_BUTTON_Y = intPreferencesKey("floating_button_y")
@@ -435,6 +442,41 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_DB_LAST_UPDATE_AT] ?: 0L
     }
 
+    /** Latest installed CDN voice data content version, blank before online install. */
+    val voiceDataContentVersion: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_DATA_CONTENT_VERSION] ?: ""
+    }
+
+    /** SHA-256 of the installed voice data ZIP package, blank when unknown. */
+    val voiceDataPackageSha256: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_DATA_PACKAGE_SHA256] ?: ""
+    }
+
+    /** SHA-256 of the installed character voice profile TSV. */
+    val voiceDataProfileSha256: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_DATA_PROFILE_SHA256] ?: ""
+    }
+
+    /** SHA-256 of the installed JP/CN name map TSV. */
+    val voiceDataNameMapSha256: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_DATA_NAME_MAP_SHA256] ?: ""
+    }
+
+    /** Locale tag of the installed voice data package. */
+    val voiceDataLocale: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_DATA_LOCALE] ?: "zh"
+    }
+
+    /** Last time an online voice data check was attempted, as epoch millis. */
+    val voiceDataLastCheckAt: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_DATA_LAST_CHECK_AT] ?: 0L
+    }
+
+    /** Last time an online voice data package was installed, as epoch millis. */
+    val voiceDataLastUpdateAt: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_DATA_LAST_UPDATE_AT] ?: 0L
+    }
+
     /** Latest app update version code the user chose not to be reminded about automatically. */
     val ignoredAppUpdateVersionCode: Flow<Long> = context.dataStore.data.map { prefs ->
         prefs[KEY_IGNORED_APP_UPDATE_VERSION_CODE] ?: 0L
@@ -741,6 +783,33 @@ class SettingsRepository @Inject constructor(
         FgoLogger.info(
             tag,
             "DB metadata updated: version=$contentVersion, locale=$locale, sha256=$sha256"
+        )
+    }
+
+    suspend fun setVoiceDataLastCheckAt(checkedAt: Long) {
+        context.dataStore.edit { it[KEY_VOICE_DATA_LAST_CHECK_AT] = checkedAt }
+        FgoLogger.debug(tag, "Setting updated: voice_data_last_check_at=$checkedAt")
+    }
+
+    suspend fun saveVoiceDataUpdateMetadata(
+        contentVersion: String,
+        packageSha256: String,
+        profileSha256: String,
+        nameMapSha256: String,
+        locale: String,
+        updatedAt: Long
+    ) {
+        context.dataStore.edit {
+            it[KEY_VOICE_DATA_CONTENT_VERSION] = contentVersion
+            it[KEY_VOICE_DATA_PACKAGE_SHA256] = packageSha256
+            it[KEY_VOICE_DATA_PROFILE_SHA256] = profileSha256
+            it[KEY_VOICE_DATA_NAME_MAP_SHA256] = nameMapSha256
+            it[KEY_VOICE_DATA_LOCALE] = locale
+            it[KEY_VOICE_DATA_LAST_UPDATE_AT] = updatedAt
+        }
+        FgoLogger.info(
+            tag,
+            "Voice data metadata updated: version=$contentVersion, locale=$locale, packageSha256=$packageSha256"
         )
     }
 }

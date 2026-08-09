@@ -36,8 +36,8 @@ from Atlas Academy JP/CN/TW script speaker labels, not servant roster names.
 Columns:
 
 ```tsv
-jp_name	cn_name_simp	cn_name_trad
-JP_NAME_BOX_LABEL	SIMPLIFIED_CN_NAME	TRADITIONAL_CN_NAME
+jp_name	cn_name_simp	cn_name_trad	count
+JP_NAME_BOX_LABEL	SIMPLIFIED_CN_NAME	TRADITIONAL_CN_NAME	JP_NAME_BOX_COUNT
 ```
 
 Dry-run and review changes:
@@ -77,7 +77,8 @@ python term_builder\py\update_jp_cn_name_map.py --workers 24
 Force a fresh Atlas download with `--refresh-cache`, or disable cache reads and
 writes with `--no-cache`.
 
-The visible TSV intentionally stays three columns.
+The visible TSV intentionally stays four columns. `count` is the JP name-box
+count used to keep high-impact voice-review rows near the top.
 
 ## `term.tsv`
 
@@ -149,6 +150,51 @@ To publish directly to S3 and invalidate CloudFront in the safe order:
 ```
 
 The script uploads the versioned DB and checksum first, uploads `db/zh-Hans/latest/manifest.json` last, waits for the CloudFront invalidation, then verifies the live manifest content version.
+
+## Voice CDN Release Package
+
+Voice CDN releases package the reviewed runtime voice TSVs together so the
+profile table and JP/CN/TW name map cannot update out of sync.
+
+Sources:
+
+```text
+term_builder/voice_tune/character_voice_profiles_cn.tsv
+term_builder/jp_cn_name_map.tsv
+```
+
+Create the files for `cdn.fgogotran.com`:
+
+```powershell
+.\scripts\release-voice.ps1
+```
+
+Output:
+
+```text
+release/cdn/voice/zh/latest/manifest.json
+release/cdn/voice/zh/releases/VERSION/voice_data.zip
+release/cdn/voice/zh/releases/VERSION/voice_data.zip.sha256
+```
+
+Upload the versioned `releases/...` files first, then upload
+`latest/manifest.json` last.
+
+The app checks:
+
+```text
+https://cdn.fgogotran.com/voice/zh/latest/manifest.json
+```
+
+To publish directly to S3 and invalidate CloudFront in the safe order:
+
+```powershell
+.\scripts\release-voice.ps1 -S3Uri s3://YOUR_BUCKET -CloudFrontDistributionId YOUR_DISTRIBUTION_ID
+```
+
+The script uploads the versioned ZIP and checksum first, uploads
+`voice/zh/latest/manifest.json` last, waits for the CloudFront invalidation,
+then verifies the live manifest content version.
 
 ## Runtime DB Tables
 

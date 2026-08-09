@@ -2,13 +2,16 @@ package com.fgogotran.voice
 
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.util.FgoLogger
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class VoicePlaybackEngine @Inject constructor() {
+class VoicePlaybackEngine @Inject constructor(
+    private val diagnosticEventStore: DiagnosticEventStore
+) {
     private val tag = "VoicePlayback"
     private var mediaPlayer: MediaPlayer? = null
 
@@ -32,6 +35,15 @@ class VoicePlaybackEngine @Inject constructor() {
             }
             player.setOnErrorListener { mp, what, extra ->
                 FgoLogger.warn(tag, "Voice playback failed: what=$what extra=$extra")
+                diagnosticEventStore.record(
+                    level = DiagnosticEventStore.LEVEL_ERROR,
+                    category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+                    eventId = "voice_playback_failed",
+                    title = "音讯播放失败",
+                    message = "MediaPlayer error",
+                    detail = "what=$what extra=$extra file=${file.name}",
+                    errorCode = "$what/$extra"
+                )
                 mp.release()
                 if (mediaPlayer === mp) mediaPlayer = null
                 true
@@ -41,6 +53,14 @@ class VoicePlaybackEngine @Inject constructor() {
         } catch (e: Exception) {
             player.release()
             if (mediaPlayer === player) mediaPlayer = null
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_ERROR,
+                category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+                eventId = "voice_playback_start_failed",
+                title = "音讯播放无法开始",
+                message = e.message.orEmpty().ifBlank { e::class.java.simpleName },
+                detail = file.name
+            )
             FgoLogger.warn(tag, "Voice playback could not start", e)
         }
     }

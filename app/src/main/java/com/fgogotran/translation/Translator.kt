@@ -3,6 +3,7 @@ package com.fgogotran.translation
 import android.icu.text.Transliterator
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.terminology.CharacterNameEntity
 import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.TermDao
@@ -88,7 +89,8 @@ class Translator @Inject constructor(
     private val localGlossaryDao: LocalGlossaryDao,
     private val promptBuilder: PromptBuilder,
     private val cacheDb: TranslationCacheDb,
-    private val translationMemory: TranslationMemory
+    private val translationMemory: TranslationMemory,
+    private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private val httpClient = HttpClient {
         install(HttpTimeout) {
@@ -253,6 +255,25 @@ class Translator @Inject constructor(
         return translated
     }
 
+    suspend fun completeUtilityPrompt(
+        systemPrompt: String,
+        userPrompt: String,
+        maxTokens: Int = UTILITY_PROMPT_MAX_TOKENS
+    ): String {
+        val config = getRuntimeConfig()
+        if (config.requiresApiKey && config.apiKey.isBlank()) {
+            throw IllegalStateException("API Key is empty")
+        }
+        return callTranslationBackend(
+            config = config,
+            messages = listOf(
+                ChatMessage("system", systemPrompt),
+                ChatMessage("user", userPrompt)
+            ),
+            maxTokens = maxTokens
+        ).trim()
+    }
+
     private fun clearCharacterNameCaches() {
         cachedTerms = null
         cachedCharacterNames = null
@@ -302,6 +323,7 @@ class Translator @Inject constructor(
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
         private const val CHAT_COMPLETION_MAX_TOKENS = 256
         private const val API_TEST_MAX_TOKENS = 96
+        private const val UTILITY_PROMPT_MAX_TOKENS = 128
         private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
         private const val BATCH_TRANSLATION_MAX_TOKENS = 384
@@ -486,6 +508,27 @@ class Translator @Inject constructor(
         return error.message?.trim()?.takeIf(String::isNotBlank) ?: "未知错误"
     }
 
+    private fun recordTranslationApiFailure(
+        config: RuntimeConfig,
+        error: Exception,
+        context: String
+    ) {
+        diagnosticEventStore.record(
+            level = if (context == "single") {
+                DiagnosticEventStore.LEVEL_ERROR
+            } else {
+                DiagnosticEventStore.LEVEL_WARNING
+            },
+            category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+            eventId = "translation_api_failed",
+            title = "翻译 API 失败",
+            message = formatUserFacingApiError(error),
+            detail = "context=$context model=${config.apiModel}",
+            apiBackend = config.backend,
+            errorCode = error::class.java.simpleName
+        )
+    }
+
     suspend fun warmUp() {
         try {
             getRuntimeConfig()
@@ -628,6 +671,7 @@ class Translator @Inject constructor(
             callTranslationBackend(config, messages, maxTokens = maxTokens)
         } catch (e: Exception) {
             FgoLogger.error(tag, "$backend API call failed: ${e.message}", e)
+            recordTranslationApiFailure(config, e, "single")
             return TranslateResult(
                 "[翻译失败：${formatUserFacingApiError(e)}]\n请检查 API Key、模型和网络连接。",
                 backend,
@@ -809,6 +853,7 @@ class Translator @Inject constructor(
             parseBatchResult(rawResult, uncachedTexts.size)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Batch translation failed, falling back to single calls", e)
+            recordTranslationApiFailure(config, e, "batch")
             for (index in uncachedIndices) {
                 results[index] = translate(
                     japaneseTexts[index],
@@ -1150,6 +1195,7 @@ class Translator @Inject constructor(
             parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size, requestVoiceHint)
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Structured scene translation failed, falling back to one batch call", e)
+            recordTranslationApiFailure(config, e, "scene")
             if (!needsName && !needsDialogue && neededChoiceIndices.isEmpty()) {
                 return SceneTranslateResult(
                     name = nameResult,

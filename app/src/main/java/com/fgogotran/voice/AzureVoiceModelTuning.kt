@@ -6,6 +6,12 @@ internal object AzureVoiceModelTuning {
         return TUNING_BY_VOICE[key] ?: fallbackFor(key)
     }
 
+    fun allowedZhCnVoiceNames(): List<String> {
+        return TUNING_BY_VOICE.keys
+            .filter { it.startsWith("zh-CN-") }
+            .sorted()
+    }
+
     private fun fallbackFor(voiceName: String): VoiceModelTuning {
         return when {
             voiceName.contains(":DragonHDFlashLatestNeural") -> dragonHdFlashDialogue(voiceName)

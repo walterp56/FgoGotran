@@ -25,6 +25,7 @@ import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.crop.CropTextLine
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrEngineId
 import com.fgogotran.ocr.OcrTextCorrector
@@ -86,6 +87,7 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var appAnalytics: AppAnalytics
     @Inject lateinit var aiVoiceService: AiVoiceService
+    @Inject lateinit var diagnosticEventStore: DiagnosticEventStore
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isProcessing = false
@@ -131,6 +133,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var currentPlayerName = ""
     private var showOriginalGameText = false
     private var gameServer = SettingsRepository.DEFAULT_GAME_SERVER
+    private var lastScreenshotErrorCode = 0
 
     companion object {
         const val FGO_PACKAGE = "com.aniplex.fategrandorder"
@@ -806,6 +809,14 @@ class FgoAccessibilityService : AccessibilityService() {
                         }
                     }
                 } catch (e: Exception) {
+                    diagnosticEventStore.record(
+                        level = DiagnosticEventStore.LEVEL_ERROR,
+                        category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+                        eventId = "detection_loop_failed",
+                        title = "自动侦测循环失败",
+                        message = e.message.orEmpty().ifBlank { e::class.java.simpleName },
+                        server = gameServer
+                    )
                     FgoLogger.error(tag, "Detection loop failed", e)
                 }
                 delay(DETECTION_INTERVAL)
@@ -840,6 +851,16 @@ class FgoAccessibilityService : AccessibilityService() {
 
             screenshot = takeScreenshotCompat()
             if (screenshot == null) {
+                diagnosticEventStore.record(
+                    level = DiagnosticEventStore.LEVEL_ERROR,
+                    category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+                    eventId = "screenshot_failed",
+                    title = "截屏失败",
+                    message = "Android/模拟器没有返回截图",
+                    server = gameServer,
+                    mode = mode.name,
+                    errorCode = lastScreenshotErrorCode.takeIf { it != 0 }?.toString().orEmpty()
+                )
                 if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
                     rememberSemiAutoScreenshotFailure()
                 }
@@ -909,6 +930,15 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "Translation processing cancelled")
             throw e
         } catch (e: Exception) {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_ERROR,
+                category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+                eventId = "pipeline_failed",
+                title = "处理流程失败",
+                message = e.message.orEmpty().ifBlank { e::class.java.simpleName },
+                server = gameServer,
+                mode = mode.name
+            )
             FgoLogger.error(tag, "processScreen failed", e)
             runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
         } finally {
@@ -1035,6 +1065,15 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "Crop translation cancelled")
             throw e
         } catch (e: Exception) {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_ERROR,
+                category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+                eventId = "crop_translation_failed",
+                title = "区域翻译失败",
+                message = e.message.orEmpty().ifBlank { e::class.java.simpleName },
+                server = gameServer,
+                mode = "CROP"
+            )
             FgoLogger.error(tag, "Crop translation failed", e)
             showCropStatus(requestedBounds, "翻译失败")
         } finally {
@@ -3490,6 +3529,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 mainExecutor,
                 object : TakeScreenshotCallback {
                     override fun onSuccess(result: ScreenshotResult) {
+                        lastScreenshotErrorCode = 0
                         val hardwareBitmap = Bitmap.wrapHardwareBuffer(
                             result.hardwareBuffer,
                             result.colorSpace
@@ -3500,6 +3540,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     }
 
                     override fun onFailure(errorCode: Int) {
+                        lastScreenshotErrorCode = errorCode
                         FgoLogger.warn(tag, "Screenshot failed: $errorCode")
                         cont.resume(null)
                     }

@@ -10,12 +10,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AutoAppUpdateDialog
 import com.fgogotran.ui.component.openAppDownloadPage
 import com.fgogotran.update.AppVersionManager
 import com.fgogotran.ui.screen.ApiSettingsScreen
+import com.fgogotran.ui.screen.DiagnosticLogScreen
 import com.fgogotran.ui.screen.GuideScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
@@ -24,6 +26,7 @@ import com.fgogotran.ui.theme.FgoGotranTheme
 import com.fgogotran.update.AppVersionCheckResult
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.util.FgoLogger
+import com.fgogotran.voice.VoiceDataUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,9 +49,11 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
+    @Inject lateinit var voiceDataUpdateManager: VoiceDataUpdateManager
     @Inject lateinit var appVersionManager: AppVersionManager
     @Inject lateinit var translator: Translator
     @Inject lateinit var appAnalytics: AppAnalytics
+    @Inject lateinit var diagnosticEventStore: DiagnosticEventStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,12 +68,21 @@ class MainActivity : ComponentActivity() {
             glossaryUpdateManager.updateIfNeeded()
         }
         lifecycleScope.launch(Dispatchers.IO) {
+            voiceDataUpdateManager.updateIfNeeded()
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
             appAnalytics.reportAppUsed()
             appAnalytics.reportCurrentBackendType()
         }
         setContent {
             FgoGotranTheme {
-                MainScreen(settingsRepository, appVersionManager, translator, appAnalytics)
+                MainScreen(
+                    settingsRepository,
+                    appVersionManager,
+                    translator,
+                    appAnalytics,
+                    diagnosticEventStore
+                )
             }
         }
     }
@@ -77,7 +91,7 @@ class MainActivity : ComponentActivity() {
 /**
  * Top-level navigation state and routing.
  */
-enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS, VOICE_SETTINGS }
+enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS, VOICE_SETTINGS, DIAGNOSTIC_LOG }
 
 /**
  * Root composable managing top-level navigation.
@@ -87,7 +101,8 @@ fun MainScreen(
     settingsRepository: SettingsRepository,
     appVersionManager: AppVersionManager,
     translator: Translator,
-    appAnalytics: AppAnalytics
+    appAnalytics: AppAnalytics,
+    diagnosticEventStore: DiagnosticEventStore
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -130,7 +145,8 @@ fun MainScreen(
     BackHandler(enabled = currentScreen != Screen.HOME) {
         currentScreen = when (currentScreen) {
             Screen.API_SETTINGS,
-            Screen.VOICE_SETTINGS -> Screen.SETTINGS
+            Screen.VOICE_SETTINGS,
+            Screen.DIAGNOSTIC_LOG -> Screen.SETTINGS
             else -> Screen.HOME
         }
     }
@@ -152,6 +168,7 @@ fun MainScreen(
             onClearTranslationCache = { translator.clearTranslationCache() },
             onApiSettings = { currentScreen = Screen.API_SETTINGS },
             onVoiceSettings = { currentScreen = Screen.VOICE_SETTINGS },
+            onDiagnosticLog = { currentScreen = Screen.DIAGNOSTIC_LOG },
             onBack = { currentScreen = Screen.HOME }
         )
 
@@ -164,6 +181,11 @@ fun MainScreen(
 
         Screen.VOICE_SETTINGS -> VoiceSettingsScreen(
             settingsRepository = settingsRepository,
+            onBack = { currentScreen = Screen.SETTINGS }
+        )
+
+        Screen.DIAGNOSTIC_LOG -> DiagnosticLogScreen(
+            diagnosticEventStore = diagnosticEventStore,
             onBack = { currentScreen = Screen.SETTINGS }
         )
     }
