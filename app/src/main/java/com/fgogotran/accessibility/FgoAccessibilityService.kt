@@ -1942,10 +1942,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
         return sceneSource.regions.mapNotNull { regionAndText ->
             val translatedResult = when (regionAndText.region.region) {
-                TextRegion.NAME_LABEL -> renderableNameTranslation(
-                    sourceText = regionAndText.text,
-                    result = sceneTranslation.name
-                )?.let { text ->
+                TextRegion.NAME_LABEL -> renderableNameTranslation(sceneTranslation.name)?.let { text ->
                     sceneTranslation.name?.copy(translatedText = text)
                         ?: TranslateResult(text, "none", true)
                 }
@@ -2068,31 +2065,13 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun renderableNameTranslation(sourceText: String, result: TranslateResult?): String? {
-        if (isPlaceholderSpeakerName(sourceText)) {
-            FgoLogger.debug(tag, "Rendering placeholder speaker name as raw text: $sourceText")
-            return null
-        }
+    private fun renderableNameTranslation(result: TranslateResult?): String? {
         val translated = result?.translatedText?.trim()?.takeIf { it.isNotBlank() } ?: return null
         if (result.backend == "none") {
             FgoLogger.debug(tag, "Skipping name render without translation backend")
             return null
         }
-        if (samePlainText(sourceText, translated) ||
-            translated.hasDisallowedNameKana() ||
-            translated.length > 32 ||
-            translated.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') }
-        ) {
-            FgoLogger.debug(tag, "Skipping untranslated/plain name render: $sourceText -> $translated")
-            return null
-        }
         return translated
-    }
-
-    private fun String.hasDisallowedNameKana(): Boolean {
-        val playerName = currentPlayerName.takeIf { it.isNotBlank() } ?: return any { it.isJapaneseKana() }
-        val textWithoutPlayerName = replace(playerName, "")
-        return textWithoutPlayerName.any { it.isJapaneseKana() }
     }
 
     private fun isPlaceholderSpeakerName(sourceText: String): Boolean {
@@ -2100,31 +2079,11 @@ class FgoAccessibilityService : AccessibilityService() {
         return compact.length >= 2 && compact.all { it == '?' || it == '\uFF1F' || it == '\uFE56' }
     }
 
-    private fun samePlainText(left: String, right: String): Boolean {
-        return TextNormalizer.normalizeForTranslation(left)
-            .filterNot { it.isNameComparePunctuation() }
-            .equals(
-                TextNormalizer.normalizeForTranslation(right).filterNot { it.isNameComparePunctuation() },
-                ignoreCase = true
-            )
-    }
-
-    private fun Char.isJapaneseKana(): Boolean {
-        return this in '\u3040'..'\u30ff' && this != '\u30FB'
-    }
-
     private fun Char.isJapaneseTextChar(): Boolean {
         return this in '\u3040'..'\u30ff' ||
                 this in '\u3400'..'\u4dbf' ||
                 this in '\u4e00'..'\u9fff' ||
                 this == '\u3005'
-    }
-
-    private fun Char.isNameComparePunctuation(): Boolean {
-        return isWhitespace() || this in setOf(
-            '・', '･', '·', '•', '.', '．', '。', '、', ',', '，',
-            '!', '！', '?', '？', ':', '：', ';', '；'
-        )
     }
 
     private fun sourceTextFor(region: ClassifiedRegion): String {

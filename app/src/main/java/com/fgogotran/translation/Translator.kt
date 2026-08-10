@@ -1597,6 +1597,13 @@ class Translator @Inject constructor(
         }
 
         variants.firstOrNull { variant ->
+            isMeaningfulSuffixedNameLookup(lookupText, variant.lookupKey)
+        }?.let {
+            FgoLogger.info(tag, "Character fuzzy skipped for suffixed name: $normalizedText -> ${it.jpName}")
+            return null
+        }
+
+        variants.firstOrNull { variant ->
             isLikelyOcrNameMatch(lookupText, variant.lookupKey)
         }
             ?.let {
@@ -2214,6 +2221,16 @@ class Translator @Inject constructor(
         if (kotlin.math.abs(input.length - candidate.length) > 1) return false
         if (input.firstOrNull() != candidate.firstOrNull()) return false
         return editDistanceAtMostOne(input, candidate)
+    }
+
+    private fun isMeaningfulSuffixedNameLookup(input: String, candidate: String): Boolean {
+        if (input.length <= candidate.length || !input.startsWith(candidate)) return false
+        if (input.length - candidate.length > 2) return false
+        return input.substring(candidate.length).all { it.isLatinLetterOrDigit() }
+    }
+
+    private fun Char.isLatinLetterOrDigit(): Boolean {
+        return this in 'A'..'Z' || this in 'a'..'z' || this in '0'..'9'
     }
 
     private fun editDistanceAtMostOne(a: String, b: String): Boolean {
