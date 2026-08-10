@@ -50,6 +50,7 @@ import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.translation.TranslateResult
 import com.fgogotran.translation.Translator
+import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.voice.AiVoiceService
 import dagger.hilt.android.AndroidEntryPoint
@@ -154,6 +155,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NEXT_DIALOGUE_POLL_TIMEOUT = 2_500L
         private const val TAP_PASSTHROUGH_SETTLE_DELAY = 56L
         private const val TAP_REPLAY_TIMEOUT = 500L
+        private const val VOICE_HINT_REQUEST_TIMEOUT_MS = 2_500L
         private const val OVERLAY_BUTTON_LONG_PRESS_TIMEOUT = 420L
         private const val OVERLAY_BUTTON_TOUCH_SLOP = 18f
         private const val CROP_TRANSLATION_WAIT_TIMEOUT = 700L
@@ -1292,11 +1294,15 @@ class FgoAccessibilityService : AccessibilityService() {
 
         serviceScope.launch {
             if (speakerName != null && dialogue != null) {
+                val voiceHint = requestVoiceOnlyVoiceHint(
+                    speakerName = speakerName,
+                    dialogue = dialogue
+                )
                 aiVoiceService.speakDialogue(
                     speakerName = speakerName,
                     sourceDialogue = null,
                     translatedDialogue = dialogue,
-                    voiceHint = null
+                    voiceHint = voiceHint
                 )
             }
             if (choiceText != null) {
@@ -1308,6 +1314,60 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
             }
         }
+    }
+
+    private suspend fun requestVoiceOnlyVoiceHint(
+        speakerName: String,
+        dialogue: String
+    ): VoiceLineHint? {
+        if (isJapaneseServer() || !aiVoiceEnabled || !aiVoiceApiHintsEnabled) return null
+        if (!TextNormalizer.hasTranslatableContent(dialogue)) return null
+
+        var completed = false
+        return try {
+            val hint = withTimeoutOrNull(VOICE_HINT_REQUEST_TIMEOUT_MS) {
+                val result = withContext(Dispatchers.IO) {
+                    translator.requestVoiceHint(speakerName, dialogue)
+                }
+                completed = true
+                result
+            }
+            if (!completed) {
+                diagnosticEventStore.record(
+                    level = DiagnosticEventStore.LEVEL_WARNING,
+                    category = DiagnosticEventStore.CATEGORY_VOICE_HINT_API,
+                    eventId = "voice_hint_api_timeout",
+                    title = "语气增强请求超时",
+                    message = "已改用本机语气规则",
+                    server = SettingsRepository.normalizeGameServer(gameServer),
+                    speaker = speakerName,
+                    textPreview = dialogue.diagnosticPreviewText()
+                )
+                FgoLogger.warn(tag, "Voice-only hint API timed out: speaker=$speakerName")
+            }
+            hint
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                category = DiagnosticEventStore.CATEGORY_VOICE_HINT_API,
+                eventId = "voice_hint_api_failed",
+                title = "语气增强请求失败",
+                message = e.message.orEmpty().ifBlank { e::class.java.simpleName },
+                server = SettingsRepository.normalizeGameServer(gameServer),
+                speaker = speakerName,
+                textPreview = dialogue.diagnosticPreviewText()
+            )
+            FgoLogger.warn(tag, "Voice-only hint API failed: speaker=$speakerName", e)
+            null
+        }
+    }
+
+    private fun String.diagnosticPreviewText(): String {
+        return trim()
+            .replace(Regex("\\s+"), " ")
+            .take(120)
     }
 
     private suspend fun processManualScreen(

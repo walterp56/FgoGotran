@@ -262,7 +262,7 @@ fun VoiceSettingsScreen(
             ) {
                 VoiceSwitchRow(
                     title = "AI 语气增强",
-                    body = "开启后，API可额外返回本句情绪、速度与音高提示(需要API接口)；\n关闭时只使用本机语气规则。",
+                    body = "开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。",
                     checked = aiVoiceApiHintsEnabled,
                     onCheckedChange = {
                         aiVoiceApiHintsEnabled = it

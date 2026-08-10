@@ -260,11 +260,24 @@ class Translator @Inject constructor(
         speakerName: String,
         dialogue: String
     ): VoiceLineHint? {
+        return requestVoiceHint(speakerName, dialogue)
+    }
+
+    suspend fun requestVoiceHint(
+        speakerName: String,
+        dialogue: String
+    ): VoiceLineHint? {
         val config = getRuntimeConfig()
         if (config.requiresApiKey && config.apiKey.isBlank()) {
             throw IllegalStateException("API Key is empty")
         }
+        val cleanSpeakerName = TextNormalizer.normalizeForTranslation(speakerName)
+            .take(VOICE_HINT_SPEAKER_MAX_CHARS)
+        val cleanDialogue = TextNormalizer.normalizeForTranslation(dialogue)
+            .take(VOICE_HINT_DIALOGUE_MAX_CHARS)
+        if (!TextNormalizer.hasTranslatableContent(cleanDialogue)) return null
 
+        FgoLogger.info(tag, "Calling ${config.backend} API for voice hint only")
         val rawResult = callTranslationBackend(
             config = config,
             messages = listOf(
@@ -274,10 +287,9 @@ class Translator @Inject constructor(
                 ),
                 ChatMessage(
                     "user",
-                    buildVoiceHintTestPrompt(
-                        speakerName = speakerName,
-                        dialogue = dialogue,
-                        targetChineseLocale = config.targetChineseLocale
+                    buildVoiceHintPrompt(
+                        speakerName = cleanSpeakerName,
+                        dialogue = cleanDialogue
                     )
                 )
             ),
@@ -286,7 +298,7 @@ class Translator @Inject constructor(
         if (rawResult.isBlank()) {
             throw IllegalStateException("API returned an empty response")
         }
-        FgoLogger.debug(tag, "Voice hint test model content: ${apiResponseLogSample(rawResult)}")
+        FgoLogger.debug(tag, "Voice hint model content: ${apiResponseLogSample(rawResult)}")
         return parseSceneResult(
             rawResult = rawResult,
             expectName = false,
@@ -365,6 +377,8 @@ class Translator @Inject constructor(
         private const val CHAT_COMPLETION_MAX_TOKENS = 256
         private const val API_TEST_MAX_TOKENS = 96
         private const val VOICE_HINT_TEST_MAX_TOKENS = 220
+        private const val VOICE_HINT_SPEAKER_MAX_CHARS = 80
+        private const val VOICE_HINT_DIALOGUE_MAX_CHARS = 320
         private const val UTILITY_PROMPT_MAX_TOKENS = 128
         private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
@@ -3853,14 +3867,13 @@ class Translator @Inject constructor(
         }
     }
 
-    private fun buildVoiceHintTestPrompt(
+    private fun buildVoiceHintPrompt(
         speakerName: String,
-        dialogue: String,
-        targetChineseLocale: String
+        dialogue: String
     ): String {
-        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            appendLine("Create an Azure TTS acting hint for this $targetChinese Fate/Grand Order test line.")
+            appendLine("Create an Azure TTS acting hint for this Fate/Grand Order line.")
+            appendLine("The line may be Simplified Chinese, Traditional Chinese, or Japanese.")
             appendLine("Return ONLY this JSON object:")
             appendLine("""{"voice_hint": {"emotion": string, "intensity": number, "energy": string, "delivery": string, "attitude": string, "pace": string, "pitch": string, "pause": string}|null}""")
             appendLine("Rules:")
