@@ -48,6 +48,10 @@ class SettingsRepository @Inject constructor(
         val KEY_AI_VOICE_LANGUAGE = stringPreferencesKey("ai_voice_language")
         val KEY_AI_VOICE_API_HINTS_ENABLED = booleanPreferencesKey("ai_voice_api_hints_enabled")
         val KEY_AI_VOICE_VOLUME_PERCENT = intPreferencesKey("ai_voice_volume_percent")
+        val KEY_AI_VOICE_NAMED_DIALOGUE_ENABLED = booleanPreferencesKey("ai_voice_named_dialogue_enabled")
+        val KEY_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED = booleanPreferencesKey("ai_voice_no_speaker_dialogue_enabled")
+        val KEY_AI_VOICE_CHOICE_TEXT_ENABLED = booleanPreferencesKey("ai_voice_choice_text_enabled")
+        val KEY_AI_VOICE_MASTER_VOICE = stringPreferencesKey("ai_voice_master_voice")
         val KEY_AZURE_SPEECH_KEY = stringPreferencesKey("azure_speech_key")
         val KEY_AZURE_SPEECH_REGION = stringPreferencesKey("azure_speech_region")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
@@ -94,6 +98,12 @@ class SettingsRepository @Inject constructor(
         const val MIN_AI_VOICE_VOLUME_PERCENT = 0
         const val DEFAULT_AI_VOICE_VOLUME_PERCENT = 100
         const val MAX_AI_VOICE_VOLUME_PERCENT = 100
+        const val DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED = true
+        const val DEFAULT_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED = false
+        const val DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED = false
+        const val AI_VOICE_MASTER_MALE = "male"
+        const val AI_VOICE_MASTER_FEMALE = "female"
+        const val DEFAULT_AI_VOICE_MASTER_VOICE = AI_VOICE_MASTER_MALE
         const val OCR_ENGINE_MLKIT = "mlkit"
         const val OCR_ENGINE_MLKIT_CHINESE = "mlkit_chinese"
         const val OCR_ENGINE_PADDLE = "paddle"
@@ -171,6 +181,11 @@ class SettingsRepository @Inject constructor(
 
         fun normalizeAiVoiceVolumePercent(volumePercent: Int): Int =
             volumePercent.coerceIn(MIN_AI_VOICE_VOLUME_PERCENT, MAX_AI_VOICE_VOLUME_PERCENT)
+
+        fun normalizeAiVoiceMasterVoice(masterVoice: String): String =
+            masterVoice.takeIf {
+                it == AI_VOICE_MASTER_MALE || it == AI_VOICE_MASTER_FEMALE
+            } ?: DEFAULT_AI_VOICE_MASTER_VOICE
 
         fun ocrEngineDisplayName(engine: String): String = when (normalizeOcrEngine(engine)) {
             OCR_ENGINE_PADDLE -> "PaddleOCR PP-OCRv6"
@@ -381,6 +396,26 @@ class SettingsRepository @Inject constructor(
         normalizeAiVoiceVolumePercent(
             prefs[KEY_AI_VOICE_VOLUME_PERCENT] ?: DEFAULT_AI_VOICE_VOLUME_PERCENT
         )
+    }
+
+    /** Whether dialogue with a visible speaker name box should be read aloud. */
+    val aiVoiceNamedDialogueEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_VOICE_NAMED_DIALOGUE_ENABLED] ?: DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED
+    }
+
+    /** Whether dialogue without a visible speaker name box should use the no_speaker profile. */
+    val aiVoiceNoSpeakerDialogueEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED] ?: DEFAULT_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED
+    }
+
+    /** Whether translated choice button text should be read aloud. */
+    val aiVoiceChoiceTextEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_VOICE_CHOICE_TEXT_ENABLED] ?: DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED
+    }
+
+    /** Master voice used when reading choice text. */
+    val aiVoiceMasterVoice: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeAiVoiceMasterVoice(prefs[KEY_AI_VOICE_MASTER_VOICE] ?: DEFAULT_AI_VOICE_MASTER_VOICE)
     }
 
     /** Azure Speech resource key used only when AI voice is enabled. */
@@ -658,6 +693,27 @@ class SettingsRepository @Inject constructor(
         val normalizedVolume = normalizeAiVoiceVolumePercent(volumePercent)
         context.dataStore.edit { it[KEY_AI_VOICE_VOLUME_PERCENT] = normalizedVolume }
         FgoLogger.debug(tag, "Setting updated: ai_voice_volume_percent=$normalizedVolume")
+    }
+
+    suspend fun setAiVoiceNamedDialogueEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_AI_VOICE_NAMED_DIALOGUE_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_named_dialogue_enabled=$enabled")
+    }
+
+    suspend fun setAiVoiceNoSpeakerDialogueEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_no_speaker_dialogue_enabled=$enabled")
+    }
+
+    suspend fun setAiVoiceChoiceTextEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_AI_VOICE_CHOICE_TEXT_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_choice_text_enabled=$enabled")
+    }
+
+    suspend fun setAiVoiceMasterVoice(masterVoice: String) {
+        val normalizedMasterVoice = normalizeAiVoiceMasterVoice(masterVoice)
+        context.dataStore.edit { it[KEY_AI_VOICE_MASTER_VOICE] = normalizedMasterVoice }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_master_voice=$normalizedMasterVoice")
     }
 
     suspend fun saveAzureSpeechSettings(speechKey: String) {

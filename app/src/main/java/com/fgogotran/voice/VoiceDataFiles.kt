@@ -6,8 +6,6 @@ import java.io.File
 internal object VoiceDataFiles {
     const val PROFILE_FILE = "character_voice_profiles_cn.tsv"
     const val NAME_MAP_FILE = "jp_cn_name_map.tsv"
-    const val PROFILE_ASSET = "voice/$PROFILE_FILE"
-    const val NAME_MAP_ASSET = "voice/$NAME_MAP_FILE"
 
     val PROFILE_HEADER = listOf(
         "speaker_id",

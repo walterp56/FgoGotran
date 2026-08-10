@@ -133,6 +133,10 @@ class FgoAccessibilityService : AccessibilityService() {
     private var currentPlayerName = ""
     private var showOriginalGameText = false
     private var gameServer = SettingsRepository.DEFAULT_GAME_SERVER
+    private var aiVoiceNamedDialogueEnabled = SettingsRepository.DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED
+    private var aiVoiceNoSpeakerDialogueEnabled = SettingsRepository.DEFAULT_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED
+    private var aiVoiceChoiceTextEnabled = SettingsRepository.DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED
+    private var aiVoiceMasterVoice = SettingsRepository.DEFAULT_AI_VOICE_MASTER_VOICE
     private var lastScreenshotErrorCode = 0
 
     companion object {
@@ -173,6 +177,9 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val RUBY_HEIGHT_RATIO = 0.72f
         private const val LOG_TEXT_CHUNK_SIZE = 900
         private const val MIN_PALETTE_TEXT_PIXELS = 8
+        private const val NO_SPEAKER_PROFILE_ID = "no_speaker"
+        private const val MASTER_PROFILE_MALE = "藤丸立香(男)"
+        private const val MASTER_PROFILE_FEMALE = "藤丸立香(女)"
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
         private val FGO_TEXT_COLOR_SAMPLES = listOf(
@@ -328,6 +335,7 @@ class FgoAccessibilityService : AccessibilityService() {
         watchGameServer()
         watchPlayerName()
         watchOriginalTextDisplay()
+        watchVoiceReadScope()
         reportServiceUsage()
         warmUpManualPipeline()
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
@@ -353,6 +361,29 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             settingsRepository.showOriginalGameText.collect { enabled ->
                 showOriginalGameText = enabled
+            }
+        }
+    }
+
+    private fun watchVoiceReadScope() {
+        serviceScope.launch {
+            settingsRepository.aiVoiceNamedDialogueEnabled.collect { enabled ->
+                aiVoiceNamedDialogueEnabled = enabled
+            }
+        }
+        serviceScope.launch {
+            settingsRepository.aiVoiceNoSpeakerDialogueEnabled.collect { enabled ->
+                aiVoiceNoSpeakerDialogueEnabled = enabled
+            }
+        }
+        serviceScope.launch {
+            settingsRepository.aiVoiceChoiceTextEnabled.collect { enabled ->
+                aiVoiceChoiceTextEnabled = enabled
+            }
+        }
+        serviceScope.launch {
+            settingsRepository.aiVoiceMasterVoice.collect { masterVoice ->
+                aiVoiceMasterVoice = SettingsRepository.normalizeAiVoiceMasterVoice(masterVoice)
             }
         }
     }
@@ -518,7 +549,7 @@ class FgoAccessibilityService : AccessibilityService() {
         resetSemiAutoBackgroundState()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
-        aiVoiceService.stop()
+        // Voice playback is independent of overlay/foreground cleanup; the next voice line replaces it.
     }
 
     private fun restoreFgoForegroundAfterCapture(reason: String) {
@@ -534,7 +565,6 @@ class FgoAccessibilityService : AccessibilityService() {
         cancelTransientForegroundLoss()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
-        aiVoiceService.stop()
         serviceScope.cancel()
     }
 
@@ -1150,7 +1180,12 @@ class FgoAccessibilityService : AccessibilityService() {
     ) {
         val sceneSource = when (mode) {
             ProcessingMode.MANUAL_TAP,
-            ProcessingMode.SEMI_AUTO_CHOICE_TAP -> scanVoiceOnlyDialogueScene(source, screenRegions)
+            ProcessingMode.SEMI_AUTO_CHOICE_TAP -> scanVoiceOnlyDialogueScene(
+                source = source,
+                screenRegions = screenRegions,
+                includeChoices = aiVoiceChoiceTextEnabled,
+                mode = mode
+            )
             ProcessingMode.SEMI_AUTO_BACKGROUND,
             ProcessingMode.AUTO_BACKGROUND -> scanVoiceOnlyCompletedDialogueScene(source, screenRegions, mode)
         }
@@ -1169,7 +1204,7 @@ class FgoAccessibilityService : AccessibilityService() {
             return
         }
 
-        requestVoiceOnlyDialogue(sceneSource)
+        requestVoiceOnlyScene(sceneSource)
         rememberRenderedSourceText(mode, sceneSource.fingerprint, sceneSource.stabilityKey)
         if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
             resetSemiAutoBackoff()
@@ -1183,15 +1218,28 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun scanVoiceOnlyDialogueScene(
         source: Bitmap,
-        screenRegions: FgoScreenRegions
+        screenRegions: FgoScreenRegions,
+        includeChoices: Boolean = false,
+        mode: ProcessingMode = ProcessingMode.MANUAL_TAP
     ): SceneSource? {
         val dialogueRegions = recognizeDialogueRegions(
             source = source,
             screenRegions = screenRegions,
             allowRedTextFallback = true
         )
-        return sceneSourceFor(dialogueRegions)
-            ?.takeIf { it.hasDialogue }
+        val choiceRegions = if (includeChoices) {
+            recognizeChoiceRegions(
+                source = source,
+                screenRegions = screenRegions,
+                mode = mode
+            ).regions
+        } else {
+            emptyList()
+        }
+        return sceneSourceFor(mergeManualSceneRegions(choiceRegions, dialogueRegions))
+            ?.takeIf { scene ->
+                scene.hasDialogue || scene.input.choices.any { it.isNotBlank() }
+            }
     }
 
     private suspend fun scanVoiceOnlyCompletedDialogueScene(
@@ -1218,23 +1266,35 @@ class FgoAccessibilityService : AccessibilityService() {
         return sceneSource
     }
 
-    private fun requestVoiceOnlyDialogue(sceneSource: SceneSource) {
-        val speakerName = sceneSource.input.name
-            ?.trim()
-            ?.takeIf { it.isNotBlank() && !isPlaceholderSpeakerName(it) }
-            ?: return
+    private fun requestVoiceOnlyScene(sceneSource: SceneSource) {
+        val speakerName = voiceSpeakerForDialogue(sceneSource.input.name)
         val dialogue = sceneSource.input.dialogue
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-            ?: return
+        val choiceText = if (aiVoiceChoiceTextEnabled) {
+            sourceChoiceVoiceText(sceneSource)
+        } else {
+            null
+        }
+        if ((speakerName == null || dialogue == null) && choiceText == null) return
 
         serviceScope.launch {
-            aiVoiceService.speakDialogue(
-                speakerName = speakerName,
-                sourceDialogue = null,
-                translatedDialogue = dialogue,
-                voiceHint = null
-            )
+            if (speakerName != null && dialogue != null) {
+                aiVoiceService.speakDialogue(
+                    speakerName = speakerName,
+                    sourceDialogue = null,
+                    translatedDialogue = dialogue,
+                    voiceHint = null
+                )
+            }
+            if (choiceText != null) {
+                aiVoiceService.speakDialogue(
+                    speakerName = masterVoiceProfileId(aiVoiceMasterVoice),
+                    sourceDialogue = choiceText,
+                    translatedDialogue = choiceText,
+                    voiceHint = null
+                )
+            }
         }
     }
 
@@ -1751,18 +1811,73 @@ class FgoAccessibilityService : AccessibilityService() {
         val renderedDialogue = instructions.any {
             it.region.region == TextRegion.DIALOGUE_BOX && it.translatedText.isNotBlank()
         }
-        if (!renderedDialogue) return
-        val speakerName = sceneSource.input.name
-            ?.trim()
-            ?.takeIf { it.isNotBlank() && !isPlaceholderSpeakerName(it) }
-            ?: return
+        val speakerName = if (renderedDialogue) {
+            voiceSpeakerForDialogue(sceneSource.input.name)
+        } else {
+            null
+        }
+        val translatedDialogue = if (speakerName != null) {
+            sceneTranslation.dialogue?.translatedText?.trim()?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+        val choiceText = if (aiVoiceChoiceTextEnabled) {
+            renderedChoiceVoiceText(instructions)
+        } else {
+            null
+        }
+        if ((speakerName == null || translatedDialogue == null) && choiceText == null) return
+
         serviceScope.launch {
-            aiVoiceService.speakDialogue(
-                speakerName = speakerName,
-                sourceDialogue = sceneSource.input.dialogue,
-                translatedDialogue = sceneTranslation.dialogue?.translatedText,
-                voiceHint = sceneTranslation.voiceHint
-            )
+            if (speakerName != null && translatedDialogue != null) {
+                aiVoiceService.speakDialogue(
+                    speakerName = speakerName,
+                    sourceDialogue = sceneSource.input.dialogue,
+                    translatedDialogue = translatedDialogue,
+                    voiceHint = sceneTranslation.voiceHint
+                )
+            }
+            if (choiceText != null) {
+                aiVoiceService.speakDialogue(
+                    speakerName = masterVoiceProfileId(aiVoiceMasterVoice),
+                    sourceDialogue = sourceChoiceVoiceText(sceneSource),
+                    translatedDialogue = choiceText,
+                    voiceHint = null
+                )
+            }
+        }
+    }
+
+    private fun voiceSpeakerForDialogue(rawSpeakerName: String?): String? {
+        val speakerName = rawSpeakerName?.trim()?.takeIf { it.isNotBlank() }
+        return when {
+            speakerName != null && aiVoiceNamedDialogueEnabled -> speakerName
+            speakerName == null && aiVoiceNoSpeakerDialogueEnabled -> NO_SPEAKER_PROFILE_ID
+            else -> null
+        }
+    }
+
+    private fun renderedChoiceVoiceText(instructions: List<RenderInstruction>): String? {
+        return instructions
+            .filter { it.region.region == TextRegion.CHOICE_BUTTON }
+            .map { it.translatedText.trim() }
+            .filter { it.isNotBlank() }
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString("\n")
+    }
+
+    private fun sourceChoiceVoiceText(sceneSource: SceneSource): String? {
+        return sceneSource.input.choices
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString("\n")
+    }
+
+    private fun masterVoiceProfileId(masterVoice: String): String {
+        return when (SettingsRepository.normalizeAiVoiceMasterVoice(masterVoice)) {
+            SettingsRepository.AI_VOICE_MASTER_FEMALE -> MASTER_PROFILE_FEMALE
+            else -> MASTER_PROFILE_MALE
         }
     }
 
@@ -1942,9 +2057,17 @@ class FgoAccessibilityService : AccessibilityService() {
 
         return sceneSource.regions.mapNotNull { regionAndText ->
             val translatedResult = when (regionAndText.region.region) {
-                TextRegion.NAME_LABEL -> renderableNameTranslation(sceneTranslation.name)?.let { text ->
+                TextRegion.NAME_LABEL -> renderableNameTranslation(
+                    sourceText = regionAndText.text,
+                    result = sceneTranslation.name
+                )?.let { text ->
                     sceneTranslation.name?.copy(translatedText = text)
-                        ?: TranslateResult(text, "none", true)
+                        ?: TranslateResult(
+                            translatedText = text,
+                            backend = "source-name",
+                            cached = true,
+                            targetLocale = nameFallbackTargetLocale(sceneTranslation)
+                        )
                 }
                 TextRegion.DIALOGUE_BOX -> sceneTranslation.dialogue
                 TextRegion.CHOICE_BUTTON -> translatedChoicesByRegion[regionAndText.region]
@@ -2065,18 +2188,16 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun renderableNameTranslation(result: TranslateResult?): String? {
-        val translated = result?.translatedText?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        if (result.backend == "none") {
-            FgoLogger.debug(tag, "Skipping name render without translation backend")
-            return null
-        }
-        return translated
+    private fun renderableNameTranslation(sourceText: String, result: TranslateResult?): String? {
+        return result?.translatedText?.trim()?.takeIf { it.isNotBlank() }
+            ?: sourceText.trim().takeIf { it.isNotBlank() }
     }
 
-    private fun isPlaceholderSpeakerName(sourceText: String): Boolean {
-        val compact = sourceText.trim().filterNot { it.isWhitespace() }
-        return compact.length >= 2 && compact.all { it == '?' || it == '\uFF1F' || it == '\uFE56' }
+    private fun nameFallbackTargetLocale(sceneTranslation: SceneTranslateResult): String {
+        return sceneTranslation.name?.targetLocale
+            ?: sceneTranslation.dialogue?.targetLocale
+            ?: sceneTranslation.choices.firstOrNull { it.targetLocale.isNotBlank() }?.targetLocale
+            ?: SettingsRepository.TARGET_LOCALE_SIMPLIFIED
     }
 
     private fun Char.isJapaneseTextChar(): Boolean {

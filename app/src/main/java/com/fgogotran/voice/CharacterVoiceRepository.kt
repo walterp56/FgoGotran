@@ -72,7 +72,7 @@ class CharacterVoiceRepository @Inject constructor(
 
     private fun loadSnapshot(): VoiceDataSnapshot {
         return runCatching {
-            val rows = loadInstalledRowsOrNull() ?: loadAssetRows()
+            val rows = loadCdnRowsOrNull() ?: return@runCatching VoiceDataSnapshot.EMPTY
             val profiles = readProfiles(rows.profileRows)
             val aliasToProfile = buildAliasMap(profiles)
             val cnNameToJapaneseName = buildChineseNameMap(rows.nameMapRows)
@@ -96,29 +96,24 @@ class CharacterVoiceRepository @Inject constructor(
         }.getOrDefault(VoiceDataSnapshot.EMPTY)
     }
 
-    private fun loadInstalledRowsOrNull(): LoadedVoiceRows? {
-        if (!VoiceDataFiles.installedPackageExists(context)) return null
+    private fun loadCdnRowsOrNull(): LoadedVoiceRows? {
+        if (!VoiceDataFiles.installedPackageExists(context)) {
+            FgoLogger.warn(tag, "No CDN voice data installed yet; waiting for voice data updater")
+            return null
+        }
         return runCatching {
             val profileRows = readTsvFile(VoiceDataFiles.installedProfileFile(context))
             val nameMapRows = readTsvFile(VoiceDataFiles.installedNameMapFile(context))
-            require(profileRows.isNotEmpty()) { "Installed voice profile TSV has no rows" }
-            require(nameMapRows.isNotEmpty()) { "Installed JP/CN name map TSV has no rows" }
+            require(profileRows.isNotEmpty()) { "CDN voice profile TSV has no rows" }
+            require(nameMapRows.isNotEmpty()) { "CDN JP/CN name map TSV has no rows" }
             LoadedVoiceRows(
-                source = "installed",
+                source = "cdn_cache",
                 profileRows = profileRows,
                 nameMapRows = nameMapRows
             )
         }.onFailure { e ->
-            FgoLogger.warn(tag, "Installed voice data is invalid; falling back to bundled assets", e)
+            FgoLogger.warn(tag, "CDN voice data cache is invalid; waiting for voice data updater", e)
         }.getOrNull()
-    }
-
-    private fun loadAssetRows(): LoadedVoiceRows {
-        return LoadedVoiceRows(
-            source = "asset",
-            profileRows = readTsvAsset(VoiceDataFiles.PROFILE_ASSET),
-            nameMapRows = readTsvAsset(VoiceDataFiles.NAME_MAP_ASSET)
-        )
     }
 
     private fun readProfiles(rows: List<List<String>>): List<CharacterVoiceProfile> {
@@ -191,12 +186,6 @@ class CharacterVoiceRepository @Inject constructor(
             .split(Regex("[|/&\\uFF06\\uFF0F]"))
             .map(String::trim)
             .filter(String::isNotBlank)
-    }
-
-    private fun readTsvAsset(assetPath: String): List<List<String>> {
-        return context.assets.open(assetPath).bufferedReader(Charsets.UTF_8).useLines { lines ->
-            parseTsvLines(lines)
-        }
     }
 
     private fun readTsvFile(file: File): List<List<String>> {

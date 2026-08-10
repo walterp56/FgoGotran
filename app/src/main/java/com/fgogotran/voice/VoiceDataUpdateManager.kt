@@ -16,6 +16,8 @@ import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -23,7 +25,6 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -53,11 +54,12 @@ class VoiceDataUpdateManager @Inject constructor(
     private val tag = "VoiceDataUpdate"
     private val _updateStatus = MutableStateFlow(VoiceDataUpdateStatus())
     val updateStatus: StateFlow<VoiceDataUpdateStatus> = _updateStatus
+    private val updateMutex = Mutex()
 
     suspend fun updateIfNeeded(force: Boolean = false) {
-        if (!force && !hasAttemptedUpdate.compareAndSet(false, true)) return
-        if (!updateInProgress.compareAndSet(false, true)) {
+        if (!updateMutex.tryLock()) {
             _updateStatus.value = _updateStatus.value.copy(isChecking = true)
+            updateMutex.withLock { }
             return
         }
 
@@ -70,19 +72,19 @@ class VoiceDataUpdateManager @Inject constructor(
             val manifest = fetchManifest()
             validateManifest(manifest)
 
-            val installedVersion = settingsRepository.voiceDataContentVersion.first()
+            val localVersion = settingsRepository.voiceDataContentVersion.first()
             FgoLogger.info(
                 tag,
                 "Voice data update: manifest version=${manifest.contentVersion}, " +
                     "profiles=${manifest.profileCount}, map=${manifest.nameMapCount}, " +
-                    "installed=$installedVersion"
+                    "local=$localVersion"
             )
 
-            if (isContentVersionOlder(manifest.contentVersion, installedVersion)) {
+            if (isContentVersionOlder(manifest.contentVersion, localVersion)) {
                 FgoLogger.warn(
                     tag,
                     "Voice data update: ignoring older manifest version=${manifest.contentVersion}, " +
-                        "installed=$installedVersion"
+                        "local=$localVersion"
                 )
                 _updateStatus.value = VoiceDataUpdateStatus()
                 return
@@ -127,7 +129,7 @@ class VoiceDataUpdateManager @Inject constructor(
             packageFile.delete()
             FgoLogger.info(
                 tag,
-                "Voice data update: installed version=${manifest.contentVersion}, " +
+                "Voice data update: cached CDN version=${manifest.contentVersion}, " +
                     "profiles=${manifest.profileCount}, map=${manifest.nameMapCount}"
             )
             _updateStatus.value = if (force) {
@@ -140,8 +142,7 @@ class VoiceDataUpdateManager @Inject constructor(
                 VoiceDataUpdateStatus()
             }
         } catch (e: Exception) {
-            FgoLogger.warn(tag, "Voice data update failed; keeping existing voice data", e)
-            hasAttemptedUpdate.set(false)
+            FgoLogger.warn(tag, "Voice data update failed; keeping existing CDN voice cache", e)
             _updateStatus.value = if (visibleUpdateStarted || _updateStatus.value.visible) {
                 visibleStatus(
                     message = "Voice data update failed",
@@ -153,7 +154,7 @@ class VoiceDataUpdateManager @Inject constructor(
                 VoiceDataUpdateStatus()
             }
         } finally {
-            updateInProgress.set(false)
+            updateMutex.unlock()
         }
     }
 
@@ -211,7 +212,7 @@ class VoiceDataUpdateManager @Inject constructor(
             stats.profileSha256.equals(manifest.profileSha256, ignoreCase = true) &&
                 stats.nameMapSha256.equals(manifest.nameMapSha256, ignoreCase = true)
         }.onFailure { e ->
-            FgoLogger.warn(tag, "Voice data update: installed file validation failed", e)
+            FgoLogger.warn(tag, "Voice data update: CDN cache file validation failed", e)
         }.getOrDefault(false)
     }
 
@@ -524,7 +525,5 @@ class VoiceDataUpdateManager @Inject constructor(
         const val TEMP_PACKAGE_NAME = "voice_data.zip.download"
         const val CONNECT_TIMEOUT_MS = 10_000L
         const val REQUEST_TIMEOUT_MS = 30_000L
-        val hasAttemptedUpdate = AtomicBoolean(false)
-        val updateInProgress = AtomicBoolean(false)
     }
 }

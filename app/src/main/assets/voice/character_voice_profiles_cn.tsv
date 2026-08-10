@@ -1,7 +1,7 @@
 speaker_id	aliases	voice_type	cn_voice_name	cn_style	cn_pitch	cn_rate	cn_volume
 マシュ	マシュ|家老マシュ|キリエ|マシュ《ナレーター》	young_female	zh-CN-Xiaoxiao:DragonHDFlashLatestNeural	gentle	+3%	1.06	100
 ダ・ヴィンチ	ダ・ヴィンチ|ダ・ヴィンチちゃん	child_female	zh-CN-Xiaoyou:DragonHDFlashLatestNeural	cute	+6%	1.07	100
-？？？	？？？	androgynous	zh-CN-YunxiaNeural		+2%	0.98	100
+？？？	？？？	androgynous	zh-CN-XiaoyuMultilingualNeural		-3%	0.96	100
 ゴルドルフ	ゴルドルフ	mature_male	zh-CN-YunzeNeural		-4%	0.94	100
 ホームズ	ホームズ	mature_male	zh-CN-YunjianNeural		-2%	0.95	100
 Dr.ロマン	Dr.ロマン|ロマニ・アーキマン	young_male	zh-CN-Yunxi:DragonHDFlashLatestNeural	chat	+1%	1.06	100

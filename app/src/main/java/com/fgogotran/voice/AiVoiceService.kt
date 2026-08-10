@@ -6,10 +6,14 @@ import com.fgogotran.translation.TextNormalizer
 import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.util.FgoLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.Normalizer
 import java.util.Locale
 import javax.inject.Inject
@@ -19,6 +23,7 @@ import javax.inject.Singleton
 class AiVoiceService @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val characterVoiceRepository: CharacterVoiceRepository,
+    private val voiceDataUpdateManager: VoiceDataUpdateManager,
     private val tempVoiceProfileRepository: TempVoiceProfileRepository,
     private val tempVoiceProfileBuilder: TempVoiceProfileBuilder,
     private val diagnosticEventStore: DiagnosticEventStore,
@@ -29,9 +34,18 @@ class AiVoiceService @Inject constructor(
     private val tag = "AiVoice"
     private val speakMutex = Mutex()
     private val tempProfileMutex = Mutex()
+    private val voiceRequestLock = Any()
     private val tempProfileFailureRetryAt = mutableMapOf<String, Long>()
-    private var lastSpokenCacheMaterial: String? = null
-    private var lastSpokenLineKey: String? = null
+    private var latestVoiceRequestId = 0L
+    private var lastRequestedCacheMaterial: String? = null
+    private var lastRequestedLineKey: String? = null
+
+    private data class PreparedVoiceLine(
+        val speaker: String,
+        val profile: VoiceProfile,
+        val expression: VoiceExpression?,
+        val cacheMaterial: String
+    )
 
     suspend fun speakDialogue(
         speakerName: String?,
@@ -68,76 +82,67 @@ class AiVoiceService @Inject constructor(
 
         val gameServer = settingsRepository.getGameServer()
         val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
-        val lineKey = voiceLineKey(normalizedServer, speaker, dialogue)
-        val profile = resolveVoiceProfile(
+        val speakers = splitVoiceSpeakers(speaker)
+        val lineKey = voiceLineKey(normalizedServer, speakers.joinToString("|"), dialogue)
+        withContext(Dispatchers.IO) {
+            voiceDataUpdateManager.updateIfNeeded()
+        }
+        val preparedLines = prepareVoiceLines(
             gameServer = normalizedServer,
-            speaker = speaker,
-            dialogue = dialogue
-        ) ?: run {
+            speakers = speakers,
+            dialogue = dialogue,
+            voiceHint = voiceHint
+        )
+        if (preparedLines.isEmpty()) {
             FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
             return
         }
-        FgoLogger.debug(
-            tag,
-            "AI voice profile speaker=$speaker profile=${profile.profileId} " +
-                "voice=${profile.voiceName} source=translated_chinese"
-        )
+        if (preparedLines.size > 1) {
+            FgoLogger.debug(
+                tag,
+                "AI multi-speaker voice split original=$speaker speakers=${preparedLines.joinToString("|") { it.speaker }}"
+            )
+        }
 
         val speechRegion = settingsRepository.azureSpeechRegion.first()
             .trim()
             .ifBlank { SettingsRepository.DEFAULT_AZURE_SPEECH_REGION }
         val voiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
-        val expression = voiceExpressionFor(
-            profile = profile,
-            dialogue = dialogue,
-            voiceHint = voiceHint
-        )
-        val request = VoiceSynthesisRequest(
-            speakerName = speaker,
-            spokenText = dialogue,
-            profile = profile,
-            styleOverride = expression?.styleOverride,
-            rateOverride = expression?.rateOverride,
-            pitchOverride = expression?.pitchOverride,
-            styleDegree = expression?.styleDegree,
-            pauseScale = expression?.pauseScale,
-            ssmlModeVersion = expression?.ssmlModeVersion
-        )
-        val cacheMaterial = request.cacheMaterial()
+        val cacheMaterial = preparedLines.joinToString("||") { it.cacheMaterial }
+        val requestId = reserveVoiceRequest(
+            lineKey = lineKey,
+            cacheMaterial = cacheMaterial,
+            speaker = speaker
+        ) ?: return
 
         speakMutex.withLock {
-            if (lineKey == lastSpokenLineKey || cacheMaterial == lastSpokenCacheMaterial) {
-                FgoLogger.debug(tag, "AI voice duplicate skipped: speaker=$speaker")
-                return@withLock
-            }
-            lastSpokenLineKey = lineKey
-            lastSpokenCacheMaterial = cacheMaterial
             runCatching {
-                val audioFile = withContext(Dispatchers.IO) {
-                    audioCache.cachedFile(cacheMaterial) ?: audioCache.write(
-                        cacheMaterial = cacheMaterial,
-                        audio = azureTtsClient.synthesize(
-                            config = AzureSpeechConfig(key = speechKey, region = speechRegion),
-                            profile = profile,
-                            text = dialogue,
-                            styleOverride = expression?.styleOverride,
-                            rateOverride = expression?.rateOverride,
-                            pitchOverride = expression?.pitchOverride,
-                            styleDegree = expression?.styleDegree,
-                            pauseScale = expression?.pauseScale
-                        )
-                    )
+                if (!isLatestVoiceRequest(requestId)) {
+                    FgoLogger.debug(tag, "AI voice stale skipped before synthesis: speaker=$speaker")
+                    return@runCatching
+                }
+                val audioFiles = synthesizeVoiceLines(
+                    config = AzureSpeechConfig(key = speechKey, region = speechRegion),
+                    dialogue = dialogue,
+                    lines = preparedLines
+                )
+                if (!isLatestVoiceRequest(requestId)) {
+                    FgoLogger.debug(tag, "AI voice stale skipped after synthesis: speaker=$speaker")
+                    return@runCatching
                 }
                 withContext(Dispatchers.Main) {
-                    playbackEngine.play(audioFile, voiceVolumePercent)
+                    if (!isLatestVoiceRequest(requestId)) {
+                        FgoLogger.debug(tag, "AI voice stale skipped before playback: speaker=$speaker")
+                        return@withContext
+                    }
+                    if (audioFiles.size == 1) {
+                        playbackEngine.play(audioFiles.single(), voiceVolumePercent)
+                    } else {
+                        playbackEngine.playTogether(audioFiles, voiceVolumePercent)
+                    }
                 }
             }.onFailure { e ->
-                if (lastSpokenCacheMaterial == cacheMaterial) {
-                    lastSpokenCacheMaterial = null
-                }
-                if (lastSpokenLineKey == lineKey) {
-                    lastSpokenLineKey = null
-                }
+                clearFailedVoiceRequest(requestId, lineKey, cacheMaterial)
                 val errorMessage = e.message.orEmpty()
                 diagnosticEventStore.record(
                     level = DiagnosticEventStore.LEVEL_ERROR,
@@ -155,13 +160,115 @@ class AiVoiceService @Inject constructor(
                     message = errorMessage.ifBlank { e::class.java.simpleName },
                     server = normalizedServer,
                     speaker = speaker,
-                    detail = "profile=${profile.profileId}",
-                    voiceType = profile.description,
-                    voiceName = profile.voiceName,
+                    detail = preparedLines.joinToString("|") { "${it.speaker}:${it.profile.profileId}" },
+                    voiceType = preparedLines.joinToString(",") { it.profile.description },
+                    voiceName = preparedLines.joinToString(",") { it.profile.voiceName },
                     textPreview = dialogue.previewText()
                 )
                 FgoLogger.warn(tag, "AI voice playback skipped", e)
             }
+        }
+    }
+
+    private fun reserveVoiceRequest(lineKey: String, cacheMaterial: String, speaker: String): Long? {
+        synchronized(voiceRequestLock) {
+            if (lineKey == lastRequestedLineKey || cacheMaterial == lastRequestedCacheMaterial) {
+                FgoLogger.debug(tag, "AI voice duplicate skipped: speaker=$speaker")
+                return null
+            }
+            latestVoiceRequestId += 1
+            lastRequestedLineKey = lineKey
+            lastRequestedCacheMaterial = cacheMaterial
+            return latestVoiceRequestId
+        }
+    }
+
+    private fun isLatestVoiceRequest(requestId: Long): Boolean {
+        return synchronized(voiceRequestLock) {
+            requestId == latestVoiceRequestId
+        }
+    }
+
+    private fun clearFailedVoiceRequest(requestId: Long, lineKey: String, cacheMaterial: String) {
+        synchronized(voiceRequestLock) {
+            if (requestId != latestVoiceRequestId) return
+            if (lastRequestedLineKey == lineKey) {
+                lastRequestedLineKey = null
+            }
+            if (lastRequestedCacheMaterial == cacheMaterial) {
+                lastRequestedCacheMaterial = null
+            }
+        }
+    }
+
+    private suspend fun prepareVoiceLines(
+        gameServer: String,
+        speakers: List<String>,
+        dialogue: String,
+        voiceHint: VoiceLineHint?
+    ): List<PreparedVoiceLine> {
+        return speakers.mapNotNull { speaker ->
+            val profile = resolveVoiceProfile(
+                gameServer = gameServer,
+                speaker = speaker,
+                dialogue = dialogue
+            ) ?: run {
+                FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
+                return@mapNotNull null
+            }
+            FgoLogger.debug(
+                tag,
+                "AI voice profile speaker=$speaker profile=${profile.profileId} " +
+                    "voice=${profile.voiceName} source=translated_chinese"
+            )
+            val expression = voiceExpressionFor(
+                profile = profile,
+                dialogue = dialogue,
+                voiceHint = voiceHint
+            )
+            val request = VoiceSynthesisRequest(
+                speakerName = speaker,
+                spokenText = dialogue,
+                profile = profile,
+                styleOverride = expression?.styleOverride,
+                rateOverride = expression?.rateOverride,
+                pitchOverride = expression?.pitchOverride,
+                styleDegree = expression?.styleDegree,
+                pauseScale = expression?.pauseScale,
+                ssmlModeVersion = expression?.ssmlModeVersion
+            )
+            PreparedVoiceLine(
+                speaker = speaker,
+                profile = profile,
+                expression = expression,
+                cacheMaterial = request.cacheMaterial()
+            )
+        }
+    }
+
+    private suspend fun synthesizeVoiceLines(
+        config: AzureSpeechConfig,
+        dialogue: String,
+        lines: List<PreparedVoiceLine>
+    ): List<File> {
+        return coroutineScope {
+            lines.map { line ->
+                async(Dispatchers.IO) {
+                    audioCache.cachedFile(line.cacheMaterial) ?: audioCache.write(
+                        cacheMaterial = line.cacheMaterial,
+                        audio = azureTtsClient.synthesize(
+                            config = config,
+                            profile = line.profile,
+                            text = dialogue,
+                            styleOverride = line.expression?.styleOverride,
+                            rateOverride = line.expression?.rateOverride,
+                            pitchOverride = line.expression?.pitchOverride,
+                            styleDegree = line.expression?.styleDegree,
+                            pauseScale = line.expression?.pauseScale
+                        )
+                    )
+                }
+            }.awaitAll()
         }
     }
 
@@ -281,6 +388,14 @@ class AiVoiceService @Inject constructor(
         ).joinToString("|")
     }
 
+    private fun splitVoiceSpeakers(speaker: String): List<String> {
+        val speakers = MULTI_SPEAKER_SEPARATOR_REGEX.split(speaker)
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinctBy(::compactVoiceKeyText)
+        return speakers.takeIf { it.size > 1 } ?: listOf(speaker)
+    }
+
     private fun compactVoiceKeyText(text: String): String {
         val normalized = Normalizer.normalize(
             TextNormalizer.stripRubyAnnotations(text).trim(),
@@ -323,5 +438,6 @@ class AiVoiceService @Inject constructor(
     private companion object {
         const val TEMP_PROFILE_FAILURE_COOLDOWN_MS = 10 * 60 * 1000L
         const val TEXT_PREVIEW_CHARS = 80
+        val MULTI_SPEAKER_SEPARATOR_REGEX = Regex("[&/\\uFF06\\uFF0F]")
     }
 }

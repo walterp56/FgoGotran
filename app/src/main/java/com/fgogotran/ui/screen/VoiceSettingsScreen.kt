@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -55,12 +56,28 @@ fun VoiceSettingsScreen(
     var aiVoiceApiHintsEnabled by remember {
         mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED)
     }
+    var aiVoiceNamedDialogueEnabled by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED)
+    }
+    var aiVoiceNoSpeakerDialogueEnabled by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED)
+    }
+    var aiVoiceChoiceTextEnabled by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED)
+    }
+    var aiVoiceMasterVoice by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_MASTER_VOICE)
+    }
     var azureSpeechKey by remember { mutableStateOf("") }
     var azureSpeechSaveMessage by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
         aiVoiceApiHintsEnabled = settingsRepository.aiVoiceApiHintsEnabled.first()
+        aiVoiceNamedDialogueEnabled = settingsRepository.aiVoiceNamedDialogueEnabled.first()
+        aiVoiceNoSpeakerDialogueEnabled = settingsRepository.aiVoiceNoSpeakerDialogueEnabled.first()
+        aiVoiceChoiceTextEnabled = settingsRepository.aiVoiceChoiceTextEnabled.first()
+        aiVoiceMasterVoice = settingsRepository.aiVoiceMasterVoice.first()
         azureSpeechKey = settingsRepository.azureSpeechKey.first()
     }
 
@@ -102,6 +119,71 @@ fun VoiceSettingsScreen(
                     onCheckedChange = {
                         aiVoiceEnabled = it
                         scope.launch { settingsRepository.setAiVoiceEnabled(it) }
+                    }
+                )
+            }
+
+            VoiceSettingsCard(
+                title = "朗读范围",
+                body = ""
+            ) {
+                VoiceCheckboxRow(
+                    title = "有角色名对话",
+                    body = "名称框存在时，使用对应角色语音。",
+                    checked = aiVoiceNamedDialogueEnabled,
+                    enabled = aiVoiceEnabled,
+                    onCheckedChange = {
+                        aiVoiceNamedDialogueEnabled = it
+                        scope.launch { settingsRepository.setAiVoiceNamedDialogueEnabled(it) }
+                    }
+                )
+                VoiceCheckboxRow(
+                    title = "无角色名对话",
+                    body = "没有名称框时，使用旁白语音。",
+                    checked = aiVoiceNoSpeakerDialogueEnabled,
+                    enabled = aiVoiceEnabled,
+                    onCheckedChange = {
+                        aiVoiceNoSpeakerDialogueEnabled = it
+                        scope.launch { settingsRepository.setAiVoiceNoSpeakerDialogueEnabled(it) }
+                    }
+                )
+                VoiceCheckboxRow(
+                    title = "选项文字",
+                    body = "朗读选择按钮文字，默认关闭以避免重复。",
+                    checked = aiVoiceChoiceTextEnabled,
+                    enabled = aiVoiceEnabled,
+                    onCheckedChange = {
+                        aiVoiceChoiceTextEnabled = it
+                        scope.launch { settingsRepository.setAiVoiceChoiceTextEnabled(it) }
+                    }
+                )
+                Text(
+                    "选项文字声音",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(
+                        alpha = if (aiVoiceEnabled && aiVoiceChoiceTextEnabled) 0.82f else 0.48f
+                    )
+                )
+                VoiceMasterVoiceOption(
+                    title = "御主（男）",
+                    selected = aiVoiceMasterVoice == SettingsRepository.AI_VOICE_MASTER_MALE,
+                    enabled = aiVoiceEnabled && aiVoiceChoiceTextEnabled,
+                    onClick = {
+                        aiVoiceMasterVoice = SettingsRepository.AI_VOICE_MASTER_MALE
+                        scope.launch {
+                            settingsRepository.setAiVoiceMasterVoice(SettingsRepository.AI_VOICE_MASTER_MALE)
+                        }
+                    }
+                )
+                VoiceMasterVoiceOption(
+                    title = "御主（女）",
+                    selected = aiVoiceMasterVoice == SettingsRepository.AI_VOICE_MASTER_FEMALE,
+                    enabled = aiVoiceEnabled && aiVoiceChoiceTextEnabled,
+                    onClick = {
+                        aiVoiceMasterVoice = SettingsRepository.AI_VOICE_MASTER_FEMALE
+                        scope.launch {
+                            settingsRepository.setAiVoiceMasterVoice(SettingsRepository.AI_VOICE_MASTER_FEMALE)
+                        }
                     }
                 )
             }
@@ -168,6 +250,84 @@ fun VoiceSettingsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun VoiceCheckboxRow(
+    title: String,
+    body: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.82f else 0.48f)
+            )
+            if (body.isNotBlank()) {
+                Text(
+                    body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.6f else 0.38f)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
+    }
+}
+
+@Composable
+private fun VoiceMasterVoiceOption(
+    title: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 0.32f else 0.16f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            RadioButton(
+                selected = selected,
+                onClick = if (enabled) onClick else null,
+                enabled = enabled
+            )
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface.copy(
+                    alpha = when {
+                        !enabled -> 0.48f
+                        selected -> 0.82f
+                        else -> 0.68f
+                    }
+                )
+            )
         }
     }
 }
