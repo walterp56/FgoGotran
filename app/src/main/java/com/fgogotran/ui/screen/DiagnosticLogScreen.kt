@@ -14,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -52,17 +51,11 @@ fun DiagnosticLogScreen(
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val events by diagnosticEventStore.events.collectAsState()
-    var categoryFilter by remember { mutableStateOf(DiagnosticFilter.ALL) }
-    var serverFilter by remember { mutableStateOf("all") }
     var exportMessage by remember { mutableStateOf("") }
 
-    val filteredEvents = remember(events, categoryFilter, serverFilter) {
+    val visibleEvents = remember(events) {
         events
-            .asSequence()
-            .filter { event -> categoryFilter.matches(event) }
-            .filter { event -> serverFilter == "all" || event.server == serverFilter }
             .sortedByDescending { it.timestampMs }
-            .toList()
     }
 
     Scaffold(
@@ -86,24 +79,9 @@ fun DiagnosticLogScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "只记录错误、缺少语音档案、临时语音 API 建立结果。",
+                "自动显示全部最近问题：错误、权限阻塞、资料更新失败、缺少语音档案、临时语音 API 建立结果。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f)
-            )
-
-            FilterRow(
-                options = diagnosticFilters.map { it.label },
-                selected = categoryFilter.label,
-                onSelect = { label ->
-                    categoryFilter = diagnosticFilters.first { it.label == label }
-                }
-            )
-            FilterRow(
-                options = serverFilters.map { it.second },
-                selected = serverFilters.firstOrNull { it.first == serverFilter }?.second ?: "全部服",
-                onSelect = { label ->
-                    serverFilter = serverFilters.first { it.second == label }.first
-                }
             )
 
             Row(
@@ -115,7 +93,7 @@ fun DiagnosticLogScreen(
                     onClick = {
                         scope.launch {
                             runCatching {
-                                val file = diagnosticEventStore.exportTextReport(filteredEvents)
+                                val file = diagnosticEventStore.exportTextReport(visibleEvents)
                                 val uri = FileProvider.getUriForFile(
                                     context,
                                     "${context.packageName}.fileprovider",
@@ -135,7 +113,7 @@ fun DiagnosticLogScreen(
                             }
                         }
                     },
-                    enabled = filteredEvents.isNotEmpty()
+                    enabled = visibleEvents.isNotEmpty()
                 ) {
                     Text("导出 TXT")
                 }
@@ -159,33 +137,13 @@ fun DiagnosticLogScreen(
                 )
             }
 
-            if (filteredEvents.isEmpty()) {
+            if (visibleEvents.isEmpty()) {
                 EmptyDiagnosticState()
             } else {
-                filteredEvents.forEach { event ->
+                visibleEvents.forEach { event ->
                     DiagnosticEventRow(event)
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun FilterRow(
-    options: List<String>,
-    selected: String,
-    onSelect: (String) -> Unit
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        options.forEach { option ->
-            FilterChip(
-                selected = option == selected,
-                onClick = { onSelect(option) },
-                label = { Text(option) }
-            )
         }
     }
 }
@@ -197,7 +155,7 @@ private fun EmptyDiagnosticState() {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Text(
-            "目前没有符合筛选的纪录。",
+            "目前没有错误纪录。",
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
@@ -294,36 +252,6 @@ private fun eventColors(event: DiagnosticEvent): DiagnosticColors {
 private data class DiagnosticColors(
     val container: androidx.compose.ui.graphics.Color,
     val content: androidx.compose.ui.graphics.Color
-)
-
-private enum class DiagnosticFilter(val label: String) {
-    ALL("全部"),
-    ERRORS("错误"),
-    MISSING_VOICE("缺语音"),
-    TEMP_API("API建立");
-
-    fun matches(event: DiagnosticEvent): Boolean {
-        return when (this) {
-            ALL -> true
-            ERRORS -> event.level == DiagnosticEventStore.LEVEL_ERROR
-            MISSING_VOICE -> event.category == DiagnosticEventStore.CATEGORY_MISSING_VOICE
-            TEMP_API -> event.category == DiagnosticEventStore.CATEGORY_TEMP_VOICE_API
-        }
-    }
-}
-
-private val diagnosticFilters = listOf(
-    DiagnosticFilter.ALL,
-    DiagnosticFilter.ERRORS,
-    DiagnosticFilter.MISSING_VOICE,
-    DiagnosticFilter.TEMP_API
-)
-
-private val serverFilters = listOf(
-    "all" to "全部服",
-    "jp" to "日服",
-    "cn" to "简中",
-    "tw" to "繁中"
 )
 
 private fun DiagnosticEvent.metaLine(): String {

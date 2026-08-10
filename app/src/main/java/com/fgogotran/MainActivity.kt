@@ -26,6 +26,7 @@ import com.fgogotran.ui.theme.FgoGotranTheme
 import com.fgogotran.update.AppVersionCheckResult
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.util.FgoLogger
+import com.fgogotran.voice.AiVoiceService
 import com.fgogotran.voice.VoiceDataUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var translator: Translator
     @Inject lateinit var appAnalytics: AppAnalytics
     @Inject lateinit var diagnosticEventStore: DiagnosticEventStore
+    @Inject lateinit var aiVoiceService: AiVoiceService
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,7 +83,8 @@ class MainActivity : ComponentActivity() {
                     appVersionManager,
                     translator,
                     appAnalytics,
-                    diagnosticEventStore
+                    diagnosticEventStore,
+                    aiVoiceService
                 )
             }
         }
@@ -102,7 +105,8 @@ fun MainScreen(
     appVersionManager: AppVersionManager,
     translator: Translator,
     appAnalytics: AppAnalytics,
-    diagnosticEventStore: DiagnosticEventStore
+    diagnosticEventStore: DiagnosticEventStore,
+    aiVoiceService: AiVoiceService
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -111,7 +115,7 @@ fun MainScreen(
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
     LaunchedEffect(appVersionManager, settingsRepository) {
-        when (val result = appVersionManager.checkNow()) {
+        when (val result = appVersionManager.checkForAutoPrompt()) {
             is AppVersionCheckResult.UpdateAvailable -> {
                 val ignoredVersionCode = settingsRepository.getIgnoredAppUpdateVersionCode()
                 if (result.info.versionCode > ignoredVersionCode) {
@@ -154,6 +158,7 @@ fun MainScreen(
     when (currentScreen) {
         Screen.HOME -> HomeScreen(
             settingsRepository = settingsRepository,
+            diagnosticEventStore = diagnosticEventStore,
             onGuide = { currentScreen = Screen.GUIDE },
             onSettings = { currentScreen = Screen.SETTINGS }
         )
@@ -181,6 +186,8 @@ fun MainScreen(
 
         Screen.VOICE_SETTINGS -> VoiceSettingsScreen(
             settingsRepository = settingsRepository,
+            translator = translator,
+            aiVoiceService = aiVoiceService,
             onBack = { currentScreen = Screen.SETTINGS }
         )
 

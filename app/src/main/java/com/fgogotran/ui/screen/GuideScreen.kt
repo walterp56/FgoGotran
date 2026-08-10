@@ -69,14 +69,17 @@ fun GuideScreen(
                 title = "先调 FGO 文字速度",
                 body = "剧情文字完整显示后，OCR 和自动翻译会更稳定。"
             ) {
-                GuideSettingRow(label = "文字送り", value = "MAX")
-                GuideSettingRow(label = "ページ送り", value = "MAX")
-                GuideSettingRow(label = "句読点待ち時間", value = "0")
+                GuideSettingRow(label = "文字送り / 表示速度", value = "MAX")
+                GuideSettingRow(label = "ページ送り / 表示速度", value = "MAX")
+                GuideSettingRow(label = "句読点待ち時間 / 标点等待时间", value = "0")
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
                 )
-                GuideInfoRow(label = "设置位置", text = "マイルーム → ゲームオプション → テキスト表示速度")
+                GuideInfoRow(
+                    label = "设置位置",
+                    text = "マイルーム → ゲームオプション → テキスト表示速度\n我的房间 → 游戏选项 → 文本显示速度"
+                )
             }
 
             GuideSectionCard(

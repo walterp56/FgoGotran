@@ -19,11 +19,18 @@ import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class AzureVoiceTestResult(
+    val speakerName: String,
+    val dialogue: String,
+    val voiceName: String,
+    val profileId: String,
+    val voiceHintApplied: Boolean
+)
+
 @Singleton
 class AiVoiceService @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val characterVoiceRepository: CharacterVoiceRepository,
-    private val voiceDataUpdateManager: VoiceDataUpdateManager,
     private val tempVoiceProfileRepository: TempVoiceProfileRepository,
     private val tempVoiceProfileBuilder: TempVoiceProfileBuilder,
     private val diagnosticEventStore: DiagnosticEventStore,
@@ -56,9 +63,8 @@ class AiVoiceService @Inject constructor(
         if (!settingsRepository.aiVoiceEnabled.first()) return
 
         val speaker = speakerName
-            ?.let(TextNormalizer::stripRubyAnnotations)
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
+            ?.let(::normalizeVisibleSpeakerName)
+            ?.takeIf(String::isNotBlank)
             ?: return
         val dialogue = voiceTextFor(
             translatedDialogue = translatedDialogue
@@ -84,9 +90,6 @@ class AiVoiceService @Inject constructor(
         val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
         val speakers = splitVoiceSpeakers(speaker)
         val lineKey = voiceLineKey(normalizedServer, speakers.joinToString("|"), dialogue)
-        withContext(Dispatchers.IO) {
-            voiceDataUpdateManager.updateIfNeeded()
-        }
         val preparedLines = prepareVoiceLines(
             gameServer = normalizedServer,
             speakers = speakers,
@@ -168,6 +171,79 @@ class AiVoiceService @Inject constructor(
                 FgoLogger.warn(tag, "AI voice playback skipped", e)
             }
         }
+    }
+
+    suspend fun playAzureVoiceTest(
+        speakerName: String,
+        dialogue: String,
+        voiceHint: VoiceLineHint? = null
+    ): AzureVoiceTestResult {
+        val speechKey = settingsRepository.azureSpeechKey.first().trim()
+        if (speechKey.isBlank()) {
+            throw IllegalArgumentException("Azure Speech key is blank")
+        }
+
+        val cleanSpeaker = normalizeVisibleSpeakerName(speakerName)
+            .ifBlank { TEST_VOICE_SPEAKER_JP }
+        val cleanDialogue = voiceTextFor(dialogue)
+            ?: throw IllegalArgumentException("Test dialogue is blank")
+
+        withContext(Dispatchers.IO) {
+            characterVoiceRepository.reload()
+        }
+
+        val profile = resolveCuratedTestProfile(cleanSpeaker)
+            ?: throw IllegalStateException("Mash voice profile not found in CDN voice data")
+        val expression = voiceExpressionFor(
+            profile = profile,
+            dialogue = cleanDialogue,
+            voiceHint = voiceHint
+        )
+        val request = VoiceSynthesisRequest(
+            speakerName = cleanSpeaker,
+            spokenText = cleanDialogue,
+            profile = profile,
+            styleOverride = expression?.styleOverride,
+            rateOverride = expression?.rateOverride,
+            pitchOverride = expression?.pitchOverride,
+            styleDegree = expression?.styleDegree,
+            pauseScale = expression?.pauseScale,
+            ssmlModeVersion = expression?.ssmlModeVersion
+        )
+        val speechRegion = settingsRepository.azureSpeechRegion.first()
+            .trim()
+            .ifBlank { SettingsRepository.DEFAULT_AZURE_SPEECH_REGION }
+        val voiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
+        val audioFile = withContext(Dispatchers.IO) {
+            audioCache.cachedFile(request.cacheMaterial()) ?: audioCache.write(
+                cacheMaterial = request.cacheMaterial(),
+                audio = azureTtsClient.synthesize(
+                    config = AzureSpeechConfig(key = speechKey, region = speechRegion),
+                    profile = profile,
+                    text = cleanDialogue,
+                    styleOverride = expression?.styleOverride,
+                    rateOverride = expression?.rateOverride,
+                    pitchOverride = expression?.pitchOverride,
+                    styleDegree = expression?.styleDegree,
+                    pauseScale = expression?.pauseScale
+                )
+            )
+        }
+
+        withContext(Dispatchers.Main) {
+            playbackEngine.play(audioFile, voiceVolumePercent)
+        }
+        FgoLogger.info(
+            tag,
+            "Azure voice test played speaker=$cleanSpeaker voice=${profile.voiceName} hint=${voiceHint != null}"
+        )
+        return AzureVoiceTestResult(
+            speakerName = cleanSpeaker,
+            dialogue = cleanDialogue,
+            voiceName = profile.voiceName,
+            profileId = profile.profileId,
+            voiceHintApplied = voiceHint != null
+        )
     }
 
     private fun reserveVoiceRequest(lineKey: String, cacheMaterial: String, speaker: String): Long? {
@@ -277,10 +353,15 @@ class AiVoiceService @Inject constructor(
         speaker: String,
         dialogue: String
     ): VoiceProfile? {
-        characterVoiceRepository.resolveProfileOrNull(speaker)?.let { return it }
+        val lookupCandidates = voiceSpeakerLookupCandidates(speaker)
+        lookupCandidates.firstNotNullOfOrNull { candidate ->
+            characterVoiceRepository.resolveProfileOrNull(candidate)
+        }?.let { return it }
 
         val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
-        tempVoiceProfileRepository.resolveProfileOrNull(normalizedServer, speaker)?.let { return it }
+        lookupCandidates.firstNotNullOfOrNull { candidate ->
+            tempVoiceProfileRepository.resolveProfileOrNull(normalizedServer, candidate)
+        }?.let { return it }
 
         val normalizedSpeaker = VoiceNameNormalizer.normalize(speaker)
         val tempKey = "$normalizedServer|$normalizedSpeaker"
@@ -302,8 +383,12 @@ class AiVoiceService @Inject constructor(
         }
 
         return tempProfileMutex.withLock {
-            characterVoiceRepository.resolveProfileOrNull(speaker)?.let { return@withLock it }
-            tempVoiceProfileRepository.resolveProfileOrNull(normalizedServer, speaker)?.let { return@withLock it }
+            lookupCandidates.firstNotNullOfOrNull { candidate ->
+                characterVoiceRepository.resolveProfileOrNull(candidate)
+            }?.let { return@withLock it }
+            lookupCandidates.firstNotNullOfOrNull { candidate ->
+                tempVoiceProfileRepository.resolveProfileOrNull(normalizedServer, candidate)
+            }?.let { return@withLock it }
 
             FgoLogger.info(tag, "Temp voice profile miss: server=$normalizedServer speaker=$speaker")
             diagnosticEventStore.record(
@@ -383,7 +468,7 @@ class AiVoiceService @Inject constructor(
     private fun voiceLineKey(server: String, speaker: String, dialogue: String): String {
         return listOf(
             SettingsRepository.normalizeGameServer(server),
-            compactVoiceKeyText(speaker),
+            compactSpeakerKeyText(speaker),
             compactVoiceKeyText(dialogue)
         ).joinToString("|")
     }
@@ -392,15 +477,46 @@ class AiVoiceService @Inject constructor(
         val speakers = MULTI_SPEAKER_SEPARATOR_REGEX.split(speaker)
             .map(String::trim)
             .filter(String::isNotBlank)
-            .distinctBy(::compactVoiceKeyText)
+            .distinctBy(::compactSpeakerKeyText)
         return speakers.takeIf { it.size > 1 } ?: listOf(speaker)
     }
 
+    private fun resolveCuratedTestProfile(speakerName: String): VoiceProfile? {
+        val candidates = (
+            voiceSpeakerLookupCandidates(speakerName) +
+                listOf(
+                    TEST_VOICE_SPEAKER_TRADITIONAL,
+                    TEST_VOICE_SPEAKER_SIMPLIFIED,
+                    TEST_VOICE_SPEAKER_JP
+                )
+            ).distinctBy(::compactSpeakerKeyText)
+        return candidates.firstNotNullOfOrNull { candidate ->
+            characterVoiceRepository.resolveProfileOrNull(candidate)
+        }
+    }
+
+    private fun voiceSpeakerLookupCandidates(speaker: String): List<String> {
+        val visibleSpeaker = normalizeVisibleSpeakerName(speaker)
+        val strippedSpeaker = TextNormalizer.stripRubyAnnotations(speaker).trim()
+        return listOf(visibleSpeaker, strippedSpeaker)
+            .filter(String::isNotBlank)
+            .distinctBy { candidate -> VoiceNameNormalizer.normalize(candidate) }
+    }
+
+    private fun normalizeVisibleSpeakerName(speaker: String): String {
+        return TextNormalizer.normalizeForTranslation(speaker).trim()
+    }
+
+    private fun compactSpeakerKeyText(text: String): String {
+        return compactKeyText(TextNormalizer.normalizeForTranslation(text).trim())
+    }
+
     private fun compactVoiceKeyText(text: String): String {
-        val normalized = Normalizer.normalize(
-            TextNormalizer.stripRubyAnnotations(text).trim(),
-            Normalizer.Form.NFKC
-        )
+        return compactKeyText(TextNormalizer.stripRubyAnnotations(text).trim())
+    }
+
+    private fun compactKeyText(text: String): String {
+        val normalized = Normalizer.normalize(text, Normalizer.Form.NFKC)
         val compact = buildString(normalized.length) {
             normalized.forEach { char ->
                 if (char.isLetterOrDigit()) {
@@ -438,6 +554,9 @@ class AiVoiceService @Inject constructor(
     private companion object {
         const val TEMP_PROFILE_FAILURE_COOLDOWN_MS = 10 * 60 * 1000L
         const val TEXT_PREVIEW_CHARS = 80
+        const val TEST_VOICE_SPEAKER_JP = "マシュ"
+        const val TEST_VOICE_SPEAKER_SIMPLIFIED = "玛修"
+        const val TEST_VOICE_SPEAKER_TRADITIONAL = "瑪修"
         val MULTI_SPEAKER_SEPARATOR_REGEX = Regex("[&/\\uFF06\\uFF0F]")
     }
 }

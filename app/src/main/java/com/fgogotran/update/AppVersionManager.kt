@@ -2,6 +2,7 @@ package com.fgogotran.update
 
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.HttpClient
@@ -12,6 +13,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -43,7 +45,8 @@ sealed class AppVersionCheckResult {
 
 @Singleton
 class AppVersionManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository
 ) {
     private val httpClient = HttpClient {
         install(HttpTimeout) {
@@ -74,11 +77,27 @@ class AppVersionManager @Inject constructor(
         return PackageInfoCompat.getLongVersionCode(packageInfo)
     }
 
-    suspend fun checkNow(): AppVersionCheckResult = withContext(Dispatchers.IO) {
+    suspend fun checkForAutoPrompt(): AppVersionCheckResult = checkInternal(force = false)
+
+    suspend fun checkNow(): AppVersionCheckResult = checkInternal(force = true)
+
+    private suspend fun checkInternal(force: Boolean): AppVersionCheckResult = withContext(Dispatchers.IO) {
         if (!checkInProgress.compareAndSet(false, true)) {
             return@withContext AppVersionCheckResult.Failed("正在检查版本")
         }
         try {
+            val now = System.currentTimeMillis()
+            if (!force && shouldSkipCdnCheck(
+                    now = now,
+                    lastCheckAt = settingsRepository.appVersionLastCheckAt.first(),
+                    lastFailedCheckAt = settingsRepository.appVersionLastFailedCheckAt.first()
+                )
+            ) {
+                FgoLogger.info(tag, "Version check: skipped CDN check; checked recently")
+                return@withContext AppVersionCheckResult.UpToDate
+            }
+
+            settingsRepository.setAppVersionLastCheckAt(now)
             _status.value = AppVersionStatus(
                 isChecking = true,
                 message = "正在检查版本",
@@ -86,6 +105,7 @@ class AppVersionManager @Inject constructor(
             )
             val manifest = fetchManifest()
             validateManifest(manifest)
+            settingsRepository.setAppVersionLastFailedCheckAt(0L)
             FgoLogger.info(
                 tag,
                 "Version check: current=${currentVersionName()}(${currentVersionCode()}), " +
@@ -113,6 +133,7 @@ class AppVersionManager @Inject constructor(
             }
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Version check failed", e)
+            settingsRepository.setAppVersionLastFailedCheckAt(System.currentTimeMillis())
             val message = userFacingError(e)
             _status.value = AppVersionStatus(
                 message = message,
@@ -161,6 +182,23 @@ class AppVersionManager @Inject constructor(
         return "$url${separator}ts=${System.currentTimeMillis()}"
     }
 
+    private fun shouldSkipCdnCheck(
+        now: Long,
+        lastCheckAt: Long,
+        lastFailedCheckAt: Long
+    ): Boolean {
+        val lastAttemptFailed = lastFailedCheckAt > 0L && lastFailedCheckAt >= lastCheckAt
+        return if (lastAttemptFailed) {
+            isWithinCooldown(now, lastFailedCheckAt, FAILED_CHECK_COOLDOWN_MS)
+        } else {
+            isWithinCooldown(now, lastCheckAt, CHECK_COOLDOWN_MS)
+        }
+    }
+
+    private fun isWithinCooldown(now: Long, timestamp: Long, cooldownMs: Long): Boolean {
+        return timestamp > 0L && now >= timestamp && now - timestamp < cooldownMs
+    }
+
     @Serializable
     private data class AppManifest(
         val manifestVersion: Int,
@@ -179,5 +217,7 @@ class AppVersionManager @Inject constructor(
         private const val MANIFEST_URL = "https://cdn.fgogotran.com/app/android/latest/manifest.json"
         private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val REQUEST_TIMEOUT_MS = 15_000L
+        private const val CHECK_COOLDOWN_MS = 24 * 60 * 60 * 1000L
+        private const val FAILED_CHECK_COOLDOWN_MS = 60 * 60 * 1000L
     }
 }

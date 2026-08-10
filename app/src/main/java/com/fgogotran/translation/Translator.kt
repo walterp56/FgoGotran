@@ -56,7 +56,8 @@ data class TranslateResult(
 data class SceneTranslateInput(
     val name: String?,
     val dialogue: String?,
-    val choices: List<String>
+    val choices: List<String>,
+    val requestVoiceHint: Boolean = false
 )
 
 data class SceneTranslateResult(
@@ -255,6 +256,46 @@ class Translator @Inject constructor(
         return translated
     }
 
+    suspend fun testVoiceHint(
+        speakerName: String,
+        dialogue: String
+    ): VoiceLineHint? {
+        val config = getRuntimeConfig()
+        if (config.requiresApiKey && config.apiKey.isBlank()) {
+            throw IllegalStateException("API Key is empty")
+        }
+
+        val rawResult = callTranslationBackend(
+            config = config,
+            messages = listOf(
+                ChatMessage(
+                    "system",
+                    "You create Azure TTS acting hints for Fate/Grand Order dialogue. Return valid JSON only."
+                ),
+                ChatMessage(
+                    "user",
+                    buildVoiceHintTestPrompt(
+                        speakerName = speakerName,
+                        dialogue = dialogue,
+                        targetChineseLocale = config.targetChineseLocale
+                    )
+                )
+            ),
+            maxTokens = VOICE_HINT_TEST_MAX_TOKENS
+        ).trim()
+        if (rawResult.isBlank()) {
+            throw IllegalStateException("API returned an empty response")
+        }
+        FgoLogger.debug(tag, "Voice hint test model content: ${apiResponseLogSample(rawResult)}")
+        return parseSceneResult(
+            rawResult = rawResult,
+            expectName = false,
+            expectDialogue = false,
+            expectedChoiceCount = 0,
+            expectVoiceHint = true
+        ).voiceHint
+    }
+
     suspend fun completeUtilityPrompt(
         systemPrompt: String,
         userPrompt: String,
@@ -323,6 +364,7 @@ class Translator @Inject constructor(
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
         private const val CHAT_COMPLETION_MAX_TOKENS = 256
         private const val API_TEST_MAX_TOKENS = 96
+        private const val VOICE_HINT_TEST_MAX_TOKENS = 220
         private const val UTILITY_PROMPT_MAX_TOKENS = 128
         private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
@@ -920,7 +962,6 @@ class Translator @Inject constructor(
         val backend = config.backend
         val apiKey = config.apiKey
         val cacheEnabled = config.cacheEnabled
-        val voiceApiHintsEnabled = settingsRepository.aiVoiceApiHintsEnabled.first()
         val playerName = config.playerName
         val normalizedName = rawNormalizedName?.let { correctPlayerNameOcr(it, playerName, "SCENE_NAME") }
         val normalizedDialogue = rawNormalizedDialogue?.let { correctPlayerNameOcr(it, playerName, "SCENE_DIALOGUE") }
@@ -1060,7 +1101,7 @@ class Translator @Inject constructor(
         val needsDialogue = normalizedDialogue != null && dialogueResult == null
         val neededChoiceIndices = normalizedChoices.indices
             .filter { normalizedChoices[it] != null && choiceResults[it] == null }
-        val requestVoiceHint = voiceApiHintsEnabled &&
+        val requestVoiceHint = input.requestVoiceHint &&
             normalizedDialogue != null &&
             TextNormalizer.hasTranslatableContent(normalizedDialogue)
 
@@ -1186,11 +1227,21 @@ class Translator @Inject constructor(
             "Calling $backend API for structured scene " +
                 "(name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size}, voiceHint=$requestVoiceHint)"
         )
+        val sceneMaxTokens = if (
+            requestVoiceHint &&
+            !needsName &&
+            !needsDialogue &&
+            neededChoiceIndices.isEmpty()
+        ) {
+            VOICE_HINT_TEST_MAX_TOKENS
+        } else {
+            SCENE_TRANSLATION_MAX_TOKENS
+        }
         val translatedScene = try {
             val rawResult = callTranslationBackend(
                 config,
                 messages,
-                maxTokens = SCENE_TRANSLATION_MAX_TOKENS
+                maxTokens = sceneMaxTokens
             )
             parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size, requestVoiceHint)
         } catch (e: Exception) {
@@ -1356,7 +1407,7 @@ class Translator @Inject constructor(
             dialogue = dialogueResult,
             choices = choiceResults.map { it ?: TranslateResult("", "none", true) },
             voiceHint = translatedScene.voiceHint
-                ?.takeIf { voiceApiHintsEnabled && dialogueResult?.translatedText?.isNotBlank() == true }
+                ?.takeIf { requestVoiceHint && dialogueResult?.translatedText?.isNotBlank() == true }
         ).forTargetLocale(config)
     }
 
@@ -3799,6 +3850,34 @@ class Translator @Inject constructor(
                     appendLine("${index + 1}. $choice")
                 }
             }
+        }
+    }
+
+    private fun buildVoiceHintTestPrompt(
+        speakerName: String,
+        dialogue: String,
+        targetChineseLocale: String
+    ): String {
+        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
+        return buildString {
+            appendLine("Create an Azure TTS acting hint for this $targetChinese Fate/Grand Order test line.")
+            appendLine("Return ONLY this JSON object:")
+            appendLine("""{"voice_hint": {"emotion": string, "intensity": number, "energy": string, "delivery": string, "attitude": string, "pace": string, "pitch": string, "pause": string}|null}""")
+            appendLine("Rules:")
+            appendLine("- voice_hint is for Azure TTS acting direction only; do not translate, rewrite, or explain the line.")
+            appendLine("- Use null only if the line gives no useful acting direction.")
+            appendLine("- voice_hint.emotion must be one of: neutral, cheerful, sad, angry, fearful, gentle, shy, strict, serious, complaining, surprised, tired.")
+            appendLine("- voice_hint.intensity must be a number from 0.0 to 1.0.")
+            appendLine("- voice_hint.energy must be one of: low, normal, high.")
+            appendLine("- voice_hint.delivery must be one of: soft, bright, sharp, cold, formal, playful, commanding, whispered.")
+            appendLine("- voice_hint.attitude must be one of: calm, warm, teasing, nervous, confident, threatening, regretful, distant.")
+            appendLine("- voice_hint.pace must be one of: slower, normal, faster.")
+            appendLine("- voice_hint.pitch must be one of: lower, normal, higher.")
+            appendLine("- voice_hint.pause must be one of: shorter, normal, longer.")
+            appendLine("- Return valid JSON only: no markdown, no extra keys.")
+            appendLine()
+            appendLine("speaker: $speakerName")
+            appendLine("dialogue: $dialogue")
         }
     }
 

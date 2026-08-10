@@ -3,6 +3,7 @@ package com.fgogotran.terminology
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.translation.Translator
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -48,7 +49,8 @@ class GlossaryUpdateManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val termDatabase: TermDatabase,
-    private val translator: Translator
+    private val translator: Translator,
+    private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private val httpClient = HttpClient {
         install(HttpTimeout) {
@@ -68,6 +70,8 @@ class GlossaryUpdateManager @Inject constructor(
         private const val TEMP_DB_NAME = "fgo_terms.db.download"
         private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val REQUEST_TIMEOUT_MS = 30_000L
+        private const val CHECK_COOLDOWN_MS = 24 * 60 * 60 * 1000L
+        private const val FAILED_CHECK_COOLDOWN_MS = 60 * 60 * 1000L
         private val hasAttemptedUpdate = AtomicBoolean(false)
         private val updateInProgress = AtomicBoolean(false)
     }
@@ -87,8 +91,20 @@ class GlossaryUpdateManager @Inject constructor(
         var visibleUpdateStarted = false
         try {
             val now = System.currentTimeMillis()
-            settingsRepository.setDbLastCheckAt(now)
             val needsInitialDb = !TermDatabase.hasUsableDb(context)
+            if (!force && shouldSkipCdnCheck(
+                    now = now,
+                    lastCheckAt = settingsRepository.dbLastCheckAt.first(),
+                    lastFailedCheckAt = settingsRepository.dbLastFailedCheckAt.first(),
+                    hasLocalData = !needsInitialDb
+                )
+            ) {
+                FgoLogger.info(tag, "DB update: skipped CDN check; checked recently")
+                _updateStatus.value = DbUpdateStatus()
+                return
+            }
+
+            settingsRepository.setDbLastCheckAt(now)
             val showStatus = force || needsInitialDb
             if (showStatus) {
                 visibleUpdateStarted = true
@@ -99,6 +115,7 @@ class GlossaryUpdateManager @Inject constructor(
             FgoLogger.info(tag, "DB update: checking manifest $MANIFEST_URL")
             val manifest = fetchManifest()
             validateManifest(manifest)
+            settingsRepository.setDbLastFailedCheckAt(0L)
             FgoLogger.info(
                 tag,
                 "DB update: manifest version=${manifest.contentVersion}, rows=${manifest.totalCount}, " +
@@ -278,7 +295,17 @@ class GlossaryUpdateManager @Inject constructor(
             )
         } catch (e: Exception) {
             FgoLogger.warn(tag, "DB update failed; keeping existing glossary DB", e)
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_ERROR,
+                category = DiagnosticEventStore.CATEGORY_DATA_UPDATE,
+                eventId = "term_db_update_failed",
+                title = "术语库更新失败",
+                message = e.message.orEmpty().ifBlank { e::class.java.simpleName },
+                detail = MANIFEST_URL,
+                errorCode = e::class.java.simpleName
+            )
             hasAttemptedUpdate.set(false)
+            settingsRepository.setDbLastFailedCheckAt(System.currentTimeMillis())
             _updateStatus.value = if (visibleUpdateStarted || _updateStatus.value.visible) {
                 visibleStatus(
                     message = "术语库更新失败",
@@ -344,6 +371,25 @@ class GlossaryUpdateManager @Inject constructor(
     private fun cacheBustedUrl(url: String): String {
         val separator = if ('?' in url) '&' else '?'
         return "$url${separator}ts=${System.currentTimeMillis()}"
+    }
+
+    private fun shouldSkipCdnCheck(
+        now: Long,
+        lastCheckAt: Long,
+        lastFailedCheckAt: Long,
+        hasLocalData: Boolean
+    ): Boolean {
+        if (!hasLocalData) return false
+        val lastAttemptFailed = lastFailedCheckAt > 0L && lastFailedCheckAt >= lastCheckAt
+        return if (lastAttemptFailed) {
+            isWithinCooldown(now, lastFailedCheckAt, FAILED_CHECK_COOLDOWN_MS)
+        } else {
+            isWithinCooldown(now, lastCheckAt, CHECK_COOLDOWN_MS)
+        }
+    }
+
+    private fun isWithinCooldown(now: Long, timestamp: Long, cooldownMs: Long): Boolean {
+        return timestamp > 0L && now >= timestamp && now - timestamp < cooldownMs
     }
 
     private fun isContentVersionOlder(candidate: String, installed: String): Boolean {

@@ -18,6 +18,7 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.util.FgoLogger
+import com.fgogotran.voice.VoiceDataUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,7 @@ class FgoRunnerService : Service() {
 
     @Inject lateinit var overlay: FgoRunnerOverlay
     @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
+    @Inject lateinit var voiceDataUpdateManager: VoiceDataUpdateManager
     @Inject lateinit var settingsRepository: SettingsRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -75,6 +77,9 @@ class FgoRunnerService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
         serviceScope.launch {
             glossaryUpdateManager.updateIfNeeded()
+        }
+        serviceScope.launch {
+            voiceDataUpdateManager.updateIfNeeded()
         }
         overlay.init(onCloseRequested = { stopFromOverlay() })
         overlay.show()

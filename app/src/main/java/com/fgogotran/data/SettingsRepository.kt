@@ -62,6 +62,7 @@ class SettingsRepository @Inject constructor(
         val KEY_DB_SHA256 = stringPreferencesKey("db_sha256")
         val KEY_DB_LOCALE = stringPreferencesKey("db_locale")
         val KEY_DB_LAST_CHECK_AT = longPreferencesKey("db_last_check_at")
+        val KEY_DB_LAST_FAILED_CHECK_AT = longPreferencesKey("db_last_failed_check_at")
         val KEY_DB_LAST_UPDATE_AT = longPreferencesKey("db_last_update_at")
         val KEY_VOICE_DATA_CONTENT_VERSION = stringPreferencesKey("voice_data_content_version")
         val KEY_VOICE_DATA_PACKAGE_SHA256 = stringPreferencesKey("voice_data_package_sha256")
@@ -69,7 +70,10 @@ class SettingsRepository @Inject constructor(
         val KEY_VOICE_DATA_NAME_MAP_SHA256 = stringPreferencesKey("voice_data_name_map_sha256")
         val KEY_VOICE_DATA_LOCALE = stringPreferencesKey("voice_data_locale")
         val KEY_VOICE_DATA_LAST_CHECK_AT = longPreferencesKey("voice_data_last_check_at")
+        val KEY_VOICE_DATA_LAST_FAILED_CHECK_AT = longPreferencesKey("voice_data_last_failed_check_at")
         val KEY_VOICE_DATA_LAST_UPDATE_AT = longPreferencesKey("voice_data_last_update_at")
+        val KEY_APP_VERSION_LAST_CHECK_AT = longPreferencesKey("app_version_last_check_at")
+        val KEY_APP_VERSION_LAST_FAILED_CHECK_AT = longPreferencesKey("app_version_last_failed_check_at")
         val KEY_IGNORED_APP_UPDATE_VERSION_CODE = longPreferencesKey("ignored_app_update_version_code")
         val KEY_FLOATING_BUTTON_X = intPreferencesKey("floating_button_x")
         val KEY_FLOATING_BUTTON_Y = intPreferencesKey("floating_button_y")
@@ -472,6 +476,11 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_DB_LAST_CHECK_AT] ?: 0L
     }
 
+    /** Last time an online terminology DB check failed, as epoch millis. */
+    val dbLastFailedCheckAt: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[KEY_DB_LAST_FAILED_CHECK_AT] ?: 0L
+    }
+
     /** Last time an online terminology DB package was installed, as epoch millis. */
     val dbLastUpdateAt: Flow<Long> = context.dataStore.data.map { prefs ->
         prefs[KEY_DB_LAST_UPDATE_AT] ?: 0L
@@ -507,9 +516,24 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_VOICE_DATA_LAST_CHECK_AT] ?: 0L
     }
 
+    /** Last time an online voice data check failed, as epoch millis. */
+    val voiceDataLastFailedCheckAt: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[KEY_VOICE_DATA_LAST_FAILED_CHECK_AT] ?: 0L
+    }
+
     /** Last time an online voice data package was installed, as epoch millis. */
     val voiceDataLastUpdateAt: Flow<Long> = context.dataStore.data.map { prefs ->
         prefs[KEY_VOICE_DATA_LAST_UPDATE_AT] ?: 0L
+    }
+
+    /** Last time an app-version manifest check was attempted, as epoch millis. */
+    val appVersionLastCheckAt: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[KEY_APP_VERSION_LAST_CHECK_AT] ?: 0L
+    }
+
+    /** Last time an app-version manifest check failed, as epoch millis. */
+    val appVersionLastFailedCheckAt: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[KEY_APP_VERSION_LAST_FAILED_CHECK_AT] ?: 0L
     }
 
     /** Latest app update version code the user chose not to be reminded about automatically. */
@@ -824,6 +848,11 @@ class SettingsRepository @Inject constructor(
         FgoLogger.debug(tag, "Setting updated: db_last_check_at=$checkedAt")
     }
 
+    suspend fun setDbLastFailedCheckAt(failedAt: Long) {
+        context.dataStore.edit { it[KEY_DB_LAST_FAILED_CHECK_AT] = failedAt.coerceAtLeast(0L) }
+        FgoLogger.debug(tag, "Setting updated: db_last_failed_check_at=${failedAt.coerceAtLeast(0L)}")
+    }
+
     suspend fun saveDbUpdateMetadata(
         contentVersion: String,
         sha256: String,
@@ -847,6 +876,14 @@ class SettingsRepository @Inject constructor(
         FgoLogger.debug(tag, "Setting updated: voice_data_last_check_at=$checkedAt")
     }
 
+    suspend fun setVoiceDataLastFailedCheckAt(failedAt: Long) {
+        context.dataStore.edit { it[KEY_VOICE_DATA_LAST_FAILED_CHECK_AT] = failedAt.coerceAtLeast(0L) }
+        FgoLogger.debug(
+            tag,
+            "Setting updated: voice_data_last_failed_check_at=${failedAt.coerceAtLeast(0L)}"
+        )
+    }
+
     suspend fun saveVoiceDataUpdateMetadata(
         contentVersion: String,
         packageSha256: String,
@@ -866,6 +903,19 @@ class SettingsRepository @Inject constructor(
         FgoLogger.info(
             tag,
             "Voice data metadata updated: version=$contentVersion, locale=$locale, packageSha256=$packageSha256"
+        )
+    }
+
+    suspend fun setAppVersionLastCheckAt(checkedAt: Long) {
+        context.dataStore.edit { it[KEY_APP_VERSION_LAST_CHECK_AT] = checkedAt }
+        FgoLogger.debug(tag, "Setting updated: app_version_last_check_at=$checkedAt")
+    }
+
+    suspend fun setAppVersionLastFailedCheckAt(failedAt: Long) {
+        context.dataStore.edit { it[KEY_APP_VERSION_LAST_FAILED_CHECK_AT] = failedAt.coerceAtLeast(0L) }
+        FgoLogger.debug(
+            tag,
+            "Setting updated: app_version_last_failed_check_at=${failedAt.coerceAtLeast(0L)}"
         )
     }
 }

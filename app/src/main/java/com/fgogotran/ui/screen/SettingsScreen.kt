@@ -2,6 +2,7 @@ package com.fgogotran.ui.screen
 
 import android.os.SystemClock
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,12 +45,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ui.component.AppUpdateDialog
@@ -117,7 +118,6 @@ fun SettingsScreen(
     var clearingCache by remember { mutableStateOf(false) }
     var cacheClearMessage by remember { mutableStateOf("") }
     var pendingUpdate by remember { mutableStateOf<AppVersionInfo?>(null) }
-    var showTranslationLanguageDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         playerName = settingsRepository.playerName.first()
@@ -201,19 +201,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showTranslationLanguageDialog) {
-        TranslationLanguageChoiceDialog(
-            selectedLocale = targetChineseLocale,
-            onDismiss = { showTranslationLanguageDialog = false },
-            onSelect = { locale ->
-                showTranslationLanguageDialog = false
-                scope.launch {
-                    settingsRepository.setTargetChineseLocale(locale)
-                }
-            }
-        )
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -236,7 +223,7 @@ fun SettingsScreen(
         ) {
             SettingsCard(
                 iconRes = R.drawable.ic_translate,
-                title = "翻译接口",
+                title = "API接口",
                 body = ""
             ) {
                 SettingsInfoRow(
@@ -270,7 +257,7 @@ fun SettingsScreen(
                 OcrEngineOption(
                     iconRes = R.drawable.ic_mlkit_japanese_mark,
                     title = "ML Kit OCR",
-                    body = "按服务器自动使用日文或中文 ML Kit 模型。",
+                    body = "默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。",
                     selected = ocrEngine == SettingsRepository.OCR_ENGINE_MLKIT,
                     onClick = {
                         ocrEngine = SettingsRepository.OCR_ENGINE_MLKIT
@@ -299,10 +286,13 @@ fun SettingsScreen(
 //                    style = MaterialTheme.typography.bodySmall,
 //                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
 //                )
-                SettingsInfoRow(
-                    label = "日服译文语言",
-                    value = targetChineseLocaleLabel(targetChineseLocale),
-                    modifier = Modifier.clickable { showTranslationLanguageDialog = true }
+                TranslationLanguageSelector(
+                    selectedLocale = targetChineseLocale,
+                    onSelect = { locale ->
+                        scope.launch {
+                            settingsRepository.setTargetChineseLocale(locale)
+                        }
+                    }
                 )
                 OutlinedTextField(
                     value = playerName,
@@ -367,7 +357,8 @@ fun SettingsScreen(
             ) {
                 SettingsInfoRow(
                     label = "状态",
-                    value = if (aiVoiceEnabled) "已开启" else "未开启"
+                    value = if (aiVoiceEnabled) "已开启" else "未开启",
+                    valueColor = if (aiVoiceEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
                 )
                 SettingsInfoRow(
                     label = "朗读文本",
@@ -375,7 +366,8 @@ fun SettingsScreen(
                 )
                 SettingsInfoRow(
                     label = "语气增强",
-                    value = if (aiVoiceApiHintsEnabled) "开启" else "关闭"
+                    value = if (aiVoiceApiHintsEnabled) "开启" else "关闭",
+                    valueColor = if (aiVoiceApiHintsEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
                 )
                 Button(
                     onClick = onVoiceSettings,
@@ -443,7 +435,7 @@ fun SettingsScreen(
             SettingsCard(
                 iconRes = R.drawable.ic_settings_cached,
                 title = "翻译缓存",
-                body = "相同原文可直接使用上次翻译，速度更快；遇到旧译文时可以清除缓存。"
+                body = "相同原文可直接使用上次翻译，速度更快；\n遇到旧译文时可以清除缓存。"
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -496,13 +488,16 @@ fun SettingsScreen(
             SettingsCard(
                 iconRes = R.drawable.ic_settings_error_log,
                 title = "错误纪录",
-                body = "查看最近错误、缺少语音档案、临时语音 API 建立结果。"
+                body = "用于调试和排查问题。"
             ) {
-                Button(
-                    onClick = onDiagnosticLog,
-                    modifier = Modifier.align(Alignment.End)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("打开错误纪录")
+                    Button(onClick = onDiagnosticLog) {
+                        Text("打开错误纪录")
+                    }
                 }
             }
 
@@ -544,103 +539,94 @@ fun SettingsScreen(
 }
 
 private val targetChineseLocaleOptions = listOf(
-    SettingsRepository.TARGET_LOCALE_SIMPLIFIED to "简体中文",
-    SettingsRepository.TARGET_LOCALE_TRADITIONAL to "繁體中文"
+    TargetChineseLocaleOption(
+        locale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+        label = "简体中文"
+    ),
+    TargetChineseLocaleOption(
+        locale = SettingsRepository.TARGET_LOCALE_TRADITIONAL,
+        label = "繁體中文"
+    )
 )
 
-private fun targetChineseLocaleLabel(locale: String): String {
-    val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(locale)
-    return targetChineseLocaleOptions.firstOrNull { it.first == normalizedLocale }?.second
-        ?: "简体中文"
-}
+private data class TargetChineseLocaleOption(
+    val locale: String,
+    val label: String
+)
 
 @Composable
-private fun TranslationLanguageChoiceDialog(
+private fun TranslationLanguageSelector(
     selectedLocale: String,
-    onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
     val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(selectedLocale)
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            "日服译文语言",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+            fontWeight = FontWeight.SemiBold
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier.padding(vertical = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    "日服译文语言",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 24.dp)
+            targetChineseLocaleOptions.forEach { option ->
+                TranslationLanguageOption(
+                    option = option,
+                    selected = option.locale == normalizedLocale,
+                    onClick = { onSelect(option.locale) },
+                    modifier = Modifier.weight(1f)
                 )
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    targetChineseLocaleOptions.forEach { (locale, label) ->
-                        SettingsChoiceDialogOption(
-                            label = label,
-                            selected = locale == normalizedLocale,
-                            onClick = { onSelect(locale) }
-                        )
-                    }
-                }
             }
         }
     }
 }
 
 @Composable
-private fun SettingsChoiceDialogOption(
-    label: String,
+private fun TranslationLanguageOption(
+    option: TargetChineseLocaleOption,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.small,
         color = if (selected) {
             MaterialTheme.colorScheme.primaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceVariant
-        }
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+        },
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+        )
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
+                option.label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
                 color = if (selected) {
                     MaterialTheme.colorScheme.onPrimaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                modifier = Modifier.weight(1f)
+                textAlign = TextAlign.Center
             )
-            if (selected) {
-                Text(
-                    "✓",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
         }
     }
 }
@@ -824,6 +810,7 @@ private fun SettingsInfoRow(
     label: String,
     value: String = "",
     valueContent: (@Composable () -> Unit)? = null,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -847,6 +834,7 @@ private fun SettingsInfoRow(
                 Text(
                     value,
                     style = MaterialTheme.typography.bodyMedium,
+                    color = valueColor,
                     textAlign = TextAlign.End
                 )
             }

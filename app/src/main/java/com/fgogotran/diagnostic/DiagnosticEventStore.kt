@@ -1,6 +1,7 @@
 package com.fgogotran.diagnostic
 
 import android.content.Context
+import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -137,6 +138,10 @@ class DiagnosticEventStore @Inject constructor(
         return buildString {
             appendLine("FgoGotran diagnostic report")
             appendLine("generated_at=${Instant.now()}")
+            appendLine("package=${context.packageName}")
+            appendLine("app_version=${appVersionLabel()}")
+            appendLine("android_sdk=${Build.VERSION.SDK_INT}")
+            appendLine("device=${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("event_count=${eventsToExport.size}")
             appendLine()
             eventsToExport.sortedByDescending { it.timestampMs }.forEach { event ->
@@ -251,6 +256,19 @@ class DiagnosticEventStore @Inject constructor(
         return parts.joinToString(" | ")
     }
 
+    @Suppress("DEPRECATION")
+    private fun appVersionLabel(): String {
+        return runCatching {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode
+            } else {
+                info.versionCode.toLong()
+            }
+            "${info.versionName}($code)"
+        }.getOrDefault("unknown")
+    }
+
     private fun String.toTsvField(): String {
         return replace('\t', ' ')
             .replace('\r', ' ')
@@ -275,9 +293,12 @@ class DiagnosticEventStore @Inject constructor(
         const val LEVEL_WARNING = "warning"
         const val LEVEL_INFO = "info"
         const val CATEGORY_APP_ERROR = "app_error"
+        const val CATEGORY_SETUP = "setup"
+        const val CATEGORY_DATA_UPDATE = "data_update"
+        const val CATEGORY_OCR = "ocr"
         const val CATEGORY_MISSING_VOICE = "missing_voice"
         const val CATEGORY_TEMP_VOICE_API = "temp_voice_api"
-        private const val MAX_EVENTS = 200
+        private const val MAX_EVENTS = 300
         private const val RETENTION_MS = 7L * 24L * 60L * 60L * 1000L
         private const val DUPLICATE_SUPPRESS_MS = 60_000L
         private const val SHORT_FIELD_MAX_CHARS = 64

@@ -133,6 +133,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private var currentPlayerName = ""
     private var showOriginalGameText = false
     private var gameServer = SettingsRepository.DEFAULT_GAME_SERVER
+    private var aiVoiceEnabled = false
+    private var aiVoiceApiHintsEnabled = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
     private var aiVoiceNamedDialogueEnabled = SettingsRepository.DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED
     private var aiVoiceNoSpeakerDialogueEnabled = SettingsRepository.DEFAULT_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED
     private var aiVoiceChoiceTextEnabled = SettingsRepository.DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED
@@ -366,6 +368,16 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun watchVoiceReadScope() {
+        serviceScope.launch {
+            settingsRepository.aiVoiceEnabled.collect { enabled ->
+                aiVoiceEnabled = enabled
+            }
+        }
+        serviceScope.launch {
+            settingsRepository.aiVoiceApiHintsEnabled.collect { enabled ->
+                aiVoiceApiHintsEnabled = enabled
+            }
+        }
         serviceScope.launch {
             settingsRepository.aiVoiceNamedDialogueEnabled.collect { enabled ->
                 aiVoiceNamedDialogueEnabled = enabled
@@ -2040,9 +2052,21 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun translateSceneSource(sceneSource: SceneSource): SceneTranslateResult {
+        val input = sceneSource.input.copy(
+            requestVoiceHint = shouldRequestVoiceHint(sceneSource)
+        )
         return withContext(Dispatchers.IO) {
-            translator.translateScene(sceneSource.input)
+            translator.translateScene(input)
         }
+    }
+
+    private fun shouldRequestVoiceHint(sceneSource: SceneSource): Boolean {
+        if (!aiVoiceEnabled || !aiVoiceApiHintsEnabled) return false
+        val dialogue = sceneSource.input.dialogue
+            ?.trim()
+            ?.takeIf { TextNormalizer.hasTranslatableContent(it) }
+            ?: return false
+        return voiceSpeakerForDialogue(sceneSource.input.name) != null && dialogue.isNotBlank()
     }
 
     private fun buildRenderInstructions(
@@ -3641,6 +3665,14 @@ class FgoAccessibilityService : AccessibilityService() {
             try {
                 if (!canPerformGestures()) {
                     FgoLogger.warn(tag, "Gesture injection is not granted; crop tap will only hide overlay")
+                    diagnosticEventStore.record(
+                        level = DiagnosticEventStore.LEVEL_WARNING,
+                        category = DiagnosticEventStore.CATEGORY_SETUP,
+                        eventId = "gesture_injection_missing",
+                        title = "无障碍手势注入不可用",
+                        message = "区域翻译覆盖层点击无法转发给 FGO",
+                        mode = "CROP_TAP"
+                    )
                     return@launch
                 }
                 delay(TAP_PASSTHROUGH_SETTLE_DELAY)
@@ -3705,6 +3737,14 @@ class FgoAccessibilityService : AccessibilityService() {
             isForwardingOverlayTap = true
             if (!canPerformGestures()) {
                 FgoLogger.warn(tag, "Gesture injection is not granted; disable and re-enable accessibility service")
+                diagnosticEventStore.record(
+                    level = DiagnosticEventStore.LEVEL_WARNING,
+                    category = DiagnosticEventStore.CATEGORY_SETUP,
+                    eventId = "gesture_injection_missing",
+                    title = "无障碍手势注入不可用",
+                    message = "翻译覆盖层点击无法转发给 FGO",
+                    mode = "OVERLAY_TAP"
+                )
                 if (semiAutoChoiceHandoff) {
                     renderedChoiceBounds = currentRenderedChoiceBounds
                 }

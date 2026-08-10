@@ -31,8 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.R
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -50,6 +52,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     settingsRepository: SettingsRepository,
+    diagnosticEventStore: DiagnosticEventStore,
     onGuide: () -> Unit,
     onSettings: () -> Unit
 ) {
@@ -100,18 +103,69 @@ fun HomeScreen(
 
         // Check 1: Overlay permission
         if (!Settings.canDrawOverlays(context)) {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                category = DiagnosticEventStore.CATEGORY_SETUP,
+                eventId = "overlay_permission_missing",
+                title = "悬浮窗权限未授权",
+                message = "启动服务被阻止",
+                detail = "显示在其他应用上层权限未开启"
+            )
             showOverlayPermissionDisclosure(context)
             return
         }
 
         // Check 2: Accessibility service
         if (!FgoAccessibilityService.isEnabledInSettings(context)) {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                category = DiagnosticEventStore.CATEGORY_SETUP,
+                eventId = "accessibility_service_missing",
+                title = "无障碍服务未启用",
+                message = "启动服务被阻止",
+                detail = "FgoGotran 无障碍服务未在系统设置中开启"
+            )
             showAccessibilityDisclosure(context)
             return
         }
 
         // All permissions granted → start service
-        FgoRunnerService.startService(context)
+        if (!isIgnoringBatteryOptimizations) {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                category = DiagnosticEventStore.CATEGORY_SETUP,
+                eventId = "battery_optimization_active",
+                title = "电池优化可能限制后台服务",
+                message = "服务仍会尝试启动，但部分手机或模拟器可能会中断悬浮窗",
+                detail = "battery_optimization=active"
+            )
+        }
+        runCatching {
+            FgoRunnerService.startService(context)
+        }.onFailure { error ->
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_ERROR,
+                category = DiagnosticEventStore.CATEGORY_SETUP,
+                eventId = "runner_service_start_failed",
+                title = "悬浮服务启动失败",
+                message = error.message.orEmpty().ifBlank { error::class.java.simpleName },
+                errorCode = error::class.java.simpleName
+            )
+        }.onSuccess {
+            scope.launch {
+                delay(SERVICE_START_CHECK_DELAY_MS)
+                if (!FgoRunnerService.serviceStarted.value) {
+                    diagnosticEventStore.record(
+                        level = DiagnosticEventStore.LEVEL_WARNING,
+                        category = DiagnosticEventStore.CATEGORY_SETUP,
+                        eventId = "runner_service_not_running_after_start",
+                        title = "悬浮服务没有保持运行",
+                        message = "系统接受了启动请求，但服务状态仍未运行",
+                        detail = "可能被模拟器、系统后台限制或前台服务规则拦截"
+                    )
+                }
+            }
+        }
     }
 
     Scaffold(
@@ -269,6 +323,8 @@ private val gameServerOptions = listOf(
     SettingsRepository.GAME_SERVER_CN to "简中服",
     SettingsRepository.GAME_SERVER_TW to "繁中服"
 )
+
+private const val SERVICE_START_CHECK_DELAY_MS = 1_500L
 
 @Composable
 private fun ServerPreference(

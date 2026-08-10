@@ -2,6 +2,7 @@ package com.fgogotran.voice
 
 import android.content.Context
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.client.HttpClient
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -25,6 +25,7 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,7 +42,8 @@ data class VoiceDataUpdateStatus(
 class VoiceDataUpdateManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
-    private val characterVoiceRepository: CharacterVoiceRepository
+    private val characterVoiceRepository: CharacterVoiceRepository,
+    private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private val httpClient = HttpClient {
         install(HttpTimeout) {
@@ -57,20 +59,46 @@ class VoiceDataUpdateManager @Inject constructor(
     private val updateMutex = Mutex()
 
     suspend fun updateIfNeeded(force: Boolean = false) {
+        if (!force && !hasAttemptedUpdate.compareAndSet(false, true)) return
         if (!updateMutex.tryLock()) {
-            _updateStatus.value = _updateStatus.value.copy(isChecking = true)
-            updateMutex.withLock { }
+            val currentStatus = _updateStatus.value
+            _updateStatus.value = when {
+                force && !currentStatus.visible -> visibleStatus("Checking voice data")
+                currentStatus.visible -> currentStatus.copy(isChecking = true)
+                else -> currentStatus
+            }
             return
         }
 
         var visibleUpdateStarted = false
         try {
-            settingsRepository.setVoiceDataLastCheckAt(System.currentTimeMillis())
-            _updateStatus.value = VoiceDataUpdateStatus(isChecking = true)
+            val now = System.currentTimeMillis()
+            val needsInitialVoiceData = !VoiceDataFiles.installedPackageExists(context)
+            if (!force && shouldSkipCdnCheck(
+                    now = now,
+                    lastCheckAt = settingsRepository.voiceDataLastCheckAt.first(),
+                    lastFailedCheckAt = settingsRepository.voiceDataLastFailedCheckAt.first(),
+                    hasLocalData = !needsInitialVoiceData
+                )
+            ) {
+                FgoLogger.info(tag, "Voice data update: skipped CDN check; checked recently")
+                _updateStatus.value = VoiceDataUpdateStatus()
+                return
+            }
+
+            settingsRepository.setVoiceDataLastCheckAt(now)
+            val showStatus = force || needsInitialVoiceData
+            if (showStatus) {
+                visibleUpdateStarted = true
+                _updateStatus.value = visibleStatus("Checking voice data")
+            } else {
+                _updateStatus.value = VoiceDataUpdateStatus(isChecking = true)
+            }
 
             FgoLogger.info(tag, "Voice data update: checking manifest $MANIFEST_URL")
             val manifest = fetchManifest()
             validateManifest(manifest)
+            settingsRepository.setVoiceDataLastFailedCheckAt(0L)
 
             val localVersion = settingsRepository.voiceDataContentVersion.first()
             FgoLogger.info(
@@ -86,7 +114,15 @@ class VoiceDataUpdateManager @Inject constructor(
                     "Voice data update: ignoring older manifest version=${manifest.contentVersion}, " +
                         "local=$localVersion"
                 )
-                _updateStatus.value = VoiceDataUpdateStatus()
+                _updateStatus.value = if (force || _updateStatus.value.visible) {
+                    visibleStatus(
+                        message = "Voice data is current",
+                        detail = "remote=${manifest.contentVersion}, local=$localVersion",
+                        isChecking = false
+                    )
+                } else {
+                    VoiceDataUpdateStatus()
+                }
                 return
             }
 
@@ -100,17 +136,23 @@ class VoiceDataUpdateManager @Inject constructor(
                     updatedAt = System.currentTimeMillis()
                 )
                 FgoLogger.info(tag, "Voice data update: already current version=${manifest.contentVersion}")
-                _updateStatus.value = VoiceDataUpdateStatus()
+                _updateStatus.value = if (force || _updateStatus.value.visible) {
+                    visibleStatus(
+                        message = "Voice data is current",
+                        detail = formatStatusDetail(manifest),
+                        isChecking = false
+                    )
+                } else {
+                    VoiceDataUpdateStatus()
+                }
                 return
             }
 
-            visibleUpdateStarted = force
-            if (force) {
-                _updateStatus.value = visibleStatus(
-                    message = "Updating voice data",
-                    detail = formatStatusDetail(manifest)
-                )
-            }
+            visibleUpdateStarted = true
+            _updateStatus.value = visibleStatus(
+                message = "Updating voice data",
+                detail = formatStatusDetail(manifest)
+            )
 
             val packageFile = downloadPackage(manifest)
             validateDownloadedPackage(packageFile, manifest)
@@ -132,17 +174,24 @@ class VoiceDataUpdateManager @Inject constructor(
                 "Voice data update: cached CDN version=${manifest.contentVersion}, " +
                     "profiles=${manifest.profileCount}, map=${manifest.nameMapCount}"
             )
-            _updateStatus.value = if (force) {
-                visibleStatus(
-                    message = "Voice data updated",
-                    detail = formatStatusDetail(manifest),
-                    isChecking = false
-                )
-            } else {
-                VoiceDataUpdateStatus()
-            }
+            _updateStatus.value = visibleStatus(
+                message = "Voice data updated",
+                detail = formatStatusDetail(manifest),
+                isChecking = false
+            )
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Voice data update failed; keeping existing CDN voice cache", e)
+            hasAttemptedUpdate.set(false)
+            settingsRepository.setVoiceDataLastFailedCheckAt(System.currentTimeMillis())
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_ERROR,
+                category = DiagnosticEventStore.CATEGORY_DATA_UPDATE,
+                eventId = "voice_data_update_failed",
+                title = "语音资料更新失败",
+                message = e.message.orEmpty().ifBlank { e::class.java.simpleName },
+                detail = MANIFEST_URL,
+                errorCode = e::class.java.simpleName
+            )
             _updateStatus.value = if (visibleUpdateStarted || _updateStatus.value.visible) {
                 visibleStatus(
                     message = "Voice data update failed",
@@ -456,6 +505,25 @@ class VoiceDataUpdateManager @Inject constructor(
         return "$url${separator}ts=${System.currentTimeMillis()}"
     }
 
+    private fun shouldSkipCdnCheck(
+        now: Long,
+        lastCheckAt: Long,
+        lastFailedCheckAt: Long,
+        hasLocalData: Boolean
+    ): Boolean {
+        if (!hasLocalData) return false
+        val lastAttemptFailed = lastFailedCheckAt > 0L && lastFailedCheckAt >= lastCheckAt
+        return if (lastAttemptFailed) {
+            isWithinCooldown(now, lastFailedCheckAt, FAILED_CHECK_COOLDOWN_MS)
+        } else {
+            isWithinCooldown(now, lastCheckAt, CHECK_COOLDOWN_MS)
+        }
+    }
+
+    private fun isWithinCooldown(now: Long, timestamp: Long, cooldownMs: Long): Boolean {
+        return timestamp > 0L && now >= timestamp && now - timestamp < cooldownMs
+    }
+
     private fun isContentVersionOlder(candidate: String, installed: String): Boolean {
         if (candidate.isBlank() || installed.isBlank()) return false
         val candidateParts = parseContentVersion(candidate) ?: return false
@@ -525,5 +593,8 @@ class VoiceDataUpdateManager @Inject constructor(
         const val TEMP_PACKAGE_NAME = "voice_data.zip.download"
         const val CONNECT_TIMEOUT_MS = 10_000L
         const val REQUEST_TIMEOUT_MS = 30_000L
+        private const val CHECK_COOLDOWN_MS = 24 * 60 * 60 * 1000L
+        private const val FAILED_CHECK_COOLDOWN_MS = 60 * 60 * 1000L
+        private val hasAttemptedUpdate = AtomicBoolean(false)
     }
 }

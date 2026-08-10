@@ -4,8 +4,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -57,7 +59,8 @@ internal interface OcrProvider {
 @Singleton
 class OcrEngine @Inject constructor(
     @ApplicationContext private val appContext: Context,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private val tag = "OCR"
     private val providerMutex = Mutex()
@@ -65,14 +68,38 @@ class OcrEngine @Inject constructor(
     private var activeProvider: OcrProvider? = null
 
     suspend fun warmUp() {
-        providerMutex.withLock {
-            selectedProviderLocked().warmUp()
+        try {
+            providerMutex.withLock {
+                selectedProviderLocked().warmUp()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            recordOcrFailure(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                eventId = "ocr_warmup_failed",
+                title = "OCR 预载失败",
+                error = e
+            )
+            throw e
         }
     }
 
     suspend fun recognize(bitmap: Bitmap): OcrResult {
-        return providerMutex.withLock {
-            selectedProviderLocked().recognize(bitmap)
+        return try {
+            providerMutex.withLock {
+                selectedProviderLocked().recognize(bitmap)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            recordOcrFailure(
+                level = DiagnosticEventStore.LEVEL_ERROR,
+                eventId = "ocr_recognize_failed",
+                title = "OCR 识别失败",
+                error = e
+            )
+            throw e
         }
     }
 
@@ -111,5 +138,22 @@ class OcrEngine @Inject constructor(
             "OCR engine selected: $displayName"
         )
         return nextProvider
+    }
+
+    private fun recordOcrFailure(
+        level: String,
+        eventId: String,
+        title: String,
+        error: Exception
+    ) {
+        diagnosticEventStore.record(
+            level = level,
+            category = DiagnosticEventStore.CATEGORY_OCR,
+            eventId = eventId,
+            title = title,
+            message = error.message.orEmpty().ifBlank { error::class.java.simpleName },
+            mode = activeEngine.ifBlank { "unknown" },
+            errorCode = error::class.java.simpleName
+        )
     }
 }
