@@ -26,10 +26,13 @@ data class VoiceSynthesisRequest(
     val pitchOverride: String? = null,
     val styleDegree: String? = null,
     val pauseScale: Double? = null,
-    val ssmlModeVersion: String? = null
+    val ssmlModeVersion: String? = null,
+    val azureSpeechRegion: String = ""
 ) {
     fun cacheMaterial(): String = buildString {
         append(ssmlModeVersion.orEmpty())
+        append('|')
+        append(azureSpeechRegion)
         append('|')
         append(profile.profileId)
         append('|')

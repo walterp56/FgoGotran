@@ -1,7 +1,9 @@
 package com.fgogotran.ui.screen
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,8 +43,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
@@ -81,6 +85,9 @@ fun VoiceSettingsScreen(
         mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_MASTER_VOICE)
     }
     var azureSpeechKey by remember { mutableStateOf("") }
+    var azureSpeechRegion by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_AZURE_SPEECH_REGION)
+    }
     var azureSpeechSaveMessage by remember { mutableStateOf("") }
     var azureSpeechTestMessage by remember { mutableStateOf("") }
     var azureSpeechTestIsError by remember { mutableStateOf(false) }
@@ -94,11 +101,12 @@ fun VoiceSettingsScreen(
         aiVoiceChoiceTextEnabled = settingsRepository.aiVoiceChoiceTextEnabled.first()
         aiVoiceMasterVoice = settingsRepository.aiVoiceMasterVoice.first()
         azureSpeechKey = settingsRepository.azureSpeechKey.first()
+        azureSpeechRegion = settingsRepository.azureSpeechRegion.first()
     }
 
     fun saveAzureSpeechSettings() {
         scope.launch {
-            settingsRepository.saveAzureSpeechSettings(azureSpeechKey)
+            settingsRepository.saveAzureSpeechSettings(azureSpeechKey, azureSpeechRegion)
             azureSpeechSaveMessage = "已保存"
         }
     }
@@ -114,7 +122,7 @@ fun VoiceSettingsScreen(
                 if (azureSpeechKey.trim().isBlank()) {
                     throw IllegalArgumentException("Azure Speech key is blank")
                 }
-                settingsRepository.saveAzureSpeechSettings(azureSpeechKey)
+                settingsRepository.saveAzureSpeechSettings(azureSpeechKey, azureSpeechRegion)
                 val sample = azureVoiceTestSample(settingsRepository.targetChineseLocale.first())
                 var voiceHint: VoiceLineHint? = null
                 var voiceHintError: Throwable? = null
@@ -276,6 +284,38 @@ fun VoiceSettingsScreen(
                 body = "",
                 iconRes = R.drawable.ic_speech_services
             ) {
+                Text(
+                    "Azure 区域",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    azureSpeechRegionOptions.forEach { option ->
+                        AzureSpeechRegionOptionRow(
+                            option = option,
+                            selected = option.region == azureSpeechRegion,
+                            enabled = !azureSpeechTesting,
+                            onClick = {
+                                val normalizedRegion = SettingsRepository.normalizeAzureSpeechRegion(option.region)
+                                azureSpeechRegion = normalizedRegion
+                                azureSpeechSaveMessage = ""
+                                azureSpeechTestMessage = ""
+                                azureSpeechTestIsError = false
+                                scope.launch { settingsRepository.setAzureSpeechRegion(normalizedRegion) }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                Text(
+                    "提示：可选全球 Azure；中国 Azure 需要组织/工作/学校账号，个人 Microsoft 账号不能登录使用。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                )
                 OutlinedTextField(
                     value = azureSpeechKey,
                     onValueChange = {
@@ -343,6 +383,25 @@ private data class AzureVoiceTestSample(
     val dialogue: String
 )
 
+private data class AzureSpeechRegionOption(
+    val region: String,
+    val title: String,
+    val subtitle: String
+)
+
+private val azureSpeechRegionOptions = listOf(
+    AzureSpeechRegionOption(
+        region = SettingsRepository.AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA,
+        title = "全球 Azure",
+        subtitle = "southeastasia"
+    ),
+    AzureSpeechRegionOption(
+        region = SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3,
+        title = "中国 Azure",
+        subtitle = "chinanorth3"
+    )
+)
+
 private fun azureVoiceTestSample(targetChineseLocale: String): AzureVoiceTestSample {
     return if (
         SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
@@ -392,6 +451,64 @@ private fun voiceTestErrorMessage(error: Throwable): String {
         }
         message.isNotBlank() -> "测试失败：${message.take(96)}"
         else -> "测试失败：${error::class.java.simpleName}"
+    }
+}
+
+@Composable
+private fun AzureSpeechRegionOptionRow(
+    option: AzureSpeechRegionOption,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .clickable(enabled = enabled, onClick = onClick),
+        shape = MaterialTheme.shapes.small,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 1f else 0.42f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+        },
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    option.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = when {
+                        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f)
+                        selected -> MaterialTheme.colorScheme.onPrimaryContainer
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    option.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = when {
+                        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        selected -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                    },
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 

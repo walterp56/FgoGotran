@@ -63,7 +63,11 @@ fun HomeScreen(
         initial = SettingsRepository.DEFAULT_GAME_SERVER
     )
     val serviceRunning = FgoRunnerService.serviceStarted.value
-    val accessibilityRunning = FgoAccessibilityService.serviceStarted.value
+    val accessibilityServiceConnected = FgoAccessibilityService.serviceStarted.value
+    var accessibilityEnabled by remember {
+        mutableStateOf(FgoAccessibilityService.isEnabledInSettings(context))
+    }
+    val accessibilityRunning = accessibilityEnabled || accessibilityServiceConnected
     val accessibilityRunningStatusColor = if (accessibilityRunning) Color(0xFF4CAF50) else Color(0xFFFF9800) // Green vs Orange
     val accessibilityRunningStatusText = if (accessibilityRunning) "已启用" else "未启用"
 
@@ -81,6 +85,7 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                accessibilityEnabled = FgoAccessibilityService.isEnabledInSettings(context)
                 canDrawOverlays = Settings.canDrawOverlays(context)
                 isIgnoringBatteryOptimizations = context
                     .getSystemService(PowerManager::class.java)

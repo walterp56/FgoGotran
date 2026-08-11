@@ -37,8 +37,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.text.Normalizer
 import java.security.MessageDigest
 import java.util.LinkedHashMap
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToInt
 
 @Serializable
 data class ChatMessage(
@@ -68,14 +70,13 @@ data class SceneTranslateResult(
 )
 
 data class VoiceLineHint(
-    val emotion: String? = null,
+    val styles: List<String> = emptyList(),
+    val dragonStyles: List<String> = emptyList(),
     val intensity: Double? = null,
-    val energy: String? = null,
-    val delivery: String? = null,
-    val attitude: String? = null,
-    val pace: String? = null,
-    val pitch: String? = null,
-    val pause: String? = null
+    val rate: Int? = null,
+    val pitch: Int? = null,
+    val pause: Int? = null,
+    val confidence: Double? = null
 )
 
 /**
@@ -376,9 +377,12 @@ class Translator @Inject constructor(
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
         private const val CHAT_COMPLETION_MAX_TOKENS = 256
         private const val API_TEST_MAX_TOKENS = 96
-        private const val VOICE_HINT_TEST_MAX_TOKENS = 220
+        private const val VOICE_HINT_TEST_MAX_TOKENS = 96
         private const val VOICE_HINT_SPEAKER_MAX_CHARS = 80
         private const val VOICE_HINT_DIALOGUE_MAX_CHARS = 320
+        private const val VOICE_HINT_MAX_STYLE_CANDIDATES = 3
+        private const val VOICE_HINT_MIN_DELTA = -2
+        private const val VOICE_HINT_MAX_DELTA = 2
         private const val UTILITY_PROMPT_MAX_TOKENS = 128
         private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
@@ -398,6 +402,30 @@ class Translator @Inject constructor(
         private const val NAME_WITH_STATE_MAX_TRANSLATED_LENGTH = 32
         private const val COMBINED_NAME_MAX_PARTS = 4
         private const val COMBINED_NAME_MAX_TRANSLATED_LENGTH = 48
+        private val VOICE_HINT_NORMAL_STYLES = listOf(
+            "cheerful",
+            "sad",
+            "angry",
+            "fearful",
+            "gentle",
+            "shy",
+            "strict",
+            "serious",
+            "surprised",
+            "tired",
+            "complaining",
+            "cute",
+            "chat"
+        )
+        private val VOICE_HINT_DRAGON_STYLES = listOf(
+            "comforting",
+            "nervous",
+            "curious",
+            "encouraging",
+            "sentimental",
+            "sorry",
+            "whispering"
+        )
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
         private val maskedTextPattern = Regex("[■□▇█]+")
         private val returnedRubyAnglePattern = Regex("""([^《》\s]{1,24})《([^》]{1,32})》""")
@@ -3820,7 +3848,7 @@ class Translator @Inject constructor(
             appendLine("Return ONLY a JSON object with exactly these keys:")
             if (requestVoiceHint) {
                 appendLine(
-                    """{"name": string|null, "dialogue": string|null, "choices": string[], "voice_hint": {"emotion": string, "intensity": number, "energy": string, "delivery": string, "attitude": string, "pace": string, "pitch": string, "pause": string}|null}"""
+                    """{"name": string|null, "dialogue": string|null, "choices": string[], "voice_hint": {"styles": string[], "dragon_styles": string[], "intensity": number, "rate": number, "pitch": number, "pause": number, "confidence": number}|null}"""
                 )
             } else {
                 appendLine("""{"name": string|null, "dialogue": string|null, "choices": string[]}""")
@@ -3840,14 +3868,12 @@ class Translator @Inject constructor(
                 appendLine("- voice_hint is for Azure TTS acting direction only. It must describe this line's delivery, not character identity, and must not change the translation.")
                 appendLine("- voice_hint values must use the English enum labels below; do not translate voice_hint values into Chinese.")
                 appendLine("- Return voice_hint as null when dialogue is null, neutral, or the acting direction is unclear.")
-                appendLine("- voice_hint.emotion must be one of: neutral, cheerful, sad, angry, fearful, gentle, shy, strict, serious, complaining, surprised, tired.")
-                appendLine("- voice_hint.intensity must be a number from 0.0 to 1.0.")
-                appendLine("- voice_hint.energy must be one of: low, normal, high.")
-                appendLine("- voice_hint.delivery must be one of: soft, bright, sharp, cold, formal, playful, commanding, whispered.")
-                appendLine("- voice_hint.attitude must be one of: calm, warm, teasing, nervous, confident, threatening, regretful, distant.")
-                appendLine("- voice_hint.pace must be one of: slower, normal, faster.")
-                appendLine("- voice_hint.pitch must be one of: lower, normal, higher.")
-                appendLine("- voice_hint.pause must be one of: shorter, normal, longer.")
+                appendLine("- voice_hint.styles must contain 0 to 3 values from: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
+                appendLine("- voice_hint.dragon_styles must contain 0 to 3 DragonHDFlash-only values from: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
+                appendLine("- Put DragonHDFlash-only styles only in dragon_styles, never in styles; the app ignores dragon_styles for non-Dragon voices.")
+                appendLine("- voice_hint.intensity and confidence must be numbers from 0.0 to 1.0.")
+                appendLine("- voice_hint.rate, pitch, and pause must be integers from -2 to 2, where 0 means unchanged.")
+                appendLine("- Do not return emotion, energy, delivery, attitude, pace, or text labels for rate/pitch/pause.")
             }
             appendLine("- If placeholders starting with __FGO appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
             appendLine("- Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
@@ -3875,18 +3901,16 @@ class Translator @Inject constructor(
             appendLine("Create an Azure TTS acting hint for this Fate/Grand Order line.")
             appendLine("The line may be Simplified Chinese, Traditional Chinese, or Japanese.")
             appendLine("Return ONLY this JSON object:")
-            appendLine("""{"voice_hint": {"emotion": string, "intensity": number, "energy": string, "delivery": string, "attitude": string, "pace": string, "pitch": string, "pause": string}|null}""")
+            appendLine("""{"voice_hint":{"styles":[],"dragon_styles":[],"intensity":0.0,"rate":0,"pitch":0,"pause":0,"confidence":0.0}|null}""")
             appendLine("Rules:")
             appendLine("- voice_hint is for Azure TTS acting direction only; do not translate, rewrite, or explain the line.")
             appendLine("- Use null only if the line gives no useful acting direction.")
-            appendLine("- voice_hint.emotion must be one of: neutral, cheerful, sad, angry, fearful, gentle, shy, strict, serious, complaining, surprised, tired.")
-            appendLine("- voice_hint.intensity must be a number from 0.0 to 1.0.")
-            appendLine("- voice_hint.energy must be one of: low, normal, high.")
-            appendLine("- voice_hint.delivery must be one of: soft, bright, sharp, cold, formal, playful, commanding, whispered.")
-            appendLine("- voice_hint.attitude must be one of: calm, warm, teasing, nervous, confident, threatening, regretful, distant.")
-            appendLine("- voice_hint.pace must be one of: slower, normal, faster.")
-            appendLine("- voice_hint.pitch must be one of: lower, normal, higher.")
-            appendLine("- voice_hint.pause must be one of: shorter, normal, longer.")
+            appendLine("- styles: 0 to 3 values from ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
+            appendLine("- dragon_styles: 0 to 3 DragonHDFlash-only values from ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
+            appendLine("- Put DragonHDFlash-only styles only in dragon_styles, never in styles.")
+            appendLine("- intensity and confidence: numbers from 0.0 to 1.0.")
+            appendLine("- rate, pitch, pause: integers from -2 to 2; 0 means unchanged.")
+            appendLine("- Do not return emotion, energy, delivery, attitude, pace, or text labels for rate/pitch/pause.")
             appendLine("- Return valid JSON only: no markdown, no extra keys.")
             appendLine()
             appendLine("speaker: $speakerName")
@@ -3960,36 +3984,166 @@ class Translator @Inject constructor(
             ?.takeUnless { it is JsonNull }
             ?.let { runCatching { it.jsonObject }.getOrNull() }
             ?: return null
-        val emotion = hintObject.stringOrNull("emotion")
+        val normalStyles = mutableListOf<String>()
+        val dragonStyles = mutableListOf<String>()
+
+        fun addStyle(rawStyle: String?) {
+            val style = normalizeVoiceHintStyle(rawStyle) ?: return
+            when {
+                style in VOICE_HINT_NORMAL_STYLES -> normalStyles += style
+                style in VOICE_HINT_DRAGON_STYLES -> dragonStyles += style
+            }
+        }
+
+        fun addDragonStyle(rawStyle: String?) {
+            normalizeVoiceHintStyle(rawStyle)
+                ?.takeIf { it in VOICE_HINT_DRAGON_STYLES }
+                ?.let { dragonStyles += it }
+        }
+
+        hintObject.stringListOrNull("styles").forEach(::addStyle)
+        hintObject.stringListOrNull("style").forEach(::addStyle)
+        hintObject.stringListOrNull("dragon_styles").forEach(::addDragonStyle)
+        hintObject.stringListOrNull("dragonStyles").forEach(::addDragonStyle)
+        legacyVoiceHintStyles(hintObject).forEach(::addStyle)
+
+        val styles = normalStyles.distinct().take(VOICE_HINT_MAX_STYLE_CANDIDATES)
+        val dragonOnlyStyles = dragonStyles.distinct().take(VOICE_HINT_MAX_STYLE_CANDIDATES)
         val intensity = hintObject.doubleOrNull("intensity")?.coerceIn(0.0, 1.0)
-        val energy = hintObject.stringOrNull("energy")
-        val delivery = hintObject.stringOrNull("delivery")
-        val attitude = hintObject.stringOrNull("attitude")
-        val pace = hintObject.stringOrNull("pace")
-        val pitch = hintObject.stringOrNull("pitch")
-        val pause = hintObject.stringOrNull("pause")
-        if (
-            emotion == null &&
-            intensity == null &&
-            energy == null &&
-            delivery == null &&
-            attitude == null &&
-            pace == null &&
-            pitch == null &&
-            pause == null
-        ) {
+        val rate = hintObject.intDeltaOrNull("rate")
+            ?: legacyVoiceHintRateDelta(hintObject)
+        val pitch = hintObject.intDeltaOrNull("pitch")
+            ?: legacyVoiceHintPitchDelta(hintObject)
+        val pause = hintObject.intDeltaOrNull("pause")
+            ?: legacyVoiceHintPauseDelta(hintObject)
+        val confidence = hintObject.doubleOrNull("confidence")?.coerceIn(0.0, 1.0)
+
+        if (styles.isEmpty() && dragonOnlyStyles.isEmpty() && rate == null && pitch == null && pause == null) {
             return null
         }
         return VoiceLineHint(
-            emotion = emotion,
+            styles = styles,
+            dragonStyles = dragonOnlyStyles,
             intensity = intensity,
-            energy = energy,
-            delivery = delivery,
-            attitude = attitude,
-            pace = pace,
+            rate = rate,
             pitch = pitch,
-            pause = pause
+            pause = pause,
+            confidence = confidence
         )
+    }
+
+    private fun legacyVoiceHintStyles(hintObject: JsonObject): List<String> {
+        val styles = mutableListOf<String>()
+        hintObject.stringOrNull("emotion")?.let { styles += it }
+        when (hintKey(hintObject.stringOrNull("delivery"))) {
+            "soft" -> styles += "gentle"
+            "bright", "playful" -> styles += "cheerful"
+            "sharp", "commanding" -> styles += "strict"
+            "cold", "formal" -> styles += "serious"
+            "whispered" -> styles += "whispering"
+        }
+        when (hintKey(hintObject.stringOrNull("attitude"))) {
+            "warm" -> styles += "gentle"
+            "teasing", "confident" -> styles += "cheerful"
+            "nervous" -> styles += "fearful"
+            "threatening" -> styles += "angry"
+            "regretful" -> styles += "sad"
+            "calm", "distant" -> styles += "serious"
+        }
+        return styles
+    }
+
+    private fun legacyVoiceHintRateDelta(hintObject: JsonObject): Int? {
+        var delta = 0
+        when (hintKey(hintObject.stringOrNull("pace"))) {
+            "slower", "slow" -> delta -= 1
+            "faster", "fast" -> delta += 1
+        }
+        when (hintKey(hintObject.stringOrNull("energy"))) {
+            "low" -> delta -= 1
+            "high" -> delta += 1
+        }
+        when (hintKey(hintObject.stringOrNull("delivery"))) {
+            "soft", "whispered", "cold", "formal" -> delta -= 1
+            "bright", "playful", "sharp", "commanding" -> delta += 1
+        }
+        when (hintKey(hintObject.stringOrNull("attitude"))) {
+            "regretful", "calm", "distant" -> delta -= 1
+            "nervous", "threatening", "teasing", "confident" -> delta += 1
+        }
+        return delta.coerceIn(VOICE_HINT_MIN_DELTA, VOICE_HINT_MAX_DELTA)
+            .takeIf { it != 0 }
+    }
+
+    private fun legacyVoiceHintPitchDelta(hintObject: JsonObject): Int? {
+        var delta = 0
+        when (hintKey(hintObject.stringOrNull("pitch"))) {
+            "lower", "low" -> delta -= 1
+            "higher", "high" -> delta += 1
+        }
+        when (hintKey(hintObject.stringOrNull("energy"))) {
+            "low" -> delta -= 1
+            "high" -> delta += 1
+        }
+        when (hintKey(hintObject.stringOrNull("delivery"))) {
+            "bright", "playful" -> delta += 1
+            "soft", "cold", "commanding", "whispered" -> delta -= 1
+        }
+        when (hintKey(hintObject.stringOrNull("attitude"))) {
+            "teasing", "nervous" -> delta += 1
+            "threatening", "regretful", "distant" -> delta -= 1
+        }
+        return delta.coerceIn(VOICE_HINT_MIN_DELTA, VOICE_HINT_MAX_DELTA)
+            .takeIf { it != 0 }
+    }
+
+    private fun legacyVoiceHintPauseDelta(hintObject: JsonObject): Int? {
+        var delta = 0
+        when (hintKey(hintObject.stringOrNull("pause"))) {
+            "shorter", "short" -> delta -= 1
+            "longer", "long" -> delta += 1
+        }
+        when (hintKey(hintObject.stringOrNull("energy"))) {
+            "low" -> delta += 1
+            "high" -> delta -= 1
+        }
+        when (hintKey(hintObject.stringOrNull("delivery"))) {
+            "soft", "whispered", "cold", "formal" -> delta += 1
+            "sharp", "commanding" -> delta -= 1
+        }
+        when (hintKey(hintObject.stringOrNull("attitude"))) {
+            "regretful", "calm", "distant" -> delta += 1
+            "nervous", "threatening", "teasing", "confident" -> delta -= 1
+        }
+        return delta.coerceIn(VOICE_HINT_MIN_DELTA, VOICE_HINT_MAX_DELTA)
+            .takeIf { it != 0 }
+    }
+
+    private fun normalizeVoiceHintStyle(rawStyle: String?): String? {
+        val key = hintKey(rawStyle) ?: return null
+        return when (key) {
+            "happy", "joyful", "excited" -> "cheerful"
+            "fear", "scared", "anxious" -> "fearful"
+            "soft" -> "gentle"
+            "stern" -> "strict"
+            "solemn" -> "serious"
+            "irritated", "disgruntled" -> "complaining"
+            "cutesy" -> "cute"
+            "chat-casual", "conversation", "conversational" -> "chat"
+            "whispered" -> "whispering"
+            "comfort", "comforting" -> "comforting"
+            "encourage", "encouraging" -> "encouraging"
+            "apologetic" -> "sorry"
+            else -> key.takeIf { it in VOICE_HINT_NORMAL_STYLES || it in VOICE_HINT_DRAGON_STYLES }
+        }
+    }
+
+    private fun hintKey(rawValue: String?): String? {
+        return rawValue
+            ?.trim()
+            ?.lowercase(Locale.US)
+            ?.replace('_', '-')
+            ?.takeIf { it.isNotBlank() && it != "normal" && it != "neutral" }
     }
 
     private fun JsonObject.stringOrNull(key: String): String? {
@@ -4001,6 +4155,23 @@ class Translator @Inject constructor(
             ?.takeIf { it.isNotBlank() }
     }
 
+    private fun JsonObject.stringListOrNull(key: String): List<String> {
+        val element = this[key]?.takeUnless { it is JsonNull } ?: return emptyList()
+        val arrayValues = runCatching {
+            element.jsonArray.mapNotNull { item ->
+                item.jsonPrimitive.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
+        if (arrayValues != null) return arrayValues
+
+        return runCatching { element.jsonPrimitive.contentOrNull }
+            .getOrNull()
+            ?.split(',', '，', '|', '/')
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
+    }
+
     private fun JsonObject.doubleOrNull(key: String): Double? {
         return this[key]
             ?.takeUnless { it is JsonNull }
@@ -4008,6 +4179,19 @@ class Translator @Inject constructor(
             ?.contentOrNull
             ?.trim()
             ?.toDoubleOrNull()
+    }
+
+    private fun JsonObject.intDeltaOrNull(key: String): Int? {
+        val rawValue = stringOrNull(key) ?: return null
+        val numeric = rawValue.toDoubleOrNull()
+        if (numeric != null) {
+            return numeric.roundToInt().coerceIn(VOICE_HINT_MIN_DELTA, VOICE_HINT_MAX_DELTA)
+        }
+        return when (hintKey(rawValue)) {
+            "slower", "slow", "lower", "low", "shorter", "short" -> -1
+            "faster", "fast", "higher", "high", "longer", "long" -> 1
+            else -> null
+        }
     }
 
     private fun cleanModelText(text: String): String {

@@ -44,7 +44,7 @@ class AzureTtsClient @Inject constructor() {
         val key = config.key.trim().ifBlank {
             throw IllegalArgumentException("Azure Speech key is blank")
         }
-        val endpoint = "https://$region.tts.speech.microsoft.com/cognitiveservices/v1"
+        val endpoint = azureTtsEndpoint(region)
         val response = try {
             httpClient.post(endpoint) {
                 header("Ocp-Apim-Subscription-Key", key)
@@ -66,6 +66,15 @@ class AzureTtsClient @Inject constructor() {
             )
         }
         return response.body()
+    }
+
+    private fun azureTtsEndpoint(region: String): String {
+        val host = if (region == AZURE_CHINA_REGION) {
+            "$region.tts.speech.azure.cn"
+        } else {
+            "$region.tts.speech.microsoft.com"
+        }
+        return "https://$host/cognitiveservices/v1"
     }
 
     private fun buildSsml(
@@ -219,6 +228,7 @@ class AzureTtsClient @Inject constructor() {
         const val AZURE_TTS_CONNECT_TIMEOUT_MS = 8_000L
         const val AZURE_TTS_SOCKET_TIMEOUT_MS = 20_000L
         const val AZURE_TTS_REQUEST_TIMEOUT_MS = 25_000L
+        const val AZURE_CHINA_REGION = "chinanorth3"
         const val SHORT_BREAK_MS = 55
         const val SENTENCE_BREAK_MS = 170
         const val EMOTIONAL_BREAK_MS = 190

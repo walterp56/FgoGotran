@@ -90,11 +90,15 @@ class AiVoiceService @Inject constructor(
         val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
         val speakers = splitVoiceSpeakers(speaker)
         val lineKey = voiceLineKey(normalizedServer, speakers.joinToString("|"), dialogue)
+        val speechRegion = SettingsRepository.normalizeAzureSpeechRegion(
+            settingsRepository.azureSpeechRegion.first()
+        )
         val preparedLines = prepareVoiceLines(
             gameServer = normalizedServer,
             speakers = speakers,
             dialogue = dialogue,
-            voiceHint = voiceHint
+            voiceHint = voiceHint,
+            azureSpeechRegion = speechRegion
         )
         if (preparedLines.isEmpty()) {
             FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
@@ -107,9 +111,6 @@ class AiVoiceService @Inject constructor(
             )
         }
 
-        val speechRegion = settingsRepository.azureSpeechRegion.first()
-            .trim()
-            .ifBlank { SettingsRepository.DEFAULT_AZURE_SPEECH_REGION }
         val voiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
         val cacheMaterial = preparedLines.joinToString("||") { it.cacheMaterial }
         val requestId = reserveVoiceRequest(
@@ -199,6 +200,9 @@ class AiVoiceService @Inject constructor(
             dialogue = cleanDialogue,
             voiceHint = voiceHint
         )
+        val speechRegion = SettingsRepository.normalizeAzureSpeechRegion(
+            settingsRepository.azureSpeechRegion.first()
+        )
         val request = VoiceSynthesisRequest(
             speakerName = cleanSpeaker,
             spokenText = cleanDialogue,
@@ -208,11 +212,9 @@ class AiVoiceService @Inject constructor(
             pitchOverride = expression?.pitchOverride,
             styleDegree = expression?.styleDegree,
             pauseScale = expression?.pauseScale,
-            ssmlModeVersion = expression?.ssmlModeVersion
+            ssmlModeVersion = expression?.ssmlModeVersion,
+            azureSpeechRegion = speechRegion
         )
-        val speechRegion = settingsRepository.azureSpeechRegion.first()
-            .trim()
-            .ifBlank { SettingsRepository.DEFAULT_AZURE_SPEECH_REGION }
         val voiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
         val audioFile = withContext(Dispatchers.IO) {
             audioCache.cachedFile(request.cacheMaterial()) ?: audioCache.write(
@@ -281,7 +283,8 @@ class AiVoiceService @Inject constructor(
         gameServer: String,
         speakers: List<String>,
         dialogue: String,
-        voiceHint: VoiceLineHint?
+        voiceHint: VoiceLineHint?,
+        azureSpeechRegion: String
     ): List<PreparedVoiceLine> {
         return speakers.mapNotNull { speaker ->
             val profile = resolveVoiceProfile(
@@ -311,7 +314,8 @@ class AiVoiceService @Inject constructor(
                 pitchOverride = expression?.pitchOverride,
                 styleDegree = expression?.styleDegree,
                 pauseScale = expression?.pauseScale,
-                ssmlModeVersion = expression?.ssmlModeVersion
+                ssmlModeVersion = expression?.ssmlModeVersion,
+                azureSpeechRegion = azureSpeechRegion
             )
             PreparedVoiceLine(
                 speaker = speaker,

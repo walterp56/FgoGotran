@@ -94,7 +94,9 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54
         const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
-        const val DEFAULT_AZURE_SPEECH_REGION = "southeastasia"
+        const val AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA = "southeastasia"
+        const val AZURE_SPEECH_REGION_CHINA_NORTH3 = "chinanorth3"
+        const val DEFAULT_AZURE_SPEECH_REGION = AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA
         const val AI_VOICE_LANGUAGE_JP_ORIGINAL = "jp_original"
         const val AI_VOICE_LANGUAGE_CN_TRANSLATION = "cn_translation"
         const val DEFAULT_AI_VOICE_LANGUAGE = AI_VOICE_LANGUAGE_CN_TRANSLATION
@@ -167,6 +169,10 @@ class SettingsRepository @Inject constructor(
         private val SUPPORTED_TRANSLATION_MODES = setOf("MANUAL", "SEMI_AUTO", "AUTO")
         private val SUPPORTED_OCR_ENGINES = setOf(OCR_ENGINE_MLKIT, OCR_ENGINE_PADDLE)
         private val SUPPORTED_GAME_SERVERS = setOf(GAME_SERVER_JP, GAME_SERVER_CN, GAME_SERVER_TW)
+        private val SUPPORTED_AZURE_SPEECH_REGIONS = setOf(
+            AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA,
+            AZURE_SPEECH_REGION_CHINA_NORTH3
+        )
         fun normalizeBackend(backend: String): String =
             backend.takeIf { it in SUPPORTED_BACKENDS } ?: BACKEND_DEEPSEEK
 
@@ -212,6 +218,11 @@ class SettingsRepository @Inject constructor(
             GAME_SERVER_TW -> "繁中服"
             else -> "日服"
         }
+
+        fun normalizeAzureSpeechRegion(region: String): String =
+            region.trim().lowercase()
+                .takeIf { it in SUPPORTED_AZURE_SPEECH_REGIONS }
+                ?: DEFAULT_AZURE_SPEECH_REGION
 
         fun normalizeQwenSite(site: String): String = when (site) {
             QWEN_SITE_INTERNATIONAL -> QWEN_SITE_INTERNATIONAL
@@ -427,9 +438,9 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_AZURE_SPEECH_KEY] ?: ""
     }
 
-    /** Azure Speech resource region. Fixed so users only need to enter a Speech key. */
-    val azureSpeechRegion: Flow<String> = context.dataStore.data.map {
-        DEFAULT_AZURE_SPEECH_REGION
+    /** Azure Speech resource region, limited to the supported Global/China endpoints. */
+    val azureSpeechRegion: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeAzureSpeechRegion(prefs[KEY_AZURE_SPEECH_REGION] ?: DEFAULT_AZURE_SPEECH_REGION)
     }
 
     /** Whether diagnostic Logcat output is enabled. Disabled by default for privacy. */
@@ -740,12 +751,22 @@ class SettingsRepository @Inject constructor(
         FgoLogger.debug(tag, "Setting updated: ai_voice_master_voice=$normalizedMasterVoice")
     }
 
-    suspend fun saveAzureSpeechSettings(speechKey: String) {
+    suspend fun saveAzureSpeechSettings(
+        speechKey: String,
+        speechRegion: String = DEFAULT_AZURE_SPEECH_REGION
+    ) {
+        val normalizedRegion = normalizeAzureSpeechRegion(speechRegion)
         context.dataStore.edit {
             it[KEY_AZURE_SPEECH_KEY] = speechKey.trim()
-            it[KEY_AZURE_SPEECH_REGION] = DEFAULT_AZURE_SPEECH_REGION
+            it[KEY_AZURE_SPEECH_REGION] = normalizedRegion
         }
-        FgoLogger.debug(tag, "Setting updated: azure_speech_region=$DEFAULT_AZURE_SPEECH_REGION")
+        FgoLogger.debug(tag, "Setting updated: azure_speech_region=$normalizedRegion")
+    }
+
+    suspend fun setAzureSpeechRegion(speechRegion: String) {
+        val normalizedRegion = normalizeAzureSpeechRegion(speechRegion)
+        context.dataStore.edit { it[KEY_AZURE_SPEECH_REGION] = normalizedRegion }
+        FgoLogger.debug(tag, "Setting updated: azure_speech_region=$normalizedRegion")
     }
 
     suspend fun setDebugLoggingEnabled(enabled: Boolean) {
