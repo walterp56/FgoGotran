@@ -9,7 +9,8 @@ object ChineseVoiceEmotionStyle {
     fun expressionFor(
         profile: VoiceProfile,
         text: String,
-        voiceHint: VoiceLineHint? = null
+        voiceHint: VoiceLineHint? = null,
+        baseSpeedMultiplier: Double = 1.0
     ): VoiceExpression? {
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) return null
 
@@ -35,7 +36,8 @@ object ChineseVoiceEmotionStyle {
             text = normalized,
             detectedStyle = detectedStyle,
             voiceTuning = voiceTuning,
-            voiceHint = trustedVoiceHint
+            voiceHint = trustedVoiceHint,
+            baseSpeedMultiplier = baseSpeedMultiplier
         )
         val pitchOverride = pitchOverrideFor(
             basePitch = profile.pitch,
@@ -176,20 +178,25 @@ object ChineseVoiceEmotionStyle {
         text: String,
         detectedStyle: String?,
         voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
-        voiceHint: VoiceLineHint?
+        voiceHint: VoiceLineHint?,
+        baseSpeedMultiplier: Double
     ): String? {
         val base = rateMultiplier(baseRate) ?: return null
+        val normalizedBaseSpeed = baseSpeedMultiplier.coerceIn(MIN_USER_SPEED_MULTIPLIER, MAX_USER_SPEED_MULTIPLIER)
         val typeMaxRate = maxDialogueRateFor(voiceType)
         val typeMinRate = minDialogueRateFor(voiceType)
-        val tuningMinRate = voiceTuning.minRate.coerceAtMost(typeMaxRate)
+        val positiveUserBias = (normalizedBaseSpeed - 1.0).coerceAtLeast(0.0)
+        val negativeUserBias = (normalizedBaseSpeed - 1.0).coerceAtMost(0.0)
+        val tuningMinRate = (voiceTuning.minRate + negativeUserBias).coerceAtMost(typeMaxRate)
         val minimumRate = if (voiceTuning.softenTypeRateFloor) {
             minOf(typeMinRate, tuningMinRate)
         } else {
             maxOf(typeMinRate, tuningMinRate)
         }
-        val maximumRate = minOf(typeMaxRate, voiceTuning.maxRate).coerceAtLeast(minimumRate)
+        val maximumRate = minOf(typeMaxRate, voiceTuning.maxRate + positiveUserBias).coerceAtLeast(minimumRate)
         val hintedRateBias = rateBiasFor(voiceHint)
-        var adjusted = (base + voiceTuning.rateBias + hintedRateBias).coerceIn(minimumRate, maximumRate)
+        var adjusted = (base * normalizedBaseSpeed + voiceTuning.rateBias + hintedRateBias)
+            .coerceIn(minimumRate, maximumRate)
 
         when (detectedStyle) {
             "sad", "fearful" -> adjusted -= 0.02
@@ -216,29 +223,11 @@ object ChineseVoiceEmotionStyle {
         return rate.toDoubleOrNull()
     }
 
-    private fun minDialogueRateFor(voiceType: String): Double {
-        return when (voiceType) {
-            "child_female", "child_male" -> 0.98
-            "young_female", "young_male" -> 0.96
-            "mature_male", "mature_female" -> 0.93
-            "androgynous" -> 0.95
-            "elder_male", "elder_female" -> 0.88
-            "mechanical", "monster" -> 0.92
-            else -> 0.95
-        }
-    }
+    private fun minDialogueRateFor(@Suppress("UNUSED_PARAMETER") voiceType: String): Double =
+        MIN_USER_SPEED_MULTIPLIER
 
-    private fun maxDialogueRateFor(voiceType: String): Double {
-        return when (voiceType) {
-            "child_female", "child_male" -> 1.08
-            "young_female", "young_male" -> 1.07
-            "mature_male", "mature_female" -> 1.04
-            "androgynous" -> 1.06
-            "elder_male", "elder_female" -> 0.99
-            "mechanical", "monster" -> 1.02
-            else -> 1.06
-        }
-    }
+    private fun maxDialogueRateFor(@Suppress("UNUSED_PARAMETER") voiceType: String): Double =
+        MAX_USER_SPEED_MULTIPLIER
 
     private fun pitchOverrideFor(
         basePitch: String,
@@ -773,6 +762,8 @@ object ChineseVoiceEmotionStyle {
     private const val HINT_RATE_STEP = 0.015
     private const val HINT_PITCH_STEP = 0.5
     private const val HINT_PAUSE_STEP = 0.07
-    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v11"
+    private const val MIN_USER_SPEED_MULTIPLIER = 0.80
+    private const val MAX_USER_SPEED_MULTIPLIER = 1.50
+    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v13"
     private val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
 }

@@ -93,12 +93,14 @@ class AiVoiceService @Inject constructor(
         val speechRegion = SettingsRepository.normalizeAzureSpeechRegion(
             settingsRepository.azureSpeechRegion.first()
         )
+        val voiceSpeedPercent = settingsRepository.aiVoiceSpeedPercent.first()
         val preparedLines = prepareVoiceLines(
             gameServer = normalizedServer,
             speakers = speakers,
             dialogue = dialogue,
             voiceHint = voiceHint,
-            azureSpeechRegion = speechRegion
+            azureSpeechRegion = speechRegion,
+            aiVoiceSpeedPercent = voiceSpeedPercent
         )
         if (preparedLines.isEmpty()) {
             FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
@@ -195,10 +197,12 @@ class AiVoiceService @Inject constructor(
 
         val profile = resolveCuratedTestProfile(cleanSpeaker)
             ?: throw IllegalStateException("Mash voice profile not found in CDN voice data")
+        val voiceSpeedPercent = settingsRepository.aiVoiceSpeedPercent.first()
         val expression = voiceExpressionFor(
             profile = profile,
             dialogue = cleanDialogue,
-            voiceHint = voiceHint
+            voiceHint = voiceHint,
+            aiVoiceSpeedPercent = voiceSpeedPercent
         )
         val speechRegion = SettingsRepository.normalizeAzureSpeechRegion(
             settingsRepository.azureSpeechRegion.first()
@@ -213,7 +217,8 @@ class AiVoiceService @Inject constructor(
             styleDegree = expression?.styleDegree,
             pauseScale = expression?.pauseScale,
             ssmlModeVersion = expression?.ssmlModeVersion,
-            azureSpeechRegion = speechRegion
+            azureSpeechRegion = speechRegion,
+            aiVoiceSpeedPercent = voiceSpeedPercent
         )
         val voiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
         val audioFile = withContext(Dispatchers.IO) {
@@ -284,7 +289,8 @@ class AiVoiceService @Inject constructor(
         speakers: List<String>,
         dialogue: String,
         voiceHint: VoiceLineHint?,
-        azureSpeechRegion: String
+        azureSpeechRegion: String,
+        aiVoiceSpeedPercent: Int
     ): List<PreparedVoiceLine> {
         return speakers.mapNotNull { speaker ->
             val profile = resolveVoiceProfile(
@@ -303,7 +309,8 @@ class AiVoiceService @Inject constructor(
             val expression = voiceExpressionFor(
                 profile = profile,
                 dialogue = dialogue,
-                voiceHint = voiceHint
+                voiceHint = voiceHint,
+                aiVoiceSpeedPercent = aiVoiceSpeedPercent
             )
             val request = VoiceSynthesisRequest(
                 speakerName = speaker,
@@ -315,7 +322,8 @@ class AiVoiceService @Inject constructor(
                 styleDegree = expression?.styleDegree,
                 pauseScale = expression?.pauseScale,
                 ssmlModeVersion = expression?.ssmlModeVersion,
-                azureSpeechRegion = azureSpeechRegion
+                azureSpeechRegion = azureSpeechRegion,
+                aiVoiceSpeedPercent = aiVoiceSpeedPercent
             )
             PreparedVoiceLine(
                 speaker = speaker,
@@ -543,12 +551,18 @@ class AiVoiceService @Inject constructor(
     private fun voiceExpressionFor(
         profile: VoiceProfile,
         dialogue: String,
-        voiceHint: VoiceLineHint?
+        voiceHint: VoiceLineHint?,
+        aiVoiceSpeedPercent: Int
     ): VoiceExpression? {
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) {
             return null
         }
-        return ChineseVoiceEmotionStyle.expressionFor(profile, dialogue, voiceHint)
+        return ChineseVoiceEmotionStyle.expressionFor(
+            profile = profile,
+            text = dialogue,
+            voiceHint = voiceHint,
+            baseSpeedMultiplier = SettingsRepository.normalizeAiVoiceSpeedPercent(aiVoiceSpeedPercent) / 100.0
+        )
     }
 
     fun stop() {

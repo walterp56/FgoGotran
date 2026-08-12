@@ -277,6 +277,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private data class SceneSource(
         val regions: List<RegionSourceText>,
         val input: SceneTranslateInput,
+        val voiceDialogue: String?,
         val fingerprint: String,
         val stabilityKey: String,
         val hasDialogue: Boolean
@@ -301,6 +302,11 @@ class FgoAccessibilityService : AccessibilityService() {
         STRICT,
         PERMISSIVE
     }
+
+    private data class DialogueSourceText(
+        val translationText: String,
+        val voiceText: String
+    )
 
     private sealed class AutoScanResult {
         data class Ready(
@@ -1282,7 +1288,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun requestVoiceOnlyScene(sceneSource: SceneSource) {
         val speakerName = voiceSpeakerForDialogue(sceneSource.input.name)
-        val dialogue = sceneSource.input.dialogue
+        val dialogue = (sceneSource.voiceDialogue ?: sceneSource.input.dialogue)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         val choiceText = if (aiVoiceChoiceTextEnabled) {
@@ -1300,7 +1306,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
                 aiVoiceService.speakDialogue(
                     speakerName = speakerName,
-                    sourceDialogue = null,
+                    sourceDialogue = sceneSource.input.dialogue,
                     translatedDialogue = dialogue,
                     voiceHint = voiceHint
                 )
@@ -2054,10 +2060,17 @@ class FgoAccessibilityService : AccessibilityService() {
         val nameRegion = translatableRegions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
         val dialogueRegion = translatableRegions.firstOrNull { it.region.region == TextRegion.DIALOGUE_BOX }
         val choiceRegions = translatableRegions.filter { it.region.region == TextRegion.CHOICE_BUTTON }
+        val voiceDialogue = dialogueRegion
+            ?.region
+            ?.let(::voiceTextForDialogueRegion)
+            ?.takeIf { it.isNotBlank() }
         val fingerprint = translatableRegions.joinToString("\n\n") { regionText ->
             "${regionText.region.region}:${regionText.region.boundingBox.flattenToString()}\n${regionText.text}"
         }.trim()
         val dialogueText = dialogueRegion?.text.orEmpty()
+        if (voiceDialogue != null && voiceDialogue != dialogueText) {
+            FgoLogger.debug(tag, "Dialogue voice source cleaned: ${debugQuote(dialogueText)} -> ${debugQuote(voiceDialogue)}")
+        }
         val stabilityKey = sceneStabilityKey(
             name = nameRegion?.text,
             dialogue = dialogueRegion?.text,
@@ -2070,6 +2083,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 dialogue = dialogueRegion?.text,
                 choices = choiceRegions.map { it.text }
             ),
+            voiceDialogue = voiceDialogue,
             fingerprint = fingerprint,
             stabilityKey = stabilityKey,
             hasDialogue = dialogueText.isNotBlank()
@@ -2310,6 +2324,16 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun voiceTextForDialogueRegion(region: ClassifiedRegion): String {
+        if (region.region != TextRegion.DIALOGUE_BOX) return ""
+        val rawText = formatDialogueForVoice(region.lines, RubyDetectionMode.STRICT)
+        return correctMlKitOcrSourceText(
+            sourceText = rawText,
+            label = "${region.region.name}_VOICE",
+            ocrEngine = region.ocrEngine
+        )
+    }
+
     private fun correctMlKitOcrSourceText(
         sourceText: String,
         label: String,
@@ -2328,25 +2352,55 @@ class FgoAccessibilityService : AccessibilityService() {
         lines: List<OcrTextLine>,
         rubyDetectionMode: RubyDetectionMode
     ): String {
+        return dialogueSourceTextFor(lines, rubyDetectionMode).translationText
+    }
+
+    private fun formatDialogueForVoice(
+        lines: List<OcrTextLine>,
+        rubyDetectionMode: RubyDetectionMode
+    ): String {
+        return dialogueSourceTextFor(lines, rubyDetectionMode).voiceText
+    }
+
+    private fun dialogueSourceTextFor(
+        lines: List<OcrTextLine>,
+        rubyDetectionMode: RubyDetectionMode
+    ): DialogueSourceText {
         val cleanedLines = cleanRubyNoiseLines(lines)
         if (cleanedLines.size < 2) {
-            return cleanedLines.joinToString("\n") { it.text }.trim()
+            val text = cleanedLines.joinToString("\n") { it.text }.trim()
+            return DialogueSourceText(translationText = text, voiceText = text)
         }
 
         val sorted = cleanedLines
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-        if (sorted.size < 2) return sorted.joinToString("\n") { it.text }.trim()
+        if (sorted.size < 2) {
+            val text = sorted.joinToString("\n") { it.text }.trim()
+            return DialogueSourceText(translationText = text, voiceText = text)
+        }
 
         val heights = sorted.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
         val medianHeight = heights[heights.size / 2]
         val rubyLines = sorted.filter { line ->
             isLikelyRubyLine(line, medianHeight, rubyDetectionMode)
         }.toSet()
-        if (rubyLines.isEmpty()) return sorted.joinToString("\n") { it.text }.trim()
+        val voiceLines = voiceDialogueLines(
+            sorted = sorted,
+            rubyLines = rubyLines,
+            medianHeight = medianHeight
+        )
+        val voiceText = voiceLines.joinToString("\n") { it.text.trim() }.trim()
+        if (rubyLines.isEmpty()) {
+            val text = sorted.joinToString("\n") { it.text }.trim()
+            return DialogueSourceText(translationText = text, voiceText = voiceText.ifBlank { text })
+        }
 
         val mainLines = sorted.filterNot { it in rubyLines }.toMutableList()
-        if (mainLines.isEmpty()) return sorted.joinToString("\n") { it.text }.trim()
+        if (mainLines.isEmpty()) {
+            val text = sorted.joinToString("\n") { it.text }.trim()
+            return DialogueSourceText(translationText = text, voiceText = voiceText.ifBlank { text })
+        }
 
         val rubyByMain = mutableMapOf<OcrTextLine, MutableList<OcrTextLine>>()
         for (ruby in rubyLines) {
@@ -2380,15 +2434,56 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
             }
             .trim()
-        if (formatted.isNotBlank()) {
-            val rawText = sorted.filterNot { it in rubyLines }
-                .joinToString("\n") { it.text.trim() }
-                .trim()
-            if (formatted != rawText) {
-                FgoLogger.debug(tag, "Ruby formatted source (${rubyDetectionMode.name.lowercase()}): $formatted")
-            }
+        val rawText = sorted.filterNot { it in rubyLines }
+            .joinToString("\n") { it.text.trim() }
+            .trim()
+        if (formatted.isNotBlank() && formatted != rawText) {
+            FgoLogger.debug(tag, "Ruby formatted source (${rubyDetectionMode.name.lowercase()}): $formatted")
         }
-        return formatted
+        return DialogueSourceText(
+            translationText = formatted,
+            voiceText = voiceText.ifBlank { rawText.ifBlank { formatted } }
+        )
+    }
+
+    private fun voiceDialogueLines(
+        sorted: List<OcrTextLine>,
+        rubyLines: Set<OcrTextLine>,
+        medianHeight: Int
+    ): List<OcrTextLine> {
+        val geometryRubyLines = sorted.filter { line ->
+            line !in rubyLines &&
+                isRubyDotNoiseSized(line, medianHeight) &&
+                sorted.any { main ->
+                    main != line &&
+                        main !in rubyLines &&
+                        isLikelyRubyAboveMain(line, main, medianHeight)
+                }
+        }.toSet()
+        val mainLines = sorted.filterNot { it in rubyLines || it in geometryRubyLines }
+        val candidates = mainLines
+            .ifEmpty { sorted.filterNot { it in rubyLines } }
+            .ifEmpty { sorted }
+        return limitVoiceDialogueLines(candidates)
+    }
+
+    private fun limitVoiceDialogueLines(lines: List<OcrTextLine>): List<OcrTextLine> {
+        val sorted = lines.sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+        if (sorted.size <= 2) return sorted
+
+        val maxHeight = sorted.maxOf { it.boundingBox.height().coerceAtLeast(1) }
+        val fullSizeLines = sorted.filter { line ->
+            line.boundingBox.height().coerceAtLeast(1) >= maxHeight * 0.8f
+        }
+        val candidates = fullSizeLines.ifEmpty { sorted }
+        return candidates
+            .sortedWith(
+                compareByDescending<OcrTextLine> { it.boundingBox.height().coerceAtLeast(1) }
+                    .thenBy { it.boundingBox.top }
+                    .thenBy { it.boundingBox.left }
+            )
+            .take(2)
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
     }
 
     private fun cleanRubyNoiseLines(lines: List<OcrTextLine>): List<OcrTextLine> {

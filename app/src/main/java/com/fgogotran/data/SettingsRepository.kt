@@ -48,6 +48,7 @@ class SettingsRepository @Inject constructor(
         val KEY_AI_VOICE_LANGUAGE = stringPreferencesKey("ai_voice_language")
         val KEY_AI_VOICE_API_HINTS_ENABLED = booleanPreferencesKey("ai_voice_api_hints_enabled")
         val KEY_AI_VOICE_VOLUME_PERCENT = intPreferencesKey("ai_voice_volume_percent")
+        val KEY_AI_VOICE_SPEED_PERCENT = intPreferencesKey("ai_voice_speed_percent")
         val KEY_AI_VOICE_NAMED_DIALOGUE_ENABLED = booleanPreferencesKey("ai_voice_named_dialogue_enabled")
         val KEY_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED = booleanPreferencesKey("ai_voice_no_speaker_dialogue_enabled")
         val KEY_AI_VOICE_CHOICE_TEXT_ENABLED = booleanPreferencesKey("ai_voice_choice_text_enabled")
@@ -104,6 +105,9 @@ class SettingsRepository @Inject constructor(
         const val MIN_AI_VOICE_VOLUME_PERCENT = 0
         const val DEFAULT_AI_VOICE_VOLUME_PERCENT = 100
         const val MAX_AI_VOICE_VOLUME_PERCENT = 100
+        const val MIN_AI_VOICE_SPEED_PERCENT = 80
+        const val DEFAULT_AI_VOICE_SPEED_PERCENT = 115
+        const val MAX_AI_VOICE_SPEED_PERCENT = 150
         const val DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED = true
         const val DEFAULT_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED = false
         const val DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED = false
@@ -191,6 +195,9 @@ class SettingsRepository @Inject constructor(
 
         fun normalizeAiVoiceVolumePercent(volumePercent: Int): Int =
             volumePercent.coerceIn(MIN_AI_VOICE_VOLUME_PERCENT, MAX_AI_VOICE_VOLUME_PERCENT)
+
+        fun normalizeAiVoiceSpeedPercent(speedPercent: Int): Int =
+            speedPercent.coerceIn(MIN_AI_VOICE_SPEED_PERCENT, MAX_AI_VOICE_SPEED_PERCENT)
 
         fun normalizeAiVoiceMasterVoice(masterVoice: String): String =
             masterVoice.takeIf {
@@ -410,6 +417,13 @@ class SettingsRepository @Inject constructor(
     val aiVoiceVolumePercent: Flow<Int> = context.dataStore.data.map { prefs ->
         normalizeAiVoiceVolumePercent(
             prefs[KEY_AI_VOICE_VOLUME_PERCENT] ?: DEFAULT_AI_VOICE_VOLUME_PERCENT
+        )
+    }
+
+    /** Base speaking speed preference for AI voice audio. Character and emotion tuning apply on top. */
+    val aiVoiceSpeedPercent: Flow<Int> = context.dataStore.data.map { prefs ->
+        normalizeAiVoiceSpeedPercent(
+            prefs[KEY_AI_VOICE_SPEED_PERCENT] ?: DEFAULT_AI_VOICE_SPEED_PERCENT
         )
     }
 
@@ -728,6 +742,12 @@ class SettingsRepository @Inject constructor(
         val normalizedVolume = normalizeAiVoiceVolumePercent(volumePercent)
         context.dataStore.edit { it[KEY_AI_VOICE_VOLUME_PERCENT] = normalizedVolume }
         FgoLogger.debug(tag, "Setting updated: ai_voice_volume_percent=$normalizedVolume")
+    }
+
+    suspend fun setAiVoiceSpeedPercent(speedPercent: Int) {
+        val normalizedSpeed = normalizeAiVoiceSpeedPercent(speedPercent)
+        context.dataStore.edit { it[KEY_AI_VOICE_SPEED_PERCENT] = normalizedSpeed }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_speed_percent=$normalizedSpeed")
     }
 
     suspend fun setAiVoiceNamedDialogueEnabled(enabled: Boolean) {

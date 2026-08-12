@@ -1,15 +1,11 @@
 package com.fgogotran.ui.overlay
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,20 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.TranslationMode
-import kotlin.math.roundToInt
 
 private const val MENU_REFERENCE_DENSITY = 3f
 
@@ -51,10 +35,7 @@ fun FloatingMenu(
     translationMode: TranslationMode,
     viewportScale: Float = 1f,
     gameServer: String,
-    voiceEnabled: Boolean,
-    voiceVolumePercent: Int,
     onTranslationModeChange: (TranslationMode) -> Unit,
-    onVoiceVolumeChange: (Int) -> Unit,
     onCropTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onCloseClick: () -> Unit
@@ -62,77 +43,63 @@ fun FloatingMenu(
     val density = LocalDensity.current
     val isJapaneseServer =
         SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(8f, viewportScale, density))
+    Column(
+        modifier = Modifier
+            .width(scaledMenuDp(230f, viewportScale, density))
+            .background(Color.White, RoundedCornerShape(scaledMenuDp(16f, viewportScale, density)))
+            .padding(vertical = scaledMenuDp(8f, viewportScale, density))
     ) {
-        if (voiceEnabled) {
-            VerticalVoiceVolumeSlider(
-                enabled = true,
-                volumePercent = voiceVolumePercent,
-                viewportScale = viewportScale,
-                onVolumeChange = onVoiceVolumeChange
-            )
-        }
-
-        Column(
+        Text(
+            text = "FgoGotran",
+            fontSize = scaledMenuSp(14f, viewportScale, density),
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF333333),
             modifier = Modifier
-                .width(scaledMenuDp(230f, viewportScale, density))
-                .background(Color.White, RoundedCornerShape(scaledMenuDp(16f, viewportScale, density)))
-                .padding(vertical = scaledMenuDp(8f, viewportScale, density))
-        ) {
-            Text(
-                text = "FgoGotran",
-                fontSize = scaledMenuSp(14f, viewportScale, density),
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF333333),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = scaledMenuDp(20f, viewportScale, density),
-                        vertical = scaledMenuDp(12f, viewportScale, density)
-                    )
-            )
+                .fillMaxWidth()
+                .padding(
+                    horizontal = scaledMenuDp(20f, viewportScale, density),
+                    vertical = scaledMenuDp(12f, viewportScale, density)
+                )
+        )
 
-            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
+        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
 
-            TranslationModeSelector(
-                selectedMode = translationMode,
-                viewportScale = viewportScale,
-                label = if (isJapaneseServer) "翻译模式" else "朗读模式",
-                onModeChange = onTranslationModeChange
-            )
+        TranslationModeSelector(
+            selectedMode = translationMode,
+            viewportScale = viewportScale,
+            label = if (isJapaneseServer) "翻译模式" else "朗读模式",
+            onModeChange = onTranslationModeChange
+        )
 
-            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
+        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
 
-            MenuRow(
-                icon = FloatingActionIcon.CROP,
-                viewportScale = viewportScale,
-                label = "区域翻译",
-                enabled = isJapaneseServer,
-                onClick = onCropTranslateClick
-            )
+        MenuRow(
+            icon = FloatingActionIcon.CROP,
+            viewportScale = viewportScale,
+            label = "区域翻译",
+            enabled = isJapaneseServer,
+            onClick = onCropTranslateClick
+        )
 
-            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
+        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
 
-            MenuRow(
-                icon = FloatingActionIcon.HISTORY_LIST,
-                viewportScale = viewportScale,
-                label = "翻译LOG",
-                enabled = isJapaneseServer,
-                onClick = onHistoryClick
-            )
+        MenuRow(
+            icon = FloatingActionIcon.HISTORY_LIST,
+            viewportScale = viewportScale,
+            label = "翻译LOG",
+            enabled = isJapaneseServer,
+            onClick = onHistoryClick
+        )
 
-            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
+        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
 
-            MenuRow(
-                icon = FloatingActionIcon.CLOSE_CIRCLE,
-                viewportScale = viewportScale,
-                label = "关闭服务",
-                muted = true,
-                onClick = onCloseClick
-            )
-        }
+        MenuRow(
+            icon = FloatingActionIcon.CLOSE_CIRCLE,
+            viewportScale = viewportScale,
+            label = "关闭服务",
+            muted = true,
+            onClick = onCloseClick
+        )
     }
 }
 
@@ -260,186 +227,6 @@ private fun TranslationMode.label(): String = when (this) {
     TranslationMode.MANUAL -> "手动"
     TranslationMode.SEMI_AUTO -> "半自动"
     TranslationMode.AUTO -> "全自动"
-}
-
-@Composable
-private fun VerticalVoiceVolumeSlider(
-    enabled: Boolean,
-    volumePercent: Int,
-    viewportScale: Float,
-    onVolumeChange: (Int) -> Unit
-) {
-    val density = LocalDensity.current
-    val safeVolume = SettingsRepository.normalizeAiVoiceVolumePercent(volumePercent)
-    var displayVolume by remember { mutableStateOf(safeVolume.toFloat()) }
-    var isDragging by remember { mutableStateOf(false) }
-
-    LaunchedEffect(safeVolume, enabled) {
-        if (!isDragging || !enabled) {
-            isDragging = false
-            displayVolume = safeVolume.toFloat()
-        }
-    }
-
-    fun commitDisplayVolume() {
-        if (!enabled) {
-            isDragging = false
-            displayVolume = safeVolume.toFloat()
-            return
-        }
-        val committedVolume = SettingsRepository.normalizeAiVoiceVolumePercent(displayVolume.roundToInt())
-        displayVolume = committedVolume.toFloat()
-        if (committedVolume != safeVolume) {
-            onVolumeChange(committedVolume)
-        }
-        isDragging = false
-    }
-
-    val displayVolumePercent = SettingsRepository.normalizeAiVoiceVolumePercent(displayVolume.roundToInt())
-    val contentColor = if (enabled) Color(0xFF075F66) else Color(0xFF9AA2A7)
-
-    Column(
-        modifier = Modifier
-            .width(scaledMenuDp(48f, viewportScale, density))
-            .background(Color.White, RoundedCornerShape(scaledMenuDp(16f, viewportScale, density)))
-            .padding(
-                horizontal = scaledMenuDp(6f, viewportScale, density),
-                vertical = scaledMenuDp(10f, viewportScale, density)
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "$displayVolumePercent%",
-            fontSize = scaledMenuSp(10f, viewportScale, density),
-            fontWeight = FontWeight.Bold,
-            color = contentColor,
-            maxLines = 1,
-            textAlign = TextAlign.Center
-        )
-        VoiceVolumeTrack(
-            enabled = enabled,
-            volumePercent = displayVolume,
-            viewportScale = viewportScale,
-            onVolumeChange = { volume ->
-                if (enabled) {
-                    displayVolume = volume
-                }
-            },
-            onDragStart = {
-                if (enabled) {
-                    isDragging = true
-                }
-            },
-            onDragEnd = { commitDisplayVolume() }
-        )
-    }
-}
-
-@Composable
-private fun VoiceVolumeTrack(
-    enabled: Boolean,
-    volumePercent: Float,
-    viewportScale: Float,
-    onVolumeChange: (Float) -> Unit,
-    onDragStart: () -> Unit,
-    onDragEnd: () -> Unit
-) {
-    val density = LocalDensity.current
-    val trackHeight = scaledMenuDp(186f, viewportScale, density)
-    val trackWidth = scaledMenuDp(34f, viewportScale, density)
-    val primaryColor = if (enabled) Color(0xFF075F66) else Color(0xFF9AA2A7)
-    val trackColor = if (enabled) Color(0xFFE7ECEF) else Color(0xFFE1E4E6)
-    val thumbColor = if (enabled) Color.White else Color(0xFFF7F7F7)
-    val minVolume = SettingsRepository.MIN_AI_VOICE_VOLUME_PERCENT
-    val maxVolume = SettingsRepository.MAX_AI_VOICE_VOLUME_PERCENT
-    val normalizedVolume = volumePercent.coerceIn(minVolume.toFloat(), maxVolume.toFloat())
-
-    fun volumeFromY(y: Float, height: Float): Float {
-        val safeHeight = height.coerceAtLeast(1f)
-        val fraction = (1f - (y / safeHeight)).coerceIn(0f, 1f)
-        return (minVolume + (maxVolume - minVolume) * fraction)
-            .coerceIn(minVolume.toFloat(), maxVolume.toFloat())
-    }
-
-    val inputModifier = if (enabled) {
-        Modifier.pointerInput(onVolumeChange, onDragStart, onDragEnd) {
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                val pointerId = down.id
-                onDragStart()
-                try {
-                    onVolumeChange(volumeFromY(down.position.y, size.height.toFloat()))
-
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                        if (change.changedToUpIgnoreConsumed()) {
-                            change.consume()
-                            break
-                        }
-                        onVolumeChange(volumeFromY(change.position.y, size.height.toFloat()))
-                        if (change.positionChange() != Offset.Zero) {
-                            change.consume()
-                        }
-                    }
-                } finally {
-                    onDragEnd()
-                }
-            }
-        }
-    } else {
-        Modifier
-    }
-
-    Canvas(
-        modifier = Modifier
-            .width(trackWidth)
-            .height(trackHeight)
-            .padding(vertical = scaledMenuDp(8f, viewportScale, density))
-            .then(inputModifier)
-    ) {
-        val trackStroke = scaledMenuDp(5f, viewportScale, density).toPx()
-        val thumbRadius = scaledMenuDp(8f, viewportScale, density).toPx()
-        val centerX = size.width / 2f
-        val trackTop = thumbRadius
-        val trackBottom = size.height - thumbRadius
-        val usableHeight = (trackBottom - trackTop).coerceAtLeast(1f)
-        val volumeRange = (maxVolume - minVolume).coerceAtLeast(1).toFloat()
-        val fraction = (normalizedVolume - minVolume) / volumeRange
-        val thumbCenterY = trackBottom - usableHeight * fraction
-
-        drawRoundRect(
-            color = trackColor,
-            topLeft = Offset(centerX - trackStroke / 2f, trackTop),
-            size = Size(trackStroke, usableHeight),
-            cornerRadius = CornerRadius(trackStroke / 2f, trackStroke / 2f)
-        )
-        drawRoundRect(
-            color = primaryColor,
-            topLeft = Offset(centerX - trackStroke / 2f, thumbCenterY),
-            size = Size(trackStroke, trackBottom - thumbCenterY),
-            cornerRadius = CornerRadius(trackStroke / 2f, trackStroke / 2f)
-        )
-        drawCircle(
-            color = primaryColor.copy(alpha = 0.22f),
-            radius = thumbRadius * 1.45f,
-            center = Offset(centerX, thumbCenterY)
-        )
-        drawCircle(
-            color = thumbColor,
-            radius = thumbRadius,
-            center = Offset(centerX, thumbCenterY)
-        )
-        drawCircle(
-            color = primaryColor,
-            radius = thumbRadius,
-            center = Offset(centerX, thumbCenterY),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                width = scaledMenuDp(2f, viewportScale, density).toPx()
-            )
-        )
-    }
 }
 
 @Composable

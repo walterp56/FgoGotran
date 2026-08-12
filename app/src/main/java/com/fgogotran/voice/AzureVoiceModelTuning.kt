@@ -190,7 +190,7 @@ internal object AzureVoiceModelTuning {
 
     private fun femaleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.B,
-        rateBias = -0.02,
+        rateBias = 0.00,
         minRate = 0.96,
         maxRate = 1.07,
         maxStyleDegree = 0.22,
@@ -200,7 +200,7 @@ internal object AzureVoiceModelTuning {
 
     private fun multilingualDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.A,
-        rateBias = -0.01,
+        rateBias = 0.00,
         minRate = 0.96,
         maxRate = 1.07,
         maxStyleDegree = 0.20,
@@ -210,7 +210,7 @@ internal object AzureVoiceModelTuning {
 
     private fun youngMaleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.B,
-        rateBias = -0.02,
+        rateBias = 0.00,
         minRate = 0.96,
         maxRate = 1.07,
         maxStyleDegree = 0.20,
@@ -220,7 +220,7 @@ internal object AzureVoiceModelTuning {
 
     private fun matureMaleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.C,
-        rateBias = -0.03,
+        rateBias = -0.02,
         minRate = 0.93,
         maxRate = 1.04,
         maxStyleDegree = 0.16,
@@ -241,7 +241,7 @@ internal object AzureVoiceModelTuning {
 
     private fun noStyleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.B,
-        rateBias = -0.02,
+        rateBias = -0.01,
         minRate = 0.95,
         maxRate = 1.06,
         maxStyleDegree = 0.0,
@@ -251,7 +251,7 @@ internal object AzureVoiceModelTuning {
 
     private fun taiwanDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.B,
-        rateBias = -0.01,
+        rateBias = 0.00,
         minRate = 0.92,
         maxRate = 1.04,
         maxStyleDegree = 0.0,
@@ -262,7 +262,7 @@ internal object AzureVoiceModelTuning {
 
     private fun dragonHdFlashDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.A,
-        rateBias = -0.02,
+        rateBias = 0.00,
         minRate = 0.94,
         maxRate = 1.07,
         maxStyleDegree = 0.34,
@@ -287,7 +287,7 @@ internal object AzureVoiceModelTuning {
 
     private fun dragonHdFlashMaleDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.A,
-        rateBias = -0.02,
+        rateBias = -0.01,
         minRate = 0.92,
         maxRate = 1.05,
         maxStyleDegree = 0.32,
@@ -299,7 +299,7 @@ internal object AzureVoiceModelTuning {
 
     private fun scenarioDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.D,
-        rateBias = -0.03,
+        rateBias = -0.02,
         minRate = 0.94,
         maxRate = 1.04,
         maxStyleDegree = 0.0,
@@ -309,7 +309,7 @@ internal object AzureVoiceModelTuning {
 
     private fun cautiousDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.C,
-        rateBias = -0.03,
+        rateBias = -0.02,
         minRate = 0.94,
         maxRate = 1.05,
         maxStyleDegree = 0.12,
@@ -319,7 +319,7 @@ internal object AzureVoiceModelTuning {
 
     private fun accentDialogue(voiceName: String): VoiceModelTuning = VoiceModelTuning(
         qualityTier = QualityTier.C,
-        rateBias = -0.03,
+        rateBias = -0.02,
         minRate = 0.93,
         maxRate = 1.04,
         maxStyleDegree = 0.0,

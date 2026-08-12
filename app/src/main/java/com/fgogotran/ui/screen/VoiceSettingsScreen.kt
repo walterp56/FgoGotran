@@ -28,6 +28,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -56,6 +57,7 @@ import com.fgogotran.voice.AiVoiceService
 import com.fgogotran.voice.AzureVoiceTestResult
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +73,12 @@ fun VoiceSettingsScreen(
     var aiVoiceEnabled by remember { mutableStateOf(false) }
     var aiVoiceApiHintsEnabled by remember {
         mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED)
+    }
+    var aiVoiceSpeedPercent by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_SPEED_PERCENT)
+    }
+    var aiVoiceVolumePercent by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_VOLUME_PERCENT)
     }
     var aiVoiceNamedDialogueEnabled by remember {
         mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED)
@@ -96,6 +104,8 @@ fun VoiceSettingsScreen(
     LaunchedEffect(Unit) {
         aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
         aiVoiceApiHintsEnabled = settingsRepository.aiVoiceApiHintsEnabled.first()
+        aiVoiceSpeedPercent = settingsRepository.aiVoiceSpeedPercent.first()
+        aiVoiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
         aiVoiceNamedDialogueEnabled = settingsRepository.aiVoiceNamedDialogueEnabled.first()
         aiVoiceNoSpeakerDialogueEnabled = settingsRepository.aiVoiceNoSpeakerDialogueEnabled.first()
         aiVoiceChoiceTextEnabled = settingsRepository.aiVoiceChoiceTextEnabled.first()
@@ -268,6 +278,27 @@ fun VoiceSettingsScreen(
                 title = "表现调节",
                 body = ""
             ) {
+                VoiceSpeedSlider(
+                    speedPercent = aiVoiceSpeedPercent,
+                    onSpeedChange = { speedPercent ->
+                        val normalizedSpeed = SettingsRepository.normalizeAiVoiceSpeedPercent(speedPercent)
+                        if (normalizedSpeed != aiVoiceSpeedPercent) {
+                            aiVoiceSpeedPercent = normalizedSpeed
+                            scope.launch { settingsRepository.setAiVoiceSpeedPercent(normalizedSpeed) }
+                        }
+                    }
+                )
+                VoiceVolumeSlider(
+                    volumePercent = aiVoiceVolumePercent,
+                    enabled = aiVoiceEnabled,
+                    onVolumeChange = { volumePercent ->
+                        val normalizedVolume = SettingsRepository.normalizeAiVoiceVolumePercent(volumePercent)
+                        if (normalizedVolume != aiVoiceVolumePercent) {
+                            aiVoiceVolumePercent = normalizedVolume
+                            scope.launch { settingsRepository.setAiVoiceVolumePercent(normalizedVolume) }
+                        }
+                    }
+                )
                 VoiceSwitchRow(
                     title = "AI 语气增强",
                     body = "开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。",
@@ -452,6 +483,147 @@ private fun voiceTestErrorMessage(error: Throwable): String {
         message.isNotBlank() -> "测试失败：${message.take(96)}"
         else -> "测试失败：${error::class.java.simpleName}"
     }
+}
+
+@Composable
+private fun VoiceSpeedSlider(
+    speedPercent: Int,
+    onSpeedChange: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "语速",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+            )
+            Text(
+                aiVoiceSpeedMultiplierLabel(speedPercent),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (speedPercent == SettingsRepository.DEFAULT_AI_VOICE_SPEED_PERCENT) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "慢",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Slider(
+                value = speedPercent.toFloat(),
+                onValueChange = { rawValue ->
+                    onSpeedChange(rawValue.roundToInt())
+                },
+                valueRange = SettingsRepository.MIN_AI_VOICE_SPEED_PERCENT.toFloat()..
+                    SettingsRepository.MAX_AI_VOICE_SPEED_PERCENT.toFloat(),
+                steps = aiVoiceSpeedSliderSteps(),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            )
+            Text(
+                "快",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+private fun aiVoiceSpeedMultiplierLabel(speedPercent: Int): String {
+    val normalized = SettingsRepository.normalizeAiVoiceSpeedPercent(speedPercent)
+    return "${normalized / 100}.${(normalized % 100).toString().padStart(2, '0')}x"
+}
+
+private fun aiVoiceSpeedSliderSteps(): Int {
+    return SettingsRepository.MAX_AI_VOICE_SPEED_PERCENT -
+        SettingsRepository.MIN_AI_VOICE_SPEED_PERCENT -
+        1
+}
+
+@Composable
+private fun VoiceVolumeSlider(
+    volumePercent: Int,
+    enabled: Boolean,
+    onVolumeChange: (Int) -> Unit
+) {
+    val normalizedVolume = SettingsRepository.normalizeAiVoiceVolumePercent(volumePercent)
+    val contentAlpha = if (enabled) 0.82f else 0.48f
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "音量",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
+            )
+            Text(
+                "$normalizedVolume%",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled && normalizedVolume != SettingsRepository.DEFAULT_AI_VOICE_VOLUME_PERCENT) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
+                },
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "小",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.48f)
+            )
+            Slider(
+                value = normalizedVolume.toFloat(),
+                onValueChange = { rawValue ->
+                    onVolumeChange(rawValue.roundToInt())
+                },
+                valueRange = SettingsRepository.MIN_AI_VOICE_VOLUME_PERCENT.toFloat()..
+                    SettingsRepository.MAX_AI_VOICE_VOLUME_PERCENT.toFloat(),
+                steps = aiVoiceVolumeSliderSteps(),
+                enabled = enabled,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            )
+            Text(
+                "大",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.48f)
+            )
+        }
+    }
+}
+
+private fun aiVoiceVolumeSliderSteps(): Int {
+    return SettingsRepository.MAX_AI_VOICE_VOLUME_PERCENT -
+        SettingsRepository.MIN_AI_VOICE_VOLUME_PERCENT -
+        1
 }
 
 @Composable

@@ -78,8 +78,6 @@ class FgoRunnerOverlay @Inject constructor(
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
     private var buttonSizeDp by mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
     private var gameServer by mutableStateOf(SettingsRepository.DEFAULT_GAME_SERVER)
-    private var aiVoiceEnabled by mutableStateOf(false)
-    private var aiVoiceVolumePercent by mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_VOLUME_PERCENT)
     private var showButtonFailureRing by mutableStateOf(false)
     private var failureFeedbackVersion = 0
     private var buttonPositionScreen: ButtonScreen? = null
@@ -87,8 +85,6 @@ class FgoRunnerOverlay @Inject constructor(
     private var savePositionJob: Job? = null
     private var buttonSizeJob: Job? = null
     private var gameServerJob: Job? = null
-    private var voiceEnabledJob: Job? = null
-    private var voiceVolumeJob: Job? = null
     private var showRequestVersion = 0
     private var callbacksRegistered = false
 
@@ -178,7 +174,6 @@ class FgoRunnerOverlay @Inject constructor(
                 restoreLastTranslationMode()
                 buttonSizeDp = settingsRepository.getFloatingButtonSizeDp()
                 gameServer = settingsRepository.getGameServer()
-                aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
                 if (!shown || requestVersion != showRequestVersion) return@launch
 
                 val wm = windowManager
@@ -205,8 +200,6 @@ class FgoRunnerOverlay @Inject constructor(
                 wm.addView(composeHost!!.view, btnLayoutParams)
                 startButtonSizeObserver()
                 startGameServerObserver()
-                startVoiceEnabledObserver()
-                startVoiceVolumeObserver()
                 FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
             } catch (e: Exception) {
                 composeHost?.close()
@@ -244,10 +237,6 @@ class FgoRunnerOverlay @Inject constructor(
         buttonSizeJob = null
         gameServerJob?.cancel()
         gameServerJob = null
-        voiceEnabledJob?.cancel()
-        voiceEnabledJob = null
-        voiceVolumeJob?.cancel()
-        voiceVolumeJob = null
         saveButtonPositionNow()
         val wm = windowManager
         cancelCropMode()
@@ -462,34 +451,6 @@ class FgoRunnerOverlay @Inject constructor(
         }
     }
 
-    private fun startVoiceVolumeObserver() {
-        voiceVolumeJob?.cancel()
-        voiceVolumeJob = overlayScope.launch {
-            settingsRepository.aiVoiceVolumePercent.collect { volumePercent ->
-                aiVoiceVolumePercent = SettingsRepository.normalizeAiVoiceVolumePercent(volumePercent)
-            }
-        }
-    }
-
-    private fun startVoiceEnabledObserver() {
-        voiceEnabledJob?.cancel()
-        voiceEnabledJob = overlayScope.launch {
-            settingsRepository.aiVoiceEnabled.collect { enabled ->
-                aiVoiceEnabled = enabled
-            }
-        }
-    }
-
-    private fun updateAiVoiceVolume(volumePercent: Int) {
-        if (!aiVoiceEnabled) return
-        val safeVolume = SettingsRepository.normalizeAiVoiceVolumePercent(volumePercent)
-        if (safeVolume == aiVoiceVolumePercent) return
-        aiVoiceVolumePercent = safeVolume
-        overlayScope.launch(Dispatchers.IO) {
-            settingsRepository.setAiVoiceVolumePercent(safeVolume)
-        }
-    }
-
     private fun saveButtonPositionSoon() {
         val x = btnX
         val y = btnY
@@ -578,8 +539,6 @@ class FgoRunnerOverlay @Inject constructor(
                 translationMode = TranslationTrigger.translationMode(),
                 viewportScale = currentViewportScale(),
                 gameServer = gameServer,
-                voiceEnabled = aiVoiceEnabled,
-                voiceVolumePercent = aiVoiceVolumePercent,
                 onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {
@@ -592,9 +551,6 @@ class FgoRunnerOverlay @Inject constructor(
                         refreshButtonMode()
                     }
                     dismissMenu()
-                },
-                onVoiceVolumeChange = { volumePercent ->
-                    updateAiVoiceVolume(volumePercent)
                 },
                 onCropTranslateClick = {
                     if (isJapaneseServer()) {
