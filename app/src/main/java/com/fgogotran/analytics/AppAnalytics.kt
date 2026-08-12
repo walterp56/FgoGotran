@@ -112,6 +112,14 @@ class AppAnalytics @Inject constructor(
         reportMode("crop")
     }
 
+    suspend fun reportGameServerUsed(server: String) {
+        reportServerEvent(EVENT_GAME_SERVER_USED, server)
+    }
+
+    suspend fun reportVoiceServerUsed(server: String) {
+        reportServerEvent(EVENT_VOICE_SERVER_USED, server)
+    }
+
     private suspend fun reportMode(mode: String) = withContext(Dispatchers.IO) {
         sendMutex.withLock {
             val today = currentUtcDate()
@@ -129,11 +137,32 @@ class AppAnalytics @Inject constructor(
         }
     }
 
+    private suspend fun reportServerEvent(eventType: String, server: String) = withContext(Dispatchers.IO) {
+        val normalizedServer = SettingsRepository.normalizeGameServer(server)
+        sendMutex.withLock {
+            val today = currentUtcDate()
+            if (!settingsRepository.shouldSendAnalyticsServerEvent(eventType, normalizedServer, today)) {
+                return@withLock
+            }
+
+            val installId = settingsRepository.getOrCreateAnalyticsInstallId()
+            val sent = sendEvent(
+                eventType = eventType,
+                installId = installId,
+                server = normalizedServer
+            )
+            if (sent) {
+                settingsRepository.markAnalyticsServerEventSent(eventType, normalizedServer, today)
+            }
+        }
+    }
+
     private suspend fun sendEvent(
         eventType: String,
         installId: String,
         mode: String? = null,
-        backendType: String? = null
+        backendType: String? = null,
+        server: String? = null
     ): Boolean {
         val payload = AnalyticsPayload(
             installId = installId,
@@ -143,7 +172,8 @@ class AppAnalytics @Inject constructor(
             locale = settingsRepository.targetChineseLocale.first(),
             androidVersion = currentAndroidVersion(),
             mode = mode,
-            backendType = backendType
+            backendType = backendType,
+            server = server
         )
 
         return runCatching {
@@ -189,7 +219,8 @@ class AppAnalytics @Inject constructor(
         val locale: String,
         @SerialName("android_version") val androidVersion: String,
         val mode: String? = null,
-        @SerialName("backend_type") val backendType: String? = null
+        @SerialName("backend_type") val backendType: String? = null,
+        val server: String? = null
     )
 
     private companion object {
@@ -199,5 +230,7 @@ class AppAnalytics @Inject constructor(
         private const val EVENT_DAILY_ACTIVE = "daily_active"
         private const val EVENT_TRANSLATION_MODE_USED = "translation_mode_used"
         private const val EVENT_API_BACKEND_TYPE = "api_backend_type"
+        private const val EVENT_GAME_SERVER_USED = "game_server_used"
+        private const val EVENT_VOICE_SERVER_USED = "voice_server_used"
     }
 }

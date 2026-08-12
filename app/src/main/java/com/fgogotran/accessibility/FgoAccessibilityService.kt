@@ -918,6 +918,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 return
             }
             val source = screenshot
+            reportGameServerPipelineUsed()
             val currentScreenWidth = source.width
             val currentScreenHeight = source.height
             val screenRegions = FgoViewportLayout.regionsForScreen(currentScreenWidth, currentScreenHeight)
@@ -1018,6 +1019,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 showCropStatus(requestedBounds, "截图失败")
                 return
             }
+
+            reportGameServerPipelineUsed()
 
             val cropBounds = clippedCropBounds(requestedBounds, screenshot.width, screenshot.height)
             if (cropBounds == null) {
@@ -1131,6 +1134,13 @@ class FgoAccessibilityService : AccessibilityService() {
             cropped?.recycle()
             screenshot?.recycle()
             isProcessing = false
+        }
+    }
+
+    private fun reportGameServerPipelineUsed() {
+        val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
+        serviceScope.launch(Dispatchers.IO) {
+            appAnalytics.reportGameServerUsed(normalizedServer)
         }
     }
 

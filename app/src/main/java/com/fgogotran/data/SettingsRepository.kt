@@ -301,6 +301,11 @@ class SettingsRepository @Inject constructor(
         private fun analyticsBackendDatePreferenceKey(backend: String) =
             stringPreferencesKey("analytics_backend_${normalizeBackend(backend)}_date")
 
+        private fun analyticsServerEventDatePreferenceKey(eventType: String, server: String) =
+            stringPreferencesKey(
+                "analytics_${analyticsSafeSegment(eventType)}_${normalizeGameServer(server)}_date"
+            )
+
         private fun analyticsSafeSegment(value: String): String {
             return value.lowercase()
                 .replace(Regex("[^a-z0-9_]+"), "_")
@@ -654,6 +659,18 @@ class SettingsRepository @Inject constructor(
 
     suspend fun markAnalyticsBackendSent(backend: String, date: String) {
         val key = analyticsBackendDatePreferenceKey(backend)
+        context.dataStore.edit { it[key] = date }
+    }
+
+    suspend fun shouldSendAnalyticsServerEvent(eventType: String, server: String, date: String): Boolean {
+        val key = analyticsServerEventDatePreferenceKey(eventType, server)
+        return context.dataStore.data.map { prefs ->
+            prefs[key] != date
+        }.first()
+    }
+
+    suspend fun markAnalyticsServerEventSent(eventType: String, server: String, date: String) {
+        val key = analyticsServerEventDatePreferenceKey(eventType, server)
         context.dataStore.edit { it[key] = date }
     }
 

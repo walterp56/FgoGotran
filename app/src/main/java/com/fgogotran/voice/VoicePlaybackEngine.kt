@@ -16,14 +16,14 @@ class VoicePlaybackEngine @Inject constructor(
     private val tag = "VoicePlayback"
     private val mediaPlayers = mutableListOf<MediaPlayer>()
 
-    fun play(file: File, volumePercent: Int) {
-        playTogether(listOf(file), volumePercent)
+    fun play(file: File, volumePercent: Int): Boolean {
+        return playTogether(listOf(file), volumePercent)
     }
 
-    fun playTogether(files: List<File>, volumePercent: Int) {
+    fun playTogether(files: List<File>, volumePercent: Int): Boolean {
         stop()
         val playableFiles = files.filter { it.exists() && it.length() > 0L }
-        if (playableFiles.isEmpty()) return
+        if (playableFiles.isEmpty()) return false
 
         val preparedPlayers = mutableListOf<MediaPlayer>()
         try {
@@ -35,6 +35,7 @@ class VoicePlaybackEngine @Inject constructor(
                 mediaPlayers.addAll(preparedPlayers)
             }
             preparedPlayers.forEach { it.start() }
+            return true
         } catch (e: Exception) {
             preparedPlayers.forEach { runCatching { it.release() } }
             synchronized(mediaPlayers) {
@@ -49,6 +50,7 @@ class VoicePlaybackEngine @Inject constructor(
                 detail = playableFiles.joinToString(",") { it.name }
             )
             FgoLogger.warn(tag, "Voice playback could not start", e)
+            return false
         }
     }
 

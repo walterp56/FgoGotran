@@ -1,15 +1,19 @@
 package com.fgogotran.voice
 
+import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.translation.TextNormalizer
 import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.util.FgoLogger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -30,6 +34,7 @@ data class AzureVoiceTestResult(
 @Singleton
 class AiVoiceService @Inject constructor(
     private val settingsRepository: SettingsRepository,
+    private val appAnalytics: AppAnalytics,
     private val characterVoiceRepository: CharacterVoiceRepository,
     private val tempVoiceProfileRepository: TempVoiceProfileRepository,
     private val tempVoiceProfileBuilder: TempVoiceProfileBuilder,
@@ -41,6 +46,7 @@ class AiVoiceService @Inject constructor(
     private val tag = "AiVoice"
     private val speakMutex = Mutex()
     private val tempProfileMutex = Mutex()
+    private val analyticsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val voiceRequestLock = Any()
     private val tempProfileFailureRetryAt = mutableMapOf<String, Long>()
     private var latestVoiceRequestId = 0L
@@ -136,15 +142,21 @@ class AiVoiceService @Inject constructor(
                     FgoLogger.debug(tag, "AI voice stale skipped after synthesis: speaker=$speaker")
                     return@runCatching
                 }
-                withContext(Dispatchers.Main) {
+                val playbackStarted = withContext(Dispatchers.Main) {
                     if (!isLatestVoiceRequest(requestId)) {
                         FgoLogger.debug(tag, "AI voice stale skipped before playback: speaker=$speaker")
-                        return@withContext
+                        return@withContext false
                     }
-                    if (audioFiles.size == 1) {
+                    val started = if (audioFiles.size == 1) {
                         playbackEngine.play(audioFiles.single(), voiceVolumePercent)
                     } else {
                         playbackEngine.playTogether(audioFiles, voiceVolumePercent)
+                    }
+                    started
+                }
+                if (playbackStarted) {
+                    analyticsScope.launch {
+                        appAnalytics.reportVoiceServerUsed(normalizedServer)
                     }
                 }
             }.onFailure { e ->
