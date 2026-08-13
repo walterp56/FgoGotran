@@ -105,6 +105,7 @@ const globalSteps: AzureStep[] = [
     id: "select-region",
     title: "填写资源清单",
     body: "使用 Southeast Asia。",
+    note: "Free FO层每月包含50万字符的神经语音额度。",
     value: "southeastasia",
     icon: MapPin
   },

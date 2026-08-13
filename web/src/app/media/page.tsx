@@ -8,14 +8,28 @@ export const metadata: Metadata = {
 const mediaItems = [
   {
     platform: "Bilibili",
-    title: "B站演示视频",
+    title: "B站演示视频2",
+    description: "",
+    href: "https://www.bilibili.com/video/BV19GgW6UEGa/?share_source=copy_web&vd_source=1c2307ecc4e2bc7ffe79b038dcd58242",
+    embedSrc: "https://player.bilibili.com/player.html?bvid=BV19GgW6UEGa&page=1&high_quality=1&autoplay=0"
+  },
+  {
+    platform: "YouTube",
+    title: "YouTube 演示视频2",
+    description: "",
+    href: "https://www.youtube.com/watch?v=K5g5sAOOT8s",
+    embedSrc: "https://www.youtube.com/embed/K5g5sAOOT8s"
+  },
+  {
+    platform: "Bilibili",
+    title: "B站演示视频1",
     description: "",
     href: "https://www.bilibili.com/video/BV1EETw6WEVb/?spm_id_from=333.1391.0.0&vd_source=2387a9304704f7e1f00eebfd71517385",
     embedSrc: "https://player.bilibili.com/player.html?bvid=BV1EETw6WEVb&page=1&high_quality=1&autoplay=0"
   },
   {
     platform: "YouTube",
-    title: "YouTube 演示视频",
+    title: "YouTube 演示视频1",
     description: "",
     href: "https://www.youtube.com/watch?v=ZhLBwpblhNE&t=5s",
     embedSrc: "https://www.youtube.com/embed/ZhLBwpblhNE?start=5"
@@ -36,7 +50,7 @@ export default function MediaPage() {
       <section className="section compact">
         <div className="media-grid">
           {mediaItems.map((item) => (
-            <article className="media-card" key={item.platform}>
+            <article className="media-card" key={item.href}>
               <div className="media-frame">
                 <iframe
                   src={item.embedSrc}
