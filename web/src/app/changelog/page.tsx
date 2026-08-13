@@ -8,6 +8,12 @@ export const metadata: Metadata = {
 
 const changelog = [
   {
+    title: "v2.0.0",
+    date: "13-8-2026",
+    icon: Smartphone,
+    items: ["新增 AI 语音功能 ","支持简中服、繁中服 ","新增最近错误页面，方便排查问题 ","优化 AI 翻译提示词结构","更新 UI" ]
+  },
+  {
     title: "v1.1.0",
     date: "12-7-2026",
     icon: Smartphone,

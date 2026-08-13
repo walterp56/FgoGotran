@@ -1415,6 +1415,142 @@ dd {
   color: var(--muted);
 }
 
+.azure-guide-shell .docs-article {
+  max-width: 980px;
+}
+
+.azure-docs-hero {
+  padding: 28px;
+  border: 1px solid rgba(14, 90, 167, 0.18);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(14, 90, 167, 0.1), rgba(8, 124, 145, 0.06)),
+    #ffffff;
+}
+
+.azure-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.azure-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.azure-cloud-card {
+  display: flex;
+  min-width: 0;
+  min-height: 230px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.azure-cloud-card.recommended {
+  border-color: rgba(22, 138, 88, 0.28);
+  background:
+    linear-gradient(180deg, rgba(22, 138, 88, 0.08), rgba(255, 255, 255, 0.86)),
+    #ffffff;
+}
+
+.azure-cloud-card-head,
+.azure-step-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.azure-cloud-card-head {
+  justify-content: space-between;
+}
+
+.azure-cloud-card svg,
+.azure-step-title svg {
+  flex: 0 0 auto;
+  color: var(--brand);
+}
+
+.azure-cloud-card h3 {
+  font-size: 21px;
+}
+
+.azure-cloud-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.azure-cloud-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  color: var(--brand);
+  font-weight: 760;
+}
+
+.azure-cloud-card a:hover {
+  color: var(--brand-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.azure-code-value {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 12px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfcfe;
+  color: var(--brand-strong);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.azure-step-body .docs-note {
+  margin-top: 12px;
+}
+
+.azure-warning-callout {
+  margin-bottom: 16px;
+}
+
+.azure-source-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.azure-step-image-frame {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  margin: 14px 0 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #eef3f9;
+}
+
+.azure-step-image-frame img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 720px;
+  height: auto;
+  object-fit: contain;
+}
+
 .text-link.inline {
   display: inline-flex;
 }
@@ -1697,6 +1833,8 @@ dd {
   .api-route-grid,
   .api-provider-grid,
   .api-detail-grid,
+  .azure-choice-grid,
+  .azure-source-list,
   .media-grid,
   .download-source-grid,
   .step-grid,

@@ -257,7 +257,7 @@ fun ApiSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("翻译接口") },
+                title = { Text("API接口") },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
                         Text("返回", color = MaterialTheme.colorScheme.primary)

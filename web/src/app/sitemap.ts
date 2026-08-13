@@ -8,6 +8,7 @@ const routes = [
   "/download",
   "/guide",
   "/api-guide",
+  "/speech-guide",
   ...apiProviderGuides.map((guide) => `/api-guide/${guide.slug}`),
   "/terms",
   "/media",

@@ -240,11 +240,11 @@ python term_builder\py\build_voice_profiles.py --fetch-atlas-lore
 Output:
 
 ```text
-app/src/main/assets/voice/character_voice_profiles_cn.tsv
+release/cdn/voice/zh/releases/<contentVersion>/voice_data.zip
 term_builder/character_voice_profiles.tsv
 ```
 
-`character_voice_profiles_cn.tsv` is the app runtime file. It uses one row per speaker with `speaker_id`, `aliases`, `gender`, and the `cn_voice_*` Azure values. `term_builder/character_voice_profiles.tsv` remains the review/tuning file with JP and CN fields. Manual overrides always win. Atlas metadata guides only the generated draft rows; tune important characters in `character_voice_overrides.tsv` after listening tests.
+The CDN voice package is the app runtime source. It uses one row per speaker with `speaker_id`, `aliases`, `gender`, and the `cn_voice_*` Azure values. `term_builder/character_voice_profiles.tsv` remains the review/tuning file with JP and CN fields. Manual overrides always win. Atlas metadata guides only the generated draft rows; tune important characters in `character_voice_overrides.tsv` after listening tests.
 
 ## Resumable AI Voice Profile Agent Runs
 

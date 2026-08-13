@@ -10,9 +10,17 @@ processed_speaker_groups: 560
 last_speaker_id: アントニオ
 approved_profiles_count: 488
 needs_review_count: 0
-last_updated: 2026-08-08 10:43:05 +08:00
+last_updated: 2026-08-12 19:56:17 +08:00
 
 ## Last Batch
+
+- operation: approved focused rebuild for ペペロンチーノ voice
+- profile rows inserted: 0
+- profile rows updated: 1
+- rows with actual value changes: 1
+- needs_review rows added: 0
+- ペペロンチーノ: androgynous / zh-CN-Yunxia:DragonHDFlashLatestNeural / cheerful / +2% / 1.08 -> mature_male / zh-CN-YunyeNeural / cheerful / +8% / 1.02
+- result: tuned toward mature male high-pitch 男大姐 feel after Azure test.
 
 - operation: approved focused rebuild to separate カドック, ペペロンチーノ, and ムニエル voices
 - profile rows inserted: 0
