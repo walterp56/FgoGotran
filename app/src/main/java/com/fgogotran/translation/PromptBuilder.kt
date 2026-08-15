@@ -17,6 +17,13 @@ data class PromptContext(
     val outputFormat: PromptOutputFormat = PromptOutputFormat.PLAIN_TEXT,
     val targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
     val isCropMode: Boolean = false,
+    val isDialogue: Boolean = true,
+    val requestVoiceHint: Boolean = false,
+    val hasPlaceholders: Boolean = false,
+    val hasMasks: Boolean = false,
+    val hasLineBreaks: Boolean = false,
+    val hasMasterWord: Boolean = false,
+    val needsPlayerNameRule: Boolean = false,
     val hasChoices: Boolean = false,
     val hasName: Boolean = false,
     val hasRuby: Boolean = false,
@@ -33,9 +40,9 @@ data class PromptContext(
  * Constructs system and user prompts for the LLM translation backends.
  *
  * ## System prompt structure
- * 1. Core role, priority rules, output contract, and general style
- * 2. Small conditional rule blocks for the current source shape
- * 3. Injected RAG terminology table (JP → official CN with category)
+ * 1. Tiny base role and output contract
+ * 2. Small safety, style, and feature blocks for the current source shape
+ * 3. Injected RAG terminology table (JP → official CN)
  *
  * ## User prompt structure
  * 1. Optional choice text context (if player choices are on screen)
@@ -51,10 +58,11 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v50"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v52"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
+        private val maskPattern = Regex("""\?{3,}|？{3,}|[■□▇█]""")
         private val honorificPattern = Regex("""さん|くん|ちゃん|様|殿|氏""")
         private val addressPronounPattern =
             Regex("""あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
@@ -68,42 +76,60 @@ class PromptBuilder @Inject constructor() {
          * Keeping rare rules conditional lowers prompt noise while preserving the
          * safety rules that must apply to every request.
          */
-        private val CORE_PROMPT = """
-            You localize Fate/Grand Order Japanese story text into natural, compact {target_chinese} for an in-game overlay.
-            Translate meaning, tone, and speaker voice. Prefer short readable Chinese over long literal wording.
-            Use {target_chinese} consistently; do not mix Chinese scripts.
-            Return only the translated content requested by the user message. Do not add notes, markdown, source text, explanations, labels, wrappers, lore commentary, or extra text.
+        private val BASE_TRANSLATION_PROMPT = """
+            You localize Fate/Grand Order Japanese text into natural, compact {target_chinese} for an in-game overlay.
+            Translate meaning and tone. Use {target_chinese} consistently; do not mix Chinese scripts.
+            Do not leave Japanese kana unless a rule says to preserve it.
             """.trimIndent()
 
-        private val CROP_CORE_PROMPT = """
+        private val CROP_BASE_PROMPT = """
             You translate visible Japanese text from a user-selected Fate/Grand Order screen crop into natural, compact {target_chinese}.
-            The crop may contain dialogue, history log text, choices, UI labels, battle text, event missions, item descriptions, skill descriptions, servant profile text, names, titles, or partial sentences.
             Translate only the visible source text. Do not infer missing text outside the crop.
             Use {target_chinese} consistently; do not mix Chinese scripts.
-            Return only the translated content requested by the user message. Do not add notes, markdown, source text, explanations, labels, wrappers, lore commentary, or extra text.
             """.trimIndent()
 
-        private val PRIORITY_RULES_PROMPT = """
-            Rules:
-            1. Keep any placeholder token starting with __FGO unchanged exactly.
-            2. Preserve hidden or mask text such as ???, ？？？, ■, □, ▇, and █ exactly; never guess hidden text.
-            3. Player name: "{player_name}". Keep it exactly if it appears.
-            4. Use supplied official terminology exactly. It overrides your knowledge and natural alternatives.
-            5. If rules conflict, placeholders, masks, player name, and official terminology take priority.
-            6. Do not leave Japanese kana unless it is the player name, an unchanged placeholder, a preserved mask, or fixed official stylized terminology.
+        private val PLAIN_OUTPUT_PROMPT = """
+            Return only the translated Chinese text. No notes, markdown, source text, labels, wrappers, or explanations.
             """.trimIndent()
 
-        private val GENERAL_STYLE_PROMPT = """
-            Style:
+        private val JSON_OBJECT_OUTPUT_PROMPT = """
+            Return valid JSON only with the keys requested by the user message. No extra keys, notes, markdown, source text, labels, or explanations.
+            """.trimIndent()
+
+        private val JSON_ARRAY_OUTPUT_PROMPT = """
+            Return a valid JSON array only. Preserve item count and input order. No notes, markdown, source text, labels, or explanations.
+            """.trimIndent()
+
+        private val PLACEHOLDER_PROMPT = """
+            - Keep every placeholder token starting with __FGO unchanged exactly.
+            """.trimIndent()
+
+        private val MASK_PROMPT = """
+            - Preserve hidden or mask text such as ???, ？？？, ■, □, ▇, and █ exactly; never guess hidden text.
+            """.trimIndent()
+
+        private val PLAYER_NAME_PROMPT = """
+            - Player name: "{player_name}". Keep it exactly if it appears.
+            """.trimIndent()
+
+        private val OFFICIAL_TERMS_PROMPT = """
+            - Use supplied official terminology exactly; it overrides your knowledge and natural alternatives.
+            """.trimIndent()
+
+        private val DIALOGUE_STYLE_PROMPT = """
             - Preserve speaker voice and relationship: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful.
+            - Preserve ambiguity when natural; add pronouns only when the source clearly identifies the referent. Use 他 unless a female referent is clear.
+            """.trimIndent()
+
+        private val LINE_BREAK_PROMPT = """
             - Preserve source line breaks only when meaningful.
-            - Japanese often omits subjects/objects. Preserve ambiguity when natural in Chinese; add pronouns only when the source clearly identifies the speaker/listener/referent, or when Chinese would be misleading without one.
-            - Use 他 for necessary third-person pronouns unless the source clearly identifies a female referent.
+            """.trimIndent()
+
+        private val MASTER_PROMPT = """
             - Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
             """.trimIndent()
 
         private val CROP_STYLE_PROMPT = """
-            Crop mode:
             - Preserve the source line order.
             - Preserve line breaks when they separate visible rows, UI items, choices, or dialogue lines.
             - If the source is a partial sentence, translate only the visible part naturally; do not complete it.
@@ -111,7 +137,10 @@ class PromptBuilder @Inject constructor() {
             - If the text is dialogue, preserve tone and speaker voice naturally.
             - If the text is UI, profile, skill, item, mission, or battle text, translate concisely like game UI text.
             - Do not add speaker names, labels, or missing context that is not visible in the crop.
-            - Translate マスター as 御主 by default in FGO content, not 主人, 大师, or Master unless clearly an English UI label.
+            """.trimIndent()
+
+        private val VOICE_HINT_PROMPT = """
+            - voice_hint describes delivery only and must not change translation; use null when unclear.
             """.trimIndent()
 
         private val CHOICE_PROMPT = """
@@ -182,14 +211,25 @@ class PromptBuilder @Inject constructor() {
         hasName: Boolean = false,
         forceRuby: Boolean = false,
         isCropMode: Boolean = false,
+        isDialogue: Boolean = !isCropMode,
+        requestVoiceHint: Boolean = false,
+        playerName: String = "",
         isRetry: Boolean = false
     ): PromptContext {
         val combinedText = (listOf(sourceText) + choiceTexts)
             .joinToString("\n")
+        val cleanPlayerName = playerName.trim()
         return PromptContext(
             outputFormat = outputFormat,
             targetChineseLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale),
             isCropMode = isCropMode,
+            isDialogue = isDialogue,
+            requestVoiceHint = requestVoiceHint,
+            hasPlaceholders = containsPlaceholder(combinedText),
+            hasMasks = containsMask(combinedText),
+            hasLineBreaks = containsLineBreak(sourceText) || choiceTexts.any(::containsLineBreak),
+            hasMasterWord = containsMasterWord(combinedText),
+            needsPlayerNameRule = cleanPlayerName.isNotBlank() && combinedText.contains(cleanPlayerName),
             hasChoices = choiceTexts.isNotEmpty(),
             hasName = hasName,
             hasRuby = forceRuby || containsRuby(combinedText),
@@ -218,32 +258,59 @@ class PromptBuilder @Inject constructor() {
         val sb = StringBuilder()
         val blockNames = mutableListOf<String>()
         val targetChinese = targetChinesePromptLabel(context.targetChineseLocale)
-        val corePrompt = if (context.isCropMode) CROP_CORE_PROMPT else CORE_PROMPT
-        val stylePrompt = if (context.isCropMode) CROP_STYLE_PROMPT else GENERAL_STYLE_PROMPT
         appendPromptBlock(
             sb,
             blockNames,
-            if (context.isCropMode) "crop_core" else "core",
-            applyTargetChinese(corePrompt, targetChinese)
+            if (context.isCropMode) "crop_base" else "base",
+            applyTargetChinese(
+                if (context.isCropMode) CROP_BASE_PROMPT else BASE_TRANSLATION_PROMPT,
+                targetChinese
+            )
         )
         appendPromptBlock(
             sb,
             blockNames,
-            "priority",
-            PRIORITY_RULES_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
+            outputBlockName(context.outputFormat),
+            outputPromptBlock(context.outputFormat)
         )
-        appendPromptBlock(
-            sb,
-            blockNames,
-            if (context.isCropMode) "crop_style" else "style",
-            stylePrompt
-        )
-        val conditionalBlocks = if (context.isCropMode) {
-            cropConditionalPromptBlocks(context)
-        } else {
-            conditionalPromptBlocks(context)
+        val needsPlaceholderRule = context.hasPlaceholders || matchedTerms.isNotEmpty()
+        if (needsPlaceholderRule) {
+            appendPromptBlock(sb, blockNames, "placeholder", PLACEHOLDER_PROMPT)
         }
-        conditionalBlocks.forEach { (name, block) ->
+        if (context.hasMasks) {
+            appendPromptBlock(sb, blockNames, "mask", MASK_PROMPT)
+        }
+        if (context.needsPlayerNameRule) {
+            appendPromptBlock(
+                sb,
+                blockNames,
+                "player_name",
+                PLAYER_NAME_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
+            )
+        }
+        if (matchedTerms.isNotEmpty()) {
+            appendPromptBlock(sb, blockNames, "official_terms", OFFICIAL_TERMS_PROMPT)
+        }
+        if (context.isCropMode) {
+            appendPromptBlock(sb, blockNames, "crop_style", CROP_STYLE_PROMPT)
+            if (context.hasMasterWord) {
+                appendPromptBlock(sb, blockNames, "master", MASTER_PROMPT)
+            }
+        } else {
+            if (context.isDialogue) {
+                appendPromptBlock(sb, blockNames, "dialogue_style", DIALOGUE_STYLE_PROMPT)
+            }
+            if (context.hasLineBreaks) {
+                appendPromptBlock(sb, blockNames, "line_break", LINE_BREAK_PROMPT)
+            }
+            if (context.hasMasterWord) {
+                appendPromptBlock(sb, blockNames, "master", MASTER_PROMPT)
+            }
+        }
+        if (context.requestVoiceHint) {
+            appendPromptBlock(sb, blockNames, "voice_hint", VOICE_HINT_PROMPT)
+        }
+        featurePromptBlocks(context).forEach { (name, block) ->
             appendPromptBlock(sb, blockNames, name, applyTargetChinese(block, targetChinese))
         }
         if (appendMatchedTerminology(sb, matchedTerms)) {
@@ -256,6 +323,22 @@ class PromptBuilder @Inject constructor() {
                 "rag=${matchedTerms.size}, chars=${sb.length}"
         )
         return sb.toString()
+    }
+
+    private fun outputBlockName(outputFormat: PromptOutputFormat): String {
+        return when (outputFormat) {
+            PromptOutputFormat.PLAIN_TEXT -> "plain_output"
+            PromptOutputFormat.JSON_ARRAY -> "json_array_output"
+            PromptOutputFormat.JSON_OBJECT -> "json_object_output"
+        }
+    }
+
+    private fun outputPromptBlock(outputFormat: PromptOutputFormat): String {
+        return when (outputFormat) {
+            PromptOutputFormat.PLAIN_TEXT -> PLAIN_OUTPUT_PROMPT
+            PromptOutputFormat.JSON_ARRAY -> JSON_ARRAY_OUTPUT_PROMPT
+            PromptOutputFormat.JSON_OBJECT -> JSON_OBJECT_OUTPUT_PROMPT
+        }
     }
 
     private fun applyTargetChinese(block: String, targetChinese: String): String {
@@ -281,7 +364,7 @@ class PromptBuilder @Inject constructor() {
         blockNames += name
     }
 
-    private fun conditionalPromptBlocks(context: PromptContext): List<Pair<String, String>> {
+    private fun featurePromptBlocks(context: PromptContext): List<Pair<String, String>> {
         return buildList {
             if (context.hasChoices) add("choices" to CHOICE_PROMPT)
             if (context.hasName) add("name" to NAME_PROMPT)
@@ -295,24 +378,12 @@ class PromptBuilder @Inject constructor() {
         }
     }
 
-    private fun cropConditionalPromptBlocks(context: PromptContext): List<Pair<String, String>> {
-        return buildList {
-            if (context.hasRuby) add("ruby" to RUBY_PROMPT)
-            if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
-            if (context.hasHonorifics) add("honorific" to HONORIFIC_PROMPT)
-            if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
-            if (context.hasKatakana) add("katakana_style" to KATAKANA_STYLE_PROMPT)
-            if (context.hasSpecialFirstPerson) add("special_first_person" to SPECIAL_FIRST_PERSON_PROMPT)
-            if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
-        }
-    }
-
     private fun appendMatchedTerminology(sb: StringBuilder, matchedTerms: List<TermEntity>): Boolean {
         if (matchedTerms.isEmpty()) return false
 
-        sb.append("\n\n=== OFFICIAL TERMINOLOGY (MUST USE) ===\n")
+        sb.append("\n\nTerms:\n")
         for (term in matchedTerms) {
-            sb.append("${term.jpTerm} -> ${term.cnTerm} [${term.category}]\n")
+            sb.append("${term.jpTerm} -> ${term.cnTerm}\n")
         }
         return true
     }
@@ -375,6 +446,22 @@ class PromptBuilder @Inject constructor() {
 
     private fun containsRuby(text: String): Boolean {
         return '《' in text && '》' in text
+    }
+
+    private fun containsPlaceholder(text: String): Boolean {
+        return "__FGO" in text
+    }
+
+    private fun containsMask(text: String): Boolean {
+        return maskPattern.containsMatchIn(text)
+    }
+
+    private fun containsLineBreak(text: String): Boolean {
+        return '\n' in text || '\r' in text
+    }
+
+    private fun containsMasterWord(text: String): Boolean {
+        return "マスター" in text
     }
 
     private fun containsPauseMarks(text: String): Boolean {

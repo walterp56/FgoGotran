@@ -199,7 +199,8 @@ class Translator @Inject constructor(
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.PLAIN_TEXT,
             sourceText = normalizedText,
-            targetChineseLocale = config.targetChineseLocale
+            targetChineseLocale = config.targetChineseLocale,
+            playerName = config.playerName
         )
         val promptTerms = termsForTargetPrompt(matchedTerms, config.targetChineseLocale)
         val response = callTranslationBackend(
@@ -745,7 +746,9 @@ class Translator @Inject constructor(
             choiceTexts = normalizedChoices,
             targetChineseLocale = config.targetChineseLocale,
             forceRuby = preserveRubyMeaning || cropMode,
-            isCropMode = cropMode
+            isCropMode = cropMode,
+            isDialogue = !cropMode,
+            playerName = playerName
         )
         val promptTerms = termsForTargetPrompt(matchedTerms, config.targetChineseLocale)
         val systemPrompt = promptBuilder.buildSystemPrompt(promptTerms, playerName, promptContext)
@@ -945,7 +948,8 @@ class Translator @Inject constructor(
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_ARRAY,
             sourceText = uncachedTexts.joinToString("\n"),
-            targetChineseLocale = config.targetChineseLocale
+            targetChineseLocale = config.targetChineseLocale,
+            playerName = playerName
         )
         val promptTerms = termsForTargetPrompt(matchedTerms, config.targetChineseLocale)
 
@@ -1305,36 +1309,49 @@ class Translator @Inject constructor(
             sourceText = listOfNotNull(uncachedName, sceneDialogueForApi).joinToString("\n"),
             choiceTexts = uncachedChoices,
             targetChineseLocale = config.targetChineseLocale,
-            hasName = needsName
+            hasName = needsName,
+            isDialogue = sceneDialogueForApi != null,
+            requestVoiceHint = requestVoiceHint,
+            playerName = playerName
         )
         val promptTerms = termsForTargetPrompt(matchedTerms, config.targetChineseLocale)
+        val useCompactDialogueVoiceHintPrompt =
+            requestVoiceHint && !needsName && needsDialogue && neededChoiceIndices.isEmpty()
+        val sceneUserPrompt = if (useCompactDialogueVoiceHintPrompt) {
+            buildDialogueWithVoiceHintUserPrompt(
+                dialogue = protectedDialogue?.text ?: sceneDialogueForApi.orEmpty(),
+                targetChineseLocale = config.targetChineseLocale
+            )
+        } else {
+            buildSceneUserPrompt(
+                protectedName?.text,
+                protectedDialogue?.text,
+                protectedChoices.map { it.text },
+                config.targetChineseLocale,
+                requestVoiceHint,
+                translateName = needsName,
+                translateDialogue = needsDialogue
+            )
+        }
+        val scenePromptKind = when {
+            useCompactDialogueVoiceHintPrompt -> "dialogue_with_voice_hint"
+            requestVoiceHint -> "scene_with_voice_hint"
+            else -> "scene"
+        }
 
         val messages = listOf(
             ChatMessage("system", promptBuilder.buildSystemPrompt(promptTerms, playerName, promptContext)),
-            ChatMessage(
-                "user",
-                buildSceneUserPrompt(
-                    protectedName?.text,
-                    protectedDialogue?.text,
-                    protectedChoices.map { it.text },
-                    config.targetChineseLocale,
-                    requestVoiceHint,
-                    translateName = needsName,
-                    translateDialogue = needsDialogue
-                )
-            )
+            ChatMessage("user", sceneUserPrompt)
         )
 
         FgoLogger.info(
             tag,
             "Calling $backend API for structured scene " +
-                "(name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size}, voiceHint=$requestVoiceHint)"
+                "(name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size}, " +
+                "voiceHint=$requestVoiceHint, compact=$useCompactDialogueVoiceHintPrompt)"
         )
         val sceneMaxTokens = when {
-            requestVoiceHint && !needsName && !needsDialogue && neededChoiceIndices.isEmpty() ->
-                VOICE_HINT_TEST_MAX_TOKENS
-
-            requestVoiceHint && !needsName && needsDialogue && neededChoiceIndices.isEmpty() ->
+            useCompactDialogueVoiceHintPrompt ->
                 dialogueWithVoiceHintMaxTokens(normalizedDialogue.orEmpty())
 
             else ->
@@ -1345,7 +1362,7 @@ class Translator @Inject constructor(
                 config,
                 messages,
                 maxTokens = sceneMaxTokens,
-                promptKind = if (requestVoiceHint) "scene_with_voice_hint" else "scene"
+                promptKind = scenePromptKind
             )
             parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size, requestVoiceHint)
         } catch (e: CancellationException) {
@@ -3963,6 +3980,25 @@ class Translator @Inject constructor(
                     appendLine("${index + 1}. $choice")
                 }
             }
+        }
+    }
+
+    private fun buildDialogueWithVoiceHintUserPrompt(
+        dialogue: String,
+        targetChineseLocale: String
+    ): String {
+        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
+        return buildString {
+            appendLine("Translate this FGO dialogue line to $targetChinese and optionally create an Azure TTS acting hint.")
+            appendLine("""Return valid JSON only with exactly these keys: dialogue, voice_hint.""")
+            appendLine("""Neutral example: {"dialogue":"translated Chinese dialogue","voice_hint":null}""")
+            appendLine("Voice hint schema:")
+            appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
+            appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
+            appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; omit unchanged values or use null.")
+            appendLine()
+            appendLine("Dialogue input:")
+            appendLine(dialogue)
         }
     }
 
