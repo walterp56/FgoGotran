@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -17,27 +18,23 @@ import javax.inject.Singleton
 /**
  * Manages the TYPE_ACCESSIBILITY_OVERLAY system windows.
  *
- * Two overlay views are maintained:
- * 1. **Indicator dot** — a small 12x12px semi-transparent white square in the top-right
- *    corner that signals "service is active." Always shown when FGO is in the foreground.
- * 2. **Full-screen image** — displays the rendered translated screenshot.
- *    Created/updated on each pipeline completion, removed when the user leaves FGO.
+ * The full-screen image overlay displays the rendered translated screenshot.
+ * It is created/updated on each pipeline completion and removed when the user leaves FGO.
  *
  * ## Window flags
  * - The translated image receives a tap and asks the accessibility service to forward it to FGO.
- * - The indicator remains touch-transparent.
  * - FLAG_LAYOUT_IN_SCREEN: overlay fills the entire screen, including behind status/nav bars.
  *
  * ## Lifecycle
- * init() → showIndicator() → showTranslatedImage() → updateImage() (repeat) → hideAll() → destroy()
+ * init() → showTranslatedImage() → updateImage() (repeat) → hideAll() → destroy()
  */
 @Singleton
 class TranslationOverlay @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private var windowManager: WindowManager? = null
     private var overlayView: ImageView? = null
-    private var indicatorView: View? = null
     private var isOverlayShowing = false
     private var overlayTouchable = true
     private var screenWidth = 0
@@ -88,22 +85,6 @@ class TranslationOverlay @Inject constructor(
         }
 
     /**
-     * Layout params for the small indicator dot (top-right corner).
-     */
-    private val indicatorParams: WindowManager.LayoutParams
-        get() = WindowManager.LayoutParams().apply {
-            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-            format = PixelFormat.TRANSLUCENT
-            width = 12
-            height = 12
-            gravity = Gravity.TOP or Gravity.END
-            x = 24
-            y = 24
-        }
-
-    /**
      * Must be called once from the AccessibilityService after onServiceConnected().
      *
      * @param serviceContext the AccessibilityService context — TYPE_ACCESSIBILITY_OVERLAY
@@ -125,29 +106,6 @@ class TranslationOverlay @Inject constructor(
         // Must use the service context — Application context has no valid window token
         windowManager = serviceContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         FgoLogger.info(tag, "Overlay initialized: ${screenWidth}x${screenHeight}")
-    }
-
-    /** Shows the small indicator dot. No-op if already showing. */
-    fun showIndicator() {
-        if (indicatorView != null) return
-        val wm = windowManager ?: return
-
-        indicatorView = View(context).apply {
-            setBackgroundColor(0x44FFFFFF.toInt())
-        }
-        wm.addView(indicatorView, indicatorParams)
-        FgoLogger.debug(tag, "Indicator shown")
-    }
-
-    /** Removes the indicator dot. */
-    fun hideIndicator() {
-        val wm = windowManager ?: return
-        indicatorView?.let {
-            try { wm.removeView(it) } catch (e: Exception) {
-                FgoLogger.warn(tag, "Failed to remove indicator view", e)
-            }
-        }
-        indicatorView = null
     }
 
     /**
@@ -194,7 +152,25 @@ class TranslationOverlay @Inject constructor(
             }
         }
 
-        wm.addView(imageView, overlayParams)
+        try {
+            wm.addView(imageView, overlayParams)
+        } catch (e: Exception) {
+            imageView.setImageBitmap(null)
+            isOverlayShowing = false
+            overlayTouchable = true
+            latestTranslatedBitmap = null
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_ERROR,
+                category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+                eventId = "translated_overlay_show_failed",
+                title = "翻译结果悬浮层显示失败",
+                message = e.message.orEmpty().ifBlank { e::class.java.simpleName },
+                detail = "TYPE_ACCESSIBILITY_OVERLAY addView failed",
+                errorCode = e::class.java.simpleName
+            )
+            FgoLogger.warn(tag, "Failed to show translated overlay", e)
+            return
+        }
         overlayView = imageView
         isOverlayShowing = true
         overlayTouchable = true
@@ -282,14 +258,13 @@ class TranslationOverlay @Inject constructor(
         overlayTouchable = true
     }
 
-    /** Hides both the full-screen overlay and the indicator dot. */
+    /** Hides the full-screen overlay. */
     fun hideAll() {
-        if (isOverlayShowing || indicatorView != null) {
-            FgoLogger.info(tag, "Hiding all overlays")
+        if (isOverlayShowing || overlayView != null) {
+            FgoLogger.info(tag, "Hiding translation overlay")
         }
         latestTranslatedBitmap = null
         removeOverlayView()
-        hideIndicator()
     }
 
     /** Whether the full-screen overlay is currently displayed. */

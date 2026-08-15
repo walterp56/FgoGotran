@@ -184,6 +184,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NO_SPEAKER_PROFILE_ID = "no_speaker"
         private const val MASTER_PROFILE_MALE = "藤丸立香(男)"
         private const val MASTER_PROFILE_FEMALE = "藤丸立香(女)"
+        private const val SCREENSHOT_ERROR_BITMAP_UNAVAILABLE = -1
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
         private val FGO_TEXT_COLOR_SAMPLES = listOf(
@@ -469,7 +470,6 @@ class FgoAccessibilityService : AccessibilityService() {
             packageName == APP_PACKAGE -> {
                 if (isFgoForeground) {
                     cancelTransientForegroundLoss()
-                    translationOverlay.showIndicator()
                 }
                 // Our overlays emit window/touch events when they appear or redraw. Treat them as UI noise.
             }
@@ -479,7 +479,6 @@ class FgoAccessibilityService : AccessibilityService() {
                     FgoLogger.info(tag, "FGO foreground detected: event=$packageName")
                 }
                 isFgoForeground = true
-                translationOverlay.showIndicator()
                 if (event.isDialogueAdvanceEvent()) {
                     if (translationOverlay.isShowing()) {
                         FgoLogger.debug(tag, "FGO dialogue advance detected; hiding translated overlay for next OCR")
@@ -492,7 +491,6 @@ class FgoAccessibilityService : AccessibilityService() {
                     isFgoForeground && packageName.isNonBlockingOverlayPackage() -> {
                         cancelTransientForegroundLoss()
                         FgoLogger.debug(tag, "Non-blocking overlay event while FGO foreground; keeping foreground: event=$packageName")
-                        translationOverlay.showIndicator()
                     }
                     isFgoForeground && packageName.isTransientSystemUiPackage() -> {
                         scheduleTransientForegroundLoss(packageName)
@@ -520,12 +518,10 @@ class FgoAccessibilityService : AccessibilityService() {
                 activePackage?.isSupportedFgoPackage() == true -> {
                     cancelTransientForegroundLoss()
                     FgoLogger.debug(tag, "FGO still active after transient system UI; keeping foreground")
-                    translationOverlay.showIndicator()
                 }
                 activePackage?.isNonBlockingOverlayPackage() == true -> {
                     cancelTransientForegroundLoss()
                     FgoLogger.debug(tag, "Non-blocking overlay active after transient UI; keeping FGO foreground")
-                    translationOverlay.showIndicator()
                 }
                 activePackage == null ||
                         activePackage == APP_PACKAGE ||
@@ -537,7 +533,6 @@ class FgoAccessibilityService : AccessibilityService() {
                             "Transient system UI persisted for ${waitingFor}ms; keeping last FGO foreground"
                         )
                         cancelTransientForegroundLoss()
-                        translationOverlay.showIndicator()
                     } else {
                         FgoLogger.debug(
                             tag,
@@ -577,7 +572,6 @@ class FgoAccessibilityService : AccessibilityService() {
         isFgoForeground = true
         cancelTransientForegroundLoss()
         FgoLogger.info(tag, "FGO foreground restored from OCR capture: $reason")
-        translationOverlay.showIndicator()
     }
 
     override fun onInterrupt() {
@@ -901,15 +895,17 @@ class FgoAccessibilityService : AccessibilityService() {
 
             screenshot = takeScreenshotCompat()
             if (screenshot == null) {
+                val failureInfo = screenshotFailureInfo(lastScreenshotErrorCode)
                 diagnosticEventStore.record(
                     level = DiagnosticEventStore.LEVEL_ERROR,
                     category = DiagnosticEventStore.CATEGORY_APP_ERROR,
                     eventId = "screenshot_failed",
                     title = "截屏失败",
-                    message = "Android/模拟器没有返回截图",
+                    message = "Android/模拟器没有返回截图：${failureInfo.reason}",
                     server = gameServer,
                     mode = mode.name,
-                    errorCode = lastScreenshotErrorCode.takeIf { it != 0 }?.toString().orEmpty()
+                    detail = failureInfo.detail,
+                    errorCode = failureInfo.code
                 )
                 if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
                     rememberSemiAutoScreenshotFailure()
@@ -3798,22 +3794,83 @@ class FgoAccessibilityService : AccessibilityService() {
                 mainExecutor,
                 object : TakeScreenshotCallback {
                     override fun onSuccess(result: ScreenshotResult) {
-                        lastScreenshotErrorCode = 0
-                        val hardwareBitmap = Bitmap.wrapHardwareBuffer(
-                            result.hardwareBuffer,
-                            result.colorSpace
-                        )
-                        val bitmap = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
-                        result.hardwareBuffer.close()
+                        val bitmap = try {
+                            Bitmap.wrapHardwareBuffer(
+                                result.hardwareBuffer,
+                                result.colorSpace
+                            )?.copy(Bitmap.Config.ARGB_8888, false)
+                        } catch (e: Exception) {
+                            FgoLogger.warn(tag, "Screenshot bitmap conversion failed", e)
+                            null
+                        } finally {
+                            result.hardwareBuffer.close()
+                        }
+                        lastScreenshotErrorCode = if (bitmap == null) {
+                            SCREENSHOT_ERROR_BITMAP_UNAVAILABLE
+                        } else {
+                            0
+                        }
                         cont.resume(bitmap)
                     }
 
                     override fun onFailure(errorCode: Int) {
                         lastScreenshotErrorCode = errorCode
-                        FgoLogger.warn(tag, "Screenshot failed: $errorCode")
+                        val failureInfo = screenshotFailureInfo(errorCode)
+                        FgoLogger.warn(tag, "Screenshot failed: code=$errorCode, reason=${failureInfo.reason}")
                         cont.resume(null)
                     }
                 }
+            )
+        }
+    }
+
+    private data class ScreenshotFailureInfo(
+        val reason: String,
+        val detail: String,
+        val code: String
+    )
+
+    private fun screenshotFailureInfo(errorCode: Int): ScreenshotFailureInfo {
+        return when (errorCode) {
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR -> ScreenshotFailureInfo(
+                reason = "Android 内部截屏失败",
+                detail = "多见于模拟器、系统图形层或当前画面状态异常。可尝试重启游戏、重启模拟器，或切换模拟器图形渲染模式。",
+                code = errorCode.toString()
+            )
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS -> ScreenshotFailureInfo(
+                reason = "无障碍截屏权限不可用",
+                detail = "请关闭并重新开启 FgoGotran 无障碍服务；若系统限制无障碍权限，请在系统设置中允许。",
+                code = errorCode.toString()
+            )
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT -> ScreenshotFailureInfo(
+                reason = "截屏太频繁，Android 暂时拒绝",
+                detail = "请等待约 1 秒后再试；半自动/全自动模式会稍后重试。",
+                code = errorCode.toString()
+            )
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_DISPLAY -> ScreenshotFailureInfo(
+                reason = "当前显示器无效",
+                detail = "多见于模拟器、投屏、黑屏、省电锁屏或显示状态切换。请确认游戏画面实际显示在手机/模拟器主屏上。",
+                code = errorCode.toString()
+            )
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_WINDOW -> ScreenshotFailureInfo(
+                reason = "当前窗口无效",
+                detail = "Android 无法读取当前窗口画面。请回到 FGO 主画面后再试，或重启游戏/模拟器。",
+                code = errorCode.toString()
+            )
+            AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW -> ScreenshotFailureInfo(
+                reason = "当前画面禁止系统截屏",
+                detail = "系统标记了安全画面，应用无法读取截图。请避开受保护页面后再试。",
+                code = errorCode.toString()
+            )
+            SCREENSHOT_ERROR_BITMAP_UNAVAILABLE -> ScreenshotFailureInfo(
+                reason = "模拟器返回了截图对象，但无法转换成图片",
+                detail = "多见于模拟器图形兼容问题。可尝试切换 DirectX/OpenGL/Vulkan 渲染模式、更新模拟器，或改用 64 位实例。",
+                code = "bitmap_null"
+            )
+            else -> ScreenshotFailureInfo(
+                reason = "Android/模拟器没有返回截图",
+                detail = "未知截屏失败。请确认游戏画面没有黑屏，FgoGotran 无障碍服务仍开启，并尝试重启游戏或模拟器。",
+                code = errorCode.takeIf { it != 0 }?.toString().orEmpty()
             )
         }
     }

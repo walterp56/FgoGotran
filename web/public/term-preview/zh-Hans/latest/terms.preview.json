@@ -258,16 +258,10 @@
     "aliases": ""
   },
   {
-    "jp_term": "霊子転移",
-    "cn_term": "灵子转移",
-    "category": "game_term",
-    "aliases": "レイシフト,Rayshift"
-  },
-  {
     "jp_term": "レイシフト",
     "cn_term": "灵子转移",
     "category": "game_term",
-    "aliases": "Rayshift"
+    "aliases": "Rayshift,霊子転移"
   },
   {
     "jp_term": "霊衣",
@@ -379,13 +373,7 @@
   },
   {
     "jp_term": "再臨",
-    "cn_term": "灵基再临",
-    "category": "game_term",
-    "aliases": "霊基再臨"
-  },
-  {
-    "jp_term": "霊基再臨",
-    "cn_term": "灵基再临",
+    "cn_term": "再临",
     "category": "game_term",
     "aliases": "再臨"
   },
@@ -715,7 +703,7 @@
   },
   {
     "jp_term": "ホムンクルス",
-    "cn_term": "人造人",
+    "cn_term": "人工生命体",
     "category": "game_term",
     "aliases": ""
   },
@@ -752,6 +740,24 @@
   {
     "jp_term": "アルスィア",
     "cn_term": "Althea",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "パラディーン",
+    "cn_term": "Paladin",
+    "category": "class",
+    "aliases": "圣骑士"
+  },
+  {
+    "jp_term": "シールダー・パラディーン",
+    "cn_term": "Shielder・Paladin",
+    "category": "class",
+    "aliases": "圣骑士盾兵"
+  },
+  {
+    "jp_term": "シリウスライト",
+    "cn_term": "Sirius Light",
     "category": "game_term",
     "aliases": ""
   }

@@ -1455,7 +1455,7 @@
     "jp_name": "カイニス",
     "cn_name": "凯妮斯",
     "category": "character",
-    "aliases": ""
+    "aliases": "力イニス"
   },
   {
     "jp_name": "ロムルス＝クィリヌス",
@@ -1644,8 +1644,8 @@
     "aliases": ""
   },
   {
-    "jp_name": "オベロン",
-    "cn_name": "奥伯龙",
+    "jp_name": "オベロン·ヴォーティガーン",
+    "cn_name": "奥伯龙·伏提庚",
     "category": "character",
     "aliases": ""
   },
@@ -3734,6 +3734,66 @@
   {
     "jp_name": "ペルセポネ",
     "cn_name": "珀耳塞福涅",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "オルガ·カルデアス",
+    "cn_name": "奥尔加·迦勒底亚斯",
+    "category": "character",
+    "aliases": "オルガカルデアス"
+  },
+  {
+    "jp_name": "グリム",
+    "cn_name": "格里姆",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "賢人グリム",
+    "cn_name": "贤人格里姆",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ゴフ",
+    "cn_name": "戈夫",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "アーシャ",
+    "cn_name": "阿夏",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ハサン・サッバーハ",
+    "cn_name": "哈桑·萨巴赫",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "シドラ・アズライール",
+    "cn_name": "惜德拉·亚兹拉尔",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "蒼きアズライール",
+    "cn_name": "苍之亚兹拉尔",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "シサロット",
+    "cn_name": "狮萨洛特",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "シーサー",
+    "cn_name": "狮萨",
     "category": "character",
     "aliases": ""
   }
