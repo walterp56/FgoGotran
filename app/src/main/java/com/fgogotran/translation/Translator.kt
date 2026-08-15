@@ -214,7 +214,8 @@ class Translator @Inject constructor(
                     )
                 )
             ),
-            maxTokens = API_TEST_MAX_TOKENS
+            maxTokens = API_TEST_MAX_TOKENS,
+            promptKind = "api_test"
         ).trim()
         FgoLogger.debug(tag, "API test model content: ${apiResponseLogSample(response)}")
         if (response.isBlank()) {
@@ -294,7 +295,8 @@ class Translator @Inject constructor(
                     )
                 )
             ),
-            maxTokens = VOICE_HINT_TEST_MAX_TOKENS
+            maxTokens = VOICE_HINT_TEST_MAX_TOKENS,
+            promptKind = "voice_hint"
         ).trim()
         if (rawResult.isBlank()) {
             throw IllegalStateException("API returned an empty response")
@@ -324,7 +326,8 @@ class Translator @Inject constructor(
                 ChatMessage("system", systemPrompt),
                 ChatMessage("user", userPrompt)
             ),
-            maxTokens = maxTokens
+            maxTokens = maxTokens,
+            promptKind = "utility"
         ).trim()
     }
 
@@ -402,6 +405,12 @@ class Translator @Inject constructor(
         private const val NAME_WITH_STATE_MAX_TRANSLATED_LENGTH = 32
         private const val COMBINED_NAME_MAX_PARTS = 4
         private const val COMBINED_NAME_MAX_TRANSLATED_LENGTH = 48
+        private const val VOICE_HINT_RESPONSE_SCHEMA =
+            """{"voice_hint":{"styles":[],"dragon_styles":[],"intensity":0.0,"rate":0,"pitch":0,"pause":0,"confidence":0.0}|null}"""
+        private const val SCENE_RESPONSE_SCHEMA =
+            """{"name":string|null,"dialogue":string|null,"choices":string[]}"""
+        private const val SCENE_WITH_VOICE_HINT_RESPONSE_SCHEMA =
+            """{"name":string|null,"dialogue":string|null,"choices":string[],"voice_hint":{"styles":[],"dragon_styles":[],"intensity":0.0,"rate":0,"pitch":0,"pause":0,"confidence":0.0}|null}"""
         private val VOICE_HINT_NORMAL_STYLES = listOf(
             "cheerful",
             "sad",
@@ -752,7 +761,12 @@ class Translator @Inject constructor(
 
         FgoLogger.info(tag, "Calling $backend API")
         val result = try {
-            callTranslationBackend(config, messages, maxTokens = maxTokens)
+            callTranslationBackend(
+                config = config,
+                messages = messages,
+                maxTokens = maxTokens,
+                promptKind = if (cropMode) "crop" else "single"
+            )
         } catch (e: Exception) {
             FgoLogger.error(tag, "$backend API call failed: ${e.message}", e)
             recordTranslationApiFailure(config, e, "single")
@@ -932,7 +946,8 @@ class Translator @Inject constructor(
             val rawResult = callTranslationBackend(
                 config,
                 messages,
-                maxTokens = BATCH_TRANSLATION_MAX_TOKENS
+                maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
+                promptKind = "batch"
             )
             parseBatchResult(rawResult, uncachedTexts.size)
         } catch (e: Exception) {
@@ -1199,6 +1214,30 @@ class Translator @Inject constructor(
             ).forTargetLocale(config)
         }
 
+        if (requestVoiceHint && !needsName && !needsDialogue && neededChoiceIndices.isEmpty()) {
+            val speakerForHint = nameResult?.translatedText
+                ?.takeIf { it.isNotBlank() }
+                ?: normalizedName.orEmpty()
+            val voiceHint = try {
+                requestVoiceHint(
+                    speakerName = speakerForHint,
+                    dialogue = normalizedDialogue.orEmpty()
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                FgoLogger.warn(tag, "Scene voice hint request failed; continuing without hint", e)
+                recordTranslationApiFailure(config, e, "voice_hint")
+                null
+            }
+            return SceneTranslateResult(
+                name = nameResult,
+                dialogue = dialogueResult,
+                choices = choiceResults.map { it ?: TranslateResult("", "none", true) },
+                voiceHint = voiceHint
+            ).forTargetLocale(config)
+        }
+
         val uncachedName = if (needsName) nameForLlm else null
         val sceneDialogueForApi = normalizedDialogue.takeIf { needsDialogue || requestVoiceHint }
         val uncachedDialogue = normalizedDialogue.takeIf { needsDialogue }
@@ -1283,7 +1322,8 @@ class Translator @Inject constructor(
             val rawResult = callTranslationBackend(
                 config,
                 messages,
-                maxTokens = sceneMaxTokens
+                maxTokens = sceneMaxTokens,
+                promptKind = if (requestVoiceHint) "scene_with_voice_hint" else "scene"
             )
             parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size, requestVoiceHint)
         } catch (e: Exception) {
@@ -3843,41 +3883,26 @@ class Translator @Inject constructor(
         requestVoiceHint: Boolean = false
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
+        val schema = if (requestVoiceHint) {
+            SCENE_WITH_VOICE_HINT_RESPONSE_SCHEMA
+        } else {
+            SCENE_RESPONSE_SCHEMA
+        }
         return buildString {
-            appendLine("Localize this Fate/Grand Order story scene to $targetChinese for an in-game overlay.")
-            appendLine("Return ONLY a JSON object with exactly these keys:")
+            appendLine("Localize this FGO scene to $targetChinese. Return valid JSON only.")
+            appendLine("Schema: $schema")
+            appendLine("Rules:")
+            appendLine("- Follow the system prompt and official terms; use $targetChinese only.")
+            appendLine("- Return null for missing name/dialogue; choices must match input order and count.")
+            appendLine("- Name-box: translate the full visible label; do not drop annotations, suffixes, A/B, question marks, or bracket shape.")
+            appendLine("- Preserve __FGO placeholders and hidden masks exactly.")
             if (requestVoiceHint) {
-                appendLine(
-                    """{"name": string|null, "dialogue": string|null, "choices": string[], "voice_hint": {"styles": string[], "dragon_styles": string[], "intensity": number, "rate": number, "pitch": number, "pause": number, "confidence": number}|null}"""
-                )
-            } else {
-                appendLine("""{"name": string|null, "dialogue": string|null, "choices": string[]}""")
+                appendLine("- voice_hint describes delivery only and must not change translation; use null when unclear.")
+                appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
+                appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
+                appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2, 0 unchanged.")
             }
-            appendLine("Prompt policy:")
-            appendLine("- Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
-            appendLine("- Use $targetChinese consistently in name, dialogue, and choices; do not mix Chinese scripts.")
-            appendLine("- Translate name only if name is not null; otherwise return null.")
-            appendLine("- If a name is not in the glossary, transliterate it as a concise $targetChinese Fate/Grand Order/TYPE-MOON-style name. Never return the original Japanese name unchanged.")
-            appendLine("- For name-box text, preserve every visible part, including 《...》 or （...） annotations, titles, suffixes, and question marks; translate annotation content and keep the original bracket shape.")
-            appendLine("- アテシ, アタシ, and あたし in dialogue are first-person pronouns, not short katakana names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
-            appendLine("- For short katakana names, transliterate the sound literally (example: レオン -> 莱昂). Do not replace it with another known FGO character.")
-            appendLine("- Translate dialogue only if dialogue is not null; otherwise return null.")
-            appendLine("- For obvious English-origin katakana common words in dialogue or choices, keep compact English flavor when natural, unless a glossary/name/official term applies.")
-            appendLine("- Translate choices as short player-facing options in the same order. Preserve intent and emotional nuance, but avoid making choices long.")
-            if (requestVoiceHint) {
-                appendLine("- voice_hint is for Azure TTS acting direction only. It must describe this line's delivery, not character identity, and must not change the translation.")
-                appendLine("- voice_hint values must use the English enum labels below; do not translate voice_hint values into Chinese.")
-                appendLine("- Return voice_hint as null when dialogue is null, neutral, or the acting direction is unclear.")
-                appendLine("- voice_hint.styles must contain 0 to 3 values from: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
-                appendLine("- voice_hint.dragon_styles must contain 0 to 3 DragonHDFlash-only values from: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
-                appendLine("- Put DragonHDFlash-only styles only in dragon_styles, never in styles; the app ignores dragon_styles for non-Dragon voices.")
-                appendLine("- voice_hint.intensity and confidence must be numbers from 0.0 to 1.0.")
-                appendLine("- voice_hint.rate, pitch, and pause must be integers from -2 to 2, where 0 means unchanged.")
-                appendLine("- Do not return emotion, energy, delivery, attitude, pace, or text labels for rate/pitch/pause.")
-            }
-            appendLine("- If placeholders starting with __FGO appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
-            appendLine("- Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
-            appendLine("- Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations, no extra keys.")
+            appendLine("- No markdown, source text, notes, lore explanations, or extra keys.")
             appendLine()
             appendLine("Scene:")
             appendLine("name: ${name ?: "null"}")
@@ -3898,20 +3923,14 @@ class Translator @Inject constructor(
         dialogue: String
     ): String {
         return buildString {
-            appendLine("Create an Azure TTS acting hint for this Fate/Grand Order line.")
-            appendLine("The line may be Simplified Chinese, Traditional Chinese, or Japanese.")
-            appendLine("Return ONLY this JSON object:")
-            appendLine("""{"voice_hint":{"styles":[],"dragon_styles":[],"intensity":0.0,"rate":0,"pitch":0,"pause":0,"confidence":0.0}|null}""")
+            appendLine("Create an Azure TTS acting hint for this FGO line. The line may be Chinese or Japanese.")
+            appendLine("Return valid JSON only. Shape: $VOICE_HINT_RESPONSE_SCHEMA")
             appendLine("Rules:")
-            appendLine("- voice_hint is for Azure TTS acting direction only; do not translate, rewrite, or explain the line.")
-            appendLine("- Use null only if the line gives no useful acting direction.")
-            appendLine("- styles: 0 to 3 values from ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
-            appendLine("- dragon_styles: 0 to 3 DragonHDFlash-only values from ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
-            appendLine("- Put DragonHDFlash-only styles only in dragon_styles, never in styles.")
-            appendLine("- intensity and confidence: numbers from 0.0 to 1.0.")
-            appendLine("- rate, pitch, pause: integers from -2 to 2; 0 means unchanged.")
-            appendLine("- Do not return emotion, energy, delivery, attitude, pace, or text labels for rate/pitch/pause.")
-            appendLine("- Return valid JSON only: no markdown, no extra keys.")
+            appendLine("- Do not translate, rewrite, or explain; use null if delivery is neutral or unclear.")
+            appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
+            appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
+            appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2, 0 unchanged.")
+            appendLine("- Do not use old keys such as emotion, energy, delivery, attitude, or pace.")
             appendLine()
             appendLine("speaker: $speakerName")
             appendLine("dialogue: $dialogue")
@@ -4215,12 +4234,7 @@ class Translator @Inject constructor(
         return buildString {
             appendLine(basePrompt)
             appendLine()
-            appendLine("Crop ruby rule:")
-            appendLine("- The source includes visible small ruby/furigana in base《ruby》 form.")
-            appendLine("- Usually treat base and ruby as one annotated expression, but keep this flexible: ruby can be pronunciation, alias, joke, hidden meaning, spoken/intended wording, or a second layer of dialogue-like meaning.")
-            appendLine("- Translate naturally in Chinese according to context. If ruby only gives pronunciation, omit it; if it changes or adds important nuance, reflect that meaning.")
-            appendLine("- When both base and ruby meanings matter, output Chinese base《ruby meaning》. Do not use parentheses for ruby meaning.")
-            appendLine("Example shape: 徳用大景観《グランドチェンジ》 -> 德用大景观《Grand Change》")
+            appendLine("Visible ruby rule: if base《ruby》 is pronunciation-only, omit ruby; if it adds meaning, output Chinese base《meaning》.")
         }
     }
 
@@ -4230,14 +4244,11 @@ class Translator @Inject constructor(
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            appendLine("Localize each Fate/Grand Order Japanese item to $targetChinese.")
-            appendLine("Return ONLY a JSON array of strings.")
-            appendLine("The JSON array must contain exactly ${texts.size} items in the same order.")
-            appendLine("Follow the system prompt's terminology, honorific, master-title, player-name, placeholder, ruby, voice, pronoun, and compact FGO display rules.")
-            appendLine("If placeholders starting with __FGO appear, copy the whole token exactly. Do not translate or edit characters inside placeholders.")
-            appendLine("Mask placeholders may represent hidden FGO text; preserve them exactly and never guess their content.")
-            appendLine("Keep every item aligned one-to-one with input order; do not merge, split, or skip items.")
-            appendLine("Return valid JSON only: no markdown, no source text, no translator notes, no lore explanations.")
+            appendLine("Localize each FGO item to $targetChinese.")
+            appendLine("Return valid JSON only: an array of exactly ${texts.size} strings in the same order.")
+            appendLine("Follow the system prompt and official terms; keep items one-to-one, short, and unmerged.")
+            appendLine("Preserve __FGO placeholders and hidden masks exactly.")
+            appendLine("No markdown, source text, notes, or lore explanations.")
             appendLine()
             appendLine("Items:")
             texts.forEachIndexed { index, text ->
@@ -4278,7 +4289,12 @@ class Translator @Inject constructor(
         )
 
         val retryRaw = try {
-            callTranslationBackend(config, retryMessages, maxTokens = maxTokens)
+            callTranslationBackend(
+                config = config,
+                messages = retryMessages,
+                maxTokens = maxTokens,
+                promptKind = if (cropMode) "strict_retry_crop" else "strict_retry"
+            )
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Strict retry API call failed: ${e.message}", e)
             return null
@@ -4309,35 +4325,22 @@ class Translator @Inject constructor(
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
+            appendLine("Repair an FGO translation that copied Japanese. Translate into $targetChinese.")
             if (cropMode) {
-                appendLine("You translate visible Japanese text from a cropped Fate/Grand Order screen into $targetChinese.")
-                appendLine("The crop may contain dialogue, UI text, item/profile/skill descriptions, choices, history log text, names, titles, or partial sentences.")
-                appendLine("Translate only the visible source text; do not infer missing text outside the crop.")
-            } else {
-                appendLine("You translate Japanese Fate/Grand Order story text into $targetChinese.")
+                appendLine("Crop mode: translate only visible source text; preserve useful row line breaks; do not complete partial sentences.")
             }
-            appendLine("This is a repair retry because the previous answer copied Japanese.")
             appendLine("Use $targetChinese consistently; do not mix Chinese scripts.")
-            appendLine("Return only the final translated text. No source text, notes, markdown, or explanations.")
-            appendLine("Do not leave Japanese kana, except inside the fixed player name or unchanged placeholder tokens.")
-            appendLine("Japanese second-person address forms such as あなた, お前, 貴様, 汝, そなた, お主, and てめえ should be translated by tone and relationship; do not leave them as Japanese or treat them as names.")
-            appendLine("Keep every full placeholder token starting with __FGO exactly unchanged.")
-            appendLine("Preserve mask blocks such as ■, □, ▇, and █ exactly; never guess hidden words.")
-            if (cropMode) {
-                appendLine("Preserve source line order and useful visible line breaks.")
-                appendLine("If the source is a partial sentence, translate only the visible part naturally; do not complete it.")
-                appendLine("For UI, profile, skill, item, mission, or battle text, translate concisely like game UI text.")
-            } else {
-                appendLine("Keep the FGO dialogue tone natural, compact, and suitable for a two-line in-game overlay.")
-            }
-            appendLine("アテシ, アタシ, and あたし are first-person pronouns, not names; translate them as 我/咱/人家 by speaker voice, even sentence-final.")
-            appendLine("For obvious English-origin katakana common words, compact English flavor is allowed when natural; never apply this to names or official terms.")
+            appendLine("Return final translated text only; no source text, markdown, notes, or explanations.")
+            appendLine("Do not leave Japanese kana except fixed player name, __FGO placeholders, masks, or official stylized terms.")
+            appendLine("Preserve __FGO tokens and masks such as ???, ？？？, ■, □, ▇, █ exactly; never guess hidden text.")
+            appendLine("Translate Japanese address/pronoun words by tone; アテシ/アタシ/あたし are first-person pronouns.")
+            appendLine("Keep FGO wording natural, compact, and suitable for an in-game overlay.")
             if (playerName.isNotBlank()) {
                 appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
             }
             if (matchedTerms.isNotEmpty()) {
                 appendLine()
-                appendLine("Official terms, use exactly:")
+                appendLine("Official terms:")
                 matchedTerms.take(MAX_STRICT_RETRY_TERMS).forEach { term ->
                     appendLine("${term.jpTerm} -> ${targetOfficialChinese(term.cnTerm, targetChineseLocale)} [${term.category}]")
                 }
@@ -4353,22 +4356,11 @@ class Translator @Inject constructor(
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            if (cropMode) {
-                appendLine("Translate the cropped Fate/Grand Order screen text below into $targetChinese.")
-            } else {
-                appendLine("Translate the Japanese source below into $targetChinese.")
-            }
+            appendLine("Translate the ${if (cropMode) "cropped visible text" else "Japanese source"} below into $targetChinese.")
             appendLine("Return only the translated text, not JSON.")
-            if (cropMode) {
-                appendLine("Translate only the visible source text. Preserve line breaks when they separate visible rows.")
-            } else {
-                appendLine("Translate every Japanese line; preserve line breaks only when they separate complete source rows.")
-            }
-            appendLine("Do not copy any Japanese kana from the source.")
-            appendLine("Keep placeholder tokens exactly unchanged.")
-            appendLine("If the source contains mask blocks such as ■ or □, preserve those masks exactly and do not invent their hidden content.")
+            appendLine("Translate every Japanese part; preserve placeholders and masks exactly.")
             if (choiceTexts.isNotEmpty()) {
-                appendLine("Choice context. Translate choices as short player-facing options:")
+                appendLine("Choice context:")
                 choiceTexts.forEachIndexed { index, choice ->
                     appendLine("[Choice ${index + 1}] $choice")
                 }
@@ -4732,15 +4724,23 @@ class Translator @Inject constructor(
     private suspend fun callTranslationBackend(
         config: RuntimeConfig,
         messages: List<ChatMessage>,
-        maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS
+        maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
+        promptKind: String = "translation"
     ): String {
-        return when (config.backend) {
+        val effectiveMaxTokens = if (config.backend == SettingsRepository.BACKEND_ZHIPU) {
+            maxTokens.coerceAtMost(ZHIPU_TRANSLATION_MAX_TOKENS)
+        } else {
+            maxTokens
+        }
+        logPromptRequest(promptKind, config, messages, effectiveMaxTokens)
+        val startedAt = System.currentTimeMillis()
+        val result = when (config.backend) {
             SettingsRepository.BACKEND_CLAUDE -> translateClaude(
                 apiKey = config.apiKey,
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
-                maxTokens = maxTokens
+                maxTokens = effectiveMaxTokens
             )
 
             SettingsRepository.BACKEND_ZHIPU -> translateOpenAiCompatible(
@@ -4748,7 +4748,7 @@ class Translator @Inject constructor(
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
-                maxTokens = maxTokens.coerceAtMost(ZHIPU_TRANSLATION_MAX_TOKENS),
+                maxTokens = effectiveMaxTokens,
                 disableThinking = true
             )
 
@@ -4759,7 +4759,7 @@ class Translator @Inject constructor(
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
-                maxTokens = maxTokens
+                maxTokens = effectiveMaxTokens
             )
 
             SettingsRepository.BACKEND_GEMINI -> translateOpenAiCompatible(
@@ -4767,7 +4767,7 @@ class Translator @Inject constructor(
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
-                maxTokens = maxTokens,
+                maxTokens = effectiveMaxTokens,
                 reasoningEffort = "low"
             )
 
@@ -4776,8 +4776,34 @@ class Translator @Inject constructor(
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
-                maxTokens = maxTokens
+                maxTokens = effectiveMaxTokens
             )
         }
+        FgoLogger.debug(
+            tag,
+            "Prompt response: kind=$promptKind, backend=${config.backend}, " +
+                "elapsedMs=${System.currentTimeMillis() - startedAt}, resultChars=${result.length}"
+        )
+        return result
+    }
+
+    private fun logPromptRequest(
+        promptKind: String,
+        config: RuntimeConfig,
+        messages: List<ChatMessage>,
+        maxTokens: Int
+    ) {
+        val systemChars = messages
+            .filter { it.role == "system" }
+            .sumOf { it.content.length }
+        val userChars = messages
+            .filter { it.role != "system" }
+            .sumOf { it.content.length }
+        FgoLogger.debug(
+            tag,
+            "Prompt request: kind=$promptKind, backend=${config.backend}, model=${config.apiModel}, " +
+                "messages=${messages.size}, systemChars=$systemChars, userChars=$userChars, " +
+                "totalChars=${systemChars + userChars}, maxTokens=$maxTokens"
+        )
     }
 }
