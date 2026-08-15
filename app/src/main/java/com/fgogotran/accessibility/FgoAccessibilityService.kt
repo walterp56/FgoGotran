@@ -1055,7 +1055,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 cropWidth = cropBitmap.width,
                 cropHeight = cropBitmap.height
             )
-            val sourceText = cropSourceText(cropLines, ocrResult.fullText, ocrResult.engine)
+            val cropSourceLines = cropSourceLines(cropLines)
+            val sourceText = cropSourceText(cropSourceLines, ocrResult.fullText, ocrResult.engine)
             val ocrDuration = SystemClock.elapsedRealtime() - ocrStartedAt
             logTranslationDebugText("Crop OCR fullText", ocrResult.fullText.trim())
             logTranslationDebugText("Crop source text", sourceText)
@@ -1070,7 +1071,7 @@ class FgoAccessibilityService : AccessibilityService() {
             val translationResult = withContext(Dispatchers.IO) {
                 translator.translate(
                     sourceText,
-                    preserveRubyMeaning = true,
+                    preserveRubyMeaning = false,
                     cropMode = true,
                     maxTokens = CROP_TRANSLATION_MAX_TOKENS,
                     useTranslationCache = false
@@ -1094,7 +1095,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     width = cropBounds.width(),
                     height = cropBounds.height(),
                     text = translated,
-                    sourceLines = cropLines.map {
+                    sourceLines = cropSourceLines.map {
                         CropTextLine(
                             text = it.text,
                             boundingBox = Rect(it.boundingBox)
@@ -1186,15 +1187,19 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun cropSourceLines(lines: List<OcrTextLine>): List<OcrTextLine> {
+        return lines
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+    }
+
     private fun cropSourceText(
         lines: List<OcrTextLine>,
         fullText: String,
         ocrEngine: OcrEngineId
     ): String {
-        val cleanedText = formatDialogueForTranslation(lines, RubyDetectionMode.PERMISSIVE)
-        val sourceText = cleanedText.ifBlank {
-            if (lines.any { isRubyDotNoiseLine(it) }) "" else fullText.trim()
-        }
+        val sourceText = lines.joinToString("\n") { it.text.trim() }.trim()
+            .ifBlank { fullText.trim() }
         return correctMlKitOcrSourceText(sourceText, "CROP", ocrEngine)
     }
 

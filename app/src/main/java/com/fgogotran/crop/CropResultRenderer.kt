@@ -193,53 +193,41 @@ class CropResultRenderer @Inject constructor(
         val rows = sourceBounds
             .sortedWith(compareBy<Rect> { it.top }.thenBy { it.left })
             .map { bounds ->
+                val textArea = rowTextArea(bounds, bitmapWidth, bitmapHeight)
                 CropTextRow(
                     sourceBounds = Rect(bounds),
-                    textArea = rowTextArea(bounds, bitmapWidth, bitmapHeight)
+                    textArea = textArea,
+                    maxTextWidth = rowMaxTextWidth(textArea, bitmapWidth)
                 )
             }
         if (rows.isEmpty()) return emptyList()
 
-        val sourceLineHeight = medianLineHeight(sourceBounds)
-        val smallestRowHeight = rows.minOf { it.textArea.height() }
-        val maxTextSize = (sourceLineHeight * 0.98f)
-            .coerceIn(12f, minOf(smallestRowHeight * 0.78f, 60f).coerceAtLeast(12f))
-        val minTextSize = (sourceLineHeight * 0.42f).coerceIn(8f, maxTextSize)
-        var low = minTextSize
-        var high = maxTextSize
-        var best: List<CropRowLayout>? = null
+        return layoutRowsAtSourceSize(text, rows, ellipsizeLast = false)
+            ?: layoutRowsAtSourceSize(text, rows, ellipsizeLast = true).orEmpty()
+    }
 
-        repeat(18) {
-            val size = (low + high) / 2f
-            val candidate = layoutRowsAtSize(text, rows, size, ellipsizeLast = false)
-            if (candidate != null) {
-                best = candidate
-                low = size
-            } else {
-                high = size
+    private fun layoutRowsAtSourceSize(
+        text: String,
+        rows: List<CropTextRow>,
+        ellipsizeLast: Boolean
+    ): List<CropRowLayout>? {
+        explicitTranslatedRows(text, rows)?.let { explicitRows ->
+            return explicitRows.mapIndexed { index, rowText ->
+                layoutExplicitRow(rows[index], rowText)
             }
         }
 
-        return best ?: layoutRowsAtSize(text, rows, minTextSize, ellipsizeLast = true).orEmpty()
-    }
-
-    private fun layoutRowsAtSize(
-        text: String,
-        rows: List<CropTextRow>,
-        textSize: Float,
-        ellipsizeLast: Boolean
-    ): List<CropRowLayout>? {
-        textPaint.textSize = textSize
-        val lineHeight = textPaint.fontSpacing
-        if (lineHeight > rows.minOf { it.textArea.height() } + 0.5f) return null
-        val rowTexts = splitTextForRows(text, rows, ellipsizeLast) ?: return null
+        val rowTextSizes = rows.map { sourceSizedTextSize(it) }
+        val rowTexts = splitTextForRows(text, rows, rowTextSizes, ellipsizeLast) ?: return null
         return rows.mapIndexed { index, row ->
+            val textSize = rowTextSizes.getOrElse(index) { MIN_CROP_ROW_TEXT_SIZE }
+            textPaint.textSize = textSize
             CropRowLayout(
                 sourceBounds = row.sourceBounds,
                 textArea = row.textArea,
                 text = rowTexts.getOrElse(index) { "" },
                 textSize = textSize,
-                lineHeight = lineHeight
+                lineHeight = textPaint.fontSpacing
             )
         }
     }
@@ -247,6 +235,7 @@ class CropResultRenderer @Inject constructor(
     private fun splitTextForRows(
         text: String,
         rows: List<CropTextRow>,
+        rowTextSizes: List<Float>,
         ellipsizeLast: Boolean
     ): List<String>? {
         val source = text.replace(Regex("""\s+"""), " ").trim().ifBlank { "..." }
@@ -255,7 +244,12 @@ class CropResultRenderer @Inject constructor(
 
         for (index in rows.indices) {
             if (remaining.isBlank()) break
-            val width = rows[index].textArea.width()
+            textPaint.textSize = rowTextSizes.getOrElse(index) { MIN_CROP_ROW_TEXT_SIZE }
+            val width = if (index == rows.lastIndex) {
+                rows[index].maxTextWidth
+            } else {
+                rows[index].textArea.width()
+            }
             if (index == rows.lastIndex) {
                 if (textPaint.measureText(remaining) <= width) {
                     result[index] = remaining
@@ -276,6 +270,90 @@ class CropResultRenderer @Inject constructor(
         }
 
         return if (remaining.isBlank()) result else null
+    }
+
+    private fun explicitTranslatedRows(
+        text: String,
+        rows: List<CropTextRow>
+    ): List<String>? {
+        val lines = text.lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        if (lines.size != rows.size) return null
+        return lines
+    }
+
+    private fun layoutExplicitRow(
+        row: CropTextRow,
+        text: String
+    ): CropRowLayout {
+        val textSize = fittedExplicitRowTextSize(row, text)
+        textPaint.textSize = textSize
+        val renderedText = if (textPaint.measureText(text) <= row.maxTextWidth + 1f) {
+            text
+        } else {
+            ellipsize(text, row.maxTextWidth)
+        }
+        return CropRowLayout(
+            sourceBounds = row.sourceBounds,
+            textArea = row.textArea,
+            text = renderedText,
+            textSize = textSize,
+            lineHeight = textPaint.fontSpacing
+        )
+    }
+
+    private fun sourceSizedTextSize(row: CropTextRow): Float {
+        val sourceHeight = row.sourceBounds.height().coerceAtLeast(1).toFloat()
+        val targetSize = (sourceHeight * SOURCE_HEIGHT_TO_TEXT_SIZE)
+            .coerceIn(MIN_CROP_ROW_TEXT_SIZE, MAX_CROP_ROW_TEXT_SIZE)
+        val minimumSize = minSourceTextSize(row, targetSize)
+        var low = minimumSize
+        var high = targetSize
+        var best = minimumSize
+
+        repeat(14) {
+            val size = (low + high) / 2f
+            textPaint.textSize = size
+            if (textPaint.fontSpacing <= row.textArea.height() + 0.5f) {
+                best = size
+                low = size
+            } else {
+                high = size
+            }
+        }
+
+        return best
+    }
+
+    private fun fittedExplicitRowTextSize(row: CropTextRow, text: String): Float {
+        val maxSize = sourceSizedTextSize(row)
+        val minSize = minSourceTextSize(row, maxSize)
+        textPaint.textSize = maxSize
+        if (textPaint.measureText(text) <= row.maxTextWidth + 1f) return maxSize
+
+        var low = minSize
+        var high = maxSize
+        var best = minSize
+        repeat(14) {
+            val size = (low + high) / 2f
+            textPaint.textSize = size
+            if (textPaint.measureText(text) <= row.maxTextWidth + 1f &&
+                textPaint.fontSpacing <= row.textArea.height() + 0.5f
+            ) {
+                best = size
+                low = size
+            } else {
+                high = size
+            }
+        }
+        return best
+    }
+
+    private fun minSourceTextSize(row: CropTextRow, maxTextSize: Float): Float {
+        val sourceHeight = row.sourceBounds.height().coerceAtLeast(1).toFloat()
+        return (sourceHeight * MIN_SOURCE_HEIGHT_TO_TEXT_SIZE)
+            .coerceIn(MIN_CROP_ROW_TEXT_SIZE, maxTextSize)
     }
 
     private fun splitIndexForRow(text: String, maxCount: Int): Int {
@@ -311,6 +389,12 @@ class CropResultRenderer @Inject constructor(
             right,
             (top + desiredHeight).coerceAtMost(height - verticalInset).coerceAtLeast(top + 1f)
         )
+    }
+
+    private fun rowMaxTextWidth(textArea: RectF, width: Int): Float {
+        val horizontalInset = (width * 0.03f).coerceIn(5f, 24f)
+        val availableToEdge = width - horizontalInset - textArea.left
+        return maxOf(textArea.width(), availableToEdge).coerceAtLeast(1f)
     }
 
     private fun rowClearBox(
@@ -361,11 +445,6 @@ class CropResultRenderer @Inject constructor(
         return RectF(safeLeft, safeTop, safeRight, safeBottom)
     }
 
-    private fun medianLineHeight(bounds: List<Rect>): Float {
-        val heights = bounds.map { it.height().coerceAtLeast(1) }.sorted()
-        return heights[heights.size / 2].toFloat()
-    }
-
     private fun wrapText(text: String, maxWidth: Float): List<String> {
         return text
             .lines()
@@ -411,7 +490,8 @@ class CropResultRenderer @Inject constructor(
 
     private data class CropTextRow(
         val sourceBounds: Rect,
-        val textArea: RectF
+        val textArea: RectF,
+        val maxTextWidth: Float
     )
 
     private data class CropRowLayout(
@@ -430,6 +510,10 @@ class CropResultRenderer @Inject constructor(
     private companion object {
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private const val SHADOW_OFFSET = 2f
+        private const val SOURCE_HEIGHT_TO_TEXT_SIZE = 1.1f
+        private const val MIN_SOURCE_HEIGHT_TO_TEXT_SIZE = 0.82f
+        private const val MIN_CROP_ROW_TEXT_SIZE = 10f
+        private const val MAX_CROP_ROW_TEXT_SIZE = 72f
         private val ROW_BREAK_CHARS = setOf(
             '，', '。', '！', '？', '、', '；', '：',
             ',', '.', '!', '?', ';', ':', ' '

@@ -131,7 +131,7 @@ class PromptBuilder @Inject constructor() {
 
         private val CROP_STYLE_PROMPT = """
             - Preserve the source line order.
-            - Preserve line breaks when they separate visible rows, UI items, choices, or dialogue lines.
+            - Treat each OCR line as visible screen text; do not merge, split, drop, or add rows.
             - If the source is a partial sentence, translate only the visible part naturally; do not complete it.
             - Preserve numbers, percentages, levels, ranks, icons-as-text, and item counts.
             - If the text is dialogue, preserve tone and speaker voice naturally.
@@ -232,7 +232,7 @@ class PromptBuilder @Inject constructor() {
             needsPlayerNameRule = cleanPlayerName.isNotBlank() && combinedText.contains(cleanPlayerName),
             hasChoices = choiceTexts.isNotEmpty(),
             hasName = hasName,
-            hasRuby = forceRuby || containsRuby(combinedText),
+            hasRuby = !isCropMode && (forceRuby || containsRuby(combinedText)),
             hasPauseMarks = containsPauseMarks(combinedText),
             hasHonorifics = containsHonorifics(combinedText),
             hasKatakana = containsKatakanaWord(combinedText),
@@ -431,14 +431,22 @@ class PromptBuilder @Inject constructor() {
     ): String {
         val sb = StringBuilder()
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
+        val lines = japaneseText.lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
 
-        sb.append("Translate this cropped Fate/Grand Order screen text into $targetChinese.\n")
-        sb.append("Return only the translated visible text.\n\n")
+        sb.append("Translate each cropped Fate/Grand Order OCR line into $targetChinese.\n")
+        sb.append("Return a JSON array with exactly ${lines.size} string(s), in the same order.\n")
+        sb.append("Do not merge, split, drop, add, explain, or infer text outside the crop.\n\n")
         if (japaneseText.contains("__FGO")) {
             sb.append("Keep each full placeholder token starting with __FGO unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
         }
-        sb.append("Cropped text:\n")
-        sb.append(japaneseText)
+        sb.append("Cropped OCR lines:\n")
+        lines.forEachIndexed { index, line ->
+            sb.append("${index + 1}. ")
+            sb.append(line)
+            if (index != lines.lastIndex) sb.append('\n')
+        }
 
         FgoLogger.debug(tag, "Crop user prompt: ${sb.length} chars")
         return sb.toString()

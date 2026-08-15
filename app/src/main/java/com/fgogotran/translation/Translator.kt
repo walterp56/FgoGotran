@@ -694,7 +694,7 @@ class Translator @Inject constructor(
         }
 
         val promptPolicyKey = when {
-            cropMode -> "crop-screen-v1"
+            cropMode -> "crop-screen-v2"
             preserveRubyMeaning -> "ruby-angle-v2"
             else -> ""
         }
@@ -723,9 +723,8 @@ class Translator @Inject constructor(
 
         val matchedTerms = try {
             val allTerms = getCachedTerms()
-            val matches = filterDialogueMatchedTerms(
-                promptBuilder.extractTermMatches(normalizedText, allTerms)
-            )
+            val rawMatches = promptBuilder.extractTermMatches(normalizedText, allTerms)
+            val matches = if (cropMode) rawMatches else filterDialogueMatchedTerms(rawMatches)
             FgoLogger.debug(tag, "RAG: matched ${matches.size} of ${allTerms.size} terms")
             matches
         } catch (e: CancellationException) {
@@ -741,11 +740,11 @@ class Translator @Inject constructor(
             targetChineseLocale = config.targetChineseLocale
         )
         val promptContext = promptBuilder.buildPromptContext(
-            outputFormat = PromptOutputFormat.PLAIN_TEXT,
+            outputFormat = if (cropMode) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
             sourceText = normalizedText,
             choiceTexts = normalizedChoices,
             targetChineseLocale = config.targetChineseLocale,
-            forceRuby = preserveRubyMeaning || cropMode,
+            forceRuby = preserveRubyMeaning,
             isCropMode = cropMode,
             isDialogue = !cropMode,
             playerName = playerName
@@ -797,7 +796,7 @@ class Translator @Inject constructor(
             protectedInput
         )
         var simplifiedResult = restoredResult?.let {
-            sanitizeModelTranslation(normalizedText, it, config)
+            sanitizeModelTranslationForMode(normalizedText, it, config, cropMode)
         }.orEmpty()
         simplifiedResult = enforceMaskedTranslationPolicy(normalizedText, simplifiedResult)
         if (isMaskedSourcePreserved(normalizedText, simplifiedResult)) {
@@ -2687,6 +2686,58 @@ class Translator @Inject constructor(
         }
     }
 
+    private fun sanitizeModelTranslationForMode(
+        sourceText: String,
+        translatedText: String,
+        config: RuntimeConfig,
+        cropMode: Boolean
+    ): String {
+        if (!cropMode) return sanitizeModelTranslation(sourceText, translatedText, config)
+        val sourceLines = cropTranslationSourceLines(sourceText)
+        val translatedLines = parseCropTranslationResult(translatedText, sourceLines.size)
+        if (translatedLines == null) {
+            FgoLogger.warn(tag, "Crop response was not a matching JSON array; falling back to plain text cleanup")
+            return sanitizeModelTranslation(sourceText, translatedText, config)
+        }
+        return translatedLines.mapIndexed { index, translatedLine ->
+            sanitizeModelTranslation(sourceLines.getOrElse(index) { "" }, translatedLine, config)
+                .asSingleCropRow()
+        }.joinToString("\n")
+    }
+
+    private fun cropTranslationSourceLines(sourceText: String): List<String> {
+        return sourceText.lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf(sourceText.trim()) }
+    }
+
+    private fun parseCropTranslationResult(
+        rawResult: String,
+        expectedCount: Int
+    ): List<String>? {
+        if (expectedCount <= 0) return null
+        val trimmed = rawResult.trim()
+        val start = trimmed.indexOf('[')
+        val end = trimmed.lastIndexOf(']')
+        if (start < 0 || end <= start) return null
+
+        return runCatching {
+            val values = responseJson.parseToJsonElement(trimmed.substring(start, end + 1))
+                .jsonArray
+                .map { it.jsonPrimitive.content.trim() }
+            values.takeIf { it.size == expectedCount }
+        }.getOrNull()
+    }
+
+    private fun String.asSingleCropRow(): String {
+        return lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .ifBlank { trim() }
+    }
+
     private fun sanitizeTraditionalModelTranslation(sourceText: String, translatedText: String): String {
         val restoredText = restoreMalformedProtectedTokens(translatedText, emptyList())
         val cleaned = stripEdgeKanaLeak(cleanReturnedRubyMarkup(restoredText))
@@ -4398,10 +4449,11 @@ class Translator @Inject constructor(
             retryRaw,
             protectedInput
         ) ?: return null
-        val retrySimplified = sanitizeModelTranslation(
+        val retrySimplified = sanitizeModelTranslationForMode(
             normalizedText,
             retryRestored,
-            config
+            config,
+            cropMode
         )
         if (looksUntranslated(normalizedText, retrySimplified, playerName)) {
             logUntranslatedResult("Strict retry response", normalizedText, retrySimplified, playerName)
@@ -4421,10 +4473,16 @@ class Translator @Inject constructor(
         return buildString {
             appendLine("Repair an FGO translation that copied Japanese. Translate into $targetChinese.")
             if (cropMode) {
-                appendLine("Crop mode: translate only visible source text; preserve useful row line breaks; do not complete partial sentences.")
+                appendLine("Crop mode: translate each visible OCR row independently; do not merge, drop, add, or infer text.")
             }
             appendLine("Use $targetChinese consistently; do not mix Chinese scripts.")
-            appendLine("Return final translated text only; no source text, markdown, notes, or explanations.")
+            appendLine(
+                if (cropMode) {
+                    "Return a valid JSON array only, with exactly one translated string per input OCR row."
+                } else {
+                    "Return final translated text only; no source text, markdown, notes, or explanations."
+                }
+            )
             appendLine("Do not leave Japanese kana except fixed player name, __FGO placeholders, masks, or official stylized terms.")
             appendLine("Preserve __FGO tokens and masks such as ???, ？？？, ■, □, ▇, █ exactly; never guess hidden text.")
             appendLine("Translate Japanese address/pronoun words by tone; アテシ/アタシ/あたし are first-person pronouns.")
@@ -4450,6 +4508,20 @@ class Translator @Inject constructor(
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
+            if (cropMode) {
+                val lines = japaneseText.lines()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                appendLine("Translate each cropped OCR line below into $targetChinese.")
+                appendLine("Return a JSON array with exactly ${lines.size} string(s), in the same order.")
+                appendLine("Translate every Japanese part; preserve placeholders and masks exactly.")
+                appendLine()
+                appendLine("Cropped OCR lines:")
+                lines.forEachIndexed { index, line ->
+                    appendLine("${index + 1}. $line")
+                }
+                return@buildString
+            }
             appendLine("Translate the ${if (cropMode) "cropped visible text" else "Japanese source"} below into $targetChinese.")
             appendLine("Return only the translated text, not JSON.")
             appendLine("Translate every Japanese part; preserve placeholders and masks exactly.")
