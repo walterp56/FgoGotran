@@ -69,5 +69,6 @@ data class VoiceExpression(
     val pitchOverride: String? = null,
     val styleDegree: String? = null,
     val pauseScale: Double? = null,
-    val ssmlModeVersion: String? = null
+    val ssmlModeVersion: String? = null,
+    val voiceHintApplied: Boolean = false
 )

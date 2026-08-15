@@ -184,6 +184,8 @@ class Translator @Inject constructor(
             filterDialogueMatchedTerms(
                 promptBuilder.extractTermMatches(normalizedText, allTerms)
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FgoLogger.warn(tag, "API test RAG term lookup failed, continuing without glossary", e)
             emptyList()
@@ -390,6 +392,9 @@ class Translator @Inject constructor(
         private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
         private const val BATCH_TRANSLATION_MAX_TOKENS = 384
+        private const val SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_MAX_TOKENS = 256
+        private const val SCENE_DIALOGUE_WITH_VOICE_HINT_LONG_MAX_TOKENS = 384
+        private const val SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_CHAR_LIMIT = 120
         private const val SCENE_TRANSLATION_MAX_TOKENS = 704
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val UNTRANSLATED_FALLBACK = ""
@@ -405,12 +410,14 @@ class Translator @Inject constructor(
         private const val NAME_WITH_STATE_MAX_TRANSLATED_LENGTH = 32
         private const val COMBINED_NAME_MAX_PARTS = 4
         private const val COMBINED_NAME_MAX_TRANSLATED_LENGTH = 48
-        private const val VOICE_HINT_RESPONSE_SCHEMA =
-            """{"voice_hint":{"styles":[],"dragon_styles":[],"intensity":0.0,"rate":0,"pitch":0,"pause":0,"confidence":0.0}|null}"""
-        private const val SCENE_RESPONSE_SCHEMA =
-            """{"name":string|null,"dialogue":string|null,"choices":string[]}"""
-        private const val SCENE_WITH_VOICE_HINT_RESPONSE_SCHEMA =
-            """{"name":string|null,"dialogue":string|null,"choices":string[],"voice_hint":{"styles":[],"dragon_styles":[],"intensity":0.0,"rate":0,"pitch":0,"pause":0,"confidence":0.0}|null}"""
+        private const val VOICE_HINT_NULL_EXAMPLE =
+            """{"voice_hint":null}"""
+        private const val VOICE_HINT_ACTIVE_EXAMPLE =
+            """{"voice_hint":{"styles":["serious"],"dragon_styles":[],"intensity":0.6,"rate":-1,"pitch":-1,"pause":1,"confidence":0.8}}"""
+        private const val SCENE_RESPONSE_EXAMPLE =
+            """{"name":null,"dialogue":null,"choices":[]}"""
+        private const val SCENE_WITH_VOICE_HINT_RESPONSE_EXAMPLE =
+            """{"name":null,"dialogue":null,"choices":[],"voice_hint":null}"""
         private val VOICE_HINT_NORMAL_STYLES = listOf(
             "cheerful",
             "sad",
@@ -720,6 +727,8 @@ class Translator @Inject constructor(
             )
             FgoLogger.debug(tag, "RAG: matched ${matches.size} of ${allTerms.size} terms")
             matches
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FgoLogger.warn(tag, "RAG term lookup failed, continuing without glossary", e)
             emptyList()
@@ -767,6 +776,8 @@ class Translator @Inject constructor(
                 maxTokens = maxTokens,
                 promptKind = if (cropMode) "crop" else "single"
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FgoLogger.error(tag, "$backend API call failed: ${e.message}", e)
             recordTranslationApiFailure(config, e, "single")
@@ -917,6 +928,8 @@ class Translator @Inject constructor(
             )
             FgoLogger.debug(tag, "Batch RAG: matched ${matches.size} of ${allTerms.size} terms")
             matches
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Batch RAG term lookup failed, continuing without glossary", e)
             emptyList()
@@ -950,6 +963,8 @@ class Translator @Inject constructor(
                 promptKind = "batch"
             )
             parseBatchResult(rawResult, uncachedTexts.size)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Batch translation failed, falling back to single calls", e)
             recordTranslationApiFailure(config, e, "batch")
@@ -979,7 +994,10 @@ class Translator @Inject constructor(
                 looksUntranslated(normalizedTexts[originalIndex], maskedSafe, playerName)
             if (wasUntranslated) {
                 FgoLogger.warn(tag, "Batch item[$originalIndex] returned untranslated Japanese; retrying single strict path")
-                val retryResult = translate(japaneseTexts[originalIndex])
+                val retryResult = translate(
+                    japaneseTexts[originalIndex],
+                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS
+                )
                 if (retryResult.translatedText.isNotBlank()) {
                     results[originalIndex] = retryResult
                     continue
@@ -1252,6 +1270,8 @@ class Translator @Inject constructor(
             )
             FgoLogger.debug(tag, "Scene RAG: matched ${matches.size} of ${allTerms.size} terms")
             matches
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Scene RAG term lookup failed, continuing without glossary", e)
             emptyList()
@@ -1298,7 +1318,9 @@ class Translator @Inject constructor(
                     protectedDialogue?.text,
                     protectedChoices.map { it.text },
                     config.targetChineseLocale,
-                    requestVoiceHint
+                    requestVoiceHint,
+                    translateName = needsName,
+                    translateDialogue = needsDialogue
                 )
             )
         )
@@ -1308,15 +1330,15 @@ class Translator @Inject constructor(
             "Calling $backend API for structured scene " +
                 "(name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size}, voiceHint=$requestVoiceHint)"
         )
-        val sceneMaxTokens = if (
-            requestVoiceHint &&
-            !needsName &&
-            !needsDialogue &&
-            neededChoiceIndices.isEmpty()
-        ) {
-            VOICE_HINT_TEST_MAX_TOKENS
-        } else {
-            SCENE_TRANSLATION_MAX_TOKENS
+        val sceneMaxTokens = when {
+            requestVoiceHint && !needsName && !needsDialogue && neededChoiceIndices.isEmpty() ->
+                VOICE_HINT_TEST_MAX_TOKENS
+
+            requestVoiceHint && !needsName && needsDialogue && neededChoiceIndices.isEmpty() ->
+                dialogueWithVoiceHintMaxTokens(normalizedDialogue.orEmpty())
+
+            else ->
+                SCENE_TRANSLATION_MAX_TOKENS
         }
         val translatedScene = try {
             val rawResult = callTranslationBackend(
@@ -1326,6 +1348,8 @@ class Translator @Inject constructor(
                 promptKind = if (requestVoiceHint) "scene_with_voice_hint" else "scene"
             )
             parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size, requestVoiceHint)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Structured scene translation failed, falling back to one batch call", e)
             recordTranslationApiFailure(config, e, "scene")
@@ -3875,38 +3899,62 @@ class Translator @Inject constructor(
         val voiceHint: VoiceLineHint? = null
     )
 
+    private fun dialogueWithVoiceHintMaxTokens(dialogue: String): Int {
+        val compactLength = dialogue.count { !it.isWhitespace() }
+        return if (compactLength <= SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_CHAR_LIMIT) {
+            SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_MAX_TOKENS
+        } else {
+            SCENE_DIALOGUE_WITH_VOICE_HINT_LONG_MAX_TOKENS
+        }
+    }
+
     private fun buildSceneUserPrompt(
         name: String?,
         dialogue: String?,
         choices: List<String>,
         targetChineseLocale: String,
-        requestVoiceHint: Boolean = false
+        requestVoiceHint: Boolean,
+        translateName: Boolean,
+        translateDialogue: Boolean
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
-        val schema = if (requestVoiceHint) {
-            SCENE_WITH_VOICE_HINT_RESPONSE_SCHEMA
+        val responseKeys = if (requestVoiceHint) {
+            "name, dialogue, choices, voice_hint"
         } else {
-            SCENE_RESPONSE_SCHEMA
+            "name, dialogue, choices"
+        }
+        val emptyExample = if (requestVoiceHint) {
+            SCENE_WITH_VOICE_HINT_RESPONSE_EXAMPLE
+        } else {
+            SCENE_RESPONSE_EXAMPLE
         }
         return buildString {
-            appendLine("Localize this FGO scene to $targetChinese. Return valid JSON only.")
-            appendLine("Schema: $schema")
+            appendLine("Localize this FGO scene to $targetChinese. Return valid JSON only with exactly these keys: $responseKeys.")
+            appendLine("Empty example: $emptyExample")
+            appendLine("Field output:")
+            appendLine("- name: ${if (translateName && name != null) "translate" else "null"}")
+            appendLine("- dialogue: ${if (translateDialogue && dialogue != null) "translate" else "null"}")
+            appendLine("- choices: translate ${choices.size} string(s) in input order.")
+            if (requestVoiceHint) {
+                appendLine("- voice_hint: delivery hint for the dialogue, or null.")
+            }
             appendLine("Rules:")
             appendLine("- Follow the system prompt and official terms; use $targetChinese only.")
-            appendLine("- Return null for missing name/dialogue; choices must match input order and count.")
+            appendLine("- Return null for fields marked null; context-only input may guide voice_hint but must stay null in JSON.")
+            appendLine("- Choices must match input order and count.")
             appendLine("- Name-box: translate the full visible label; do not drop annotations, suffixes, A/B, question marks, or bracket shape.")
             appendLine("- Preserve __FGO placeholders and hidden masks exactly.")
             if (requestVoiceHint) {
                 appendLine("- voice_hint describes delivery only and must not change translation; use null when unclear.")
                 appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
                 appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
-                appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2, 0 unchanged.")
+                appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; omit unchanged values or use null.")
             }
             appendLine("- No markdown, source text, notes, lore explanations, or extra keys.")
             appendLine()
             appendLine("Scene:")
-            appendLine("name: ${name ?: "null"}")
-            appendLine("dialogue: ${dialogue ?: "null"}")
+            appendLine("name input: ${name ?: "null"}")
+            appendLine("dialogue input: ${dialogue ?: "null"}")
             appendLine("choices:")
             if (choices.isEmpty()) {
                 appendLine("[]")
@@ -3924,12 +3972,15 @@ class Translator @Inject constructor(
     ): String {
         return buildString {
             appendLine("Create an Azure TTS acting hint for this FGO line. The line may be Chinese or Japanese.")
-            appendLine("Return valid JSON only. Shape: $VOICE_HINT_RESPONSE_SCHEMA")
+            appendLine("Return valid JSON only.")
+            appendLine("Neutral/unclear example: $VOICE_HINT_NULL_EXAMPLE")
+            appendLine("Active example: $VOICE_HINT_ACTIVE_EXAMPLE")
             appendLine("Rules:")
             appendLine("- Do not translate, rewrite, or explain; use null if delivery is neutral or unclear.")
+            appendLine("- Do not copy the active example values; choose values only when the line clearly supports them.")
             appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
             appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
-            appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2, 0 unchanged.")
+            appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; omit unchanged values or use null.")
             appendLine("- Do not use old keys such as emotion, energy, delivery, attitude, or pace.")
             appendLine()
             appendLine("speaker: $speakerName")
@@ -4029,12 +4080,15 @@ class Translator @Inject constructor(
         val styles = normalStyles.distinct().take(VOICE_HINT_MAX_STYLE_CANDIDATES)
         val dragonOnlyStyles = dragonStyles.distinct().take(VOICE_HINT_MAX_STYLE_CANDIDATES)
         val intensity = hintObject.doubleOrNull("intensity")?.coerceIn(0.0, 1.0)
-        val rate = hintObject.intDeltaOrNull("rate")
-            ?: legacyVoiceHintRateDelta(hintObject)
-        val pitch = hintObject.intDeltaOrNull("pitch")
-            ?: legacyVoiceHintPitchDelta(hintObject)
-        val pause = hintObject.intDeltaOrNull("pause")
-            ?: legacyVoiceHintPauseDelta(hintObject)
+        val rate = nonZeroVoiceDelta(
+            hintObject.intDeltaOrNull("rate") ?: legacyVoiceHintRateDelta(hintObject)
+        )
+        val pitch = nonZeroVoiceDelta(
+            hintObject.intDeltaOrNull("pitch") ?: legacyVoiceHintPitchDelta(hintObject)
+        )
+        val pause = nonZeroVoiceDelta(
+            hintObject.intDeltaOrNull("pause") ?: legacyVoiceHintPauseDelta(hintObject)
+        )
         val confidence = hintObject.doubleOrNull("confidence")?.coerceIn(0.0, 1.0)
 
         if (styles.isEmpty() && dragonOnlyStyles.isEmpty() && rate == null && pitch == null && pause == null) {
@@ -4050,6 +4104,8 @@ class Translator @Inject constructor(
             confidence = confidence
         )
     }
+
+    private fun nonZeroVoiceDelta(value: Int?): Int? = value?.takeIf { it != 0 }
 
     private fun legacyVoiceHintStyles(hintObject: JsonObject): List<String> {
         val styles = mutableListOf<String>()
@@ -4295,6 +4351,8 @@ class Translator @Inject constructor(
                 maxTokens = maxTokens,
                 promptKind = if (cropMode) "strict_retry_crop" else "strict_retry"
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Strict retry API call failed: ${e.message}", e)
             return null

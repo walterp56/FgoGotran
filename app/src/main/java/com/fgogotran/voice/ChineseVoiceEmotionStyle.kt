@@ -16,10 +16,38 @@ object ChineseVoiceEmotionStyle {
 
         val normalized = text.replace(Regex("\\s+"), "")
         val voiceTuning = AzureVoiceModelTuning.forVoice(profile.voiceName)
-        val baseStyle = resolveStyle(profile, styleOverride = null)
         val trustedVoiceHint = trustedVoiceHint(voiceHint)
+        val expression = buildExpression(
+            profile = profile,
+            normalizedText = normalized,
+            voiceTuning = voiceTuning,
+            trustedVoiceHint = trustedVoiceHint,
+            baseSpeedMultiplier = baseSpeedMultiplier
+        )
+        if (trustedVoiceHint == null) return expression
+
+        val localExpression = buildExpression(
+            profile = profile,
+            normalizedText = normalized,
+            voiceTuning = voiceTuning,
+            trustedVoiceHint = null,
+            baseSpeedMultiplier = baseSpeedMultiplier
+        )
+        return expression.copy(
+            voiceHintApplied = expression.differsFrom(localExpression)
+        )
+    }
+
+    private fun buildExpression(
+        profile: VoiceProfile,
+        normalizedText: String,
+        voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
+        trustedVoiceHint: VoiceLineHint?,
+        baseSpeedMultiplier: Double
+    ): VoiceExpression {
+        val baseStyle = resolveStyle(profile, styleOverride = null)
         val hintedStyles = styleCandidatesFromVoiceHint(trustedVoiceHint, profile.voiceName)
-        val localStyle = detectStyle(normalized)
+        val localStyle = detectStyle(normalizedText)
         val detectedStyle = preferredStyleFor(
             profile = profile,
             voiceTuning = voiceTuning,
@@ -33,7 +61,7 @@ object ChineseVoiceEmotionStyle {
         val rateOverride = rateOverrideFor(
             baseRate = profile.rate,
             voiceType = profile.description,
-            text = normalized,
+            text = normalizedText,
             detectedStyle = detectedStyle,
             voiceTuning = voiceTuning,
             voiceHint = trustedVoiceHint,
@@ -65,6 +93,19 @@ object ChineseVoiceEmotionStyle {
             pauseScale = pauseScaleFor(voiceTuning.pauseScale, trustedVoiceHint),
             ssmlModeVersion = NATURAL_DIALOGUE_MODE_VERSION
         )
+    }
+
+    private fun VoiceExpression.differsFrom(localExpression: VoiceExpression): Boolean {
+        return styleOverride != localExpression.styleOverride ||
+            rateOverride != localExpression.rateOverride ||
+            pitchOverride != localExpression.pitchOverride ||
+            styleDegree != localExpression.styleDegree ||
+            !sameNullableDouble(pauseScale, localExpression.pauseScale)
+    }
+
+    private fun sameNullableDouble(left: Double?, right: Double?): Boolean {
+        if (left == null || right == null) return left == right
+        return abs(left - right) < MIN_EXPRESSION_DOUBLE_DELTA
     }
 
     fun styleFor(profile: VoiceProfile, text: String): String? {
@@ -754,6 +795,7 @@ object ChineseVoiceEmotionStyle {
     private const val SHORT_LINE_LENGTH = 28
     private const val MIN_RATE_DELTA = 0.005
     private const val MIN_PITCH_DELTA = 0.5
+    private const val MIN_EXPRESSION_DOUBLE_DELTA = 0.0001
     private const val MIN_HINTED_PAUSE_SCALE = 0.4
     private const val MAX_HINTED_PAUSE_SCALE = 1.2
     private const val MIN_HINT_CONFIDENCE = 0.55

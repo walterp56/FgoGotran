@@ -459,7 +459,7 @@ private fun voiceTestSuccessMessage(
         !apiHintsEnabled -> ""
         apiHintError != null -> "；语气增强 API 失败"
         result.voiceHintApplied -> "；语气增强 API 正常"
-        else -> "；语气增强 API 已连线但未返回语气"
+        else -> "；语气增强 API 已连线，本句未套用语气"
     }
     return "测试语音已播放$apiStatus"
 }

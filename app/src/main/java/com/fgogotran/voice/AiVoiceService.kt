@@ -252,16 +252,17 @@ class AiVoiceService @Inject constructor(
         withContext(Dispatchers.Main) {
             playbackEngine.play(audioFile, voiceVolumePercent)
         }
+        val voiceHintApplied = expression?.voiceHintApplied == true
         FgoLogger.info(
             tag,
-            "Azure voice test played speaker=$cleanSpeaker voice=${profile.voiceName} hint=${voiceHint != null}"
+            "Azure voice test played speaker=$cleanSpeaker voice=${profile.voiceName} hintApplied=$voiceHintApplied"
         )
         return AzureVoiceTestResult(
             speakerName = cleanSpeaker,
             dialogue = cleanDialogue,
             voiceName = profile.voiceName,
             profileId = profile.profileId,
-            voiceHintApplied = voiceHint != null
+            voiceHintApplied = voiceHintApplied
         )
     }
 
