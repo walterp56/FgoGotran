@@ -766,5 +766,17 @@
     "cn_term": "特里斯墨吉斯忒斯II",
     "category": "game_term",
     "aliases": ""
+  },
+  {
+    "jp_term": "マジムンアイランド",
+    "cn_term": "魔物岛",
+    "category": "place",
+    "aliases": ""
+  },
+  {
+    "jp_term": "マジムン",
+    "cn_term": "魔物",
+    "category": "game_term",
+    "aliases": ""
   }
 ]

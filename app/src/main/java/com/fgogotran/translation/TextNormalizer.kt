@@ -8,6 +8,7 @@ package com.fgogotran.translation
  */
 object TextNormalizer {
     private val rubyAnnotationPattern = Regex("(?<=.)《[^》]{1,24}》")
+    private val caldeaOcrPattern = Regex("""力ル(?=[\s　…・･、。,.!?！？ー─—―]*デア)""")
 
     fun normalizeForTranslation(text: String): String {
         return text
@@ -18,6 +19,7 @@ object TextNormalizer {
             .filter { it.isNotEmpty() }
             .joinToString("\n")
             .replace(Regex("[ \\t]+"), " ")
+            .replace(caldeaOcrPattern, "カル")
             .trim()
     }
 

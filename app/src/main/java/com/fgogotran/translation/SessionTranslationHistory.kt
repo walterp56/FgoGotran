@@ -61,6 +61,34 @@ object SessionTranslationHistory {
         _entries.value = emptyList()
     }
 
+    fun lastSceneDialogueContexts(
+        limit: Int = 2,
+        excludeDialogueSourceKey: String = ""
+    ): List<SceneDialogueContext> {
+        val excludeKey = excludeDialogueSourceKey.normalizeHistoryText()
+        return _entries.value
+            .asReversed()
+            .asSequence()
+            .filter { entry ->
+                val dialogue = entry.dialogueText?.trim()
+                dialogue != null && dialogue.isNotBlank() && !dialogue.isHistoryErrorText()
+            }
+            .filter { entry ->
+                excludeKey.isBlank() || entry.normalizedDialogueSourceKey() != excludeKey
+            }
+            .take(limit)
+            .map { entry ->
+                SceneDialogueContext(
+                    speakerName = entry.speakerName?.trim()?.takeIf { it.isNotBlank() },
+                    translatedDialogue = entry.dialogueText!!.trim(),
+                    targetLocale = SettingsRepository.normalizeTargetChineseLocale(entry.targetLocale),
+                    dialogueSourceKey = entry.normalizedDialogueSourceKey()
+                )
+            }
+            .toList()
+            .asReversed()
+    }
+
     private fun SessionTranslationEntry.contentKey(): String {
         return listOf(
             speakerName.orEmpty(),
@@ -136,5 +164,14 @@ object SessionTranslationHistory {
         )
             .joinToString("\n")
             .normalizeHistoryText()
+    }
+
+    private fun String.isHistoryErrorText(): Boolean {
+        val text = trim()
+        return text.startsWith("[未配置 API Key]") ||
+            text.startsWith("[翻译失败") ||
+            text.startsWith("[翻譯失敗") ||
+            text == "翻译失败" ||
+            text == "翻譯失敗"
     }
 }

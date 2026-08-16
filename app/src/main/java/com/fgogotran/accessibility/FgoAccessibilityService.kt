@@ -2137,8 +2137,16 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun translateSceneSource(sceneSource: SceneSource): SceneTranslateResult {
+        val previousDialogueContexts = if (isJapaneseServer()) {
+            SessionTranslationHistory.lastSceneDialogueContexts(
+                excludeDialogueSourceKey = sceneSource.historyDialogueSourceKey()
+            )
+        } else {
+            emptyList()
+        }
         val input = sceneSource.input.copy(
-            requestVoiceHint = shouldRequestVoiceHint(sceneSource)
+            requestVoiceHint = shouldRequestVoiceHint(sceneSource),
+            previousDialogueContexts = previousDialogueContexts
         )
         return withContext(Dispatchers.IO) {
             translator.translateScene(input)

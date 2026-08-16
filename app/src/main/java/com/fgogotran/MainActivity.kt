@@ -11,7 +11,6 @@ import androidx.lifecycle.lifecycleScope
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
-import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AutoAppUpdateDialog
 import com.fgogotran.ui.component.openAppDownloadPage
@@ -27,7 +26,6 @@ import com.fgogotran.update.AppVersionCheckResult
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.voice.AiVoiceService
-import com.fgogotran.voice.VoiceDataUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -49,8 +47,6 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
-    @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
-    @Inject lateinit var voiceDataUpdateManager: VoiceDataUpdateManager
     @Inject lateinit var appVersionManager: AppVersionManager
     @Inject lateinit var translator: Translator
     @Inject lateinit var appAnalytics: AppAnalytics
@@ -66,12 +62,6 @@ class MainActivity : ComponentActivity() {
         }
         FgoLogger.info("MainActivity", "MainActivity created")
         enableEdgeToEdge()
-        lifecycleScope.launch(Dispatchers.IO) {
-            glossaryUpdateManager.updateIfNeeded()
-        }
-        lifecycleScope.launch(Dispatchers.IO) {
-            voiceDataUpdateManager.updateIfNeeded()
-        }
         lifecycleScope.launch(Dispatchers.IO) {
             appAnalytics.reportAppUsed()
             appAnalytics.reportCurrentBackendType()
