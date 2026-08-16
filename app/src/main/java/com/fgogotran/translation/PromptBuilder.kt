@@ -58,7 +58,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v52"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v53"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -182,6 +182,7 @@ class PromptBuilder @Inject constructor() {
         private val KATAKANA_STYLE_PROMPT = """
             - Katakana common English-style words may stay compact English when natural.
             - Do not apply this to names, organizations, classes, Noble Phantasms, skills, or supplied official terms.
+            - Translate or Chinese-transliterate unprotected kana yokai names, nicknames, and attack-like terms; do not leave them as kana.
             """.trimIndent()
 
         private val SPECIAL_FIRST_PERSON_PROMPT = """

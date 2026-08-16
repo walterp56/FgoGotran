@@ -395,7 +395,7 @@ private fun serverFeatureLabel(selectedLabel: String): String {
     val server = gameServerOptions.firstOrNull { it.second == selectedLabel }?.first
         ?: SettingsRepository.DEFAULT_GAME_SERVER
     return if (SettingsRepository.normalizeGameServer(server) == SettingsRepository.GAME_SERVER_JP) {
-        "翻译 + 语音"
+        "翻译 + 朗读"
     } else {
         "语音"
     }
@@ -618,7 +618,7 @@ private fun showAccessibilityDisclosure(context: Context) {
             FgoGotran 不是无障碍辅助工具。开启后，它只用于 FGO 翻译功能：
 
             • 检测 FGO 窗口变化和点击，用于判断何时刷新剧情翻译
-            • 在您启动服务后截取当前 FGO 画面，用 OCR 识别日文剧情文字
+            • 在您启动服务后截取当前 FGO 画面，用 OCR 识别剧情文字
             • 在 FGO 上方显示翻译覆盖层
             • 当您点击翻译覆盖层时，将该点击转发给 FGO
 

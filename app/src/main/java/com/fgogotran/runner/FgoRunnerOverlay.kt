@@ -78,6 +78,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
     private var buttonSizeDp by mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
     private var gameServer by mutableStateOf(SettingsRepository.DEFAULT_GAME_SERVER)
+    private var aiVoiceEnabled by mutableStateOf(false)
     private var showButtonFailureRing by mutableStateOf(false)
     private var failureFeedbackVersion = 0
     private var buttonPositionScreen: ButtonScreen? = null
@@ -85,6 +86,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var savePositionJob: Job? = null
     private var buttonSizeJob: Job? = null
     private var gameServerJob: Job? = null
+    private var aiVoiceEnabledJob: Job? = null
     private var showRequestVersion = 0
     private var callbacksRegistered = false
 
@@ -174,6 +176,7 @@ class FgoRunnerOverlay @Inject constructor(
                 restoreLastTranslationMode()
                 buttonSizeDp = settingsRepository.getFloatingButtonSizeDp()
                 gameServer = settingsRepository.getGameServer()
+                aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
                 if (!shown || requestVersion != showRequestVersion) return@launch
 
                 val wm = windowManager
@@ -200,6 +203,7 @@ class FgoRunnerOverlay @Inject constructor(
                 wm.addView(composeHost!!.view, btnLayoutParams)
                 startButtonSizeObserver()
                 startGameServerObserver()
+                startAiVoiceEnabledObserver()
                 FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
             } catch (e: Exception) {
                 composeHost?.close()
@@ -237,6 +241,8 @@ class FgoRunnerOverlay @Inject constructor(
         buttonSizeJob = null
         gameServerJob?.cancel()
         gameServerJob = null
+        aiVoiceEnabledJob?.cancel()
+        aiVoiceEnabledJob = null
         saveButtonPositionNow()
         val wm = windowManager
         cancelCropMode()
@@ -451,6 +457,16 @@ class FgoRunnerOverlay @Inject constructor(
         }
     }
 
+    private fun startAiVoiceEnabledObserver() {
+        aiVoiceEnabledJob?.cancel()
+        aiVoiceEnabledJob = overlayScope.launch {
+            settingsRepository.aiVoiceEnabled.collect { enabled ->
+                if (enabled == aiVoiceEnabled) return@collect
+                aiVoiceEnabled = enabled
+            }
+        }
+    }
+
     private fun saveButtonPositionSoon() {
         val x = btnX
         val y = btnY
@@ -539,6 +555,7 @@ class FgoRunnerOverlay @Inject constructor(
                 translationMode = TranslationTrigger.translationMode(),
                 viewportScale = currentViewportScale(),
                 gameServer = gameServer,
+                aiVoiceEnabled = aiVoiceEnabled,
                 onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {

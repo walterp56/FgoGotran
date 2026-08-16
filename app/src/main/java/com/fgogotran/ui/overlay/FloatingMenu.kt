@@ -35,6 +35,7 @@ fun FloatingMenu(
     translationMode: TranslationMode,
     viewportScale: Float = 1f,
     gameServer: String,
+    aiVoiceEnabled: Boolean,
     onTranslationModeChange: (TranslationMode) -> Unit,
     onCropTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
@@ -43,6 +44,11 @@ fun FloatingMenu(
     val density = LocalDensity.current
     val isJapaneseServer =
         SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
+    val modeLabel = floatingMenuModeLabel(
+        isJapaneseServer = isJapaneseServer,
+        aiVoiceEnabled = aiVoiceEnabled
+    )
+    val serverLabel = SettingsRepository.gameServerDisplayName(gameServer)
     Column(
         modifier = Modifier
             .width(scaledMenuDp(230f, viewportScale, density))
@@ -67,7 +73,8 @@ fun FloatingMenu(
         TranslationModeSelector(
             selectedMode = translationMode,
             viewportScale = viewportScale,
-            label = if (isJapaneseServer) "翻译模式" else "朗读模式",
+            label = modeLabel,
+            value = serverLabel,
             onModeChange = onTranslationModeChange
         )
 
@@ -143,21 +150,36 @@ private fun TranslationModeSelector(
     selectedMode: TranslationMode,
     viewportScale: Float,
     label: String,
+    value: String,
     onModeChange: (TranslationMode) -> Unit
 ) {
     val density = LocalDensity.current
-    Text(
-        text = label,
-        fontSize = scaledMenuSp(12f, viewportScale, density),
-        fontWeight = FontWeight.Bold,
-        color = Color(0xFF777777),
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
                 horizontal = scaledMenuDp(20f, viewportScale, density),
                 vertical = scaledMenuDp(8f, viewportScale, density)
-            )
-    )
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontSize = scaledMenuSp(12f, viewportScale, density),
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF777777),
+            maxLines = 1,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            fontSize = scaledMenuSp(12f, viewportScale, density),
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF777777),
+            textAlign = TextAlign.End,
+            maxLines = 1
+        )
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -227,6 +249,16 @@ private fun TranslationMode.label(): String = when (this) {
     TranslationMode.MANUAL -> "手动"
     TranslationMode.SEMI_AUTO -> "半自动"
     TranslationMode.AUTO -> "全自动"
+}
+
+private fun floatingMenuModeLabel(
+    isJapaneseServer: Boolean,
+    aiVoiceEnabled: Boolean
+): String = when {
+    isJapaneseServer && aiVoiceEnabled -> "翻译 + 朗读模式"
+    isJapaneseServer -> "翻译模式"
+    aiVoiceEnabled -> "朗读模式"
+    else -> "朗读模式（未开启）"
 }
 
 @Composable

@@ -375,6 +375,20 @@ class Translator @Inject constructor(
         val stateText: String
     )
 
+    private enum class TranslationSafetyStatus {
+        OK,
+        PARTIAL_KANA_LEAK,
+        UNTRANSLATED
+    }
+
+    private data class TranslationSafetyResult(
+        val status: TranslationSafetyStatus,
+        val kanaTokens: List<String> = emptyList(),
+        val kanaCount: Int = 0,
+        val cjkCount: Int = 0,
+        val meaningfulCount: Int = 0
+    )
+
     companion object {
         private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
@@ -404,6 +418,10 @@ class Translator @Inject constructor(
         private const val MAX_STRICT_RETRY_TERMS = 10
         private const val LOG_SAMPLE_MAX_CHARS = 120
         private const val API_RESPONSE_LOG_SAMPLE_MAX_CHARS = 500
+        private const val PARTIAL_KANA_MIN_CJK_CHARS = 6
+        private const val PARTIAL_KANA_MAX_KANA_CHARS = 14
+        private const val PARTIAL_KANA_MAX_PERCENT = 35
+        private const val SOURCE_COPY_MIN_CHARS = 12
         private const val PLAYER_NAME_OCR_MIN_LOOKUP_LENGTH = 4
         private const val PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH = 16
         private const val NAME_STATE_MAX_SOURCE_LENGTH = 24
@@ -2502,19 +2520,106 @@ class Translator @Inject constructor(
         translatedText: String,
         playerName: String = ""
     ): Boolean {
+        val safety = classifyTranslationSafety(sourceText, translatedText, playerName)
+        if (safety.status == TranslationSafetyStatus.PARTIAL_KANA_LEAK) {
+            FgoLogger.warn(
+                tag,
+                "Partial kana leak allowed: tokens=${safety.kanaTokens.joinToString(",").ifBlank { "(none)" }}, " +
+                    "kana=${safety.kanaCount}, cjk=${safety.cjkCount}, chars=${safety.meaningfulCount}"
+            )
+        }
+        return safety.status == TranslationSafetyStatus.UNTRANSLATED
+    }
+
+    private fun classifyTranslationSafety(
+        sourceText: String,
+        translatedText: String,
+        playerName: String = ""
+    ): TranslationSafetyResult {
         val source = TextNormalizer.normalizeForTranslation(sourceText)
         val translated = TextNormalizer.normalizeForTranslation(translatedText)
-        if (source.isBlank() || translated.isBlank()) return false
-        if (hasLeakedStandaloneAddressWord(source, translated, playerName)) return true
+        if (source.isBlank() || translated.isBlank()) return TranslationSafetyResult(TranslationSafetyStatus.OK)
+        if (hasLeakedStandaloneAddressWord(source, translated, playerName)) {
+            return TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
+        }
         val allowedFragments = allowedJapaneseFragments(source, translated, playerName)
         val sourceForCheck = removeAllowedJapaneseFragments(source, allowedFragments)
         val translatedForCheck = removeAllowedJapaneseFragments(translated, allowedFragments)
-        if (sourceForCheck.isBlank() && translatedForCheck.isBlank()) return false
-        if (sourceForCheck == translatedForCheck && sourceForCheck.any(::isJapaneseKana)) return true
+        if (sourceForCheck.isBlank() && translatedForCheck.isBlank()) {
+            return TranslationSafetyResult(TranslationSafetyStatus.OK)
+        }
+        if (sourceForCheck == translatedForCheck && sourceForCheck.any(::isJapaneseKana)) {
+            return TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
+        }
         val kanaCount = translatedForCheck.count(::isJapaneseKana)
-        if (kanaCount > 0) return true
+        if (kanaCount > 0) {
+            return classifyKanaLeak(sourceForCheck, translatedForCheck, kanaCount)
+        }
         val sourceKanaCount = sourceForCheck.count(::isJapaneseKana)
-        return sourceKanaCount >= 2 && translatedForCheck.contains(sourceForCheck)
+        return if (sourceKanaCount >= 2 && translatedForCheck.contains(sourceForCheck)) {
+            TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
+        } else {
+            TranslationSafetyResult(TranslationSafetyStatus.OK)
+        }
+    }
+
+    private fun classifyKanaLeak(
+        sourceText: String,
+        translatedText: String,
+        kanaCount: Int
+    ): TranslationSafetyResult {
+        val kanaTokens = japaneseKanaTokens(translatedText)
+        val cjkCount = translatedText.count(::isCjkIdeograph)
+        val meaningfulCount = translatedText.count { it.isLetterOrDigit() || isCjkIdeograph(it) || isJapaneseKana(it) }
+        val copiedSource = compactForCopyCheck(sourceText)
+            .takeIf { it.length >= SOURCE_COPY_MIN_CHARS }
+            ?.let { compactSource -> compactForCopyCheck(translatedText).contains(compactSource) }
+            ?: false
+        val partialLeakAllowed = !copiedSource &&
+            cjkCount >= PARTIAL_KANA_MIN_CJK_CHARS &&
+            kanaCount <= PARTIAL_KANA_MAX_KANA_CHARS &&
+            meaningfulCount > 0 &&
+            kanaCount * 100 <= meaningfulCount * PARTIAL_KANA_MAX_PERCENT
+        return TranslationSafetyResult(
+            status = if (partialLeakAllowed) {
+                TranslationSafetyStatus.PARTIAL_KANA_LEAK
+            } else {
+                TranslationSafetyStatus.UNTRANSLATED
+            },
+            kanaTokens = kanaTokens,
+            kanaCount = kanaCount,
+            cjkCount = cjkCount,
+            meaningfulCount = meaningfulCount
+        )
+    }
+
+    private fun compactForCopyCheck(text: String): String {
+        return TextNormalizer.normalizeForTranslation(text)
+            .filterNot { it.isWhitespace() || it.isNameLookupPunctuation() }
+    }
+
+    private fun japaneseKanaTokens(text: String): List<String> {
+        val tokens = mutableListOf<String>()
+        val current = StringBuilder()
+        fun flush() {
+            if (current.isNotEmpty()) {
+                tokens += current.toString()
+                current.clear()
+            }
+        }
+        for (char in text) {
+            if (isJapaneseKana(char)) {
+                current.append(char)
+            } else {
+                flush()
+            }
+        }
+        flush()
+        return tokens.distinct().take(6)
+    }
+
+    private fun isCjkIdeograph(char: Char): Boolean {
+        return char in '\u3400'..'\u9FFF' || char in '\uF900'..'\uFAFF'
     }
 
     private fun hasLeakedStandaloneAddressWord(
@@ -4484,6 +4589,7 @@ class Translator @Inject constructor(
                 }
             )
             appendLine("Do not leave Japanese kana except fixed player name, __FGO placeholders, masks, or official stylized terms.")
+            appendLine("Translate or Chinese-transliterate unprotected kana yokai names, nicknames, and attack-like terms; do not keep them as kana.")
             appendLine("Preserve __FGO tokens and masks such as ???, ？？？, ■, □, ▇, █ exactly; never guess hidden text.")
             appendLine("Translate Japanese address/pronoun words by tone; アテシ/アタシ/あたし are first-person pronouns.")
             appendLine("Keep FGO wording natural, compact, and suitable for an in-game overlay.")
