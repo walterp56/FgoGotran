@@ -58,7 +58,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v53"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v56"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -112,10 +112,6 @@ class PromptBuilder @Inject constructor() {
             - Player name: "{player_name}". Keep it exactly if it appears.
             """.trimIndent()
 
-        private val OFFICIAL_TERMS_PROMPT = """
-            - Use supplied official terminology exactly; it overrides your knowledge and natural alternatives.
-            """.trimIndent()
-
         private val DIALOGUE_STYLE_PROMPT = """
             - Preserve speaker voice and relationship: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful.
             - Preserve ambiguity when natural; add pronouns only when the source clearly identifies the referent. Use 他 unless a female referent is clear.
@@ -156,10 +152,10 @@ class PromptBuilder @Inject constructor() {
 
         private val RUBY_PROMPT = """
             - Source may contain ruby/furigana in base《ruby》 form.
-            - Omit pronunciation-only ruby.
-            - If ruby adds alias, joke, hidden meaning, English reading, or intended wording, translate the base naturally and keep the extra ruby meaning in Chinese base《ruby meaning》 form.
+            - Always render every visible ruby pair in Chinese base《ruby》 form; do not omit ruby even when it is pronunciation-only, similar, or the same meaning.
+            - Translate the base naturally and translate/render the ruby text inside 《》.
             - Compact English is allowed inside 《》 when the ruby itself is English-style and it reads naturally in Chinese.
-            - Do not use parentheses for ruby meaning; use 《》 only when both base and ruby meanings matter.
+            - Do not use parentheses for ruby; use 《》 for every returned ruby pair.
             """.trimIndent()
 
         private val PAUSE_PROMPT = """
@@ -181,7 +177,7 @@ class PromptBuilder @Inject constructor() {
 
         private val KATAKANA_STYLE_PROMPT = """
             - Katakana common English-style words may stay compact English when natural.
-            - Do not apply this to names, organizations, classes, Noble Phantasms, skills, or supplied official terms.
+            - Do not apply this to names, organizations, classes, Noble Phantasms, skills, or protected placeholders.
             - Translate or Chinese-transliterate unprotected kana yokai names, nicknames, and attack-like terms; do not leave them as kana.
             """.trimIndent()
 
@@ -245,14 +241,12 @@ class PromptBuilder @Inject constructor() {
     }
 
     /**
-     * Builds the system prompt with injected RAG terminology and player name.
+     * Builds the system prompt for source text that has already had locked RAG terms protected.
      *
-     * @param matchedTerms FGO terms found in the current dialogue (from [extractTermMatches])
      * @param playerName the user's FGO Master name for personalization
      * @return complete system prompt string ready to send to the LLM
      */
     fun buildSystemPrompt(
-        matchedTerms: List<TermEntity>,
         playerName: String,
         context: PromptContext = PromptContext()
     ): String {
@@ -274,8 +268,7 @@ class PromptBuilder @Inject constructor() {
             outputBlockName(context.outputFormat),
             outputPromptBlock(context.outputFormat)
         )
-        val needsPlaceholderRule = context.hasPlaceholders || matchedTerms.isNotEmpty()
-        if (needsPlaceholderRule) {
+        if (context.hasPlaceholders) {
             appendPromptBlock(sb, blockNames, "placeholder", PLACEHOLDER_PROMPT)
         }
         if (context.hasMasks) {
@@ -288,9 +281,6 @@ class PromptBuilder @Inject constructor() {
                 "player_name",
                 PLAYER_NAME_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
             )
-        }
-        if (matchedTerms.isNotEmpty()) {
-            appendPromptBlock(sb, blockNames, "official_terms", OFFICIAL_TERMS_PROMPT)
         }
         if (context.isCropMode) {
             appendPromptBlock(sb, blockNames, "crop_style", CROP_STYLE_PROMPT)
@@ -314,14 +304,11 @@ class PromptBuilder @Inject constructor() {
         featurePromptBlocks(context).forEach { (name, block) ->
             appendPromptBlock(sb, blockNames, name, applyTargetChinese(block, targetChinese))
         }
-        if (appendMatchedTerminology(sb, matchedTerms)) {
-            blockNames += "terminology_table"
-        }
         FgoLogger.debug(
             tag,
             "System prompt combination: format=${context.outputFormat.logName}, " +
                 "target=${context.targetChineseLocale}, blocks=${blockNames.joinToString("+")}, " +
-                "rag=${matchedTerms.size}, chars=${sb.length}"
+                "chars=${sb.length}"
         )
         return sb.toString()
     }
@@ -377,16 +364,6 @@ class PromptBuilder @Inject constructor() {
             if (context.hasSpecialFirstPerson) add("special_first_person" to SPECIAL_FIRST_PERSON_PROMPT)
             if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
         }
-    }
-
-    private fun appendMatchedTerminology(sb: StringBuilder, matchedTerms: List<TermEntity>): Boolean {
-        if (matchedTerms.isEmpty()) return false
-
-        sb.append("\n\nTerms:\n")
-        for (term in matchedTerms) {
-            sb.append("${term.jpTerm} -> ${term.cnTerm}\n")
-        }
-        return true
     }
 
     /**

@@ -141,6 +141,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var aiVoiceChoiceTextEnabled = SettingsRepository.DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED
     private var aiVoiceMasterVoice = SettingsRepository.DEFAULT_AI_VOICE_MASTER_VOICE
     private var lastScreenshotErrorCode = 0
+    private val unsupportedFgoLikePackageLoggedAt = LinkedHashMap<String, Long>()
 
     companion object {
         const val FGO_PACKAGE = "com.aniplex.fategrandorder"
@@ -168,6 +169,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val SEMI_AUTO_SCREENSHOT_FAIL_BASE_COOLDOWN = 250L
         private const val SEMI_AUTO_SCREENSHOT_FAIL_MAX_COOLDOWN = 1_000L
         private const val FRESHNESS_CHECK_TRANSLATION_DELAY = 800L
+        private const val UNSUPPORTED_FGO_PACKAGE_LOG_COOLDOWN_MS = 10L * 60L * 1000L
         private const val VISUAL_FINGERPRINT_STEP = 3
         private const val VISUAL_FINGERPRINT_MAX_DIFF_RATIO = 0.035f
         private const val AUTO_FAILED_TRANSLATION_RETRY_COOLDOWN = 5_000L
@@ -257,8 +259,10 @@ class FgoAccessibilityService : AccessibilityService() {
         FGO_PACKAGE,
         "com.aniplex.fategrandorder.en",
         "com.bilibili.fatego",
+        "com.bilibili.fategp",
         "com.bilibili.fatego.sharejoy",
         "com.bilibili.fgo.mi",
+        "com.bilibili.fgo.uc",
         "com.xiaomeng.fategrandorder",
         "com.komoe.fgo"
     )
@@ -487,6 +491,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
             }
             else -> {
+                recordUnsupportedFgoLikePackage(packageName, event)
                 when {
                     isFgoForeground && packageName.isNonBlockingOverlayPackage() -> {
                         cancelTransientForegroundLoss()
@@ -4240,6 +4245,69 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun String.isSupportedFgoPackage(): Boolean {
         return this in supportedFgoPackageNames || supportedFgoPackagePrefixes.any { startsWith(it) }
+    }
+
+    private fun String.isUnsupportedFgoLikePackage(): Boolean {
+        if (isSupportedFgoPackage()) return false
+        val value = lowercase()
+        return value.contains("fatego") ||
+                value.contains("fategp") ||
+                value.contains("fategrandorder") ||
+                value.startsWith("com.aniplex.fate") ||
+                value.startsWith("com.bilibili.fate") ||
+                value.startsWith("com.bilibili.fgo") ||
+                value.startsWith("com.komoe.fgo") ||
+                value.startsWith("com.xiaomeng.fate")
+    }
+
+    private fun recordUnsupportedFgoLikePackage(packageName: String, event: AccessibilityEvent) {
+        if (!packageName.isUnsupportedFgoLikePackage()) return
+        val now = SystemClock.elapsedRealtime()
+        val previousAt = unsupportedFgoLikePackageLoggedAt[packageName] ?: 0L
+        if (now - previousAt < UNSUPPORTED_FGO_PACKAGE_LOG_COOLDOWN_MS) return
+        unsupportedFgoLikePackageLoggedAt[packageName] = now
+        pruneUnsupportedFgoLikePackageLogTimes(now)
+
+        val className = event.className?.toString().orEmpty()
+        val appLabel = packageLabelForDiagnostic(packageName)
+        val detail = buildString {
+            append("package=")
+            append(packageName)
+            if (className.isNotBlank()) {
+                append(", class=")
+                append(className)
+            }
+            if (appLabel.isNotBlank()) {
+                append(", label=")
+                append(appLabel)
+            }
+        }
+        FgoLogger.warn(tag, "Unsupported FGO-like package detected: $detail")
+        diagnosticEventStore.record(
+            level = DiagnosticEventStore.LEVEL_WARNING,
+            category = DiagnosticEventStore.CATEGORY_SETUP,
+            eventId = "unsupported_fgo_package",
+            title = "未支持的 FGO 包名",
+            message = "检测到疑似 FGO，但包名不在支持列表中",
+            server = SettingsRepository.normalizeGameServer(gameServer),
+            detail = detail
+        )
+    }
+
+    private fun pruneUnsupportedFgoLikePackageLogTimes(now: Long) {
+        val iterator = unsupportedFgoLikePackageLoggedAt.entries.iterator()
+        while (iterator.hasNext()) {
+            if (now - iterator.next().value > UNSUPPORTED_FGO_PACKAGE_LOG_COOLDOWN_MS) {
+                iterator.remove()
+            }
+        }
+    }
+
+    private fun packageLabelForDiagnostic(packageName: String): String {
+        return runCatching {
+            val appInfo = packageManager.getApplicationInfo(packageName, 0)
+            packageManager.getApplicationLabel(appInfo).toString()
+        }.getOrDefault("")
     }
 
     private fun String.isTransientSystemUiPackage(): Boolean {

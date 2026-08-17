@@ -27,6 +27,10 @@ object TextNormalizer {
         return normalizeForTranslation(text).replace(rubyAnnotationPattern, "")
     }
 
+    fun hasRubyAnnotations(text: String): Boolean {
+        return rubyAnnotationPattern.containsMatchIn(normalizeForTranslation(text))
+    }
+
     fun hasTranslatableContent(text: String): Boolean {
         return normalizeForTranslation(text).any { it.isLetterOrDigit() }
     }

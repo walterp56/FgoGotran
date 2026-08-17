@@ -26,6 +26,7 @@ data class SessionTranslationEntry(
  */
 object SessionTranslationHistory {
     private const val TAG = "SessionHistory"
+    internal const val DEFAULT_SCENE_DIALOGUE_CONTEXT_LIMIT = 2
 
     private val _entries = MutableStateFlow<List<SessionTranslationEntry>>(emptyList())
     val entries: StateFlow<List<SessionTranslationEntry>> = _entries.asStateFlow()
@@ -62,7 +63,7 @@ object SessionTranslationHistory {
     }
 
     fun lastSceneDialogueContexts(
-        limit: Int = 2,
+        limit: Int = DEFAULT_SCENE_DIALOGUE_CONTEXT_LIMIT,
         excludeDialogueSourceKey: String = ""
     ): List<SceneDialogueContext> {
         val excludeKey = excludeDialogueSourceKey.normalizeHistoryText()

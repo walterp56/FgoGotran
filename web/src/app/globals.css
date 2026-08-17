@@ -1551,6 +1551,62 @@ dd {
   object-fit: contain;
 }
 
+.trouble-guide-shell .docs-article {
+  max-width: 980px;
+}
+
+.trouble-symptom-grid {
+  align-items: start;
+}
+
+.trouble-card {
+  scroll-margin-top: 96px;
+}
+
+.trouble-card-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.trouble-card-title svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--brand);
+}
+
+.trouble-card .guide-label {
+  margin-top: 16px;
+}
+
+.trouble-check-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.trouble-check-list li + li {
+  margin-top: 6px;
+}
+
+.trouble-emulator-checks {
+  margin-bottom: 26px;
+}
+
+.trouble-feedback-template {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfcfe;
+  color: var(--brand-strong);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
 .text-link.inline {
   display: inline-flex;
 }
