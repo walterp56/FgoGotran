@@ -28,7 +28,7 @@ const downloadOptions = [
   }
 ];
 
-const currentAppVersion = "v2.1.0";
+const currentAppVersion = "v2.2.0";
 
 export default function DownloadPage() {
   return (

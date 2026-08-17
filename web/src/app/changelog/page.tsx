@@ -8,6 +8,12 @@ export const metadata: Metadata = {
 
 const changelog = [
   {
+    title: "v2.2.0",
+    date: "18-8-2026",
+    icon: Smartphone,
+    items: ["优化 AI 翻译提示词结构，降低 API 用量与响应时间","修复小写假名导致的翻译失败","改进裁剪模式逻辑","更新悬浮菜单 UI","翻译上下文新增最近 2 条场景对话，提升代词与语气判断","修复 API 请求中术语与角色名锁定问题","修复模拟器悬浮窗崩溃问题","截图增加超时保护，避免模拟器卡死","更新 UI"]
+  },
+  {
     title: "v2.1.0",
     date: "15-8-2026",
     icon: Smartphone,
