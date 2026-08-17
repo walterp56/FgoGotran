@@ -713,7 +713,15 @@ class FgoRunnerOverlay @Inject constructor(
         historyHost = FakeComposeHost(context) {
             HistoryOverlayPanel(onDismiss = { dismissHistoryPanel() })
         }
-        wm.addView(historyHost!!.view, historyLayoutParams)
+        try {
+            wm.addView(historyHost!!.view, historyLayoutParams)
+        } catch (e: Exception) {
+            historyHost?.close()
+            historyHost = null
+            TranslationTrigger.setHistoryVisible(false)
+            FgoLogger.warn(tag, "Failed to show history panel", e)
+            return
+        }
         FgoLogger.info(tag, "History panel shown")
     }
 

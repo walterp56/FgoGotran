@@ -57,7 +57,13 @@ class CropSelectionOverlay @Inject constructor(
         selectionView = CropSelectionView(context).apply {
             setScreenSize(bounds.width(), bounds.height())
         }
-        wm.addView(selectionView, layoutParams)
+        try {
+            wm.addView(selectionView, layoutParams)
+        } catch (e: Exception) {
+            selectionView = null
+            FgoLogger.warn(tag, "Failed to show crop selector", e)
+            return
+        }
         FgoLogger.info(tag, "Crop selector shown")
     }
 

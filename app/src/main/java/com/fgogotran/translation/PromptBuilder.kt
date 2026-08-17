@@ -58,7 +58,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v56"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v59"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -78,14 +78,14 @@ class PromptBuilder @Inject constructor() {
          */
         private val BASE_TRANSLATION_PROMPT = """
             You localize Fate/Grand Order Japanese text into natural, compact {target_chinese} for an in-game overlay.
-            Translate meaning and tone. Use {target_chinese} consistently; do not mix Chinese scripts.
-            Do not leave Japanese kana unless a rule says to preserve it.
+            Translate meaning and tone. Use only {target_chinese}; do not mix Chinese scripts.
+            Do not leave Japanese kana unless a rule allows it.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """
             You translate visible Japanese text from a user-selected Fate/Grand Order screen crop into natural, compact {target_chinese}.
-            Translate only the visible source text. Do not infer missing text outside the crop.
-            Use {target_chinese} consistently; do not mix Chinese scripts.
+            Translate only visible source text; do not infer text outside the crop.
+            Use only {target_chinese}; do not mix Chinese scripts.
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT = """
@@ -126,13 +126,11 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val CROP_STYLE_PROMPT = """
-            - Preserve the source line order.
-            - Treat each OCR line as visible screen text; do not merge, split, drop, or add rows.
-            - If the source is a partial sentence, translate only the visible part naturally; do not complete it.
+            - Keep OCR line order; translate only visible text.
+            - Do not merge, split, drop, add, or complete partial text.
             - Preserve numbers, percentages, levels, ranks, icons-as-text, and item counts.
-            - If the text is dialogue, preserve tone and speaker voice naturally.
-            - If the text is UI, profile, skill, item, mission, or battle text, translate concisely like game UI text.
-            - Do not add speaker names, labels, or missing context that is not visible in the crop.
+            - Dialogue -> keep tone/voice. UI/profile/skill/item/mission/battle -> concise game-UI style.
+            - Add no speaker names, labels, or missing context.
             """.trimIndent()
 
         private val VOICE_HINT_PROMPT = """
@@ -144,18 +142,16 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val NAME_PROMPT = """
-            - Unknown names and proper nouns must be natural Chinese transliterations, not descriptions or another known character.
-            - If a name is not in the glossary, transliterate it as a concise {target_chinese} Fate/Grand Order/TYPE-MOON-style name.
-            - For speaker name-box text, every visible part belongs to the rendered name. Preserve and translate visible annotations such as base《role》, base（state）, titles, suffixes, and question marks; do not drop them as pronunciation ruby.
+            - Unknown names/proper nouns -> concise Chinese transliterations, not descriptions or other characters.
+            - Not in glossary -> transliterate in FGO/TYPE-MOON style.
+            - Name-box: preserve and translate all visible parts (titles, suffixes, base《role》, base（state）, ?, A/B); do not drop ruby.
             - Never return an unknown Japanese name unchanged.
             """.trimIndent()
 
         private val RUBY_PROMPT = """
-            - Source may contain ruby/furigana in base《ruby》 form.
-            - Always render every visible ruby pair in Chinese base《ruby》 form; do not omit ruby even when it is pronunciation-only, similar, or the same meaning.
-            - Translate the base naturally and translate/render the ruby text inside 《》.
-            - Compact English is allowed inside 《》 when the ruby itself is English-style and it reads naturally in Chinese.
-            - Do not use parentheses for ruby; use 《》 for every returned ruby pair.
+            - Ruby may appear as base《ruby》. Always output Chinese base《ruby》; never omit ruby.
+            - Translate base and ruby naturally. English inside 《》 only when the ruby is English-style.
+            - Use 《》 only, never parentheses.
             """.trimIndent()
 
         private val PAUSE_PROMPT = """
@@ -164,21 +160,19 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val HONORIFIC_PROMPT = """
-            - Name suffixes: さん -> 桑, くん -> 君, ちゃん -> 酱, 様/殿/氏 unchanged.
-            - Apply only when attached to a name or player name.
-            - Do not apply suffix rules to common words such as 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, or 彼氏.
-            - Name plural ズ means an English-style group marker; use X们 by default.
+            - Suffixes: さん->桑, くん->君, ちゃん->酱; 様/殿/氏 unchanged. Apply only to names.
+            - Exceptions (do not apply): 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, 彼氏.
+            - Name plural ズ = English-style group; use X们.
             """.trimIndent()
 
         private val ADDRESS_PRONOUN_PROMPT = """
-            - Japanese second-person address forms such as あなた, 貴方, あんた, お前, おまえ, 貴様, 汝, そなた, 其方, お主, てめえ, and 卿 should be translated by tone and relationship.
-            - Do not leave these words as Japanese or treat them as names.
+            - 2nd-person forms (あなた, 貴方, あんた, お前, おまえ, 貴様, 汝, そなた, 其方, お主, てめえ, 卿) -> translate by tone/relationship; never keep as Japanese or names.
             """.trimIndent()
 
         private val KATAKANA_STYLE_PROMPT = """
-            - Katakana common English-style words may stay compact English when natural.
-            - Do not apply this to names, organizations, classes, Noble Phantasms, skills, or protected placeholders.
-            - Translate or Chinese-transliterate unprotected kana yokai names, nicknames, and attack-like terms; do not leave them as kana.
+            - Common katakana English-style words may stay compact English when natural.
+            - Not for names, organizations, classes, Noble Phantasms, skills, or protected placeholders.
+            - Translate/transliterate unprotected kana yokai/nickname/attack terms; do not leave kana.
             """.trimIndent()
 
         private val SPECIAL_FIRST_PERSON_PROMPT = """
@@ -382,7 +376,6 @@ class PromptBuilder @Inject constructor() {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
 
         sb.append("Translate this Fate/Grand Order Japanese text into $targetChinese for the in-game overlay.\n")
-        sb.append("Return only the translated Chinese text that should appear on screen.\n\n")
 
         // Prepend choice context if present — helps the LLM understand
         // that these are separate interactive elements, not dialogue lines

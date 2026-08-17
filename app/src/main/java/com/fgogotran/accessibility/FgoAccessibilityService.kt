@@ -187,6 +187,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val MASTER_PROFILE_MALE = "藤丸立香(男)"
         private const val MASTER_PROFILE_FEMALE = "藤丸立香(女)"
         private const val SCREENSHOT_ERROR_BITMAP_UNAVAILABLE = -1
+        private const val SCREENSHOT_TIMEOUT_MS = 3_000L
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
         private val FGO_TEXT_COLOR_SAMPLES = listOf(
@@ -3806,39 +3807,45 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun takeScreenshotCompat(): Bitmap? {
-        return suspendCoroutine { cont ->
-            takeScreenshot(
-                Display.DEFAULT_DISPLAY,
-                mainExecutor,
-                object : TakeScreenshotCallback {
-                    override fun onSuccess(result: ScreenshotResult) {
-                        val bitmap = try {
-                            Bitmap.wrapHardwareBuffer(
-                                result.hardwareBuffer,
-                                result.colorSpace
-                            )?.copy(Bitmap.Config.ARGB_8888, false)
-                        } catch (e: Exception) {
-                            FgoLogger.warn(tag, "Screenshot bitmap conversion failed", e)
-                            null
-                        } finally {
-                            result.hardwareBuffer.close()
+        return withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
+            suspendCancellableCoroutine { cont ->
+                takeScreenshot(
+                    Display.DEFAULT_DISPLAY,
+                    mainExecutor,
+                    object : TakeScreenshotCallback {
+                        override fun onSuccess(result: ScreenshotResult) {
+                            val bitmap = try {
+                                Bitmap.wrapHardwareBuffer(
+                                    result.hardwareBuffer,
+                                    result.colorSpace
+                                )?.copy(Bitmap.Config.ARGB_8888, false)
+                            } catch (e: Exception) {
+                                FgoLogger.warn(tag, "Screenshot bitmap conversion failed", e)
+                                null
+                            } finally {
+                                result.hardwareBuffer.close()
+                            }
+                            lastScreenshotErrorCode = if (bitmap == null) {
+                                SCREENSHOT_ERROR_BITMAP_UNAVAILABLE
+                            } else {
+                                0
+                            }
+                            if (cont.isActive) {
+                                cont.resume(bitmap)
+                            } else {
+                                bitmap?.recycle()
+                            }
                         }
-                        lastScreenshotErrorCode = if (bitmap == null) {
-                            SCREENSHOT_ERROR_BITMAP_UNAVAILABLE
-                        } else {
-                            0
-                        }
-                        cont.resume(bitmap)
-                    }
 
-                    override fun onFailure(errorCode: Int) {
-                        lastScreenshotErrorCode = errorCode
-                        val failureInfo = screenshotFailureInfo(errorCode)
-                        FgoLogger.warn(tag, "Screenshot failed: code=$errorCode, reason=${failureInfo.reason}")
-                        cont.resume(null)
+                        override fun onFailure(errorCode: Int) {
+                            lastScreenshotErrorCode = errorCode
+                            val failureInfo = screenshotFailureInfo(errorCode)
+                            FgoLogger.warn(tag, "Screenshot failed: code=$errorCode, reason=${failureInfo.reason}")
+                            if (cont.isActive) cont.resume(null)
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     }
 

@@ -4283,33 +4283,29 @@ class Translator @Inject constructor(
             SCENE_RESPONSE_EXAMPLE
         }
         return buildString {
-            appendLine("Localize this FGO scene to $targetChinese. Return valid JSON only with exactly these keys: $responseKeys.")
-            appendLine("Empty example: $emptyExample")
-            appendLine("Field output:")
-            appendLine("- name: ${if (translateName && name != null) "translate" else "null"}")
-            appendLine("- dialogue: ${if (translateDialogue && dialogue != null) "translate" else "null"}")
-            appendLine("- choices: translate ${choices.size} string(s) in input order.")
+            appendLine("Localize this FGO scene to $targetChinese. Return only JSON with keys: $responseKeys.")
+            appendLine("Format: $emptyExample")
+            appendLine(
+                "Fields: name=${if (translateName && name != null) "translate" else "null"}; " +
+                    "dialogue=${if (translateDialogue && dialogue != null) "translate" else "null"}; " +
+                    "choices=${choices.size} in input order;"
+            )
+            appendLine(
+                "Rules: follow the system prompt; use only $targetChinese; choices keep input order/count; " +
+                    "name-box keeps annotations/suffixes/A/B/?/brackets; keep __FGO placeholders and masks."
+            )
             if (requestVoiceHint) {
-                appendLine("- voice_hint: delivery hint for the dialogue, or null.")
+                appendLine("voice_hint: delivery hint or null; must not change translation.")
+                appendLine("styles: ${VOICE_HINT_NORMAL_STYLES.joinToString(",")}")
+                appendLine("dragon_styles: ${VOICE_HINT_DRAGON_STYLES.joinToString(",")}")
+                appendLine("intensity/confidence 0-1; rate/pitch/pause -2..2; omit unchanged; null when unclear.")
             }
-            appendLine("Rules:")
-            appendLine("- Follow the system prompt; use $targetChinese only.")
-            appendLine("- Return null for fields marked null; context-only input may guide voice_hint but must stay null in JSON.")
-            appendLine("- Choices must match input order and count.")
-            appendLine("- Name-box: translate the full visible label; do not drop annotations, suffixes, A/B, question marks, or bracket shape.")
-            appendLine("- Preserve __FGO placeholders and hidden masks exactly.")
-            if (requestVoiceHint) {
-                appendLine("- voice_hint describes delivery only and must not change translation; use null when unclear.")
-                appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
-                appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
-                appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; omit unchanged values or use null.")
-            }
-            appendLine("- No markdown, source text, notes, lore explanations, or extra keys.")
+            appendLine("No extra keys.")
             appendLine()
             appendSceneDialogueContextBlock(previousDialogueContexts)
             appendLine("Scene:")
-            appendLine("name input: ${name ?: "null"}")
-            appendLine("dialogue input: ${dialogue ?: "null"}")
+            appendLine("name: ${name ?: "null"}")
+            appendLine("dialogue: ${dialogue ?: "null"}")
             appendLine("choices:")
             if (choices.isEmpty()) {
                 appendLine("[]")
@@ -4703,7 +4699,6 @@ class Translator @Inject constructor(
             appendLine("Return valid JSON only: an array of exactly ${texts.size} strings in the same order.")
             appendLine("Follow the system prompt; keep items one-to-one, short, and unmerged.")
             appendLine("Preserve __FGO placeholders and hidden masks exactly.")
-            appendLine("No markdown, source text, notes, or lore explanations.")
             appendLine()
             appendLine("Items:")
             texts.forEachIndexed { index, text ->
@@ -4791,24 +4786,16 @@ class Translator @Inject constructor(
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            appendLine("Repair an FGO translation that copied Japanese. Translate into $targetChinese.")
-            if (cropMode) {
-                appendLine("Crop mode: translate each visible OCR row independently; do not merge, drop, add, or infer text.")
-            }
-            appendLine("Use $targetChinese consistently; do not mix Chinese scripts.")
+            appendLine("Repair this FGO translation so no Japanese kana remains. Use only $targetChinese.")
             appendLine(
                 if (cropMode) {
-                    "Return a valid JSON array only, with exactly one translated string per input OCR row."
+                    "Crop mode: translate each OCR row independently; return a JSON array with one string per row, same order."
                 } else {
                     "Return final translated text only; no source text, markdown, notes, or explanations."
                 }
             )
-            appendLine("Do not leave Japanese kana except fixed player name, __FGO placeholders, masks, or official stylized terms.")
-            appendLine("Translate or Chinese-transliterate unprotected kana yokai names, nicknames, and attack-like terms; do not keep them as kana.")
-            appendLine("When repairing leftover kana, use context: interjection/sound effect -> natural Chinese mood text; name/proper noun -> Chinese transliteration; grammar/pronoun/verb -> meaning. If source has base《ruby》, render the ruby as Chinese base《ruby》 instead of omitting it.")
-            appendLine("Preserve __FGO tokens and masks such as ???, ？？？, ■, □, ▇, █ exactly; never guess hidden text.")
-            appendLine("Translate Japanese address/pronoun words by tone; アテシ/アタシ/あたし are first-person pronouns.")
-            appendLine("Keep FGO wording natural, compact, and suitable for an in-game overlay.")
+            appendLine("Keep __FGO tokens and masks (???, ？？？, ■, □, ▇, █) exactly; never guess hidden text.")
+            appendLine("Translate leftover kana by context: sound/effect -> Chinese mood text; name/proper noun -> Chinese transliteration; grammar/pronoun/verb -> meaning.")
             if (playerName.isNotBlank()) {
                 appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
             }
@@ -4828,43 +4815,37 @@ class Translator @Inject constructor(
         return buildString {
             val hasBadTranslation = badTranslation.isNotBlank()
             if (hasBadTranslation) {
-                appendLine("Repair the previous draft so the final output is fully $targetChinese.")
-                appendLine("Keep already-correct Chinese wording where possible, but replace every remaining Japanese kana by meaning in context.")
-                if (kanaTokens.isNotEmpty()) {
-                    appendLine("Remaining Japanese kana detected: ${kanaTokens.joinToString(", ")}")
-                }
-                appendLine()
                 appendLine("Previous draft:")
                 appendLine(badTranslation)
+                if (kanaTokens.isNotEmpty()) {
+                    appendLine("Detected kana: ${kanaTokens.joinToString(", ")}")
+                }
                 appendLine()
             }
             if (cropMode) {
                 val lines = japaneseText.lines()
                     .map { it.trim() }
                     .filter { it.isNotBlank() }
-                appendLine("Translate each cropped OCR line below into $targetChinese.")
-                appendLine("Return a JSON array with exactly ${lines.size} string(s), in the same order.")
-                appendLine("Translate every Japanese part; preserve placeholders and masks exactly.")
-                appendLine()
                 appendLine("Cropped OCR lines:")
                 lines.forEachIndexed { index, line ->
                     appendLine("${index + 1}. $line")
                 }
+                appendLine()
+                appendLine("Return a JSON array with exactly ${lines.size} corrected $targetChinese string(s), same order.")
                 return@buildString
             }
             appendSceneDialogueContextBlock(previousDialogueContexts)
-            appendLine("Translate the ${if (cropMode) "cropped visible text" else "Japanese source"} below into $targetChinese.")
-            appendLine("Return only the translated text, not JSON.")
-            appendLine("Translate every Japanese part; preserve placeholders and masks exactly.")
+            appendLine("Source:")
+            append(japaneseText)
             if (choiceTexts.isNotEmpty()) {
-                appendLine("Choice context:")
+                appendLine()
+                appendLine("Choices:")
                 choiceTexts.forEachIndexed { index, choice ->
-                    appendLine("[Choice ${index + 1}] $choice")
+                    appendLine("${index + 1}. $choice")
                 }
             }
             appendLine()
-            appendLine(if (cropMode) "Cropped text:" else "Japanese source:")
-            append(japaneseText)
+            appendLine("Return only the corrected $targetChinese text. Keep already-correct Chinese wording where possible.")
         }
     }
 

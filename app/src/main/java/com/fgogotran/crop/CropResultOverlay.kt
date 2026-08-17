@@ -71,7 +71,14 @@ class CropResultOverlay @Inject constructor(
         }
         newRoot.addView(newImage, imageLayoutParams(bounds))
         latestBitmap = bitmap
-        wm.addView(newRoot, layoutParams())
+        try {
+            wm.addView(newRoot, layoutParams())
+        } catch (e: Exception) {
+            newImage.setImageBitmap(null)
+            latestBitmap = null
+            FgoLogger.warn(tag, "Failed to show crop result overlay", e)
+            return
+        }
         rootView = newRoot
         imageView = newImage
         FgoLogger.info(tag, "Crop result shown at ${bounds.flattenToString()}")
