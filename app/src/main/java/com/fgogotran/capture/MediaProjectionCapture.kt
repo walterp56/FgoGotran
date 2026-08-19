@@ -7,6 +7,8 @@ import android.hardware.display.VirtualDisplay
 import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
+import android.os.Handler
+import android.os.Looper
 import com.fgogotran.util.FgoLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -15,6 +17,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 object MediaProjectionCapture {
     private const val tag = "MediaProjectionCapture"
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val projectionCallback = object : MediaProjection.Callback() {}
 
     @Volatile
     private var successLogged = false
@@ -50,6 +56,8 @@ object MediaProjectionCapture {
         this.width = safeWidth
         this.height = safeHeight
         this.densityDpi = densityDpi.coerceAtLeast(1)
+
+        projection.registerCallback(projectionCallback, mainHandler)
 
         val display = try {
             projection.createVirtualDisplay(
@@ -137,6 +145,7 @@ object MediaProjectionCapture {
         virtualDisplay = null
         imageReader?.close()
         imageReader = null
+        mediaProjection?.unregisterCallback(projectionCallback)
         mediaProjection?.stop()
         mediaProjection = null
         width = 0
