@@ -70,7 +70,7 @@ class OverlayRenderer @Inject constructor(
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private val ORIGINAL_TEXT_COLOR = Color.rgb(80, 235, 235)
-        private const val MIN_NAME_PLATE_WIDTH = 160f
+        private const val MIN_NAME_PLATE_WIDTH = 130f
         private const val CHOICE_REFERENCE_WIDTH = 1470f
         private const val CHOICE_REFERENCE_HEIGHT = 135f
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
@@ -107,10 +107,10 @@ class OverlayRenderer @Inject constructor(
         private const val NAME_TEXT_SIZE = 56f
         private const val NAME_TEXT_MIN_SIZE = 31f
         private const val NAME_TEXT_LEFT_INSET = 52f
-        private const val NAME_TEXT_TOP_INSET = 6f
+        private const val NAME_TEXT_TOP_INSET = 8f
         private const val NAME_TEXT_BOTTOM_INSET = 6f
         private const val NAME_TEXT_BASELINE_OFFSET = 12f
-        private const val NAME_TEXT_RIGHT_INSET = 20f
+        private const val NAME_TEXT_RIGHT_INSET = 10f
         private const val CHOICE_TEXT_SIZE = 53f
         private const val CHOICE_TEXT_MIN_SIZE = 29f
         private const val WIDE_RENDER_SPACE = "\u3000"
@@ -600,7 +600,7 @@ class OverlayRenderer @Inject constructor(
             ?.toFloat()
             ?.plus(30f * scale)
             ?: box.left.toFloat()
-        val requiredWidth = NAME_TEXT_LEFT_INSET * scale + paint.measureText(name) + 28f * scale
+        val requiredWidth = NAME_TEXT_LEFT_INSET * scale + paint.measureText(name) + 18f * scale
         val renderedRight = maxOf(
             box.left + MIN_NAME_PLATE_WIDTH * scale,
             box.left + requiredWidth,

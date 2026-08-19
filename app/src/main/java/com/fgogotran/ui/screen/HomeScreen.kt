@@ -397,7 +397,7 @@ private fun serverFeatureLabel(selectedLabel: String): String {
     return if (SettingsRepository.normalizeGameServer(server) == SettingsRepository.GAME_SERVER_JP) {
         "翻译 + 朗读"
     } else {
-        "语音"
+        "朗读"
     }
 }
 

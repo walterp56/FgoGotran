@@ -49,15 +49,17 @@ private val FGO_CHOICE_HISTORY_RED = AndroidColor.rgb(246, 58, 60)
 private val HISTORY_ORIGINAL_TEXT_COLOR = AndroidColor.rgb(80, 235, 235)
 private const val HISTORY_TEXT_SIZE_SP = 18f
 private const val HISTORY_ORIGINAL_TEXT_SIZE_SP = 14f
-private const val HISTORY_LINE_SPACING_EXTRA_DP = 2
-private const val HISTORY_LINE_SPACING_MULTIPLIER = 1.08f
+private const val HISTORY_LINE_SPACING_EXTRA_DP = 4
+private const val HISTORY_LINE_SPACING_MULTIPLIER = 1.2f
 private const val HISTORY_TEXT_BOTTOM_MARGIN_DP = 3
 private const val HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_DP = 1
 private const val HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP = 6
-private const val HISTORY_SPEAKER_BOTTOM_MARGIN_DP = 6
+private const val HISTORY_SPEAKER_BOTTOM_MARGIN_DP = 10
 private const val HISTORY_DIALOGUE_BOTTOM_MARGIN_DP = 4
 private const val HISTORY_SCROLLBAR_TOUCH_SLOP_DP = 28
 private const val HISTORY_REFERENCE_DENSITY = 3f
+
+private const val HISTORY_DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.7f
 
 @Composable
 fun HistoryOverlayPanel(onDismiss: () -> Unit) {
@@ -488,11 +490,17 @@ private fun historyTextView(
         paint.isSubpixelText = true
         paint.isLinearText = true
         if (useDialogueLineHeight) {
-            setLineHeight((textSizePx * OverlayRenderer.DIALOGUE_LINE_HEIGHT_MULTIPLIER).roundToInt())
+            setLineHeight((textSizePx * HISTORY_DIALOGUE_LINE_HEIGHT_MULTIPLIER).roundToInt())
         } else {
             setLineSpacing(
                 scaledHistoryDp(context, HISTORY_LINE_SPACING_EXTRA_DP, viewportScale).toFloat(),
                 HISTORY_LINE_SPACING_MULTIPLIER
+            )
+            setPadding(
+                0,
+                0,
+                0,
+                scaledHistoryDp(context, 3, viewportScale)
             )
         }
         includeFontPadding = false

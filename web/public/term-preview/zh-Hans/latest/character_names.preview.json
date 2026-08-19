@@ -1579,7 +1579,7 @@
   },
   {
     "jp_name": "ミス・クレーン",
-    "cn_name": "克莱恩小姐",
+    "cn_name": "Miss・克莱恩",
     "category": "character",
     "aliases": "ミスクレーン"
   },
@@ -1819,7 +1819,7 @@
   },
   {
     "jp_name": "レディ・アヴァロン",
-    "cn_name": "阿瓦隆女士",
+    "cn_name": "Lady・阿瓦隆",
     "category": "character",
     "aliases": "レディアヴァロン"
   },
@@ -3812,6 +3812,24 @@
   {
     "jp_name": "ナッちゃん",
     "cn_name": "纳酱",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "レディ・ロングアーム",
+    "cn_name": "Lady・Long-Arm",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ミス・トールフット",
+    "cn_name": "Miss・Tall-Foot",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "プタ",
+    "cn_name": "Prota",
     "category": "character",
     "aliases": ""
   }
