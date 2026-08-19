@@ -1,10 +1,14 @@
 package com.fgogotran.ui.screen
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.media.projection.MediaProjectionManager
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -58,6 +62,13 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val projectionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            FgoRunnerService.startService(context, result.resultCode, result.data)
+        }
+    }
     val scrollState = rememberScrollState()
     val gameServer by settingsRepository.gameServer.collectAsState(
         initial = SettingsRepository.DEFAULT_GAME_SERVER
@@ -145,32 +156,9 @@ fun HomeScreen(
                 detail = "battery_optimization=active"
             )
         }
-        runCatching {
-            FgoRunnerService.startService(context)
-        }.onFailure { error ->
-            diagnosticEventStore.record(
-                level = DiagnosticEventStore.LEVEL_ERROR,
-                category = DiagnosticEventStore.CATEGORY_SETUP,
-                eventId = "runner_service_start_failed",
-                title = "悬浮服务启动失败",
-                message = error.message.orEmpty().ifBlank { error::class.java.simpleName },
-                errorCode = error::class.java.simpleName
-            )
-        }.onSuccess {
-            scope.launch {
-                delay(SERVICE_START_CHECK_DELAY_MS)
-                if (!FgoRunnerService.serviceStarted.value) {
-                    diagnosticEventStore.record(
-                        level = DiagnosticEventStore.LEVEL_WARNING,
-                        category = DiagnosticEventStore.CATEGORY_SETUP,
-                        eventId = "runner_service_not_running_after_start",
-                        title = "悬浮服务没有保持运行",
-                        message = "系统接受了启动请求，但服务状态仍未运行",
-                        detail = "可能被模拟器、系统后台限制或前台服务规则拦截"
-                    )
-                }
-            }
-        }
+        val projectionManager = context.getSystemService(MediaProjectionManager::class.java)
+        val projectionIntent = projectionManager.createScreenCaptureIntent()
+        projectionLauncher.launch(projectionIntent)
     }
 
     Scaffold(

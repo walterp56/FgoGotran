@@ -6,7 +6,7 @@
 
     <!-- Foreground service (required for the floating button overlay service) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <!-- Post notifications (required for foreground service notification on Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -51,12 +51,8 @@
         <!-- Foreground service hosting the floating translation button overlay -->
         <service
             android:name=".runner.FgoRunnerService"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Shows a floating translation button overlay for translating FGO dialogue in real-time." />
-        </service>
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

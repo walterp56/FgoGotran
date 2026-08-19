@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
+import com.fgogotran.capture.MediaProjectionCapture
 import com.fgogotran.crop.CropTextLine
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
@@ -3807,6 +3808,11 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun takeScreenshotCompat(): Bitmap? {
+        MediaProjectionCapture.capture()?.let {
+            lastScreenshotErrorCode = 0
+            return it
+        }
+
         return withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
                 takeScreenshot(

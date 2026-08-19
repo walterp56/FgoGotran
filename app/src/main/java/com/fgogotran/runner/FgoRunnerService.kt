@@ -7,6 +7,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.media.projection.MediaProjectionManager
+import android.view.WindowManager
+import androidx.core.app.ServiceCompat
+import com.fgogotran.capture.MediaProjectionCapture
 import android.os.Build
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -47,7 +52,16 @@ class FgoRunnerService : Service() {
                 _serviceStarted.value = value != null
             }
 
-        fun startService(context: Context) {
+        private var pendingResultCode = android.app.Activity.RESULT_OK
+        private var pendingResultData: Intent? = null
+
+        fun startService(
+            context: Context,
+            resultCode: Int = android.app.Activity.RESULT_OK,
+            resultData: Intent? = null
+        ) {
+            pendingResultCode = resultCode
+            pendingResultData = resultData
             val intent = Intent(context, FgoRunnerService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -74,7 +88,8 @@ class FgoRunnerService : Service() {
         instance = this
         SessionTranslationHistory.clear()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        startForegroundCompat()
+        createMediaProjection()
         serviceScope.launch {
             glossaryUpdateManager.updateIfNeeded()
         }
@@ -85,6 +100,40 @@ class FgoRunnerService : Service() {
         overlay.show()
     }
 
+    private fun createMediaProjection() {
+        val resultCode = pendingResultCode
+        val resultData = pendingResultData ?: return
+        try {
+            val manager = getSystemService(MediaProjectionManager::class.java)
+            val projection = manager.getMediaProjection(resultCode, resultData)
+            val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+            MediaProjectionCapture.start(
+                projection = projection,
+                width = bounds.width(),
+                height = bounds.height(),
+                densityDpi = resources.displayMetrics.densityDpi
+            )
+            FgoLogger.info(tag, "MediaProjection capture started: ${bounds.width()}x${bounds.height()}")
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot", e)
+            MediaProjectionCapture.stop()
+        }
+    }
+
+    private fun startForegroundCompat() {
+        val notification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
     override fun onBind(intent: Intent?) = null
 
     override fun onDestroy() {
@@ -93,6 +142,7 @@ class FgoRunnerService : Service() {
         overlay.destroy()
         SessionTranslationHistory.clear()
         serviceScope.cancel()
+        MediaProjectionCapture.stop()
         instance = null
         super.onDestroy()
     }
