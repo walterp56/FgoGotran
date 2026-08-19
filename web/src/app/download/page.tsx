@@ -28,7 +28,7 @@ const downloadOptions = [
   }
 ];
 
-const currentAppVersion = "v2.2.0";
+const currentAppVersion = "v2.3.0";
 
 export default function DownloadPage() {
   return (
@@ -54,7 +54,7 @@ export default function DownloadPage() {
           <div className="download-facts" aria-label="下载说明">
             <span>当前版本：{currentAppVersion}</span>
             <span>支持 Android 11+</span>
-            <span>APK 大小：199.75 MB</span>
+            <span>APK 大小：199.76 MB</span>
             <span>需要自备翻译 API Key</span>
           </div>
           <div className="download-reminder" role="note">

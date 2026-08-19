@@ -8,6 +8,12 @@ export const metadata: Metadata = {
 
 const changelog = [
   {
+    title: "v2.3.0",
+    date: "20-8-2026",
+    icon: Smartphone,
+    items: ["改用 MediaProjection 屏幕捕获","提升模拟器与真机截图兼容性","优化半自动模式选项点击逻辑","减少选项翻译红圈误报","选项 OCR 自动重试并使用固定位置","选项区域 2x 放大，提高识别率","修复 MediaProjection 回调与截图回退","优化渲染 UI"]
+  },
+  {
     title: "v2.2.0",
     date: "18-8-2026",
     icon: Smartphone,
