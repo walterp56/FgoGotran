@@ -149,6 +149,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val APP_PACKAGE = "com.fgogotran"
         private const val DETECTION_INTERVAL = 120L
         private const val CAPTURE_SETTLE_DELAY = 16L
+        private const val SEMI_AUTO_CHOICE_RETRY_DELAY_MS = 250L
         private const val MANUAL_MENU_DISMISS_SETTLE_DELAY = 300L
         private const val TRANSIENT_SYSTEM_UI_FOREGROUND_RECHECK_DELAY = 3_000L
         private const val TRANSIENT_SYSTEM_UI_FOREGROUND_MAX_DELAY = 30_000L
@@ -163,6 +164,8 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val CROP_TRANSLATION_WAIT_TIMEOUT = 700L
         private const val CROP_TRANSLATION_MAX_TOKENS = 512
         private const val CROP_OCR_SCALE = 2
+        private const val CHOICE_OCR_SCALE = 2
+        private const val MIN_FIXED_SLOT_CONFIDENCE = 0.55f
         private const val EMPTY_CHOICE_OCR_BASE_COOLDOWN = 600L
         private const val EMPTY_CHOICE_OCR_MAX_COOLDOWN = 1_200L
         private const val SEMI_AUTO_BLANK_OCR_BASE_COOLDOWN = 300L
@@ -1452,19 +1455,52 @@ class FgoAccessibilityService : AccessibilityService() {
         processingVersion: Long,
         restoreHiddenOverlay: Boolean
     ): Boolean {
-        val choiceRecognition = recognizeChoiceRegions(
+        var choiceRecognition = recognizeChoiceRegions(
             source = source,
             screenRegions = screenRegions,
             mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP
         )
-        val choiceRegions = choiceRecognition.regions
+        var choiceRegions = choiceRecognition.regions
+        if (choiceRegions.isEmpty()) {
+            FgoLogger.debug(tag, "Semi-auto tap OCR empty; retrying after settle delay")
+            delay(SEMI_AUTO_CHOICE_RETRY_DELAY_MS)
+            val retryScreenshot = takeScreenshotCompat()
+            if (retryScreenshot != null) {
+                try {
+                    val retryBounds = detectChoiceBounds(retryScreenshot, screenRegions)
+                    if (retryBounds.isNotEmpty()) {
+                        choiceRecognition = recognizeChoiceRegions(
+                            source = retryScreenshot,
+                            choiceBounds = retryBounds,
+                            mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP
+                        )
+                    } else {
+                        choiceRecognition = recognizeChoiceRegionsByFixedSlots(
+                            source = retryScreenshot,
+                            screenRegions = screenRegions,
+                            preferredCount = null
+                        )
+                    }
+                    choiceRegions = choiceRecognition.regions
+                    if (choiceRegions.isEmpty()) {
+                        choiceRecognition = recognizeChoiceRegions(
+                            source = retryScreenshot,
+                            screenRegions = screenRegions,
+                            mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP
+                        )
+                        choiceRegions = choiceRecognition.regions
+                    }
+                } finally {
+                    retryScreenshot.recycle()
+                }
+            }
+        }
         if (choiceRegions.isEmpty()) {
             if (choiceRecognition.bounds.isEmpty()) {
                 FgoLogger.debug(tag, "Semi-auto tap found no choice panels")
             } else {
                 FgoLogger.debug(tag, "Semi-auto tap found choice panels but OCR returned no text")
             }
-            runnerOverlay.showTranslationFailureFeedback()
             return restoreHiddenOverlay
         }
 
@@ -3467,6 +3503,117 @@ class FgoAccessibilityService : AccessibilityService() {
         } finally {
             cropped.recycle()
         }
+    }
+
+    private suspend fun recognizeChoiceSlot(
+        source: Bitmap,
+        slot: Rect
+    ): ClassifiedRegion? {
+        val cropBounds = expandedOcrBounds(slot, source.width, source.height)
+        if (cropBounds.width() <= 0 || cropBounds.height() <= 0) return null
+
+        val cropped = Bitmap.createBitmap(
+            source,
+            cropBounds.left,
+            cropBounds.top,
+            cropBounds.width(),
+            cropBounds.height()
+        )
+        val scaledBitmap = try {
+            Bitmap.createScaledBitmap(
+                cropped,
+                cropBounds.width() * CHOICE_OCR_SCALE,
+                cropBounds.height() * CHOICE_OCR_SCALE,
+                true
+            )
+        } catch (t: Throwable) {
+            cropped.recycle()
+            return null
+        }
+
+        return try {
+            val ocrResult = withContext(Dispatchers.Default) {
+                ocrEngine.recognize(scaledBitmap)
+            }
+            val regionLines = ocrResult.lines
+                .map { line ->
+                    OcrTextLine(
+                        text = line.text,
+                        boundingBox = Rect(
+                            cropBounds.left + line.boundingBox.left / CHOICE_OCR_SCALE,
+                            cropBounds.top + line.boundingBox.top / CHOICE_OCR_SCALE,
+                            cropBounds.left + line.boundingBox.right / CHOICE_OCR_SCALE,
+                            cropBounds.top + line.boundingBox.bottom / CHOICE_OCR_SCALE
+                        ),
+                        confidence = line.confidence
+                    )
+                }
+                .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
+                .filter { lineBelongsToRegion(it.boundingBox, slot) }
+
+            if (regionLines.isEmpty()) {
+                null
+            } else {
+                ClassifiedRegion(
+                    region = TextRegion.CHOICE_BUTTON,
+                    lines = regionLines,
+                    boundingBox = slot,
+                    ocrEngine = ocrResult.engine
+                )
+            }
+        } finally {
+            scaledBitmap.recycle()
+            cropped.recycle()
+        }
+    }
+
+    private suspend fun recognizeChoiceRegionsByFixedSlots(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        preferredCount: Int?
+    ): ChoiceRecognitionResult {
+        val layouts = screenRegions.choiceSlotLayouts
+        var bestBounds: List<Rect> = emptyList()
+        var bestRegions: List<ClassifiedRegion> = emptyList()
+
+        fun evaluate(layout: List<Rect>) {
+            if (layout.isEmpty()) return
+            val regions = layout.mapNotNull { slot ->
+                recognizeChoiceSlot(source, slot)
+            }.filter { region ->
+                preferredCount != null || regionAverageConfidence(region) >= MIN_FIXED_SLOT_CONFIDENCE
+            }
+            if (regions.isEmpty()) return
+            if (regions.size > bestRegions.size) {
+                bestBounds = layout
+                bestRegions = regions
+            }
+        }
+
+        if (preferredCount != null) {
+            layouts.firstOrNull { it.size == preferredCount }?.let { layout ->
+                val regions = layout.mapNotNull { slot -> recognizeChoiceSlot(source, slot) }
+                if (regions.size == layout.size) {
+                    return ChoiceRecognitionResult(layout, regions)
+                }
+                if (regions.size > bestRegions.size) {
+                    bestBounds = layout
+                    bestRegions = regions
+                }
+            }
+        }
+
+        layouts.sortedByDescending { it.size }.forEach { layout ->
+            if (preferredCount != null && layout.size == preferredCount) return@forEach
+            evaluate(layout)
+        }
+
+        return ChoiceRecognitionResult(bestBounds, bestRegions)
+    }
+
+    private fun regionAverageConfidence(region: ClassifiedRegion): Float {
+        if (region.lines.isEmpty()) return 0f
+        return region.lines.map { it.confidence }.average().toFloat()
     }
 
     private suspend fun recognizeEnhancedRedDialogueRegion(
