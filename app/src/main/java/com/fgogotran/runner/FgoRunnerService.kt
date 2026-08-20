@@ -8,7 +8,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.hardware.display.DisplayManager
 import android.media.projection.MediaProjectionManager
+import android.os.Handler
+import android.os.Looper
+import android.view.Display
 import android.view.WindowManager
 import androidx.core.app.ServiceCompat
 import com.fgogotran.capture.MediaProjectionCapture
@@ -41,6 +45,21 @@ class FgoRunnerService : Service() {
     @Inject lateinit var settingsRepository: SettingsRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var displayManager: DisplayManager? = null
+    private var lastWidth = 0
+    private var lastHeight = 0
+    private var lastDensityDpi = 0
+    private var lastRotation = -1
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId != Display.DEFAULT_DISPLAY) return
+            mainHandler.post { refreshMediaProjection() }
+        }
+    }
 
     companion object {
         private val _serviceStarted = mutableStateOf(false)
@@ -90,6 +109,8 @@ class FgoRunnerService : Service() {
         createNotificationChannel()
         startForegroundCompat()
         createMediaProjection()
+        displayManager = getSystemService(DisplayManager::class.java)
+        displayManager?.registerDisplayListener(displayListener, mainHandler)
         serviceScope.launch {
             glossaryUpdateManager.updateIfNeeded()
         }
@@ -100,6 +121,25 @@ class FgoRunnerService : Service() {
         overlay.show()
     }
 
+    private fun refreshMediaProjection() {
+        val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+        val densityDpi = resources.displayMetrics.densityDpi
+        val rotation = (getSystemService(WindowManager::class.java)).defaultDisplay.rotation
+        if (bounds.width() == lastWidth && bounds.height() == lastHeight && densityDpi == lastDensityDpi && rotation == lastRotation) {
+            return
+        }
+        lastWidth = bounds.width()
+        lastHeight = bounds.height()
+        lastDensityDpi = densityDpi
+        lastRotation = rotation
+        FgoLogger.info(tag, "Display changed; restarting MediaProjection: ${bounds.width()}x${bounds.height()}, rotation=$rotation")
+        MediaProjectionCapture.restart(
+            width = bounds.width(),
+            height = bounds.height(),
+            densityDpi = densityDpi
+        )
+    }
+
     private fun createMediaProjection() {
         val resultCode = pendingResultCode
         val resultData = pendingResultData ?: return
@@ -107,6 +147,10 @@ class FgoRunnerService : Service() {
             val manager = getSystemService(MediaProjectionManager::class.java)
             val projection = manager.getMediaProjection(resultCode, resultData)
             val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+            lastWidth = bounds.width()
+            lastHeight = bounds.height()
+            lastDensityDpi = resources.displayMetrics.densityDpi
+            lastRotation = (getSystemService(WindowManager::class.java)).defaultDisplay.rotation
             MediaProjectionCapture.start(
                 projection = projection,
                 width = bounds.width(),
@@ -142,6 +186,7 @@ class FgoRunnerService : Service() {
         overlay.destroy()
         SessionTranslationHistory.clear()
         serviceScope.cancel()
+        displayManager?.unregisterDisplayListener(displayListener)
         MediaProjectionCapture.stop()
         instance = null
         super.onDestroy()

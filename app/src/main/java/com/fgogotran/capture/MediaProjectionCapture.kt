@@ -23,12 +23,6 @@ object MediaProjectionCapture {
     private val projectionCallback = object : MediaProjection.Callback() {}
 
     @Volatile
-    private var successLogged = false
-
-    @Volatile
-    private var missingLogged = false
-
-    @Volatile
     private var mediaProjection: MediaProjection? = null
 
     @Volatile
@@ -46,18 +40,36 @@ object MediaProjectionCapture {
     @Volatile
     private var densityDpi = 0
 
+    @Volatile
+    private var successLogged = false
+
+    @Volatile
+    private var missingLogged = false
+
     fun start(projection: MediaProjection, width: Int, height: Int, densityDpi: Int) {
         stop()
+        startSurface(projection, width, height, densityDpi)
+    }
+
+    fun restart(width: Int, height: Int, densityDpi: Int) {
+        val projection = mediaProjection ?: return
+        releaseSurface()
+        startSurface(projection, width, height, densityDpi)
+    }
+
+    private fun startSurface(projection: MediaProjection, width: Int, height: Int, densityDpi: Int) {
         val safeWidth = width.coerceAtLeast(1)
         val safeHeight = height.coerceAtLeast(1)
         val reader = ImageReader.newInstance(safeWidth, safeHeight, PixelFormat.RGBA_8888, 2)
+
+        projection.unregisterCallback(projectionCallback)
+        projection.registerCallback(projectionCallback, mainHandler)
+
         mediaProjection = projection
         imageReader = reader
         this.width = safeWidth
         this.height = safeHeight
         this.densityDpi = densityDpi.coerceAtLeast(1)
-
-        projection.registerCallback(projectionCallback, mainHandler)
 
         val display = try {
             projection.createVirtualDisplay(
@@ -86,6 +98,13 @@ object MediaProjectionCapture {
             missingLogged = false
             FgoLogger.info(tag, "MediaProjection capture started: ${safeWidth}x${safeHeight}")
         }
+    }
+
+    private fun releaseSurface() {
+        virtualDisplay?.release()
+        virtualDisplay = null
+        imageReader?.close()
+        imageReader = null
     }
 
     suspend fun capture(): Bitmap? {
@@ -141,10 +160,7 @@ object MediaProjectionCapture {
     }
 
     fun stop() {
-        virtualDisplay?.release()
-        virtualDisplay = null
-        imageReader?.close()
-        imageReader = null
+        releaseSurface()
         mediaProjection?.unregisterCallback(projectionCallback)
         mediaProjection?.stop()
         mediaProjection = null

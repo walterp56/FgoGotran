@@ -36,6 +36,7 @@ class AiVoiceService @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val appAnalytics: AppAnalytics,
     private val characterVoiceRepository: CharacterVoiceRepository,
+    private val voiceDataUpdateManager: VoiceDataUpdateManager,
     private val tempVoiceProfileRepository: TempVoiceProfileRepository,
     private val tempVoiceProfileBuilder: TempVoiceProfileBuilder,
     private val diagnosticEventStore: DiagnosticEventStore,
@@ -202,6 +203,8 @@ class AiVoiceService @Inject constructor(
             .ifBlank { TEST_VOICE_SPEAKER_JP }
         val cleanDialogue = voiceTextFor(dialogue)
             ?: throw IllegalArgumentException("Test dialogue is blank")
+
+        voiceDataUpdateManager.updateIfNeeded(force = true)
 
         withContext(Dispatchers.IO) {
             characterVoiceRepository.reload()
