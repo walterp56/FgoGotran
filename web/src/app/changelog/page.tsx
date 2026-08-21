@@ -8,6 +8,12 @@ export const metadata: Metadata = {
 
 const changelog = [
   {
+    title: "v2.3.1",
+    date: "21-8-2026",
+    icon: Smartphone,
+    items: ["修正裝置旋轉後的螢幕擷取問題","修正進入 FGO 橫向畫面後，OCR 與翻譯覆蓋層可能失效或使用錯誤畫面尺寸的問題","提升浮動翻譯覆蓋層在螢幕旋轉時的穩定性","測試語音前會先更新語音設定資料","新增更多 Azure 中文 Neural 語音的調校支援","簡化啟用語氣增強時的測試語音提示訊息"]
+  },
+  {
     title: "v2.3.0",
     date: "20-8-2026",
     icon: Smartphone,
