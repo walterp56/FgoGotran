@@ -13,6 +13,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.Looper
 import android.view.Display
+import android.view.Surface
 import android.view.WindowManager
 import androidx.core.app.ServiceCompat
 import com.fgogotran.capture.MediaProjectionCapture
@@ -57,7 +58,9 @@ class FgoRunnerService : Service() {
         override fun onDisplayRemoved(displayId: Int) = Unit
         override fun onDisplayChanged(displayId: Int) {
             if (displayId != Display.DEFAULT_DISPLAY) return
-            mainHandler.post { refreshMediaProjection() }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                mainHandler.post { resizeMediaProjection() }
+            }
         }
     }
 
@@ -108,8 +111,8 @@ class FgoRunnerService : Service() {
         SessionTranslationHistory.clear()
         createNotificationChannel()
         startForegroundCompat()
-        createMediaProjection()
         displayManager = getSystemService(DisplayManager::class.java)
+        createMediaProjection()
         displayManager?.registerDisplayListener(displayListener, mainHandler)
         serviceScope.launch {
             glossaryUpdateManager.updateIfNeeded()
@@ -121,23 +124,25 @@ class FgoRunnerService : Service() {
         overlay.show()
     }
 
-    private fun refreshMediaProjection() {
+    private fun resizeMediaProjection() {
         val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
-        val densityDpi = resources.displayMetrics.densityDpi
-        val rotation = (getSystemService(WindowManager::class.java)).defaultDisplay.rotation
+        val densityDpi = resources.configuration.densityDpi
+        val rotation = defaultDisplayRotation()
         if (bounds.width() == lastWidth && bounds.height() == lastHeight && densityDpi == lastDensityDpi && rotation == lastRotation) {
             return
         }
-        lastWidth = bounds.width()
-        lastHeight = bounds.height()
-        lastDensityDpi = densityDpi
-        lastRotation = rotation
-        FgoLogger.info(tag, "Display changed; restarting MediaProjection: ${bounds.width()}x${bounds.height()}, rotation=$rotation")
-        MediaProjectionCapture.restart(
+        FgoLogger.info(tag, "Display changed; resizing MediaProjection: ${bounds.width()}x${bounds.height()}, rotation=$rotation")
+        val resized = MediaProjectionCapture.resize(
             width = bounds.width(),
             height = bounds.height(),
             densityDpi = densityDpi
         )
+        if (resized) {
+            lastWidth = bounds.width()
+            lastHeight = bounds.height()
+            lastDensityDpi = densityDpi
+            lastRotation = rotation
+        }
     }
 
     private fun createMediaProjection() {
@@ -147,17 +152,20 @@ class FgoRunnerService : Service() {
             val manager = getSystemService(MediaProjectionManager::class.java)
             val projection = manager.getMediaProjection(resultCode, resultData)
             val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+            val densityDpi = resources.configuration.densityDpi
             lastWidth = bounds.width()
             lastHeight = bounds.height()
-            lastDensityDpi = resources.displayMetrics.densityDpi
-            lastRotation = (getSystemService(WindowManager::class.java)).defaultDisplay.rotation
-            MediaProjectionCapture.start(
+            lastDensityDpi = densityDpi
+            lastRotation = defaultDisplayRotation()
+            val started = MediaProjectionCapture.start(
                 projection = projection,
                 width = bounds.width(),
                 height = bounds.height(),
-                densityDpi = resources.displayMetrics.densityDpi
+                densityDpi = densityDpi
             )
-            FgoLogger.info(tag, "MediaProjection capture started: ${bounds.width()}x${bounds.height()}")
+            if (!started) {
+                FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot")
+            }
         } catch (e: Exception) {
             FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot", e)
             MediaProjectionCapture.stop()
@@ -176,6 +184,13 @@ class FgoRunnerService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    private fun defaultDisplayRotation(): Int {
+        return displayManager
+            ?.getDisplay(Display.DEFAULT_DISPLAY)
+            ?.rotation
+            ?: Surface.ROTATION_0
     }
 
     override fun onBind(intent: Intent?) = null
