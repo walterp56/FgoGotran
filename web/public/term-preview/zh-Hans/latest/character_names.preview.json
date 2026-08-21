@@ -828,8 +828,8 @@
     "aliases": "謎のヒロインXオルタ"
   },
   {
-    "jp_name": "新宿のアーチャー",
-    "cn_name": "新宿的Archer",
+    "jp_name": "新宿",
+    "cn_name": "新宿",
     "category": "character",
     "aliases": ""
   },
@@ -838,18 +838,6 @@
     "cn_name": "卫宫·Alter",
     "category": "character",
     "aliases": "エミヤオルタ"
-  },
-  {
-    "jp_name": "新宿のアヴェンジャー",
-    "cn_name": "新宿的Avenger",
-    "category": "character",
-    "aliases": ""
-  },
-  {
-    "jp_name": "新宿のアサシン",
-    "cn_name": "新宿的Assassin",
-    "category": "character",
-    "aliases": ""
   },
   {
     "jp_name": "アーサー・ペンドラゴン",
@@ -912,26 +900,20 @@
     "aliases": "ビーストIII/R"
   },
   {
-    "jp_name": "不夜城のキャスター",
-    "cn_name": "不夜城的Caster",
+    "jp_name": "不夜城",
+    "cn_name": "不夜城",
     "category": "character",
     "aliases": ""
   },
   {
-    "jp_name": "不夜城のアサシン",
-    "cn_name": "不夜城的Assassin",
+    "jp_name": "エルドラド",
+    "cn_name": "黄金国",
     "category": "character",
     "aliases": ""
   },
   {
-    "jp_name": "エルドラドのバーサーカー",
-    "cn_name": "黄金国的Berserker",
-    "category": "character",
-    "aliases": ""
-  },
-  {
-    "jp_name": "レジスタンスのライダー",
-    "cn_name": "反抗军的Rider",
+    "jp_name": "レジスタンス",
+    "cn_name": "反抗军",
     "category": "character",
     "aliases": ""
   },
@@ -954,16 +936,16 @@
     "aliases": ""
   },
   {
-    "jp_name": "アーチャー・インフェルノ",
-    "cn_name": "Archer Inferno",
+    "jp_name": "インフェルノ",
+    "cn_name": "Inferno",
     "category": "character",
-    "aliases": "アーチャーインフェルノ"
+    "aliases": ""
   },
   {
-    "jp_name": "アサシン・パライソ",
-    "cn_name": "Assassin Paraiso",
+    "jp_name": "パライソ",
+    "cn_name": "Paraiso",
     "category": "character",
-    "aliases": "アサシンパライソ"
+    "aliases": ""
   },
   {
     "jp_name": "宝蔵院胤舜",
@@ -1002,8 +984,8 @@
     "aliases": "メカエリチャンII号機"
   },
   {
-    "jp_name": "オケアノスのキャスター",
-    "cn_name": "俄刻阿诺斯的Caster",
+    "jp_name": "オケアノス",
+    "cn_name": "俄刻阿诺斯",
     "category": "character",
     "aliases": ""
   },
@@ -1014,8 +996,8 @@
     "aliases": ""
   },
   {
-    "jp_name": "ミドラーシュのキャスター",
-    "cn_name": "米德拉什的Caster",
+    "jp_name": "ミドラーシュ",
+    "cn_name": "米德拉什",
     "category": "character",
     "aliases": ""
   },
@@ -1480,12 +1462,6 @@
     "cn_name": "宇津见绘里濑",
     "category": "character",
     "aliases": ""
-  },
-  {
-    "jp_name": "アルトリア・キャスター",
-    "cn_name": "阿尔托莉雅·卡斯特",
-    "category": "character",
-    "aliases": "アルトリアキャスター"
   },
   {
     "jp_name": "巴御前",
@@ -2628,18 +2604,6 @@
     "aliases": ""
   },
   {
-    "jp_name": "インフェルノ",
-    "cn_name": "Inferno",
-    "category": "character",
-    "aliases": ""
-  },
-  {
-    "jp_name": "パライソ",
-    "cn_name": "Paraiso",
-    "category": "character",
-    "aliases": ""
-  },
-  {
     "jp_name": "アグラヴェイン",
     "cn_name": "阿格规文",
     "category": "character",
@@ -2652,10 +2616,10 @@
     "aliases": ""
   },
   {
-    "jp_name": "豹尾神・鈴鹿御前",
-    "cn_name": "豹尾神·铃鹿御前",
+    "jp_name": "豹尾神",
+    "cn_name": "豹尾神",
     "category": "character",
-    "aliases": "豹尾神鈴鹿御前,豹尾神·鈴鹿御前"
+    "aliases": ""
   },
   {
     "jp_name": "柴田勝家",
@@ -2718,10 +2682,10 @@
     "aliases": ""
   },
   {
-    "jp_name": "ランサー・プルガトリオ・一切穿通",
-    "cn_name": "Lancer Purgatorio·一切穿通",
+    "jp_name": "プルガトリオ",
+    "cn_name": "Purgatorio",
     "category": "character",
-    "aliases": "ランサープルガトリオ一切穿通,ランサー·プルガトリオ·一切穿通"
+    "aliases": ""
   },
   {
     "jp_name": "マックスウェルの悪魔",
@@ -2742,12 +2706,6 @@
     "aliases": ""
   },
   {
-    "jp_name": "女神ロンゴミニアド",
-    "cn_name": "女神伦戈米尼亚德",
-    "category": "character",
-    "aliases": ""
-  },
-  {
     "jp_name": "ロンゴミニアド",
     "cn_name": "伦戈米尼亚德",
     "category": "character",
@@ -2760,10 +2718,10 @@
     "aliases": ""
   },
   {
-    "jp_name": "歳殺神・俵藤太",
-    "cn_name": "岁杀神·俵藤太",
+    "jp_name": "歳殺神",
+    "cn_name": "岁杀神",
     "category": "character",
-    "aliases": "歳殺神俵藤太,歳殺神·俵藤太"
+    "aliases": ""
   },
   {
     "jp_name": "四元素アイリ",
@@ -3848,6 +3806,12 @@
   {
     "jp_name": "ぐっ様",
     "cn_name": "虞大人",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "メジェド様",
+    "cn_name": "梅杰德大人",
     "category": "character",
     "aliases": ""
   }
