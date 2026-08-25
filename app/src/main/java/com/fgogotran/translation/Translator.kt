@@ -69,6 +69,7 @@ data class SceneTranslateInput(
 
 data class SceneDialogueContext(
     val speakerName: String?,
+    val sourceDialogue: String,
     val translatedDialogue: String,
     val targetLocale: String,
     val dialogueSourceKey: String
@@ -444,7 +445,7 @@ class Translator @Inject constructor(
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_LONG_MAX_TOKENS = 384
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_CHAR_LIMIT = 120
         private const val SCENE_TRANSLATION_MAX_TOKENS = 704
-        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-v2"
+        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-v3"
         private const val CURRENT_SPEAKER_CONTEXT_MAX_CHARS = 160
         private const val SCENE_DIALOGUE_CONTEXT_MAX_CHARS = 320
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
@@ -4559,10 +4560,13 @@ class Translator @Inject constructor(
         previousDialogueContexts: List<SceneDialogueContext>
     ) {
         if (previousDialogueContexts.isEmpty()) return
-        appendLine("Prior Chinese context only (topic/pronouns/relationships/tone); never output, quote, or continue it:")
+        appendLine("Previous JP+CN pairs are context only; never output, quote, retranslate, or continue them.")
+        appendLine("Use JP as source of truth and CN only for established wording/tone. Translate only the current input below.")
         previousDialogueContexts.forEachIndexed { index, context ->
             val speaker = context.speakerName?.takeIf { it.isNotBlank() } ?: "unknown"
-            appendLine("${index + 1}. $speaker: ${context.translatedDialogue}")
+            appendLine("${index + 1}. Speaker: $speaker")
+            appendLine("   JP: ${context.sourceDialogue}")
+            appendLine("   CN: ${context.translatedDialogue}")
         }
         appendLine()
     }
@@ -5499,19 +5503,22 @@ class Translator @Inject constructor(
         return contexts
             .filter { context ->
                 SettingsRepository.normalizeTargetChineseLocale(context.targetLocale) == normalizedTarget &&
+                    context.sourceDialogue.isNotBlank() &&
                     context.translatedDialogue.isNotBlank() &&
                     !context.translatedDialogue.isSceneContextErrorText()
             }
             .mapNotNull { context ->
-                val dialogue = normalizeSceneDialogueContext(context.translatedDialogue)
-                if (dialogue.isBlank()) {
+                val sourceDialogue = normalizeSceneDialogueContext(context.sourceDialogue)
+                val translatedDialogue = normalizeSceneDialogueContext(context.translatedDialogue)
+                if (sourceDialogue.isBlank() || translatedDialogue.isBlank()) {
                     null
                 } else {
                     context.copy(
                         speakerName = context.speakerName
                             ?.let(::normalizeCurrentSpeakerContext)
                             ?.takeIf(String::isNotBlank),
-                        translatedDialogue = dialogue
+                        sourceDialogue = sourceDialogue,
+                        translatedDialogue = translatedDialogue
                     )
                 }
             }
@@ -5523,6 +5530,7 @@ class Translator @Inject constructor(
         val material = contexts.joinToString("\u001E") { context ->
             listOf(
                 context.speakerName.orEmpty(),
+                context.sourceDialogue,
                 context.translatedDialogue,
                 context.dialogueSourceKey
             ).joinToString("\u001D")
@@ -5533,7 +5541,9 @@ class Translator @Inject constructor(
     private fun logSceneContext(promptKind: String, contexts: List<SceneDialogueContext>) {
         if (contexts.isEmpty()) return
         val chars = contexts.sumOf { context ->
-            context.speakerName.orEmpty().length + context.translatedDialogue.length
+            context.speakerName.orEmpty().length +
+                context.sourceDialogue.length +
+                context.translatedDialogue.length
         }
         FgoLogger.debug(tag, "Scene context: kind=$promptKind, lines=${contexts.size}, chars=$chars")
     }

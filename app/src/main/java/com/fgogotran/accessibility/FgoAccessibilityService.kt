@@ -2962,6 +2962,14 @@ class FgoAccessibilityService : AccessibilityService() {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         val originalDialogue = dialogueInstruction?.historyOriginalText()
+        val contextSourceDialogue = dialogueInstruction
+            ?.sourceText
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val contextTranslatedDialogue = dialogueInstruction
+            ?.translatedText
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
         val choiceEntries = choiceInstructions.mapNotNull { instruction ->
             val translated = instruction.translatedText
                 .trim()
@@ -2985,6 +2993,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     speakerName = name,
                     dialogueText = dialogue,
                     originalDialogueText = originalDialogue,
+                    contextSourceDialogue = contextSourceDialogue,
+                    contextTranslatedDialogue = contextTranslatedDialogue,
                     choices = choiceEntries.map { it.first },
                     originalChoices = choiceEntries.map { it.second },
                     speakerNameColor = nameInstruction?.textColor
