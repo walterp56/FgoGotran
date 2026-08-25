@@ -183,13 +183,13 @@ export const apiProviders: ApiProvider[] = [
   },
   {
     id: "custom",
-    name: "自定义接口",
+    name: "自定义 / 本地 AI",
     shortName: "Custom",
     recommendedModel: "按服务商文档填写",
     endpoint: "兼容 OpenAI Chat Completions 的接口地址",
     docsUrl: "https://platform.openai.com/docs/api-reference/chat/create",
-    regionNote: "适合使用第三方转发、自建网关或其他兼容接口。",
-    bestFor: "已经熟悉模型 API，并希望自己管理接口的用户。",
+    regionNote: "适合第三方转发、自建网关或可信局域网内的本地模型；本地 HTTP 仅支持数字形式的私有 IP。",
+    bestFor: "希望自己管理接口，或在电脑上运行 OpenAI 兼容模型的用户。",
     priority: "advanced"
   }
 ];

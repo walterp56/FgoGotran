@@ -176,8 +176,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val SPECIAL_FIRST_PERSON_PROMPT = """
-            - アテシ, アタシ, and あたし are first-person pronouns, not names.
-            - Translate them by speaker voice as 本小姐, 本姑娘, or 人家.
+            - アテシ, アタシ, あーし and あたし are first-person pronouns, not names.
+            - Translate them by speaker voice as 本小姐, 本姑娘, 人家我 or 人家.
             """.trimIndent()
 
         private val AMBIGUOUS_ROMAN_PROMPT = """

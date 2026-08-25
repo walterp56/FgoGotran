@@ -1,6 +1,6 @@
 # FgoGotran Privacy Policy
 
-Last updated: 2026-06-16
+Last updated: 2026-08-22
 
 FgoGotran is a Fate/Grand Order Japanese-to-Chinese translation overlay. This policy describes what the app accesses and how that data is used.
 
@@ -17,7 +17,7 @@ FgoGotran is a Fate/Grand Order Japanese-to-Chinese translation overlay. This po
 - Accessibility events are used to detect FGO window changes and user taps so the app can refresh translation overlays.
 - Screen images are processed for OCR to find Japanese FGO story text. They are not uploaded as images by FgoGotran.
 - OCR text is translated and displayed as an overlay above FGO.
-- If the user uses an online translation provider, the OCR text and translation prompt are sent to the selected or configured translation API endpoint.
+- If the user uses an online or local translation provider, the OCR text and translation prompt are sent to the selected or configured translation API endpoint.
 - The player name is used locally to preserve the user's FGO Master name in translations.
 - API keys are stored locally on the device and are sent only to the selected translation provider as required for translation requests.
 - The glossary updater may contact `https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json` and download a verified glossary database package.
@@ -31,13 +31,15 @@ FgoGotran is not designed to read contacts, SMS, call logs, passwords, banking a
 
 FgoGotran does not sell user data and does not use data for advertising.
 
-When online translation is enabled, recognized dialogue text is shared with the translation provider selected by the user. That provider may process data according to its own privacy policy. Users can choose a custom OpenAI-compatible endpoint in the app settings.
+When translation is enabled, recognized dialogue text is shared with the translation provider or local server selected by the user. An online provider may process data according to its own privacy policy. Users can choose a custom OpenAI-compatible endpoint in the app settings.
+
+Custom endpoints may use unencrypted HTTP only when addressed by a numeric private-network IP. HTTP does not protect translation text or API credentials from other devices able to observe that local network, so it should be used only with a trusted Wi-Fi network and an authenticated local server. Public and hostname-based custom endpoints must use HTTPS.
 
 ## Permissions
 
 - Accessibility Service: used only for FGO translation automation, OCR capture, overlay refresh, and forwarding user taps from the translation overlay to FGO.
 - Display over other apps: used to show the floating translation button, menu, and translated text above FGO.
-- Internet and network state: used for online translation and glossary updates.
+- Internet and network state: used for online or local-network translation and glossary updates.
 - Foreground service and notification permission: used to keep the user-visible translation service running.
 - Battery settings shortcut: optional; helps users find Android battery settings for stable overlay behavior during gameplay.
 

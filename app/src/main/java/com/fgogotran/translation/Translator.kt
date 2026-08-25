@@ -4,6 +4,7 @@ import android.icu.text.Transliterator
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.network.ApiEndpointPolicy
 import com.fgogotran.terminology.CharacterNameEntity
 import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.TermDao
@@ -12,6 +13,7 @@ import com.fgogotran.util.FgoLogger
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -23,6 +25,8 @@ import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -103,6 +107,7 @@ class Translator @Inject constructor(
     private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private val httpClient = HttpClient {
+        followRedirects = false
         install(HttpTimeout) {
             connectTimeoutMillis = TRANSLATION_CONNECT_TIMEOUT_MS
             socketTimeoutMillis = TRANSLATION_SOCKET_TIMEOUT_MS
@@ -115,6 +120,7 @@ class Translator @Inject constructor(
             })
         }
     }
+    private val localApiRequestMutex = Mutex()
 
     private val cacheDao = cacheDb.cacheDao()
     private val tag = "Translator"
@@ -163,15 +169,18 @@ class Translator @Inject constructor(
         apiModel: String
     ): String {
         val normalizedBackend = SettingsRepository.normalizeBackend(backend)
+        val resolvedApiBaseUrl = apiBaseUrl.trim().ifBlank {
+            SettingsRepository.defaultApiBaseUrl(normalizedBackend)
+        }
+        val resolvedApiModel = apiModel.trim().ifBlank {
+            SettingsRepository.defaultApiModel(normalizedBackend)
+        }
+        require(resolvedApiModel.isNotBlank()) { "模型名称不能为空" }
         val config = RuntimeConfig(
             backend = normalizedBackend,
             apiKey = apiKey.trim(),
-            apiBaseUrl = apiBaseUrl.trim().ifBlank {
-                SettingsRepository.defaultApiBaseUrl(normalizedBackend)
-            },
-            apiModel = apiModel.trim().ifBlank {
-                SettingsRepository.defaultApiModel(normalizedBackend)
-            },
+            apiBaseUrl = validateApiBaseUrl(normalizedBackend, resolvedApiBaseUrl),
+            apiModel = resolvedApiModel,
             playerName = "",
             cacheEnabled = false,
             targetChineseLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
@@ -418,6 +427,8 @@ class Translator @Inject constructor(
         private const val TRANSLATION_CONNECT_TIMEOUT_MS = 10_000L
         private const val TRANSLATION_SOCKET_TIMEOUT_MS = 20_000L
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
+        private const val LOCAL_API_SOCKET_TIMEOUT_MS = 90_000L
+        private const val LOCAL_API_REQUEST_TIMEOUT_MS = 90_000L
         private const val CHAT_COMPLETION_MAX_TOKENS = 256
         private const val API_TEST_MAX_TOKENS = 96
         private const val VOICE_HINT_TEST_MAX_TOKENS = 96
@@ -1677,13 +1688,16 @@ class Translator @Inject constructor(
         val now = System.currentTimeMillis()
         val playerName = userProfile.getPlayerName()
         val backend = settingsRepository.translationBackend.first()
+        val apiBaseUrl = settingsRepository.getApiBaseUrlForBackend(backend)
+            .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) }
+        val apiModel = settingsRepository.getApiModelForBackend(backend)
+            .ifBlank { SettingsRepository.defaultApiModel(backend) }
+        require(apiModel.isNotBlank()) { "模型名称不能为空" }
         val loaded = RuntimeConfig(
             backend = backend,
             apiKey = settingsRepository.getApiKeyForBackend(backend),
-            apiBaseUrl = settingsRepository.getApiBaseUrlForBackend(backend)
-                .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) },
-            apiModel = settingsRepository.getApiModelForBackend(backend)
-                .ifBlank { SettingsRepository.defaultApiModel(backend) },
+            apiBaseUrl = validateApiBaseUrl(backend, apiBaseUrl),
+            apiModel = apiModel,
             playerName = playerName,
             cacheEnabled = settingsRepository.cacheEnabled.first(),
             targetChineseLocale = settingsRepository.targetChineseLocale.first(),
@@ -1703,6 +1717,14 @@ class Translator @Inject constructor(
         cachedRuntimeConfigAt = now
         FgoLogger.debug(tag, "Runtime config refreshed")
         return loaded
+    }
+
+    private fun validateApiBaseUrl(backend: String, apiBaseUrl: String): String {
+        return if (SettingsRepository.normalizeBackend(backend) == SettingsRepository.BACKEND_CUSTOM_OPENAI) {
+            ApiEndpointPolicy.validateCustomOpenAiEndpoint(apiBaseUrl).url
+        } else {
+            apiBaseUrl.trim()
+        }
     }
 
     private fun TranslateResult.forTargetLocale(config: RuntimeConfig): TranslateResult {
@@ -5048,7 +5070,52 @@ class Translator @Inject constructor(
         disableThinking: Boolean = false,
         reasoningEffort: String? = null
     ): String {
+        val isPrivateLanHttp = ApiEndpointPolicy.isPrivateLanHttp(apiBaseUrl)
+        return if (isPrivateLanHttp) {
+            localApiRequestMutex.withLock {
+                executeOpenAiCompatibleRequest(
+                    apiKey = apiKey,
+                    apiBaseUrl = apiBaseUrl,
+                    apiModel = apiModel,
+                    messages = messages,
+                    maxTokens = maxTokens,
+                    disableThinking = disableThinking,
+                    reasoningEffort = reasoningEffort,
+                    useLocalTimeout = true
+                )
+            }
+        } else {
+            executeOpenAiCompatibleRequest(
+                apiKey = apiKey,
+                apiBaseUrl = apiBaseUrl,
+                apiModel = apiModel,
+                messages = messages,
+                maxTokens = maxTokens,
+                disableThinking = disableThinking,
+                reasoningEffort = reasoningEffort,
+                useLocalTimeout = false
+            )
+        }
+    }
+
+    private suspend fun executeOpenAiCompatibleRequest(
+        apiKey: String,
+        apiBaseUrl: String,
+        apiModel: String,
+        messages: List<ChatMessage>,
+        maxTokens: Int,
+        disableThinking: Boolean,
+        reasoningEffort: String?,
+        useLocalTimeout: Boolean
+    ): String {
         val response = httpClient.post(apiBaseUrl) {
+            if (useLocalTimeout) {
+                timeout {
+                    connectTimeoutMillis = TRANSLATION_CONNECT_TIMEOUT_MS
+                    socketTimeoutMillis = LOCAL_API_SOCKET_TIMEOUT_MS
+                    requestTimeoutMillis = LOCAL_API_REQUEST_TIMEOUT_MS
+                }
+            }
             if (apiKey.isNotBlank()) {
                 header("Authorization", "Bearer $apiKey")
             }

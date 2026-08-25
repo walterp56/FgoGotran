@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Local model addresses are configured at runtime, so Android cannot express the private-IP
+      allowlist here. ApiEndpointPolicy enforces that HTTP is used only with numeric private-LAN
+      addresses; all public and hostname endpoints must use HTTPS.
+    -->
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

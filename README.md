@@ -15,7 +15,7 @@ It reads the current FGO screen with OCR, matches FGO character names and termin
 - Supports manual, semi-auto, auto, and crop translation modes.
 - Uses Japanese OCR to recognize story dialogue, choice text, and speaker names.
 - Uses a glossary/RAG layer before AI translation to keep FGO names, official terms, and story tone more stable.
-- Supports user-provided OpenAI-compatible API settings, including DeepSeek, Qwen, Alibaba Cloud Model Studio, and custom endpoints.
+- Supports user-provided OpenAI-compatible API settings, including DeepSeek, Qwen, Alibaba Cloud Model Studio, custom endpoints, and authenticated local models on a trusted LAN.
 - Downloads the latest online terminology database instead of bundling a local DB inside the APK.
 - Includes a translation LOG so users can review translated speaker names, dialogue, and choices from the current session.
 
@@ -34,6 +34,8 @@ Punctuation Wait Time: 0
 ```
 
 FgoGotran also requires Android overlay and Accessibility permissions. A working translation API key is required for AI translation.
+
+For a local OpenAI-compatible server such as llama.cpp, enter the phone-reachable Chat Completions endpoint (for example, `http://192.168.3.18:18080/v1/chat/completions`). Unencrypted HTTP is accepted only for numeric private-LAN addresses and should be used only on a trusted Wi-Fi network. Keep API-key authentication enabled on the local server.
 
 ## Project Structure
 
@@ -105,7 +107,7 @@ See [term_builder/README.md](term_builder/README.md) for details.
 
 ## Privacy and Security
 
-FgoGotran does not upload game screenshots. Screenshots are used locally for OCR. When online translation is enabled, recognized text and the translation prompt are sent to the translation API selected by the user. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+FgoGotran does not upload game screenshots. Screenshots are used locally for OCR. When translation is enabled, recognized text and the translation prompt are sent to the online or local translation API selected by the user. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
 
 Before committing, make sure the repository does not contain:
 

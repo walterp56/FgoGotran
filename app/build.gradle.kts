@@ -15,8 +15,8 @@ android {
         applicationId = "com.fgogotran"
         minSdk = 30
         targetSdk = 34
-        versionCode = 9
-        versionName = "2.3.1"
+        versionCode = 10
+        versionName = "2.4.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
@@ -100,5 +100,7 @@ dependencies {
     // Core
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    testImplementation(kotlin("test"))
 
 }

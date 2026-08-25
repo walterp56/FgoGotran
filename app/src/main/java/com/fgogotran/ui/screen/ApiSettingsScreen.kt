@@ -14,6 +14,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.network.ApiEndpointPolicy
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.BackendProviderLabel
 import com.fgogotran.util.FgoLogger
@@ -41,6 +42,12 @@ private fun apiTestMessage(status: String, durationMs: Long, result: String): St
 private fun apiTestFailureResult(error: Throwable): String {
     val message = error.message.orEmpty()
     return when {
+        message.startsWith("API 地址") ||
+            message.startsWith("HTTP 仅允许") ||
+            message.startsWith("模型名称") ->
+            message
+        message.contains("Cleartext HTTP traffic", ignoreCase = true) ->
+            "应用未允许本地 HTTP，请安装支持本地 AI 的新版 APK"
         message.contains("Role must be in [user, assistant]", ignoreCase = true) ->
             "模型不兼容 FgoGotran 翻译格式"
         message.contains("API Key", ignoreCase = true) || message.contains("401") ->
@@ -60,6 +67,13 @@ private fun apiTestFailureResult(error: Throwable): String {
             "模型返回为空"
         message.contains("untranslated", ignoreCase = true) ->
             "模型没有按 FgoGotran 翻译格式返回中文"
+        message.contains("timeout", ignoreCase = true) ||
+            message.contains("timed out", ignoreCase = true) ->
+            "连接模型超时，请确认电脑端模型已加载完成"
+        message.contains("connect", ignoreCase = true) ||
+            message.contains("unreachable", ignoreCase = true) ||
+            message.contains("refused", ignoreCase = true) ->
+            "无法连接服务器，请检查电脑 IP、端口、防火墙和 VPN 的局域网放行设置"
         message.isNotBlank() ->
             "服务商返回错误：${message.take(160)}"
         else ->
@@ -87,7 +101,7 @@ fun ApiSettingsScreen(
             BackendOption(SettingsRepository.BACKEND_CLAUDE),
             BackendOption(
                 SettingsRepository.BACKEND_CUSTOM_OPENAI,
-                "兼容 OpenAI Chat Completions 的接口"
+                "兼容 OpenAI Chat Completions；支持可信局域网内的本地模型"
             )
         )
     }
@@ -180,18 +194,25 @@ fun ApiSettingsScreen(
 
     fun saveSettings() {
         scope.launch {
-            settingsRepository.saveApiSettings(
-                backend = selectedBackend,
-                apiKey = apiKey,
-                apiBaseUrl = effectiveApiBaseUrl(),
-                apiModel = apiModel,
-                qwenSite = qwenSite
-            )
-            saveMessage = "已保存"
-            saveMessageIsError = false
-            val savedBackend = selectedBackend
-            scope.launch {
-                appAnalytics.reportBackendType(savedBackend)
+            try {
+                settingsRepository.saveApiSettings(
+                    backend = selectedBackend,
+                    apiKey = apiKey,
+                    apiBaseUrl = effectiveApiBaseUrl(),
+                    apiModel = apiModel,
+                    qwenSite = qwenSite
+                )
+                saveMessage = "已保存"
+                saveMessageIsError = false
+                val savedBackend = selectedBackend
+                scope.launch {
+                    appAnalytics.reportBackendType(savedBackend)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                saveMessage = e.message?.takeIf { it.isNotBlank() } ?: "保存失败"
+                saveMessageIsError = true
             }
         }
     }
@@ -358,8 +379,31 @@ fun ApiSettingsScreen(
                             label = { Text("API 地址") },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                            supportingText = {
+                                Text("HTTPS 可连接任意服务；HTTP 仅允许数字形式的私有局域网 IP")
+                            },
                             singleLine = true
                         )
+                        if (apiBaseUrl.trim().startsWith("http://", ignoreCase = true)) {
+                            val localEndpointValid = remember(apiBaseUrl) {
+                                runCatching {
+                                    ApiEndpointPolicy.validateCustomOpenAiEndpoint(apiBaseUrl)
+                                }.getOrNull()?.isPrivateLanHttp == true
+                            }
+                            Text(
+                                if (localEndpointValid) {
+                                    "本地 HTTP 不加密，仅应在可信 Wi-Fi 中使用；请保留 API Key 认证。"
+                                } else {
+                                    "HTTP 地址必须使用私有局域网数字 IP，并指向 /chat/completions。"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (localEndpointValid) {
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                }
+                            )
+                        }
                     }
                     OutlinedTextField(
                         value = apiModel,

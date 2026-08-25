@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fgogotran.network.ApiEndpointPolicy
 import com.fgogotran.terminology.LocalCharacterNameEntity
 import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.LocalGlossaryDatabase
@@ -146,6 +147,7 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
         const val DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         const val DEFAULT_CLAUDE_BASE_URL = "https://api.anthropic.com/v1/messages"
+        const val DEFAULT_CUSTOM_BASE_URL = ""
 
         const val DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
         const val DEFAULT_ZHIPU_MODEL = "glm-4.5-air"
@@ -153,7 +155,7 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_OPENAI_MODEL = "gpt-4o"
         const val DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
         const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
-        const val DEFAULT_CUSTOM_MODEL = "deepseek-v4-flash"
+        const val DEFAULT_CUSTOM_MODEL = ""
         const val TARGET_LOCALE_SIMPLIFIED = "zh-Hans"
         const val TARGET_LOCALE_TRADITIONAL = "zh-Hant"
         const val GAME_SERVER_JP = "jp"
@@ -259,7 +261,7 @@ class SettingsRepository @Inject constructor(
             BACKEND_CLAUDE -> DEFAULT_CLAUDE_BASE_URL
             BACKEND_GPT -> DEFAULT_OPENAI_BASE_URL
             BACKEND_GEMINI -> DEFAULT_GEMINI_BASE_URL
-            BACKEND_CUSTOM_OPENAI -> DEFAULT_DEEPSEEK_BASE_URL
+            BACKEND_CUSTOM_OPENAI -> DEFAULT_CUSTOM_BASE_URL
             else -> DEFAULT_DEEPSEEK_BASE_URL
         }
 
@@ -280,7 +282,7 @@ class SettingsRepository @Inject constructor(
             BACKEND_CLAUDE -> "Anthropic Claude"
             BACKEND_GPT -> "OpenAI GPT"
             BACKEND_GEMINI -> "Google Gemini"
-            BACKEND_CUSTOM_OPENAI -> "自定义接口"
+            BACKEND_CUSTOM_OPENAI -> "自定义 / 本地 AI"
             else -> "DeepSeek"
         }
 
@@ -693,13 +695,20 @@ class SettingsRepository @Inject constructor(
     ) {
         val normalizedBackend = normalizeBackend(backend)
         val normalizedQwenSite = normalizeQwenSite(qwenSite)
+        val normalizedApiBaseUrl = if (normalizedBackend == BACKEND_CUSTOM_OPENAI) {
+            ApiEndpointPolicy.validateCustomOpenAiEndpoint(apiBaseUrl).url
+        } else {
+            apiBaseUrl.trim()
+        }
+        val normalizedApiModel = apiModel.trim()
+        require(normalizedApiModel.isNotEmpty()) { "模型名称不能为空" }
         context.dataStore.edit {
             it[KEY_TRANSLATION_BACKEND] = normalizedBackend
             it[apiKeyPreferenceKey(normalizedBackend)] = apiKey.trim()
-            it[apiBaseUrlPreferenceKey(normalizedBackend)] = apiBaseUrl.trim()
-            it[apiModelPreferenceKey(normalizedBackend)] = apiModel.trim()
-            it[KEY_API_BASE_URL] = apiBaseUrl.trim()
-            it[KEY_API_MODEL] = apiModel.trim()
+            it[apiBaseUrlPreferenceKey(normalizedBackend)] = normalizedApiBaseUrl
+            it[apiModelPreferenceKey(normalizedBackend)] = normalizedApiModel
+            it[KEY_API_BASE_URL] = normalizedApiBaseUrl
+            it[KEY_API_MODEL] = normalizedApiModel
             if (normalizedBackend == BACKEND_QWEN) {
                 it[KEY_QWEN_SITE] = normalizedQwenSite
             }
