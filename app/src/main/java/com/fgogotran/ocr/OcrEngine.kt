@@ -44,6 +44,8 @@ data class OcrResult(
 )
 
 internal interface OcrProvider {
+    val preferredInputScale: OcrInputScale
+        get() = OcrInputScale.X1
     suspend fun warmUp()
     suspend fun recognize(bitmap: Bitmap): OcrResult
     fun close()
@@ -85,10 +87,69 @@ class OcrEngine @Inject constructor(
         }
     }
 
-    suspend fun recognize(bitmap: Bitmap): OcrResult {
+    suspend fun recognize(
+        bitmap: Bitmap,
+        inputScale: OcrInputScale = OcrInputScale.X1
+    ): OcrResult {
         return try {
             providerMutex.withLock {
-                selectedProviderLocked().recognize(bitmap)
+                require(!bitmap.isRecycled) { "OCR bitmap has been recycled" }
+                val provider = selectedProviderLocked()
+                val requestedScale = OcrScalePolicy.requestedAdditionalScale(
+                    preferredScale = provider.preferredInputScale,
+                    inputScale = inputScale
+                )
+                val additionalScale = OcrScalePolicy.additionalScale(
+                    preferredScale = provider.preferredInputScale,
+                    inputScale = inputScale,
+                    width = bitmap.width,
+                    height = bitmap.height
+                )
+                if (requestedScale > additionalScale) {
+                    FgoLogger.warn(
+                        tag,
+                        "OCR 2x input skipped by pixel budget: " +
+                            "engine=$activeEngine input=${bitmap.width}x${bitmap.height} " +
+                            "maxPixels=${OcrScalePolicy.MAX_PREPARED_PIXEL_COUNT}"
+                    )
+                }
+
+                val preparedBitmap = if (additionalScale > 1) {
+                    val startedAt = System.currentTimeMillis()
+                    Bitmap.createScaledBitmap(
+                        bitmap,
+                        bitmap.width * additionalScale,
+                        bitmap.height * additionalScale,
+                        true
+                    ).also { prepared ->
+                        FgoLogger.debug(
+                            tag,
+                            "OCR input prepared: engine=$activeEngine " +
+                                "${bitmap.width}x${bitmap.height} -> " +
+                                "${prepared.width}x${prepared.height}, " +
+                                "elapsed=${System.currentTimeMillis() - startedAt}ms"
+                        )
+                    }
+                } else {
+                    bitmap
+                }
+
+                try {
+                    val result = provider.recognize(preparedBitmap)
+                    if (additionalScale > 1) {
+                        result.toInputCoordinates(
+                            scale = additionalScale,
+                            inputWidth = bitmap.width,
+                            inputHeight = bitmap.height
+                        )
+                    } else {
+                        result
+                    }
+                } finally {
+                    if (preparedBitmap !== bitmap && !preparedBitmap.isRecycled) {
+                        preparedBitmap.recycle()
+                    }
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -101,6 +162,25 @@ class OcrEngine @Inject constructor(
             )
             throw e
         }
+    }
+
+    private fun OcrResult.toInputCoordinates(
+        scale: Int,
+        inputWidth: Int,
+        inputHeight: Int
+    ): OcrResult {
+        return copy(
+            lines = lines.map { line ->
+                line.copy(
+                    boundingBox = Rect(
+                        OcrScalePolicy.scaleDownStart(line.boundingBox.left, scale, inputWidth),
+                        OcrScalePolicy.scaleDownStart(line.boundingBox.top, scale, inputHeight),
+                        OcrScalePolicy.scaleDownEnd(line.boundingBox.right, scale, inputWidth),
+                        OcrScalePolicy.scaleDownEnd(line.boundingBox.bottom, scale, inputHeight)
+                    )
+                )
+            }
+        )
     }
 
     private suspend fun selectedProviderLocked(): OcrProvider {

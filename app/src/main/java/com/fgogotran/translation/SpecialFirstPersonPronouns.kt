@@ -143,6 +143,11 @@ internal object SpecialFirstPersonPronouns {
             sourceForms = listOf("あたい", "アタイ"),
             simplifiedTarget = "老娘",
             detectionPolicy = DetectionPolicy.STANDALONE_FIRST_PERSON
+        ),
+        Rule(
+            sourceForms = listOf("儂"),
+            simplifiedTarget = "老夫",
+            detectionPolicy = DetectionPolicy.STANDALONE_FIRST_PERSON
         )
     )
 

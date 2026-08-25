@@ -26,6 +26,7 @@ internal enum class MlKitOcrScript(
 internal class MlKitOcrProvider(
     private val script: MlKitOcrScript = MlKitOcrScript.JAPANESE
 ) : OcrProvider {
+    override val preferredInputScale = OcrInputScale.X2
     private val recognizer: TextRecognizer = when (script) {
         MlKitOcrScript.CHINESE -> TextRecognition.getClient(
             ChineseTextRecognizerOptions.Builder().build()

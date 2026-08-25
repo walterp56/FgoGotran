@@ -29,6 +29,7 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrEngineId
+import com.fgogotran.ocr.OcrInputScale
 import com.fgogotran.ocr.OcrTextCorrector
 import com.fgogotran.ocr.OcrTextLine
 import com.fgogotran.overlay.BackgroundDetector
@@ -1056,7 +1057,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
             val ocrStartedAt = SystemClock.elapsedRealtime()
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(ocrBitmap)
+                ocrEngine.recognize(
+                    bitmap = ocrBitmap,
+                    inputScale = if (scaledForOcr != null) OcrInputScale.X2 else OcrInputScale.X1
+                )
             }
             val cropOcrScale = if (scaledForOcr != null) CROP_OCR_SCALE else 1
             val cropLines = cropLocalOcrLines(
@@ -3193,7 +3197,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 false
             )
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(scaled!!)
+                ocrEngine.recognize(scaled!!, inputScale = OcrInputScale.X2)
             }
             val lines = ocrResult.lines
                 .map { line ->
@@ -3533,7 +3537,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
         return try {
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(scaledBitmap)
+                ocrEngine.recognize(scaledBitmap, inputScale = OcrInputScale.X2)
             }
             val regionLines = ocrResult.lines
                 .map { line ->
@@ -3671,7 +3675,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 false
             )
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(scaled!!)
+                ocrEngine.recognize(scaled!!, inputScale = OcrInputScale.X2)
             }
             val regionLines = ocrResult.lines
                 .map { line ->
