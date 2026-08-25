@@ -32,8 +32,8 @@ data class PromptContext(
     val hasKatakana: Boolean = false,
     val hasAddressPronouns: Boolean = false,
     val specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping> = emptyList(),
-    val hasAmbiguousRoman: Boolean = false,
-    val isRetry: Boolean = false
+    val hasBeniEnmaDechiTic: Boolean = false,
+    val hasAmbiguousRoman: Boolean = false
 )
 
 /**
@@ -42,7 +42,6 @@ data class PromptContext(
  * ## System prompt structure
  * 1. Tiny base role and output contract
  * 2. Small safety, style, and feature blocks for the current source shape
- * 3. Injected RAG terminology table (JP → official CN)
  *
  * ## User prompt structure
  * 1. Optional choice text context (if player choices are on screen)
@@ -50,23 +49,88 @@ data class PromptContext(
  *
  * ## RAG (Retrieval-Augmented Generation)
  * The [extractTermMatches] method finds FGO-specific proper nouns in the JP text
- * and adds their official Chinese translations to the system prompt.
- * This ensures consistent terminology (servant names, Noble Phantasm names, etc.)
- * across all translations regardless of the LLM backend used.
+ * so Translator can lock them as placeholders and restore official Chinese after
+ * the model responds. This keeps terminology consistent across backends.
  */
 @Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v63"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v69"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
         private val maskPattern = Regex("""\?{3,}|？{3,}|[■□▇█]""")
-        private val honorificPattern = Regex("""さん|くん|ちゃん|様|殿|氏""")
+        private val honorificPattern = Regex("""ちゃん|さん|くん|たん|てゃ|っち|様|殿|氏""")
+        internal val HONORIFIC_EXCEPTION_PHRASES = setOf(
+            "皆さん",
+            "みなさん",
+            "たくさん",
+            "お父さん",
+            "父さん",
+            "お母さん",
+            "母さん",
+            "お兄さん",
+            "兄さん",
+            "お姉さん",
+            "姉さん",
+            "お客さん",
+            "おじさん",
+            "おばさん",
+            "叔父さん",
+            "叔母さん",
+            "赤ちゃん",
+            "お父ちゃん",
+            "父ちゃん",
+            "お母ちゃん",
+            "母ちゃん",
+            "お兄ちゃん",
+            "兄ちゃん",
+            "お姉ちゃん",
+            "姉ちゃん",
+            "おじいちゃん",
+            "じいちゃん",
+            "おばあちゃん",
+            "ばあちゃん",
+            "かんたん",
+            "ぼたん",
+            "ひょうたん",
+            "牛たん",
+            "ぎゅうたん",
+            "たんたん",
+            "こっち",
+            "そっち",
+            "あっち",
+            "どっち",
+            "ぼっち",
+            "えっち",
+            "わっち",
+            "めっちゃ",
+            "皆様",
+            "みな様",
+            "お客様",
+            "神様",
+            "王様",
+            "奥様",
+            "お嬢様",
+            "殿様",
+            "神殿",
+            "宮殿",
+            "御殿",
+            "殿堂",
+            "殿方",
+            "彼氏"
+        )
+        private val honorificExceptionPattern = Regex(
+            HONORIFIC_EXCEPTION_PHRASES
+                .sortedByDescending(String::length)
+                .joinToString("|") { Regex.escape(it) }
+        )
         private val addressPronounPattern =
             Regex("""あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
         private val katakanaWordPattern = Regex("""[ァ-ヶｦ-ﾟー]{2,}""")
+        private val beniEnmaSpeakerAliases = listOf("紅閻魔", "红阎魔")
+        private val beniEnmaDechiTicPattern = Regex("""でち(?![ゃゅょャュョ])""")
 
         /**
          * These blocks are intentionally assembled in a stable order and
@@ -76,27 +140,25 @@ class PromptBuilder @Inject constructor() {
          * safety rules that must apply to every request.
          */
         private val BASE_TRANSLATION_PROMPT = """
-            You localize Fate/Grand Order Japanese text into natural, compact {target_chinese} for an in-game overlay.
-            Translate meaning and tone. Use only {target_chinese}; do not mix Chinese scripts.
-            Do not leave Japanese kana unless a rule allows it.
+            Localize FGO Japanese into natural, compact {target_chinese} for an in-game overlay.
+            Preserve meaning and tone. Use only {target_chinese}; leave no kana unless a rule allows it.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """
-            You translate visible Japanese text from a user-selected Fate/Grand Order screen crop into natural, compact {target_chinese}.
-            Translate only visible source text; do not infer text outside the crop.
-            Use only {target_chinese}; do not mix Chinese scripts.
+            Translate visible FGO Japanese OCR into natural, compact {target_chinese}.
+            Use only {target_chinese}; do not infer text outside the crop.
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT = """
-            Return only the translated Chinese text. No notes, markdown, source text, labels, wrappers, or explanations.
+            Return only the Chinese translation; no notes, markdown, labels, wrappers, or source text.
             """.trimIndent()
 
         private val JSON_OBJECT_OUTPUT_PROMPT = """
-            Return valid JSON only with the keys requested by the user message. No extra keys, notes, markdown, source text, labels, or explanations.
+            Return JSON only with exactly the requested keys; no extra keys or text.
             """.trimIndent()
 
         private val JSON_ARRAY_OUTPUT_PROMPT = """
-            Return a valid JSON array only. Preserve item count and input order. No notes, markdown, source text, labels, or explanations.
+            Return a JSON array only; preserve item count and order.
             """.trimIndent()
 
         private val PLACEHOLDER_PROMPT = """
@@ -104,7 +166,7 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val MASK_PROMPT = """
-            - Preserve hidden or mask text such as ???, ？？？, ■, □, ▇, and █ exactly; never guess hidden text.
+            - Preserve masks (???, ？？？, ■, □, ▇, █) exactly; never guess them.
             """.trimIndent()
 
         private val PLAYER_NAME_PROMPT = """
@@ -112,8 +174,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val DIALOGUE_STYLE_PROMPT = """
-            - Preserve speaker voice and relationship: regal, archaic, casual, childish, robotic, sarcastic, solemn, intimate, hostile, or playful.
-            - Preserve ambiguity when natural; add pronouns only when the source clearly identifies the referent. Use 他 unless a female referent is clear.
+            - Preserve speaker voice/relationship (regal, archaic, casual, childish, robotic, intimate, hostile, playful) and ambiguity.
+            - Add pronouns only when explicit; use 他 unless clearly female.
             """.trimIndent()
 
         private val LINE_BREAK_PROMPT = """
@@ -121,15 +183,13 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val MASTER_PROMPT = """
-            - Translate マスター as 御主 by default in FGO dialogue, not 主人, 大师, or Master unless clearly an English UI label.
+            - In FGO dialogue, マスター->御主, not 主人/大师/Master unless it is an English UI label.
             """.trimIndent()
 
         private val CROP_STYLE_PROMPT = """
-            - Keep OCR line order; translate only visible text.
-            - Do not merge, split, drop, add, or complete partial text.
-            - Preserve numbers, percentages, levels, ranks, icons-as-text, and item counts.
-            - Dialogue -> keep tone/voice. UI/profile/skill/item/mission/battle -> concise game-UI style.
-            - Add no speaker names, labels, or missing context.
+            - Preserve OCR row order and every visible fragment; never merge, split, add, omit, or complete text.
+            - Preserve numbers, percentages, levels, ranks, counts, and text-like icons.
+            - Dialogue: preserve voice. Other text: concise game-UI style. Never add names or labels.
             """.trimIndent()
 
         private val VOICE_HINT_PROMPT = """
@@ -137,41 +197,39 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val CHOICE_PROMPT = """
-            - When player choices are requested as output, keep each option short, natural, and in the same order; do not merge, split, or explain them.
+            - Keep output choices short, natural, one-to-one, and in order.
             """.trimIndent()
 
         private val NAME_PROMPT = """
-            - Unknown names/proper nouns -> concise Chinese transliterations, not descriptions or other characters.
-            - Not in glossary -> transliterate in FGO/TYPE-MOON style.
-            - Name-box: preserve and translate all visible parts (titles, suffixes, base《role》, base（state）, ?, A/B); do not drop ruby.
-            - Never return an unknown Japanese name unchanged.
+            - Unknown names/proper nouns -> concise FGO/TYPE-MOON-style Chinese transliteration; never leave Japanese or substitute another character.
+            - Name-box: preserve every visible title, suffix, annotation/state, ?, A/B, bracket, and ruby.
             """.trimIndent()
 
         private val RUBY_PROMPT = """
-            - Ruby may appear as base《ruby》. Always output Chinese base《ruby》; never omit ruby.
-            - Translate base and ruby naturally. English inside 《》 only when the ruby is English-style.
-            - Use 《》 only, never parentheses.
+            - base《ruby》 -> Chinese base《ruby》; translate both naturally and never omit ruby.
+            - English-style ruby may stay English; use 《》 only.
             """.trimIndent()
 
         private val PAUSE_PROMPT = """
-            - Preserve dramatic pauses naturally.
-            - Normalize pause dots to compact …… and long dash pauses to ───.
+            - Preserve dramatic pauses; normalize dots to …… and long dashes to ───.
             """.trimIndent()
 
         private val HONORIFIC_PROMPT = """
-            - Suffixes: さん->桑, くん->君, ちゃん->酱; 様/殿/氏 unchanged. Apply only to names.
-            - Exceptions (do not apply): 皆さん, みなさん, 赤ちゃん, お父さん, お母さん, お兄さん, お姉さん, お客さん, おじさん, おばさん, たくさん, 彼氏.
-            - Name plural ズ = English-style group; use X们.
+            - Names only: XXさん->XX桑; XXくん->XX君; XXちゃん->XX{chan}; XX殿->XX{tono}; XXたん->XX炭; XXてゃ->XX{tya}; XX様->XX大人; XX氏->XX氏; XXっち->小XX (never XX小); XXズ->XX{plural}.
+            - Never apply inside ordinary words or kinship/titles, e.g. 皆さん, 赤ちゃん, 神様, 王様, 神殿, 彼氏, かんたん, 牛たん, こっち, そっち, あっち, どっち, ぼっち, えっち, わっち.
+            """.trimIndent()
+
+        private val BENI_ENMA_DECHI_PROMPT = """
+            - 紅閻魔: actual copular verbal tic でち -> natural clause-final 啾; never add 啾 where でち is absent or part of an unrelated word.
             """.trimIndent()
 
         private val ADDRESS_PRONOUN_PROMPT = """
-            - 2nd-person forms (あなた, 貴方, あんた, お前, おまえ, 貴様, 汝, そなた, 其方, お主, てめえ, 卿) -> translate by tone/relationship; never keep as Japanese or names.
+            - Translate Japanese second-person address by tone/relationship; never keep it as Japanese or a name.
             """.trimIndent()
 
         private val KATAKANA_STYLE_PROMPT = """
-            - Common katakana English-style words may stay compact English when natural.
-            - Not for names, organizations, classes, Noble Phantasms, skills, or protected placeholders.
-            - Translate/transliterate unprotected kana yokai/nickname/attack terms; do not leave kana.
+            - Common katakana loanwords may use compact English.
+            - Translate/transliterate other unprotected katakana; never leave names, organizations, classes, Noble Phantasms, skills, yokai, nicknames, or attacks in kana.
             """.trimIndent()
 
         private val AMBIGUOUS_ROMAN_PROMPT = """
@@ -199,7 +257,7 @@ class PromptBuilder @Inject constructor() {
         isDialogue: Boolean = !isCropMode,
         requestVoiceHint: Boolean = false,
         playerName: String = "",
-        isRetry: Boolean = false
+        currentSpeaker: String = ""
     ): PromptContext {
         val combinedText = (listOf(sourceText) + choiceTexts)
             .joinToString("\n")
@@ -227,8 +285,8 @@ class PromptBuilder @Inject constructor() {
                 combinedText,
                 normalizedTargetLocale
             ),
-            hasAmbiguousRoman = containsAmbiguousRoman(combinedText),
-            isRetry = isRetry
+            hasBeniEnmaDechiTic = containsBeniEnmaDechiTic(combinedText, currentSpeaker),
+            hasAmbiguousRoman = containsAmbiguousRoman(combinedText)
         )
     }
 
@@ -350,7 +408,9 @@ class PromptBuilder @Inject constructor() {
             if (context.hasName) add("name" to NAME_PROMPT)
             if (context.hasRuby) add("ruby" to RUBY_PROMPT)
             if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
-            if (context.hasHonorifics) add("honorific" to HONORIFIC_PROMPT)
+            if (context.hasHonorifics) {
+                add("honorific" to buildHonorificPrompt(context.targetChineseLocale))
+            }
             if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
             if (context.hasKatakana) add("katakana_style" to KATAKANA_STYLE_PROMPT)
             if (context.specialFirstPersonMappings.isNotEmpty()) {
@@ -359,6 +419,9 @@ class PromptBuilder @Inject constructor() {
                         context.specialFirstPersonMappings
                     )
                 )
+            }
+            if (context.hasBeniEnmaDechiTic) {
+                add("beni_enma_dechi" to buildBeniEnmaDechiPrompt())
             }
             if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
         }
@@ -373,27 +436,20 @@ class PromptBuilder @Inject constructor() {
      */
     fun buildUserPrompt(
         japaneseText: String,
-        choiceTexts: List<String>,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+        choiceTexts: List<String>
     ): String {
         val sb = StringBuilder()
-        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
-
-        sb.append("Translate this Fate/Grand Order Japanese text into $targetChinese for the in-game overlay.\n")
 
         // Prepend choice context if present — helps the LLM understand
         // that these are separate interactive elements, not dialogue lines
         if (choiceTexts.isNotEmpty()) {
-            sb.append("Choice context only. Do not output these choices; use them only to understand the scene, and translate only the main dialogue text:\n")
+            sb.append("Choices (context only; do not output):\n")
             for ((i, choice) in choiceTexts.withIndex()) {
-                sb.append("[Choice ${i + 1}] $choice\n")
+                sb.append("${i + 1}. $choice\n")
             }
-            sb.append("\nMain dialogue text:\n")
+            sb.append('\n')
         }
-
-        if (japaneseText.contains("__FGO")) {
-            sb.append("Keep each full placeholder token starting with __FGO unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
-        }
+        sb.append("Source:\n")
         sb.append(japaneseText)
 
         FgoLogger.debug(tag, "User prompt: ${sb.length} chars, choices=${choiceTexts.size}")
@@ -401,22 +457,15 @@ class PromptBuilder @Inject constructor() {
     }
 
     fun buildCropUserPrompt(
-        japaneseText: String,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+        japaneseText: String
     ): String {
         val sb = StringBuilder()
-        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         val lines = japaneseText.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
 
-        sb.append("Translate each cropped Fate/Grand Order OCR line into $targetChinese.\n")
-        sb.append("Return a JSON array with exactly ${lines.size} string(s), in the same order.\n")
-        sb.append("Do not merge, split, drop, add, explain, or infer text outside the crop.\n\n")
-        if (japaneseText.contains("__FGO")) {
-            sb.append("Keep each full placeholder token starting with __FGO unchanged exactly. Do not translate or edit characters inside placeholders.\n\n")
-        }
-        sb.append("Cropped OCR lines:\n")
+        sb.append("Return a JSON array of exactly ${lines.size} strings, one per OCR row, in order.\n")
+        sb.append("OCR rows:\n")
         lines.forEachIndexed { index, line ->
             sb.append("${index + 1}. ")
             sb.append(line)
@@ -453,7 +502,9 @@ class PromptBuilder @Inject constructor() {
     }
 
     private fun containsHonorifics(text: String): Boolean {
-        return honorificPattern.containsMatchIn(text)
+        val normalized = Normalizer.normalize(text, Normalizer.Form.NFKC)
+        val withoutKnownExceptions = honorificExceptionPattern.replace(normalized, "")
+        return honorificPattern.containsMatchIn(withoutKnownExceptions)
     }
 
     private fun containsAddressPronoun(text: String): Boolean {
@@ -473,8 +524,28 @@ class PromptBuilder @Inject constructor() {
         return "- [FP] $rules; exact first-person mappings, not names or 我."
     }
 
+    internal fun buildBeniEnmaDechiPrompt(): String = BENI_ENMA_DECHI_PROMPT
+
+    private fun buildHonorificPrompt(targetChineseLocale: String): String {
+        val traditional = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
+            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+        return HONORIFIC_PROMPT
+            .replace("{chan}", if (traditional) "醬" else "酱")
+            .replace("{tono}", if (traditional) "閣下" else "阁下")
+            .replace("{tya}", if (traditional) "寶" else "宝")
+            .replace("{plural}", if (traditional) "們" else "们")
+    }
+
     private fun containsAmbiguousRoman(text: String): Boolean {
         return "ロマン" in text
+    }
+
+    private fun containsBeniEnmaDechiTic(text: String, currentSpeaker: String): Boolean {
+        val normalizedSpeaker = Normalizer.normalize(currentSpeaker, Normalizer.Form.NFKC)
+        if (beniEnmaSpeakerAliases.none(normalizedSpeaker::contains)) return false
+
+        val normalizedText = Normalizer.normalize(text, Normalizer.Form.NFKC)
+        return beniEnmaDechiTicPattern.containsMatchIn(normalizedText)
     }
 
     /**

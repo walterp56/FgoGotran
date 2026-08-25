@@ -60,7 +60,7 @@ internal object SpecialFirstPersonPronouns {
             wrongNameTranslations = stylizedPronounWrongNameTranslations
         ),
         Rule(
-            sourceForms = listOf("あーし"),
+            sourceForms = listOf("あーし","あ一し"),
             simplifiedTarget = "本小姐",
             wrongNameTranslations = stylizedPronounWrongNameTranslations
         ),

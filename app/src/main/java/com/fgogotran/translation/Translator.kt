@@ -227,9 +227,7 @@ class Translator @Inject constructor(
                     "user",
                     buildSingleUserPrompt(
                         japaneseText = protectedInput.text,
-                        choiceTexts = emptyList(),
-                        preserveRubyMeaning = false,
-                        targetChineseLocale = config.targetChineseLocale
+                        choiceTexts = emptyList()
                     )
                 )
             ),
@@ -447,6 +445,8 @@ class Translator @Inject constructor(
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_CHAR_LIMIT = 120
         private const val SCENE_TRANSLATION_MAX_TOKENS = 704
         private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-v2"
+        private const val CURRENT_SPEAKER_CONTEXT_MAX_CHARS = 160
+        private const val SCENE_DIALOGUE_CONTEXT_MAX_CHARS = 320
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val UNTRANSLATED_FALLBACK = ""
         private const val MASKED_TEXT_BACKEND = "masked-source"
@@ -512,132 +512,95 @@ class Translator @Inject constructor(
             Regex("([\\p{IsHan}\\u3040-\\u309F\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})くん")
         private val nameChanHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})ちゃん")
+        private val nameTanHonorificPattern =
+            Regex("([\\p{IsHan}\\u3040-\\u309F\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})たん")
+        private val nameTyaHonorificPattern =
+            Regex("([\\p{IsHan}\\u3040-\\u309F\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})てゃ")
+        private val nameCchiHonorificPattern =
+            Regex("([\\p{IsHan}\\u3040-\\u309F\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})っち")
         private val nameSamaHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})様")
         private val nameTonoHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})殿")
         private val nameShiHonorificPattern =
             Regex("([\\p{IsHan}\\u30A0-\\u30FF\\uFF66-\\uFF9DA-Za-z0-9_・ー〇○-]{1,32})氏")
-        private val wrongSanHonorificSuffixes = listOf("先生", "小姐", "女士", "大人", "阁下")
-        private val wrongKunHonorificSuffixes = listOf("同学", "先生", "小姐", "女士", "大人", "阁下", "桑")
-        private val wrongChanHonorificSuffixes = listOf("小妹妹", "妹妹", "小姐", "同学", "亲", "桑")
-        private val wrongSamaHonorificSuffixes = listOf("大人", "阁下", "先生", "小姐", "女士", "同学", "桑", "殿")
-        private val wrongTonoHonorificSuffixes = listOf("大人", "阁下", "先生", "小姐", "女士", "同学", "桑", "様")
-        private val wrongShiHonorificSuffixes = listOf("先生", "小姐", "女士", "大人", "阁下", "桑", "酱")
+        private val wrongSanHonorificSuffixes =
+            listOf("先生", "小姐", "女士", "大人", "阁下", "閣下", "君", "酱", "醬", "宝", "寶")
+        private val wrongKunHonorificSuffixes =
+            listOf("同学", "先生", "小姐", "女士", "大人", "阁下", "閣下", "桑", "酱", "醬", "宝", "寶")
+        private val wrongChanHonorificSuffixes =
+            listOf("小妹妹", "妹妹", "小姐", "同学", "亲", "親", "桑", "君", "大人", "阁下", "閣下", "宝", "寶")
+        private val wrongTanHonorificSuffixes =
+            listOf("酱", "醬", "小妹妹", "妹妹", "小姐", "同学", "亲", "親", "桑", "君", "大人", "宝", "寶")
+        private val wrongTyaHonorificSuffixes =
+            listOf("宝宝", "寶寶", "宝贝", "寶貝", "酱", "醬", "炭", "桑", "君", "大人", "阁下", "閣下", "様", "殿", "氏")
+        private val wrongCchiHonorificSuffixes =
+            listOf("阁下", "閣下", "大人", "酱", "醬", "炭", "桑", "君", "様", "殿", "氏", "宝", "寶", "小")
+        private val wrongSamaHonorificSuffixes =
+            listOf("阁下", "閣下", "先生", "小姐", "女士", "同学", "桑", "君", "酱", "醬", "宝", "寶", "殿", "様")
+        private val wrongTonoHonorificSuffixes =
+            listOf("大人", "先生", "小姐", "女士", "同学", "桑", "君", "酱", "醬", "宝", "寶", "殿", "様")
+        private val wrongShiHonorificSuffixes =
+            listOf("先生", "小姐", "女士", "大人", "阁下", "閣下", "桑", "君", "酱", "醬", "宝", "寶")
         private val leakedMasterTitlePattern = Regex("(?i)\\bmaster\\b|マスター")
         private val standaloneMasterTitleWrongSuffixes = listOf("御主人", "主人", "大师")
         private val standaloneJapaneseAddressSourcePattern =
             Regex("""あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
         private val leakedStandaloneAddressWordPattern =
             Regex("""貴方|贵方|貴様|贵样""")
-        private val explicitFemaleReferentMarkers = setOf(
-            "彼女",
-            "彼女たち",
-            "彼女達",
-            "彼女ら",
-            "女の子",
-            "女性",
-            "少女",
-            "女たち",
-            "女達",
-            "姫",
-            "王女",
-            "女王",
-            "女神",
-            "魔女",
-            "娘",
-            "妹",
-            "姉",
-            "母"
-        )
-        private val explicitStandaloneFemaleReferentPattern =
-            Regex("女(?=は|が|を|に|の|も|へ|と|だ|です|だった|である|め|よ|か|[、。！？!?」』）)]|$)")
-        private val sanHonorificExceptionPhrases = setOf(
-            "皆さん",
-            "みなさん",
-            "たくさん",
-            "お父さん",
-            "父さん",
-            "お母さん",
-            "母さん",
-            "お兄さん",
-            "兄さん",
-            "お姉さん",
-            "姉さん",
-            "お客さん",
-            "おじさん",
-            "おばさん",
-            "叔父さん",
-            "叔母さん"
-        )
-        private val chanHonorificExceptionPhrases = setOf(
-            "赤ちゃん",
-            "お父ちゃん",
-            "父ちゃん",
-            "お母ちゃん",
-            "母ちゃん",
-            "お兄ちゃん",
-            "兄ちゃん",
-            "お姉ちゃん",
-            "姉ちゃん",
-            "おじいちゃん",
-            "じいちゃん",
-            "おばあちゃん",
-            "ばあちゃん"
-        )
-        private val samaHonorificExceptionPhrases = setOf(
-            "皆様",
-            "みな様",
-            "お客様",
-            "神様",
-            "王様",
-            "奥様",
-            "お嬢様",
-            "殿様"
-        )
-        private val tonoHonorificExceptionPhrases = setOf(
-            "神殿",
-            "宮殿",
-            "御殿",
-            "殿堂",
-            "殿方"
-        )
-        private val shiHonorificExceptionPhrases = setOf(
-            "彼氏"
-        )
+        private val honorificExceptionPhrases = PromptBuilder.HONORIFIC_EXCEPTION_PHRASES
         private val NAME_PLURAL_ZU_SUFFIXES = listOf("ズ", "ず")
+        private const val NAME_HONORIFIC_SAN_SOURCE_SUFFIX = "さん"
+        private const val NAME_HONORIFIC_SAN_TARGET_SUFFIX = "桑"
         private const val NAME_HONORIFIC_KUN_SOURCE_SUFFIX = "くん"
         private const val NAME_HONORIFIC_KUN_TARGET_SUFFIX = "君"
         private const val NAME_HONORIFIC_CHAN_SOURCE_SUFFIX = "ちゃん"
         private const val NAME_HONORIFIC_CHAN_TARGET_SUFFIX = "酱"
-        private const val NAME_HONORIFIC_SAMA_SUFFIX = "様"
-        private const val NAME_HONORIFIC_TONO_SUFFIX = "殿"
-        private const val NAME_HONORIFIC_SHI_SUFFIX = "氏"
+        private const val NAME_HONORIFIC_TAN_SOURCE_SUFFIX = "たん"
+        private const val NAME_HONORIFIC_TAN_TARGET_SUFFIX = "炭"
+        private const val NAME_HONORIFIC_TYA_SOURCE_SUFFIX = "てゃ"
+        private const val NAME_HONORIFIC_TYA_TARGET_SUFFIX = "宝"
+        private const val NAME_HONORIFIC_CCHI_SOURCE_SUFFIX = "っち"
+        private const val NAME_HONORIFIC_CCHI_TARGET_PREFIX = "小"
+        private const val NAME_HONORIFIC_SAMA_SOURCE_SUFFIX = "様"
+        private const val NAME_HONORIFIC_SAMA_TARGET_SUFFIX = "大人"
+        private const val NAME_HONORIFIC_TONO_SOURCE_SUFFIX = "殿"
+        private const val NAME_HONORIFIC_TONO_TARGET_SUFFIX = "阁下"
+        private const val NAME_HONORIFIC_SHI_SOURCE_SUFFIX = "氏"
+        private const val NAME_HONORIFIC_SHI_TARGET_SUFFIX = "氏"
         private val visibleLockBlockedSuffixes = NAME_PLURAL_ZU_SUFFIXES + listOf(
             "たち",
             "達",
             "ら",
             "等",
+            NAME_HONORIFIC_SAN_SOURCE_SUFFIX,
             NAME_HONORIFIC_KUN_SOURCE_SUFFIX,
             NAME_HONORIFIC_CHAN_SOURCE_SUFFIX,
-            NAME_HONORIFIC_SAMA_SUFFIX,
-            NAME_HONORIFIC_TONO_SUFFIX,
-            NAME_HONORIFIC_SHI_SUFFIX
+            NAME_HONORIFIC_TAN_SOURCE_SUFFIX,
+            NAME_HONORIFIC_TYA_SOURCE_SUFFIX,
+            NAME_HONORIFIC_CCHI_SOURCE_SUFFIX,
+            NAME_HONORIFIC_SAMA_SOURCE_SUFFIX,
+            NAME_HONORIFIC_TONO_SOURCE_SUFFIX,
+            NAME_HONORIFIC_SHI_SOURCE_SUFFIX
         )
         private const val MASTER_TITLE_SOURCE = "マスター"
         private const val MASTER_TITLE_OFFICIAL = "御主"
         private val malformedProtectedTokenPattern =
-            Regex("__FGO(?:TERM|PLAYER)_([^_\\s]{1,64})(?:_(PLURAL|KUN|CHAN|SAMA|TONO|SHI|MASTER))?__")
+            Regex("__FGO(?:TERM|PLAYER)_([^_\\s]{1,64})(?:_(PLURAL|SAN|KUN|CHAN|TAN|TYA|CCHI|SAMA|TONO|SHI|MASTER))?__")
         private val anyProtectedTokenPattern =
             Regex("__FGO(?:TERM|PLAYER)_[^\\s]{1,96}__")
         private val protectedTokenNumericVariantBodyPattern =
-            Regex("\\d+_(PLURAL|KUN|CHAN|SAMA|TONO|SHI|MASTER)")
+            Regex("\\d+_(PLURAL|SAN|KUN|CHAN|TAN|TYA|CCHI|SAMA|TONO|SHI|MASTER)")
         private val protectedTokenMarkerBodies = setOf(
             "MASTER",
             "PLAYER",
             "PLURAL",
+            "SAN",
             "KUN",
             "CHAN",
+            "TAN",
+            "TYA",
+            "CCHI",
             "SAMA",
             "TONO",
             "SHI"
@@ -694,7 +657,9 @@ class Translator @Inject constructor(
         cropMode: Boolean = false,
         maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
         useTranslationCache: Boolean = true,
-        previousDialogueContexts: List<SceneDialogueContext> = emptyList()
+        previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
+        currentSpeaker: String = "",
+        currentSpeakerSourceName: String = ""
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -745,6 +710,13 @@ class Translator @Inject constructor(
         } else {
             sceneDialogueContextsForTarget(previousDialogueContexts, config.targetChineseLocale)
         }
+        val activeCurrentSpeaker = if (cropMode) {
+            ""
+        } else {
+            normalizeCurrentSpeakerContext(currentSpeaker)
+        }
+        val currentSpeakerCacheIdentity = normalizeCurrentSpeakerContext(currentSpeakerSourceName)
+            .ifBlank { activeCurrentSpeaker }
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val promptPolicyKey = when {
             cropMode -> "crop-screen-v2"
@@ -756,12 +728,14 @@ class Translator @Inject constructor(
             normalizedChoices,
             config,
             promptPolicyKey,
-            sceneContextPolicyKey
+            sceneContextPolicyKey,
+            currentSpeakerCacheIdentity
         )
 
         FgoLogger.debug(
             tag,
-            "translate: textLen=${normalizedText.length}, choices=${normalizedChoices.size}, crop=$cropMode"
+            "translate: textLen=${normalizedText.length}, choices=${normalizedChoices.size}, " +
+                "crop=$cropMode, speaker=${activeCurrentSpeaker.isNotBlank()}"
         )
         logSceneContext("single", activePreviousDialogueContexts)
 
@@ -816,21 +790,18 @@ class Translator @Inject constructor(
             forceRuby = preserveRubyMeaning,
             isCropMode = cropMode,
             isDialogue = !cropMode,
-            playerName = playerName
+            playerName = playerName,
+            currentSpeaker = activeCurrentSpeaker
         )
         val systemPrompt = promptBuilder.buildSystemPrompt(playerName, promptContext)
         val userPrompt = if (cropMode) {
-            promptBuilder.buildCropUserPrompt(
-                japaneseText = protectedInput.text,
-                targetChineseLocale = config.targetChineseLocale
-            )
+            promptBuilder.buildCropUserPrompt(protectedInput.text)
         } else {
             buildSingleUserPrompt(
                 japaneseText = protectedInput.text,
                 choiceTexts = protectedChoiceTexts,
-                preserveRubyMeaning = preserveRubyMeaning,
-                targetChineseLocale = config.targetChineseLocale,
-                previousDialogueContexts = activePreviousDialogueContexts
+                previousDialogueContexts = activePreviousDialogueContexts,
+                currentSpeaker = activeCurrentSpeaker
             )
         }
 
@@ -893,7 +864,9 @@ class Translator @Inject constructor(
                 badSafety = initialSafety,
                 cropMode = cropMode,
                 maxTokens = maxTokens,
-                previousDialogueContexts = activePreviousDialogueContexts
+                previousDialogueContexts = activePreviousDialogueContexts,
+                currentSpeaker = activeCurrentSpeaker,
+                hasBeniEnmaDechiTic = promptContext.hasBeniEnmaDechiTic
             )
             if (retryResult == null) {
                 if (initialSafety.status == TranslationSafetyStatus.PARTIAL_KANA_LEAK &&
@@ -932,7 +905,11 @@ class Translator @Inject constructor(
         return modelTranslateResult(simplifiedResult, backend, false, config).forTargetLocale(config)
     }
 
-    suspend fun translateBatch(japaneseTexts: List<String>): List<TranslateResult> {
+    suspend fun translateBatch(
+        japaneseTexts: List<String>,
+        currentSpeaker: String = "",
+        currentSpeakerSourceName: String = ""
+    ): List<TranslateResult> {
         if (japaneseTexts.isEmpty()) return emptyList()
 
         val rawNormalizedTexts = japaneseTexts.map(TextNormalizer::normalizeForTranslation)
@@ -944,13 +921,24 @@ class Translator @Inject constructor(
         val normalizedTexts = rawNormalizedTexts.mapIndexed { index, text ->
             correctPlayerNameOcr(text, playerName, "BATCH[$index]")
         }
-        val hashes = normalizedTexts.map { cacheKey(it, emptyList(), config) }
+        val activeCurrentSpeaker = normalizeCurrentSpeakerContext(currentSpeaker)
+        val currentSpeakerCacheIdentity = normalizeCurrentSpeakerContext(currentSpeakerSourceName)
+            .ifBlank { activeCurrentSpeaker }
+        val hashes = normalizedTexts.map {
+            cacheKey(
+                normalizedText = it,
+                choiceTexts = emptyList(),
+                config = config,
+                currentSpeaker = currentSpeakerCacheIdentity
+            )
+        }
         val results = MutableList<TranslateResult?>(japaneseTexts.size) { null }
         val uncachedIndices = mutableListOf<Int>()
 
         FgoLogger.debug(
             tag,
-            "translateBatch: count=${japaneseTexts.size}, chars=${normalizedTexts.sumOf { it.length }}"
+            "translateBatch: count=${japaneseTexts.size}, chars=${normalizedTexts.sumOf { it.length }}, " +
+                "speaker=${activeCurrentSpeaker.isNotBlank()}"
         )
 
         for (index in japaneseTexts.indices) {
@@ -1044,12 +1032,19 @@ class Translator @Inject constructor(
             outputFormat = PromptOutputFormat.JSON_ARRAY,
             sourceText = protectedTexts.joinToString("\n") { it.text },
             targetChineseLocale = config.targetChineseLocale,
-            playerName = playerName
+            playerName = playerName,
+            currentSpeaker = activeCurrentSpeaker
         )
 
         val messages = listOf(
             ChatMessage("system", promptBuilder.buildSystemPrompt(playerName, promptContext)),
-            ChatMessage("user", buildBatchUserPrompt(protectedTexts.map { it.text }, config.targetChineseLocale))
+            ChatMessage(
+                "user",
+                buildBatchUserPrompt(
+                    texts = protectedTexts.map { it.text },
+                    currentSpeaker = activeCurrentSpeaker
+                )
+            )
         )
 
         FgoLogger.info(tag, "Calling $backend API for batch (${uncachedTexts.size} items)")
@@ -1069,7 +1064,9 @@ class Translator @Inject constructor(
             for (index in uncachedIndices) {
                 results[index] = translate(
                     japaneseTexts[index],
-                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS
+                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
+                    currentSpeaker = activeCurrentSpeaker,
+                    currentSpeakerSourceName = currentSpeakerCacheIdentity
                 )
             }
             return results.completeForTargetLocale(config)
@@ -1097,7 +1094,9 @@ class Translator @Inject constructor(
                 FgoLogger.warn(tag, "Batch item[$originalIndex] returned unsafe Japanese; retrying single strict path")
                 val retryResult = translate(
                     japaneseTexts[originalIndex],
-                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS
+                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
+                    currentSpeaker = activeCurrentSpeaker,
+                    currentSpeakerSourceName = currentSpeakerCacheIdentity
                 )
                 if (retryResult.translatedText.isNotBlank()) {
                     results[originalIndex] = retryResult
@@ -1257,26 +1256,48 @@ class Translator @Inject constructor(
         }
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val nameHash = nameForLlm?.let { cacheKey(it, emptyList(), config) }
+
+        if (cacheEnabled && nameForLlm != null && nameHash != null && nameResult == null) {
+            lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name")?.let { cached ->
+                val cachedName = sanitizeSceneNameTranslation(nameForLlm, cached)
+                if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName)) {
+                    FgoLogger.warn(tag, "Dropping unsafe cached name translation, hash=${nameHash.take(8)}...")
+                    removeMemoryCachedTranslation(nameHash)
+                    cacheDao.deleteByHash(nameHash)
+                } else {
+                    nameResult = TranslateResult(cachedName, "cache", true)
+                }
+            }
+        }
+
+        val currentSpeaker = buildCurrentSpeakerContext(
+            sourceName = normalizedName,
+            resolvedName = nameResult?.translatedText,
+            targetChineseLocale = config.targetChineseLocale
+        )
+        val currentSpeakerSourceName = normalizeCurrentSpeakerContext(normalizedName.orEmpty())
         val dialogueHash = normalizedDialogue?.let {
-            cacheKey(it, emptyList(), config, sceneContextPolicyKey = sceneContextPolicyKey)
+            cacheKey(
+                normalizedText = it,
+                choiceTexts = emptyList(),
+                config = config,
+                sceneContextPolicyKey = sceneContextPolicyKey,
+                currentSpeaker = currentSpeakerSourceName
+            )
         }
         val choiceHashes = normalizedChoices.map { text ->
-            text?.let { cacheKey(it, emptyList(), config, sceneContextPolicyKey = sceneContextPolicyKey) }
+            text?.let {
+                cacheKey(
+                    normalizedText = it,
+                    choiceTexts = emptyList(),
+                    config = config,
+                    sceneContextPolicyKey = sceneContextPolicyKey,
+                    currentSpeaker = currentSpeakerSourceName
+                )
+            }
         }
 
         if (cacheEnabled) {
-            if (nameForLlm != null && nameHash != null && nameResult == null) {
-                lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name")?.let { cached ->
-                    val cachedName = sanitizeSceneNameTranslation(nameForLlm, cached)
-                    if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName)) {
-                        FgoLogger.warn(tag, "Dropping unsafe cached name translation, hash=${nameHash.take(8)}...")
-                        removeMemoryCachedTranslation(nameHash)
-                        cacheDao.deleteByHash(nameHash)
-                    } else {
-                        nameResult = TranslateResult(cachedName, "cache", true)
-                    }
-                }
-            }
             if (normalizedDialogue != null && dialogueHash != null && dialogueResult == null) {
                 lookupCachedTranslation(dialogueHash, normalizedDialogue, playerName, "Scene dialogue")?.let { cached ->
                     dialogueResult = TranslateResult(cached, "cache", true)
@@ -1313,7 +1334,9 @@ class Translator @Inject constructor(
             dialogueResult = translate(
                 input.dialogue.orEmpty(),
                 maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
-                previousDialogueContexts = activePreviousDialogueContexts
+                previousDialogueContexts = activePreviousDialogueContexts,
+                currentSpeaker = currentSpeaker,
+                currentSpeakerSourceName = currentSpeakerSourceName
             )
             return SceneTranslateResult(
                 name = nameResult,
@@ -1329,7 +1352,11 @@ class Translator @Inject constructor(
             activePreviousDialogueContexts.isEmpty()
         ) {
             FgoLogger.info(tag, "Scene choices-only path (${neededChoiceIndices.size})")
-            val translatedChoices = translateBatch(neededChoiceIndices.map { input.choices[it] })
+            val translatedChoices = translateBatch(
+                japaneseTexts = neededChoiceIndices.map { input.choices[it] },
+                currentSpeaker = currentSpeaker,
+                currentSpeakerSourceName = currentSpeakerSourceName
+            )
             translatedChoices.forEachIndexed { batchIndex, result ->
                 val choiceIndex = neededChoiceIndices[batchIndex]
                 choiceResults[choiceIndex] = result
@@ -1444,26 +1471,27 @@ class Translator @Inject constructor(
             hasName = needsName,
             isDialogue = sceneDialogueForApi != null,
             requestVoiceHint = requestVoiceHint,
-            playerName = playerName
+            playerName = playerName,
+            currentSpeaker = currentSpeaker
         )
         val useCompactDialogueVoiceHintPrompt =
             requestVoiceHint && !needsName && needsDialogue && neededChoiceIndices.isEmpty()
         val sceneUserPrompt = if (useCompactDialogueVoiceHintPrompt) {
             buildDialogueWithVoiceHintUserPrompt(
                 dialogue = protectedDialogue?.text ?: sceneDialogueForApi.orEmpty(),
-                targetChineseLocale = config.targetChineseLocale,
-                previousDialogueContexts = activePreviousDialogueContexts
+                previousDialogueContexts = activePreviousDialogueContexts,
+                currentSpeaker = currentSpeaker
             )
         } else {
             buildSceneUserPrompt(
                 protectedName?.text,
                 protectedDialogue?.text,
                 protectedChoices.map { it.text },
-                config.targetChineseLocale,
                 requestVoiceHint,
                 translateName = needsName,
                 translateDialogue = needsDialogue,
-                previousDialogueContexts = activePreviousDialogueContexts
+                previousDialogueContexts = activePreviousDialogueContexts,
+                currentSpeaker = currentSpeaker
             )
         }
         val scenePromptKind = when {
@@ -1481,7 +1509,8 @@ class Translator @Inject constructor(
             tag,
             "Calling $backend API for structured scene " +
                 "(name=$needsName, dialogue=$needsDialogue, choices=${uncachedChoices.size}, " +
-                "voiceHint=$requestVoiceHint, compact=$useCompactDialogueVoiceHintPrompt)"
+                "voiceHint=$requestVoiceHint, compact=$useCompactDialogueVoiceHintPrompt, " +
+                "speaker=${currentSpeaker.isNotBlank()})"
         )
         logSceneContext(scenePromptKind, activePreviousDialogueContexts)
         val sceneMaxTokens = when {
@@ -1527,7 +1556,11 @@ class Translator @Inject constructor(
                 choiceFallbackIndices += fallbackTexts.size to index
                 fallbackTexts += input.choices[index]
             }
-            val fallbackResults = translateBatch(fallbackTexts)
+            val fallbackResults = translateBatch(
+                japaneseTexts = fallbackTexts,
+                currentSpeaker = currentSpeaker,
+                currentSpeakerSourceName = currentSpeakerSourceName
+            )
             nameFallbackIndex?.let { index ->
                 fallbackResults.getOrNull(index)?.let { result ->
                     nameResult = validateLlmNameResult(nameForLlm!!, result, playerName)
@@ -1603,7 +1636,9 @@ class Translator @Inject constructor(
                     val retryResult = translate(
                         input.dialogue.orEmpty(),
                         maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
-                        previousDialogueContexts = activePreviousDialogueContexts
+                        previousDialogueContexts = activePreviousDialogueContexts,
+                        currentSpeaker = currentSpeaker,
+                        currentSpeakerSourceName = currentSpeakerSourceName
                     )
                     if (retryResult.translatedText.isNotBlank()) {
                         dialogueResult = retryResult
@@ -1651,7 +1686,10 @@ class Translator @Inject constructor(
                 FgoLogger.warn(tag, "Structured scene choice[$originalIndex] returned unsafe Japanese; retrying single path")
                 val retryResult = translate(
                     input.choices[originalIndex],
-                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS
+                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
+                    previousDialogueContexts = activePreviousDialogueContexts,
+                    currentSpeaker = currentSpeaker,
+                    currentSpeakerSourceName = currentSpeakerSourceName
                 )
                 choiceResults[originalIndex] = if (retryResult.translatedText.isNotBlank()) {
                     retryResult
@@ -2919,13 +2957,15 @@ class Translator @Inject constructor(
         val sanAdjusted = applySanHonorificPolicy(sourceText, simplified)
         val kunAdjusted = applyKunHonorificPolicy(sourceText, sanAdjusted)
         val chanAdjusted = applyChanHonorificPolicy(sourceText, kunAdjusted)
-        val samaAdjusted = applySamaHonorificPolicy(sourceText, chanAdjusted)
+        val tanAdjusted = applyTanHonorificPolicy(sourceText, chanAdjusted)
+        val tyaAdjusted = applyTyaHonorificPolicy(sourceText, tanAdjusted)
+        val cchiAdjusted = applyCchiHonorificPolicy(sourceText, tyaAdjusted)
+        val samaAdjusted = applySamaHonorificPolicy(sourceText, cchiAdjusted)
         val tonoAdjusted = applyTonoHonorificPolicy(sourceText, samaAdjusted)
         val shiAdjusted = applyShiHonorificPolicy(sourceText, tonoAdjusted)
         val masterAdjusted = applyMasterTitlePolicy(sourceText, shiAdjusted)
         val firstPersonAdjusted = applyStylizedFirstPersonPronounPolicy(sourceText, masterAdjusted)
-        val thirdPersonAdjusted = applyDefaultThirdPersonPronounPolicy(sourceText, firstPersonAdjusted)
-        return preserveSourcePunctuation(sourceText, thirdPersonAdjusted)
+        return preserveSourcePunctuation(sourceText, firstPersonAdjusted)
     }
 
     private fun sanitizeModelTranslation(
@@ -2998,7 +3038,10 @@ class Translator @Inject constructor(
         val sanAdjusted = applySanHonorificPolicy(sourceText, cleaned)
         val kunAdjusted = applyKunHonorificPolicy(sourceText, sanAdjusted)
         val chanAdjusted = applyChanHonorificPolicy(sourceText, kunAdjusted)
-        val samaAdjusted = applySamaHonorificPolicy(sourceText, chanAdjusted)
+        val tanAdjusted = applyTanHonorificPolicy(sourceText, chanAdjusted)
+        val tyaAdjusted = applyTyaHonorificPolicy(sourceText, tanAdjusted)
+        val cchiAdjusted = applyCchiHonorificPolicy(sourceText, tyaAdjusted)
+        val samaAdjusted = applySamaHonorificPolicy(sourceText, cchiAdjusted)
         val tonoAdjusted = applyTonoHonorificPolicy(sourceText, samaAdjusted)
         val shiAdjusted = applyShiHonorificPolicy(sourceText, tonoAdjusted)
         val masterAdjusted = applyMasterTitlePolicy(sourceText, shiAdjusted)
@@ -3007,22 +3050,7 @@ class Translator @Inject constructor(
             masterAdjusted,
             SettingsRepository.TARGET_LOCALE_TRADITIONAL
         )
-        val thirdPersonAdjusted = applyDefaultThirdPersonPronounPolicy(sourceText, firstPersonAdjusted)
-        return toTraditionalChinese(preserveSourcePunctuation(sourceText, thirdPersonAdjusted))
-    }
-
-    private fun applyDefaultThirdPersonPronounPolicy(sourceText: String, translatedText: String): String {
-        return if (sourceHasExplicitFemaleReferent(sourceText)) {
-            translatedText
-        } else {
-            translatedText.replace('她', '他')
-        }
-    }
-
-    private fun sourceHasExplicitFemaleReferent(sourceText: String): Boolean {
-        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
-        return explicitFemaleReferentMarkers.any { normalized.contains(it) } ||
-            explicitStandaloneFemaleReferentPattern.containsMatchIn(normalized)
+        return toTraditionalChinese(preserveSourcePunctuation(sourceText, firstPersonAdjusted))
     }
 
     private fun applySanHonorificPolicy(sourceText: String, translatedText: String): String {
@@ -3032,9 +3060,14 @@ class Translator @Inject constructor(
             translatedText,
             nameSanHonorificPattern,
             wrongSanHonorificSuffixes,
-            "桑"
+            NAME_HONORIFIC_SAN_TARGET_SUFFIX
         )
-        return appendHonorificToStandaloneNameIfMissing(sourceText, adjusted, nameSanHonorificPattern, "桑")
+        return appendHonorificToStandaloneNameIfMissing(
+            sourceText,
+            adjusted,
+            nameSanHonorificPattern,
+            NAME_HONORIFIC_SAN_TARGET_SUFFIX
+        )
     }
 
     private fun sourceContainsNameSanHonorific(sourceText: String): Boolean {
@@ -3042,7 +3075,7 @@ class Translator @Inject constructor(
         return nameSanHonorificPattern.findAll(normalized).any { match ->
             val contextStart = (match.range.first - 2).coerceAtLeast(0)
             val context = normalized.substring(contextStart, match.range.last + 1)
-            sanHonorificExceptionPhrases.none { exception ->
+            honorificExceptionPhrases.none { exception ->
                 match.value == exception || context.endsWith(exception)
             }
         }
@@ -3087,8 +3120,77 @@ class Translator @Inject constructor(
         return nameChanHonorificPattern.findAll(normalized).any { match ->
             val contextStart = (match.range.first - 3).coerceAtLeast(0)
             val context = normalized.substring(contextStart, match.range.last + 1)
-            chanHonorificExceptionPhrases.none { exception ->
+            honorificExceptionPhrases.none { exception ->
                 match.value == exception || context.endsWith(exception)
+            }
+        }
+    }
+
+    private fun applyTanHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameTanHonorific(sourceText)) return translatedText
+        val adjusted = replaceStandaloneWrongHonorificIfNeeded(
+            sourceText,
+            translatedText,
+            nameTanHonorificPattern,
+            wrongTanHonorificSuffixes,
+            NAME_HONORIFIC_TAN_TARGET_SUFFIX
+        )
+        return appendHonorificToStandaloneNameIfMissing(
+            sourceText,
+            adjusted,
+            nameTanHonorificPattern,
+            NAME_HONORIFIC_TAN_TARGET_SUFFIX
+        )
+    }
+
+    private fun sourceContainsNameTanHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameTanHonorificPattern.findAll(normalized).any { match ->
+            honorificExceptionPhrases.none { exception ->
+                match.value == exception || match.value.endsWith(exception)
+            }
+        }
+    }
+
+    private fun applyTyaHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameTyaHonorific(sourceText)) return translatedText
+        val adjusted = replaceStandaloneWrongHonorificIfNeeded(
+            sourceText,
+            translatedText,
+            nameTyaHonorificPattern,
+            wrongTyaHonorificSuffixes,
+            NAME_HONORIFIC_TYA_TARGET_SUFFIX
+        )
+        return appendHonorificToStandaloneNameIfMissing(
+            sourceText,
+            adjusted,
+            nameTyaHonorificPattern,
+            NAME_HONORIFIC_TYA_TARGET_SUFFIX
+        )
+    }
+
+    private fun sourceContainsNameTyaHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameTyaHonorificPattern.containsMatchIn(normalized)
+    }
+
+    private fun applyCchiHonorificPolicy(sourceText: String, translatedText: String): String {
+        if (!sourceContainsNameCchiHonorific(sourceText)) return translatedText
+        if (!sourceIsStandaloneNameHonorific(sourceText, nameCchiHonorificPattern)) {
+            return translatedText
+        }
+        return prefixHonorificToStandaloneName(
+            translatedText = translatedText,
+            targetPrefix = NAME_HONORIFIC_CCHI_TARGET_PREFIX,
+            wrongSuffixes = wrongCchiHonorificSuffixes
+        )
+    }
+
+    private fun sourceContainsNameCchiHonorific(sourceText: String): Boolean {
+        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
+        return nameCchiHonorificPattern.findAll(normalized).any { match ->
+            honorificExceptionPhrases.none { exception ->
+                match.value == exception || match.value.endsWith(exception)
             }
         }
     }
@@ -3100,13 +3202,13 @@ class Translator @Inject constructor(
             translatedText,
             nameSamaHonorificPattern,
             wrongSamaHonorificSuffixes,
-            NAME_HONORIFIC_SAMA_SUFFIX
+            NAME_HONORIFIC_SAMA_TARGET_SUFFIX
         )
         return appendHonorificToStandaloneNameIfMissing(
             sourceText,
             adjusted,
             nameSamaHonorificPattern,
-            NAME_HONORIFIC_SAMA_SUFFIX
+            NAME_HONORIFIC_SAMA_TARGET_SUFFIX
         )
     }
 
@@ -3115,7 +3217,7 @@ class Translator @Inject constructor(
         return nameSamaHonorificPattern.findAll(normalized).any { match ->
             val contextStart = (match.range.first - 2).coerceAtLeast(0)
             val context = normalized.substring(contextStart, match.range.last + 1)
-            samaHonorificExceptionPhrases.none { exception ->
+            honorificExceptionPhrases.none { exception ->
                 match.value == exception || context.endsWith(exception)
             }
         }
@@ -3128,13 +3230,13 @@ class Translator @Inject constructor(
             translatedText,
             nameTonoHonorificPattern,
             wrongTonoHonorificSuffixes,
-            NAME_HONORIFIC_TONO_SUFFIX
+            NAME_HONORIFIC_TONO_TARGET_SUFFIX
         )
         return appendHonorificToStandaloneNameIfMissing(
             sourceText,
             adjusted,
             nameTonoHonorificPattern,
-            NAME_HONORIFIC_TONO_SUFFIX
+            NAME_HONORIFIC_TONO_TARGET_SUFFIX
         )
     }
 
@@ -3143,7 +3245,7 @@ class Translator @Inject constructor(
         return nameTonoHonorificPattern.findAll(normalized).any { match ->
             val contextStart = (match.range.first - 2).coerceAtLeast(0)
             val context = normalized.substring(contextStart, match.range.last + 1)
-            tonoHonorificExceptionPhrases.none { exception ->
+            honorificExceptionPhrases.none { exception ->
                 match.value == exception || context.endsWith(exception)
             }
         }
@@ -3156,13 +3258,13 @@ class Translator @Inject constructor(
             translatedText,
             nameShiHonorificPattern,
             wrongShiHonorificSuffixes,
-            NAME_HONORIFIC_SHI_SUFFIX
+            NAME_HONORIFIC_SHI_TARGET_SUFFIX
         )
         return appendHonorificToStandaloneNameIfMissing(
             sourceText,
             adjusted,
             nameShiHonorificPattern,
-            NAME_HONORIFIC_SHI_SUFFIX
+            NAME_HONORIFIC_SHI_TARGET_SUFFIX
         )
     }
 
@@ -3171,7 +3273,7 @@ class Translator @Inject constructor(
         return nameShiHonorificPattern.findAll(normalized).any { match ->
             val contextStart = (match.range.first - 2).coerceAtLeast(0)
             val context = normalized.substring(contextStart, match.range.last + 1)
-            shiHonorificExceptionPhrases.none { exception ->
+            honorificExceptionPhrases.none { exception ->
                 match.value == exception || context.endsWith(exception)
             }
         }
@@ -3233,9 +3335,7 @@ class Translator @Inject constructor(
         sourcePattern: Regex,
         targetSuffix: String
     ): String {
-        if (translatedText.contains(targetSuffix) ||
-            targetSuffix == NAME_HONORIFIC_CHAN_TARGET_SUFFIX && translatedText.contains("醬")
-        ) {
+        if (translatedContainsOfficialText(translatedText, targetSuffix)) {
             return translatedText
         }
         if (!sourceIsStandaloneNameHonorific(sourceText, sourcePattern)) return translatedText
@@ -3250,6 +3350,30 @@ class Translator @Inject constructor(
         if (name.any { it.isUnsafeStandaloneNameCharacter() }) return translatedText
         if (name.isBlank()) return translatedText
         return "$name$targetSuffix$trailing"
+    }
+
+    private fun prefixHonorificToStandaloneName(
+        translatedText: String,
+        targetPrefix: String,
+        wrongSuffixes: List<String>
+    ): String {
+        val trimmed = translatedText.trim()
+        if (!isSafeStandaloneRepairCandidate(trimmed)) return translatedText
+
+        val trailing = trimmed.takeLastWhile { it.isNameTrailingPunctuation() }
+        var name = trimmed.dropLast(trailing.length).trimEnd()
+        if (name.startsWith(targetPrefix)) return translatedText
+
+        val wrongSuffix = wrongSuffixes
+            .sortedByDescending(String::length)
+            .firstOrNull { name.endsWith(it) }
+        if (wrongSuffix != null) {
+            name = name.dropLast(wrongSuffix.length).trimEnd()
+        }
+        if (name.isBlank() || name.any { it.isUnsafeStandaloneNameCharacter() }) {
+            return translatedText
+        }
+        return "$targetPrefix$name$trailing"
     }
 
     private fun replaceStandaloneWrongHonorificIfNeeded(
@@ -3362,12 +3486,25 @@ class Translator @Inject constructor(
         val required: Boolean = false
     )
 
+    private enum class HonorificPlacement {
+        PREFIX,
+        SUFFIX
+    }
+
     private data class HonorificProtectionVariant(
         val token: String,
         val sourceSuffix: String,
-        val officialSuffix: String,
+        val officialAffix: String,
+        val placement: HonorificPlacement = HonorificPlacement.SUFFIX,
         var matched: Boolean = false
-    )
+    ) {
+        fun applyTo(name: String): String {
+            return when (placement) {
+                HonorificPlacement.PREFIX -> officialAffix + name
+                HonorificPlacement.SUFFIX -> name + officialAffix
+            }
+        }
+    }
 
     private fun protectText(
         sourceText: String,
@@ -3560,7 +3697,7 @@ class Translator @Inject constructor(
                 if (variant.matched) {
                     protections += TermProtection(
                         token = variant.token,
-                        officialText = officialText + variant.officialSuffix
+                        officialText = variant.applyTo(officialText)
                     )
                 }
             }
@@ -3619,7 +3756,7 @@ class Translator @Inject constructor(
                 if (variant.matched) {
                     protections += TermProtection(
                         token = variant.token,
-                        officialText = normalizedPlayerName + variant.officialSuffix
+                        officialText = variant.applyTo(normalizedPlayerName)
                     )
                 }
             }
@@ -3684,29 +3821,77 @@ class Translator @Inject constructor(
     ): List<HonorificProtectionVariant> {
         return listOf(
             HonorificProtectionVariant(
+                token = "${tokenPrefix}_SAN__",
+                sourceSuffix = NAME_HONORIFIC_SAN_SOURCE_SUFFIX,
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_SAN_TARGET_SUFFIX,
+                    targetChineseLocale
+                )
+            ),
+            HonorificProtectionVariant(
                 token = "${tokenPrefix}_KUN__",
                 sourceSuffix = NAME_HONORIFIC_KUN_SOURCE_SUFFIX,
-                officialSuffix = targetOfficialChinese(NAME_HONORIFIC_KUN_TARGET_SUFFIX, targetChineseLocale)
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_KUN_TARGET_SUFFIX,
+                    targetChineseLocale
+                )
             ),
             HonorificProtectionVariant(
                 token = "${tokenPrefix}_CHAN__",
                 sourceSuffix = NAME_HONORIFIC_CHAN_SOURCE_SUFFIX,
-                officialSuffix = targetOfficialChinese(NAME_HONORIFIC_CHAN_TARGET_SUFFIX, targetChineseLocale)
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_CHAN_TARGET_SUFFIX,
+                    targetChineseLocale
+                )
+            ),
+            HonorificProtectionVariant(
+                token = "${tokenPrefix}_TAN__",
+                sourceSuffix = NAME_HONORIFIC_TAN_SOURCE_SUFFIX,
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_TAN_TARGET_SUFFIX,
+                    targetChineseLocale
+                )
+            ),
+            HonorificProtectionVariant(
+                token = "${tokenPrefix}_TYA__",
+                sourceSuffix = NAME_HONORIFIC_TYA_SOURCE_SUFFIX,
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_TYA_TARGET_SUFFIX,
+                    targetChineseLocale
+                )
+            ),
+            HonorificProtectionVariant(
+                token = "${tokenPrefix}_CCHI__",
+                sourceSuffix = NAME_HONORIFIC_CCHI_SOURCE_SUFFIX,
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_CCHI_TARGET_PREFIX,
+                    targetChineseLocale
+                ),
+                placement = HonorificPlacement.PREFIX
             ),
             HonorificProtectionVariant(
                 token = "${tokenPrefix}_SAMA__",
-                sourceSuffix = NAME_HONORIFIC_SAMA_SUFFIX,
-                officialSuffix = targetOfficialChinese(NAME_HONORIFIC_SAMA_SUFFIX, targetChineseLocale)
+                sourceSuffix = NAME_HONORIFIC_SAMA_SOURCE_SUFFIX,
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_SAMA_TARGET_SUFFIX,
+                    targetChineseLocale
+                )
             ),
             HonorificProtectionVariant(
                 token = "${tokenPrefix}_TONO__",
-                sourceSuffix = NAME_HONORIFIC_TONO_SUFFIX,
-                officialSuffix = targetOfficialChinese(NAME_HONORIFIC_TONO_SUFFIX, targetChineseLocale)
+                sourceSuffix = NAME_HONORIFIC_TONO_SOURCE_SUFFIX,
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_TONO_TARGET_SUFFIX,
+                    targetChineseLocale
+                )
             ),
             HonorificProtectionVariant(
                 token = "${tokenPrefix}_SHI__",
-                sourceSuffix = NAME_HONORIFIC_SHI_SUFFIX,
-                officialSuffix = targetOfficialChinese(NAME_HONORIFIC_SHI_SUFFIX, targetChineseLocale)
+                sourceSuffix = NAME_HONORIFIC_SHI_SOURCE_SUFFIX,
+                officialAffix = targetOfficialChinese(
+                    NAME_HONORIFIC_SHI_TARGET_SUFFIX,
+                    targetChineseLocale
+                )
             )
         )
     }
@@ -4293,13 +4478,12 @@ class Translator @Inject constructor(
         name: String?,
         dialogue: String?,
         choices: List<String>,
-        targetChineseLocale: String,
         requestVoiceHint: Boolean,
         translateName: Boolean,
         translateDialogue: Boolean,
-        previousDialogueContexts: List<SceneDialogueContext> = emptyList()
+        previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
+        currentSpeaker: String = ""
     ): String {
-        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         val responseKeys = if (requestVoiceHint) {
             "name, dialogue, choices, voice_hint"
         } else {
@@ -4311,16 +4495,12 @@ class Translator @Inject constructor(
             SCENE_RESPONSE_EXAMPLE
         }
         return buildString {
-            appendLine("Localize this FGO scene to $targetChinese. Return only JSON with keys: $responseKeys.")
+            appendLine("Return JSON only with keys: $responseKeys.")
             appendLine("Format: $emptyExample")
             appendLine(
                 "Fields: name=${if (translateName && name != null) "translate" else "null"}; " +
                     "dialogue=${if (translateDialogue && dialogue != null) "translate" else "null"}; " +
-                    "choices=${choices.size} in input order;"
-            )
-            appendLine(
-                "Rules: follow the system prompt; use only $targetChinese; choices keep input order/count; " +
-                    "name-box keeps annotations/suffixes/A/B/?/brackets; keep __FGO placeholders and masks."
+                    "choices=${choices.size}, same order."
             )
             if (requestVoiceHint) {
                 appendLine("voice_hint: delivery hint or null; must not change translation.")
@@ -4328,8 +4508,8 @@ class Translator @Inject constructor(
                 appendLine("dragon_styles: ${VOICE_HINT_DRAGON_STYLES.joinToString(",")}")
                 appendLine("intensity/confidence 0-1; rate/pitch/pause -2..2; omit unchanged; null when unclear.")
             }
-            appendLine("No extra keys.")
             appendLine()
+            appendCurrentSpeakerContextBlock(currentSpeaker)
             appendSceneDialogueContextBlock(previousDialogueContexts)
             appendLine("Scene:")
             appendLine("name: ${name ?: "null"}")
@@ -4347,40 +4527,44 @@ class Translator @Inject constructor(
 
     private fun buildDialogueWithVoiceHintUserPrompt(
         dialogue: String,
-        targetChineseLocale: String,
-        previousDialogueContexts: List<SceneDialogueContext> = emptyList()
+        previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
+        currentSpeaker: String = ""
     ): String {
-        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            appendLine("Translate this FGO dialogue line to $targetChinese and optionally create an Azure TTS acting hint.")
-            appendLine("""Return valid JSON only with exactly these keys: dialogue, voice_hint.""")
+            appendLine("Translate the dialogue and optionally create an Azure TTS acting hint.")
+            appendLine("""Return JSON only with keys: dialogue, voice_hint.""")
             appendLine("""Neutral example: {"dialogue":"translated Chinese dialogue","voice_hint":null}""")
             appendLine("Voice hint schema:")
             appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
             appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
             appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; omit unchanged values or use null.")
             appendLine()
+            appendCurrentSpeakerContextBlock(currentSpeaker)
             appendSceneDialogueContextBlock(previousDialogueContexts)
             appendLine("Dialogue input:")
             appendLine(dialogue)
         }
     }
 
+    private fun StringBuilder.appendCurrentSpeakerContextBlock(currentSpeaker: String) {
+        if (currentSpeaker.isBlank()) return
+        appendLine(
+            "Speaker context only: $currentSpeaker. Use for dialogue voice/register/relationships/first-person; " +
+                "never insert it into output. Translate separate names normally; choices are player replies."
+        )
+        appendLine()
+    }
+
     private fun StringBuilder.appendSceneDialogueContextBlock(
         previousDialogueContexts: List<SceneDialogueContext>
     ) {
         if (previousDialogueContexts.isEmpty()) return
-        appendLine("Previous translated scene dialogues are context only.")
-        appendLine("Use them only to understand topic, pronouns, omitted subject, speaker relationship, and tone.")
-        appendLine("Do not output, rewrite, summarize, quote, continue, or translate them.")
-        appendLine()
+        appendLine("Prior Chinese context only (topic/pronouns/relationships/tone); never output, quote, or continue it:")
         previousDialogueContexts.forEachIndexed { index, context ->
-            appendLine("Previous ${index + 1}:")
-            appendLine("Speaker: ${context.speakerName?.takeIf { it.isNotBlank() } ?: "unknown"}")
-            appendLine("Chinese:")
-            appendLine(context.translatedDialogue)
-            appendLine()
+            val speaker = context.speakerName?.takeIf { it.isNotBlank() } ?: "unknown"
+            appendLine("${index + 1}. $speaker: ${context.translatedDialogue}")
         }
+        appendLine()
     }
 
     private fun buildVoiceHintPrompt(
@@ -4388,17 +4572,14 @@ class Translator @Inject constructor(
         dialogue: String
     ): String {
         return buildString {
-            appendLine("Create an Azure TTS acting hint for this FGO line. The line may be Chinese or Japanese.")
-            appendLine("Return valid JSON only.")
+            appendLine("Create an Azure TTS acting hint for this FGO line without translating it. Return JSON only.")
             appendLine("Neutral/unclear example: $VOICE_HINT_NULL_EXAMPLE")
             appendLine("Active example: $VOICE_HINT_ACTIVE_EXAMPLE")
-            appendLine("Rules:")
-            appendLine("- Do not translate, rewrite, or explain; use null if delivery is neutral or unclear.")
-            appendLine("- Do not copy the active example values; choose values only when the line clearly supports them.")
+            appendLine("- Use null when neutral/unclear; otherwise choose only values supported by the line, never copied defaults.")
             appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
             appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
             appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; omit unchanged values or use null.")
-            appendLine("- Do not use old keys such as emotion, energy, delivery, attitude, or pace.")
+            appendLine("- No old keys: emotion, energy, delivery, attitude, pace.")
             appendLine()
             appendLine("speaker: $speakerName")
             appendLine("dialogue: $dialogue")
@@ -4697,37 +4878,27 @@ class Translator @Inject constructor(
     private fun buildSingleUserPrompt(
         japaneseText: String,
         choiceTexts: List<String>,
-        preserveRubyMeaning: Boolean,
-        targetChineseLocale: String,
-        previousDialogueContexts: List<SceneDialogueContext> = emptyList()
+        previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
+        currentSpeaker: String = ""
     ): String {
-        val basePrompt = promptBuilder.buildUserPrompt(japaneseText, choiceTexts, targetChineseLocale)
-        val needsRubyRule = TextNormalizer.hasRubyAnnotations(japaneseText) ||
-            (preserveRubyMeaning && japaneseText.contains('《'))
-        if (previousDialogueContexts.isEmpty() && !needsRubyRule) {
+        val basePrompt = promptBuilder.buildUserPrompt(japaneseText, choiceTexts)
+        if (currentSpeaker.isBlank() && previousDialogueContexts.isEmpty()) {
             return basePrompt
         }
         return buildString {
+            appendCurrentSpeakerContextBlock(currentSpeaker)
             appendSceneDialogueContextBlock(previousDialogueContexts)
-            appendLine(basePrompt)
-            if (needsRubyRule) {
-                appendLine()
-                appendLine("Visible ruby rule: always render each source base《ruby》 pair as Chinese base《ruby》, even when ruby is pronunciation-only, similar, or the same meaning.")
-            }
+            append(basePrompt)
         }
     }
 
     private fun buildBatchUserPrompt(
         texts: List<String>,
-        targetChineseLocale: String
+        currentSpeaker: String = ""
     ): String {
-        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            appendLine("Localize each FGO item to $targetChinese.")
-            appendLine("Return valid JSON only: an array of exactly ${texts.size} strings in the same order.")
-            appendLine("Follow the system prompt; keep items one-to-one, short, and unmerged.")
-            appendLine("Preserve __FGO placeholders and hidden masks exactly.")
-            appendLine()
+            appendLine("Return a JSON array of exactly ${texts.size} strings, one per item, in order.")
+            appendCurrentSpeakerContextBlock(currentSpeaker)
             appendLine("Items:")
             texts.forEachIndexed { index, text ->
                 appendLine("${index + 1}. $text")
@@ -4746,7 +4917,9 @@ class Translator @Inject constructor(
         badSafety: TranslationSafetyResult? = null,
         cropMode: Boolean = false,
         maxTokens: Int,
-        previousDialogueContexts: List<SceneDialogueContext> = emptyList()
+        previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
+        currentSpeaker: String = "",
+        hasBeniEnmaDechiTic: Boolean = false
     ): TranslationRepairResult? {
         val retryMessages = listOf(
             ChatMessage(
@@ -4755,19 +4928,20 @@ class Translator @Inject constructor(
                     playerName,
                     config.targetChineseLocale,
                     cropMode,
-                    specialFirstPersonMappings
+                    specialFirstPersonMappings,
+                    hasBeniEnmaDechiTic
                 )
             ),
             ChatMessage(
                 "user",
                 buildStrictRetryUserPrompt(
-                    protectedInput.text,
-                    normalizedChoices,
-                    config.targetChineseLocale,
-                    cropMode,
-                    badTranslation,
-                    badSafety?.kanaTokens.orEmpty(),
-                    previousDialogueContexts
+                    japaneseText = protectedInput.text,
+                    choiceTexts = normalizedChoices,
+                    cropMode = cropMode,
+                    badTranslation = badTranslation,
+                    kanaTokens = badSafety?.kanaTokens.orEmpty(),
+                    previousDialogueContexts = previousDialogueContexts,
+                    currentSpeaker = currentSpeaker
                 )
             )
         )
@@ -4813,11 +4987,12 @@ class Translator @Inject constructor(
         playerName: String,
         targetChineseLocale: String,
         cropMode: Boolean,
-        specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>
+        specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>,
+        hasBeniEnmaDechiTic: Boolean
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
-            appendLine("Repair this FGO translation so no Japanese kana remains. Use only $targetChinese.")
+            appendLine("Repair this FGO translation: use only $targetChinese and remove all Japanese kana.")
             appendLine(
                 if (cropMode) {
                     "Crop mode: translate each OCR row independently; return a JSON array with one string per row, same order."
@@ -4825,10 +5000,13 @@ class Translator @Inject constructor(
                     "Return final translated text only; no source text, markdown, notes, or explanations."
                 }
             )
-            appendLine("Keep __FGO tokens and masks (???, ？？？, ■, □, ▇, █) exactly; never guess hidden text.")
-            appendLine("Translate leftover kana by context: sound/effect -> Chinese mood text; name/proper noun -> Chinese transliteration; grammar/pronoun/verb -> meaning.")
+            appendLine("Keep __FGO tokens and masks (???, ？？？, ■, □, ▇, █) exact; never guess masks.")
+            appendLine("Resolve leftover kana by context: SFX -> Chinese; names -> Chinese transliteration; other text -> meaning.")
             if (specialFirstPersonMappings.isNotEmpty()) {
                 appendLine(promptBuilder.buildSpecialFirstPersonPrompt(specialFirstPersonMappings))
+            }
+            if (hasBeniEnmaDechiTic) {
+                appendLine(promptBuilder.buildBeniEnmaDechiPrompt())
             }
             if (playerName.isNotBlank()) {
                 appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
@@ -4839,13 +5017,12 @@ class Translator @Inject constructor(
     private fun buildStrictRetryUserPrompt(
         japaneseText: String,
         choiceTexts: List<String>,
-        targetChineseLocale: String,
         cropMode: Boolean = false,
         badTranslation: String = "",
         kanaTokens: List<String> = emptyList(),
-        previousDialogueContexts: List<SceneDialogueContext> = emptyList()
+        previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
+        currentSpeaker: String = ""
     ): String {
-        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
             val hasBadTranslation = badTranslation.isNotBlank()
             if (hasBadTranslation) {
@@ -4865,9 +5042,10 @@ class Translator @Inject constructor(
                     appendLine("${index + 1}. $line")
                 }
                 appendLine()
-                appendLine("Return a JSON array with exactly ${lines.size} corrected $targetChinese string(s), same order.")
+                appendLine("Return exactly ${lines.size} corrected strings in the JSON array, same order.")
                 return@buildString
             }
+            appendCurrentSpeakerContextBlock(currentSpeaker)
             appendSceneDialogueContextBlock(previousDialogueContexts)
             appendLine("Source:")
             append(japaneseText)
@@ -4879,7 +5057,7 @@ class Translator @Inject constructor(
                 }
             }
             appendLine()
-            appendLine("Return only the corrected $targetChinese text. Keep already-correct Chinese wording where possible.")
+            appendLine("Keep already-correct Chinese wording where possible.")
         }
     }
 
@@ -5256,7 +5434,8 @@ class Translator @Inject constructor(
         choiceTexts: List<String>,
         config: RuntimeConfig,
         rubyPolicyKey: String = "",
-        sceneContextPolicyKey: String = ""
+        sceneContextPolicyKey: String = "",
+        currentSpeaker: String = ""
     ): String {
         return hashText(
             listOf(
@@ -5266,12 +5445,49 @@ class Translator @Inject constructor(
                 config.apiModel,
                 rubyPolicyKey,
                 sceneContextPolicyKey,
+                normalizeCurrentSpeakerContext(currentSpeaker),
                 config.glossaryCacheKey,
                 TextNormalizer.normalizeForTranslation(config.playerName),
                 normalizedText,
                 choiceTexts.joinToString("\n")
             ).joinToString("\u001F")
         )
+    }
+
+    private fun buildCurrentSpeakerContext(
+        sourceName: String?,
+        resolvedName: String?,
+        targetChineseLocale: String
+    ): String {
+        val source = normalizeCurrentSpeakerContext(sourceName.orEmpty())
+        if (source.isBlank()) return ""
+
+        val resolved = resolvedName
+            ?.takeIf { it.isNotBlank() && !it.isSceneContextErrorText() }
+            ?.let { toTargetChinese(it, targetChineseLocale) }
+            ?.let(::normalizeCurrentSpeakerContext)
+            .orEmpty()
+        if (resolved.isBlank() || resolved == source) return source
+
+        return normalizeCurrentSpeakerContext("$resolved (JP: $source)")
+    }
+
+    private fun normalizeCurrentSpeakerContext(speaker: String): String {
+        return TextNormalizer.normalizeForTranslation(speaker)
+            .lines()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .joinToString(" ")
+            .take(CURRENT_SPEAKER_CONTEXT_MAX_CHARS)
+    }
+
+    private fun normalizeSceneDialogueContext(dialogue: String): String {
+        return TextNormalizer.normalizeForTranslation(dialogue)
+            .lines()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .joinToString(" ")
+            .take(SCENE_DIALOGUE_CONTEXT_MAX_CHARS)
     }
 
     private fun sceneDialogueContextsForTarget(
@@ -5285,6 +5501,19 @@ class Translator @Inject constructor(
                 SettingsRepository.normalizeTargetChineseLocale(context.targetLocale) == normalizedTarget &&
                     context.translatedDialogue.isNotBlank() &&
                     !context.translatedDialogue.isSceneContextErrorText()
+            }
+            .mapNotNull { context ->
+                val dialogue = normalizeSceneDialogueContext(context.translatedDialogue)
+                if (dialogue.isBlank()) {
+                    null
+                } else {
+                    context.copy(
+                        speakerName = context.speakerName
+                            ?.let(::normalizeCurrentSpeakerContext)
+                            ?.takeIf(String::isNotBlank),
+                        translatedDialogue = dialogue
+                    )
+                }
             }
             .takeLast(SessionTranslationHistory.DEFAULT_SCENE_DIALOGUE_CONTEXT_LIMIT)
     }
