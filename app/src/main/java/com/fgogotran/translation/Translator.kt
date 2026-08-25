@@ -263,6 +263,7 @@ class Translator @Inject constructor(
                 normalizedText = normalizedText,
                 normalizedChoices = emptyList(),
                 protectedInput = protectedInput,
+                specialFirstPersonMappings = promptContext.specialFirstPersonMappings,
                 badTranslation = translated,
                 badSafety = initialSafety,
                 maxTokens = API_TEST_MAX_TOKENS
@@ -525,8 +526,6 @@ class Translator @Inject constructor(
         private val wrongShiHonorificSuffixes = listOf("先生", "小姐", "女士", "大人", "阁下", "桑", "酱")
         private val leakedMasterTitlePattern = Regex("(?i)\\bmaster\\b|マスター")
         private val standaloneMasterTitleWrongSuffixes = listOf("御主人", "主人", "大师")
-        private const val STYLIZED_FIRST_PERSON_TARGET = "咱"
-        private val stylizedFirstPersonPronounSources = setOf("アテシ", "アタシ", "あたし")
         private val standaloneJapaneseAddressSourcePattern =
             Regex("""あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
         private val leakedStandaloneAddressWordPattern =
@@ -553,14 +552,6 @@ class Translator @Inject constructor(
         )
         private val explicitStandaloneFemaleReferentPattern =
             Regex("女(?=は|が|を|に|の|も|へ|と|だ|です|だった|である|め|よ|か|[、。！？!?」』）)]|$)")
-        private val stylizedFirstPersonWrongNameTranslations = listOf(
-            "阿蒂斯",
-            "阿特西",
-            "阿特希",
-            "阿塔西",
-            "阿塔希",
-            "阿忒西"
-        )
         private val sanHonorificExceptionPhrases = setOf(
             "皆さん",
             "みなさん",
@@ -897,6 +888,7 @@ class Translator @Inject constructor(
                 normalizedText = normalizedText,
                 normalizedChoices = protectedChoiceTexts,
                 protectedInput = protectedInput,
+                specialFirstPersonMappings = promptContext.specialFirstPersonMappings,
                 badTranslation = simplifiedResult,
                 badSafety = initialSafety,
                 cropMode = cropMode,
@@ -3010,7 +3002,11 @@ class Translator @Inject constructor(
         val tonoAdjusted = applyTonoHonorificPolicy(sourceText, samaAdjusted)
         val shiAdjusted = applyShiHonorificPolicy(sourceText, tonoAdjusted)
         val masterAdjusted = applyMasterTitlePolicy(sourceText, shiAdjusted)
-        val firstPersonAdjusted = applyStylizedFirstPersonPronounPolicy(sourceText, masterAdjusted)
+        val firstPersonAdjusted = applyStylizedFirstPersonPronounPolicy(
+            sourceText,
+            masterAdjusted,
+            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+        )
         val thirdPersonAdjusted = applyDefaultThirdPersonPronounPolicy(sourceText, firstPersonAdjusted)
         return toTraditionalChinese(preserveSourcePunctuation(sourceText, thirdPersonAdjusted))
     }
@@ -3189,13 +3185,23 @@ class Translator @Inject constructor(
         return replaceStandaloneWrongTerm(leakedAdjusted, standaloneMasterTitleWrongSuffixes, MASTER_TITLE_OFFICIAL)
     }
 
-    private fun applyStylizedFirstPersonPronounPolicy(sourceText: String, translatedText: String): String {
-        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
-        if (stylizedFirstPersonPronounSources.none { normalized.contains(it) }) return translatedText
+    private fun applyStylizedFirstPersonPronounPolicy(
+        sourceText: String,
+        translatedText: String,
+        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    ): String {
+        val repairs = SpecialFirstPersonPronouns.repairs(sourceText, targetChineseLocale)
+        if (repairs.isEmpty()) return translatedText
 
         var adjusted = translatedText
-        for (wrongName in stylizedFirstPersonWrongNameTranslations) {
-            adjusted = replaceStandaloneWrongPronounName(adjusted, wrongName, STYLIZED_FIRST_PERSON_TARGET)
+        for (repair in repairs) {
+            for (wrongName in repair.wrongTranslations) {
+                adjusted = replaceStandaloneWrongPronounName(
+                    adjusted,
+                    wrongName,
+                    repair.replacement
+                )
+            }
         }
         if (adjusted != translatedText) {
             FgoLogger.debug(tag, "Adjusted stylized first-person pronoun rendering")
@@ -4735,6 +4741,7 @@ class Translator @Inject constructor(
         normalizedText: String,
         normalizedChoices: List<String>,
         protectedInput: ProtectedText,
+        specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>,
         badTranslation: String = "",
         badSafety: TranslationSafetyResult? = null,
         cropMode: Boolean = false,
@@ -4747,7 +4754,8 @@ class Translator @Inject constructor(
                 buildStrictRetrySystemPrompt(
                     playerName,
                     config.targetChineseLocale,
-                    cropMode
+                    cropMode,
+                    specialFirstPersonMappings
                 )
             ),
             ChatMessage(
@@ -4804,7 +4812,8 @@ class Translator @Inject constructor(
     private fun buildStrictRetrySystemPrompt(
         playerName: String,
         targetChineseLocale: String,
-        cropMode: Boolean = false
+        cropMode: Boolean,
+        specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
@@ -4818,6 +4827,9 @@ class Translator @Inject constructor(
             )
             appendLine("Keep __FGO tokens and masks (???, ？？？, ■, □, ▇, █) exactly; never guess hidden text.")
             appendLine("Translate leftover kana by context: sound/effect -> Chinese mood text; name/proper noun -> Chinese transliteration; grammar/pronoun/verb -> meaning.")
+            if (specialFirstPersonMappings.isNotEmpty()) {
+                appendLine(promptBuilder.buildSpecialFirstPersonPrompt(specialFirstPersonMappings))
+            }
             if (playerName.isNotBlank()) {
                 appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
             }

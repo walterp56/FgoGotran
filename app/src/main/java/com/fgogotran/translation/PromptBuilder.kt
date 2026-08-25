@@ -31,7 +31,7 @@ data class PromptContext(
     val hasHonorifics: Boolean = false,
     val hasKatakana: Boolean = false,
     val hasAddressPronouns: Boolean = false,
-    val hasSpecialFirstPerson: Boolean = false,
+    val specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping> = emptyList(),
     val hasAmbiguousRoman: Boolean = false,
     val isRetry: Boolean = false
 )
@@ -58,7 +58,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v59"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v63"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -67,7 +67,6 @@ class PromptBuilder @Inject constructor() {
         private val addressPronounPattern =
             Regex("""あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
         private val katakanaWordPattern = Regex("""[ァ-ヶｦ-ﾟー]{2,}""")
-        private val specialFirstPersonPattern = Regex("""アテシ|アタシ|あたし""")
 
         /**
          * These blocks are intentionally assembled in a stable order and
@@ -175,11 +174,6 @@ class PromptBuilder @Inject constructor() {
             - Translate/transliterate unprotected kana yokai/nickname/attack terms; do not leave kana.
             """.trimIndent()
 
-        private val SPECIAL_FIRST_PERSON_PROMPT = """
-            - アテシ, アタシ, あーし and あたし are first-person pronouns, not names.
-            - Translate them by speaker voice as 本小姐, 本姑娘, 人家我 or 人家.
-            """.trimIndent()
-
         private val AMBIGUOUS_ROMAN_PROMPT = """
             - ロマン is a character/name only when clearly a person; otherwise translate it as 浪漫.
             """.trimIndent()
@@ -210,9 +204,10 @@ class PromptBuilder @Inject constructor() {
         val combinedText = (listOf(sourceText) + choiceTexts)
             .joinToString("\n")
         val cleanPlayerName = playerName.trim()
+        val normalizedTargetLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
         return PromptContext(
             outputFormat = outputFormat,
-            targetChineseLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale),
+            targetChineseLocale = normalizedTargetLocale,
             isCropMode = isCropMode,
             isDialogue = isDialogue,
             requestVoiceHint = requestVoiceHint,
@@ -228,7 +223,10 @@ class PromptBuilder @Inject constructor() {
             hasHonorifics = containsHonorifics(combinedText),
             hasKatakana = containsKatakanaWord(combinedText),
             hasAddressPronouns = containsAddressPronoun(combinedText),
-            hasSpecialFirstPerson = containsSpecialFirstPerson(combinedText),
+            specialFirstPersonMappings = SpecialFirstPersonPronouns.promptMappings(
+                combinedText,
+                normalizedTargetLocale
+            ),
             hasAmbiguousRoman = containsAmbiguousRoman(combinedText),
             isRetry = isRetry
         )
@@ -355,7 +353,13 @@ class PromptBuilder @Inject constructor() {
             if (context.hasHonorifics) add("honorific" to HONORIFIC_PROMPT)
             if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
             if (context.hasKatakana) add("katakana_style" to KATAKANA_STYLE_PROMPT)
-            if (context.hasSpecialFirstPerson) add("special_first_person" to SPECIAL_FIRST_PERSON_PROMPT)
+            if (context.specialFirstPersonMappings.isNotEmpty()) {
+                add(
+                    "special_first_person" to buildSpecialFirstPersonPrompt(
+                        context.specialFirstPersonMappings
+                    )
+                )
+            }
             if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
         }
     }
@@ -460,8 +464,13 @@ class PromptBuilder @Inject constructor() {
         return katakanaWordPattern.containsMatchIn(text)
     }
 
-    private fun containsSpecialFirstPerson(text: String): Boolean {
-        return specialFirstPersonPattern.containsMatchIn(text)
+    internal fun buildSpecialFirstPersonPrompt(
+        mappings: List<SpecialFirstPersonPromptMapping>
+    ): String {
+        val rules = mappings.joinToString("; ") { mapping ->
+            "${mapping.sourceForm} -> ${mapping.targetTranslation}"
+        }
+        return "- [FP] $rules; exact first-person mappings, not names or 我."
     }
 
     private fun containsAmbiguousRoman(text: String): Boolean {
