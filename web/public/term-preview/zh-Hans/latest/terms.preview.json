@@ -790,5 +790,23 @@
     "cn_term": "头晕目眩",
     "category": "place",
     "aliases": ""
+  },
+  {
+    "jp_term": "マブイ",
+    "cn_term": "魂魄",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "キュケオーン",
+    "cn_term": "休刻翁",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "ベーケス",
+    "cn_term": "涩涩的",
+    "category": "game_term",
+    "aliases": ""
   }
 ]

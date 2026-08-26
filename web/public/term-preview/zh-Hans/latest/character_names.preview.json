@@ -1135,7 +1135,7 @@
   },
   {
     "jp_name": "スカサハ＝スカディ",
-    "cn_name": "斯卡哈·斯卡蒂",
+    "cn_name": "斯卡哈＝斯卡蒂",
     "category": "character",
     "aliases": "スカサハ=スカディ"
   },
@@ -3818,6 +3818,66 @@
   {
     "jp_name": "ミ二小町",
     "cn_name": "迷你小町",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ぬらりひょん",
+    "cn_name": "滑头鬼",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ヴェルザンディ",
+    "cn_name": "薇尔丹蒂",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "まーちゃん",
+    "cn_name": "御酱",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "小野篁",
+    "cn_name": "小野篁",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "リンド",
+    "cn_name": "琳德",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "エルン",
+    "cn_name": "奥露恩",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "イルス",
+    "cn_name": "洁尔诗",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "エリセ",
+    "cn_name": "绘里濑",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ちゃんマス",
+    "cn_name": "酱御",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "辈先",
+    "cn_name": "辈前",
     "category": "character",
     "aliases": ""
   }

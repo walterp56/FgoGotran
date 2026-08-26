@@ -10,6 +10,8 @@ data class SessionTranslationEntry(
     val speakerName: String? = null,
     val dialogueText: String? = null,
     val originalDialogueText: String? = null,
+    val contextSourceSpeakerName: String? = null,
+    val contextTranslatedSpeakerName: String? = null,
     val contextSourceDialogue: String? = null,
     val contextTranslatedDialogue: String? = null,
     val choices: List<String> = emptyList(),
@@ -84,8 +86,19 @@ object SessionTranslationHistory {
             }
             .take(limit)
             .map { entry ->
+                val sourceSpeakerName = entry.contextSourceSpeakerName
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                val translatedSpeakerName = if (sourceSpeakerName != null) {
+                    entry.contextTranslatedSpeakerName
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() && !it.isHistoryErrorText() }
+                } else {
+                    null
+                }
                 SceneDialogueContext(
-                    speakerName = entry.speakerName?.trim()?.takeIf { it.isNotBlank() },
+                    sourceSpeakerName = sourceSpeakerName,
+                    translatedSpeakerName = translatedSpeakerName,
                     sourceDialogue = entry.contextSourceDialogue!!.trim(),
                     translatedDialogue = entry.contextTranslatedDialogue!!.trim(),
                     targetLocale = SettingsRepository.normalizeTargetChineseLocale(entry.targetLocale),
@@ -101,6 +114,8 @@ object SessionTranslationHistory {
             speakerName.orEmpty(),
             dialogueText.orEmpty(),
             originalDialogueText.orEmpty(),
+            contextSourceSpeakerName.orEmpty(),
+            contextTranslatedSpeakerName.orEmpty(),
             contextSourceDialogue.orEmpty(),
             contextTranslatedDialogue.orEmpty(),
             choices.joinToString("\n"),
@@ -160,6 +175,8 @@ object SessionTranslationHistory {
             speakerName = null,
             dialogueText = null,
             originalDialogueText = null,
+            contextSourceSpeakerName = null,
+            contextTranslatedSpeakerName = null,
             contextSourceDialogue = null,
             contextTranslatedDialogue = null,
             speakerNameColor = null,
@@ -172,6 +189,8 @@ object SessionTranslationHistory {
             speakerName.orEmpty(),
             dialogueText.orEmpty(),
             originalDialogueText.orEmpty(),
+            contextSourceSpeakerName.orEmpty(),
+            contextTranslatedSpeakerName.orEmpty(),
             contextSourceDialogue.orEmpty(),
             contextTranslatedDialogue.orEmpty()
         )

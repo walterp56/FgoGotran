@@ -8,6 +8,12 @@ export const metadata: Metadata = {
 
 const changelog = [
   {
+    title: "v2.4.0",
+    date: "26-8-2026",
+    icon: Smartphone,
+    items: ["新增本地 AI，支持可信局域网 HTTP 接口，并加强地址安全检查","ML Kit OCR 使用 2 倍放大，提高小字识别率","优化对白换行，修复带 \n 的两行对白渲染失败","改进第一人称、称呼后缀等 FGO 风格翻译","当前及最近两个场景提供完整的说话人和对白 JP+CN 上下文","优化提示词、角色语气一致性及翻译后处理","更新本地 AI、网络安全及下载页面说明"]
+  },
+  {
     title: "v2.3.1",
     date: "21-8-2026",
     icon: Smartphone,

@@ -1857,7 +1857,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 translationOverlay.hide()
                 return true
             }
-            addHistoryEntry(source, sceneSource, instructions)
+            addHistoryEntry(source, sceneSource, sceneTranslation, instructions)
             runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
             translationOverlay.hide()
             return false
@@ -1924,7 +1924,7 @@ class FgoAccessibilityService : AccessibilityService() {
         } else {
             emptyList()
         }
-        addHistoryEntry(source, sceneSource, instructions)
+        addHistoryEntry(source, sceneSource, sceneTranslation, instructions)
         val overlayStartedAt = SystemClock.elapsedRealtime()
         restoreFgoForegroundAfterCapture(mode.name)
         translationOverlay.updateImage(rendered)
@@ -2941,6 +2941,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun addHistoryEntry(
         source: Bitmap,
         sceneSource: SceneSource,
+        sceneTranslation: SceneTranslateResult,
         instructions: List<RenderInstruction>
     ) {
         val rawNameRegion = sceneSource.regions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
@@ -2962,6 +2963,13 @@ class FgoAccessibilityService : AccessibilityService() {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         val originalDialogue = dialogueInstruction?.historyOriginalText()
+        val contextSourceSpeakerName = sceneSource.input.name
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val contextTranslatedSpeakerName = sceneTranslation.name
+            ?.translatedText
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
         val contextSourceDialogue = dialogueInstruction
             ?.sourceText
             ?.trim()
@@ -2993,6 +3001,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     speakerName = name,
                     dialogueText = dialogue,
                     originalDialogueText = originalDialogue,
+                    contextSourceSpeakerName = contextSourceSpeakerName,
+                    contextTranslatedSpeakerName = contextTranslatedSpeakerName,
                     contextSourceDialogue = contextSourceDialogue,
                     contextTranslatedDialogue = contextTranslatedDialogue,
                     choices = choiceEntries.map { it.first },
