@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 const downloadOptions = [
   {
-    title: "OneDrive 下载",
+    title: "OneDrive",
     subtitle: "APK 下载",
     href: "https://1drv.ms/f/c/9e1fdb13e6d5d039/IgDO_uKE7yZWT6cPSy-v_LlnAW4zG9Wv51mwltpuVAVI9HI?e=uEzfCt",
     iconSrc: "/download-icons/onedrive.svg",
@@ -25,7 +25,17 @@ const downloadOptions = [
     iconAlt: "GitHub",
     accentColor: "#181717",
     disabled: false
-  }
+  },
+  {
+    title: "百度网盘",
+    subtitle: "APK 下载 (提取码: y978)",
+    href: "https://pan.baidu.com/s/1mbPdcGRHErRIxHcY0ujH5A?pwd=y978",
+    iconSrc: "/download-icons/baidu-netdisk.svg",
+    iconAlt: "百度网盘",
+    accentColor: "#06A7FF",
+    disabled: false
+  },
+
 ];
 
 const currentAppVersion = "v2.4.0";
