@@ -661,7 +661,8 @@ class Translator @Inject constructor(
         useTranslationCache: Boolean = true,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
-        currentSpeakerSourceName: String = ""
+        currentSpeakerSourceName: String = "",
+        translateAsChoices: Boolean = false
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -731,7 +732,8 @@ class Translator @Inject constructor(
             config,
             promptPolicyKey,
             sceneContextPolicyKey,
-            currentSpeakerCacheIdentity
+            currentSpeakerCacheIdentity,
+            translateAsChoices
         )
 
         FgoLogger.debug(
@@ -793,7 +795,8 @@ class Translator @Inject constructor(
             isCropMode = cropMode,
             isDialogue = !cropMode,
             playerName = playerName,
-            currentSpeaker = activeCurrentSpeaker
+            currentSpeaker = activeCurrentSpeaker,
+            isChoiceBatch = translateAsChoices
         )
         val systemPrompt = promptBuilder.buildSystemPrompt(playerName, promptContext)
         val userPrompt = if (cropMode) {
@@ -803,7 +806,8 @@ class Translator @Inject constructor(
                 japaneseText = protectedInput.text,
                 choiceTexts = protectedChoiceTexts,
                 previousDialogueContexts = activePreviousDialogueContexts,
-                currentSpeaker = activeCurrentSpeaker
+                currentSpeaker = activeCurrentSpeaker,
+                translateAsChoices = translateAsChoices
             )
         }
 
@@ -910,7 +914,8 @@ class Translator @Inject constructor(
     suspend fun translateBatch(
         japaneseTexts: List<String>,
         currentSpeaker: String = "",
-        currentSpeakerSourceName: String = ""
+        currentSpeakerSourceName: String = "",
+        translateAsChoices: Boolean = false
     ): List<TranslateResult> {
         if (japaneseTexts.isEmpty()) return emptyList()
 
@@ -931,7 +936,8 @@ class Translator @Inject constructor(
                 normalizedText = it,
                 choiceTexts = emptyList(),
                 config = config,
-                currentSpeaker = currentSpeakerCacheIdentity
+                currentSpeaker = currentSpeakerCacheIdentity,
+                choiceBatch = translateAsChoices
             )
         }
         val results = MutableList<TranslateResult?>(japaneseTexts.size) { null }
@@ -1035,7 +1041,8 @@ class Translator @Inject constructor(
             sourceText = protectedTexts.joinToString("\n") { it.text },
             targetChineseLocale = config.targetChineseLocale,
             playerName = playerName,
-            currentSpeaker = activeCurrentSpeaker
+            currentSpeaker = activeCurrentSpeaker,
+            isChoiceBatch = translateAsChoices
         )
 
         val messages = listOf(
@@ -1044,7 +1051,8 @@ class Translator @Inject constructor(
                 "user",
                 buildBatchUserPrompt(
                     texts = protectedTexts.map { it.text },
-                    currentSpeaker = activeCurrentSpeaker
+                    currentSpeaker = activeCurrentSpeaker,
+                    translateAsChoices = translateAsChoices
                 )
             )
         )
@@ -1068,7 +1076,8 @@ class Translator @Inject constructor(
                     japaneseTexts[index],
                     maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
                     currentSpeaker = activeCurrentSpeaker,
-                    currentSpeakerSourceName = currentSpeakerCacheIdentity
+                    currentSpeakerSourceName = currentSpeakerCacheIdentity,
+                    translateAsChoices = translateAsChoices
                 )
             }
             return results.completeForTargetLocale(config)
@@ -1098,7 +1107,8 @@ class Translator @Inject constructor(
                     japaneseTexts[originalIndex],
                     maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
                     currentSpeaker = activeCurrentSpeaker,
-                    currentSpeakerSourceName = currentSpeakerCacheIdentity
+                    currentSpeakerSourceName = currentSpeakerCacheIdentity,
+                    translateAsChoices = translateAsChoices
                 )
                 if (retryResult.translatedText.isNotBlank()) {
                     results[originalIndex] = retryResult
@@ -1294,7 +1304,8 @@ class Translator @Inject constructor(
                     choiceTexts = emptyList(),
                     config = config,
                     sceneContextPolicyKey = sceneContextPolicyKey,
-                    currentSpeaker = currentSpeakerSourceName
+                    currentSpeaker = currentSpeakerSourceName,
+                    choiceBatch = true
                 )
             }
         }
@@ -1357,7 +1368,8 @@ class Translator @Inject constructor(
             val translatedChoices = translateBatch(
                 japaneseTexts = neededChoiceIndices.map { input.choices[it] },
                 currentSpeaker = currentSpeaker,
-                currentSpeakerSourceName = currentSpeakerSourceName
+                currentSpeakerSourceName = currentSpeakerSourceName,
+                translateAsChoices = true
             )
             translatedChoices.forEachIndexed { batchIndex, result ->
                 val choiceIndex = neededChoiceIndices[batchIndex]
@@ -1691,7 +1703,8 @@ class Translator @Inject constructor(
                     maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
                     previousDialogueContexts = activePreviousDialogueContexts,
                     currentSpeaker = currentSpeaker,
-                    currentSpeakerSourceName = currentSpeakerSourceName
+                    currentSpeakerSourceName = currentSpeakerSourceName,
+                    translateAsChoices = true
                 )
                 choiceResults[originalIndex] = if (retryResult.translatedText.isNotBlank()) {
                     retryResult
@@ -4516,7 +4529,7 @@ class Translator @Inject constructor(
             appendLine("Scene:")
             appendLine("name: ${name ?: "null"}")
             appendLine("dialogue: ${dialogue ?: "null"}")
-            appendLine("choices:")
+            appendLine("player choices:")
             if (choices.isEmpty()) {
                 appendLine("[]")
             } else {
@@ -4890,9 +4903,14 @@ class Translator @Inject constructor(
         japaneseText: String,
         choiceTexts: List<String>,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
-        currentSpeaker: String = ""
+        currentSpeaker: String = "",
+        translateAsChoices: Boolean = false
     ): String {
-        val basePrompt = promptBuilder.buildUserPrompt(japaneseText, choiceTexts)
+        val basePrompt = if (translateAsChoices) {
+            "Player choice:\n$japaneseText"
+        } else {
+            promptBuilder.buildUserPrompt(japaneseText, choiceTexts)
+        }
         if (currentSpeaker.isBlank() && previousDialogueContexts.isEmpty()) {
             return basePrompt
         }
@@ -4905,12 +4923,13 @@ class Translator @Inject constructor(
 
     private fun buildBatchUserPrompt(
         texts: List<String>,
-        currentSpeaker: String = ""
+        currentSpeaker: String = "",
+        translateAsChoices: Boolean = false
     ): String {
         return buildString {
             appendLine("Return a JSON array of exactly ${texts.size} strings, one per item, in order.")
             appendCurrentSpeakerContextBlock(currentSpeaker)
-            appendLine("Items:")
+            appendLine(if (translateAsChoices) "Player choices:" else "Items:")
             texts.forEachIndexed { index, text ->
                 appendLine("${index + 1}. $text")
             }
@@ -5446,7 +5465,8 @@ class Translator @Inject constructor(
         config: RuntimeConfig,
         rubyPolicyKey: String = "",
         sceneContextPolicyKey: String = "",
-        currentSpeaker: String = ""
+        currentSpeaker: String = "",
+        choiceBatch: Boolean = false
     ): String {
         return hashText(
             listOf(
@@ -5457,6 +5477,7 @@ class Translator @Inject constructor(
                 rubyPolicyKey,
                 sceneContextPolicyKey,
                 normalizeCurrentSpeakerContext(currentSpeaker),
+                if (choiceBatch) "choice-batch-v1" else "",
                 config.glossaryCacheKey,
                 TextNormalizer.normalizeForTranslation(config.playerName),
                 normalizedText,

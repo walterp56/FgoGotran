@@ -29,8 +29,8 @@
 宝具	宝具	game_term	Noble Phantasm
 スキル	技能	game_term	Skill
 概念礼装	概念礼装	game_term	Craft Essence
-聖晶石	圣晶石	item	
-聖杯	圣杯	item	
+聖晶石	圣晶石	game_term	
+聖杯	圣杯	game_term	
 聖杯戦争	圣杯战争	game_term	
 令呪	令咒	game_term	Command Spell
 魔術	魔术	game_term	
@@ -78,7 +78,7 @@
 プリテンダー	Pretender	class	身披角色者
 ストーム・ボーダー	Storm Border	place	ストームボーダー,ストーム・ボーダ一,ストームボーダ一,ストーム・ホーダー,ストームホーダー,ストーム・ポーダー,ストームポーダー,Storm Border,StormBorder
 ボーダー	Border	place	ボーダ一,ホーダー,ポーダー,Border
-アンビースト	UnBeast	class	非兽
+アンビースト	UnBeast	class	越兽
 シャドウ・ボーダー	Shadow Border	place	シャドウボーダー,シャドウ・ボーダ一,シャドウボーダ一,シャドウ・ホーダー,シャドウホーダー,シャドウ・ポーダー,シャドウポーダー,Shadow Border,ShadowBorder
 汎人類史	泛人类史	game_term	Proper Human History
 人理定礎	人理奠基	game_term	

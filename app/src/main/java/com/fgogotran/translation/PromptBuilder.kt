@@ -31,7 +31,9 @@ data class PromptContext(
     val hasHonorifics: Boolean = false,
     val hasKatakana: Boolean = false,
     val hasAddressPronouns: Boolean = false,
+    val hasBenefactivePassiveCausative: Boolean = false,
     val specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping> = emptyList(),
+    val specialSecondPersonMappings: List<SpecialSecondPersonPromptMapping> = emptyList(),
     val hasBeniEnmaDechiTic: Boolean = false,
     val hasAmbiguousRoman: Boolean = false
 )
@@ -56,7 +58,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v69"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v73"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -127,8 +129,14 @@ class PromptBuilder @Inject constructor() {
                 .joinToString("|") { Regex.escape(it) }
         )
         private val addressPronounPattern =
-            Regex("""あなた|貴方|あんた|お前|おまえ|貴様|汝|そなた|其方|お主|てめえ?|卿""")
+            Regex("""あなた|貴方|あんた|お前|おまえ|そなた|其方|お主""")
         private val katakanaWordPattern = Regex("""[ァ-ヶｦ-ﾟー]{2,}""")
+        private val benefactiveAuxPattern = Regex(
+            """(?:て|で)(?:く(?:れ|ださ)|もら(?:う|っ|え)|いただ(?:く|い|け)|あげ|や(?:る|っ|ろ))"""
+        )
+        private val passiveCausativeAuxPattern = Regex(
+            """(?:させられ|せられ|させ|され|られ)(?:る|た|て|ない|なかった|ず|そう|よう|ている|ていた|ます|ません)"""
+        )
         private val beniEnmaSpeakerAliases = listOf("紅閻魔", "红阎魔")
         private val beniEnmaDechiTicPattern = Regex("""でち(?![ゃゅょャュョ])""")
 
@@ -175,7 +183,13 @@ class PromptBuilder @Inject constructor() {
 
         private val DIALOGUE_STYLE_PROMPT = """
             - Preserve speaker voice/relationship (regal, archaic, casual, childish, robotic, intimate, hostile, playful) and ambiguity.
-            - Add pronouns only when explicit; use 他 unless clearly female.
+            - Do not restore omitted subjects or possessors merely for Chinese completeness. Prefer zero subject, passive/topic-comment, or 那/这+noun; never default to 我/你.
+            - Add 我/你/他/她 only when the Japanese marks it explicitly or prior context makes the referent unambiguous; for verb modifiers such as 伸ばした手, do not invent an agent or possessor.
+            """.trimIndent()
+
+        private val PARTICIPANT_DIRECTION_PROMPT = """
+            - Japanese benefactive direction: てくれる/てくださる = speaker or their side receives benefit; てもらう/ていただく = speaker receives; てあげる/てやる = speaker gives. Do not reverse giver/receiver or add an omitted subject/possessor.
+            - Passive/causative: 〜(ら)れる/〜(さ)せる preserve voice and agency. If the agent is omitted, keep it implicit or use passive/topic-comment; do not default to 我/你.
             """.trimIndent()
 
         private val LINE_BREAK_PROMPT = """
@@ -197,7 +211,9 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val CHOICE_PROMPT = """
-            - Keep output choices short, natural, one-to-one, and in order.
+            - Choices are Master/player replies, not narration or objective description.
+            - Preserve the original sentence type; do not expand partial or attitude choices into full explanations.
+            - Keep first/second-person relationship consistent with the current speaker; do not add an omitted subject.
             """.trimIndent()
 
         private val NAME_PROMPT = """
@@ -257,7 +273,8 @@ class PromptBuilder @Inject constructor() {
         isDialogue: Boolean = !isCropMode,
         requestVoiceHint: Boolean = false,
         playerName: String = "",
-        currentSpeaker: String = ""
+        currentSpeaker: String = "",
+        isChoiceBatch: Boolean = false
     ): PromptContext {
         val combinedText = (listOf(sourceText) + choiceTexts)
             .joinToString("\n")
@@ -274,14 +291,19 @@ class PromptBuilder @Inject constructor() {
             hasLineBreaks = containsLineBreak(sourceText) || choiceTexts.any(::containsLineBreak),
             hasMasterWord = containsMasterWord(combinedText),
             needsPlayerNameRule = cleanPlayerName.isNotBlank() && combinedText.contains(cleanPlayerName),
-            hasChoices = choiceTexts.isNotEmpty(),
+            hasChoices = choiceTexts.isNotEmpty() || isChoiceBatch,
             hasName = hasName,
             hasRuby = !isCropMode && (forceRuby || containsRuby(combinedText)),
             hasPauseMarks = containsPauseMarks(combinedText),
             hasHonorifics = containsHonorifics(combinedText),
             hasKatakana = containsKatakanaWord(combinedText),
             hasAddressPronouns = containsAddressPronoun(combinedText),
+            hasBenefactivePassiveCausative = containsBenefactivePassiveCausative(combinedText),
             specialFirstPersonMappings = SpecialFirstPersonPronouns.promptMappings(
+                combinedText,
+                normalizedTargetLocale
+            ),
+            specialSecondPersonMappings = SpecialSecondPersonPronouns.promptMappings(
                 combinedText,
                 normalizedTargetLocale
             ),
@@ -404,6 +426,9 @@ class PromptBuilder @Inject constructor() {
 
     private fun featurePromptBlocks(context: PromptContext): List<Pair<String, String>> {
         return buildList {
+            if (!context.isCropMode && context.hasBenefactivePassiveCausative) {
+                add("participant_direction" to PARTICIPANT_DIRECTION_PROMPT)
+            }
             if (context.hasChoices) add("choices" to CHOICE_PROMPT)
             if (context.hasName) add("name" to NAME_PROMPT)
             if (context.hasRuby) add("ruby" to RUBY_PROMPT)
@@ -412,6 +437,13 @@ class PromptBuilder @Inject constructor() {
                 add("honorific" to buildHonorificPrompt(context.targetChineseLocale))
             }
             if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
+            if (context.specialSecondPersonMappings.isNotEmpty()) {
+                add(
+                    "special_second_person" to buildSpecialSecondPersonPrompt(
+                        context.specialSecondPersonMappings
+                    )
+                )
+            }
             if (context.hasKatakana) add("katakana_style" to KATAKANA_STYLE_PROMPT)
             if (context.specialFirstPersonMappings.isNotEmpty()) {
                 add(
@@ -443,7 +475,7 @@ class PromptBuilder @Inject constructor() {
         // Prepend choice context if present — helps the LLM understand
         // that these are separate interactive elements, not dialogue lines
         if (choiceTexts.isNotEmpty()) {
-            sb.append("Choices (context only; do not output):\n")
+            sb.append("Player choices (context only; do not output):\n")
             for ((i, choice) in choiceTexts.withIndex()) {
                 sb.append("${i + 1}. $choice\n")
             }
@@ -511,6 +543,15 @@ class PromptBuilder @Inject constructor() {
         return addressPronounPattern.containsMatchIn(text)
     }
 
+    private fun containsBenefactivePassiveCausative(text: String): Boolean {
+        val normalized = Normalizer.normalize(
+            TextNormalizer.stripRubyAnnotations(text),
+            Normalizer.Form.NFKC
+        )
+        return benefactiveAuxPattern.containsMatchIn(normalized) ||
+            passiveCausativeAuxPattern.containsMatchIn(normalized)
+    }
+
     private fun containsKatakanaWord(text: String): Boolean {
         return katakanaWordPattern.containsMatchIn(text)
     }
@@ -522,6 +563,15 @@ class PromptBuilder @Inject constructor() {
             "${mapping.sourceForm} -> ${mapping.targetTranslation}"
         }
         return "- [FP] $rules; exact first-person mappings, not names or 我."
+    }
+
+    internal fun buildSpecialSecondPersonPrompt(
+        mappings: List<SpecialSecondPersonPromptMapping>
+    ): String {
+        val rules = mappings.joinToString("; ") { mapping ->
+            "${mapping.sourceForm} -> ${mapping.targetTranslation}"
+        }
+        return "- [2P] $rules; exact second-person mappings, not names or generic 你."
     }
 
     internal fun buildBeniEnmaDechiPrompt(): String = BENI_ENMA_DECHI_PROMPT
