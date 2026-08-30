@@ -4564,8 +4564,9 @@ class Translator @Inject constructor(
     private fun StringBuilder.appendCurrentSpeakerContextBlock(currentSpeaker: String) {
         if (currentSpeaker.isBlank()) return
         appendLine(
-            "Speaker context only: $currentSpeaker. Use for dialogue voice/register/relationships/first-person; " +
-                "never insert it into output. Translate separate names normally; choices are player replies."
+            "Current speaker (voice/register/relationship context only): $currentSpeaker. " +
+                "Identity alone does not identify an omitted participant or possessor; never output this " +
+                "label. Translate any separate name field normally."
         )
         appendLine()
     }
@@ -4574,8 +4575,11 @@ class Translator @Inject constructor(
         previousDialogueContexts: List<SceneDialogueContext>
     ) {
         if (previousDialogueContexts.isEmpty()) return
-        appendLine("Previous scenes are JP+CN context only; never output, quote, retranslate, or continue them.")
-        appendLine("Use JP fields as source of truth and CN fields only for established names, wording, tone, and relationships.")
+        appendLine("Previous scenes are context only; never output, retranslate, or continue them.")
+        appendLine(
+            "JP is the source of truth for meaning, referents, and action roles. Use CN only for established " +
+                "terminology, names, voice, and relationship consistency; never infer facts or participants from CN."
+        )
         appendLine("Translate only the current input below.")
         previousDialogueContexts.forEachIndexed { index, context ->
             appendLine("Previous scene ${index + 1}:")

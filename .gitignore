@@ -9,6 +9,10 @@ web/.next/
 web/out/
 web/tsconfig.tsbuildinfo
 web/.next-dev*.log
+local-ai-studio/config.json
+local-ai-studio/config.json.bak
+local-ai-studio/config.json.tmp
+local-ai-studio/state/
 
 # Python virtual environments
 .venv/
@@ -69,3 +73,4 @@ helper/
 atlas_cache/
 video/
 app/src/test/
+local-ai-studio

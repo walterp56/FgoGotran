@@ -42,6 +42,7 @@ For a local OpenAI-compatible server such as llama.cpp, enter the phone-reachabl
 ```text
 app/           Android app source code
 web/           FgoGotran website, built with Next.js static export
+local-ai-studio/  FgoGotran Local AI Studio and llama.cpp process manager
 term_builder/  Glossary TSV files and database build scripts
 scripts/       Helper scripts for APK, DB, and preview JSON release workflows
 ```
@@ -79,6 +80,17 @@ Static output:
 ```text
 web/out
 ```
+
+## Local AI Studio
+
+FgoGotran Local AI Studio can configure, start, stop, and monitor an authenticated `llama-server` instance without exposing its control interface to the phone or LAN.
+
+```powershell
+cd local-ai-studio
+npm start
+```
+
+Open `http://127.0.0.1:18081`. Setup, firewall, and security details are in [local-ai-studio/README.md](local-ai-studio/README.md).
 
 ## Terminology Database
 

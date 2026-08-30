@@ -58,7 +58,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v73"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v75"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -148,8 +148,9 @@ class PromptBuilder @Inject constructor() {
          * safety rules that must apply to every request.
          */
         private val BASE_TRANSLATION_PROMPT = """
-            Localize FGO Japanese into natural, compact {target_chinese} for an in-game overlay.
-            Preserve meaning and tone. Use only {target_chinese}; leave no kana unless a rule allows it.
+            Translate FGO Japanese faithfully into natural, compact {target_chinese} for an in-game overlay.
+            Preserve meaning, viewpoint, tone, relationships, intentional ambiguity, and ellipsis.
+            Use only {target_chinese}; leave no kana unless a rule allows it.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """
@@ -182,14 +183,12 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val DIALOGUE_STYLE_PROMPT = """
-            - Preserve speaker voice/relationship (regal, archaic, casual, childish, robotic, intimate, hostile, playful) and ambiguity.
-            - Do not restore omitted subjects or possessors merely for Chinese completeness. Prefer zero subject, passive/topic-comment, or 那/这+noun; never default to 我/你.
-            - Add 我/你/他/她 only when the Japanese marks it explicitly or prior context makes the referent unambiguous; for verb modifiers such as 伸ばした手, do not invent an agent or possessor.
+            - Preserve characterization and register in natural Chinese.
+            - Infer omitted participants and possessors only when established by the current or previous Japanese; the current speaker alone is not evidence. Add a Chinese subject only when needed for coherence and its referent is clear; otherwise keep it implicit.
             """.trimIndent()
 
         private val PARTICIPANT_DIRECTION_PROMPT = """
-            - Japanese benefactive direction: てくれる/てくださる = speaker or their side receives benefit; てもらう/ていただく = speaker receives; てあげる/てやる = speaker gives. Do not reverse giver/receiver or add an omitted subject/possessor.
-            - Passive/causative: 〜(ら)れる/〜(さ)せる preserve voice and agency. If the agent is omitted, keep it implicit or use passive/topic-comment; do not default to 我/你.
+            - For benefactives, causatives, and 〜(ら)れる, determine the agent, affected participant, beneficiary, viewpoint, and grammatical reading from Japanese syntax and context. Do not assume an omitted participant is the current speaker; preserve who acts on whom in natural Chinese.
             """.trimIndent()
 
         private val LINE_BREAK_PROMPT = """
@@ -213,7 +212,7 @@ class PromptBuilder @Inject constructor() {
         private val CHOICE_PROMPT = """
             - Choices are Master/player replies, not narration or objective description.
             - Preserve the original sentence type; do not expand partial or attitude choices into full explanations.
-            - Keep first/second-person relationship consistent with the current speaker; do not add an omitted subject.
+            - Keep first/second-person relationship consistent with the current speaker; do not add an unsupported subject.
             """.trimIndent()
 
         private val NAME_PROMPT = """
