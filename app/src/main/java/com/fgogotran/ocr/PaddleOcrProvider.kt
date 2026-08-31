@@ -108,27 +108,45 @@ private class PaddleOcrRuntime(
         val startedAt = System.currentTimeMillis()
         FgoLogger.debug(tag, "PaddleOCR starting on ${bitmap.width}x${bitmap.height}")
 
-        val boxes = detectTextBoxes(bitmap)
+        val detection = detectText(bitmap)
+        val boxes = detection.boxes
             .sortedWith(compareBy({ boxMinY(it) }, { boxMinX(it) }))
 
-        val lines = mutableListOf<OcrTextLine>()
+        val detectedTextBoxes = mutableListOf<PaddleDetectedTextBox>()
         for (box in boxes) {
-            val crop = cropTextLine(bitmap, box) ?: continue
+            val bounds = boxToRect(box, bitmap.width, bitmap.height)
+            val crop = cropTextLine(bitmap, box)
+            if (crop == null) {
+                detectedTextBoxes += PaddleDetectedTextBox(bounds = bounds)
+                continue
+            }
             try {
-                val (text, confidence) = recognizeCrop(crop)
+                val recognition = recognizeCrop(crop)
+                val text = recognition.text
+                val confidence = recognition.confidence
                 if (text.isNotBlank() && confidence >= REC_TEXT_SCORE_THRESHOLD) {
-                    lines.add(
-                        OcrTextLine(
+                    detectedTextBoxes += PaddleDetectedTextBox(
+                        bounds = bounds,
+                        line = OcrTextLine(
                             text = text,
-                            boundingBox = boxToRect(box, bitmap.width, bitmap.height),
+                            boundingBox = bounds,
                             confidence = confidence.coerceIn(0f, 1f)
-                        )
+                        ),
+                        recoveredMaskCount = recognition.recoveredMaskCount
                     )
+                } else {
+                    detectedTextBoxes += PaddleDetectedTextBox(bounds = bounds)
                 }
             } finally {
                 if (!crop.isRecycled) crop.recycle()
             }
         }
+
+        val lines = recoverSplitSolidMaskRows(
+            source = bitmap,
+            detectedTextBoxes = detectedTextBoxes,
+            maskRows = detection.solidMaskRows
+        ).sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
 
         val fullText = lines.joinToString("\n") { it.text }
         val elapsed = System.currentTimeMillis() - startedAt
@@ -161,7 +179,7 @@ private class PaddleOcrRuntime(
         }
     }
 
-    private fun detectTextBoxes(bitmap: Bitmap): List<FloatArray> {
+    private fun detectText(bitmap: Bitmap): PaddleDetectionResult {
         val width = bitmap.width
         val height = bitmap.height
         val scale = if (max(width, height) > DET_LIMIT_SIDE_LEN) {
@@ -175,6 +193,11 @@ private class PaddleOcrRuntime(
         val pixels = IntArray(resizedWidth * resizedHeight)
         resized.getPixels(pixels, 0, resizedWidth, 0, 0, resizedWidth, resizedHeight)
         if (resized !== bitmap) resized.recycle()
+        val sourceScaleX = width.toFloat() / resizedWidth.toFloat()
+        val sourceScaleY = height.toFloat() / resizedHeight.toFloat()
+        val solidMaskRows = PaddleSolidMaskDetector
+            .detectRows(pixels, resizedWidth, resizedHeight)
+            .map { row -> row.scaled(sourceScaleX, sourceScaleY) }
 
         val pixelCount = resizedWidth * resizedHeight
         val input = FloatArray(pixelCount * 3)
@@ -211,7 +234,16 @@ private class PaddleOcrRuntime(
             }
         }
 
-        return postprocessDetection(probabilities, predWidth, predHeight, width, height)
+        val boxes = postprocessDetection(probabilities, predWidth, predHeight, width, height)
+        if (solidMaskRows.isNotEmpty()) {
+            FgoLogger.debug(
+                tag,
+                "PaddleOCR full-input solid masks: " +
+                    "rows=${solidMaskRows.size}, count=${solidMaskRows.sumOf { it.masks.size }}, " +
+                    "separators=${solidMaskRows.sumOf { it.separators.size }}"
+            )
+        }
+        return PaddleDetectionResult(boxes = boxes, solidMaskRows = solidMaskRows)
     }
 
     private fun postprocessDetection(
@@ -534,13 +566,191 @@ private class PaddleOcrRuntime(
         }.getOrNull()
     }
 
-    private fun recognizeCrop(crop: Bitmap): Pair<String, Float> {
+    private fun recoverSplitSolidMaskRows(
+        source: Bitmap,
+        detectedTextBoxes: List<PaddleDetectedTextBox>,
+        maskRows: List<PaddleSolidMaskRow>
+    ): List<OcrTextLine> {
+        if (maskRows.isEmpty()) return detectedTextBoxes.mapNotNull(PaddleDetectedTextBox::line)
+
+        val consumedBoxIndexes = mutableSetOf<Int>()
+        val recoveredLines = mutableListOf<OcrTextLine>()
+
+        for (row in maskRows) {
+            val associatedBoxes = detectedTextBoxes.withIndex()
+                .filter { (index, detectedBox) ->
+                    index !in consumedBoxIndexes && boxBelongsToMaskRow(detectedBox.bounds, row)
+                }
+            if (associatedBoxes.isEmpty()) {
+                FgoLogger.debug(
+                    tag,
+                    "PaddleOCR solid-mask row not attached to a text box: " +
+                        "count=${row.masks.size}, bounds=${row.left},${row.top}-${row.right},${row.bottom}"
+                )
+                continue
+            }
+
+            val alreadyRecovered = associatedBoxes.size == 1 && associatedBoxes.single().value.let { detectedBox ->
+                detectedBox.recoveredMaskCount >= row.masks.size ||
+                    (detectedBox.line?.text?.count { it == SOLID_MASK_CHAR } ?: 0) >= row.masks.size
+            }
+            if (alreadyRecovered) continue
+
+            val recoveryBounds = recoveryBoundsFor(
+                row = row,
+                boxes = associatedBoxes.map { it.value.bounds },
+                sourceWidth = source.width,
+                sourceHeight = source.height
+            )
+            val crop = runCatching {
+                Bitmap.createBitmap(
+                    source,
+                    recoveryBounds.left,
+                    recoveryBounds.top,
+                    recoveryBounds.width(),
+                    recoveryBounds.height()
+                )
+            }.getOrNull() ?: continue
+
+            val cropMasks = row.masks.map { mask ->
+                PaddleSolidMask(
+                    left = mask.left - recoveryBounds.left,
+                    top = mask.top - recoveryBounds.top,
+                    right = mask.right - recoveryBounds.left,
+                    bottom = mask.bottom - recoveryBounds.top,
+                    confidence = mask.confidence
+                )
+            }
+            val cropSeparators = row.separators.map { separator ->
+                PaddleSolidMaskSeparator(
+                    left = separator.left - recoveryBounds.left,
+                    top = separator.top - recoveryBounds.top,
+                    right = separator.right - recoveryBounds.left,
+                    bottom = separator.bottom - recoveryBounds.top,
+                    confidence = separator.confidence
+                )
+            }
+            val recognition = try {
+                recognizeCrop(
+                    crop = crop,
+                    knownMasks = cropMasks,
+                    knownSeparators = cropSeparators
+                )
+            } finally {
+                crop.recycle()
+            }
+
+            val previousText = associatedBoxes
+                .mapNotNull { it.value.line?.text }
+                .joinToString(separator = "")
+            val previousMeaningfulChars = previousText.count(Char::isLetterOrDigit)
+            val recoveredNonMaskChars = recognition.text.count {
+                !it.isWhitespace() && it != SOLID_MASK_CHAR
+            }
+            val recoveredMeaningfulChars = recognition.text.count(Char::isLetterOrDigit)
+            val keepsRecognizedText = previousMeaningfulChars == 0 ||
+                recoveredMeaningfulChars >= max(1, previousMeaningfulChars / 2)
+            val accepted = recognition.recoveredMaskCount == row.masks.size &&
+                recognition.confidence >= REC_TEXT_SCORE_THRESHOLD &&
+                recoveredNonMaskChars > 0 &&
+                keepsRecognizedText
+
+            if (!accepted) {
+                FgoLogger.debug(
+                    tag,
+                    "PaddleOCR split solid-mask recovery rejected: " +
+                        "expected=${row.masks.size}, recovered=${recognition.recoveredMaskCount}, " +
+                        "before=$previousText, after=${recognition.text}"
+                )
+                continue
+            }
+
+            associatedBoxes.forEach { consumedBoxIndexes += it.index }
+            recoveredLines += OcrTextLine(
+                text = recognition.text,
+                boundingBox = recoveryBounds,
+                confidence = recognition.confidence.coerceIn(0f, 1f)
+            )
+            FgoLogger.debug(
+                tag,
+                "PaddleOCR split solid-mask line recovered: " +
+                    "count=${row.masks.size}, boxes=${associatedBoxes.size}, " +
+                    "before=$previousText, after=${recognition.text}"
+            )
+        }
+
+        return buildList {
+            detectedTextBoxes.forEachIndexed { index, detectedBox ->
+                if (index !in consumedBoxIndexes) detectedBox.line?.let(::add)
+            }
+            addAll(recoveredLines)
+        }
+    }
+
+    private fun boxBelongsToMaskRow(bounds: Rect, row: PaddleSolidMaskRow): Boolean {
+        val verticalOverlap = min(bounds.bottom, row.bottom) - max(bounds.top, row.top)
+        val minimumHeight = min(bounds.height(), row.height).coerceAtLeast(1)
+        if (verticalOverlap < minimumHeight * MASK_ROW_MIN_VERTICAL_OVERLAP_RATIO) return false
+        val boxCenterY = (bounds.top + bounds.bottom) / 2f
+        val maximumCenterDifference = max(bounds.height(), row.height) * MASK_ROW_MAX_CENTER_DIFFERENCE_RATIO
+        if (abs(boxCenterY - row.centerY) > maximumCenterDifference) return false
+
+        val horizontalGap = when {
+            bounds.right < row.left -> row.left - bounds.right
+            bounds.left > row.right -> bounds.left - row.right
+            else -> 0
+        }
+        val maximumGap = max(
+            row.averageSide * MASK_ROW_MAX_HORIZONTAL_GAP_SIDE_RATIO,
+            bounds.height() * MASK_ROW_MAX_HORIZONTAL_GAP_HEIGHT_RATIO
+        )
+        return horizontalGap <= maximumGap
+    }
+
+    private fun recoveryBoundsFor(
+        row: PaddleSolidMaskRow,
+        boxes: List<Rect>,
+        sourceWidth: Int,
+        sourceHeight: Int
+    ): Rect {
+        val bounds = Rect(row.left, row.top, row.right, row.bottom)
+        boxes.forEach(bounds::union)
+        val padding = max(MASK_ROW_MIN_CROP_PADDING, (row.averageSide * MASK_ROW_CROP_PADDING_RATIO).roundToInt())
+        bounds.inset(-padding, -padding)
+        bounds.left = bounds.left.coerceIn(0, sourceWidth - 1)
+        bounds.top = bounds.top.coerceIn(0, sourceHeight - 1)
+        bounds.right = bounds.right.coerceIn(bounds.left + 1, sourceWidth)
+        bounds.bottom = bounds.bottom.coerceIn(bounds.top + 1, sourceHeight)
+        return bounds
+    }
+
+    private fun recognizeCrop(
+        crop: Bitmap,
+        knownMasks: List<PaddleSolidMask>? = null,
+        knownSeparators: List<PaddleSolidMaskSeparator> = emptyList()
+    ): PaddleMaskMergeResult {
         val resizedWidth = max(1, ceil(REC_IMAGE_HEIGHT.toDouble() * crop.width / crop.height).toInt())
             .coerceAtMost(REC_MAX_IMAGE_WIDTH)
         val resized = Bitmap.createScaledBitmap(crop, resizedWidth, REC_IMAGE_HEIGHT, true)
         val pixels = IntArray(resizedWidth * REC_IMAGE_HEIGHT)
         resized.getPixels(pixels, 0, resizedWidth, 0, 0, resizedWidth, REC_IMAGE_HEIGHT)
         if (resized !== crop) resized.recycle()
+        val solidMasks = knownMasks?.map { mask ->
+            mask.scaled(
+                scaleX = resizedWidth.toFloat() / crop.width.toFloat(),
+                scaleY = REC_IMAGE_HEIGHT.toFloat() / crop.height.toFloat()
+            )
+        } ?: PaddleSolidMaskDetector.detect(
+                pixels = pixels,
+                width = resizedWidth,
+                height = REC_IMAGE_HEIGHT
+            )
+        val solidMaskSeparators = knownSeparators.map { separator ->
+            separator.scaled(
+                scaleX = resizedWidth.toFloat() / crop.width.toFloat(),
+                scaleY = REC_IMAGE_HEIGHT.toFloat() / crop.height.toFloat()
+            )
+        }
 
         val pixelCount = resizedWidth * REC_IMAGE_HEIGHT
         val input = FloatArray(pixelCount * 3)
@@ -570,16 +780,36 @@ private class PaddleOcrRuntime(
                     rewind()
                     get(values, 0, values.size)
                 }
-                ctcDecode(values, sequenceLength, classCount)
+                val tokens = ctcDecode(
+                    values = values,
+                    sequenceLength = sequenceLength,
+                    classCount = classCount,
+                    imageWidth = resizedWidth
+                )
+                PaddleSolidMaskMerger.merge(tokens, solidMasks, solidMaskSeparators).also { merged ->
+                    if (merged.recoveredMaskCount > 0) {
+                        val originalText = tokens.joinToString(separator = "") { it.text }.trim()
+                        FgoLogger.debug(
+                            tag,
+                            "PaddleOCR solid masks recovered: " +
+                                "count=${merged.recoveredMaskCount}, before=$originalText, after=${merged.text.trim()}"
+                        )
+                    }
+                }.let { merged ->
+                    merged.copy(text = merged.text.trim())
+                }
             }
         }
     }
 
-    private fun ctcDecode(values: FloatArray, sequenceLength: Int, classCount: Int): Pair<String, Float> {
-        val text = StringBuilder()
+    private fun ctcDecode(
+        values: FloatArray,
+        sequenceLength: Int,
+        classCount: Int,
+        imageWidth: Int
+    ): List<PaddlePositionedToken> {
+        val tokens = mutableListOf<PaddlePositionedToken>()
         var previousIndex = -1
-        var confidenceSum = 0f
-        var confidenceCount = 0
 
         for (step in 0 until sequenceLength) {
             val offset = step * classCount
@@ -593,17 +823,15 @@ private class PaddleOcrRuntime(
                 }
             }
             if (bestIndex != 0 && bestIndex != previousIndex && bestIndex < dictionary.size) {
-                text.append(dictionary[bestIndex])
-                confidenceSum += bestValue
-                confidenceCount += 1
+                tokens += PaddlePositionedToken(
+                    text = dictionary[bestIndex],
+                    centerX = (step + 0.5f) * imageWidth.toFloat() / sequenceLength.toFloat(),
+                    confidence = bestValue.coerceIn(0f, 1f)
+                )
             }
             previousIndex = bestIndex
         }
-
-        val decoded = text.toString().trim()
-        if (decoded.isBlank()) return "" to 0f
-        val confidence = if (confidenceCount == 0) 0f else confidenceSum / confidenceCount
-        return decoded to confidence
+        return tokens
     }
 
     private fun firstTensor(result: OrtSession.Result, session: OrtSession): OnnxTensor {
@@ -642,6 +870,17 @@ private class PaddleOcrRuntime(
         val minSide: Float
     )
 
+    private data class PaddleDetectionResult(
+        val boxes: List<FloatArray>,
+        val solidMaskRows: List<PaddleSolidMaskRow>
+    )
+
+    private data class PaddleDetectedTextBox(
+        val bounds: Rect,
+        val line: OcrTextLine? = null,
+        val recoveredMaskCount: Int = 0
+    )
+
     companion object {
         private const val DET_MODEL_ASSET = "ppocrv6/det_v6_small.onnx"
         private const val REC_MODEL_ASSET = "ppocrv6/rec_v6_small.onnx"
@@ -661,6 +900,13 @@ private class PaddleOcrRuntime(
         private const val REC_MAX_IMAGE_WIDTH = 3200
         private const val REC_TEXT_SCORE_THRESHOLD = 0.5f
         private const val VERTICAL_TEXT_ROTATE_RATIO = 1.5f
+        private const val SOLID_MASK_CHAR = '■'
+        private const val MASK_ROW_MIN_VERTICAL_OVERLAP_RATIO = 0.45f
+        private const val MASK_ROW_MAX_CENTER_DIFFERENCE_RATIO = 0.45f
+        private const val MASK_ROW_MAX_HORIZONTAL_GAP_SIDE_RATIO = 2.5f
+        private const val MASK_ROW_MAX_HORIZONTAL_GAP_HEIGHT_RATIO = 2f
+        private const val MASK_ROW_CROP_PADDING_RATIO = 0.18f
+        private const val MASK_ROW_MIN_CROP_PADDING = 2
         private val GEOMETRY_FACTORY = GeometryFactory()
     }
 }

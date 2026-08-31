@@ -18,6 +18,7 @@ data class PromptContext(
     val targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
     val isCropMode: Boolean = false,
     val isDialogue: Boolean = true,
+    val isUnattributedDialogue: Boolean = false,
     val requestVoiceHint: Boolean = false,
     val hasPlaceholders: Boolean = false,
     val hasMasks: Boolean = false,
@@ -58,7 +59,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v75"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v76"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -187,6 +188,10 @@ class PromptBuilder @Inject constructor() {
             - Infer omitted participants and possessors only when established by the current or previous Japanese; the current speaker alone is not evidence. Add a Chinese subject only when needed for coherence and its referent is clear; otherwise keep it implicit.
             """.trimIndent()
 
+        private val UNATTRIBUTED_DIALOGUE_PROMPT = """
+            - No speaker name was detected. It may be narration, an unidentified voice, or inner thought. Determine the viewpoint from the current Japanese and previous Japanese context; do not invent or automatically inherit a speaker.
+            """.trimIndent()
+
         private val PARTICIPANT_DIRECTION_PROMPT = """
             - For benefactives, causatives, and 〜(ら)れる, determine the agent, affected participant, beneficiary, viewpoint, and grammatical reading from Japanese syntax and context. Do not assume an omitted participant is the current speaker; preserve who acts on whom in natural Chinese.
             """.trimIndent()
@@ -284,6 +289,10 @@ class PromptBuilder @Inject constructor() {
             targetChineseLocale = normalizedTargetLocale,
             isCropMode = isCropMode,
             isDialogue = isDialogue,
+            isUnattributedDialogue = !isCropMode &&
+                isDialogue &&
+                !isChoiceBatch &&
+                currentSpeaker.isBlank(),
             requestVoiceHint = requestVoiceHint,
             hasPlaceholders = containsPlaceholder(combinedText),
             hasMasks = containsMask(combinedText),
@@ -361,6 +370,14 @@ class PromptBuilder @Inject constructor() {
         } else {
             if (context.isDialogue) {
                 appendPromptBlock(sb, blockNames, "dialogue_style", DIALOGUE_STYLE_PROMPT)
+                if (context.isUnattributedDialogue) {
+                    appendPromptBlock(
+                        sb,
+                        blockNames,
+                        "unattributed_dialogue",
+                        UNATTRIBUTED_DIALOGUE_PROMPT
+                    )
+                }
             }
             if (context.hasLineBreaks) {
                 appendPromptBlock(sb, blockNames, "line_break", LINE_BREAK_PROMPT)
