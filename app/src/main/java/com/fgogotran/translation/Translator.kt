@@ -38,6 +38,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.IOException
 import java.text.Normalizer
 import java.security.MessageDigest
 import java.util.LinkedHashMap
@@ -56,7 +57,8 @@ data class TranslateResult(
     val translatedText: String,
     val backend: String,
     val cached: Boolean,
-    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+    val trustedForContext: Boolean = true
 )
 
 data class SceneTranslateInput(
@@ -71,7 +73,7 @@ data class SceneDialogueContext(
     val sourceSpeakerName: String?,
     val translatedSpeakerName: String?,
     val sourceDialogue: String,
-    val translatedDialogue: String,
+    val translatedDialogue: String?,
     val targetLocale: String,
     val dialogueSourceKey: String
 )
@@ -422,6 +424,11 @@ class Translator @Inject constructor(
         val safety: TranslationSafetyResult
     )
 
+    private class TranslationApiHttpException(
+        val statusCode: Int,
+        message: String
+    ) : Exception(message)
+
     companion object {
         private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
@@ -446,11 +453,13 @@ class Translator @Inject constructor(
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_LONG_MAX_TOKENS = 384
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_CHAR_LIMIT = 120
         private const val SCENE_TRANSLATION_MAX_TOKENS = 704
-        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-v4"
+        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-v5"
         private const val CURRENT_SPEAKER_CONTEXT_MAX_CHARS = 160
         private const val SCENE_DIALOGUE_CONTEXT_MAX_CHARS = 320
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
+        private const val MAX_TRANSLATION_API_ATTEMPTS = 3
         private const val UNTRANSLATED_FALLBACK = ""
+        private const val EMPTY_API_OUTPUT_FALLBACK = "[翻译失败：API 未返回可显示内容]"
         private const val MASKED_TEXT_BACKEND = "masked-source"
         private const val MASKED_TEXT_MIN_TRANSLATABLE_CHARS = 4
         private const val LOG_SAMPLE_MAX_CHARS = 120
@@ -616,6 +625,21 @@ class Translator @Inject constructor(
         return error.message?.trim()?.takeIf(String::isNotBlank) ?: "未知错误"
     }
 
+    private fun isRetryableTranslationFailure(error: Exception): Boolean {
+        if (error is TranslationApiHttpException) {
+            return error.statusCode == 408 ||
+                error.statusCode == 429 ||
+                error.statusCode in 500..599
+        }
+        if (error is HttpRequestTimeoutException || error is IOException) return true
+        if (error is IllegalArgumentException) return true
+        val message = error.message.orEmpty()
+        return message.contains("timeout", ignoreCase = true) ||
+            message.contains("returned non-JSON", ignoreCase = true) ||
+            message.contains("returned invalid response", ignoreCase = true) ||
+            message.contains("returned empty", ignoreCase = true)
+    }
+
     private fun recordTranslationApiFailure(
         config: RuntimeConfig,
         error: Exception,
@@ -662,7 +686,8 @@ class Translator @Inject constructor(
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
         currentSpeakerSourceName: String = "",
-        translateAsChoices: Boolean = false
+        translateAsChoices: Boolean = false,
+        maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -674,7 +699,13 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled && useTranslationCache
-        val normalizedText = correctPlayerNameOcr(rawNormalizedText, playerName, "TEXT")
+        val attemptLimit = maxApiAttempts.coerceIn(1, MAX_TRANSLATION_API_ATTEMPTS)
+        val normalizedSourceText = if (!cropMode && !translateAsChoices) {
+            FgoDialogueSymbols.normalizeLeadingOcrDash(rawNormalizedText)
+        } else {
+            rawNormalizedText
+        }
+        val normalizedText = correctPlayerNameOcr(normalizedSourceText, playerName, "TEXT")
         val normalizedChoices = choiceTexts.mapIndexedNotNull { index, choice ->
             TextNormalizer.normalizeForTranslation(choice)
                 .takeIf { it.isNotBlank() }
@@ -755,7 +786,8 @@ class Translator @Inject constructor(
             return TranslateResult(
                 "[未配置 API Key]\n请打开设置并输入 API Key。",
                 "none",
-                false
+                false,
+                trustedForContext = false
             ).forTargetLocale(config)
         }
 
@@ -816,29 +848,46 @@ class Translator @Inject constructor(
             ChatMessage("user", userPrompt)
         )
 
-        FgoLogger.info(tag, "Calling $backend API")
-        val result = try {
-            callTranslationBackend(
-                config = config,
-                messages = messages,
-                maxTokens = maxTokens,
-                promptKind = if (cropMode) "crop" else "single"
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            FgoLogger.error(tag, "$backend API call failed: ${e.message}", e)
-            recordTranslationApiFailure(config, e, "single")
+        var attemptsUsed = 0
+        var lastApiError: Exception? = null
+        var result: String? = null
+        while (result == null && attemptsUsed < attemptLimit) {
+            attemptsUsed++
+            FgoLogger.info(tag, "Calling $backend API (attempt $attemptsUsed/$attemptLimit)")
+            try {
+                result = callTranslationBackend(
+                    config = config,
+                    messages = messages,
+                    maxTokens = maxTokens,
+                    promptKind = if (cropMode) "crop" else "single"
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastApiError = e
+                if (!isRetryableTranslationFailure(e) || attemptsUsed >= attemptLimit) {
+                    break
+                }
+                FgoLogger.warn(
+                    tag,
+                    "$backend API attempt $attemptsUsed/$attemptLimit failed temporarily; retrying: ${e.message}"
+                )
+            }
+        }
+        val completedResult = result ?: run {
+            val error = lastApiError ?: IllegalStateException("API returned no response")
+            FgoLogger.error(tag, "$backend API call failed after $attemptsUsed attempt(s): ${error.message}", error)
+            recordTranslationApiFailure(config, error, "single")
             return TranslateResult(
-                "[翻译失败：${formatUserFacingApiError(e)}]\n请检查 API Key、模型和网络连接。",
+                "[翻译失败：${formatUserFacingApiError(error)}]\n请检查 API Key、模型和网络连接。",
                 backend,
-                false
-            )
-                .forTargetLocale(config)
+                false,
+                trustedForContext = false
+            ).forTargetLocale(config)
         }
 
         val restoredResult = restoreProtectedTranslation(
-            result,
+            completedResult,
             protectedInput
         )
         var simplifiedResult = restoredResult?.let {
@@ -851,50 +900,76 @@ class Translator @Inject constructor(
         }
         var canCacheResult = true
         val initialSafety = restoredResult?.let {
-            classifyTranslationSafety(normalizedText, simplifiedResult, playerName)
+            if (simplifiedResult.isBlank()) {
+                TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
+            } else {
+                classifyTranslationSafety(normalizedText, simplifiedResult, playerName)
+            }
         } ?: TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
         if (initialSafety.status != TranslationSafetyStatus.OK) {
             logUnsafeTranslationSafety("API response needs repair", initialSafety)
             if (initialSafety.status == TranslationSafetyStatus.UNTRANSLATED) {
                 logUntranslatedResult("API response", normalizedText, simplifiedResult, playerName)
             }
-            FgoLogger.warn(tag, "API returned unsafe Japanese; retrying with strict Chinese-only prompt")
-            val retryResult = retryUntranslatedSingle(
-                config = config,
-                playerName = playerName,
-                normalizedText = normalizedText,
-                normalizedChoices = protectedChoiceTexts,
-                protectedInput = protectedInput,
-                specialFirstPersonMappings = promptContext.specialFirstPersonMappings,
-                badTranslation = simplifiedResult,
-                badSafety = initialSafety,
-                cropMode = cropMode,
-                maxTokens = maxTokens,
-                previousDialogueContexts = activePreviousDialogueContexts,
-                currentSpeaker = activeCurrentSpeaker,
-                hasBeniEnmaDechiTic = promptContext.hasBeniEnmaDechiTic
-            )
-            if (retryResult == null) {
-                if (initialSafety.status == TranslationSafetyStatus.PARTIAL_KANA_LEAK &&
-                    simplifiedResult.isNotBlank()
-                ) {
-                    FgoLogger.warn(tag, "Strict retry failed; rendering partial kana result without cache")
-                    canCacheResult = false
-                } else {
-                    FgoLogger.warn(tag, "Retry still looked untranslated; skipping overlay render")
-                    return TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
+            var latestCandidate = simplifiedResult.takeIf { it.isNotBlank() }
+            var latestSafety = initialSafety
+            var acceptedResult: String? = null
+            for (attempt in (attemptsUsed + 1)..attemptLimit) {
+                FgoLogger.warn(
+                    tag,
+                    "API returned unsafe Japanese; strict repair attempt $attempt/$attemptLimit"
+                )
+                val retryResult = retryUntranslatedSingle(
+                    config = config,
+                    playerName = playerName,
+                    normalizedText = normalizedText,
+                    normalizedChoices = protectedChoiceTexts,
+                    protectedInput = protectedInput,
+                    specialFirstPersonMappings = promptContext.specialFirstPersonMappings,
+                    badTranslation = latestCandidate.orEmpty(),
+                    badSafety = latestSafety,
+                    cropMode = cropMode,
+                    maxTokens = maxTokens,
+                    previousDialogueContexts = activePreviousDialogueContexts,
+                    currentSpeaker = activeCurrentSpeaker,
+                    hasBeniEnmaDechiTic = promptContext.hasBeniEnmaDechiTic
+                ) ?: continue
+                val retryText = enforceMaskedTranslationPolicy(normalizedText, retryResult.text)
+                if (retryText.isBlank()) continue
+                latestCandidate = retryText
+                latestSafety = retryResult.safety
+                if (isMaskedSourcePreserved(normalizedText, retryText)) {
+                    return modelTranslateResult(retryText, MASKED_TEXT_BACKEND, true, config)
                         .forTargetLocale(config)
                 }
-            } else if (retryResult.safety.status == TranslationSafetyStatus.OK) {
-                simplifiedResult = retryResult.text
-            } else if (retryResult.safety.status == TranslationSafetyStatus.PARTIAL_KANA_LEAK) {
-                logUnsafeTranslationSafety("Strict retry still has kana; rendering without cache", retryResult.safety)
-                simplifiedResult = retryResult.text
-                canCacheResult = false
+                if (retryResult.safety.status == TranslationSafetyStatus.OK) {
+                    acceptedResult = retryText
+                    break
+                }
+                logUnsafeTranslationSafety(
+                    "Strict repair attempt $attempt/$attemptLimit still needs repair",
+                    retryResult.safety
+                )
+            }
+            if (acceptedResult != null) {
+                simplifiedResult = acceptedResult
             } else {
-                FgoLogger.warn(tag, "Retry still looked untranslated; skipping overlay render")
-                return TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
-                    .forTargetLocale(config)
+                canCacheResult = false
+                simplifiedResult = latestCandidate.orEmpty()
+                if (simplifiedResult.isBlank()) {
+                    FgoLogger.warn(tag, "Translation attempt limit reached with no renderable API output")
+                    return TranslateResult(
+                        EMPTY_API_OUTPUT_FALLBACK,
+                        backend,
+                        false,
+                        trustedForContext = false
+                    )
+                        .forTargetLocale(config)
+                }
+                FgoLogger.warn(
+                    tag,
+                    "Translation attempt limit reached; force-rendering latest cleaned API output without cache"
+                )
             }
             simplifiedResult = enforceMaskedTranslationPolicy(normalizedText, simplifiedResult)
             if (isMaskedSourcePreserved(normalizedText, simplifiedResult)) {
@@ -908,14 +983,21 @@ class Translator @Inject constructor(
         }
 
         FgoLogger.info(tag, "Translation complete: backend=$backend, chars=${simplifiedResult.length}")
-        return modelTranslateResult(simplifiedResult, backend, false, config).forTargetLocale(config)
+        return modelTranslateResult(
+            translatedText = simplifiedResult,
+            backend = backend,
+            cached = false,
+            config = config,
+            trustedForContext = canCacheResult
+        ).forTargetLocale(config)
     }
 
     suspend fun translateBatch(
         japaneseTexts: List<String>,
         currentSpeaker: String = "",
         currentSpeakerSourceName: String = "",
-        translateAsChoices: Boolean = false
+        translateAsChoices: Boolean = false,
+        maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS
     ): List<TranslateResult> {
         if (japaneseTexts.isEmpty()) return emptyList()
 
@@ -925,6 +1007,7 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled
+        val attemptLimit = maxApiAttempts.coerceIn(1, MAX_TRANSLATION_API_ATTEMPTS)
         val normalizedTexts = rawNormalizedTexts.mapIndexed { index, text ->
             correctPlayerNameOcr(text, playerName, "BATCH[$index]")
         }
@@ -1008,7 +1091,12 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "No API key configured; returning placeholders for batch")
             val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
             uncachedIndices.forEach { index ->
-                results[index] = TranslateResult(placeholder, "none", false)
+                results[index] = TranslateResult(
+                    placeholder,
+                    "none",
+                    false,
+                    trustedForContext = false
+                )
             }
             return results.completeForTargetLocale(config)
         }
@@ -1057,7 +1145,10 @@ class Translator @Inject constructor(
             )
         )
 
-        FgoLogger.info(tag, "Calling $backend API for batch (${uncachedTexts.size} items)")
+        FgoLogger.info(
+            tag,
+            "Calling $backend API for batch (${uncachedTexts.size} items, attempt 1/$attemptLimit)"
+        )
         val translatedTexts = try {
             val rawResult = callTranslationBackend(
                 config,
@@ -1069,16 +1160,38 @@ class Translator @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            FgoLogger.warn(tag, "Batch translation failed, falling back to single calls", e)
+            FgoLogger.warn(tag, "Batch translation failed", e)
             recordTranslationApiFailure(config, e, "batch")
-            for (index in uncachedIndices) {
-                results[index] = translate(
-                    japaneseTexts[index],
-                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
-                    currentSpeaker = activeCurrentSpeaker,
-                    currentSpeakerSourceName = currentSpeakerCacheIdentity,
-                    translateAsChoices = translateAsChoices
+            val remainingAttempts = if (isRetryableTranslationFailure(e)) {
+                attemptLimit - 1
+            } else {
+                0
+            }
+            if (remainingAttempts > 0) {
+                FgoLogger.warn(
+                    tag,
+                    "Falling back to single calls with $remainingAttempts attempt(s) remaining per item"
                 )
+                for (index in uncachedIndices) {
+                    results[index] = translate(
+                        japaneseTexts[index],
+                        maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
+                        currentSpeaker = activeCurrentSpeaker,
+                        currentSpeakerSourceName = currentSpeakerCacheIdentity,
+                        translateAsChoices = translateAsChoices,
+                        maxApiAttempts = remainingAttempts
+                    )
+                }
+            } else {
+                val failure = "[翻译失败：${formatUserFacingApiError(e)}]"
+                uncachedIndices.forEach { index ->
+                    results[index] = TranslateResult(
+                        failure,
+                        backend,
+                        false,
+                        trustedForContext = false
+                    )
+                }
             }
             return results.completeForTargetLocale(config)
         }
@@ -1102,32 +1215,47 @@ class Translator @Inject constructor(
             val needsRepair = safety.status != TranslationSafetyStatus.OK
             if (needsRepair) {
                 logUnsafeTranslationSafety("Batch item[$originalIndex] needs repair", safety)
-                FgoLogger.warn(tag, "Batch item[$originalIndex] returned unsafe Japanese; retrying single strict path")
-                val retryResult = translate(
-                    japaneseTexts[originalIndex],
-                    maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
-                    currentSpeaker = activeCurrentSpeaker,
-                    currentSpeakerSourceName = currentSpeakerCacheIdentity,
-                    translateAsChoices = translateAsChoices
-                )
-                if (retryResult.translatedText.isNotBlank()) {
-                    results[originalIndex] = retryResult
-                    continue
+                val remainingAttempts = attemptLimit - 1
+                if (remainingAttempts > 0) {
+                    FgoLogger.warn(
+                        tag,
+                        "Batch item[$originalIndex] returned unsafe Japanese; " +
+                            "retrying with $remainingAttempts attempt(s) remaining"
+                    )
+                    val retryResult = translate(
+                        japaneseTexts[originalIndex],
+                        maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
+                        currentSpeaker = activeCurrentSpeaker,
+                        currentSpeakerSourceName = currentSpeakerCacheIdentity,
+                        translateAsChoices = translateAsChoices,
+                        maxApiAttempts = remainingAttempts
+                    )
+                    if (retryResult.translatedText.isNotBlank() &&
+                        !retryResult.translatedText.isSceneContextErrorText()
+                    ) {
+                        results[originalIndex] = retryResult
+                        continue
+                    }
+                    if (maskedSafe.isBlank()) {
+                        results[originalIndex] = retryResult
+                        continue
+                    }
                 }
-                FgoLogger.warn(tag, "Batch item[$originalIndex] retry produced no renderable translation")
+                results[originalIndex] = forceRenderedApiResult(
+                    text = maskedSafe,
+                    backend = backend,
+                    config = config,
+                    reason = "batch item[$originalIndex] reached attempt limit"
+                )
+                continue
             }
-            val translated = if (needsRepair) UNTRANSLATED_FALLBACK else maskedSafe
-            results[originalIndex] = if (needsRepair) {
-                TranslateResult(translated, backend, false)
-            } else {
-                modelTranslateResult(translated, backend, false, config)
-            }
-            if (cacheEnabled && !needsRepair) {
+            results[originalIndex] = modelTranslateResult(maskedSafe, backend, false, config)
+            if (cacheEnabled) {
                 cacheTranslatedText(
                     hashes[originalIndex],
                     japaneseTexts[originalIndex],
                     normalizedTexts[originalIndex],
-                    translated,
+                    maskedSafe,
                     backend,
                     playerName
                 )
@@ -1140,7 +1268,10 @@ class Translator @Inject constructor(
 
     suspend fun translateScene(input: SceneTranslateInput): SceneTranslateResult {
         val rawNormalizedName = input.name?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
-        val rawNormalizedDialogue = input.dialogue?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
+        val rawNormalizedDialogue = input.dialogue
+            ?.let(TextNormalizer::normalizeForTranslation)
+            ?.let(FgoDialogueSymbols::normalizeLeadingOcrDash)
+            ?.takeIf { it.isNotBlank() }
         val rawNormalizedChoices = input.choices
             .map(TextNormalizer::normalizeForTranslation)
             .map { it.takeIf(String::isNotBlank) }
@@ -1399,9 +1530,25 @@ class Translator @Inject constructor(
                 FgoLogger.warn(tag, "No API key configured; returning placeholders for scene")
             }
             val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
-            if (needsName) nameResult = TranslateResult("", "none", false)
-            if (needsDialogue) dialogueResult = TranslateResult(placeholder, "none", false)
-            neededChoiceIndices.forEach { choiceResults[it] = TranslateResult(placeholder, "none", false) }
+            if (needsName) {
+                nameResult = TranslateResult("", "none", false, trustedForContext = false)
+            }
+            if (needsDialogue) {
+                dialogueResult = TranslateResult(
+                    placeholder,
+                    "none",
+                    false,
+                    trustedForContext = false
+                )
+            }
+            neededChoiceIndices.forEach {
+                choiceResults[it] = TranslateResult(
+                    placeholder,
+                    "none",
+                    false,
+                    trustedForContext = false
+                )
+            }
             return SceneTranslateResult(
                 name = nameResult,
                 dialogue = dialogueResult,
@@ -1554,6 +1701,33 @@ class Translator @Inject constructor(
                     choices = choiceResults.map { it ?: TranslateResult("", "none", true) }
                 ).forTargetLocale(config)
             }
+            if (!isRetryableTranslationFailure(e)) {
+                val failure = "[翻译失败：${formatUserFacingApiError(e)}]"
+                if (needsName) {
+                    nameResult = TranslateResult("", backend, false, trustedForContext = false)
+                }
+                if (needsDialogue) {
+                    dialogueResult = TranslateResult(
+                        failure,
+                        backend,
+                        false,
+                        trustedForContext = false
+                    )
+                }
+                neededChoiceIndices.forEach { index ->
+                    choiceResults[index] = TranslateResult(
+                        failure,
+                        backend,
+                        false,
+                        trustedForContext = false
+                    )
+                }
+                return SceneTranslateResult(
+                    name = nameResult,
+                    dialogue = dialogueResult,
+                    choices = choiceResults.map { it ?: TranslateResult("", "none", true) }
+                ).forTargetLocale(config)
+            }
             val fallbackTexts = mutableListOf<String>()
             var nameFallbackIndex: Int? = null
             var dialogueFallbackIndex: Int? = null
@@ -1573,7 +1747,8 @@ class Translator @Inject constructor(
             val fallbackResults = translateBatch(
                 japaneseTexts = fallbackTexts,
                 currentSpeaker = currentSpeaker,
-                currentSpeakerSourceName = currentSpeakerSourceName
+                currentSpeakerSourceName = currentSpeakerSourceName,
+                maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
             )
             nameFallbackIndex?.let { index ->
                 fallbackResults.getOrNull(index)?.let { result ->
@@ -1607,18 +1782,31 @@ class Translator @Inject constructor(
             val sourceName = nameForLlm!!
             val simplifiedName = restoredName?.let { sanitizeModelTranslation(sourceName, it, config) }.orEmpty()
             val maskedSafeName = enforceMaskedTranslationPolicy(sourceName, simplifiedName)
-            if (restoredName == null) {
-                FgoLogger.warn(tag, "Structured scene name failed locked-term validation")
-                nameResult = TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
-            } else if (isMaskedSourcePreserved(sourceName, maskedSafeName)) {
+            if (isMaskedSourcePreserved(sourceName, maskedSafeName)) {
                 nameResult = modelTranslateResult(maskedSafeName, MASKED_TEXT_BACKEND, true, config)
-            } else if (isBadLlmNameTranslation(sourceName, maskedSafeName, playerName)) {
-                FgoLogger.warn(tag, "Structured scene name returned unsafe/wrong name; skipping name render")
-                nameResult = TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
             } else {
-                nameResult = modelTranslateResult(maskedSafeName, backend, false, config)
-                if (cacheEnabled) {
-                    cacheTranslatedText(nameHash!!, input.name.orEmpty(), sourceName, maskedSafeName, backend, playerName)
+                val nameNeedsRepair = restoredName == null ||
+                    isBadLlmNameTranslation(sourceName, maskedSafeName, playerName)
+                if (nameNeedsRepair) {
+                    FgoLogger.warn(tag, "Structured scene name needs repair; retrying name-only path")
+                    val retryResult = translate(
+                        japaneseText = input.name.orEmpty(),
+                        maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
+                        maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
+                    )
+                    nameResult = validateLlmNameResult(sourceName, retryResult, playerName)
+                } else {
+                    nameResult = modelTranslateResult(maskedSafeName, backend, false, config)
+                    if (cacheEnabled) {
+                        cacheTranslatedText(
+                            nameHash!!,
+                            input.name.orEmpty(),
+                            sourceName,
+                            maskedSafeName,
+                            backend,
+                            playerName
+                        )
+                    }
                 }
             }
         }
@@ -1652,22 +1840,33 @@ class Translator @Inject constructor(
                         maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
                         previousDialogueContexts = activePreviousDialogueContexts,
                         currentSpeaker = currentSpeaker,
-                        currentSpeakerSourceName = currentSpeakerSourceName
+                        currentSpeakerSourceName = currentSpeakerSourceName,
+                        maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
                     )
-                    if (retryResult.translatedText.isNotBlank()) {
-                        dialogueResult = retryResult
-                        if (cacheEnabled) {
+                    val renderResult = if (retryResult.translatedText.isNotBlank() &&
+                        !retryResult.translatedText.isSceneContextErrorText()
+                    ) {
+                        retryResult
+                    } else {
+                        forceRenderedApiResult(
+                            text = maskedSafeDialogue,
+                            backend = backend,
+                            config = config,
+                            reason = "structured dialogue reached attempt limit"
+                        )
+                    }
+                    dialogueResult = renderResult
+                    if (!renderResult.translatedText.isSceneContextErrorText()) {
+                        if (cacheEnabled && renderResult.trustedForContext) {
                             cacheTranslatedText(
                                 dialogueHash!!,
                                 input.dialogue.orEmpty(),
                                 normalizedDialogue,
-                                retryResult.translatedText,
-                                retryResult.backend,
+                                renderResult.translatedText,
+                                renderResult.backend,
                                 playerName
                             )
                         }
-                    } else {
-                        dialogueResult = TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
                     }
                 } else {
                     dialogueResult = modelTranslateResult(maskedSafeDialogue, backend, false, config)
@@ -1704,12 +1903,20 @@ class Translator @Inject constructor(
                     previousDialogueContexts = activePreviousDialogueContexts,
                     currentSpeaker = currentSpeaker,
                     currentSpeakerSourceName = currentSpeakerSourceName,
-                    translateAsChoices = true
+                    translateAsChoices = true,
+                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
                 )
-                choiceResults[originalIndex] = if (retryResult.translatedText.isNotBlank()) {
+                choiceResults[originalIndex] = if (retryResult.translatedText.isNotBlank() &&
+                    !retryResult.translatedText.isSceneContextErrorText()
+                ) {
                     retryResult
                 } else {
-                    TranslateResult(UNTRANSLATED_FALLBACK, backend, false)
+                    forceRenderedApiResult(
+                        text = maskedSafeChoice,
+                        backend = backend,
+                        config = config,
+                        reason = "structured choice[$originalIndex] reached attempt limit"
+                    )
                 }
                 continue
             }
@@ -1725,7 +1932,11 @@ class Translator @Inject constructor(
             dialogue = dialogueResult,
             choices = choiceResults.map { it ?: TranslateResult("", "none", true) },
             voiceHint = translatedScene.voiceHint
-                ?.takeIf { requestVoiceHint && dialogueResult?.translatedText?.isNotBlank() == true }
+                ?.takeIf {
+                    requestVoiceHint &&
+                        dialogueResult?.translatedText?.isNotBlank() == true &&
+                        dialogueResult?.trustedForContext == true
+                }
         ).forTargetLocale(config)
     }
 
@@ -1808,7 +2019,8 @@ class Translator @Inject constructor(
         translatedText: String,
         backend: String,
         cached: Boolean,
-        config: RuntimeConfig
+        config: RuntimeConfig,
+        trustedForContext: Boolean = true
     ): TranslateResult {
         val outputLocale = if (isTraditionalTarget(config.targetChineseLocale)) {
             SettingsRepository.TARGET_LOCALE_TRADITIONAL
@@ -1819,7 +2031,25 @@ class Translator @Inject constructor(
             translatedText = translatedText,
             backend = backend,
             cached = cached,
-            targetLocale = outputLocale
+            targetLocale = outputLocale,
+            trustedForContext = trustedForContext
+        )
+    }
+
+    private fun forceRenderedApiResult(
+        text: String,
+        backend: String,
+        config: RuntimeConfig,
+        reason: String
+    ): TranslateResult {
+        val renderText = text.trim().ifBlank { EMPTY_API_OUTPUT_FALLBACK }
+        FgoLogger.warn(tag, "$reason; force-rendering without cache")
+        return modelTranslateResult(
+            translatedText = renderText,
+            backend = backend,
+            cached = false,
+            config = config,
+            trustedForContext = false
         )
     }
 
@@ -2487,7 +2717,8 @@ class Translator @Inject constructor(
                 translatedText = maskedSafeName,
                 backend = result.backend,
                 cached = result.cached,
-                targetLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+                targetLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+                trustedForContext = result.trustedForContext
             )
         }
     }
@@ -4580,6 +4811,7 @@ class Translator @Inject constructor(
             "JP is the source of truth for meaning, referents, and action roles. Use CN only for established " +
                 "terminology, names, voice, and relationship consistency; never infer facts or participants from CN."
         )
+        appendLine("If a CN field is absent, no trusted translation is available; rely on its JP field.")
         appendLine("Translate only the current input below.")
         previousDialogueContexts.forEachIndexed { index, context ->
             appendLine("Previous scene ${index + 1}:")
@@ -4590,7 +4822,9 @@ class Translator @Inject constructor(
                 appendLine("Speaker CN: $it")
             }
             appendLine("Dialogue JP: ${context.sourceDialogue}")
-            appendLine("Dialogue CN: ${context.translatedDialogue}")
+            context.translatedDialogue?.takeIf { it.isNotBlank() }?.let {
+                appendLine("Dialogue CN: $it")
+            }
         }
         appendLine()
     }
@@ -5004,15 +5238,15 @@ class Translator @Inject constructor(
             config,
             cropMode
         )
+        if (retrySimplified.isBlank()) return null
         if (looksUntranslated(normalizedText, retrySimplified, playerName)) {
             logUntranslatedResult("Strict retry response", normalizedText, retrySimplified, playerName)
-            return null
         }
         val retrySafety = classifyTranslationSafety(normalizedText, retrySimplified, playerName)
-        if (retrySafety.status == TranslationSafetyStatus.PARTIAL_KANA_LEAK) {
-            logUnsafeTranslationSafety("Strict retry produced partial kana result", retrySafety)
-        } else {
+        if (retrySafety.status == TranslationSafetyStatus.OK) {
             FgoLogger.info(tag, "Strict retry produced translated result")
+        } else {
+            logUnsafeTranslationSafety("Strict retry produced unsafe result", retrySafety)
         }
         return TranslationRepairResult(retrySimplified, retrySafety)
     }
@@ -5211,7 +5445,7 @@ class Translator @Inject constructor(
                 "DeepSeek API error: status=${response.status.value}, " +
                     "message=$apiError, body=${apiResponseLogSample(rawBody)}"
             )
-            throw Exception(apiError)
+            throw TranslationApiHttpException(response.status.value, apiError)
         }
         FgoLogger.debug(
             tag,
@@ -5260,7 +5494,7 @@ class Translator @Inject constructor(
                 "Claude API error: status=${response.status.value}, " +
                     "message=$apiError, body=${apiResponseLogSample(rawBody)}"
             )
-            throw Exception(apiError)
+            throw TranslationApiHttpException(response.status.value, apiError)
         }
         FgoLogger.debug(
             tag,
@@ -5374,7 +5608,7 @@ class Translator @Inject constructor(
                     "status=${response.status.value}, message=$apiError, " +
                     "body=${apiResponseLogSample(rawBody)}"
             )
-            throw Exception(apiError)
+            throw TranslationApiHttpException(response.status.value, apiError)
         }
         FgoLogger.debug(
             tag,
@@ -5533,17 +5767,14 @@ class Translator @Inject constructor(
         if (contexts.isEmpty()) return emptyList()
         val normalizedTarget = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
         return contexts
-            .filter { context ->
-                SettingsRepository.normalizeTargetChineseLocale(context.targetLocale) == normalizedTarget &&
-                    context.sourceDialogue.isNotBlank() &&
-                    context.translatedDialogue.isNotBlank() &&
-                    !context.translatedDialogue.isSceneContextErrorText()
-            }
+            .filter { context -> context.sourceDialogue.isNotBlank() }
             .mapNotNull { context ->
+                val sameTargetLocale =
+                    SettingsRepository.normalizeTargetChineseLocale(context.targetLocale) == normalizedTarget
                 val sourceSpeakerName = context.sourceSpeakerName
                     ?.let(::normalizeCurrentSpeakerContext)
                     ?.takeIf(String::isNotBlank)
-                val translatedSpeakerName = if (sourceSpeakerName != null) {
+                val translatedSpeakerName = if (sourceSpeakerName != null && sameTargetLocale) {
                     context.translatedSpeakerName
                         ?.takeIf { !it.isSceneContextErrorText() }
                         ?.let(::normalizeCurrentSpeakerContext)
@@ -5551,9 +5782,18 @@ class Translator @Inject constructor(
                 } else {
                     null
                 }
-                val sourceDialogue = normalizeSceneDialogueContext(context.sourceDialogue)
-                val translatedDialogue = normalizeSceneDialogueContext(context.translatedDialogue)
-                if (sourceDialogue.isBlank() || translatedDialogue.isBlank()) {
+                val sourceDialogue = normalizeSceneDialogueContext(
+                    FgoDialogueSymbols.normalizeLeadingOcrDash(context.sourceDialogue)
+                )
+                val translatedDialogue = if (sameTargetLocale) {
+                    context.translatedDialogue
+                        ?.takeIf { !it.isSceneContextErrorText() }
+                        ?.let(::normalizeSceneDialogueContext)
+                        ?.takeIf(String::isNotBlank)
+                } else {
+                    null
+                }
+                if (sourceDialogue.isBlank()) {
                     null
                 } else {
                     context.copy(
@@ -5574,7 +5814,7 @@ class Translator @Inject constructor(
                 context.sourceSpeakerName.orEmpty(),
                 context.translatedSpeakerName.orEmpty(),
                 context.sourceDialogue,
-                context.translatedDialogue,
+                context.translatedDialogue.orEmpty(),
                 context.dialogueSourceKey
             ).joinToString("\u001D")
         }
@@ -5587,7 +5827,7 @@ class Translator @Inject constructor(
             context.sourceSpeakerName.orEmpty().length +
                 context.translatedSpeakerName.orEmpty().length +
                 context.sourceDialogue.length +
-                context.translatedDialogue.length
+                context.translatedDialogue.orEmpty().length
         }
         FgoLogger.debug(tag, "Scene context: kind=$promptKind, lines=${contexts.size}, chars=$chars")
     }

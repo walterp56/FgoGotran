@@ -22,6 +22,7 @@ data class SessionTranslationEntry(
     val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
     val sourceKey: String = "",
     val dialogueSourceKey: String = "",
+    val contextDialogueTranslationTrusted: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -76,10 +77,7 @@ object SessionTranslationHistory {
             .asSequence()
             .filter { entry ->
                 val sourceDialogue = entry.contextSourceDialogue?.trim()
-                val translatedDialogue = entry.contextTranslatedDialogue?.trim()
-                sourceDialogue != null && sourceDialogue.isNotBlank() &&
-                    translatedDialogue != null && translatedDialogue.isNotBlank() &&
-                    !translatedDialogue.isHistoryErrorText()
+                sourceDialogue != null && sourceDialogue.isNotBlank()
             }
             .filter { entry ->
                 excludeKey.isBlank() || entry.normalizedDialogueSourceKey() != excludeKey
@@ -96,11 +94,18 @@ object SessionTranslationHistory {
                 } else {
                     null
                 }
+                val translatedDialogue = if (entry.contextDialogueTranslationTrusted) {
+                    entry.contextTranslatedDialogue
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() && !it.isHistoryErrorText() }
+                } else {
+                    null
+                }
                 SceneDialogueContext(
                     sourceSpeakerName = sourceSpeakerName,
                     translatedSpeakerName = translatedSpeakerName,
                     sourceDialogue = entry.contextSourceDialogue!!.trim(),
-                    translatedDialogue = entry.contextTranslatedDialogue!!.trim(),
+                    translatedDialogue = translatedDialogue,
                     targetLocale = SettingsRepository.normalizeTargetChineseLocale(entry.targetLocale),
                     dialogueSourceKey = entry.normalizedDialogueSourceKey()
                 )
@@ -119,7 +124,8 @@ object SessionTranslationHistory {
             contextSourceDialogue.orEmpty(),
             contextTranslatedDialogue.orEmpty(),
             choices.joinToString("\n"),
-            originalChoices.joinToString("\n") { it.orEmpty() }
+            originalChoices.joinToString("\n") { it.orEmpty() },
+            contextDialogueTranslationTrusted.toString()
         )
             .joinToString("\n")
             .normalizeHistoryText()
@@ -180,7 +186,8 @@ object SessionTranslationHistory {
             contextSourceDialogue = null,
             contextTranslatedDialogue = null,
             speakerNameColor = null,
-            dialogueTextColor = null
+            dialogueTextColor = null,
+            contextDialogueTranslationTrusted = false
         )
     }
 

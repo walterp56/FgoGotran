@@ -17,6 +17,10 @@ object FgoDialogueSymbols {
         Regex("[—―─━ー－-]{2,}|(?<![\\p{IsHan}A-Za-z0-9])一{2,}(?![\\p{IsHan}A-Za-z0-9])")
     private val leadingAsciiDashBeforeTextPattern =
         Regex("(?m)(^|[「『（(\\[\\s　])-+(?=[\\u3400-\\u9FFFA-Za-z0-9_])")
+    private val leadingOcrHyphenBeforeJapanesePattern =
+        Regex(
+            """(?m)(^|[「『（(\[])([ \t　]*)[-－]+(?=[\u3040-\u30FF\u31F0-\u31FF\u3400-\u9FFF\uF900-\uFAFF\uFF66-\uFF9D■□▇█])"""
+        )
 
     fun containsLongPause(text: String): Boolean {
         return longPausePattern.containsMatchIn(text)
@@ -37,6 +41,17 @@ object FgoDialogueSymbols {
 
     fun normalizeDashRuns(text: String): String {
         return longHorizontalLineRunPattern.replace(text, LONG_DASH_RUN)
+    }
+
+    /**
+     * Repairs the common OCR result where a leading dramatic dash is read as
+     * an ASCII/full-width hyphen. The Japanese/mask look-ahead deliberately
+     * excludes negative numbers and ordinary Latin hyphenated text.
+     */
+    fun normalizeLeadingOcrDash(text: String): String {
+        return leadingOcrHyphenBeforeJapanesePattern.replace(text) {
+            "${it.groupValues[1]}${it.groupValues[2]}$LONG_DASH_RUN"
+        }
     }
 
     fun normalizeForRender(text: String): String {

@@ -1944,9 +1944,10 @@ class FgoAccessibilityService : AccessibilityService() {
         sceneTranslation: SceneTranslateResult,
         instructions: List<RenderInstruction>
     ) {
-        val renderedDialogue = instructions.any {
-            it.region.region == TextRegion.DIALOGUE_BOX && it.translatedText.isNotBlank()
-        }
+        val renderedDialogue = sceneTranslation.dialogue?.trustedForContext == true &&
+            instructions.any {
+                it.region.region == TextRegion.DIALOGUE_BOX && it.translatedText.isNotBlank()
+            }
         val speakerName = if (renderedDialogue) {
             voiceSpeakerForDialogue(sceneSource.input.name)
         } else {
@@ -2293,7 +2294,8 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun debugResult(result: TranslateResult): String {
-        return "${debugQuote(result.translatedText)} (${result.backend}, cached=${result.cached}, ${result.targetLocale})"
+        return "${debugQuote(result.translatedText)} " +
+            "(${result.backend}, cached=${result.cached}, context=${result.trustedForContext}, ${result.targetLocale})"
     }
 
     private fun debugQuote(text: String): String {
@@ -2963,21 +2965,29 @@ class FgoAccessibilityService : AccessibilityService() {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         val originalDialogue = dialogueInstruction?.historyOriginalText()
+        val dialogueTrustedForContext = sceneTranslation.dialogue?.trustedForContext == true
         val contextSourceSpeakerName = sceneSource.input.name
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-        val contextTranslatedSpeakerName = sceneTranslation.name
-            ?.translatedText
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
+        val contextTranslatedSpeakerName = if (sceneTranslation.name?.trustedForContext == true) {
+            sceneTranslation.name.translatedText
+                .trim()
+                .takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
         val contextSourceDialogue = dialogueInstruction
             ?.sourceText
             ?.trim()
             ?.takeIf { it.isNotBlank() }
-        val contextTranslatedDialogue = dialogueInstruction
-            ?.translatedText
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
+        val contextTranslatedDialogue = if (dialogueTrustedForContext) {
+            dialogueInstruction
+                ?.translatedText
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
         val choiceEntries = choiceInstructions.mapNotNull { instruction ->
             val translated = instruction.translatedText
                 .trim()
@@ -3013,7 +3023,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     choiceColors = choiceEntries.map { it.third },
                     targetLocale = targetLocale,
                     sourceKey = entrySourceKey,
-                    dialogueSourceKey = dialogueSourceKey
+                    dialogueSourceKey = dialogueSourceKey,
+                    contextDialogueTranslationTrusted = dialogueTrustedForContext
                 )
             )
         }

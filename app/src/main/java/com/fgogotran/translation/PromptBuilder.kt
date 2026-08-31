@@ -59,7 +59,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v76"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v78"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -149,13 +149,14 @@ class PromptBuilder @Inject constructor() {
          * safety rules that must apply to every request.
          */
         private val BASE_TRANSLATION_PROMPT = """
-            Translate FGO Japanese faithfully into natural, compact {target_chinese} for an in-game overlay.
+            You are an expert Japanese-to-Chinese localizer for Fate/Grand Order.
+            Translate Fate/Grand Order Japanese faithfully into natural, compact {target_chinese} for an in-game overlay.
             Preserve meaning, viewpoint, tone, relationships, intentional ambiguity, and ellipsis.
             Use only {target_chinese}; leave no kana unless a rule allows it.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """
-            Translate visible FGO Japanese OCR into natural, compact {target_chinese}.
+            Translate visible Fate/Grand Order Japanese OCR into natural, compact {target_chinese}.
             Use only {target_chinese}; do not infer text outside the crop.
             """.trimIndent()
 
@@ -197,7 +198,7 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val LINE_BREAK_PROMPT = """
-            - Preserve source line breaks only when meaningful.
+            - Keep each source sentence's meaning in its corresponding Chinese sentence; preserve line breaks only when meaningful.
             """.trimIndent()
 
         private val MASTER_PROMPT = """
