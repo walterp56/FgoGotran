@@ -13,6 +13,23 @@ enum class PromptOutputFormat(val logName: String) {
     JSON_OBJECT("json_object")
 }
 
+enum class HonorificPromptRule(val sourceSuffix: String) {
+    SAN("さん"),
+    KUN("くん"),
+    CHAN("ちゃん"),
+    TONO("殿"),
+    TAN("たん"),
+    TYA("てゃ"),
+    SAMA("様"),
+    SHI("氏"),
+    CCHI("っち")
+}
+
+data class HonorificPromptMatch(
+    val rule: HonorificPromptRule,
+    val presentExceptions: List<String> = emptyList()
+)
+
 data class PromptContext(
     val outputFormat: PromptOutputFormat = PromptOutputFormat.PLAIN_TEXT,
     val targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
@@ -29,7 +46,7 @@ data class PromptContext(
     val hasName: Boolean = false,
     val hasRuby: Boolean = false,
     val hasPauseMarks: Boolean = false,
-    val hasHonorifics: Boolean = false,
+    val honorificMatches: List<HonorificPromptMatch> = emptyList(),
     val hasKatakana: Boolean = false,
     val hasAddressPronouns: Boolean = false,
     val hasBenefactivePassiveCausative: Boolean = false,
@@ -59,71 +76,39 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v80"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v81"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
         private val maskPattern = Regex("""\?{3,}|？{3,}|[■□▇█]""")
-        private val honorificPattern = Regex("""ちゃん|さん|くん|たん|てゃ|っち|様|殿|氏""")
-        internal val HONORIFIC_EXCEPTION_PHRASES = setOf(
-            "皆さん",
-            "みなさん",
-            "たくさん",
-            "お父さん",
-            "父さん",
-            "お母さん",
-            "母さん",
-            "お兄さん",
-            "兄さん",
-            "お姉さん",
-            "姉さん",
-            "お客さん",
-            "おじさん",
-            "おばさん",
-            "叔父さん",
-            "叔母さん",
-            "赤ちゃん",
-            "お父ちゃん",
-            "父ちゃん",
-            "お母ちゃん",
-            "母ちゃん",
-            "お兄ちゃん",
-            "兄ちゃん",
-            "お姉ちゃん",
-            "姉ちゃん",
-            "おじいちゃん",
-            "じいちゃん",
-            "おばあちゃん",
-            "ばあちゃん",
-            "かんたん",
-            "ぼたん",
-            "ひょうたん",
-            "牛たん",
-            "ぎゅうたん",
-            "たんたん",
-            "こっち",
-            "そっち",
-            "あっち",
-            "どっち",
-            "ぼっち",
-            "えっち",
-            "わっち",
-            "めっちゃ",
-            "皆様",
-            "みな様",
-            "お客様",
-            "神様",
-            "王様",
-            "奥様",
-            "お嬢様",
-            "殿様",
-            "神殿",
-            "宮殿",
-            "御殿",
-            "殿堂",
-            "殿方",
-            "彼氏"
+        private val honorificExceptionsByRule = mapOf(
+            HonorificPromptRule.SAN to setOf(
+                "皆さん", "みなさん", "たくさん", "お父さん", "父さん", "お母さん", "母さん",
+                "お兄さん", "兄さん", "お姉さん", "姉さん", "お客さん", "おじさん", "おばさん",
+                "叔父さん", "叔母さん"
+            ),
+            HonorificPromptRule.CHAN to setOf(
+                "赤ちゃん", "お父ちゃん", "父ちゃん", "お母ちゃん", "母ちゃん", "お兄ちゃん",
+                "兄ちゃん", "お姉ちゃん", "姉ちゃん", "おじいちゃん", "じいちゃん",
+                "おばあちゃん", "ばあちゃん"
+            ),
+            HonorificPromptRule.TAN to setOf(
+                "かんたん", "ぼたん", "ひょうたん", "牛たん", "ぎゅうたん", "たんたん"
+            ),
+            HonorificPromptRule.CCHI to setOf(
+                "こっち", "そっち", "あっち", "どっち", "ぼっち", "えっち", "わっち", "めっちゃ"
+            ),
+            HonorificPromptRule.SAMA to setOf(
+                "皆様", "みな様", "お客様", "神様", "王様", "奥様", "お嬢様", "殿様"
+            ),
+            HonorificPromptRule.TONO to setOf(
+                "殿様", "神殿", "宮殿", "御殿", "殿堂", "殿方"
+            ),
+            HonorificPromptRule.SHI to setOf("彼氏")
         )
+        internal val HONORIFIC_EXCEPTION_PHRASES = honorificExceptionsByRule.values
+            .flatten()
+            .toSet()
         private val honorificExceptionPattern = Regex(
             HONORIFIC_EXCEPTION_PHRASES
                 .sortedByDescending(String::length)
@@ -232,11 +217,6 @@ class PromptBuilder @Inject constructor() {
             - Preserve dramatic pauses; normalize dots to …… and long dashes to ───.
             """.trimIndent()
 
-        private val HONORIFIC_PROMPT = """
-            - Names only: XXさん->XX桑; XXくん->XX君; XXちゃん->XX{chan}; XX殿->XX{tono}; XXたん->XX炭; XXてゃ->XX{tya}; XX様->XX大人; XX氏->XX氏; XXっち->小XX (never XX小); XXズ->XX{plural}.
-            - Never apply inside ordinary words or kinship/titles, e.g. 皆さん, 赤ちゃん, 神様, 王様, 神殿, 彼氏, かんたん, 牛たん, こっち, そっち, あっち, どっち, ぼっち, えっち, わっち.
-            """.trimIndent()
-
         private val ADDRESS_PRONOUN_PROMPT = """
             - Translate Japanese second-person address by tone/relationship; never keep it as Japanese or a name.
             """.trimIndent()
@@ -298,7 +278,7 @@ class PromptBuilder @Inject constructor() {
             hasName = hasName,
             hasRuby = !isCropMode && (forceRuby || containsRuby(combinedText)),
             hasPauseMarks = containsPauseMarks(combinedText),
-            hasHonorifics = containsHonorifics(combinedText),
+            honorificMatches = detectHonorificPromptMatches(combinedText),
             hasKatakana = containsKatakanaWord(combinedText),
             hasAddressPronouns = containsAddressPronoun(combinedText),
             hasBenefactivePassiveCausative = containsBenefactivePassiveCausative(combinedText),
@@ -452,8 +432,13 @@ class PromptBuilder @Inject constructor() {
             if (context.hasName) add("name" to NAME_PROMPT)
             if (context.hasRuby) add("ruby" to RUBY_PROMPT)
             if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
-            if (context.hasHonorifics) {
-                add("honorific" to buildHonorificPrompt(context.targetChineseLocale))
+            if (context.honorificMatches.isNotEmpty()) {
+                add(
+                    "honorific" to buildHonorificPrompt(
+                        context.honorificMatches,
+                        context.targetChineseLocale
+                    )
+                )
             }
             if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
             if (context.specialSecondPersonMappings.isNotEmpty()) {
@@ -549,10 +534,25 @@ class PromptBuilder @Inject constructor() {
                 pauseDashPattern.containsMatchIn(text)
     }
 
-    private fun containsHonorifics(text: String): Boolean {
+    private fun detectHonorificPromptMatches(text: String): List<HonorificPromptMatch> {
         val normalized = Normalizer.normalize(text, Normalizer.Form.NFKC)
-        val withoutKnownExceptions = honorificExceptionPattern.replace(normalized, "")
-        return honorificPattern.containsMatchIn(withoutKnownExceptions)
+        val presentExceptions = honorificExceptionPattern.findAll(normalized)
+            .map { it.value }
+            .distinct()
+            .toList()
+        val withoutKnownExceptions = honorificExceptionPattern.replace(normalized) { match ->
+            " ".repeat(match.value.length)
+        }
+        return HonorificPromptRule.entries.mapNotNull { rule ->
+            if (!withoutKnownExceptions.contains(rule.sourceSuffix)) {
+                return@mapNotNull null
+            }
+            val relevantExceptions = honorificExceptionsByRule[rule].orEmpty()
+            HonorificPromptMatch(
+                rule = rule,
+                presentExceptions = presentExceptions.filter { it in relevantExceptions }
+            )
+        }
     }
 
     private fun containsAddressPronoun(text: String): Boolean {
@@ -601,14 +601,38 @@ class PromptBuilder @Inject constructor() {
         }
     }
 
-    private fun buildHonorificPrompt(targetChineseLocale: String): String {
+    private fun buildHonorificPrompt(
+        matches: List<HonorificPromptMatch>,
+        targetChineseLocale: String
+    ): String {
         val traditional = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
             SettingsRepository.TARGET_LOCALE_TRADITIONAL
-        return HONORIFIC_PROMPT
-            .replace("{chan}", if (traditional) "醬" else "酱")
-            .replace("{tono}", if (traditional) "閣下" else "阁下")
-            .replace("{tya}", if (traditional) "寶" else "宝")
-            .replace("{plural}", if (traditional) "們" else "们")
+        val mappings = matches.joinToString("; ") { match ->
+            when (match.rule) {
+                HonorificPromptRule.SAN -> "XXさん->XX桑"
+                HonorificPromptRule.KUN -> "XXくん->XX君"
+                HonorificPromptRule.CHAN -> "XXちゃん->XX${if (traditional) "醬" else "酱"}"
+                HonorificPromptRule.TONO -> "XX殿->XX${if (traditional) "閣下" else "阁下"}"
+                HonorificPromptRule.TAN -> "XXたん->XX炭"
+                HonorificPromptRule.TYA -> "XXてゃ->XX${if (traditional) "寶" else "宝"}"
+                HonorificPromptRule.SAMA -> "XX様->XX大人"
+                HonorificPromptRule.SHI -> "XX氏->XX氏"
+                HonorificPromptRule.CCHI -> "XXっち->小XX (never XX小)"
+            }
+        }
+        val presentExceptions = matches
+            .flatMap { it.presentExceptions }
+            .distinct()
+        return buildString {
+            append("- Names only: ")
+            append(mappings)
+            append('.')
+            if (presentExceptions.isNotEmpty()) {
+                append(" Current-source exceptions (ordinary/kinship/title, not name suffixes): ")
+                append(presentExceptions.joinToString(", "))
+                append('.')
+            }
+        }
     }
 
     private fun containsAmbiguousRoman(text: String): Boolean {
