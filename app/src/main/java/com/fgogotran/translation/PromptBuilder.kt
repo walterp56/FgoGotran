@@ -33,9 +33,9 @@ data class PromptContext(
     val hasKatakana: Boolean = false,
     val hasAddressPronouns: Boolean = false,
     val hasBenefactivePassiveCausative: Boolean = false,
+    val characterContextPrompt: String = "",
     val specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping> = emptyList(),
     val specialSecondPersonMappings: List<SpecialSecondPersonPromptMapping> = emptyList(),
-    val hasBeniEnmaDechiTic: Boolean = false,
     val hasAmbiguousRoman: Boolean = false
 )
 
@@ -59,7 +59,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v78"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v80"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -138,9 +138,6 @@ class PromptBuilder @Inject constructor() {
         private val passiveCausativeAuxPattern = Regex(
             """(?:させられ|せられ|させ|され|られ)(?:る|た|て|ない|なかった|ず|そう|よう|ている|ていた|ます|ません)"""
         )
-        private val beniEnmaSpeakerAliases = listOf("紅閻魔", "红阎魔")
-        private val beniEnmaDechiTicPattern = Regex("""でち(?![ゃゅょャュョ])""")
-
         /**
          * These blocks are intentionally assembled in a stable order and
          * concatenated into one natural-language prompt.
@@ -240,10 +237,6 @@ class PromptBuilder @Inject constructor() {
             - Never apply inside ordinary words or kinship/titles, e.g. 皆さん, 赤ちゃん, 神様, 王様, 神殿, 彼氏, かんたん, 牛たん, こっち, そっち, あっち, どっち, ぼっち, えっち, わっち.
             """.trimIndent()
 
-        private val BENI_ENMA_DECHI_PROMPT = """
-            - 紅閻魔: actual copular verbal tic でち -> natural clause-final 啾; never add 啾 where でち is absent or part of an unrelated word.
-            """.trimIndent()
-
         private val ADDRESS_PRONOUN_PROMPT = """
             - Translate Japanese second-person address by tone/relationship; never keep it as Japanese or a name.
             """.trimIndent()
@@ -279,6 +272,7 @@ class PromptBuilder @Inject constructor() {
         requestVoiceHint: Boolean = false,
         playerName: String = "",
         currentSpeaker: String = "",
+        characterContextPrompt: String = "",
         isChoiceBatch: Boolean = false
     ): PromptContext {
         val combinedText = (listOf(sourceText) + choiceTexts)
@@ -308,6 +302,7 @@ class PromptBuilder @Inject constructor() {
             hasKatakana = containsKatakanaWord(combinedText),
             hasAddressPronouns = containsAddressPronoun(combinedText),
             hasBenefactivePassiveCausative = containsBenefactivePassiveCausative(combinedText),
+            characterContextPrompt = characterContextPrompt.trim(),
             specialFirstPersonMappings = SpecialFirstPersonPronouns.promptMappings(
                 combinedText,
                 normalizedTargetLocale
@@ -316,7 +311,6 @@ class PromptBuilder @Inject constructor() {
                 combinedText,
                 normalizedTargetLocale
             ),
-            hasBeniEnmaDechiTic = containsBeniEnmaDechiTic(combinedText, currentSpeaker),
             hasAmbiguousRoman = containsAmbiguousRoman(combinedText)
         )
     }
@@ -371,6 +365,14 @@ class PromptBuilder @Inject constructor() {
         } else {
             if (context.isDialogue) {
                 appendPromptBlock(sb, blockNames, "dialogue_style", DIALOGUE_STYLE_PROMPT)
+                if (context.characterContextPrompt.isNotBlank()) {
+                    appendPromptBlock(
+                        sb,
+                        blockNames,
+                        "character_context",
+                        buildCharacterContextPrompt(context.characterContextPrompt)
+                    )
+                }
                 if (context.isUnattributedDialogue) {
                     appendPromptBlock(
                         sb,
@@ -468,9 +470,6 @@ class PromptBuilder @Inject constructor() {
                         context.specialFirstPersonMappings
                     )
                 )
-            }
-            if (context.hasBeniEnmaDechiTic) {
-                add("beni_enma_dechi" to buildBeniEnmaDechiPrompt())
             }
             if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
         }
@@ -591,7 +590,16 @@ class PromptBuilder @Inject constructor() {
         return "- [2P] $rules; exact second-person mappings, not names or generic 你."
     }
 
-    internal fun buildBeniEnmaDechiPrompt(): String = BENI_ENMA_DECHI_PROMPT
+    internal fun buildCharacterContextPrompt(prompt: String): String {
+        return buildString {
+            appendLine(
+                "- Apply character context only to the current dialogue, never names or choices. " +
+                    "Do not invent pronouns, participants, relationships, or tics absent from JP."
+            )
+            append("- ")
+            append(prompt.trim())
+        }
+    }
 
     private fun buildHonorificPrompt(targetChineseLocale: String): String {
         val traditional = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
@@ -605,14 +613,6 @@ class PromptBuilder @Inject constructor() {
 
     private fun containsAmbiguousRoman(text: String): Boolean {
         return "ロマン" in text
-    }
-
-    private fun containsBeniEnmaDechiTic(text: String, currentSpeaker: String): Boolean {
-        val normalizedSpeaker = Normalizer.normalize(currentSpeaker, Normalizer.Form.NFKC)
-        if (beniEnmaSpeakerAliases.none(normalizedSpeaker::contains)) return false
-
-        val normalizedText = Normalizer.normalize(text, Normalizer.Form.NFKC)
-        return beniEnmaDechiTicPattern.containsMatchIn(normalizedText)
     }
 
     /**

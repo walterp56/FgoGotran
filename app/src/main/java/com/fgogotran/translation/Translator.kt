@@ -106,6 +106,7 @@ class Translator @Inject constructor(
     private val termDao: TermDao,
     private val localGlossaryDao: LocalGlossaryDao,
     private val promptBuilder: PromptBuilder,
+    private val characterContextRepository: CharacterContextRepository,
     private val cacheDb: TranslationCacheDb,
     private val translationMemory: TranslationMemory,
     private val diagnosticEventStore: DiagnosticEventStore
@@ -668,6 +669,7 @@ class Translator @Inject constructor(
             getCachedTermLookup()
             getCachedCharacterNameVariants()
             getCachedCharacterNameLookup()
+            characterContextRepository.warmUp()
             FgoLogger.info(tag, "Translator warm-up complete")
         } catch (e: CancellationException) {
             throw e
@@ -686,6 +688,7 @@ class Translator @Inject constructor(
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
         currentSpeakerSourceName: String = "",
+        characterContext: CharacterContextProfile? = null,
         translateAsChoices: Boolean = false,
         maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS
     ): TranslateResult {
@@ -751,6 +754,8 @@ class Translator @Inject constructor(
         }
         val currentSpeakerCacheIdentity = normalizeCurrentSpeakerContext(currentSpeakerSourceName)
             .ifBlank { activeCurrentSpeaker }
+        val activeCharacterContext = characterContext
+            ?.takeUnless { cropMode || translateAsChoices || activeCurrentSpeaker.isBlank() }
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val promptPolicyKey = when {
             cropMode -> "crop-screen-v2"
@@ -764,13 +769,15 @@ class Translator @Inject constructor(
             promptPolicyKey,
             sceneContextPolicyKey,
             currentSpeakerCacheIdentity,
+            activeCharacterContext?.cacheIdentity.orEmpty(),
             translateAsChoices
         )
 
         FgoLogger.debug(
             tag,
             "translate: textLen=${normalizedText.length}, choices=${normalizedChoices.size}, " +
-                "crop=$cropMode, speaker=${activeCurrentSpeaker.isNotBlank()}"
+                "crop=$cropMode, speaker=${activeCurrentSpeaker.isNotBlank()}, " +
+                "character=${activeCharacterContext?.speakerId.orEmpty()}"
         )
         logSceneContext("single", activePreviousDialogueContexts)
 
@@ -828,6 +835,7 @@ class Translator @Inject constructor(
             isDialogue = !cropMode,
             playerName = playerName,
             currentSpeaker = activeCurrentSpeaker,
+            characterContextPrompt = activeCharacterContext?.prompt.orEmpty(),
             isChoiceBatch = translateAsChoices
         )
         val systemPrompt = promptBuilder.buildSystemPrompt(playerName, promptContext)
@@ -932,7 +940,7 @@ class Translator @Inject constructor(
                     maxTokens = maxTokens,
                     previousDialogueContexts = activePreviousDialogueContexts,
                     currentSpeaker = activeCurrentSpeaker,
-                    hasBeniEnmaDechiTic = promptContext.hasBeniEnmaDechiTic
+                    characterContextPrompt = activeCharacterContext?.prompt.orEmpty()
                 ) ?: continue
                 val retryText = enforceMaskedTranslationPolicy(normalizedText, retryResult.text)
                 if (retryText.isBlank()) continue
@@ -1419,13 +1427,17 @@ class Translator @Inject constructor(
             targetChineseLocale = config.targetChineseLocale
         )
         val currentSpeakerSourceName = normalizeCurrentSpeakerContext(normalizedName.orEmpty())
+        val characterContext = normalizedDialogue?.let {
+            characterContextRepository.resolveProfileOrNull(normalizedName)
+        }
         val dialogueHash = normalizedDialogue?.let {
             cacheKey(
                 normalizedText = it,
                 choiceTexts = emptyList(),
                 config = config,
                 sceneContextPolicyKey = sceneContextPolicyKey,
-                currentSpeaker = currentSpeakerSourceName
+                currentSpeaker = currentSpeakerSourceName,
+                characterContextCacheIdentity = characterContext?.cacheIdentity.orEmpty()
             )
         }
         val choiceHashes = normalizedChoices.map { text ->
@@ -1480,7 +1492,8 @@ class Translator @Inject constructor(
                 maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
                 previousDialogueContexts = activePreviousDialogueContexts,
                 currentSpeaker = currentSpeaker,
-                currentSpeakerSourceName = currentSpeakerSourceName
+                currentSpeakerSourceName = currentSpeakerSourceName,
+                characterContext = characterContext
             )
             return SceneTranslateResult(
                 name = nameResult,
@@ -1633,7 +1646,12 @@ class Translator @Inject constructor(
             isDialogue = sceneDialogueForApi != null,
             requestVoiceHint = requestVoiceHint,
             playerName = playerName,
-            currentSpeaker = currentSpeaker
+            currentSpeaker = currentSpeaker,
+            characterContextPrompt = if (sceneDialogueForApi != null) {
+                characterContext?.prompt.orEmpty()
+            } else {
+                ""
+            }
         )
         val useCompactDialogueVoiceHintPrompt =
             requestVoiceHint && !needsName && needsDialogue && neededChoiceIndices.isEmpty()
@@ -1692,7 +1710,7 @@ class Translator @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            FgoLogger.warn(tag, "Structured scene translation failed, falling back to one batch call", e)
+            FgoLogger.warn(tag, "Structured scene translation failed, using field-scoped fallbacks", e)
             recordTranslationApiFailure(config, e, "scene")
             if (!needsName && !needsDialogue && neededChoiceIndices.isEmpty()) {
                 return SceneTranslateResult(
@@ -1728,38 +1746,37 @@ class Translator @Inject constructor(
                     choices = choiceResults.map { it ?: TranslateResult("", "none", true) }
                 ).forTargetLocale(config)
             }
-            val fallbackTexts = mutableListOf<String>()
-            var nameFallbackIndex: Int? = null
-            var dialogueFallbackIndex: Int? = null
-            val choiceFallbackIndices = mutableListOf<Pair<Int, Int>>()
             if (needsName) {
-                nameFallbackIndex = fallbackTexts.size
-                fallbackTexts += input.name.orEmpty()
+                val fallbackName = translate(
+                    japaneseText = input.name.orEmpty(),
+                    maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
+                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
+                )
+                nameResult = validateLlmNameResult(nameForLlm!!, fallbackName, playerName)
             }
             if (needsDialogue) {
-                dialogueFallbackIndex = fallbackTexts.size
-                fallbackTexts += input.dialogue.orEmpty()
+                dialogueResult = translate(
+                    japaneseText = input.dialogue.orEmpty(),
+                    maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
+                    previousDialogueContexts = activePreviousDialogueContexts,
+                    currentSpeaker = currentSpeaker,
+                    currentSpeakerSourceName = currentSpeakerSourceName,
+                    characterContext = characterContext,
+                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
+                )
             }
-            for (index in neededChoiceIndices) {
-                choiceFallbackIndices += fallbackTexts.size to index
-                fallbackTexts += input.choices[index]
-            }
-            val fallbackResults = translateBatch(
-                japaneseTexts = fallbackTexts,
-                currentSpeaker = currentSpeaker,
-                currentSpeakerSourceName = currentSpeakerSourceName,
-                maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
-            )
-            nameFallbackIndex?.let { index ->
-                fallbackResults.getOrNull(index)?.let { result ->
-                    nameResult = validateLlmNameResult(nameForLlm!!, result, playerName)
+            if (neededChoiceIndices.isNotEmpty()) {
+                val fallbackChoices = translateBatch(
+                    japaneseTexts = neededChoiceIndices.map { input.choices[it] },
+                    currentSpeaker = currentSpeaker,
+                    currentSpeakerSourceName = currentSpeakerSourceName,
+                    translateAsChoices = true,
+                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
+                )
+                fallbackChoices.forEachIndexed { fallbackIndex, result ->
+                    val choiceIndex = neededChoiceIndices[fallbackIndex]
+                    choiceResults[choiceIndex] = result
                 }
-            }
-            dialogueFallbackIndex?.let { index ->
-                dialogueResult = fallbackResults.getOrNull(index)
-            }
-            choiceFallbackIndices.forEach { (fallbackIndex, choiceIndex) ->
-                choiceResults[choiceIndex] = fallbackResults.getOrNull(fallbackIndex)
             }
             return SceneTranslateResult(
                 name = nameResult,
@@ -1841,6 +1858,7 @@ class Translator @Inject constructor(
                         previousDialogueContexts = activePreviousDialogueContexts,
                         currentSpeaker = currentSpeaker,
                         currentSpeakerSourceName = currentSpeakerSourceName,
+                        characterContext = characterContext,
                         maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
                     )
                     val renderResult = if (retryResult.translatedText.isNotBlank() &&
@@ -2007,9 +2025,20 @@ class Translator @Inject constructor(
     }
 
     private fun SceneTranslateResult.forTargetLocale(config: RuntimeConfig): SceneTranslateResult {
+        val localizedDialogue = dialogue?.forTargetLocale(config)
         return SceneTranslateResult(
             name = name?.forTargetLocale(config),
-            dialogue = dialogue?.forTargetLocale(config),
+            dialogue = localizedDialogue?.let { result ->
+                if (result.translatedText.isSceneContextErrorText()) {
+                    result
+                } else {
+                    result.copy(
+                        translatedText = FgoDialogueSymbols.normalizeTranslatedPunctuation(
+                            result.translatedText
+                        )
+                    )
+                }
+            },
             choices = choices.map { it.forTargetLocale(config) },
             voiceHint = voiceHint
         )
@@ -4402,7 +4431,7 @@ class Translator @Inject constructor(
     private fun preserveSourceFgoLongPause(sourceText: String, translatedText: String): String {
         if (!FgoDialogueSymbols.containsLongPause(sourceText)) return translatedText
         val normalized = FgoDialogueSymbols.normalizePauseDots(translatedText)
-        if (normalized.contains(FgoDialogueSymbols.PAUSE_ELLIPSIS)) return normalized
+        if (FgoDialogueSymbols.containsLongPause(normalized)) return normalized
 
         val startsWithPause = FgoDialogueSymbols.startsWithLongPause(sourceText.trimStart())
         val endsWithPause = FgoDialogueSymbols.endsWithLongPause(sourceText.trimEnd())
@@ -5187,7 +5216,7 @@ class Translator @Inject constructor(
         maxTokens: Int,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
-        hasBeniEnmaDechiTic: Boolean = false
+        characterContextPrompt: String = ""
     ): TranslationRepairResult? {
         val retryMessages = listOf(
             ChatMessage(
@@ -5197,7 +5226,7 @@ class Translator @Inject constructor(
                     config.targetChineseLocale,
                     cropMode,
                     specialFirstPersonMappings,
-                    hasBeniEnmaDechiTic
+                    characterContextPrompt
                 )
             ),
             ChatMessage(
@@ -5256,7 +5285,7 @@ class Translator @Inject constructor(
         targetChineseLocale: String,
         cropMode: Boolean,
         specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>,
-        hasBeniEnmaDechiTic: Boolean
+        characterContextPrompt: String
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
         return buildString {
@@ -5273,8 +5302,8 @@ class Translator @Inject constructor(
             if (specialFirstPersonMappings.isNotEmpty()) {
                 appendLine(promptBuilder.buildSpecialFirstPersonPrompt(specialFirstPersonMappings))
             }
-            if (hasBeniEnmaDechiTic) {
-                appendLine(promptBuilder.buildBeniEnmaDechiPrompt())
+            if (!cropMode && characterContextPrompt.isNotBlank()) {
+                appendLine(promptBuilder.buildCharacterContextPrompt(characterContextPrompt))
             }
             if (playerName.isNotBlank()) {
                 appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
@@ -5704,6 +5733,7 @@ class Translator @Inject constructor(
         rubyPolicyKey: String = "",
         sceneContextPolicyKey: String = "",
         currentSpeaker: String = "",
+        characterContextCacheIdentity: String = "",
         choiceBatch: Boolean = false
     ): String {
         return hashText(
@@ -5715,6 +5745,7 @@ class Translator @Inject constructor(
                 rubyPolicyKey,
                 sceneContextPolicyKey,
                 normalizeCurrentSpeakerContext(currentSpeaker),
+                characterContextCacheIdentity,
                 if (choiceBatch) "choice-batch-v1" else "",
                 config.glossaryCacheKey,
                 TextNormalizer.normalizeForTranslation(config.playerName),
