@@ -78,6 +78,27 @@ data class SceneDialogueContext(
     val dialogueSourceKey: String
 )
 
+internal fun buildPreviousSceneJapaneseContextPrompt(
+    contexts: List<SceneDialogueContext>
+): String {
+    if (contexts.isEmpty()) return ""
+    return buildString {
+        appendLine(
+            "Previous JP scenes are context only. Use them only to resolve meaning, referents, and " +
+                "action roles; never output, translate, or continue them."
+        )
+        appendLine("Translate only the current input below.")
+        contexts.forEachIndexed { index, context ->
+            appendLine("Previous scene ${index + 1}:")
+            context.sourceSpeakerName?.takeIf(String::isNotBlank)?.let {
+                appendLine("Speaker JP: $it")
+            }
+            appendLine("Dialogue JP: ${context.sourceDialogue}")
+        }
+        appendLine()
+    }
+}
+
 data class SceneTranslateResult(
     val name: TranslateResult?,
     val dialogue: TranslateResult?,
@@ -267,6 +288,7 @@ class Translator @Inject constructor(
                 normalizedChoices = emptyList(),
                 protectedInput = protectedInput,
                 specialFirstPersonMappings = promptContext.specialFirstPersonMappings,
+                namePluralUsage = promptContext.namePluralUsage,
                 badTranslation = translated,
                 badSafety = initialSafety,
                 maxTokens = API_TEST_MAX_TOKENS
@@ -454,7 +476,7 @@ class Translator @Inject constructor(
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_LONG_MAX_TOKENS = 384
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_CHAR_LIMIT = 120
         private const val SCENE_TRANSLATION_MAX_TOKENS = 704
-        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-v5"
+        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-jp-v6"
         private const val CURRENT_SPEAKER_CONTEXT_MAX_CHARS = 160
         private const val SCENE_DIALOGUE_CONTEXT_MAX_CHARS = 320
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
@@ -745,7 +767,7 @@ class Translator @Inject constructor(
         val activePreviousDialogueContexts = if (cropMode) {
             emptyList()
         } else {
-            sceneDialogueContextsForTarget(previousDialogueContexts, config.targetChineseLocale)
+            sceneDialogueContextsForPrompt(previousDialogueContexts)
         }
         val activeCurrentSpeaker = if (cropMode) {
             ""
@@ -934,6 +956,7 @@ class Translator @Inject constructor(
                     normalizedChoices = protectedChoiceTexts,
                     protectedInput = protectedInput,
                     specialFirstPersonMappings = promptContext.specialFirstPersonMappings,
+                    namePluralUsage = promptContext.namePluralUsage,
                     badTranslation = latestCandidate.orEmpty(),
                     badSafety = latestSafety,
                     cropMode = cropMode,
@@ -1401,7 +1424,7 @@ class Translator @Inject constructor(
         val activePreviousDialogueContexts = if (
             hasDialogueNeedingApiBeforeCache || hasChoiceNeedingApiBeforeCache
         ) {
-            sceneDialogueContextsForTarget(input.previousDialogueContexts, config.targetChineseLocale)
+            sceneDialogueContextsForPrompt(input.previousDialogueContexts)
         } else {
             emptyList()
         }
@@ -1639,10 +1662,11 @@ class Translator @Inject constructor(
         }
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_OBJECT,
-            sourceText = listOfNotNull(protectedName?.text, protectedDialogue?.text).joinToString("\n"),
+            sourceText = protectedDialogue?.text.orEmpty(),
             choiceTexts = protectedChoices.map { it.text },
             targetChineseLocale = config.targetChineseLocale,
             hasName = needsName,
+            nameText = protectedName?.text,
             isDialogue = sceneDialogueForApi != null,
             requestVoiceHint = requestVoiceHint,
             playerName = playerName,
@@ -4834,28 +4858,7 @@ class Translator @Inject constructor(
     private fun StringBuilder.appendSceneDialogueContextBlock(
         previousDialogueContexts: List<SceneDialogueContext>
     ) {
-        if (previousDialogueContexts.isEmpty()) return
-        appendLine("Previous scenes are context only; never output, retranslate, or continue them.")
-        appendLine(
-            "JP is the source of truth for meaning, referents, and action roles. Use CN only for established " +
-                "terminology, names, voice, and relationship consistency; never infer facts or participants from CN."
-        )
-        appendLine("If a CN field is absent, no trusted translation is available; rely on its JP field.")
-        appendLine("Translate only the current input below.")
-        previousDialogueContexts.forEachIndexed { index, context ->
-            appendLine("Previous scene ${index + 1}:")
-            context.sourceSpeakerName?.takeIf { it.isNotBlank() }?.let {
-                appendLine("Speaker JP: $it")
-            }
-            context.translatedSpeakerName?.takeIf { it.isNotBlank() }?.let {
-                appendLine("Speaker CN: $it")
-            }
-            appendLine("Dialogue JP: ${context.sourceDialogue}")
-            context.translatedDialogue?.takeIf { it.isNotBlank() }?.let {
-                appendLine("Dialogue CN: $it")
-            }
-        }
-        appendLine()
+        append(buildPreviousSceneJapaneseContextPrompt(previousDialogueContexts))
     }
 
     private fun buildVoiceHintPrompt(
@@ -5210,6 +5213,7 @@ class Translator @Inject constructor(
         normalizedChoices: List<String>,
         protectedInput: ProtectedText,
         specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>,
+        namePluralUsage: NamePluralPromptUsage,
         badTranslation: String = "",
         badSafety: TranslationSafetyResult? = null,
         cropMode: Boolean = false,
@@ -5226,6 +5230,7 @@ class Translator @Inject constructor(
                     config.targetChineseLocale,
                     cropMode,
                     specialFirstPersonMappings,
+                    namePluralUsage,
                     characterContextPrompt
                 )
             ),
@@ -5285,6 +5290,7 @@ class Translator @Inject constructor(
         targetChineseLocale: String,
         cropMode: Boolean,
         specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>,
+        namePluralUsage: NamePluralPromptUsage,
         characterContextPrompt: String
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
@@ -5301,6 +5307,11 @@ class Translator @Inject constructor(
             appendLine("Resolve leftover kana by context: SFX -> Chinese; names -> Chinese transliteration; other text -> meaning.")
             if (specialFirstPersonMappings.isNotEmpty()) {
                 appendLine(promptBuilder.buildSpecialFirstPersonPrompt(specialFirstPersonMappings))
+            }
+            if (!cropMode && namePluralUsage.isPresent) {
+                appendLine(
+                    promptBuilder.buildNamePluralPrompt(namePluralUsage, targetChineseLocale)
+                )
             }
             if (!cropMode && characterContextPrompt.isNotBlank()) {
                 appendLine(promptBuilder.buildCharacterContextPrompt(characterContextPrompt))
@@ -5791,47 +5802,27 @@ class Translator @Inject constructor(
             .take(SCENE_DIALOGUE_CONTEXT_MAX_CHARS)
     }
 
-    private fun sceneDialogueContextsForTarget(
-        contexts: List<SceneDialogueContext>,
-        targetChineseLocale: String
+    private fun sceneDialogueContextsForPrompt(
+        contexts: List<SceneDialogueContext>
     ): List<SceneDialogueContext> {
         if (contexts.isEmpty()) return emptyList()
-        val normalizedTarget = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
         return contexts
             .filter { context -> context.sourceDialogue.isNotBlank() }
             .mapNotNull { context ->
-                val sameTargetLocale =
-                    SettingsRepository.normalizeTargetChineseLocale(context.targetLocale) == normalizedTarget
                 val sourceSpeakerName = context.sourceSpeakerName
                     ?.let(::normalizeCurrentSpeakerContext)
                     ?.takeIf(String::isNotBlank)
-                val translatedSpeakerName = if (sourceSpeakerName != null && sameTargetLocale) {
-                    context.translatedSpeakerName
-                        ?.takeIf { !it.isSceneContextErrorText() }
-                        ?.let(::normalizeCurrentSpeakerContext)
-                        ?.takeIf(String::isNotBlank)
-                } else {
-                    null
-                }
                 val sourceDialogue = normalizeSceneDialogueContext(
                     FgoDialogueSymbols.normalizeLeadingOcrDash(context.sourceDialogue)
                 )
-                val translatedDialogue = if (sameTargetLocale) {
-                    context.translatedDialogue
-                        ?.takeIf { !it.isSceneContextErrorText() }
-                        ?.let(::normalizeSceneDialogueContext)
-                        ?.takeIf(String::isNotBlank)
-                } else {
-                    null
-                }
                 if (sourceDialogue.isBlank()) {
                     null
                 } else {
                     context.copy(
                         sourceSpeakerName = sourceSpeakerName,
-                        translatedSpeakerName = translatedSpeakerName,
+                        translatedSpeakerName = null,
                         sourceDialogue = sourceDialogue,
-                        translatedDialogue = translatedDialogue
+                        translatedDialogue = null
                     )
                 }
             }
@@ -5840,15 +5831,7 @@ class Translator @Inject constructor(
 
     private fun sceneContextCachePolicyKey(contexts: List<SceneDialogueContext>): String {
         if (contexts.isEmpty()) return ""
-        val material = contexts.joinToString("\u001E") { context ->
-            listOf(
-                context.sourceSpeakerName.orEmpty(),
-                context.translatedSpeakerName.orEmpty(),
-                context.sourceDialogue,
-                context.translatedDialogue.orEmpty(),
-                context.dialogueSourceKey
-            ).joinToString("\u001D")
-        }
+        val material = buildPreviousSceneJapaneseContextPrompt(contexts)
         return "$SCENE_CONTEXT_CACHE_POLICY_VERSION:${hashText(material)}"
     }
 
@@ -5856,11 +5839,9 @@ class Translator @Inject constructor(
         if (contexts.isEmpty()) return
         val chars = contexts.sumOf { context ->
             context.sourceSpeakerName.orEmpty().length +
-                context.translatedSpeakerName.orEmpty().length +
-                context.sourceDialogue.length +
-                context.translatedDialogue.orEmpty().length
+                context.sourceDialogue.length
         }
-        FgoLogger.debug(tag, "Scene context: kind=$promptKind, lines=${contexts.size}, chars=$chars")
+        FgoLogger.debug(tag, "Scene context: kind=$promptKind, lines=${contexts.size}, jpChars=$chars")
     }
 
     private fun String.isSceneContextErrorText(): Boolean {

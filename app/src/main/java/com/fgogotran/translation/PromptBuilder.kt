@@ -30,6 +30,14 @@ data class HonorificPromptMatch(
     val presentExceptions: List<String> = emptyList()
 )
 
+data class NamePluralPromptUsage(
+    val inNameField: Boolean = false,
+    val inOtherText: Boolean = false
+) {
+    val isPresent: Boolean
+        get() = inNameField || inOtherText
+}
+
 data class PromptContext(
     val outputFormat: PromptOutputFormat = PromptOutputFormat.PLAIN_TEXT,
     val targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
@@ -47,6 +55,7 @@ data class PromptContext(
     val hasRuby: Boolean = false,
     val hasPauseMarks: Boolean = false,
     val honorificMatches: List<HonorificPromptMatch> = emptyList(),
+    val namePluralUsage: NamePluralPromptUsage = NamePluralPromptUsage(),
     val hasKatakana: Boolean = false,
     val hasAddressPronouns: Boolean = false,
     val hasBenefactivePassiveCausative: Boolean = false,
@@ -76,7 +85,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v81"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v82"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -117,6 +126,8 @@ class PromptBuilder @Inject constructor() {
         private val addressPronounPattern =
             Regex("""あなた|貴方|あんた|お前|おまえ|そなた|其方|お主""")
         private val katakanaWordPattern = Regex("""[ァ-ヶｦ-ﾟー]{2,}""")
+        private val namePluralZuCandidatePattern =
+            Regex("""[\p{IsHan}\u3040-\u30FF\uFF66-\uFF9DA-Za-z0-9・ー]ズ(?![\u30A0-\u30FF\uFF66-\uFF9Dー])""")
         private val benefactiveAuxPattern = Regex(
             """(?:て|で)(?:く(?:れ|ださ)|もら(?:う|っ|え)|いただ(?:く|い|け)|あげ|や(?:る|っ|ろ))"""
         )
@@ -246,6 +257,7 @@ class PromptBuilder @Inject constructor() {
         choiceTexts: List<String> = emptyList(),
         targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
         hasName: Boolean = false,
+        nameText: String? = null,
         forceRuby: Boolean = false,
         isCropMode: Boolean = false,
         isDialogue: Boolean = !isCropMode,
@@ -255,8 +267,11 @@ class PromptBuilder @Inject constructor() {
         characterContextPrompt: String = "",
         isChoiceBatch: Boolean = false
     ): PromptContext {
-        val combinedText = (listOf(sourceText) + choiceTexts)
+        val cleanNameText = nameText?.takeIf { it.isNotBlank() }
+        val primarySourceText = listOfNotNull(cleanNameText, sourceText.takeIf { it.isNotBlank() })
             .joinToString("\n")
+        val otherText = (listOf(sourceText) + choiceTexts).joinToString("\n")
+        val combinedText = (listOf(primarySourceText) + choiceTexts).joinToString("\n")
         val cleanPlayerName = playerName.trim()
         val normalizedTargetLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
         return PromptContext(
@@ -271,7 +286,7 @@ class PromptBuilder @Inject constructor() {
             requestVoiceHint = requestVoiceHint,
             hasPlaceholders = containsPlaceholder(combinedText),
             hasMasks = containsMask(combinedText),
-            hasLineBreaks = containsLineBreak(sourceText) || choiceTexts.any(::containsLineBreak),
+            hasLineBreaks = containsLineBreak(primarySourceText) || choiceTexts.any(::containsLineBreak),
             hasMasterWord = containsMasterWord(combinedText),
             needsPlayerNameRule = cleanPlayerName.isNotBlank() && combinedText.contains(cleanPlayerName),
             hasChoices = choiceTexts.isNotEmpty() || isChoiceBatch,
@@ -279,6 +294,11 @@ class PromptBuilder @Inject constructor() {
             hasRuby = !isCropMode && (forceRuby || containsRuby(combinedText)),
             hasPauseMarks = containsPauseMarks(combinedText),
             honorificMatches = detectHonorificPromptMatches(combinedText),
+            namePluralUsage = detectNamePluralPromptUsage(
+                nameText = cleanNameText,
+                otherText = otherText,
+                enabled = !isCropMode
+            ),
             hasKatakana = containsKatakanaWord(combinedText),
             hasAddressPronouns = containsAddressPronoun(combinedText),
             hasBenefactivePassiveCausative = containsBenefactivePassiveCausative(combinedText),
@@ -430,6 +450,14 @@ class PromptBuilder @Inject constructor() {
             }
             if (context.hasChoices) add("choices" to CHOICE_PROMPT)
             if (context.hasName) add("name" to NAME_PROMPT)
+            if (context.namePluralUsage.isPresent) {
+                add(
+                    "name_plural" to buildNamePluralPrompt(
+                        context.namePluralUsage,
+                        context.targetChineseLocale
+                    )
+                )
+            }
             if (context.hasRuby) add("ruby" to RUBY_PROMPT)
             if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
             if (context.honorificMatches.isNotEmpty()) {
@@ -572,6 +600,18 @@ class PromptBuilder @Inject constructor() {
         return katakanaWordPattern.containsMatchIn(text)
     }
 
+    private fun detectNamePluralPromptUsage(
+        nameText: String?,
+        otherText: String,
+        enabled: Boolean
+    ): NamePluralPromptUsage {
+        if (!enabled) return NamePluralPromptUsage()
+        return NamePluralPromptUsage(
+            inNameField = nameText?.let(namePluralZuCandidatePattern::containsMatchIn) == true,
+            inOtherText = namePluralZuCandidatePattern.containsMatchIn(otherText)
+        )
+    }
+
     internal fun buildSpecialFirstPersonPrompt(
         mappings: List<SpecialFirstPersonPromptMapping>
     ): String {
@@ -598,6 +638,30 @@ class PromptBuilder @Inject constructor() {
             )
             append("- ")
             append(prompt.trim())
+        }
+    }
+
+    internal fun buildNamePluralPrompt(
+        usage: NamePluralPromptUsage,
+        targetChineseLocale: String
+    ): String {
+        val plural = if (
+            SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
+            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+        ) {
+            "們"
+        } else {
+            "们"
+        }
+        return when {
+            usage.inNameField && usage.inOtherText ->
+                "- Name-group suffix: in the name field, Xズ->X$plural. Elsewhere, use X$plural only " +
+                    "when Xズ clearly denotes a character/name group; otherwise ズ is part of the word."
+            usage.inNameField -> "- Name-group suffix in the name field: Xズ->X$plural."
+            usage.inOtherText ->
+                "- If Xズ clearly denotes a character/name group, use X$plural; otherwise treat ズ as " +
+                    "part of the ordinary word."
+            else -> ""
         }
     }
 
