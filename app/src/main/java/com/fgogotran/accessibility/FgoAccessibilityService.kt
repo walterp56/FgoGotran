@@ -2175,13 +2175,15 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun normalizeOcrStabilityText(text: String): String {
         val normalized = TextNormalizer.normalizeForTranslation(text)
-        return buildString(normalized.length) {
+        val lexicalKey = buildString(normalized.length) {
             normalized.forEach { char ->
                 if (char.isLetterOrDigit() || char.isJapaneseTextChar()) {
                     append(char.lowercaseChar())
                 }
             }
         }
+        val punctuationKey = FgoDialogueSymbols.sourcePunctuationStabilitySignature(normalized)
+        return if (punctuationKey.isBlank()) lexicalKey else "$lexicalKey⟦$punctuationKey⟧"
     }
 
     private suspend fun translateSceneSource(sceneSource: SceneSource): SceneTranslateResult {

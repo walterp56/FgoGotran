@@ -289,8 +289,14 @@ private fun historySpeakerDialogueView(
     color: Int,
     viewportScale: Float
 ): LinearLayout {
-    val quoteWidth = historyQuoteIndentPx(context, typeface, viewportScale)
-    val bodyText = quoteSpeakerDialogueBody(text)
+    val quotedDialogue = quoteSpeakerDialogueBody(text)
+    val quoteWidth = historyQuoteIndentPx(
+        context,
+        typeface,
+        viewportScale,
+        quotedDialogue.openingQuote
+    )
+    val bodyText = quotedDialogue.body
     val originalBodyText = originalText?.trim()?.takeIf { it.isNotBlank() }
     return LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -304,7 +310,7 @@ private fun historySpeakerDialogueView(
         addView(
             historyTextView(
                 context = context,
-                text = "「",
+                text = quotedDialogue.openingQuote,
                 color = AndroidColor.WHITE,
                 typeface = typeface
             ).apply {
@@ -326,7 +332,11 @@ private fun historySpeakerDialogueView(
                     addView(
                         historyTextView(
                             context = context,
-                            text = quoteSpeakerDialogueClosing(bodyText),
+                            text = quoteSpeakerDialogueClosing(
+                                bodyText,
+                                quotedDialogue.closingQuote,
+                                quotedDialogue.trailingPunctuation
+                            ),
                             color = color,
                             typeface = typeface,
                             viewportScale = viewportScale,
@@ -338,7 +348,10 @@ private fun historySpeakerDialogueView(
                         container = this,
                         context = context,
                         translationLines = historyDisplayLines(bodyText)
-                            .withClosingQuoteOnLastLine(),
+                            .withClosingQuoteOnLastLine(
+                                quotedDialogue.closingQuote,
+                                quotedDialogue.trailingPunctuation
+                            ),
                         originalLines = historyDisplayLines(originalBodyText),
                         translationColor = color,
                         typeface = typeface,
@@ -434,39 +447,105 @@ private fun historyDisplayLines(text: String): List<String> {
         .ifEmpty { listOf(text.trim()) }
 }
 
-private fun List<String>.withClosingQuoteOnLastLine(): List<CharSequence> {
+private fun List<String>.withClosingQuoteOnLastLine(
+    closingQuote: String = "」",
+    trailingPunctuation: String = ""
+): List<CharSequence> {
     return mapIndexed { index, line ->
-        if (index == lastIndex) quoteSpeakerDialogueClosing(line) else line
+        if (index == lastIndex) {
+            quoteSpeakerDialogueClosing(line, closingQuote, trailingPunctuation)
+        } else {
+            line
+        }
     }
 }
 
-private fun quoteSpeakerDialogueBody(text: String): String {
+private fun quoteSpeakerDialogueBody(text: String): HistoryQuotedDialogue {
     val trimmed = text.trim()
-    return if (trimmed.length >= 2 && trimmed.startsWith("「") && trimmed.endsWith("」")) {
-        trimmed.substring(1, trimmed.lastIndex)
-    } else {
-        text
+    if (trimmed.length < 2) {
+        return HistoryQuotedDialogue.default(text)
     }
+
+    val closingQuote = HISTORY_QUOTE_PAIRS[trimmed.first()]
+        ?: return HistoryQuotedDialogue.default(text)
+    var closingIndex = trimmed.lastIndex
+    while (closingIndex > 0 && trimmed[closingIndex] in HISTORY_TRAILING_PUNCTUATION) {
+        closingIndex--
+    }
+    if (closingIndex <= 0 || trimmed[closingIndex] != closingQuote) {
+        return HistoryQuotedDialogue.default(text)
+    }
+
+    val trailing = trimmed.substring(closingIndex + 1)
+    return HistoryQuotedDialogue(
+        body = trimmed.substring(1, closingIndex),
+        openingQuote = trimmed.first().toString(),
+        closingQuote = closingQuote.toString(),
+        trailingPunctuation = trailing
+    )
 }
 
-private fun quoteSpeakerDialogueClosing(text: String): CharSequence {
-    val quotedText = "$text」"
+private fun quoteSpeakerDialogueClosing(
+    text: String,
+    closingQuote: String = "」",
+    trailingPunctuation: String = ""
+): CharSequence {
+    val quotedText = "$text$closingQuote$trailingPunctuation"
+    val closingQuoteIndex = text.length
     return SpannableString(quotedText).apply {
         setSpan(
             ForegroundColorSpan(AndroidColor.WHITE),
-            quotedText.lastIndex,
-            quotedText.length,
+            closingQuoteIndex,
+            closingQuoteIndex + closingQuote.length,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
     }
 }
 
-private fun historyQuoteIndentPx(context: Context, typeface: Typeface, viewportScale: Float): Int {
+private data class HistoryQuotedDialogue(
+    val body: String,
+    val openingQuote: String,
+    val closingQuote: String,
+    val trailingPunctuation: String
+) {
+    companion object {
+        fun default(text: String): HistoryQuotedDialogue {
+            return HistoryQuotedDialogue(
+                body = text,
+                openingQuote = "「",
+                closingQuote = "」",
+                trailingPunctuation = ""
+            )
+        }
+    }
+}
+
+private val HISTORY_QUOTE_PAIRS = mapOf(
+    '「' to '」',
+    '『' to '』',
+    '“' to '”',
+    '‘' to '’',
+    '"' to '"',
+    '\'' to '\''
+)
+
+private val HISTORY_TRAILING_PUNCTUATION = setOf(
+    '。', '．', '.', '、', '，', ',', '！', '!', '？', '?',
+    '…', '‥', '⋯', '—', '―', '─', '━', '－', '-',
+    '〜', '～', '~', '：', ':', '；', ';', '♪', '♡', '♥', '☆', '★'
+)
+
+private fun historyQuoteIndentPx(
+    context: Context,
+    typeface: Typeface,
+    viewportScale: Float,
+    openingQuote: String
+): Int {
     val quotePaint = TextPaint().apply {
         textSize = scaledHistoryTextPx(context, HISTORY_TEXT_SIZE_SP, viewportScale)
         this.typeface = typeface
     }
-    return quotePaint.measureText("「").roundToInt().coerceAtLeast(1)
+    return quotePaint.measureText(openingQuote).roundToInt().coerceAtLeast(1)
 }
 
 private fun historyTextView(

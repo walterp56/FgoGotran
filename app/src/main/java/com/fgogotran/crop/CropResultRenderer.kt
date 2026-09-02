@@ -9,6 +9,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
+import com.fgogotran.translation.FgoDialogueSymbols
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,7 +53,11 @@ class CropResultRenderer @Inject constructor(
         val padding = (minOf(bitmapWidth, bitmapHeight) * 0.06f).coerceIn(6f, 24f)
         val maxWidth = (bitmapWidth - padding * 2f).coerceAtLeast(1f)
         val maxHeight = (bitmapHeight - padding * 2f).coerceAtLeast(1f)
-        val fitted = fitLines(text.trim(), maxWidth, maxHeight)
+        val fitted = fitLines(
+            FgoDialogueSymbols.normalizeForRender(text.trim()),
+            maxWidth,
+            maxHeight
+        )
 
         textPaint.textSize = fitted.textSize
         val totalTextHeight = fitted.lines.size * fitted.lineHeight
@@ -87,7 +92,7 @@ class CropResultRenderer @Inject constructor(
         textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, targetLocale)
 
         val layouts = fitTranslatedRows(
-            text = text.trim(),
+            text = FgoDialogueSymbols.normalizeForRender(text.trim()),
             sourceBounds = lineBounds,
             bitmapWidth = bitmapWidth,
             bitmapHeight = bitmapHeight
@@ -177,11 +182,21 @@ class CropResultRenderer @Inject constructor(
         textPaint.textSize = safeMinSize
         val lineHeight = textPaint.fontSpacing
         val maxLines = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
-        val lines = wrapText(source, maxWidth).take(maxLines).toMutableList()
-        if (lines.isNotEmpty()) {
-            lines[lines.lastIndex] = ellipsize(lines.last(), maxWidth)
+        val wrappedLines = wrapText(source, maxWidth)
+        val lines = wrappedLines.take(maxLines).toMutableList()
+        if (lines.isNotEmpty() && wrappedLines.size > maxLines) {
+            lines[lines.lastIndex] = ellipsize(
+                text = lines.last(),
+                maxWidth = maxWidth,
+                terminalSourceText = wrappedLines.last(),
+                forceTruncationMarker = true
+            )
         }
-        return FittedLines(lines.ifEmpty { listOf("...") }, lineHeight, safeMinSize)
+        return FittedLines(
+            lines.ifEmpty { listOf(FgoDialogueSymbols.PAUSE_ELLIPSIS) },
+            lineHeight,
+            safeMinSize
+        )
     }
 
     private fun fitTranslatedRows(
@@ -238,7 +253,9 @@ class CropResultRenderer @Inject constructor(
         rowTextSizes: List<Float>,
         ellipsizeLast: Boolean
     ): List<String>? {
-        val source = text.replace(Regex("""\s+"""), " ").trim().ifBlank { "..." }
+        val source = text.replace(Regex("""\s+"""), " ")
+            .trim()
+            .ifBlank { FgoDialogueSymbols.PAUSE_ELLIPSIS }
         val result = MutableList(rows.size) { "" }
         var remaining = source
 
@@ -470,16 +487,32 @@ class CropResultRenderer @Inject constructor(
         return lines
     }
 
-    private fun ellipsize(text: String, maxWidth: Float): String {
-        if (textPaint.measureText(text) <= maxWidth) return text
-        val suffix = "..."
+    private fun ellipsize(
+        text: String,
+        maxWidth: Float,
+        terminalSourceText: String = text,
+        forceTruncationMarker: Boolean = false
+    ): String {
+        if (!forceTruncationMarker && textPaint.measureText(text) <= maxWidth) return text
+        val terminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(terminalSourceText)
+        val suffix = if (terminalSuffix.startsWith('…')) {
+            terminalSuffix
+        } else {
+            FgoDialogueSymbols.PAUSE_ELLIPSIS + terminalSuffix
+        }
+        val visibleTerminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(text)
+        val body = if (visibleTerminalSuffix.isNotEmpty()) {
+            text.dropLast(visibleTerminalSuffix.length)
+        } else {
+            text
+        }
         val count = textPaint.breakText(
-            text,
+            body,
             true,
             (maxWidth - textPaint.measureText(suffix)).coerceAtLeast(1f),
             null
         )
-        return text.take(count).trimEnd() + suffix
+        return body.take(count).trimEnd() + suffix
     }
 
     private data class FittedLines(

@@ -1008,11 +1008,26 @@ class OverlayRenderer @Inject constructor(
         )
         FgoLogger.debug(tag, "Dialogue still over 2 lines at emergency size; ellipsizing as final fallback")
         val fallbackLines = if (preserveExplicitLineBreaks) {
-            safeFallbackText.lines()
+            val explicitLines = safeFallbackText.lines()
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
+            explicitLines
                 .take(maximumLines)
-                .map { ellipsize(it, paint, maxWidth) }
+                .mapIndexed { index, line ->
+                    val isTruncatedFinalVisibleLine =
+                        index == maximumLines - 1 && explicitLines.size > maximumLines
+                    if (isTruncatedFinalVisibleLine) {
+                        ellipsize(
+                            text = line,
+                            paint = paint,
+                            maxWidth = maxWidth,
+                            terminalSourceText = explicitLines.last(),
+                            forceTruncationMarker = true
+                        )
+                    } else {
+                        ellipsize(line, paint, maxWidth)
+                    }
+                }
         } else {
             limitLines(wrapText(safeFallbackText, paint, maxWidth), maximumLines, paint, maxWidth)
         }
@@ -1537,20 +1552,43 @@ class OverlayRenderer @Inject constructor(
     ): List<String> {
         if (lines.size <= maximumLines) return lines
         val visible = lines.take(maximumLines).toMutableList()
-        visible[visible.lastIndex] = ellipsize("${visible.last()}...", paint, maxWidth)
+        visible[visible.lastIndex] = ellipsize(
+            text = visible.last(),
+            paint = paint,
+            maxWidth = maxWidth,
+            terminalSourceText = lines.last(),
+            forceTruncationMarker = true
+        )
         return visible
     }
 
-    private fun ellipsize(text: String, paint: Paint, maxWidth: Float): String {
-        if (paint.measureText(text) <= maxWidth) return text
-        val suffix = "..."
+    private fun ellipsize(
+        text: String,
+        paint: Paint,
+        maxWidth: Float,
+        terminalSourceText: String = text,
+        forceTruncationMarker: Boolean = false
+    ): String {
+        if (!forceTruncationMarker && paint.measureText(text) <= maxWidth) return text
+        val terminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(terminalSourceText)
+        val suffix = if (terminalSuffix.startsWith('…')) {
+            terminalSuffix
+        } else {
+            FgoDialogueSymbols.PAUSE_ELLIPSIS + terminalSuffix
+        }
+        val visibleTerminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(text)
+        val body = if (visibleTerminalSuffix.isNotEmpty()) {
+            text.dropLast(visibleTerminalSuffix.length)
+        } else {
+            text
+        }
         val count = paint.breakText(
-            text,
+            body,
             true,
             (maxWidth - paint.measureText(suffix)).coerceAtLeast(1f),
             null
         )
-        return text.take(count).trimEnd() + suffix
+        return body.take(count).trimEnd() + suffix
     }
 
     private fun drawShadowedText(

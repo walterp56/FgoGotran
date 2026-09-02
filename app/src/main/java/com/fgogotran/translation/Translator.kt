@@ -2052,19 +2052,16 @@ class Translator @Inject constructor(
         val localizedDialogue = dialogue?.forTargetLocale(config)
         return SceneTranslateResult(
             name = name?.forTargetLocale(config),
-            dialogue = localizedDialogue?.let { result ->
-                if (result.translatedText.isSceneContextErrorText()) {
-                    result
-                } else {
-                    result.copy(
-                        translatedText = FgoDialogueSymbols.normalizeTranslatedPunctuation(
-                            result.translatedText
-                        )
-                    )
-                }
-            },
-            choices = choices.map { it.forTargetLocale(config) },
+            dialogue = localizedDialogue?.withNormalizedScenePunctuation(),
+            choices = choices.map { it.forTargetLocale(config).withNormalizedScenePunctuation() },
             voiceHint = voiceHint
+        )
+    }
+
+    private fun TranslateResult.withNormalizedScenePunctuation(): TranslateResult {
+        if (translatedText.isSceneContextErrorText()) return this
+        return copy(
+            translatedText = FgoDialogueSymbols.normalizeTranslatedPunctuation(translatedText)
         )
     }
 
@@ -4429,75 +4426,7 @@ class Translator @Inject constructor(
     }
 
     private fun preserveSourcePunctuation(sourceText: String, translatedText: String): String {
-        var result = translatedText.trimEnd()
-        val source = sourceText.trimEnd()
-
-        result = preserveSourceFgoLongPause(source, result)
-        result = normalizeTranslatedDashRuns(result)
-        result = preserveSourceTrailingDashRun(source, result)
-
-        val sourceEllipsis = trailingEllipsis(source)
-        if (sourceEllipsis != null && trailingEllipsis(result) == null) {
-            result += sourceEllipsis
-        }
-
-        val sourceTail = source.takeLastWhile { it.isPreservedTrailingSymbol() }
-        if (sourceTail.isNotBlank()) {
-            for (symbol in sourceTail) {
-                if (symbol !in result.takeLast(sourceTail.length + 2)) {
-                    result += symbol
-                }
-            }
-        }
-        return result
-    }
-
-    private fun preserveSourceFgoLongPause(sourceText: String, translatedText: String): String {
-        if (!FgoDialogueSymbols.containsLongPause(sourceText)) return translatedText
-        val normalized = FgoDialogueSymbols.normalizePauseDots(translatedText)
-        if (FgoDialogueSymbols.containsLongPause(normalized)) return normalized
-
-        val startsWithPause = FgoDialogueSymbols.startsWithLongPause(sourceText.trimStart())
-        val endsWithPause = FgoDialogueSymbols.endsWithLongPause(sourceText.trimEnd())
-        return buildString {
-            if (startsWithPause) append(FgoDialogueSymbols.PAUSE_ELLIPSIS)
-            append(normalized)
-            if (endsWithPause) append(FgoDialogueSymbols.PAUSE_ELLIPSIS)
-        }
-    }
-
-    private fun preserveSourceTrailingDashRun(sourceText: String, translatedText: String): String {
-        val sourceDashRun = sourceText.takeLastWhile(FgoDialogueSymbols::isDashRunChar)
-        if (sourceDashRun.length < 2) return translatedText
-        if (sourceDashRun.all { it == '一' }) {
-            val beforeRun = sourceText.dropLast(sourceDashRun.length).lastOrNull()
-            if (beforeRun != null && Character.isLetterOrDigit(beforeRun)) return translatedText
-        }
-
-        val withoutDashRun = FgoDialogueSymbols.trailingDashRunPattern.replace(translatedText.trimEnd(), "")
-        val withoutSentenceTail = withoutDashRun.trimEnd {
-            it in setOf('。', '．', '.', '！', '!', '？', '?')
-        }
-        return withoutSentenceTail + FgoDialogueSymbols.LONG_DASH_RUN
-    }
-
-    private fun normalizeTranslatedDashRuns(translatedText: String): String {
-        return FgoDialogueSymbols.normalizeDashRuns(translatedText)
-    }
-
-    private fun trailingEllipsis(text: String): String? {
-        val trimmed = text.trimEnd()
-        return when {
-            FgoDialogueSymbols.containsLongPause(trimmed.takeLast(12)) -> FgoDialogueSymbols.PAUSE_ELLIPSIS
-            else -> null
-        }
-    }
-
-    private fun Char.isPreservedTrailingSymbol(): Boolean {
-        return this in setOf(
-            '。', '、', '，', ',', '.', '！', '!', '？', '?', '…', '・',
-            '—', '-', '－', '〜', '~', '」', '』', '）', ')', '】', ']'
-        )
+        return FgoDialogueSymbols.reconcileSourcePunctuation(sourceText, translatedText)
     }
 
     private fun toSimplifiedChinese(text: String): String {
