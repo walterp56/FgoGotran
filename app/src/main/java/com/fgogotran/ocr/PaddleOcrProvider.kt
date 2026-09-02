@@ -121,7 +121,13 @@ private class PaddleOcrRuntime(
                 continue
             }
             try {
-                val recognition = recognizeCrop(crop)
+                val tightRecognition = recognizeCrop(crop)
+                val edgeRecovery = recoverEdgePunctuation(
+                    source = bitmap,
+                    box = box,
+                    tightRecognition = tightRecognition
+                )
+                val recognition = edgeRecovery.recognition
                 val text = recognition.text
                 val confidence = recognition.confidence
                 if (text.isNotBlank() && confidence >= REC_TEXT_SCORE_THRESHOLD) {
@@ -132,21 +138,47 @@ private class PaddleOcrRuntime(
                             boundingBox = bounds,
                             confidence = confidence.coerceIn(0f, 1f)
                         ),
-                        recoveredMaskCount = recognition.recoveredMaskCount
+                        recoveredMaskCount = recognition.recoveredMaskCount,
+                        noisyLeadingQuoteCandidate = edgeRecovery.noisyLeadingQuoteCandidate
                     )
                 } else {
-                    detectedTextBoxes += PaddleDetectedTextBox(bounds = bounds)
+                    val lowConfidenceEdgeFragment = text
+                        .takeIf {
+                            confidence >= EDGE_RECOVERY_TEXT_SCORE_THRESHOLD &&
+                                PaddleEdgePunctuationMerger.isRecoverableDetachedFragment(it) &&
+                                it.hasEdgeQuotationMark()
+                        }
+                        ?.let {
+                            OcrTextLine(
+                                text = it,
+                                boundingBox = bounds,
+                                confidence = confidence.coerceIn(0f, 1f)
+                            )
+                        }
+                    detectedTextBoxes += PaddleDetectedTextBox(
+                        bounds = bounds,
+                        lowConfidenceEdgeFragment = lowConfidenceEdgeFragment
+                    )
                 }
             } finally {
                 if (!crop.isRecycled) crop.recycle()
             }
         }
 
-        val lines = recoverSplitSolidMaskRows(
+        val quoteRecoveredTextBoxes = recoverNoisyLeadingQuoteCandidates(detectedTextBoxes)
+        val recoveredLines = recoverSplitSolidMaskRows(
             source = bitmap,
-            detectedTextBoxes = detectedTextBoxes,
+            detectedTextBoxes = quoteRecoveredTextBoxes,
             maskRows = detection.solidMaskRows
-        ).sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+        )
+        val lowConfidenceEdgeFragments = quoteRecoveredTextBoxes
+            .mapNotNull(PaddleDetectedTextBox::lowConfidenceEdgeFragment)
+            .filterWithMatchingQuoteEvidence(recoveredLines)
+        val lines = recoverDetachedEdgePunctuation(
+            lines = recoveredLines,
+            lowConfidenceEdgeFragments = lowConfidenceEdgeFragments
+        )
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
 
         val fullText = lines.joinToString("\n") { it.text }
         val elapsed = System.currentTimeMillis() - startedAt
@@ -518,6 +550,229 @@ private class PaddleOcrRuntime(
         return mapped
     }
 
+    private fun recoverEdgePunctuation(
+        source: Bitmap,
+        box: FloatArray,
+        tightRecognition: PaddleMaskMergeResult
+    ): EdgePunctuationRecovery {
+        if (tightRecognition.confidence < REC_TEXT_SCORE_THRESHOLD ||
+            !PaddleEdgePunctuationMerger.mayHaveRecoverableEdges(tightRecognition.text)
+        ) {
+            return EdgePunctuationRecovery(tightRecognition)
+        }
+
+        val lineWidth = max(
+            distance(box[0], box[1], box[2], box[3]),
+            distance(box[6], box[7], box[4], box[5])
+        )
+        val lineHeight = max(
+            distance(box[0], box[1], box[6], box[7]),
+            distance(box[2], box[3], box[4], box[5])
+        )
+        if (lineHeight <= 0f || lineWidth < lineHeight * EDGE_MIN_HORIZONTAL_RATIO) {
+            return EdgePunctuationRecovery(tightRecognition)
+        }
+
+        val padding = max(
+            EDGE_MIN_HORIZONTAL_PADDING.toFloat(),
+            lineHeight * EDGE_HORIZONTAL_PADDING_HEIGHT_RATIO
+        ).coerceAtMost(source.width * EDGE_MAX_PADDING_WIDTH_RATIO)
+        val expandedBox = expandTextLineHorizontally(box, padding, source.width, source.height)
+        val expandedCrop = cropTextLine(source, expandedBox)
+            ?: return EdgePunctuationRecovery(tightRecognition)
+        val paddedRecognition = try {
+            recognizeCrop(expandedCrop)
+        } finally {
+            if (!expandedCrop.isRecycled) expandedCrop.recycle()
+        }
+        if (paddedRecognition.confidence < EDGE_RECOVERY_TEXT_SCORE_THRESHOLD) {
+            if (paddedRecognition.text.hasEdgeQuotationMark()) {
+                FgoLogger.debug(
+                    tag,
+                    "PaddleOCR edge quotation candidate below confidence threshold: " +
+                        "confidence=${paddedRecognition.confidence}, padded=${paddedRecognition.text}"
+                )
+            }
+            return EdgePunctuationRecovery(tightRecognition)
+        }
+
+        val mergedText = PaddleEdgePunctuationMerger.merge(
+            tightText = tightRecognition.text,
+            paddedText = paddedRecognition.text
+        )
+        if (mergedText == tightRecognition.text) {
+            val noisyLeadingQuoteCandidate =
+                PaddleEdgePunctuationMerger.findNoisyLeadingQuoteCandidate(
+                    tightText = tightRecognition.text,
+                    paddedText = paddedRecognition.text
+                )
+            if (noisyLeadingQuoteCandidate != null) {
+                FgoLogger.debug(
+                    tag,
+                    "PaddleOCR noisy leading quote candidate detected: " +
+                        "before=${tightRecognition.text}, padded=${paddedRecognition.text}, " +
+                        "ignored=${noisyLeadingQuoteCandidate.ignoredNoise}, " +
+                        "candidate=${noisyLeadingQuoteCandidate.recoveredText}"
+                )
+                return EdgePunctuationRecovery(
+                    recognition = tightRecognition,
+                    noisyLeadingQuoteCandidate = noisyLeadingQuoteCandidate
+                )
+            }
+            if (paddedRecognition.text != tightRecognition.text &&
+                paddedRecognition.text.hasEdgeQuotationMark()
+            ) {
+                FgoLogger.debug(
+                    tag,
+                    "PaddleOCR edge quotation candidate rejected: " +
+                        "before=${tightRecognition.text}, padded=${paddedRecognition.text}"
+                )
+            }
+            return EdgePunctuationRecovery(tightRecognition)
+        }
+        FgoLogger.debug(
+            tag,
+            "PaddleOCR edge punctuation recovered: " +
+                "before=${tightRecognition.text}, padded=${paddedRecognition.text}, after=$mergedText"
+        )
+        return EdgePunctuationRecovery(tightRecognition.copy(text = mergedText))
+    }
+
+    private fun recoverNoisyLeadingQuoteCandidates(
+        detectedTextBoxes: List<PaddleDetectedTextBox>
+    ): List<PaddleDetectedTextBox> {
+        if (detectedTextBoxes.none { it.noisyLeadingQuoteCandidate != null }) {
+            return detectedTextBoxes
+        }
+
+        return detectedTextBoxes.mapIndexed { index, detectedBox ->
+            val line = detectedBox.line ?: return@mapIndexed detectedBox
+            val candidate = detectedBox.noisyLeadingQuoteCandidate ?: return@mapIndexed detectedBox
+            val laterTexts = detectedTextBoxes.asSequence()
+                .drop(index + 1)
+                .mapNotNull { it.line?.text }
+                .toList()
+            if (!PaddleEdgePunctuationMerger.hasMatchingClosingQuote(candidate, laterTexts)) {
+                FgoLogger.debug(
+                    tag,
+                    "PaddleOCR noisy leading quote candidate rejected: " +
+                        "reason=no_matching_closer, before=${line.text}, " +
+                        "candidate=${candidate.recoveredText}"
+                )
+                return@mapIndexed detectedBox.copy(noisyLeadingQuoteCandidate = null)
+            }
+
+            FgoLogger.debug(
+                tag,
+                "PaddleOCR noisy leading quote recovered: " +
+                    "ignored=${candidate.ignoredNoise}, before=${line.text}, " +
+                    "after=${candidate.recoveredText}"
+            )
+            detectedBox.copy(
+                line = line.copy(text = candidate.recoveredText),
+                noisyLeadingQuoteCandidate = null
+            )
+        }
+    }
+
+    private fun recoverDetachedEdgePunctuation(
+        lines: List<OcrTextLine>,
+        lowConfidenceEdgeFragments: List<OcrTextLine>
+    ): List<OcrTextLine> {
+        val candidates = lines + lowConfidenceEdgeFragments
+        val positioned = candidates.mapIndexed { index, line ->
+            PaddleEdgePunctuationMerger.PositionedLine(
+                sourceIndex = index,
+                text = line.text,
+                left = line.boundingBox.left,
+                top = line.boundingBox.top,
+                right = line.boundingBox.right,
+                bottom = line.boundingBox.bottom
+            )
+        }
+        val merged = PaddleEdgePunctuationMerger.mergeDetachedFragments(positioned)
+        val retained = merged.filter { it.sourceIndex < lines.size }
+        val recovered = retained.map { positionedLine ->
+            lines[positionedLine.sourceIndex].copy(text = positionedLine.text)
+        }
+        if (recovered.size == lines.size &&
+            recovered.indices.all { recovered[it].text == lines[it].text }
+        ) {
+            return lines
+        }
+
+        FgoLogger.debug(
+            tag,
+            "PaddleOCR detached edge punctuation recovered: " +
+                "before=${lines.joinToString(" | ") { it.text }}, " +
+                "after=${recovered.joinToString(" | ") { it.text }}"
+        )
+        return recovered
+    }
+
+    private fun List<OcrTextLine>.filterWithMatchingQuoteEvidence(
+        regularLines: List<OcrTextLine>
+    ): List<OcrTextLine> {
+        if (isEmpty()) return emptyList()
+        val allCandidates = regularLines + this
+        return filter { fragment ->
+            fragment.text.any { quote ->
+                val counterpart = EDGE_QUOTE_COUNTERPARTS[quote] ?: return@any false
+                allCandidates.any { other ->
+                    other !== fragment && other.text.hasQuoteCounterpartAtEdge(quote, counterpart)
+                }
+            }
+        }
+    }
+
+    private fun String.hasQuoteCounterpartAtEdge(candidate: Char, counterpart: Char): Boolean {
+        val visible = trim()
+        if (visible.isEmpty()) return false
+        if (candidate == '"') {
+            return visible.first() == counterpart || visible.last() == counterpart
+        }
+        if (candidate in EDGE_OPENING_QUOTATION_SYMBOLS) {
+            val counterpartIndex = visible.lastIndexOf(counterpart)
+            return counterpartIndex >= 0 && visible.substring(counterpartIndex + 1).all {
+                it in EDGE_AFTER_CLOSING_QUOTE_SYMBOLS
+            }
+        }
+        return candidate in EDGE_CLOSING_QUOTATION_SYMBOLS && visible.first() == counterpart
+    }
+
+    private fun String.hasEdgeQuotationMark(): Boolean {
+        return any { it in EDGE_QUOTATION_SYMBOLS }
+    }
+
+    private fun expandTextLineHorizontally(
+        box: FloatArray,
+        padding: Float,
+        sourceWidth: Int,
+        sourceHeight: Int
+    ): FloatArray {
+        if (box.size < 8 || padding <= 0f) return box
+
+        val topLength = distance(box[0], box[1], box[2], box[3]).coerceAtLeast(1f)
+        val bottomLength = distance(box[6], box[7], box[4], box[5]).coerceAtLeast(1f)
+        val topUnitX = (box[2] - box[0]) / topLength
+        val topUnitY = (box[3] - box[1]) / topLength
+        val bottomUnitX = (box[4] - box[6]) / bottomLength
+        val bottomUnitY = (box[5] - box[7]) / bottomLength
+        val maxX = (sourceWidth - 1).coerceAtLeast(0).toFloat()
+        val maxY = (sourceHeight - 1).coerceAtLeast(0).toFloat()
+
+        return floatArrayOf(
+            (box[0] - topUnitX * padding).coerceIn(0f, maxX),
+            (box[1] - topUnitY * padding).coerceIn(0f, maxY),
+            (box[2] + topUnitX * padding).coerceIn(0f, maxX),
+            (box[3] + topUnitY * padding).coerceIn(0f, maxY),
+            (box[4] + bottomUnitX * padding).coerceIn(0f, maxX),
+            (box[5] + bottomUnitY * padding).coerceIn(0f, maxY),
+            (box[6] - bottomUnitX * padding).coerceIn(0f, maxX),
+            (box[7] - bottomUnitY * padding).coerceIn(0f, maxY)
+        )
+    }
+
     private fun cropTextLine(source: Bitmap, box: FloatArray): Bitmap? {
         val cropWidth = max(
             distance(box[0], box[1], box[2], box[3]),
@@ -878,7 +1133,14 @@ private class PaddleOcrRuntime(
     private data class PaddleDetectedTextBox(
         val bounds: Rect,
         val line: OcrTextLine? = null,
-        val recoveredMaskCount: Int = 0
+        val recoveredMaskCount: Int = 0,
+        val lowConfidenceEdgeFragment: OcrTextLine? = null,
+        val noisyLeadingQuoteCandidate: PaddleEdgePunctuationMerger.NoisyLeadingQuoteCandidate? = null
+    )
+
+    private data class EdgePunctuationRecovery(
+        val recognition: PaddleMaskMergeResult,
+        val noisyLeadingQuoteCandidate: PaddleEdgePunctuationMerger.NoisyLeadingQuoteCandidate? = null
     )
 
     companion object {
@@ -899,7 +1161,28 @@ private class PaddleOcrRuntime(
         private const val REC_IMAGE_HEIGHT = 48
         private const val REC_MAX_IMAGE_WIDTH = 3200
         private const val REC_TEXT_SCORE_THRESHOLD = 0.5f
+        private const val EDGE_RECOVERY_TEXT_SCORE_THRESHOLD = 0.35f
         private const val VERTICAL_TEXT_ROTATE_RATIO = 1.5f
+        private const val EDGE_MIN_HORIZONTAL_RATIO = 0.67f
+        private const val EDGE_HORIZONTAL_PADDING_HEIGHT_RATIO = 5f
+        private const val EDGE_MAX_PADDING_WIDTH_RATIO = 0.25f
+        private const val EDGE_MIN_HORIZONTAL_PADDING = 12
+        private val EDGE_QUOTATION_SYMBOLS = setOf('「', '」', '『', '』', '“', '”', '"')
+        private val EDGE_OPENING_QUOTATION_SYMBOLS = setOf('「', '『', '“')
+        private val EDGE_CLOSING_QUOTATION_SYMBOLS = setOf('」', '』', '”')
+        private val EDGE_AFTER_CLOSING_QUOTE_SYMBOLS = setOf(
+            '」', '』', '”', '"', '。', '.', '．', '!', '！', '?', '？',
+            ',', '，', '、', '…', '‥', '⋯', '—', '―', '─', '━', '－', '-'
+        )
+        private val EDGE_QUOTE_COUNTERPARTS = mapOf(
+            '「' to '」',
+            '」' to '「',
+            '『' to '』',
+            '』' to '『',
+            '“' to '”',
+            '”' to '“',
+            '"' to '"'
+        )
         private const val SOLID_MASK_CHAR = '■'
         private const val MASK_ROW_MIN_VERTICAL_OVERLAP_RATIO = 0.45f
         private const val MASK_ROW_MAX_CENTER_DIFFERENCE_RATIO = 0.45f

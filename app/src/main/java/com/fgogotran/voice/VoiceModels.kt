@@ -28,7 +28,7 @@ data class VoiceSynthesisRequest(
     val pauseScale: Double? = null,
     val ssmlModeVersion: String? = null,
     val azureSpeechRegion: String = "",
-    val aiVoiceSpeedPercent: Int = 115
+    val aiVoiceSpeedPercent: Int = 100
 ) {
     fun cacheMaterial(): String = buildString {
         append(ssmlModeVersion.orEmpty())

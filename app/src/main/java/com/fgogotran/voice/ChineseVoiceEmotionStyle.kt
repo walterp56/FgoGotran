@@ -804,8 +804,8 @@ object ChineseVoiceEmotionStyle {
     private const val HINT_RATE_STEP = 0.015
     private const val HINT_PITCH_STEP = 0.5
     private const val HINT_PAUSE_STEP = 0.07
-    private const val MIN_USER_SPEED_MULTIPLIER = 0.80
-    private const val MAX_USER_SPEED_MULTIPLIER = 1.50
+    private const val MIN_USER_SPEED_MULTIPLIER = 0.50
+    private const val MAX_USER_SPEED_MULTIPLIER = 2.00
     private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v13"
     private val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
 }

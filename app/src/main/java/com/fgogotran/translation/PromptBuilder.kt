@@ -85,7 +85,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v82"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v84"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -179,7 +179,10 @@ class PromptBuilder @Inject constructor() {
 
         private val DIALOGUE_STYLE_PROMPT = """
             - Preserve characterization and register in natural Chinese.
-            - Infer omitted participants and possessors only when established by the current or previous Japanese; the current speaker alone is not evidence. Add a Chinese subject only when needed for coherence and its referent is clear; otherwise keep it implicit.
+            """.trimIndent()
+
+        private val PRONOUN_FIDELITY_PROMPT = """
+            - Preserve Japanese zero subjects, objects, and possessors. Do not add a Chinese personal pronoun absent from the current source; prefer neutral restructuring. Add one only when Japanese grammar makes that participant indispensable and omission would make Chinese ungrammatical or change who did what. Speaker identity and previous dialogue are not permission to add one.
             """.trimIndent()
 
         private val UNATTRIBUTED_DIALOGUE_PROMPT = """
@@ -187,7 +190,7 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val PARTICIPANT_DIRECTION_PROMPT = """
-            - For benefactives, causatives, and 〜(ら)れる, determine the agent, affected participant, beneficiary, viewpoint, and grammatical reading from Japanese syntax and context. Do not assume an omitted participant is the current speaker; preserve who acts on whom in natural Chinese.
+            - For benefactives, causatives, and 〜(ら)れる, determine roles from Japanese syntax. Keep omitted participants implicit when neutral Chinese is clear; express one only when omission would change who did what. Never infer one from the current speaker or previous dialogue alone.
             """.trimIndent()
 
         private val LINE_BREAK_PROMPT = """
@@ -209,9 +212,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val CHOICE_PROMPT = """
-            - Choices are Master/player replies, not narration or objective description.
+            - Choices are Master/player replies, not narration or objective description; this role never licenses a first-person pronoun absent from the choice source.
             - Preserve the original sentence type; do not expand partial or attitude choices into full explanations.
-            - Keep first/second-person relationship consistent with the current speaker; do not add an unsupported subject.
             """.trimIndent()
 
         private val NAME_PROMPT = """
@@ -343,6 +345,14 @@ class PromptBuilder @Inject constructor() {
             outputBlockName(context.outputFormat),
             outputPromptBlock(context.outputFormat)
         )
+        if (context.isDialogue || context.hasChoices || context.isCropMode) {
+            appendPromptBlock(
+                sb,
+                blockNames,
+                "pronoun_fidelity",
+                buildPronounFidelityPrompt()
+            )
+        }
         if (context.hasPlaceholders) {
             appendPromptBlock(sb, blockNames, "placeholder", PLACEHOLDER_PROMPT)
         }
@@ -630,11 +640,13 @@ class PromptBuilder @Inject constructor() {
         return "- [2P] $rules; exact second-person mappings, not names or generic 你."
     }
 
+    internal fun buildPronounFidelityPrompt(): String = PRONOUN_FIDELITY_PROMPT
+
     internal fun buildCharacterContextPrompt(prompt: String): String {
         return buildString {
             appendLine(
                 "- Apply character context only to the current dialogue, never names or choices. " +
-                    "Do not invent pronouns, participants, relationships, or tics absent from JP."
+                    "It never licenses pronouns, participants, relationships, or tics absent from current JP."
             )
             append("- ")
             append(prompt.trim())

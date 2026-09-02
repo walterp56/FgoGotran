@@ -106,9 +106,10 @@ class SettingsRepository @Inject constructor(
         const val MIN_AI_VOICE_VOLUME_PERCENT = 0
         const val DEFAULT_AI_VOICE_VOLUME_PERCENT = 100
         const val MAX_AI_VOICE_VOLUME_PERCENT = 100
-        const val MIN_AI_VOICE_SPEED_PERCENT = 80
-        const val DEFAULT_AI_VOICE_SPEED_PERCENT = 115
-        const val MAX_AI_VOICE_SPEED_PERCENT = 150
+        const val MIN_AI_VOICE_SPEED_PERCENT = 50
+        const val DEFAULT_AI_VOICE_SPEED_PERCENT = 100
+        const val MAX_AI_VOICE_SPEED_PERCENT = 200
+        const val AI_VOICE_SPEED_STEP_PERCENT = 5
         const val DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED = true
         const val DEFAULT_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED = false
         const val DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED = false
@@ -198,8 +199,19 @@ class SettingsRepository @Inject constructor(
         fun normalizeAiVoiceVolumePercent(volumePercent: Int): Int =
             volumePercent.coerceIn(MIN_AI_VOICE_VOLUME_PERCENT, MAX_AI_VOICE_VOLUME_PERCENT)
 
-        fun normalizeAiVoiceSpeedPercent(speedPercent: Int): Int =
-            speedPercent.coerceIn(MIN_AI_VOICE_SPEED_PERCENT, MAX_AI_VOICE_SPEED_PERCENT)
+        fun normalizeAiVoiceSpeedPercent(speedPercent: Int): Int {
+            val clamped = speedPercent.coerceIn(
+                MIN_AI_VOICE_SPEED_PERCENT,
+                MAX_AI_VOICE_SPEED_PERCENT
+            )
+            val offset = clamped - MIN_AI_VOICE_SPEED_PERCENT
+            val snappedOffset = (
+                (offset + AI_VOICE_SPEED_STEP_PERCENT / 2) /
+                    AI_VOICE_SPEED_STEP_PERCENT
+                ) * AI_VOICE_SPEED_STEP_PERCENT
+            return (MIN_AI_VOICE_SPEED_PERCENT + snappedOffset)
+                .coerceAtMost(MAX_AI_VOICE_SPEED_PERCENT)
+        }
 
         fun normalizeAiVoiceMasterVoice(masterVoice: String): String =
             masterVoice.takeIf {

@@ -3446,11 +3446,14 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         if (clippedTargets.isEmpty()) return emptyList()
 
-        val cropBounds = Rect(clippedTargets.first().bounds)
-        clippedTargets.drop(1).forEach { cropBounds.union(it.bounds) }
-        if (!cropBounds.intersect(0, 0, source.width, source.height) ||
-            cropBounds.width() <= 0 ||
-            cropBounds.height() <= 0
+        val targetUnionBounds = Rect(clippedTargets.first().bounds)
+        clippedTargets.drop(1).forEach { targetUnionBounds.union(it.bounds) }
+        val cropBounds = paddedSharedOcrBounds(
+            targetUnionBounds,
+            source.width,
+            source.height
+        )
+        if (cropBounds.width() <= 0 || cropBounds.height() <= 0
         ) {
             return emptyList()
         }
@@ -3821,6 +3824,22 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun expandedOcrBounds(bounds: Rect, screenWidth: Int, screenHeight: Int): Rect {
         val paddingX = (bounds.width() * 0.02f).toInt().coerceAtLeast(12)
         val paddingY = (bounds.height() * 0.12f).toInt().coerceAtLeast(10)
+        return Rect(
+            (bounds.left - paddingX).coerceAtLeast(0),
+            (bounds.top - paddingY).coerceAtLeast(0),
+            (bounds.right + paddingX).coerceAtMost(screenWidth),
+            (bounds.bottom + paddingY).coerceAtMost(screenHeight)
+        )
+    }
+
+    /**
+     * Keeps a small amount of screenshot context outside the configured OCR
+     * regions so Paddle's wider line crop can see thin edge punctuation. Text
+     * is still assigned against the original target bounds.
+     */
+    private fun paddedSharedOcrBounds(bounds: Rect, screenWidth: Int, screenHeight: Int): Rect {
+        val paddingX = (bounds.width() * 0.02f).toInt().coerceAtLeast(12)
+        val paddingY = (bounds.height() * 0.02f).toInt().coerceAtLeast(4)
         return Rect(
             (bounds.left - paddingX).coerceAtLeast(0),
             (bounds.top - paddingY).coerceAtLeast(0),

@@ -489,6 +489,7 @@ private fun VoiceSpeedSlider(
     speedPercent: Int,
     onSpeedChange: (Int) -> Unit
 ) {
+    val normalizedSpeed = SettingsRepository.normalizeAiVoiceSpeedPercent(speedPercent)
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -504,9 +505,9 @@ private fun VoiceSpeedSlider(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
             )
             Text(
-                aiVoiceSpeedMultiplierLabel(speedPercent),
+                aiVoiceSpeedMultiplierLabel(normalizedSpeed),
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (speedPercent == SettingsRepository.DEFAULT_AI_VOICE_SPEED_PERCENT) {
+                color = if (normalizedSpeed == SettingsRepository.DEFAULT_AI_VOICE_SPEED_PERCENT) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
                     MaterialTheme.colorScheme.primary
@@ -524,9 +525,11 @@ private fun VoiceSpeedSlider(
                 color = MaterialTheme.colorScheme.primary
             )
             Slider(
-                value = speedPercent.toFloat(),
+                value = normalizedSpeed.toFloat(),
                 onValueChange = { rawValue ->
-                    onSpeedChange(rawValue.roundToInt())
+                    onSpeedChange(
+                        SettingsRepository.normalizeAiVoiceSpeedPercent(rawValue.roundToInt())
+                    )
                 },
                 valueRange = SettingsRepository.MIN_AI_VOICE_SPEED_PERCENT.toFloat()..
                     SettingsRepository.MAX_AI_VOICE_SPEED_PERCENT.toFloat(),
@@ -550,9 +553,11 @@ private fun aiVoiceSpeedMultiplierLabel(speedPercent: Int): String {
 }
 
 private fun aiVoiceSpeedSliderSteps(): Int {
-    return SettingsRepository.MAX_AI_VOICE_SPEED_PERCENT -
-        SettingsRepository.MIN_AI_VOICE_SPEED_PERCENT -
-        1
+    val intervalCount = (
+        SettingsRepository.MAX_AI_VOICE_SPEED_PERCENT -
+            SettingsRepository.MIN_AI_VOICE_SPEED_PERCENT
+        ) / SettingsRepository.AI_VOICE_SPEED_STEP_PERCENT
+    return (intervalCount - 1).coerceAtLeast(0)
 }
 
 @Composable
