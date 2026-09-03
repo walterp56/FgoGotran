@@ -299,6 +299,7 @@ class DiagnosticEventStore @Inject constructor(
         const val CATEGORY_MISSING_VOICE = "missing_voice"
         const val CATEGORY_TEMP_VOICE_API = "temp_voice_api"
         const val CATEGORY_VOICE_HINT_API = "voice_hint_api"
+        const val CATEGORY_LIVE_VOICE_TRANSLATION = "live_voice_translation"
         private const val MAX_EVENTS = 300
         private const val RETENTION_MS = 7L * 24L * 60L * 60L * 1000L
         private const val DUPLICATE_SUPPRESS_MS = 60_000L

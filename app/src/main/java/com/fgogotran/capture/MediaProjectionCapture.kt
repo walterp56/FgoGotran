@@ -7,8 +7,6 @@ import android.hardware.display.VirtualDisplay
 import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
-import android.os.Handler
-import android.os.Looper
 import com.fgogotran.util.FgoLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -19,13 +17,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 object MediaProjectionCapture {
     private const val tag = "MediaProjectionCapture"
 
-    private val mainHandler = Handler(Looper.getMainLooper())
     private val stateLock = Any()
 
     private var nextSessionId = 0L
     private var currentSessionId = 0L
-    private var mediaProjection: MediaProjection? = null
-    private var projectionCallback: MediaProjection.Callback? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var captureTarget: CaptureTarget? = null
 
@@ -44,23 +39,10 @@ object MediaProjectionCapture {
         val reader = createImageReader(safeWidth, safeHeight) ?: return false
         val target = CaptureTarget(reader, safeWidth, safeHeight, safeDensityDpi)
 
-        val session = synchronized(stateLock) {
+        val sessionId = synchronized(stateLock) {
             nextSessionId += 1
-            val sessionId = nextSessionId
-            val callback = projectionCallbackFor(sessionId)
-            currentSessionId = sessionId
-            mediaProjection = projection
-            projectionCallback = callback
-            SessionStart(sessionId, callback)
-        }
-
-        try {
-            projection.registerCallback(session.callback, mainHandler)
-        } catch (t: Throwable) {
-            reader.close()
-            releaseSession(session.id, stopProjection = true)
-            FgoLogger.warn(tag, "MediaProjection callback registration failed", t)
-            return false
+            currentSessionId = nextSessionId
+            currentSessionId
         }
 
         val display = try {
@@ -81,12 +63,12 @@ object MediaProjectionCapture {
 
         if (display == null) {
             reader.close()
-            releaseSession(session.id, stopProjection = true)
+            releaseSession(sessionId)
             return false
         }
 
         val installed = synchronized(stateLock) {
-            if (currentSessionId == session.id && mediaProjection === projection) {
+            if (currentSessionId == sessionId) {
                 virtualDisplay = display
                 captureTarget = target
                 true
@@ -179,29 +161,7 @@ object MediaProjectionCapture {
     fun stop() {
         val sessionId = synchronized(stateLock) { currentSessionId }
         if (sessionId != 0L) {
-            releaseSession(sessionId, stopProjection = true)
-        }
-    }
-
-    private fun projectionCallbackFor(sessionId: Long): MediaProjection.Callback {
-        return object : MediaProjection.Callback() {
-            override fun onStop() {
-                FgoLogger.info(tag, "MediaProjection session stopped by the system")
-                releaseSession(sessionId, stopProjection = false)
-            }
-
-            override fun onCapturedContentResize(width: Int, height: Int) {
-                if (width <= 0 || height <= 0) return
-                val densityDpi = synchronized(stateLock) {
-                    if (currentSessionId == sessionId) captureTarget?.densityDpi else null
-                } ?: return
-                resizeSession(
-                    expectedSessionId = sessionId,
-                    width = width,
-                    height = height,
-                    densityDpi = densityDpi
-                )
-            }
+            releaseSession(sessionId)
         }
     }
 
@@ -272,7 +232,7 @@ object MediaProjectionCapture {
                     "MediaProjection resize failed; ending the capture session",
                     failure
                 )
-                releaseSession(snapshot.sessionId, stopProjection = true)
+                releaseSession(snapshot.sessionId)
             }
             return false
         }
@@ -313,19 +273,15 @@ object MediaProjectionCapture {
         }
     }
 
-    private fun releaseSession(sessionId: Long, stopProjection: Boolean) {
+    private fun releaseSession(sessionId: Long) {
         val resources = synchronized(stateLock) {
             if (currentSessionId != sessionId) return
 
             val detached = SessionResources(
-                projection = mediaProjection,
-                callback = projectionCallback,
                 display = virtualDisplay,
                 readerToClose = captureTarget?.let(::retireCaptureTargetLocked)
             )
             currentSessionId = 0L
-            mediaProjection = null
-            projectionCallback = null
             virtualDisplay = null
             captureTarget = null
             successLogged = false
@@ -337,16 +293,6 @@ object MediaProjectionCapture {
             .onFailure { FgoLogger.warn(tag, "MediaProjection display release failed", it) }
         runCatching { resources.readerToClose?.close() }
             .onFailure { FgoLogger.warn(tag, "MediaProjection ImageReader close failed", it) }
-        if (stopProjection) {
-            val projection = resources.projection
-            val callback = resources.callback
-            if (projection != null && callback != null) {
-                runCatching { projection.unregisterCallback(callback) }
-                    .onFailure { FgoLogger.warn(tag, "MediaProjection callback removal failed", it) }
-            }
-            runCatching { projection?.stop() }
-                .onFailure { FgoLogger.warn(tag, "MediaProjection stop failed", it) }
-        }
     }
 
     private fun retireCaptureTargetLocked(target: CaptureTarget): ImageReader? {
@@ -377,14 +323,7 @@ object MediaProjectionCapture {
         val target: CaptureTarget
     )
 
-    private data class SessionStart(
-        val id: Long,
-        val callback: MediaProjection.Callback
-    )
-
     private data class SessionResources(
-        val projection: MediaProjection?,
-        val callback: MediaProjection.Callback?,
         val display: VirtualDisplay?,
         val readerToClose: ImageReader?
     )

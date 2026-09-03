@@ -18,6 +18,7 @@ It reads the current FGO screen with OCR, matches FGO character names and termin
 - Supports user-provided OpenAI-compatible API settings, including DeepSeek, Qwen, Alibaba Cloud Model Studio, custom endpoints, and authenticated local models on a trusted LAN.
 - Downloads the latest online terminology database instead of bundling a local DB inside the APK.
 - Includes a translation LOG so users can review translated speaker names, dialogue, and choices from the current session.
+- Optionally captures eligible FGO playback audio and streams it to a user-configured Azure Speech resource for low-latency Japanese-to-Chinese subtitles.
 
 ## Installation Note
 
@@ -119,7 +120,7 @@ See [term_builder/README.md](term_builder/README.md) for details.
 
 ## Privacy and Security
 
-FgoGotran does not upload game screenshots. Screenshots are used locally for OCR. When translation is enabled, recognized text and the translation prompt are sent to the online or local translation API selected by the user. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+FgoGotran does not upload game screenshots. Screenshots are used locally for OCR. When text translation is enabled, recognized text and the translation prompt are sent to the selected online or local translation API. When the optional real-time voice feature is enabled, eligible FGO playback audio is streamed to the Azure Speech resource configured by the user and is not stored by FgoGotran. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
 
 Before committing, make sure the repository does not contain:
 

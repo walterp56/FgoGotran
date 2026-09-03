@@ -12,6 +12,7 @@ This checklist is for reducing false positives and making FgoGotran reviewable. 
 - Accessibility service no longer declares window-content retrieval or interactive-window retrieval.
 - Manifest no longer declares `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; users can still open battery settings manually from the app.
 - In-app APK downloading/installing is not implemented. The settings page can check the latest public version and open the download page; Play builds should update through Google Play.
+- The optional real-time voice setting explains why Android labels playback capture as an “audio recording” permission and states that FgoGotran does not select a microphone source.
 
 ## Play Console Declaration Suggested Answers
 
@@ -31,9 +32,9 @@ Foreground service special use:
 
 Data Safety:
 
-- Data shared with third parties: OCR dialogue text and translation prompts sent to the user-selected translation provider.
+- Data shared with third parties: OCR dialogue text and translation prompts sent to the user-selected text provider; if the user enables real-time voice translation, eligible FGO playback audio is streamed to the user-configured Azure Speech resource.
 - Data collected locally: API settings, player name, cache settings, glossary metadata, and translation cache if enabled.
-- Data not collected: contacts, SMS, call logs, precise location, microphone audio, banking credentials, browser history.
+- Data not collected: contacts, SMS, call logs, precise location, microphone audio, banking credentials, browser history. Playback audio and microphone audio must be described separately in the Play form.
 - Security: API keys are stored locally and sent only to the selected translation provider.
 
 ## Release Path
@@ -47,4 +48,4 @@ Data Safety:
 
 ## Risk That Remains
 
-FgoGotran still uses a sensitive combination: AccessibilityService, overlay permission, screenshot/OCR behavior, gesture forwarding, and Internet. That is legitimate for this app, but it can still be flagged by automated scanners, especially when sideloaded or signed by a new key with little reputation.
+FgoGotran still uses a sensitive combination: AccessibilityService, overlay permission, screenshot/OCR behavior, optional playback-audio capture, gesture forwarding, and Internet. That is legitimate for this app, but it can still be flagged by automated scanners, especially when sideloaded or signed by a new key with little reputation.

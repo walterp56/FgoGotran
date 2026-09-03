@@ -49,6 +49,13 @@ android {
     androidResources {
         noCompress += "onnx"
     }
+
+    packaging {
+        resources.excludes += setOf(
+            "META-INF/INDEX.LIST",
+            "META-INF/io.netty.versions.properties"
+        )
+    }
 }
 
 dependencies {
@@ -90,6 +97,9 @@ dependencies {
 
     // Kotlinx Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+
+    // Azure Speech SDK for low-latency Japanese -> Chinese streaming translation
+    implementation("com.microsoft.cognitiveservices.speech:client-sdk:1.51.0")
 
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.2.1")

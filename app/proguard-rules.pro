@@ -20,3 +20,10 @@
 # Native JNI code looks up these Java classes by name.
 -keep class ai.onnxruntime.** { *; }
 -dontwarn ai.onnxruntime.**
+
+# Azure Speech SDK
+# Native JNI code creates and calls these Java types by name.
+-keep class com.microsoft.cognitiveservices.speech.** { *; }
+-dontwarn com.microsoft.cognitiveservices.speech.**
+-dontwarn io.micrometer.context.ContextAccessor
+-dontwarn reactor.blockhound.integration.BlockHoundIntegration

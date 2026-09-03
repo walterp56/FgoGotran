@@ -56,6 +56,13 @@ class SettingsRepository @Inject constructor(
         val KEY_AI_VOICE_MASTER_VOICE = stringPreferencesKey("ai_voice_master_voice")
         val KEY_AZURE_SPEECH_KEY = stringPreferencesKey("azure_speech_key")
         val KEY_AZURE_SPEECH_REGION = stringPreferencesKey("azure_speech_region")
+        val KEY_AZURE_SPEECH_ENDPOINT = stringPreferencesKey("azure_speech_endpoint")
+        val KEY_LIVE_VOICE_TRANSLATION_ENABLED = booleanPreferencesKey("live_voice_translation_enabled")
+        val KEY_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP = intPreferencesKey("live_voice_subtitle_font_size_sp")
+        val KEY_LIVE_VOICE_SUBTITLE_PORTRAIT_X = intPreferencesKey("live_voice_subtitle_portrait_x")
+        val KEY_LIVE_VOICE_SUBTITLE_PORTRAIT_Y = intPreferencesKey("live_voice_subtitle_portrait_y")
+        val KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_X = intPreferencesKey("live_voice_subtitle_landscape_x")
+        val KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_Y = intPreferencesKey("live_voice_subtitle_landscape_y")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
@@ -99,6 +106,9 @@ class SettingsRepository @Inject constructor(
         const val AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA = "southeastasia"
         const val AZURE_SPEECH_REGION_CHINA_NORTH3 = "chinanorth3"
         const val DEFAULT_AZURE_SPEECH_REGION = AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA
+        const val MIN_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP = 14
+        const val DEFAULT_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP = 20
+        const val MAX_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP = 32
         const val AI_VOICE_LANGUAGE_JP_ORIGINAL = "jp_original"
         const val AI_VOICE_LANGUAGE_CN_TRANSLATION = "cn_translation"
         const val DEFAULT_AI_VOICE_LANGUAGE = AI_VOICE_LANGUAGE_CN_TRANSLATION
@@ -225,6 +235,12 @@ class SettingsRepository @Inject constructor(
 
         fun normalizeFloatingButtonSizeDp(sizeDp: Int): Int =
             sizeDp.coerceIn(MIN_FLOATING_BUTTON_SIZE_DP, MAX_FLOATING_BUTTON_SIZE_DP)
+
+        fun normalizeLiveVoiceSubtitleFontSizeSp(fontSizeSp: Int): Int =
+            fontSizeSp.coerceIn(
+                MIN_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP,
+                MAX_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP
+            )
 
         fun normalizeTargetChineseLocale(locale: String): String = when (locale) {
             TARGET_LOCALE_TRADITIONAL -> TARGET_LOCALE_TRADITIONAL
@@ -466,7 +482,7 @@ class SettingsRepository @Inject constructor(
         normalizeAiVoiceMasterVoice(prefs[KEY_AI_VOICE_MASTER_VOICE] ?: DEFAULT_AI_VOICE_MASTER_VOICE)
     }
 
-    /** Azure Speech resource key used only when AI voice is enabled. */
+    /** Azure Speech resource key shared by opt-in voice reading and live voice translation. */
     val azureSpeechKey: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_AZURE_SPEECH_KEY] ?: ""
     }
@@ -475,6 +491,38 @@ class SettingsRepository @Inject constructor(
     val azureSpeechRegion: Flow<String> = context.dataStore.data.map { prefs ->
         normalizeAzureSpeechRegion(prefs[KEY_AZURE_SPEECH_REGION] ?: DEFAULT_AZURE_SPEECH_REGION)
     }
+
+    /** Azure China resource root endpoint used by the Speech SDK sovereign-cloud connection. */
+    val azureSpeechEndpoint: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AZURE_SPEECH_ENDPOINT]?.trim().orEmpty()
+    }
+
+    /** Whether FGO playback audio should be streamed to Azure for live Chinese subtitles. */
+    val liveVoiceTranslationEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LIVE_VOICE_TRANSLATION_ENABLED] ?: false
+    }
+
+    /** Font size used by the draggable live-translation subtitle overlay. */
+    val liveVoiceSubtitleFontSizeSp: Flow<Int> = context.dataStore.data.map { prefs ->
+        normalizeLiveVoiceSubtitleFontSizeSp(
+            prefs[KEY_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP]
+                ?: DEFAULT_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP
+        )
+    }
+
+    /** User-positioned subtitle coordinates, or null until the subtitle is dragged. */
+    val liveVoiceSubtitlePortraitPosition: Flow<Pair<Int, Int>?> =
+        liveVoiceSubtitlePosition(
+            xKey = KEY_LIVE_VOICE_SUBTITLE_PORTRAIT_X,
+            yKey = KEY_LIVE_VOICE_SUBTITLE_PORTRAIT_Y
+        )
+
+    /** User-positioned landscape subtitle coordinates, kept separate from portrait. */
+    val liveVoiceSubtitleLandscapePosition: Flow<Pair<Int, Int>?> =
+        liveVoiceSubtitlePosition(
+            xKey = KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_X,
+            yKey = KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_Y
+        )
 
     /** Whether diagnostic Logcat output is enabled. Disabled by default for privacy. */
     val debugLoggingEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -811,12 +859,16 @@ class SettingsRepository @Inject constructor(
 
     suspend fun saveAzureSpeechSettings(
         speechKey: String,
-        speechRegion: String = DEFAULT_AZURE_SPEECH_REGION
+        speechRegion: String = DEFAULT_AZURE_SPEECH_REGION,
+        speechEndpoint: String? = null
     ) {
         val normalizedRegion = normalizeAzureSpeechRegion(speechRegion)
         context.dataStore.edit {
             it[KEY_AZURE_SPEECH_KEY] = speechKey.trim()
             it[KEY_AZURE_SPEECH_REGION] = normalizedRegion
+            speechEndpoint?.let { endpoint ->
+                it[KEY_AZURE_SPEECH_ENDPOINT] = endpoint.trim()
+            }
         }
         FgoLogger.debug(tag, "Setting updated: azure_speech_region=$normalizedRegion")
     }
@@ -825,6 +877,43 @@ class SettingsRepository @Inject constructor(
         val normalizedRegion = normalizeAzureSpeechRegion(speechRegion)
         context.dataStore.edit { it[KEY_AZURE_SPEECH_REGION] = normalizedRegion }
         FgoLogger.debug(tag, "Setting updated: azure_speech_region=$normalizedRegion")
+    }
+
+    suspend fun setLiveVoiceTranslationEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LIVE_VOICE_TRANSLATION_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: live_voice_translation_enabled=$enabled")
+    }
+
+    suspend fun setLiveVoiceSubtitleFontSizeSp(fontSizeSp: Int) {
+        val safeSize = normalizeLiveVoiceSubtitleFontSizeSp(fontSizeSp)
+        context.dataStore.edit { it[KEY_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP] = safeSize }
+        FgoLogger.debug(tag, "Setting updated: live_voice_subtitle_font_size_sp=$safeSize")
+    }
+
+    suspend fun setLiveVoiceSubtitlePosition(x: Int, y: Int, isLandscape: Boolean) {
+        val safeX = x.coerceAtLeast(0)
+        val safeY = y.coerceAtLeast(0)
+        context.dataStore.edit {
+            if (isLandscape) {
+                it[KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_X] = safeX
+                it[KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_Y] = safeY
+            } else {
+                it[KEY_LIVE_VOICE_SUBTITLE_PORTRAIT_X] = safeX
+                it[KEY_LIVE_VOICE_SUBTITLE_PORTRAIT_Y] = safeY
+            }
+        }
+        val orientation = if (isLandscape) "landscape" else "portrait"
+        FgoLogger.debug(tag, "Setting updated: live_voice_subtitle_$orientation=($safeX,$safeY)")
+    }
+
+    suspend fun resetLiveVoiceSubtitlePosition() {
+        context.dataStore.edit {
+            it.remove(KEY_LIVE_VOICE_SUBTITLE_PORTRAIT_X)
+            it.remove(KEY_LIVE_VOICE_SUBTITLE_PORTRAIT_Y)
+            it.remove(KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_X)
+            it.remove(KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_Y)
+        }
+        FgoLogger.debug(tag, "Setting updated: live_voice_subtitle_position=default")
     }
 
     suspend fun setDebugLoggingEnabled(enabled: Boolean) {
@@ -864,6 +953,15 @@ class SettingsRepository @Inject constructor(
         return inferQwenSiteFromBaseUrl(savedQwenBaseUrl.orEmpty())
             ?: inferQwenSiteFromBaseUrl(legacySelectedBaseUrl.orEmpty())
             ?: DEFAULT_QWEN_SITE
+    }
+
+    private fun liveVoiceSubtitlePosition(
+        xKey: Preferences.Key<Int>,
+        yKey: Preferences.Key<Int>
+    ): Flow<Pair<Int, Int>?> = context.dataStore.data.map { prefs ->
+        val x = prefs[xKey]
+        val y = prefs[yKey]
+        if (x == null || y == null) null else Pair(x.coerceAtLeast(0), y.coerceAtLeast(0))
     }
 
     suspend fun setFloatingButtonPosition(x: Int, y: Int) {

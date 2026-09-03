@@ -37,18 +37,21 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.Translator
@@ -96,6 +99,12 @@ fun VoiceSettingsScreen(
     var azureSpeechRegion by remember {
         mutableStateOf(SettingsRepository.DEFAULT_AZURE_SPEECH_REGION)
     }
+    var azureSpeechEndpoint by remember { mutableStateOf("") }
+    var liveVoiceTranslationEnabled by remember { mutableStateOf(false) }
+    var liveVoiceSubtitleFontSizeSp by remember {
+        mutableIntStateOf(SettingsRepository.DEFAULT_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP)
+    }
+    var subtitlePositionResetMessage by remember { mutableStateOf("") }
     var azureSpeechSaveMessage by remember { mutableStateOf("") }
     var azureSpeechTestMessage by remember { mutableStateOf("") }
     var azureSpeechTestIsError by remember { mutableStateOf(false) }
@@ -112,12 +121,27 @@ fun VoiceSettingsScreen(
         aiVoiceMasterVoice = settingsRepository.aiVoiceMasterVoice.first()
         azureSpeechKey = settingsRepository.azureSpeechKey.first()
         azureSpeechRegion = settingsRepository.azureSpeechRegion.first()
+        azureSpeechEndpoint = settingsRepository.azureSpeechEndpoint.first()
+        liveVoiceTranslationEnabled = settingsRepository.liveVoiceTranslationEnabled.first()
+        liveVoiceSubtitleFontSizeSp = settingsRepository.liveVoiceSubtitleFontSizeSp.first()
     }
 
     fun saveAzureSpeechSettings() {
         scope.launch {
-            settingsRepository.saveAzureSpeechSettings(azureSpeechKey, azureSpeechRegion)
-            azureSpeechSaveMessage = "已保存"
+            settingsRepository.saveAzureSpeechSettings(
+                azureSpeechKey,
+                azureSpeechRegion,
+                azureSpeechEndpoint
+            )
+            azureSpeechSaveMessage = if (
+                liveVoiceTranslationEnabled &&
+                azureSpeechRegion == SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3 &&
+                azureSpeechEndpoint.isBlank()
+            ) {
+                "已保存；中国 Azure 实时翻译还需填写资源端点"
+            } else {
+                "已保存"
+            }
         }
     }
 
@@ -132,7 +156,11 @@ fun VoiceSettingsScreen(
                 if (azureSpeechKey.trim().isBlank()) {
                     throw IllegalArgumentException("Azure Speech key is blank")
                 }
-                settingsRepository.saveAzureSpeechSettings(azureSpeechKey, azureSpeechRegion)
+                settingsRepository.saveAzureSpeechSettings(
+                    azureSpeechKey,
+                    azureSpeechRegion,
+                    azureSpeechEndpoint
+                )
                 val sample = azureVoiceTestSample(settingsRepository.targetChineseLocale.first())
                 var voiceHint: VoiceLineHint? = null
                 var voiceHintError: Throwable? = null
@@ -184,6 +212,66 @@ fun VoiceSettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            VoiceSettingsCard(
+                title = "FGO 实时语音翻译",
+                body = "捕获 FGO 播放的日语语音，直接通过 Azure 显示中文流式字幕。此路径不经过 OCR、术语表或文本标点修复，以响应速度优先。"
+            ) {
+                VoiceSwitchRow(
+                    title = "启用实时语音字幕",
+                    body = "下次启动悬浮服务时生效。Android 会请求“录音”权限，但本功能只选择其他应用允许捕获的播放声音，不选择麦克风输入。",
+                    checked = liveVoiceTranslationEnabled,
+                    onCheckedChange = {
+                        liveVoiceTranslationEnabled = it
+                        azureSpeechSaveMessage = ""
+                        scope.launch { settingsRepository.setLiveVoiceTranslationEnabled(it) }
+                    }
+                )
+                LiveVoiceSubtitleSizeSlider(
+                    fontSizeSp = liveVoiceSubtitleFontSizeSp,
+                    onFontSizeChange = { fontSizeSp ->
+                        val normalizedSize =
+                            SettingsRepository.normalizeLiveVoiceSubtitleFontSizeSp(fontSizeSp)
+                        if (normalizedSize != liveVoiceSubtitleFontSizeSp) {
+                            liveVoiceSubtitleFontSizeSp = normalizedSize
+                            scope.launch {
+                                settingsRepository.setLiveVoiceSubtitleFontSizeSp(normalizedSize)
+                            }
+                        }
+                    }
+                )
+                LiveVoiceSubtitlePreview(fontSizeSp = liveVoiceSubtitleFontSizeSp)
+                Text(
+                    "字幕显示时可直接拖动；位置会分别保存为横屏和竖屏设置。只有字幕黑框本身会接收触摸。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (subtitlePositionResetMessage.isNotBlank()) {
+                        Text(
+                            subtitlePositionResetMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            subtitlePositionResetMessage = ""
+                            scope.launch {
+                                settingsRepository.resetLiveVoiceSubtitlePosition()
+                                subtitlePositionResetMessage = "已恢复默认位置"
+                            }
+                        }
+                    ) {
+                        Text("重置字幕位置")
+                    }
+                }
+            }
+
             VoiceSettingsCard(
                 title = "AI 语音朗读",
                 body = "按角色朗读剧情台词。"
@@ -347,6 +435,25 @@ fun VoiceSettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
                 )
+                if (azureSpeechRegion == SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3) {
+                    OutlinedTextField(
+                        value = azureSpeechEndpoint,
+                        onValueChange = {
+                            azureSpeechEndpoint = it
+                            azureSpeechSaveMessage = ""
+                            azureSpeechTestMessage = ""
+                            azureSpeechTestIsError = false
+                        },
+                        label = { Text("中国 Azure Speech 资源端点") },
+                        placeholder = { Text("https://资源名.cognitiveservices.azure.cn") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        supportingText = {
+                            Text("实时翻译使用 Azure 门户中该 Speech 资源的根端点；仅接受 HTTPS 的 *.cognitiveservices.azure.cn。")
+                        },
+                        singleLine = true
+                    )
+                }
                 OutlinedTextField(
                     value = azureSpeechKey,
                     onValueChange = {
@@ -360,7 +467,7 @@ fun VoiceSettingsScreen(
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     supportingText = {
-                        Text("仅保存在本机，用于 AI 语音朗读。")
+                        Text("仅保存在本机，用于 AI 语音朗读和已启用的实时语音翻译。")
                     },
                     singleLine = true
                 )
@@ -401,7 +508,7 @@ fun VoiceSettingsScreen(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = { saveAzureSpeechSettings() }) {
-                        Text("保存语音设置")
+                        Text("保存 Azure 设置")
                     }
                 }
             }
@@ -482,6 +589,94 @@ private fun voiceTestErrorMessage(error: Throwable): String {
         message.isNotBlank() -> "测试失败：${message.take(96)}"
         else -> "测试失败：${error::class.java.simpleName}"
     }
+}
+
+@Composable
+private fun LiveVoiceSubtitleSizeSlider(
+    fontSizeSp: Int,
+    onFontSizeChange: (Int) -> Unit
+) {
+    val normalizedSize = SettingsRepository.normalizeLiveVoiceSubtitleFontSizeSp(fontSizeSp)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "字幕大小",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+            )
+            Text(
+                "${normalizedSize}sp",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (
+                    normalizedSize == SettingsRepository.DEFAULT_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP
+                ) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "小",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Slider(
+                value = normalizedSize.toFloat(),
+                onValueChange = { rawValue -> onFontSizeChange(rawValue.roundToInt()) },
+                valueRange = SettingsRepository.MIN_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP.toFloat()..
+                    SettingsRepository.MAX_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP.toFloat(),
+                steps = liveVoiceSubtitleSizeSliderSteps(),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            )
+            Text(
+                "大",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun LiveVoiceSubtitlePreview(fontSizeSp: Int) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            color = Color(0xCC101010),
+            shape = MaterialTheme.shapes.small
+        ) {
+            Text(
+                text = "实时字幕预览",
+                color = Color.White,
+                fontSize = SettingsRepository.normalizeLiveVoiceSubtitleFontSizeSp(fontSizeSp).sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
+    }
+}
+
+private fun liveVoiceSubtitleSizeSliderSteps(): Int {
+    return SettingsRepository.MAX_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP -
+        SettingsRepository.MIN_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP -
+        1
 }
 
 @Composable

@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.hardware.display.DisplayManager
+import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Handler
 import android.os.Looper
@@ -25,6 +26,7 @@ import com.fgogotran.MainActivity
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.speech.RealtimeVoiceTranslationController
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.util.FgoLogger
@@ -44,6 +46,7 @@ class FgoRunnerService : Service() {
     @Inject lateinit var glossaryUpdateManager: GlossaryUpdateManager
     @Inject lateinit var voiceDataUpdateManager: VoiceDataUpdateManager
     @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var realtimeVoiceTranslationController: RealtimeVoiceTranslationController
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -52,14 +55,19 @@ class FgoRunnerService : Service() {
     private var lastHeight = 0
     private var lastDensityDpi = 0
     private var lastRotation = -1
+    private var mediaProjection: MediaProjection? = null
+    private var mediaProjectionCallback: MediaProjection.Callback? = null
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = Unit
         override fun onDisplayRemoved(displayId: Int) = Unit
         override fun onDisplayChanged(displayId: Int) {
             if (displayId != Display.DEFAULT_DISPLAY) return
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                mainHandler.post { resizeMediaProjection() }
+            mainHandler.post {
+                realtimeVoiceTranslationController.onDisplayChanged()
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    resizeMediaProjection()
+                }
             }
         }
     }
@@ -148,9 +156,14 @@ class FgoRunnerService : Service() {
     private fun createMediaProjection() {
         val resultCode = pendingResultCode
         val resultData = pendingResultData ?: return
+        pendingResultData = null
         try {
             val manager = getSystemService(MediaProjectionManager::class.java)
             val projection = manager.getMediaProjection(resultCode, resultData)
+            val callback = mediaProjectionCallbackFor(projection)
+            mediaProjection = projection
+            mediaProjectionCallback = callback
+            projection.registerCallback(callback, mainHandler)
             val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
             val densityDpi = resources.configuration.densityDpi
             lastWidth = bounds.width()
@@ -166,9 +179,57 @@ class FgoRunnerService : Service() {
             if (!started) {
                 FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot")
             }
+            serviceScope.launch {
+                realtimeVoiceTranslationController.start(projection)
+            }
         } catch (e: Exception) {
             FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot", e)
-            MediaProjectionCapture.stop()
+            releaseMediaProjection(stopProjection = true)
+        }
+    }
+
+    private fun mediaProjectionCallbackFor(projection: MediaProjection): MediaProjection.Callback {
+        return object : MediaProjection.Callback() {
+            override fun onStop() {
+                mainHandler.post {
+                    if (mediaProjection !== projection) return@post
+                    FgoLogger.info(tag, "MediaProjection session stopped by the system")
+                    releaseMediaProjection(stopProjection = false)
+                }
+            }
+
+            override fun onCapturedContentResize(width: Int, height: Int) {
+                if (width <= 0 || height <= 0 || mediaProjection !== projection) return
+                mainHandler.post {
+                    if (mediaProjection !== projection) return@post
+                    realtimeVoiceTranslationController.onDisplayChanged()
+                    val densityDpi = resources.configuration.densityDpi
+                    val resized = MediaProjectionCapture.resize(width, height, densityDpi)
+                    if (resized) {
+                        lastWidth = width
+                        lastHeight = height
+                        lastDensityDpi = densityDpi
+                        lastRotation = defaultDisplayRotation()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun releaseMediaProjection(stopProjection: Boolean) {
+        val projection = mediaProjection
+        val callback = mediaProjectionCallback
+        mediaProjection = null
+        mediaProjectionCallback = null
+        realtimeVoiceTranslationController.stop()
+        MediaProjectionCapture.stop()
+        if (projection != null && callback != null) {
+            runCatching { projection.unregisterCallback(callback) }
+                .onFailure { FgoLogger.warn(tag, "MediaProjection callback removal failed", it) }
+        }
+        if (stopProjection) {
+            runCatching { projection?.stop() }
+                .onFailure { FgoLogger.warn(tag, "MediaProjection stop failed", it) }
         }
     }
 
@@ -202,7 +263,8 @@ class FgoRunnerService : Service() {
         SessionTranslationHistory.clear()
         serviceScope.cancel()
         displayManager?.unregisterDisplayListener(displayListener)
-        MediaProjectionCapture.stop()
+        releaseMediaProjection(stopProjection = true)
+        realtimeVoiceTranslationController.destroyOverlay()
         instance = null
         super.onDestroy()
     }

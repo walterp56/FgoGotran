@@ -26,6 +26,7 @@ import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.capture.MediaProjectionCapture
 import com.fgogotran.crop.CropTextLine
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.game.FgoPackages
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrEngineId
@@ -146,7 +147,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private val unsupportedFgoLikePackageLoggedAt = LinkedHashMap<String, Long>()
 
     companion object {
-        const val FGO_PACKAGE = "com.aniplex.fategrandorder"
+        const val FGO_PACKAGE = FgoPackages.JP
         private const val APP_PACKAGE = "com.fgogotran"
         private const val DETECTION_INTERVAL = 120L
         private const val CAPTURE_SETTLE_DELAY = 16L
@@ -261,25 +262,6 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private val tag = "Accessibility"
-    private val supportedFgoPackageNames = setOf(
-        FGO_PACKAGE,
-        "com.aniplex.fategrandorder.en",
-        "com.bilibili.fatego",
-        "com.bilibili.fategp",
-        "com.bilibili.fatego.sharejoy",
-        "com.bilibili.fgo.mi",
-        "com.bilibili.fgo.uc",
-        "com.xiaomeng.fategrandorder",
-        "com.komoe.fgo"
-    )
-    private val supportedFgoPackagePrefixes = setOf(
-        "$FGO_PACKAGE.",
-        "com.bilibili.fatego.",
-        "com.bilibili.fgo.",
-        "com.xiaomeng.fategrandorder.",
-        "com.komoe.fgo."
-    )
-
     private data class RegionSourceText(
         val region: ClassifiedRegion,
         val text: String
@@ -4460,7 +4442,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun String.isSupportedFgoPackage(): Boolean {
-        return this in supportedFgoPackageNames || supportedFgoPackagePrefixes.any { startsWith(it) }
+        return FgoPackages.isSupported(this)
     }
 
     private fun String.isUnsupportedFgoLikePackage(): Boolean {

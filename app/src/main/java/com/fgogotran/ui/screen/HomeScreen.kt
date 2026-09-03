@@ -1,8 +1,10 @@
 package com.fgogotran.ui.screen
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.media.projection.MediaProjectionManager
 import android.os.PowerManager
@@ -10,6 +12,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -69,9 +72,28 @@ fun HomeScreen(
             FgoRunnerService.startService(context, result.resultCode, result.data)
         }
     }
+    val audioCapturePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                category = DiagnosticEventStore.CATEGORY_SETUP,
+                eventId = "playback_audio_permission_missing",
+                title = "播放声音捕获权限未授权",
+                message = "OCR 翻译仍会启动，实时语音翻译不会启动",
+                detail = "Android 使用 RECORD_AUDIO 权限保护其他应用的播放声音捕获"
+            )
+        }
+        val projectionManager = context.getSystemService(MediaProjectionManager::class.java)
+        projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+    }
     val scrollState = rememberScrollState()
     val gameServer by settingsRepository.gameServer.collectAsState(
         initial = SettingsRepository.DEFAULT_GAME_SERVER
+    )
+    val liveVoiceTranslationEnabled by settingsRepository.liveVoiceTranslationEnabled.collectAsState(
+        initial = false
     )
     val serviceRunning = FgoRunnerService.serviceStarted.value
     val accessibilityServiceConnected = FgoAccessibilityService.serviceStarted.value
@@ -156,9 +178,16 @@ fun HomeScreen(
                 detail = "battery_optimization=active"
             )
         }
-        val projectionManager = context.getSystemService(MediaProjectionManager::class.java)
-        val projectionIntent = projectionManager.createScreenCaptureIntent()
-        projectionLauncher.launch(projectionIntent)
+        if (
+            liveVoiceTranslationEnabled &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            audioCapturePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            val projectionManager = context.getSystemService(MediaProjectionManager::class.java)
+            projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+        }
     }
 
     Scaffold(
