@@ -122,8 +122,10 @@ fun VoiceSettingsScreen(
         azureSpeechKey = settingsRepository.azureSpeechKey.first()
         azureSpeechRegion = settingsRepository.azureSpeechRegion.first()
         azureSpeechEndpoint = settingsRepository.azureSpeechEndpoint.first()
-        liveVoiceTranslationEnabled = settingsRepository.liveVoiceTranslationEnabled.first()
         liveVoiceSubtitleFontSizeSp = settingsRepository.liveVoiceSubtitleFontSizeSp.first()
+        settingsRepository.liveVoiceTranslationEnabled.collect { enabled ->
+            liveVoiceTranslationEnabled = enabled
+        }
     }
 
     fun saveAzureSpeechSettings() {
@@ -213,12 +215,12 @@ fun VoiceSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             VoiceSettingsCard(
-                title = "FGO 实时语音翻译",
-                body = "捕获 FGO 播放的日语语音，直接通过 Azure 显示中文流式字幕。此路径不经过 OCR、术语表或文本标点修复，以响应速度优先。"
+                title = "实时语音翻译",
+                body = "捕获播放的日语语音，直接通过 Azure 显示中文流式字幕。"
             ) {
                 VoiceSwitchRow(
                     title = "启用实时语音字幕",
-                    body = "下次启动悬浮服务时生效。Android 会请求“录音”权限，但本功能只选择其他应用允许捕获的播放声音，不选择麦克风输入。",
+                    body = "",
                     checked = liveVoiceTranslationEnabled,
                     onCheckedChange = {
                         liveVoiceTranslationEnabled = it
@@ -240,11 +242,6 @@ fun VoiceSettingsScreen(
                     }
                 )
                 LiveVoiceSubtitlePreview(fontSizeSp = liveVoiceSubtitleFontSizeSp)
-                Text(
-                    "字幕显示时可直接拖动；位置会分别保存为横屏和竖屏设置。只有字幕黑框本身会接收触摸。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,

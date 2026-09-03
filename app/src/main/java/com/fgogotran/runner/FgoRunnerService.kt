@@ -27,6 +27,7 @@ import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.speech.RealtimeVoiceTranslationController
+import com.fgogotran.speech.RealtimeVoiceTranslationState
 import com.fgogotran.terminology.GlossaryUpdateManager
 import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.util.FgoLogger
@@ -34,8 +35,12 @@ import com.fgogotran.voice.VoiceDataUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -55,8 +60,9 @@ class FgoRunnerService : Service() {
     private var lastHeight = 0
     private var lastDensityDpi = 0
     private var lastRotation = -1
-    private var mediaProjection: MediaProjection? = null
+    @Volatile private var mediaProjection: MediaProjection? = null
     private var mediaProjectionCallback: MediaProjection.Callback? = null
+    private var liveVoicePreferenceWriteJob: Job? = null
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = Unit
@@ -121,6 +127,7 @@ class FgoRunnerService : Service() {
         startForegroundCompat()
         displayManager = getSystemService(DisplayManager::class.java)
         createMediaProjection()
+        watchLiveVoiceTranslation()
         displayManager?.registerDisplayListener(displayListener, mainHandler)
         serviceScope.launch {
             glossaryUpdateManager.updateIfNeeded()
@@ -128,7 +135,12 @@ class FgoRunnerService : Service() {
         serviceScope.launch {
             voiceDataUpdateManager.updateIfNeeded()
         }
-        overlay.init(onCloseRequested = { stopFromOverlay() })
+        overlay.init(
+            onCloseRequested = { stopFromOverlay() },
+            onLiveVoiceTranslationToggleRequested = { enabled ->
+                setLiveVoiceTranslationEnabled(enabled)
+            }
+        )
         overlay.show()
     }
 
@@ -179,9 +191,6 @@ class FgoRunnerService : Service() {
             if (!started) {
                 FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot")
             }
-            serviceScope.launch {
-                realtimeVoiceTranslationController.start(projection)
-            }
         } catch (e: Exception) {
             FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot", e)
             releaseMediaProjection(stopProjection = true)
@@ -195,6 +204,11 @@ class FgoRunnerService : Service() {
                     if (mediaProjection !== projection) return@post
                     FgoLogger.info(tag, "MediaProjection session stopped by the system")
                     releaseMediaProjection(stopProjection = false)
+                    serviceScope.launch {
+                        if (settingsRepository.liveVoiceTranslationEnabled.first()) {
+                            realtimeVoiceTranslationController.start(projection = null)
+                        }
+                    }
                 }
             }
 
@@ -272,6 +286,41 @@ class FgoRunnerService : Service() {
     private fun stopFromOverlay() {
         FgoLogger.info(tag, "Stop requested from floating menu")
         stopSelf()
+    }
+
+    private fun setLiveVoiceTranslationEnabled(enabled: Boolean) {
+        if (!enabled) {
+            // Stop immediately; persistence and observers can complete asynchronously.
+            realtimeVoiceTranslationController.stop()
+        }
+        liveVoicePreferenceWriteJob?.cancel()
+        liveVoicePreferenceWriteJob = serviceScope.launch {
+            settingsRepository.setLiveVoiceTranslationEnabled(enabled)
+        }
+    }
+
+    private fun watchLiveVoiceTranslation() {
+        serviceScope.launch {
+            settingsRepository.liveVoiceTranslationEnabled
+                .distinctUntilChanged()
+                .collectLatest { enabled ->
+                    if (enabled) {
+                        realtimeVoiceTranslationController.start(mediaProjection)
+                    } else if (realtimeVoiceTranslationController.state.value !is
+                        RealtimeVoiceTranslationState.Error
+                    ) {
+                        realtimeVoiceTranslationController.stop()
+                    }
+                }
+        }
+        serviceScope.launch {
+            realtimeVoiceTranslationController.state.collect { state ->
+                if (state is RealtimeVoiceTranslationState.Error) {
+                    // A rejected or terminal start is not left looking enabled in either UI.
+                    settingsRepository.setLiveVoiceTranslationEnabled(false)
+                }
+            }
+        }
     }
 
     private fun watchDebugLogging() {

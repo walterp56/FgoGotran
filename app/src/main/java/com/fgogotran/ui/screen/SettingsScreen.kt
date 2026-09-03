@@ -95,6 +95,9 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
     val aiVoiceEnabled by settingsRepository.aiVoiceEnabled.collectAsState(initial = false)
+    val liveVoiceTranslationEnabled by settingsRepository.liveVoiceTranslationEnabled.collectAsState(
+        initial = false
+    )
     val aiVoiceApiHintsEnabled by settingsRepository.aiVoiceApiHintsEnabled.collectAsState(
         initial = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
     )
@@ -356,7 +359,12 @@ fun SettingsScreen(
                 body = ""
             ) {
                 SettingsInfoRow(
-                    label = "状态",
+                    label = "实时语音字幕",
+                    value = if (liveVoiceTranslationEnabled) "已开启" else "未开启",
+                    valueColor = if (liveVoiceTranslationEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                )
+                SettingsInfoRow(
+                    label = "语音朗读",
                     value = if (aiVoiceEnabled) "已开启" else "未开启",
                     valueColor = if (aiVoiceEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
                 )

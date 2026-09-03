@@ -2,22 +2,30 @@ package com.fgogotran.ui.overlay
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
@@ -36,12 +44,15 @@ fun FloatingMenu(
     viewportScale: Float = 1f,
     gameServer: String,
     aiVoiceEnabled: Boolean,
+    liveVoiceTranslationEnabled: Boolean,
     onTranslationModeChange: (TranslationMode) -> Unit,
+    onLiveVoiceTranslationToggle: (Boolean) -> Unit,
     onCropTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onCloseClick: () -> Unit
 ) {
     val density = LocalDensity.current
+    val configuration = LocalConfiguration.current
     val isJapaneseServer =
         SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
     val modeLabel = floatingMenuModeLabel(
@@ -49,37 +60,146 @@ fun FloatingMenu(
         aiVoiceEnabled = aiVoiceEnabled
     )
     val serverLabel = SettingsRepository.gameServerDisplayName(gameServer)
+    val menuShape = RoundedCornerShape(scaledMenuDp(16f, viewportScale, density))
+    val menuWidth = minOf(
+        scaledMenuDp(276f, viewportScale, density),
+        (configuration.screenWidthDp * 0.9f).dp
+    )
+    val menuMaxHeight = (configuration.screenHeightDp * 0.9f).dp
     Column(
         modifier = Modifier
-            .width(scaledMenuDp(230f, viewportScale, density))
-            .background(Color.White, RoundedCornerShape(scaledMenuDp(16f, viewportScale, density)))
-            .padding(vertical = scaledMenuDp(8f, viewportScale, density))
+            .width(menuWidth)
+            .heightIn(max = menuMaxHeight)
+            .clip(menuShape)
+            .background(Color.White)
+            .verticalScroll(rememberScrollState())
+            .padding(scaledMenuDp(12f, viewportScale, density)),
+        verticalArrangement = Arrangement.spacedBy(scaledMenuDp(10f, viewportScale, density))
     ) {
-        Text(
-            text = "FgoGotran",
-            fontSize = scaledMenuSp(14f, viewportScale, density),
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF333333),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    horizontal = scaledMenuDp(20f, viewportScale, density),
-                    vertical = scaledMenuDp(12f, viewportScale, density)
-                )
+        MenuHeader(
+            serverLabel = serverLabel,
+            viewportScale = viewportScale
         )
-
-        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
 
         TranslationModeSelector(
             selectedMode = translationMode,
             viewportScale = viewportScale,
             label = modeLabel,
-            value = serverLabel,
             onModeChange = onTranslationModeChange
         )
 
-        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
+        LiveVoiceTranslationSwitchRow(
+            checked = liveVoiceTranslationEnabled,
+            viewportScale = viewportScale,
+            onCheckedChange = onLiveVoiceTranslationToggle
+        )
 
+        MenuActionGroup(
+            isJapaneseServer = isJapaneseServer,
+            viewportScale = viewportScale,
+            onCropTranslateClick = onCropTranslateClick,
+            onHistoryClick = onHistoryClick
+        )
+
+        CloseServiceRow(
+            viewportScale = viewportScale,
+            onClick = onCloseClick
+        )
+    }
+}
+
+@Composable
+private fun MenuHeader(
+    serverLabel: String,
+    viewportScale: Float
+) {
+    val density = LocalDensity.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = scaledMenuDp(4f, viewportScale, density),
+                vertical = scaledMenuDp(2f, viewportScale, density)
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "FgoGotran",
+            fontSize = scaledMenuSp(16f, viewportScale, density),
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF252525),
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = serverLabel,
+            fontSize = scaledMenuSp(12f, viewportScale, density),
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF075F66),
+            modifier = Modifier
+                .background(
+                    color = Color(0xFFE5F3F2),
+                    shape = RoundedCornerShape(scaledMenuDp(20f, viewportScale, density))
+                )
+                .padding(
+                    horizontal = scaledMenuDp(10f, viewportScale, density),
+                    vertical = scaledMenuDp(5f, viewportScale, density)
+                )
+        )
+    }
+}
+
+@Composable
+private fun LiveVoiceTranslationSwitchRow(
+    checked: Boolean,
+    viewportScale: Float,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val density = LocalDensity.current
+    val shape = RoundedCornerShape(scaledMenuDp(12f, viewportScale, density))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (checked) Color(0xFFEAF6F4) else Color(0xFFF7F8FA))
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            )
+            .padding(
+                horizontal = scaledMenuDp(12f, viewportScale, density),
+                vertical = scaledMenuDp(10f, viewportScale, density)
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(12f, viewportScale, density))
+    ) {
+        Text(
+            text = "实时字幕",
+            fontSize = scaledMenuSp(15f, viewportScale, density),
+            color = Color(0xFF333333),
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = null
+        )
+    }
+}
+
+@Composable
+private fun MenuActionGroup(
+    isJapaneseServer: Boolean,
+    viewportScale: Float,
+    onCropTranslateClick: () -> Unit,
+    onHistoryClick: () -> Unit
+) {
+    val density = LocalDensity.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(scaledMenuDp(12f, viewportScale, density)))
+            .background(Color(0xFFF7F8FA))
+    ) {
         MenuRow(
             icon = FloatingActionIcon.CROP,
             viewportScale = viewportScale,
@@ -87,9 +207,11 @@ fun FloatingMenu(
             enabled = isJapaneseServer,
             onClick = onCropTranslateClick
         )
-
-        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
-
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = scaledMenuDp(12f, viewportScale, density)),
+            color = Color(0xFFE6E8EA),
+            thickness = scaledMenuDp(1f, viewportScale, density)
+        )
         MenuRow(
             icon = FloatingActionIcon.HISTORY_LIST,
             viewportScale = viewportScale,
@@ -97,15 +219,39 @@ fun FloatingMenu(
             enabled = isJapaneseServer,
             onClick = onHistoryClick
         )
+    }
+}
 
-        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = scaledMenuDp(1f, viewportScale, density))
-
-        MenuRow(
+@Composable
+private fun CloseServiceRow(
+    viewportScale: Float,
+    onClick: () -> Unit
+) {
+    val density = LocalDensity.current
+    val color = Color(0xFFB3261E)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(scaledMenuDp(12f, viewportScale, density)))
+            .background(Color(0xFFFFF1F0))
+            .clickable(onClick = onClick)
+            .padding(
+                horizontal = scaledMenuDp(12f, viewportScale, density),
+                vertical = scaledMenuDp(10f, viewportScale, density)
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(12f, viewportScale, density))
+    ) {
+        MenuIcon(
             icon = FloatingActionIcon.CLOSE_CIRCLE,
-            viewportScale = viewportScale,
-            label = "关闭服务",
-            muted = true,
-            onClick = onCloseClick
+            color = color,
+            viewportScale = viewportScale
+        )
+        Text(
+            text = "关闭服务",
+            fontSize = scaledMenuSp(15f, viewportScale, density),
+            fontWeight = FontWeight.Medium,
+            color = color
         )
     }
 }
@@ -115,14 +261,12 @@ private fun MenuRow(
     icon: FloatingActionIcon,
     label: String,
     viewportScale: Float,
-    muted: Boolean = false,
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val density = LocalDensity.current
     val color = when {
         !enabled -> Color(0xFFBBBBBB)
-        muted -> Color(0xFF999999)
         else -> Color(0xFF333333)
     }
     Row(
@@ -130,8 +274,8 @@ private fun MenuRow(
             .fillMaxWidth()
             .clickable(enabled = enabled) { onClick() }
             .padding(
-                horizontal = scaledMenuDp(20f, viewportScale, density),
-                vertical = scaledMenuDp(14f, viewportScale, density)
+                horizontal = scaledMenuDp(12f, viewportScale, density),
+                vertical = scaledMenuDp(11f, viewportScale, density)
             ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(12f, viewportScale, density))
@@ -150,66 +294,53 @@ private fun TranslationModeSelector(
     selectedMode: TranslationMode,
     viewportScale: Float,
     label: String,
-    value: String,
     onModeChange: (TranslationMode) -> Unit
 ) {
     val density = LocalDensity.current
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(scaledMenuDp(12f, viewportScale, density)))
+            .background(Color(0xFFF7F8FA))
             .padding(
-                horizontal = scaledMenuDp(20f, viewportScale, density),
-                vertical = scaledMenuDp(8f, viewportScale, density)
+                horizontal = scaledMenuDp(12f, viewportScale, density),
+                vertical = scaledMenuDp(12f, viewportScale, density)
             ),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(scaledMenuDp(10f, viewportScale, density))
     ) {
         Text(
             text = label,
             fontSize = scaledMenuSp(12f, viewportScale, density),
             fontWeight = FontWeight.Bold,
             color = Color(0xFF777777),
-            maxLines = 1,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = value,
-            fontSize = scaledMenuSp(12f, viewportScale, density),
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF777777),
-            textAlign = TextAlign.End,
             maxLines = 1
         )
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = scaledMenuDp(20f, viewportScale, density),
-                vertical = scaledMenuDp(8f, viewportScale, density)
-            ),
-        horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(6f, viewportScale, density))
-    ) {
-        ModeSegment(
-            label = TranslationMode.MANUAL.label(),
-            selected = selectedMode == TranslationMode.MANUAL,
-            viewportScale = viewportScale,
-            onClick = { onModeChange(TranslationMode.MANUAL) },
-            modifier = Modifier.weight(1f)
-        )
-        ModeSegment(
-            label = TranslationMode.SEMI_AUTO.label(),
-            selected = selectedMode == TranslationMode.SEMI_AUTO,
-            viewportScale = viewportScale,
-            onClick = { onModeChange(TranslationMode.SEMI_AUTO) },
-            modifier = Modifier.weight(1f)
-        )
-        ModeSegment(
-            label = TranslationMode.AUTO.label(),
-            selected = selectedMode == TranslationMode.AUTO,
-            viewportScale = viewportScale,
-            onClick = { onModeChange(TranslationMode.AUTO) },
-            modifier = Modifier.weight(1f)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(6f, viewportScale, density))
+        ) {
+            ModeSegment(
+                label = TranslationMode.MANUAL.label(),
+                selected = selectedMode == TranslationMode.MANUAL,
+                viewportScale = viewportScale,
+                onClick = { onModeChange(TranslationMode.MANUAL) },
+                modifier = Modifier.weight(1f)
+            )
+            ModeSegment(
+                label = TranslationMode.SEMI_AUTO.label(),
+                selected = selectedMode == TranslationMode.SEMI_AUTO,
+                viewportScale = viewportScale,
+                onClick = { onModeChange(TranslationMode.SEMI_AUTO) },
+                modifier = Modifier.weight(1f)
+            )
+            ModeSegment(
+                label = TranslationMode.AUTO.label(),
+                selected = selectedMode == TranslationMode.AUTO,
+                viewportScale = viewportScale,
+                onClick = { onModeChange(TranslationMode.AUTO) },
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 

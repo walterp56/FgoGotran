@@ -50,18 +50,38 @@ class RealtimeVoiceTranslationController @Inject constructor(
     private val _state = MutableStateFlow<RealtimeVoiceTranslationState>(RealtimeVoiceTranslationState.Disabled)
     val state: StateFlow<RealtimeVoiceTranslationState> = _state.asStateFlow()
 
-    suspend fun start(projection: MediaProjection) {
+    suspend fun start(projection: MediaProjection?) {
+        val startRequestId = generation.incrementAndGet()
         if (!settingsRepository.liveVoiceTranslationEnabled.first()) {
-            stop()
+            if (isCurrent(startRequestId)) stop()
             return
         }
+        if (!isCurrent(startRequestId)) return
         subtitleOverlay.prepare()
+        if (!isCurrent(startRequestId)) return
+        val activeProjection = projection
+        if (activeProjection == null) {
+            failConfigurationIfCurrent(
+                startRequestId,
+                "屏幕捕获会话不可用，请重新启动悬浮服务",
+                "media_projection_missing"
+            )
+            return
+        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            failConfiguration("未授予播放声音捕获权限", "record_audio_permission_missing")
+            failConfigurationIfCurrent(
+                startRequestId,
+                "未授予播放声音捕获权限",
+                "record_audio_permission_missing"
+            )
             return
         }
         if (Build.SUPPORTED_ABIS.none(AZURE_SPEECH_SUPPORTED_ABIS::contains)) {
-            failConfiguration("当前设备架构不受 Azure Speech SDK 支持", "azure_speech_abi_unsupported")
+            failConfigurationIfCurrent(
+                startRequestId,
+                "当前设备架构不受 Azure Speech SDK 支持",
+                "azure_speech_abi_unsupported"
+            )
             return
         }
 
@@ -71,26 +91,39 @@ class RealtimeVoiceTranslationController @Inject constructor(
             chinaEndpoint = settingsRepository.azureSpeechEndpoint.first(),
             targetLanguage = settingsRepository.targetChineseLocale.first()
         )
+        if (!isCurrent(startRequestId)) return
         if (config.key.isBlank()) {
-            failConfiguration("Azure Speech Key 为空", "azure_speech_key_missing")
+            failConfigurationIfCurrent(startRequestId, "Azure Speech Key 为空", "azure_speech_key_missing")
             return
         }
         if (config.region == SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3) {
-            runCatching {
+            val endpointError = runCatching {
                 AzureSpeechEndpointPolicy.normalizeChinaResourceEndpoint(config.chinaEndpoint)
-            }.onFailure {
-                failConfiguration(it.message ?: "中国 Azure 资源端点无效", "azure_china_endpoint_invalid")
+            }.exceptionOrNull()
+            if (endpointError != null) {
+                failConfigurationIfCurrent(
+                    startRequestId,
+                    endpointError.message ?: "中国 Azure 资源端点无效",
+                    "azure_china_endpoint_invalid"
+                )
                 return
             }
         }
 
         stopAndAwaitForRestart()
-        val sessionId = generation.incrementAndGet()
+        if (!isCurrent(startRequestId)) return
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            runReconnectLoop(sessionId, projection, config)
+            runReconnectLoop(startRequestId, activeProjection, config)
         }
-        synchronized(stateLock) { sessionJob = job }
-        job.start()
+        val accepted = synchronized(stateLock) {
+            if (isCurrent(startRequestId)) {
+                sessionJob = job
+                true
+            } else {
+                false
+            }
+        }
+        if (accepted) job.start() else job.cancel()
     }
 
     fun stop() {
@@ -111,7 +144,6 @@ class RealtimeVoiceTranslationController @Inject constructor(
     }
 
     private suspend fun stopAndAwaitForRestart() {
-        generation.incrementAndGet()
         val job = synchronized(stateLock) {
             sessionJob
         }
@@ -122,6 +154,10 @@ class RealtimeVoiceTranslationController @Inject constructor(
         audioCapture.stop()
         subtitleOverlay.hide()
         _state.value = RealtimeVoiceTranslationState.Disabled
+    }
+
+    private fun failConfigurationIfCurrent(requestId: Long, message: String, eventId: String) {
+        if (isCurrent(requestId)) failConfiguration(message, eventId)
     }
 
     private suspend fun runReconnectLoop(

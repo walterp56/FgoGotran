@@ -70,6 +70,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var historyHost: FakeComposeHost? = null
     private var floatingMenuDialog: androidx.appcompat.app.AlertDialog? = null
     private var onCloseRequested: (() -> Unit)? = null
+    private var onLiveVoiceTranslationToggleRequested: ((Boolean) -> Unit)? = null
     private var shown = false
     private var cropModeState = CropModeState.IDLE
     private var modeBeforeCrop: TranslationMode? = null
@@ -79,6 +80,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var buttonSizeDp by mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
     private var gameServer by mutableStateOf(SettingsRepository.DEFAULT_GAME_SERVER)
     private var aiVoiceEnabled by mutableStateOf(false)
+    private var liveVoiceTranslationEnabled by mutableStateOf(false)
     private var showButtonFailureRing by mutableStateOf(false)
     private var failureFeedbackVersion = 0
     private var buttonPositionScreen: ButtonScreen? = null
@@ -87,6 +89,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var buttonSizeJob: Job? = null
     private var gameServerJob: Job? = null
     private var aiVoiceEnabledJob: Job? = null
+    private var liveVoiceTranslationEnabledJob: Job? = null
     private var showRequestVersion = 0
     private var callbacksRegistered = false
 
@@ -149,9 +152,13 @@ class FgoRunnerOverlay @Inject constructor(
         }
 
     /** Must be called before [show]. Initializes the WindowManager. */
-    fun init(onCloseRequested: () -> Unit) {
+    fun init(
+        onCloseRequested: () -> Unit,
+        onLiveVoiceTranslationToggleRequested: (Boolean) -> Unit
+    ) {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         this.onCloseRequested = onCloseRequested
+        this.onLiveVoiceTranslationToggleRequested = onLiveVoiceTranslationToggleRequested
         if (!callbacksRegistered) {
             context.registerComponentCallbacks(componentCallbacks)
             callbacksRegistered = true
@@ -177,6 +184,7 @@ class FgoRunnerOverlay @Inject constructor(
                 buttonSizeDp = settingsRepository.getFloatingButtonSizeDp()
                 gameServer = settingsRepository.getGameServer()
                 aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
+                liveVoiceTranslationEnabled = settingsRepository.liveVoiceTranslationEnabled.first()
                 if (!shown || requestVersion != showRequestVersion) return@launch
 
                 val wm = windowManager
@@ -204,6 +212,7 @@ class FgoRunnerOverlay @Inject constructor(
                 startButtonSizeObserver()
                 startGameServerObserver()
                 startAiVoiceEnabledObserver()
+                startLiveVoiceTranslationEnabledObserver()
                 FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
             } catch (e: Exception) {
                 composeHost?.close()
@@ -243,6 +252,8 @@ class FgoRunnerOverlay @Inject constructor(
         gameServerJob = null
         aiVoiceEnabledJob?.cancel()
         aiVoiceEnabledJob = null
+        liveVoiceTranslationEnabledJob?.cancel()
+        liveVoiceTranslationEnabledJob = null
         saveButtonPositionNow()
         val wm = windowManager
         cancelCropMode()
@@ -269,6 +280,7 @@ class FgoRunnerOverlay @Inject constructor(
         }
         windowManager = null
         onCloseRequested = null
+        onLiveVoiceTranslationToggleRequested = null
         FgoLogger.info(tag, "Overlay destroyed")
     }
 
@@ -467,6 +479,16 @@ class FgoRunnerOverlay @Inject constructor(
         }
     }
 
+    private fun startLiveVoiceTranslationEnabledObserver() {
+        liveVoiceTranslationEnabledJob?.cancel()
+        liveVoiceTranslationEnabledJob = overlayScope.launch {
+            settingsRepository.liveVoiceTranslationEnabled.collect { enabled ->
+                if (enabled == liveVoiceTranslationEnabled) return@collect
+                liveVoiceTranslationEnabled = enabled
+            }
+        }
+    }
+
     private fun saveButtonPositionSoon() {
         val x = btnX
         val y = btnY
@@ -556,6 +578,7 @@ class FgoRunnerOverlay @Inject constructor(
                 viewportScale = currentViewportScale(),
                 gameServer = gameServer,
                 aiVoiceEnabled = aiVoiceEnabled,
+                liveVoiceTranslationEnabled = liveVoiceTranslationEnabled,
                 onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {
@@ -568,6 +591,10 @@ class FgoRunnerOverlay @Inject constructor(
                         refreshButtonMode()
                     }
                     dismissMenu()
+                },
+                onLiveVoiceTranslationToggle = { enabled ->
+                    liveVoiceTranslationEnabled = enabled
+                    onLiveVoiceTranslationToggleRequested?.invoke(enabled)
                 },
                 onCropTranslateClick = {
                     if (isJapaneseServer()) {
