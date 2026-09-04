@@ -106,6 +106,8 @@ dependencies {
 
     // AppCompat (for AlertDialog from Service context)
     implementation("androidx.appcompat:appcompat:1.7.0")
+    // Recycle the existing native bilingual LOG rows; 1.3.2 supports compileSdk 34.
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
 
     // Core
     implementation("androidx.core:core-ktx:1.13.1")

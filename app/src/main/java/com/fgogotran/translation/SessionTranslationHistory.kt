@@ -23,7 +23,18 @@ data class SessionTranslationEntry(
     val sourceKey: String = "",
     val dialogueSourceKey: String = "",
     val contextDialogueTranslationTrusted: Boolean = true,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val historyId: Long = 0L,
+    val battleOccurrence: Boolean = false
+)
+
+/** Reserves source order without putting unfinished/failed translation text in the LOG. */
+data class BattleHistoryReservation internal constructor(
+    internal val session: Long,
+    internal val order: Long,
+    internal val sourceKey: String,
+    internal val original: String,
+    internal val createdAt: Long
 )
 
 /**
@@ -35,35 +46,64 @@ object SessionTranslationHistory {
 
     private val _entries = MutableStateFlow<List<SessionTranslationEntry>>(emptyList())
     val entries: StateFlow<List<SessionTranslationEntry>> = _entries.asStateFlow()
+    private var session = 0L
+    private var nextOrder = 0L
 
+    @Synchronized
     fun add(entry: SessionTranslationEntry) {
         val currentEntries = _entries.value
         val originalKey = entry.contentKey()
         if (originalKey.isBlank()) return
-        if (currentEntries.lastOrNull()?.contentKey() == originalKey) {
+        if (currentEntries.lastOrNull()?.let { !it.battleOccurrence && it.contentKey() == originalKey } == true) {
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
         }
 
         val previousDialogueEntry = currentEntries
             .asReversed()
-            .firstOrNull { it.dialogueKey().isNotBlank() }
+            .firstOrNull { !it.battleOccurrence && it.dialogueKey().isNotBlank() }
         val normalizedEntry = entry.withoutRepeatedDialogueAfter(previousDialogueEntry)
         val key = normalizedEntry.contentKey()
         if (key.isBlank()) return
         if (normalizedEntry.shouldUpdateLatestSameSource(currentEntries.lastOrNull())) {
             FgoLogger.debug(TAG, "History latest same-source entry updated")
-            _entries.value = currentEntries.dropLast(1) + normalizedEntry
+            _entries.value = currentEntries.dropLast(1) + normalizedEntry.copy(historyId = currentEntries.last().historyId)
             return
         }
-        if (currentEntries.lastOrNull()?.contentKey() == key) {
+        if (currentEntries.lastOrNull()?.let { !it.battleOccurrence && it.contentKey() == key } == true) {
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
         }
-        _entries.value = (currentEntries + normalizedEntry).takeLast(100)
+        _entries.value = currentEntries + normalizedEntry.copy(historyId = ++nextOrder)
     }
 
+    @Synchronized
+    fun reserveBattleEntry(sourceKey: String, original: String): BattleHistoryReservation =
+        BattleHistoryReservation(session, ++nextOrder, sourceKey, original, System.currentTimeMillis())
+
+    @Synchronized
+    fun completeBattleEntry(reservation: BattleHistoryReservation, translation: String, targetLocale: String): Boolean {
+        if (reservation.session != session || translation.isBlank()) return false
+        val current = _entries.value
+        if (current.any { it.historyId == reservation.order }) return false
+        val entry = SessionTranslationEntry(
+            dialogueText = translation,
+            originalDialogueText = reservation.original,
+            targetLocale = targetLocale,
+            sourceKey = reservation.sourceKey,
+            createdAt = reservation.createdAt,
+            historyId = reservation.order,
+            battleOccurrence = true
+        )
+        // API B may finish before A. Insert by reserved occurrence order, including among story entries.
+        val index = current.binarySearchBy(reservation.order) { it.historyId }.let { if (it < 0) -it - 1 else it }
+        _entries.value = current.toMutableList().apply { add(index, entry) }
+        return true
+    }
+
+    @Synchronized
     fun clear() {
+        session++ // Invalidate reservations even if an old network callback survives cancellation.
         _entries.value = emptyList()
     }
 
@@ -154,6 +194,7 @@ object SessionTranslationHistory {
         previous: SessionTranslationEntry?
     ): Boolean {
         if (previous == null) return false
+        if (previous.battleOccurrence) return false
         if (choices.isNotEmpty() != previous.choices.isNotEmpty()) return false
         if (choices.isEmpty() && (dialogueText.isNullOrBlank() || previous.dialogueText.isNullOrBlank())) {
             return false

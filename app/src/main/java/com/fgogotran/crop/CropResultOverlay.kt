@@ -28,6 +28,8 @@ class CropResultOverlay @Inject constructor(
     private var onTouch: ((MotionEvent) -> Boolean)? = null
     private val tag = "CropResultOverlay"
 
+    fun isShowing(): Boolean = rootView != null
+
     fun init(
         serviceContext: Context,
         onTap: (Float, Float) -> Unit,

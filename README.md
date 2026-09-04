@@ -1,6 +1,6 @@
 # FgoGotran
 
-FgoGotran is an Android floating translation tool for reading **Fate/Grand Order JP story content**.
+FgoGotran is an Android floating translation tool for reading **Fate/Grand Order JP story content and battle subtitles**.
 
 It reads the current FGO screen with OCR, matches FGO character names and terminology from a glossary, sends the text to a user-configured AI translation API, and renders the translated speaker name, dialogue, and choices back on top of the game.
 
@@ -19,6 +19,21 @@ It reads the current FGO screen with OCR, matches FGO character names and termin
 - Downloads the latest online terminology database instead of bundling a local DB inside the APK.
 - Includes a translation LOG so users can review translated speaker names, dialogue, and choices from the current session.
 - Optionally captures eligible FGO playback audio and streams it to a user-configured Azure Speech resource for low-latency Japanese-to-Chinese subtitles.
+- Optional battle-subtitle OCR detects the fixed BATTLE / ENEMY / TURN HUD and translates short on-screen battle dialogue independently of story translation mode.
+
+### Battle subtitles
+
+Enable **Settings → 翻译偏好 → 战斗字幕**, start the floating service, and open FGO JP in landscape. The feature uses the selected OCR engine and text-translation API; Azure is not required. It is off by default.
+
+Battle detection and subtitle cropping use FGO's centered 16:9 layout. Captions appear above the original subtitle and do not intercept taps. Battle-caption typography follows the same viewport scale as FGO's native subtitle, using a 44-pixel reference size at 1920x1080. Soft OCR/API line breaks are reflowed and the background grows to the safe battle-caption width before longer translations wrap, without shrinking the text. Every confirmed OCR occurrence is queued independently of source disappearance or replacement. At most two translations run concurrently, with one API attempt per occurrence; results display in Japanese appearance order. Normally captions remain until one second after the source ends, or a newer ready caption replaces them after the minimum reading time. Late and queued captions always receive at least one second of actual visible time, even after the original window has ended. This prioritizes completeness over perfect synchronization when processing falls behind. OCR-missed lines and failed/timed-out API requests cannot be guaranteed; failures are logged and do not block later successful results.
+
+Battle dialogue uses a dedicated independent prompt with no speaker, character, choice, ruby, or previous-scene context. It retains the shared glossary, first/second-person, honorific, action-direction, katakana, pause, source-fidelity, and FGO punctuation rules. Source punctuation is reconciled locally after translation.
+
+Menus and LOG pause battle-caption display and its reading timer, without deleting queued results. Leaving the foreground pauses battle observation/display; returning resumes delivery. After a battle, the remaining queue can finish while the game remains foreground; automatic story translation waits for it to drain. Stopping the service or disabling the feature cancels pending delivery. Azure voice subtitles and battle subtitles are independent: either feature can be enabled or disabled without changing the other's capture, translation, visibility, timing, position, or cleanup. When both produce text, both overlays may be visible simultaneously; the draggable Azure position can be moved away from the fixed battle-caption area.
+
+Successful battle translations are recorded immediately in LOG as speakerless Chinese/Japanese dialogue, in source occurrence order, even before their on-screen turn. They are excluded from story prompt context. LOG retains all entries without a count limit for the current floating-service run; stopping/restarting the service clears it. It is not permanent storage. The LOG panel recycles visible rows for long sessions, and adding entries does not force a user reading older records to the bottom. Text history still consumes memory as the session grows.
+
+The detector is calibrated against the supplied battle recording, including one- and two-line dialogue and portrait cut-ins. It targets dialogue subtitles, not skill/status banners, damage numbers, or all spoken battle audio. Other game UI layouts and device OCR latency still need on-device validation.
 
 ## Installation Note
 

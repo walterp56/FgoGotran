@@ -13,6 +13,11 @@ enum class PromptOutputFormat(val logName: String) {
     JSON_OBJECT("json_object")
 }
 
+enum class TranslationPromptProfile {
+    GENERAL,
+    BATTLE_SUBTITLE
+}
+
 enum class HonorificPromptRule(val sourceSuffix: String) {
     SAN("さん"),
     KUN("くん"),
@@ -41,6 +46,7 @@ data class NamePluralPromptUsage(
 data class PromptContext(
     val outputFormat: PromptOutputFormat = PromptOutputFormat.PLAIN_TEXT,
     val targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+    val promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL,
     val isCropMode: Boolean = false,
     val isDialogue: Boolean = true,
     val isUnattributedDialogue: Boolean = false,
@@ -86,6 +92,7 @@ class PromptBuilder @Inject constructor() {
 
     companion object {
         const val PROMPT_VERSION = "jp-cn-fgo-target-v86"
+        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v1"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -148,6 +155,15 @@ class PromptBuilder @Inject constructor() {
             Use only {target_chinese}; leave no kana unless a rule allows it.
             """.trimIndent()
 
+        private val BATTLE_SUBTITLE_BASE_PROMPT = """
+            You are an expert Japanese-to-Chinese localizer for Fate/Grand Order battle subtitles.
+            Translate only the current visible OCR-captured battle dialogue faithfully into concise, natural {target_chinese} for immediate overlay display.
+            Treat this subtitle independently: no reliable speaker metadata or previous-scene context is available. Preserve complete meaning, viewpoint, action roles, possession, intentional ambiguity, tone, character voice, register, sentence type, repetition, and emotional intensity.
+            Translate every sentence in the current capture together. Treat OCR newlines as visual wrapping, preserve sentence order and boundaries, and let the overlay wrap the Chinese naturally.
+            Never identify the speaker from FGO knowledge or writing style, invent missing OCR text or context, censor, soften, summarize, complete, or omit content.
+            Use only {target_chinese}; leave no kana unless a rule allows it.
+            """.trimIndent()
+
         private val CROP_BASE_PROMPT = """
             Translate visible Fate/Grand Order Japanese OCR faithfully into natural {target_chinese}; be concise without losing information.
             Use only {target_chinese}; do not infer text outside the crop.
@@ -184,6 +200,10 @@ class PromptBuilder @Inject constructor() {
         private val PRONOUN_FIDELITY_PROMPT = """
             - Preserve stated personal references, who performs and receives each action, and whose things are involved. Speaker identity alone does not establish the actor or possessor.
             - When subjects, objects, or possessors are omitted, prefer natural Chinese omission or restructuring. Express a personal reference only when the Japanese source and relevant Japanese context clearly establish it and accurate, natural Chinese needs it. Preserve unresolved ambiguity rather than guessing identity or ownership.
+            """.trimIndent()
+
+        private val BATTLE_PUNCTUATION_PROMPT = """
+            - Preserve every visible FGO punctuation mark and wrapper, including its type, nesting, position, order, and deliberate repetition: 「」, 『』, quotes, （）, (), brackets, ellipses, long dashes, 、。！？, and clusters such as ！！？？. Never drop source punctuation, invent unmatched wrappers, move terminal punctuation outside its source closing wrapper, or collapse expressive clusters. Additional internal Chinese punctuation may remain only where natural syntax requires it.
             """.trimIndent()
 
         private val UNATTRIBUTED_DIALOGUE_PROMPT = """
@@ -272,33 +292,42 @@ class PromptBuilder @Inject constructor() {
         playerName: String = "",
         currentSpeaker: String = "",
         characterContextPrompt: String = "",
-        isChoiceBatch: Boolean = false
+        isChoiceBatch: Boolean = false,
+        promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL
     ): PromptContext {
-        val cleanNameText = nameText?.takeIf { it.isNotBlank() }
+        val isBattleSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
+        val cleanNameText = nameText
+            ?.takeIf { it.isNotBlank() }
+            ?.takeUnless { isBattleSubtitle }
+        val relevantChoiceTexts = choiceTexts.takeUnless { isBattleSubtitle }.orEmpty()
         val primarySourceText = listOfNotNull(cleanNameText, sourceText.takeIf { it.isNotBlank() })
             .joinToString("\n")
-        val otherText = (listOf(sourceText) + choiceTexts).joinToString("\n")
-        val combinedText = (listOf(primarySourceText) + choiceTexts).joinToString("\n")
+        val otherText = (listOf(sourceText) + relevantChoiceTexts).joinToString("\n")
+        val combinedText = (listOf(primarySourceText) + relevantChoiceTexts).joinToString("\n")
         val cleanPlayerName = playerName.trim()
         val normalizedTargetLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
         return PromptContext(
             outputFormat = outputFormat,
             targetChineseLocale = normalizedTargetLocale,
+            promptProfile = promptProfile,
             isCropMode = isCropMode,
             isDialogue = isDialogue,
-            isUnattributedDialogue = !isCropMode &&
+            isUnattributedDialogue = !isBattleSubtitle &&
+                !isCropMode &&
                 isDialogue &&
                 !isChoiceBatch &&
                 currentSpeaker.isBlank(),
-            requestVoiceHint = requestVoiceHint,
+            requestVoiceHint = requestVoiceHint && !isBattleSubtitle,
             hasPlaceholders = containsPlaceholder(combinedText),
             hasMasks = containsMask(combinedText),
-            hasLineBreaks = containsLineBreak(primarySourceText) || choiceTexts.any(::containsLineBreak),
+            hasLineBreaks = !isBattleSubtitle &&
+                (containsLineBreak(primarySourceText) || relevantChoiceTexts.any(::containsLineBreak)),
             hasMasterWord = containsMasterWord(combinedText),
             needsPlayerNameRule = cleanPlayerName.isNotBlank() && combinedText.contains(cleanPlayerName),
-            hasChoices = choiceTexts.isNotEmpty() || isChoiceBatch,
-            hasName = hasName,
-            hasRuby = !isCropMode && (forceRuby || containsRuby(combinedText)),
+            hasChoices = !isBattleSubtitle &&
+                (relevantChoiceTexts.isNotEmpty() || isChoiceBatch),
+            hasName = hasName && !isBattleSubtitle,
+            hasRuby = !isBattleSubtitle && !isCropMode && (forceRuby || containsRuby(combinedText)),
             hasPauseMarks = containsPauseMarks(combinedText),
             honorificMatches = detectHonorificPromptMatches(combinedText),
             namePluralUsage = detectNamePluralPromptUsage(
@@ -309,7 +338,7 @@ class PromptBuilder @Inject constructor() {
             hasKatakana = containsKatakanaWord(combinedText),
             hasAddressPronouns = containsAddressPronoun(combinedText),
             hasBenefactivePassiveCausative = containsBenefactivePassiveCausative(combinedText),
-            characterContextPrompt = characterContextPrompt.trim(),
+            characterContextPrompt = characterContextPrompt.trim().takeUnless { isBattleSubtitle }.orEmpty(),
             specialFirstPersonMappings = SpecialFirstPersonPronouns.promptMappings(
                 combinedText,
                 normalizedTargetLocale
@@ -335,14 +364,22 @@ class PromptBuilder @Inject constructor() {
         val sb = StringBuilder()
         val blockNames = mutableListOf<String>()
         val targetChinese = targetChinesePromptLabel(context.targetChineseLocale)
+        val isBattleSubtitle =
+            context.promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
+        val basePrompt = when {
+            context.isCropMode -> CROP_BASE_PROMPT
+            isBattleSubtitle -> BATTLE_SUBTITLE_BASE_PROMPT
+            else -> BASE_TRANSLATION_PROMPT
+        }
         appendPromptBlock(
             sb,
             blockNames,
-            if (context.isCropMode) "crop_base" else "base",
-            applyTargetChinese(
-                if (context.isCropMode) CROP_BASE_PROMPT else BASE_TRANSLATION_PROMPT,
-                targetChinese
-            )
+            when {
+                context.isCropMode -> "crop_base"
+                isBattleSubtitle -> "battle_base"
+                else -> "base"
+            },
+            applyTargetChinese(basePrompt, targetChinese)
         )
         appendPromptBlock(
             sb,
@@ -356,6 +393,14 @@ class PromptBuilder @Inject constructor() {
                 blockNames,
                 "pronoun_fidelity",
                 buildPronounFidelityPrompt()
+            )
+        }
+        if (isBattleSubtitle) {
+            appendPromptBlock(
+                sb,
+                blockNames,
+                "battle_punctuation",
+                BATTLE_PUNCTUATION_PROMPT
             )
         }
         if (context.hasPlaceholders) {
@@ -380,7 +425,7 @@ class PromptBuilder @Inject constructor() {
         } else {
             if (context.isDialogue) {
                 appendPromptBlock(sb, blockNames, "dialogue_style", DIALOGUE_STYLE_PROMPT)
-                if (context.characterContextPrompt.isNotBlank()) {
+                if (!isBattleSubtitle && context.characterContextPrompt.isNotBlank()) {
                     appendPromptBlock(
                         sb,
                         blockNames,
@@ -388,7 +433,7 @@ class PromptBuilder @Inject constructor() {
                         buildCharacterContextPrompt(context.characterContextPrompt)
                     )
                 }
-                if (context.isUnattributedDialogue) {
+                if (!isBattleSubtitle && context.isUnattributedDialogue) {
                     appendPromptBlock(
                         sb,
                         blockNames,
@@ -397,14 +442,14 @@ class PromptBuilder @Inject constructor() {
                     )
                 }
             }
-            if (context.hasLineBreaks) {
+            if (!isBattleSubtitle && context.hasLineBreaks) {
                 appendPromptBlock(sb, blockNames, "line_break", LINE_BREAK_PROMPT)
             }
             if (context.hasMasterWord) {
                 appendPromptBlock(sb, blockNames, "master", MASTER_PROMPT)
             }
         }
-        if (context.requestVoiceHint) {
+        if (!isBattleSubtitle && context.requestVoiceHint) {
             appendPromptBlock(sb, blockNames, "voice_hint", VOICE_HINT_PROMPT)
         }
         featurePromptBlocks(context).forEach { (name, block) ->
@@ -415,7 +460,8 @@ class PromptBuilder @Inject constructor() {
         }
         FgoLogger.debug(
             tag,
-            "System prompt combination: format=${context.outputFormat.logName}, " +
+            "System prompt combination: profile=${context.promptProfile}, " +
+                "format=${context.outputFormat.logName}, " +
                 "target=${context.targetChineseLocale}, blocks=${blockNames.joinToString("+")}, " +
                 "chars=${sb.length}"
         )
@@ -462,12 +508,14 @@ class PromptBuilder @Inject constructor() {
     }
 
     private fun featurePromptBlocks(context: PromptContext): List<Pair<String, String>> {
+        val isBattleSubtitle =
+            context.promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
         return buildList {
             if (!context.isCropMode && context.hasBenefactivePassiveCausative) {
                 add("participant_direction" to PARTICIPANT_DIRECTION_PROMPT)
             }
-            if (context.hasChoices) add("choices" to CHOICE_PROMPT)
-            if (context.hasName) add("name" to NAME_PROMPT)
+            if (!isBattleSubtitle && context.hasChoices) add("choices" to CHOICE_PROMPT)
+            if (!isBattleSubtitle && context.hasName) add("name" to NAME_PROMPT)
             if (context.namePluralUsage.isPresent) {
                 add(
                     "name_plural" to buildNamePluralPrompt(
@@ -476,7 +524,7 @@ class PromptBuilder @Inject constructor() {
                     )
                 )
             }
-            if (context.hasRuby) add("ruby" to RUBY_PROMPT)
+            if (!isBattleSubtitle && context.hasRuby) add("ruby" to RUBY_PROMPT)
             if (context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
             if (context.honorificMatches.isNotEmpty()) {
                 add(

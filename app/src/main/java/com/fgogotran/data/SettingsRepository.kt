@@ -16,6 +16,8 @@ import com.fgogotran.terminology.LocalGlossaryDatabase
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -30,7 +32,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  * All settings are exposed as [Flow] for reactive reading and have
  * corresponding suspend setter functions for writing.
  *
- * Settings persist across app restarts and survive APK updates.
+ * Settings persist across app restarts and survive APK updates, except explicitly
+ * session-only diagnostic switches.
  */
 @Singleton
 class SettingsRepository @Inject constructor(
@@ -45,6 +48,7 @@ class SettingsRepository @Inject constructor(
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
         val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
+        val KEY_BATTLE_SUBTITLES_ENABLED = booleanPreferencesKey("battle_subtitles_enabled")
         val KEY_AI_VOICE_ENABLED = booleanPreferencesKey("ai_voice_enabled")
         val KEY_AI_VOICE_LANGUAGE = stringPreferencesKey("ai_voice_language")
         val KEY_AI_VOICE_API_HINTS_ENABLED = booleanPreferencesKey("ai_voice_api_hints_enabled")
@@ -433,6 +437,19 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_SHOW_ORIGINAL_GAME_TEXT] ?: false
     }
 
+    val battleSubtitlesEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_BATTLE_SUBTITLES_ENABLED] ?: false
+    }
+
+    // Deliberately not persisted: the hidden foreground override must never survive app restarts.
+    private val _foregroundTestOverrideEnabled = MutableStateFlow(false)
+    val foregroundTestOverrideEnabled = _foregroundTestOverrideEnabled.asStateFlow()
+
+    fun setForegroundTestOverrideEnabled(enabled: Boolean) {
+        _foregroundTestOverrideEnabled.value = enabled
+        FgoLogger.debug(tag, "Session setting updated: foreground_test_override=$enabled")
+    }
+
     /** Whether story dialogue should be read aloud with character voice-style profiles. */
     val aiVoiceEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_AI_VOICE_ENABLED] ?: false
@@ -807,6 +824,11 @@ class SettingsRepository @Inject constructor(
     suspend fun setShowOriginalGameText(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SHOW_ORIGINAL_GAME_TEXT] = enabled }
         FgoLogger.debug(tag, "Setting updated: show_original_game_text=$enabled")
+    }
+
+    suspend fun setBattleSubtitlesEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_BATTLE_SUBTITLES_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: battle_subtitles_enabled=$enabled")
     }
 
     suspend fun setAiVoiceEnabled(enabled: Boolean) {

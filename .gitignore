@@ -72,5 +72,14 @@ term_builder/voice_tuning/
 helper/
 atlas_cache/
 video/
-app/src/test/
+# Keep legacy local tests ignored, but retain the battle-subtitle regression suite.
+app/src/test/**
+!app/src/test/java/
+!app/src/test/java/com/
+!app/src/test/java/com/fgogotran/
+!app/src/test/java/com/fgogotran/battle/
+!app/src/test/java/com/fgogotran/battle/*Test.kt
+!app/src/test/java/com/fgogotran/translation/
+!app/src/test/java/com/fgogotran/translation/SessionHistoryRetentionTest.kt
 local-ai-studio/
+app/src/test/

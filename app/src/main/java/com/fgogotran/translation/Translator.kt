@@ -715,7 +715,8 @@ class Translator @Inject constructor(
         characterContext: CharacterContextProfile? = null,
         translateAsChoices: Boolean = false,
         maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS,
-        restoreSourcePunctuation: Boolean = true
+        restoreSourcePunctuation: Boolean = true,
+        promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -734,10 +735,15 @@ class Translator @Inject constructor(
             rawNormalizedText
         }
         val normalizedText = correctPlayerNameOcr(normalizedSourceText, playerName, "TEXT")
-        val normalizedChoices = choiceTexts.mapIndexedNotNull { index, choice ->
-            TextNormalizer.normalizeForTranslation(choice)
-                .takeIf { it.isNotBlank() }
-                ?.let { correctPlayerNameOcr(it, playerName, "CHOICE[$index]") }
+        val isBattleSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
+        val normalizedChoices = if (isBattleSubtitle) {
+            emptyList()
+        } else {
+            choiceTexts.mapIndexedNotNull { index, choice ->
+                TextNormalizer.normalizeForTranslation(choice)
+                    .takeIf { it.isNotBlank() }
+                    ?.let { correctPlayerNameOcr(it, playerName, "CHOICE[$index]") }
+            }
         }
         val punctuationSourceText = normalizedText.takeIf { restoreSourcePunctuation }
         maskedSourceFallback(normalizedText)?.let {
@@ -771,22 +777,29 @@ class Translator @Inject constructor(
             }
         }
 
-        val activePreviousDialogueContexts = if (cropMode) {
+        val activePreviousDialogueContexts = if (cropMode || isBattleSubtitle) {
             emptyList()
         } else {
             sceneDialogueContextsForPrompt(previousDialogueContexts)
         }
-        val activeCurrentSpeaker = if (cropMode) {
+        val activeCurrentSpeaker = if (cropMode || isBattleSubtitle) {
             ""
         } else {
             normalizeCurrentSpeakerContext(currentSpeaker)
         }
-        val currentSpeakerCacheIdentity = normalizeCurrentSpeakerContext(currentSpeakerSourceName)
-            .ifBlank { activeCurrentSpeaker }
+        val currentSpeakerCacheIdentity = if (isBattleSubtitle) {
+            ""
+        } else {
+            normalizeCurrentSpeakerContext(currentSpeakerSourceName)
+                .ifBlank { activeCurrentSpeaker }
+        }
         val activeCharacterContext = characterContext
-            ?.takeUnless { cropMode || translateAsChoices || activeCurrentSpeaker.isBlank() }
+            ?.takeUnless {
+                cropMode || isBattleSubtitle || translateAsChoices || activeCurrentSpeaker.isBlank()
+            }
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val promptPolicyKey = when {
+            isBattleSubtitle -> PromptBuilder.BATTLE_PROMPT_VERSION
             cropMode -> "crop-screen-v2"
             preserveRubyMeaning -> "ruby-angle-v3"
             else -> ""
@@ -866,7 +879,8 @@ class Translator @Inject constructor(
             playerName = playerName,
             currentSpeaker = activeCurrentSpeaker,
             characterContextPrompt = activeCharacterContext?.prompt.orEmpty(),
-            isChoiceBatch = translateAsChoices
+            isChoiceBatch = translateAsChoices,
+            promptProfile = promptProfile
         )
         val systemPrompt = promptBuilder.buildSystemPrompt(playerName, promptContext)
         val userPrompt = if (cropMode) {
@@ -897,7 +911,11 @@ class Translator @Inject constructor(
                     config = config,
                     messages = messages,
                     maxTokens = maxTokens,
-                    promptKind = if (cropMode) "crop" else "single"
+                    promptKind = when {
+                        isBattleSubtitle -> "battle"
+                        cropMode -> "crop"
+                        else -> "single"
+                    }
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -5708,7 +5726,7 @@ class Translator @Inject constructor(
         normalizedText: String,
         choiceTexts: List<String>,
         config: RuntimeConfig,
-        rubyPolicyKey: String = "",
+        promptPolicyKey: String = "",
         sceneContextPolicyKey: String = "",
         currentSpeaker: String = "",
         characterContextCacheIdentity: String = "",
@@ -5720,7 +5738,7 @@ class Translator @Inject constructor(
                 config.backend,
                 config.apiBaseUrl,
                 config.apiModel,
-                rubyPolicyKey,
+                promptPolicyKey,
                 sceneContextPolicyKey,
                 normalizeCurrentSpeakerContext(currentSpeaker),
                 characterContextCacheIdentity,

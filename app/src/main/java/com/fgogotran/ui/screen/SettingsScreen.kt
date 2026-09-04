@@ -23,6 +23,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -63,8 +64,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private const val DEBUG_LOG_TAP_THRESHOLD = 10
-private const val DEBUG_LOG_TAP_WINDOW_MS = 5_000L
+private const val HIDDEN_TOGGLE_TAP_THRESHOLD = 10
+private const val HIDDEN_TOGGLE_TAP_WINDOW_MS = 5_000L
 private const val FLOATING_BUTTON_SIZE_STEP_DP = 2
 
 /**
@@ -95,6 +96,8 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
     val aiVoiceEnabled by settingsRepository.aiVoiceEnabled.collectAsState(initial = false)
+    val battleSubtitlesEnabled by settingsRepository.battleSubtitlesEnabled.collectAsState(initial = false)
+    val foregroundTestOverrideEnabled by settingsRepository.foregroundTestOverrideEnabled.collectAsState()
     val liveVoiceTranslationEnabled by settingsRepository.liveVoiceTranslationEnabled.collectAsState(
         initial = false
     )
@@ -118,6 +121,9 @@ fun SettingsScreen(
     var debugLogTapCount by remember { mutableStateOf(0) }
     var debugLogTapWindowStartedAt by remember { mutableStateOf(0L) }
     var debugLogMessage by remember { mutableStateOf("") }
+    var foregroundTestTapCount by remember { mutableStateOf(0) }
+    var foregroundTestTapWindowStartedAt by remember { mutableStateOf(0L) }
+    var foregroundTestMessage by remember { mutableStateOf("") }
     var clearingCache by remember { mutableStateOf(false) }
     var cacheClearMessage by remember { mutableStateOf("") }
     var pendingUpdate by remember { mutableStateOf<AppVersionInfo?>(null) }
@@ -167,7 +173,7 @@ fun SettingsScreen(
         val now = SystemClock.elapsedRealtime()
         val nextCount = if (
             debugLogTapWindowStartedAt == 0L ||
-            now - debugLogTapWindowStartedAt > DEBUG_LOG_TAP_WINDOW_MS
+            now - debugLogTapWindowStartedAt > HIDDEN_TOGGLE_TAP_WINDOW_MS
         ) {
             debugLogTapWindowStartedAt = now
             1
@@ -175,7 +181,7 @@ fun SettingsScreen(
             debugLogTapCount + 1
         }
 
-        if (nextCount >= DEBUG_LOG_TAP_THRESHOLD) {
+        if (nextCount >= HIDDEN_TOGGLE_TAP_THRESHOLD) {
             val enabled = !debugLoggingEnabled
             debugLoggingEnabled = enabled
             debugLogTapCount = 0
@@ -185,6 +191,34 @@ fun SettingsScreen(
         } else {
             debugLogTapCount = nextCount
             debugLogMessage = ""
+        }
+    }
+
+    fun handleStatusRowTap() {
+        val now = SystemClock.elapsedRealtime()
+        val nextCount = if (
+            foregroundTestTapWindowStartedAt == 0L ||
+            now - foregroundTestTapWindowStartedAt > HIDDEN_TOGGLE_TAP_WINDOW_MS
+        ) {
+            foregroundTestTapWindowStartedAt = now
+            1
+        } else {
+            foregroundTestTapCount + 1
+        }
+
+        if (nextCount >= HIDDEN_TOGGLE_TAP_THRESHOLD) {
+            val enabled = !foregroundTestOverrideEnabled
+            foregroundTestTapCount = 0
+            foregroundTestTapWindowStartedAt = 0L
+            foregroundTestMessage = if (enabled) {
+                "前台测试已开启（仅本次运行）"
+            } else {
+                "前台检测已恢复正常"
+            }
+            settingsRepository.setForegroundTestOverrideEnabled(enabled)
+        } else {
+            foregroundTestTapCount = nextCount
+            foregroundTestMessage = ""
         }
     }
 
@@ -284,11 +318,6 @@ fun SettingsScreen(
                 title = "翻译偏好",
                 body = ""
             ) {
-//                Text(
-//                    "用于翻译对话里的御主称呼。",
-//                    style = MaterialTheme.typography.bodySmall,
-//                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-//                )
                 TranslationLanguageSelector(
                     selectedLocale = targetChineseLocale,
                     onSelect = { locale ->
@@ -325,32 +354,31 @@ fun SettingsScreen(
                         Text("保存")
                     }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "日文原文",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
-                        )
-                        Text(
-                            "同时显示游戏原文",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
+                PreferenceSwitchRow(
+                    title = "日文原文",
+                    subtitle = "同时显示游戏原文",
+                    checked = showOriginalGameText,
+                    onCheckedChange = {
+                        showOriginalGameText = it
+                        scope.launch { settingsRepository.setShowOriginalGameText(it) }
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(
-                        checked = showOriginalGameText,
-                        onCheckedChange = {
-                            showOriginalGameText = it
-                            scope.launch { settingsRepository.setShowOriginalGameText(it) }
-                        }
-                    )
-                }
+                )
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                )
+                PreferenceSwitchRow(
+                    title = "战斗字幕",
+                    subtitle = "自动识别日服战斗台词并显示中文",
+                    checked = battleSubtitlesEnabled,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsRepository.setBattleSubtitlesEnabled(enabled) }
+                    }
+                )
+                Text(
+                    "不处理技能名或伤害数字；独立于剧情模式，可与实时语音字幕同时使用。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
             }
 
             SettingsCard(
@@ -519,13 +547,18 @@ fun SettingsScreen(
                     value = currentVersionName,
                     modifier = Modifier.clickable { handleVersionRowTap() }
                 )
-                DebugLogNotice(
+                HiddenToggleNotice(
                     text = debugLogMessage,
                     enabled = debugLoggingEnabled
                 )
                 SettingsInfoRow(
                     label = "状态",
-                    value = appVersionStatus.message.ifBlank { "手动检查新版本" }
+                    value = appVersionStatus.message.ifBlank { "手动检查新版本" },
+                    modifier = Modifier.clickable { handleStatusRowTap() }
+                )
+                HiddenToggleNotice(
+                    text = foregroundTestMessage,
+                    enabled = foregroundTestOverrideEnabled
                 )
                 OutlinedButton(
                     onClick = { checkAppVersion() },
@@ -712,6 +745,38 @@ private fun floatingButtonSizeLabel(sizeDp: Int): String {
 }
 
 @Composable
+private fun PreferenceSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
 private fun SettingsCard(
     @DrawableRes iconRes: Int,
     title: String,
@@ -764,7 +829,7 @@ private fun SettingsIconBadge(@DrawableRes iconRes: Int) {
 }
 
 @Composable
-private fun DebugLogNotice(
+private fun HiddenToggleNotice(
     text: String,
     enabled: Boolean
 ) {

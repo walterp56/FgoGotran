@@ -17,7 +17,6 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -36,6 +35,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.overlay.OverlayRenderer
@@ -113,79 +116,116 @@ private fun HistoryScrollView(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            ScrollView(context).apply {
-                isFillViewport = true
-                isVerticalScrollBarEnabled = true
-                scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
-                isScrollbarFadingEnabled = false
-                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-                setOnTouchListener(HistoryTapDismissTouchListener(onTap))
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    verticalScrollbarThumbDrawable = ColorDrawable(AndroidColor.WHITE)
-                }
-
-                addView(
-                    LinearLayout(context).apply {
-                        orientation = LinearLayout.VERTICAL
-                        setPadding(
-                            scaledHistoryDp(context, 20, viewportScale),
-                            scaledHistoryDp(context, 14, viewportScale),
-                            scaledHistoryDp(context, 28, viewportScale),
-                            scaledHistoryDp(context, 14, viewportScale)
-                        )
-                    },
-                    FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    )
-                )
-            }
-        },
-        update = { scrollView ->
-            val container = scrollView.getChildAt(0) as LinearLayout
-            container.removeAllViews()
-            container.setPadding(
-                scaledHistoryDp(scrollView.context, 20, viewportScale),
-                scaledHistoryDp(scrollView.context, 14, viewportScale),
-                scaledHistoryDp(scrollView.context, 28, viewportScale),
-                scaledHistoryDp(scrollView.context, 14, viewportScale)
-            )
-
-            if (entries.isEmpty()) {
-                val typeface = historyTypeface(scrollView.context)
-                container.gravity = Gravity.CENTER
-                container.layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-                container.addView(
-                    historyTextView(
-                        context = scrollView.context,
-                        text = "暂无翻译LOG。",
-                        typeface = typeface
-                    )
-                )
-            } else {
-                container.gravity = Gravity.NO_GRAVITY
-                container.layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-                entries.forEachIndexed { index, entry ->
-                    addHistoryEntryViews(
-                        container,
-                        entry,
-                        historyTypeface(scrollView.context, entry.targetLocale),
-                        viewportScale
-                    )
-                    if (index != entries.lastIndex) {
-                        container.addView(spacerView(scrollView.context, 12, viewportScale))
+            FrameLayout(context).apply {
+                val list = RecyclerView(context).apply {
+                    layoutManager = LinearLayoutManager(context)
+                    adapter = HistoryRowsAdapter()
+                    itemAnimator = null // Updating the LOG should not flash/fade existing text.
+                    isVerticalScrollBarEnabled = true
+                    scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
+                    isScrollbarFadingEnabled = false
+                    overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                    setOnTouchListener(HistoryTapDismissTouchListener(onTap))
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        verticalScrollbarThumbDrawable = ColorDrawable(AndroidColor.WHITE)
                     }
                 }
-                scrollView.post { scrollView.fullScroll(View.FOCUS_DOWN) }
+                addView(list, FrameLayout.LayoutParams(-1, -1))
+                addView(historyTextView(context, "暂无翻译LOG。", historyTypeface(context)).apply {
+                    gravity = Gravity.CENTER
+                    setOnClickListener { onTap() }
+                }, FrameLayout.LayoutParams(-1, -1))
+                val state = HistoryListState()
+                tag = state
+                list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                    override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                        if (newState == RecyclerView.SCROLL_STATE_DRAGGING) state.userScrollVersion++
+                    }
+                })
+            }
+        },
+        update = { root ->
+            val list = root.getChildAt(0) as RecyclerView
+            val state = root.tag as HistoryListState
+            root.getChildAt(1).visibility = if (entries.isEmpty()) View.VISIBLE else View.GONE
+            list.setPadding(
+                scaledHistoryDp(root.context, 20, viewportScale),
+                scaledHistoryDp(root.context, 14, viewportScale),
+                scaledHistoryDp(root.context, 28, viewportScale),
+                scaledHistoryDp(root.context, 14, viewportScale)
+            )
+            if (state.entries !== entries || state.scale != viewportScale) {
+                val followTail = !state.initialized ||
+                    (!list.canScrollVertically(1) && list.scrollState == RecyclerView.SCROLL_STATE_IDLE)
+                val scrollVersion = state.userScrollVersion
+                val manager = list.layoutManager as LinearLayoutManager
+                val adapter = list.adapter as HistoryRowsAdapter
+                val firstVisible = manager.findFirstVisibleItemPosition()
+                val anchorId = adapter.currentList.getOrNull(firstVisible)?.entry?.historyId
+                val anchorOffset = manager.findViewByPosition(firstVisible)?.let { it.top - list.paddingTop }
+                val updateVersion = ++state.updateVersion
+                state.entries = entries
+                state.scale = viewportScale
+                adapter.submitList(entries.map { HistoryRow(it, viewportScale) }) {
+                    if (updateVersion == state.updateVersion) {
+                        state.initialized = true
+                        if (followTail && scrollVersion == state.userScrollVersion && entries.isNotEmpty()) {
+                            list.post {
+                                if (updateVersion == state.updateVersion && scrollVersion == state.userScrollVersion &&
+                                    list.scrollState == RecyclerView.SCROLL_STATE_IDLE) list.scrollToPosition(entries.lastIndex)
+                            }
+                        } else if (!followTail && scrollVersion == state.userScrollVersion &&
+                            list.scrollState == RecyclerView.SCROLL_STATE_IDLE && anchorId != null && anchorOffset != null) {
+                            // A delayed battle result can be inserted before the visible story row.
+                            // Keep that row at the same pixel offset instead of jumping to the new entry.
+                            val anchorPosition = entries.indexOfFirst { it.historyId == anchorId }
+                            if (anchorPosition >= 0) manager.scrollToPositionWithOffset(anchorPosition, anchorOffset)
+                        }
+                    }
+                }
             }
         }
     )
+}
+
+private class HistoryListState {
+    var entries: List<SessionTranslationEntry>? = null
+    var scale = 0f
+    var initialized = false
+    var userScrollVersion = 0L
+    var updateVersion = 0L
+}
+
+private data class HistoryRow(val entry: SessionTranslationEntry, val scale: Float)
+
+private class HistoryRowsAdapter : ListAdapter<HistoryRow, HistoryRowsAdapter.Holder>(
+    object : DiffUtil.ItemCallback<HistoryRow>() {
+        override fun areItemsTheSame(oldItem: HistoryRow, newItem: HistoryRow) =
+            oldItem.entry.historyId == newItem.entry.historyId
+        override fun areContentsTheSame(oldItem: HistoryRow, newItem: HistoryRow) = oldItem == newItem
+    }
+) {
+    class Holder(val container: LinearLayout) : RecyclerView.ViewHolder(container)
+
+    init { setHasStableIds(true) }
+    override fun getItemId(position: Int): Long = getItem(position).entry.historyId
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(
+        LinearLayout(parent.context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = RecyclerView.LayoutParams(-1, -2)
+        }
+    )
+
+    override fun onBindViewHolder(holder: Holder, position: Int) {
+        val row = getItem(position)
+        holder.container.removeAllViews()
+        holder.container.setPadding(0, 0, 0, scaledHistoryDp(holder.container.context, 12, row.scale))
+        addHistoryEntryViews(
+            holder.container, row.entry,
+            historyTypeface(holder.container.context, row.entry.targetLocale), row.scale
+        )
+    }
 }
 
 private fun addHistoryEntryViews(
@@ -662,7 +702,7 @@ private class HistoryTapDismissTouchListener(
     }
 
     private fun scrollYOf(view: View): Int {
-        return (view as? ScrollView)?.scrollY ?: 0
+        return (view as? RecyclerView)?.computeVerticalScrollOffset() ?: view.scrollY
     }
 
     private fun isNearVerticalScrollbar(view: View, x: Float): Boolean {
@@ -673,15 +713,6 @@ private class HistoryTapDismissTouchListener(
     private fun reset() {
         dragging = false
         downOnScrollbar = false
-    }
-}
-
-private fun spacerView(context: Context, heightDp: Int, viewportScale: Float): View {
-    return View(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            scaledHistoryDp(context, heightDp, viewportScale)
-        )
     }
 }
 

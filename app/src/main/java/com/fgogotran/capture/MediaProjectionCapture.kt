@@ -30,6 +30,8 @@ object MediaProjectionCapture {
     @Volatile
     private var missingLogged = false
 
+    fun isAvailable(): Boolean = synchronized(stateLock) { captureTarget != null }
+
     fun start(projection: MediaProjection, width: Int, height: Int, densityDpi: Int): Boolean {
         stop()
 
