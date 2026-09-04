@@ -85,7 +85,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v84"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v86"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -143,13 +143,13 @@ class PromptBuilder @Inject constructor() {
          */
         private val BASE_TRANSLATION_PROMPT = """
             You are an expert Japanese-to-Chinese localizer for Fate/Grand Order.
-            Translate Fate/Grand Order Japanese faithfully into natural, compact {target_chinese} for an in-game overlay.
-            Preserve meaning, viewpoint, tone, relationships, intentional ambiguity, and ellipsis.
+            Translate Fate/Grand Order Japanese faithfully into natural {target_chinese} for an in-game overlay; be concise without losing information.
+            Preserve complete meaning, viewpoint, tone, character voice, relationships, intentional ambiguity, and ellipsis.
             Use only {target_chinese}; leave no kana unless a rule allows it.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """
-            Translate visible Fate/Grand Order Japanese OCR into natural, compact {target_chinese}.
+            Translate visible Fate/Grand Order Japanese OCR faithfully into natural {target_chinese}; be concise without losing information.
             Use only {target_chinese}; do not infer text outside the crop.
             """.trimIndent()
 
@@ -182,7 +182,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val PRONOUN_FIDELITY_PROMPT = """
-            - Preserve Japanese zero subjects, objects, and possessors. Do not add a Chinese personal pronoun absent from the current source; prefer neutral restructuring. Add one only when Japanese grammar makes that participant indispensable and omission would make Chinese ungrammatical or change who did what. Speaker identity and previous dialogue are not permission to add one.
+            - Preserve stated personal references, who performs and receives each action, and whose things are involved. Speaker identity alone does not establish the actor or possessor.
+            - When subjects, objects, or possessors are omitted, prefer natural Chinese omission or restructuring. Express a personal reference only when the Japanese source and relevant Japanese context clearly establish it and accurate, natural Chinese needs it. Preserve unresolved ambiguity rather than guessing identity or ownership.
             """.trimIndent()
 
         private val UNATTRIBUTED_DIALOGUE_PROMPT = """
@@ -190,7 +191,11 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val PARTICIPANT_DIRECTION_PROMPT = """
-            - For benefactives, causatives, and 〜(ら)れる, determine roles from Japanese syntax. Keep omitted participants implicit when neutral Chinese is clear; express one only when omission would change who did what. Never infer one from the current speaker or previous dialogue alone.
+            - For benefactives, causatives, and 〜(ら)れる, determine the grammatical function from Japanese syntax and context. Preserve action direction and possession even when restructuring Chinese; do not automatically translate every 〜(ら)れる as passive.
+            """.trimIndent()
+
+        private val SOURCE_FIDELITY_CHECK_PROMPT = """
+            - Before returning, check for unsupported additions, omitted meaning, and changed action roles. Correct only errors supported by the source; keep the requested output format.
             """.trimIndent()
 
         private val LINE_BREAK_PROMPT = """
@@ -404,6 +409,9 @@ class PromptBuilder @Inject constructor() {
         }
         featurePromptBlocks(context).forEach { (name, block) ->
             appendPromptBlock(sb, blockNames, name, applyTargetChinese(block, targetChinese))
+        }
+        if (context.isDialogue || context.hasChoices || context.isCropMode) {
+            appendPromptBlock(sb, blockNames, "source_fidelity_check", buildSourceFidelityCheckPrompt())
         }
         FgoLogger.debug(
             tag,
@@ -642,11 +650,14 @@ class PromptBuilder @Inject constructor() {
 
     internal fun buildPronounFidelityPrompt(): String = PRONOUN_FIDELITY_PROMPT
 
+    internal fun buildSourceFidelityCheckPrompt(): String = SOURCE_FIDELITY_CHECK_PROMPT
+
     internal fun buildCharacterContextPrompt(prompt: String): String {
         return buildString {
             appendLine(
                 "- Apply character context only to the current dialogue, never names or choices. " +
-                    "It never licenses pronouns, participants, relationships, or tics absent from current JP."
+                    "It is voice/register guidance, not evidence for unstated participants, possession, " +
+                    "or relationships; do not add tics absent from current JP."
             )
             append("- ")
             append(prompt.trim())

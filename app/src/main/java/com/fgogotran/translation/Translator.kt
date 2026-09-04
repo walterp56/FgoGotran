@@ -84,9 +84,10 @@ internal fun buildPreviousSceneJapaneseContextPrompt(
     if (contexts.isEmpty()) return ""
     return buildString {
         appendLine(
-            "Previous JP scenes are context only. Use them to clarify meaning and action roles; never " +
-                "use them to introduce a Chinese pronoun absent from the current source. Never output, " +
-                "translate, or continue them."
+            "Previous JP scenes are context only. Use relevant Japanese evidence to clarify meaning, " +
+                "references, and action roles, not to invent identities, ownership, or story facts. " +
+                "Keep unresolved references ambiguous and follow the pronoun rule when expressing them. " +
+                "Never output, translate, or continue previous scenes."
         )
         appendLine("Translate only the current input below.")
         contexts.forEachIndexed { index, context ->
@@ -4812,8 +4813,9 @@ class Translator @Inject constructor(
         if (currentSpeaker.isBlank()) return
         appendLine(
             "Current speaker (voice/register/relationship context only): $currentSpeaker. " +
-                "Never use this label, identity, or gender to add an omitted participant, possessor, " +
-                "or pronoun; never output this label. Translate any separate name field normally."
+                "This label, identity, or gender alone does not establish an omitted participant or " +
+                "possessor; follow Japanese evidence and the pronoun rule. Never output this label. " +
+                "Translate any separate name field normally."
         )
         appendLine()
     }
@@ -5283,6 +5285,7 @@ class Translator @Inject constructor(
             if (playerName.isNotBlank()) {
                 appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
             }
+            appendLine(promptBuilder.buildSourceFidelityCheckPrompt())
         }
     }
 
