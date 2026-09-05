@@ -58,7 +58,8 @@ data class TranslateResult(
     val backend: String,
     val cached: Boolean,
     val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
-    val trustedForContext: Boolean = true
+    val trustedForContext: Boolean = true,
+    val isFailure: Boolean = false
 )
 
 data class SceneTranslateInput(
@@ -837,7 +838,8 @@ class Translator @Inject constructor(
                 "[未配置 API Key]\n请打开设置并输入 API Key。",
                 "none",
                 false,
-                trustedForContext = false
+                trustedForContext = false,
+                isFailure = true
             ).forTargetLocale(config, punctuationSourceText)
         }
 
@@ -938,7 +940,8 @@ class Translator @Inject constructor(
                 "[翻译失败：${formatUserFacingApiError(error)}]\n请检查 API Key、模型和网络连接。",
                 backend,
                 false,
-                trustedForContext = false
+                trustedForContext = false,
+                isFailure = true
             ).forTargetLocale(config, punctuationSourceText)
         }
 
@@ -1019,7 +1022,8 @@ class Translator @Inject constructor(
                         EMPTY_API_OUTPUT_FALLBACK,
                         backend,
                         false,
-                        trustedForContext = false
+                        trustedForContext = false,
+                        isFailure = true
                     )
                         .forTargetLocale(config, punctuationSourceText)
                 }
@@ -1152,7 +1156,8 @@ class Translator @Inject constructor(
                     placeholder,
                     "none",
                     false,
-                    trustedForContext = false
+                    trustedForContext = false,
+                    isFailure = true
                 )
             }
             return results.completeForTargetLocale(config, normalizedTexts)
@@ -1246,7 +1251,8 @@ class Translator @Inject constructor(
                         failure,
                         backend,
                         false,
-                        trustedForContext = false
+                        trustedForContext = false,
+                        isFailure = true
                     )
                 }
             }
@@ -1593,14 +1599,21 @@ class Translator @Inject constructor(
             }
             val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
             if (needsName) {
-                nameResult = TranslateResult("", "none", false, trustedForContext = false)
+                nameResult = TranslateResult(
+                    "",
+                    "none",
+                    false,
+                    trustedForContext = false,
+                    isFailure = true
+                )
             }
             if (needsDialogue) {
                 dialogueResult = TranslateResult(
                     placeholder,
                     "none",
                     false,
-                    trustedForContext = false
+                    trustedForContext = false,
+                    isFailure = true
                 )
             }
             neededChoiceIndices.forEach {
@@ -1608,7 +1621,8 @@ class Translator @Inject constructor(
                     placeholder,
                     "none",
                     false,
-                    trustedForContext = false
+                    trustedForContext = false,
+                    isFailure = true
                 )
             }
             return SceneTranslateResult(
@@ -1772,14 +1786,21 @@ class Translator @Inject constructor(
             if (!isRetryableTranslationFailure(e)) {
                 val failure = "[翻译失败：${formatUserFacingApiError(e)}]"
                 if (needsName) {
-                    nameResult = TranslateResult("", backend, false, trustedForContext = false)
+                    nameResult = TranslateResult(
+                        "",
+                        backend,
+                        false,
+                        trustedForContext = false,
+                        isFailure = true
+                    )
                 }
                 if (needsDialogue) {
                     dialogueResult = TranslateResult(
                         failure,
                         backend,
                         false,
-                        trustedForContext = false
+                        trustedForContext = false,
+                        isFailure = true
                     )
                 }
                 neededChoiceIndices.forEach { index ->
@@ -1787,7 +1808,8 @@ class Translator @Inject constructor(
                         failure,
                         backend,
                         false,
-                        trustedForContext = false
+                        trustedForContext = false,
+                        isFailure = true
                     )
                 }
                 return SceneTranslateResult(

@@ -25,6 +25,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
+/** Context/cache trust must not delay or suppress a real first-pass battle translation. */
+internal fun TranslateResult.isDisplayableBattleResponse(): Boolean =
+    !isFailure && backend != "none" && translatedText.isNotBlank()
+
 /** Service-owned observer. Detection, translation and ordered delivery have separate lifetimes. */
 class BattleSubtitleController @Inject constructor(
     private val ocr: OcrEngine,
@@ -205,11 +209,16 @@ class BattleSubtitleController @Inject constructor(
                         }
                     }
                     if (version != sessionGeneration) return@launch
-                    if (result == null || !result.trustedForContext || result.backend == "none" ||
-                        result.translatedText.isBlank()) {
+                    if (result == null || !result.isDisplayableBattleResponse()) {
                         delivery.fail(event.id)
                         FgoLogger.warn("BattleSubtitle", "Translation failed/timed out for " + event.id + ": " + event.source)
                     } else if (delivery.complete(event.id, result)) {
+                        if (!result.trustedForContext) {
+                            FgoLogger.warn(
+                                "BattleSubtitle",
+                                "Rendering first response without cache/context trust for " + event.id
+                            )
+                        }
                         history[event.id]?.let {
                             SessionTranslationHistory.completeBattleEntry(it, result.translatedText, result.targetLocale)
                         }

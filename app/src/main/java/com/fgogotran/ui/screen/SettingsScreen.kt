@@ -96,7 +96,9 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
     val aiVoiceEnabled by settingsRepository.aiVoiceEnabled.collectAsState(initial = false)
-    val foregroundTestOverrideEnabled by settingsRepository.foregroundTestOverrideEnabled.collectAsState()
+    val foregroundTestOverrideEnabled by settingsRepository.foregroundTestOverrideEnabled.collectAsState(
+        initial = false
+    )
     val liveVoiceTranslationEnabled by settingsRepository.liveVoiceTranslationEnabled.collectAsState(
         initial = false
     )
@@ -210,11 +212,11 @@ fun SettingsScreen(
             foregroundTestTapCount = 0
             foregroundTestTapWindowStartedAt = 0L
             foregroundTestMessage = if (enabled) {
-                "前台测试已开启（仅本次运行）"
+                "前台测试已开启"
             } else {
                 "前台检测已恢复正常"
             }
-            settingsRepository.setForegroundTestOverrideEnabled(enabled)
+            scope.launch { settingsRepository.setForegroundTestOverrideEnabled(enabled) }
         } else {
             foregroundTestTapCount = nextCount
             foregroundTestMessage = ""

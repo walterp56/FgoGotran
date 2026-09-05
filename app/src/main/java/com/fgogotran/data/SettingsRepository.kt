@@ -16,8 +16,6 @@ import com.fgogotran.terminology.LocalGlossaryDatabase
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -32,8 +30,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  * All settings are exposed as [Flow] for reactive reading and have
  * corresponding suspend setter functions for writing.
  *
- * Settings persist across app restarts and survive APK updates, except explicitly
- * session-only diagnostic switches.
+ * Settings persist across app restarts and survive APK updates.
  */
 @Singleton
 class SettingsRepository @Inject constructor(
@@ -67,6 +64,7 @@ class SettingsRepository @Inject constructor(
         val KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_X = intPreferencesKey("live_voice_subtitle_landscape_x")
         val KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_Y = intPreferencesKey("live_voice_subtitle_landscape_y")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
+        val KEY_FOREGROUND_TEST_OVERRIDE_ENABLED = booleanPreferencesKey("foreground_test_override_enabled")
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
         val KEY_GAME_SERVER = stringPreferencesKey("game_server")
@@ -436,13 +434,14 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_SHOW_ORIGINAL_GAME_TEXT] ?: false
     }
 
-    // Deliberately not persisted: the hidden foreground override must never survive app restarts.
-    private val _foregroundTestOverrideEnabled = MutableStateFlow(false)
-    val foregroundTestOverrideEnabled = _foregroundTestOverrideEnabled.asStateFlow()
+    /** Hidden test override for treating the current external app as the FGO foreground target. */
+    val foregroundTestOverrideEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FOREGROUND_TEST_OVERRIDE_ENABLED] ?: false
+    }
 
-    fun setForegroundTestOverrideEnabled(enabled: Boolean) {
-        _foregroundTestOverrideEnabled.value = enabled
-        FgoLogger.debug(tag, "Session setting updated: foreground_test_override=$enabled")
+    suspend fun setForegroundTestOverrideEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_FOREGROUND_TEST_OVERRIDE_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: foreground_test_override=$enabled")
     }
 
     /** Whether story dialogue should be read aloud with character voice-style profiles. */

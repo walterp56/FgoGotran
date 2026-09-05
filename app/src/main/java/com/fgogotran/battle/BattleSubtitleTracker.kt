@@ -105,7 +105,7 @@ class BattleSubtitleTracker {
     var ended: BattleSubtitleEnd? = null
         private set
 
-    /** Two agreeing reads identify occurrences. Delivery survives both disappearance and replacement. */
+    /** Two content-agreeing reads identify occurrences. Delivery survives disappearance and replacement. */
     fun observe(source: String?, now: Long): BattleSubtitleEvent? {
         ended = null
         val text = source?.trim().orEmpty()
@@ -148,10 +148,20 @@ class BattleSubtitleTracker {
         // Do not reset IDs: late replies from a previous session must remain invalid.
     }
 
-    private fun key(text: String) = text.filterNot { it.isWhitespace() || it == '　' }
+    /** OCR-volatile punctuation never splits one occurrence; the original source remains untouched. */
+    private fun key(text: String): String {
+        if (text.isBlank()) return ""
+        val content = text.filterNot {
+            it.isWhitespace() || it == '　' || it in IDENTITY_IGNORED_PUNCTUATION
+        }
+        return if (content.isNotEmpty()) content else PUNCTUATION_ONLY_KEY
+    }
 
     companion object {
         const val MIN_CONFIRM_MS = 70L
         const val ABSENCE_GRACE_MS = 250L
+        private const val IDENTITY_IGNORED_PUNCTUATION =
+            "「」『』“”\"'‘’（）()［］[]｛｝{}、。，．,.！？!?…‥・：:；;—―－-〜～♪"
+        private const val PUNCTUATION_ONLY_KEY = "<punctuation>"
     }
 }

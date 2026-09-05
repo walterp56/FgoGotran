@@ -3,10 +3,12 @@ package com.fgogotran.battle
 data class BattleTextLine(val text: String, val left: Float, val top: Float, val right: Float, val bottom: Float, val confidence: Float)
 
 object BattleSubtitleText {
-    private val kana = Regex("[ぁ-ゖァ-ヺ]")
+    private val japaneseText = Regex("[ぁ-ゖァ-ヺ㐀-䶿一-鿿]")
     private val level = Regex("(?i)(?:Lv[.．]?\\s*\\d|\\b(?:HP|NP|TOTAL|CRITICAL|Attack|Arts|Buster|Quick|Extra)\\b)")
-    private val labels = setOf("カウンター発動", "弱体無効", "宝具威力アップ", "化身増殖", "憎悪駆動", "Sub Member")
-    private val quoteCharacters = "「」『』“”\""
+    private val labels = setOf(
+        "不屈の盾", "カウンター発動", "弱体無効", "宝具威力アップ",
+        "化身増殖", "憎悪駆動", "霊基変速・闘争純化", "Sub Member"
+    )
     private val punctuationCharacters = "「」『』“”\"'‘’（）()［］[]｛｝{}、。，．,.！？!?…‥・：:；;—―－-〜～♪"
 
     /**
@@ -17,9 +19,8 @@ object BattleSubtitleText {
     fun hasUncertainSubtitle(lines: List<BattleTextLine>): Boolean = lines.any { line ->
         val text = line.text.trim()
         line.bottom - line.top in 24f..72f && line.top >= 0 && line.bottom in 115f..174f &&
-            text.isNotEmpty() && (text.any { it in quoteCharacters } ||
-            (!level.containsMatchIn(text) && text !in labels &&
-                (text.any(Char::isLetter) || text.all { it in punctuationCharacters || it.isWhitespace() })))
+            text.isNotEmpty() && !level.containsMatchIn(text) && text !in labels &&
+            (text.any(Char::isLetter) || text.all { it in punctuationCharacters || it.isWhitespace() })
     }
 
     /** Coordinates are relative to the reference-space crop, not the physical device. */
@@ -58,13 +59,17 @@ object BattleSubtitleText {
         }
         val text = rows.joinToString("\n") { row -> row.sortedBy { it.left }.joinToString("") { it.text.trim() } }
         if (text.length > 240) return null
-        val quoted = text.any { it in quoteCharacters }
-        if (!quoted && (level.containsMatchIn(text) || labels.any { text.trim() == it })) return null
-        if (!quoted && (!kana.containsMatchIn(text) || text.count { it.isLetter() } < 4 ||
-                text.none { it in "。！？!?、…" })) return null
-        // A font-sized line at the fixed baseline is required, even for quoted OCR noise.
+        if (level.containsMatchIn(text) || labels.any { text.trim() == it }) return null
+        // Quotes and terminal punctuation are optional OCR content, never evidence that
+        // makes a candidate valid. Keep Japanese text and expressive punctuation-only
+        // reactions from the fixed subtitle baseline; reject numeric/Latin HUD debris.
+        val compact = text.filterNot(Char::isWhitespace)
+        val expressivePunctuationOnly = compact.isNotEmpty() &&
+            compact.all { it in punctuationCharacters } &&
+            compact.any { it in "！？!?…‥—―〜～♪" }
+        if (!japaneseText.containsMatchIn(text) && !expressivePunctuationOnly) return null
+        // A font-sized line at the fixed baseline is required for all OCR candidates.
         if (plausible.none { it.bottom in 115f..174f }) return null
-        if (quoted && text.none { it.isLetter() || it in "…—―ー!?！？" }) return null
         return text
     }
 }

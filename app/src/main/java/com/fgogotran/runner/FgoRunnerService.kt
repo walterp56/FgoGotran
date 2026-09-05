@@ -272,7 +272,6 @@ class FgoRunnerService : Service() {
 
     override fun onDestroy() {
         FgoLogger.info(tag, "Service destroyed")
-        settingsRepository.setForegroundTestOverrideEnabled(false)
         FgoAccessibilityService.instance?.stopRunnerSession()
         overlay.destroy()
         SessionTranslationHistory.clear()

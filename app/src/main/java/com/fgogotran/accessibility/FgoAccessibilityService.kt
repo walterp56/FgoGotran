@@ -636,7 +636,6 @@ class FgoAccessibilityService : AccessibilityService() {
         translationOverlay.hideAll()
         cropResultOverlay.hide()
         battleSubtitles.destroy()
-        settingsRepository.setForegroundTestOverrideEnabled(false)
         serviceScope.cancel()
     }
 
@@ -646,7 +645,6 @@ class FgoAccessibilityService : AccessibilityService() {
         translationOverlay.destroy()
         cropResultOverlay.destroy()
         battleSubtitles.destroy()
-        settingsRepository.setForegroundTestOverrideEnabled(false)
         aiVoiceService.stop()
         serviceScope.cancel()
         super.onDestroy()
@@ -807,7 +805,6 @@ class FgoAccessibilityService : AccessibilityService() {
         tapAdvancePolling = false
         cancelCurrentTranslation()
         stopBattleMonitoring()
-        settingsRepository.setForegroundTestOverrideEnabled(false)
         translationOverlay.hideAll()
         cropResultOverlay.hide()
     }

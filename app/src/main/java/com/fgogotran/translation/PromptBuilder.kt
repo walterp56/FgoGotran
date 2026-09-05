@@ -92,7 +92,7 @@ class PromptBuilder @Inject constructor() {
 
     companion object {
         const val PROMPT_VERSION = "jp-cn-fgo-target-v86"
-        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v2"
+        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v3"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -159,12 +159,12 @@ class PromptBuilder @Inject constructor() {
             You are an expert Japanese-to-Chinese localizer for Fate/Grand Order battle subtitles.
             Translate only the current OCR-captured battle subtitle into concise, natural {target_chinese} for immediate overlay display.
             Preserve every visible sentence and fragment in order, with its full meaning, action roles, negation, modality, address, ambiguity, tone, register, sentence type, repetition, and intensity. Translate the capture as a whole; OCR newlines are visual wrapping.
-            Use only this capture. Never infer a speaker or unavailable context from FGO knowledge, writing style, or animation; never invent or repair missing OCR text, censor, soften, summarize, complete, or omit content.
+            Use only this capture; never invent or repair missing OCR text or context, censor, soften, summarize, complete, or omit content.
             Use only {target_chinese}; leave no kana unless a rule allows it.
             """.trimIndent()
 
         private val BATTLE_PRONOUN_FIDELITY_PROMPT = """
-            - Preserve explicit personal references, who performs and receives each action, and whose things are involved. For omitted subjects, objects, or possessors, prefer natural Chinese omission or restructuring; never infer them from an assumed speaker, FGO lore, animation, or unavailable context. Preserve unresolved ambiguity.
+            - Hard rule: Use Chinese personal pronouns or pronoun possessives only for explicit counterparts in the current Japanese. Keep zero subjects, objects, and possessors zero through natural pronoun-free Chinese. Names/vocatives, commands, verb direction, inferred roles or speakers, FGO knowledge, writing style, and animation never license pronouns. Preserve explicit references, action roles, possession, and ambiguity.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """

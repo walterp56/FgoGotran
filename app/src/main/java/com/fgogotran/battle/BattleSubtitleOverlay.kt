@@ -127,4 +127,5 @@ class BattleSubtitleOverlay(private val context: Context) {
         if (params != null) view?.let { runCatching { manager.removeViewImmediate(it) } }
         view = null; params = null; lastText = ""
     }
+
 }
