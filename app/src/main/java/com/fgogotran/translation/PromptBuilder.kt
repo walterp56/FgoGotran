@@ -92,7 +92,7 @@ class PromptBuilder @Inject constructor() {
 
     companion object {
         const val PROMPT_VERSION = "jp-cn-fgo-target-v86"
-        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v1"
+        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v2"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -157,11 +157,14 @@ class PromptBuilder @Inject constructor() {
 
         private val BATTLE_SUBTITLE_BASE_PROMPT = """
             You are an expert Japanese-to-Chinese localizer for Fate/Grand Order battle subtitles.
-            Translate only the current visible OCR-captured battle dialogue faithfully into concise, natural {target_chinese} for immediate overlay display.
-            Treat this subtitle independently: no reliable speaker metadata or previous-scene context is available. Preserve complete meaning, viewpoint, action roles, possession, intentional ambiguity, tone, character voice, register, sentence type, repetition, and emotional intensity.
-            Translate every sentence in the current capture together. Treat OCR newlines as visual wrapping, preserve sentence order and boundaries, and let the overlay wrap the Chinese naturally.
-            Never identify the speaker from FGO knowledge or writing style, invent missing OCR text or context, censor, soften, summarize, complete, or omit content.
+            Translate only the current OCR-captured battle subtitle into concise, natural {target_chinese} for immediate overlay display.
+            Preserve every visible sentence and fragment in order, with its full meaning, action roles, negation, modality, address, ambiguity, tone, register, sentence type, repetition, and intensity. Translate the capture as a whole; OCR newlines are visual wrapping.
+            Use only this capture. Never infer a speaker or unavailable context from FGO knowledge, writing style, or animation; never invent or repair missing OCR text, censor, soften, summarize, complete, or omit content.
             Use only {target_chinese}; leave no kana unless a rule allows it.
+            """.trimIndent()
+
+        private val BATTLE_PRONOUN_FIDELITY_PROMPT = """
+            - Preserve explicit personal references, who performs and receives each action, and whose things are involved. For omitted subjects, objects, or possessors, prefer natural Chinese omission or restructuring; never infer them from an assumed speaker, FGO lore, animation, or unavailable context. Preserve unresolved ambiguity.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """
@@ -203,7 +206,7 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val BATTLE_PUNCTUATION_PROMPT = """
-            - Preserve every visible FGO punctuation mark and wrapper, including its type, nesting, position, order, and deliberate repetition: 「」, 『』, quotes, （）, (), brackets, ellipses, long dashes, 、。！？, and clusters such as ！！？？. Never drop source punctuation, invent unmatched wrappers, move terminal punctuation outside its source closing wrapper, or collapse expressive clusters. Additional internal Chinese punctuation may remain only where natural syntax requires it.
+            - Preserve every visible FGO punctuation mark and wrapper exactly in type, nesting, position, order, and repetition, including 「」, 『』, quotes, （）, (), brackets, ellipses, long dashes, 、。！？, and clusters such as ！！？？. Never drop punctuation, invent unmatched wrappers, move terminal punctuation outside its closing wrapper, or collapse expressive clusters. Add internal Chinese punctuation only where natural syntax requires it.
             """.trimIndent()
 
         private val UNATTRIBUTED_DIALOGUE_PROMPT = """
@@ -391,8 +394,12 @@ class PromptBuilder @Inject constructor() {
             appendPromptBlock(
                 sb,
                 blockNames,
-                "pronoun_fidelity",
-                buildPronounFidelityPrompt()
+                if (isBattleSubtitle) "battle_pronoun_fidelity" else "pronoun_fidelity",
+                if (isBattleSubtitle) {
+                    BATTLE_PRONOUN_FIDELITY_PROMPT
+                } else {
+                    buildPronounFidelityPrompt()
+                }
             )
         }
         if (isBattleSubtitle) {
@@ -423,9 +430,9 @@ class PromptBuilder @Inject constructor() {
                 appendPromptBlock(sb, blockNames, "master", MASTER_PROMPT)
             }
         } else {
-            if (context.isDialogue) {
+            if (context.isDialogue && !isBattleSubtitle) {
                 appendPromptBlock(sb, blockNames, "dialogue_style", DIALOGUE_STYLE_PROMPT)
-                if (!isBattleSubtitle && context.characterContextPrompt.isNotBlank()) {
+                if (context.characterContextPrompt.isNotBlank()) {
                     appendPromptBlock(
                         sb,
                         blockNames,
@@ -433,7 +440,7 @@ class PromptBuilder @Inject constructor() {
                         buildCharacterContextPrompt(context.characterContextPrompt)
                     )
                 }
-                if (!isBattleSubtitle && context.isUnattributedDialogue) {
+                if (context.isUnattributedDialogue) {
                     appendPromptBlock(
                         sb,
                         blockNames,

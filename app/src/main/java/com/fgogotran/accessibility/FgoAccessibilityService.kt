@@ -102,7 +102,6 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isProcessing = false
-    private var battleSubtitlesEnabled = false
     private var foregroundTestOverrideEnabled = false
     private val foregroundTestOverride = ForegroundTestOverride()
     private var battleMonitoring = false
@@ -356,14 +355,6 @@ class FgoAccessibilityService : AccessibilityService() {
         watchPlayerName()
         watchOriginalTextDisplay()
         watchVoiceReadScope()
-        serviceScope.launch {
-            settingsRepository.battleSubtitlesEnabled.collect { enabled ->
-                if (battleSubtitlesEnabled == enabled) return@collect
-                battleSubtitlesEnabled = enabled
-                stopBattleMonitoring()
-                nextBattleScanAt = 0
-            }
-        }
         serviceScope.launch {
             settingsRepository.foregroundTestOverrideEnabled.collect { enabled ->
                 if (foregroundTestOverrideEnabled == enabled) return@collect
@@ -698,7 +689,7 @@ class FgoAccessibilityService : AccessibilityService() {
     fun requestManualTranslation(afterMenuDismiss: Boolean = false): Boolean {
         if (!TranslationTrigger.canUserTapTranslate()) return false
         cropResultOverlay.hide()
-        if (battleSubtitlesEnabled && battleSubtitles.blocksStory) {
+        if (battleSubtitles.blocksStory) {
             nextBattleScanAt = 0L
             return true
         }
@@ -904,12 +895,11 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun monitorBattleIfReady() {
-        val eligible = battleSubtitlesEnabled &&
-            isEffectiveFgoForeground && isJapaneseServer() &&
+        val eligible = isEffectiveFgoForeground && isJapaneseServer() &&
             FgoRunnerService.serviceStarted.value && !getSystemService(KeyguardManager::class.java).isKeyguardLocked
         if (!eligible) {
             if (battleMonitoring) stopBattleMonitoring(resetSession =
-                !battleSubtitlesEnabled || !isJapaneseServer() || !FgoRunnerService.serviceStarted.value)
+                !isJapaneseServer() || !FgoRunnerService.serviceStarted.value)
             return
         }
         battleMonitoring = true
@@ -1054,7 +1044,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 return
             }
             val source = screenshot
-            if (battleSubtitlesEnabled && FgoRunnerService.serviceStarted.value && isJapaneseServer() &&
+            if (FgoRunnerService.serviceStarted.value && isJapaneseServer() &&
                 battleSubtitles.inspect(source, capturedAt)) {
                 restoreFgoForegroundAfterCapture("battle HUD")
                 restoreHiddenOverlay = false

@@ -42,15 +42,17 @@ class BattleSubtitleController @Inject constructor(
     private var sessionGeneration = 0L
     private var screenWidth = 0
     private var screenHeight = 0
-    private var nextExitCheckAt = 0L
+    private var nextResultCheckAt = 0L
     private var paused = true
     private var subtitleCandidateSeen = false
+    private var hudMatch: BattleHudMatch? = null
 
     // Finish queued battle lines before allowing an automatic story overlay to cover them.
     val blocksStory: Boolean get() = scene.blocksStory || delivery.hasPending
     val scanIntervalMs: Long get() = when {
         !scene.blocksStory -> 600L
-        !scene.inBattle || subtitleCandidateSeen || subtitles.current != null -> 120L
+        scene.mode == BattleSceneMode.WAITING -> 300L
+        scene.mode == BattleSceneMode.STORY || subtitleCandidateSeen || subtitles.current != null -> 120L
         else -> 300L
     }
 
@@ -69,45 +71,82 @@ class BattleSubtitleController @Inject constructor(
             generation++
             screenWidth = source.width
             screenHeight = source.height
+            hudMatch = null
         }
         val version = generation
-        var hudVisible = withContext(Dispatchers.Default) {
-            BattleHudDetector.isVisible(source.width, source.height, source::getPixel)
+        val detectedHud = withContext(Dispatchers.Default) {
+            BattleHudDetector.locate(source.width, source.height, source::getPixel, hudMatch)
         }
+        var hudVisible = detectedHud != null
         if (version != generation) return blocksStory
-        if (hudVisible && !scene.blocksStory) {
+        if (hudVisible && scene.mode != BattleSceneMode.BATTLE && hudMatch == null) {
             hudVisible = BattleHudDetector.confirmsLabels(
-                recognize(source, BattleLayout.hudText).joinToString(" ") { it.text }
+                recognize(source, BattleLayout.hudSearch).joinToString(" ") { it.text }
             )
         }
+        if (hudVisible && detectedHud != null) hudMatch = detectedHud
+        else if (!scene.blocksStory) hudMatch = null
         if (version != generation) return blocksStory
         val now = SystemClock.elapsedRealtime()
-        var exitVisible = false
-        if (scene.inBattle && !hudVisible) {
+        var storyVisible = false
+        var resultVisible = false
+        var choiceVisible = false
+        if (scene.mode != BattleSceneMode.STORY) {
             val storyRegions = FgoViewportLayout.regionsForScreen(source.width, source.height)
-            exitVisible = background.isSkipButtonVisible(source, storyRegions.skip) &&
-                background.isDialogueCompleteMarkerVisible(source, storyRegions.dialogueComplete)
-            if (!exitVisible && now >= nextExitCheckAt) {
+            // The position-specific story signature is authoritative even if a
+            // battle-coloured effect happens to satisfy the broad HUD prefilter.
+            storyVisible = background.isDialogueCompleteMarkerVisible(source, storyRegions.dialogueComplete) &&
+                background.isSkipButtonVisible(source, storyRegions.skip)
+            if (!storyVisible && !hudVisible &&
+                scene.mode == BattleSceneMode.BATTLE && now >= nextResultCheckAt) {
                 val header = recognize(source, BattleLayout.resultHeader)
                     .joinToString("") { it.text }.filterNot(Char::isWhitespace).uppercase(java.util.Locale.ROOT)
-                exitVisible = header == "RESULT" || header == "リザルト"
-                nextExitCheckAt = now + if (exitVisible) 120L else 1_500L
+                resultVisible = header == "RESULT" || header == "リザルト"
+                // Once RESULT is seen, verify the next captured frame without a
+                // cooldown so the two-observation transition cannot be reset by timing.
+                nextResultCheckAt = if (resultVisible) 0L else now + 1_500L
+            } else if (!storyVisible && !hudVisible && scene.mode == BattleSceneMode.WAITING) {
+                val rawChoices = withContext(Dispatchers.Default) {
+                    background.detectChoiceButtons(source, storyRegions.choiceSearch)
+                }
+                choiceVisible = withContext(Dispatchers.Default) {
+                    background.snapChoiceButtonsToFixedSlots(
+                        bitmap = source,
+                        rawButtons = rawChoices,
+                        fixedSlotLayouts = storyRegions.choiceSlotLayouts
+                    ).isNotEmpty()
+                }
             }
         }
         if (version != generation) return blocksStory
-        val wasBattle = scene.inBattle
-        scene.observe(hudVisible, exitVisible)
-        if (wasBattle && !scene.inBattle) {
+        val previousMode = scene.mode
+        scene.observe(
+            hudVisible = hudVisible,
+            storyVisible = storyVisible,
+            resultVisible = resultVisible,
+            choiceVisible = choiceVisible
+        )
+        val currentMode = scene.mode
+        if (currentMode == BattleSceneMode.STORY && !scene.blocksStory && !hudVisible) {
+            hudMatch = null
+        }
+        if (previousMode == BattleSceneMode.BATTLE && currentMode != BattleSceneMode.BATTLE) {
             delivery.endAllSources(capturedAt)
             subtitles.clear()
             subtitleCandidateSeen = false
+            hudMatch = null
         }
-        if (wasBattle != scene.inBattle) {
-            FgoLogger.info("BattleSubtitle", if (scene.inBattle)
-                "Battle entered: fixed HUD confirmed, screen=" + screenWidth + "x" + screenHeight
-                else "Battle exited: finishing queued subtitles")
+        if (previousMode != currentMode) {
+            nextResultCheckAt = 0L
+            val detail = when (currentMode) {
+                BattleSceneMode.BATTLE -> "dynamic HUD confirmed, screen=" + screenWidth + "x" + screenHeight +
+                    ", anchor=" + hudMatch?.referenceLeft + "," + hudMatch?.referenceTopOffset
+                BattleSceneMode.WAITING -> "result confirmed; waiting for story or another battle"
+                BattleSceneMode.STORY -> "story UI confirmed; finishing queued battle subtitles"
+            }
+            FgoLogger.info("BattleSubtitle", "Scene mode $previousMode -> $currentMode: $detail")
         }
-        if (!scene.inBattle || exitVisible) {
+        if (!scene.inBattle || storyVisible || resultVisible) {
             refreshCaption()
             return blocksStory
         }
@@ -241,7 +280,8 @@ class BattleSubtitleController @Inject constructor(
         subtitles.clear()
         screenWidth = 0
         screenHeight = 0
-        nextExitCheckAt = 0
+        hudMatch = null
+        nextResultCheckAt = 0
     }
 
     /** Explicit service/feature shutdown: old callbacks cannot refill the next session. */
@@ -256,7 +296,8 @@ class BattleSubtitleController @Inject constructor(
         subtitles.clear()
         scene.reset()
         subtitleCandidateSeen = false
-        nextExitCheckAt = 0
+        hudMatch = null
+        nextResultCheckAt = 0
         screenWidth = 0
         screenHeight = 0
         overlay?.hide()

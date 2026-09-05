@@ -96,7 +96,6 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
     val aiVoiceEnabled by settingsRepository.aiVoiceEnabled.collectAsState(initial = false)
-    val battleSubtitlesEnabled by settingsRepository.battleSubtitlesEnabled.collectAsState(initial = false)
     val foregroundTestOverrideEnabled by settingsRepository.foregroundTestOverrideEnabled.collectAsState()
     val liveVoiceTranslationEnabled by settingsRepository.liveVoiceTranslationEnabled.collectAsState(
         initial = false
@@ -362,22 +361,6 @@ fun SettingsScreen(
                         showOriginalGameText = it
                         scope.launch { settingsRepository.setShowOriginalGameText(it) }
                     }
-                )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                )
-                PreferenceSwitchRow(
-                    title = "战斗字幕",
-                    subtitle = "自动识别日服战斗台词并显示中文",
-                    checked = battleSubtitlesEnabled,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsRepository.setBattleSubtitlesEnabled(enabled) }
-                    }
-                )
-                Text(
-                    "不处理技能名或伤害数字；独立于剧情模式，可与实时语音字幕同时使用。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                 )
             }
 
