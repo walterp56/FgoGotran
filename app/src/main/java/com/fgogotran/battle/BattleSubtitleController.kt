@@ -56,7 +56,7 @@ class BattleSubtitleController @Inject constructor(
     val scanIntervalMs: Long get() = when {
         !scene.blocksStory -> 600L
         scene.mode == BattleSceneMode.WAITING -> 300L
-        scene.mode == BattleSceneMode.STORY || subtitleCandidateSeen || subtitles.current != null -> 120L
+        scene.mode == BattleSceneMode.STORY || subtitleCandidateSeen || subtitles.current != null || subtitles.hasPending -> 120L
         else -> 300L
     }
 
@@ -92,16 +92,15 @@ class BattleSubtitleController @Inject constructor(
         else if (!scene.blocksStory) hudMatch = null
         if (version != generation) return blocksStory
         val now = SystemClock.elapsedRealtime()
-        var storyVisible = false
+        var diamondVisible = false
         var resultVisible = false
         var choiceVisible = false
-        if (scene.mode != BattleSceneMode.STORY) {
+        // Outside story mode the diamond can take ownership at any time. While
+        // already in story mode, check it whenever a possible HUD could compete.
+        if (scene.mode != BattleSceneMode.STORY || hudVisible) {
             val storyRegions = FgoViewportLayout.regionsForScreen(source.width, source.height)
-            // The position-specific story signature is authoritative even if a
-            // battle-coloured effect happens to satisfy the broad HUD prefilter.
-            storyVisible = background.isDialogueCompleteMarkerVisible(source, storyRegions.dialogueComplete) &&
-                background.isSkipButtonVisible(source, storyRegions.skip)
-            if (!storyVisible && !hudVisible &&
+            diamondVisible = background.isDialogueCompleteMarkerVisible(source, storyRegions.dialogueComplete)
+            if (!diamondVisible && !hudVisible &&
                 scene.mode == BattleSceneMode.BATTLE && now >= nextResultCheckAt) {
                 val header = recognize(source, BattleLayout.resultHeader)
                     .joinToString("") { it.text }.filterNot(Char::isWhitespace).uppercase(java.util.Locale.ROOT)
@@ -109,7 +108,7 @@ class BattleSubtitleController @Inject constructor(
                 // Once RESULT is seen, verify the next captured frame without a
                 // cooldown so the two-observation transition cannot be reset by timing.
                 nextResultCheckAt = if (resultVisible) 0L else now + 1_500L
-            } else if (!storyVisible && !hudVisible && scene.mode == BattleSceneMode.WAITING) {
+            } else if (!diamondVisible && !hudVisible && scene.mode == BattleSceneMode.WAITING) {
                 val rawChoices = withContext(Dispatchers.Default) {
                     background.detectChoiceButtons(source, storyRegions.choiceSearch)
                 }
@@ -126,16 +125,24 @@ class BattleSubtitleController @Inject constructor(
         val previousMode = scene.mode
         scene.observe(
             hudVisible = hudVisible,
-            storyVisible = storyVisible,
+            diamondVisible = diamondVisible,
             resultVisible = resultVisible,
             choiceVisible = choiceVisible
         )
         val currentMode = scene.mode
-        if (currentMode == BattleSceneMode.STORY && !scene.blocksStory && !hudVisible) {
+        if (diamondVisible) {
+            // Never let a HUD-shaped false positive cached on the same frame
+            // compete with the authoritative story marker on later frames.
+            hudMatch = null
+        } else if (currentMode == BattleSceneMode.STORY && !scene.blocksStory && !hudVisible) {
             hudMatch = null
         }
         if (previousMode == BattleSceneMode.BATTLE && currentMode != BattleSceneMode.BATTLE) {
+            val boundaryEvent = subtitles.finalizePendingAtBoundary(capturedAt)
+            if (boundaryEvent != null) enqueueDetectedEvent(boundaryEvent)
+            subtitles.endedEvents.forEach { delivery.endSource(it.id, it.at) }
             delivery.endAllSources(capturedAt)
+            if (boundaryEvent != null) pumpTranslations()
             subtitles.clear()
             subtitleCandidateSeen = false
             hudMatch = null
@@ -146,35 +153,49 @@ class BattleSubtitleController @Inject constructor(
                 BattleSceneMode.BATTLE -> "dynamic HUD confirmed, screen=" + screenWidth + "x" + screenHeight +
                     ", anchor=" + hudMatch?.referenceLeft + "," + hudMatch?.referenceTopOffset
                 BattleSceneMode.WAITING -> "result confirmed; waiting for story or another battle"
-                BattleSceneMode.STORY -> "story UI confirmed; finishing queued battle subtitles"
+                BattleSceneMode.STORY -> "dialogue diamond detected; finishing queued battle subtitles"
             }
             FgoLogger.info("BattleSubtitle", "Scene mode $previousMode -> $currentMode: $detail")
         }
-        if (!scene.inBattle || storyVisible || resultVisible) {
+        if (!scene.inBattle || diamondVisible || resultVisible) {
             refreshCaption()
             return blocksStory
         }
 
         val lines = recognize(source, BattleLayout.subtitle)
         if (version != generation || paused) return blocksStory
-        val text = BattleSubtitleText.extract(lines)
-        val uncertain = text == null && BattleSubtitleText.hasUncertainSubtitle(lines)
-        subtitleCandidateSeen = text != null || uncertain
+        val candidate = BattleSubtitleText.extractCandidate(lines)
+        val uncertain = candidate == null && BattleSubtitleText.hasUncertainSubtitle(lines)
+        subtitleCandidateSeen = candidate != null || uncertain
         val event = if (uncertain) {
             subtitles.observationUnavailable()
             null
-        } else subtitles.observe(text, capturedAt)
-        subtitles.ended?.let { delivery.endSource(it.id, it.at) }
-        if (event != null) {
-            delivery.enqueue(event)
-            history[event.id] = SessionTranslationHistory.reserveBattleEntry(
-                "battle:" + sessionGeneration + ":" + event.id, event.source
-            )
-            FgoLogger.debug("BattleSubtitle", "Queued " + event.id + ": " + event.source)
-            pumpTranslations()
+        } else if (candidate != null) {
+            subtitles.observeCandidate(candidate, capturedAt)
+        } else {
+            subtitles.observe(null, capturedAt)
         }
+        if (event != null) {
+            enqueueDetectedEvent(event)
+        }
+        // A disappearance-confirmed one-frame subtitle is both created and ended by
+        // the same observation, so enqueue it before applying its source end time.
+        subtitles.endedEvents.forEach { delivery.endSource(it.id, it.at) }
+        if (event != null) pumpTranslations()
         refreshCaption()
         return blocksStory
+    }
+
+    private fun enqueueDetectedEvent(event: BattleSubtitleEvent) {
+        delivery.enqueue(event)
+        history[event.id] = SessionTranslationHistory.reserveBattleEntry(
+            "battle:" + sessionGeneration + ":" + event.id, event.source
+        )
+        FgoLogger.debug(
+            "BattleSubtitle",
+            "Queued " + event.id + " after " + subtitles.lastConfirmationObservations +
+                " observation(s), " + subtitles.lastConfirmationReason + ": " + event.source
+        )
     }
 
     private suspend fun recognize(source: Bitmap, reference: FgoReferenceRect): List<BattleTextLine> {
