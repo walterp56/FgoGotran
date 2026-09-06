@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
+import com.fgogotran.battle.BattleModeState
 import com.fgogotran.crop.CropModeState
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.data.SettingsRepository
@@ -29,6 +30,7 @@ import com.fgogotran.ui.overlay.FloatingButton
 import com.fgogotran.ui.overlay.FloatingButtonMode
 import com.fgogotran.ui.overlay.HistoryOverlayPanel
 import com.fgogotran.ui.overlay.FloatingMenu
+import com.fgogotran.ui.overlay.withBattleIndicator
 import com.fgogotran.util.FakeComposeHost
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.overlayType
@@ -63,7 +65,8 @@ import javax.inject.Singleton
 class FgoRunnerOverlay @Inject constructor(
     @ApplicationContext private val context: Context,
     private val cropSelectionOverlay: CropSelectionOverlay,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val battleModeState: BattleModeState
 ) {
     private var windowManager: WindowManager? = null
     private var composeHost: FakeComposeHost? = null
@@ -81,6 +84,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var gameServer by mutableStateOf(SettingsRepository.DEFAULT_GAME_SERVER)
     private var aiVoiceEnabled by mutableStateOf(false)
     private var liveVoiceTranslationEnabled by mutableStateOf(false)
+    private var battleModeActive by mutableStateOf(false)
     private var showButtonFailureRing by mutableStateOf(false)
     private var failureFeedbackVersion = 0
     private var buttonPositionScreen: ButtonScreen? = null
@@ -90,6 +94,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var gameServerJob: Job? = null
     private var aiVoiceEnabledJob: Job? = null
     private var liveVoiceTranslationEnabledJob: Job? = null
+    private var battleModeJob: Job? = null
     private var showRequestVersion = 0
     private var callbacksRegistered = false
 
@@ -185,6 +190,7 @@ class FgoRunnerOverlay @Inject constructor(
                 gameServer = settingsRepository.getGameServer()
                 aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
                 liveVoiceTranslationEnabled = settingsRepository.liveVoiceTranslationEnabled.first()
+                battleModeActive = battleModeState.active.value
                 if (!shown || requestVersion != showRequestVersion) return@launch
 
                 val wm = windowManager
@@ -198,7 +204,9 @@ class FgoRunnerOverlay @Inject constructor(
                     FloatingButton(
                         mode = buttonMode,
                         buttonSize = buttonSizeDp.dp,
-                        showFailureRing = showButtonFailureRing && buttonMode != FloatingButtonMode.AUTO,
+                        showFailureRing = showButtonFailureRing &&
+                            buttonMode != FloatingButtonMode.AUTO &&
+                            buttonMode != FloatingButtonMode.BATTLE,
                         onClick = {
                             onButtonClick()
                         },
@@ -213,6 +221,7 @@ class FgoRunnerOverlay @Inject constructor(
                 startGameServerObserver()
                 startAiVoiceEnabledObserver()
                 startLiveVoiceTranslationEnabledObserver()
+                startBattleModeObserver()
                 FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
             } catch (e: Exception) {
                 composeHost?.close()
@@ -254,6 +263,8 @@ class FgoRunnerOverlay @Inject constructor(
         aiVoiceEnabledJob = null
         liveVoiceTranslationEnabledJob?.cancel()
         liveVoiceTranslationEnabledJob = null
+        battleModeJob?.cancel()
+        battleModeJob = null
         saveButtonPositionNow()
         val wm = windowManager
         cancelCropMode()
@@ -489,6 +500,17 @@ class FgoRunnerOverlay @Inject constructor(
         }
     }
 
+    private fun startBattleModeObserver() {
+        battleModeJob?.cancel()
+        battleModeJob = overlayScope.launch {
+            battleModeState.active.collect { active ->
+                if (active == battleModeActive) return@collect
+                battleModeActive = active
+                refreshButtonMode()
+            }
+        }
+    }
+
     private fun saveButtonPositionSoon() {
         val x = btnX
         val y = btnY
@@ -710,13 +732,15 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun updateButtonMode() {
         val japaneseServer = isJapaneseServer()
-        buttonMode = when {
+        val translationMode = TranslationTrigger.translationMode()
+        val normalMode = when {
             cropModeState == CropModeState.SELECTING && japaneseServer -> FloatingButtonMode.CROP
-            TranslationTrigger.translationMode() == TranslationMode.SEMI_AUTO -> FloatingButtonMode.SEMI_AUTO
-            TranslationTrigger.translationMode() == TranslationMode.AUTO -> FloatingButtonMode.AUTO
+            translationMode == TranslationMode.SEMI_AUTO -> FloatingButtonMode.SEMI_AUTO
+            translationMode == TranslationMode.AUTO -> FloatingButtonMode.AUTO
             else -> FloatingButtonMode.MANUAL
         }
-        if (buttonMode == FloatingButtonMode.AUTO) {
+        buttonMode = normalMode.withBattleIndicator(battleModeActive)
+        if (translationMode == TranslationMode.AUTO || buttonMode == FloatingButtonMode.BATTLE) {
             showButtonFailureRing = false
         }
     }

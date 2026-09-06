@@ -33,7 +33,8 @@ internal fun TranslateResult.isDisplayableBattleResponse(): Boolean =
 class BattleSubtitleController @Inject constructor(
     private val ocr: OcrEngine,
     private val translator: Translator,
-    private val background: BackgroundDetector
+    private val background: BackgroundDetector,
+    private val battleModeState: BattleModeState
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val scene = BattleSceneTracker()
@@ -130,6 +131,7 @@ class BattleSubtitleController @Inject constructor(
             choiceVisible = choiceVisible
         )
         val currentMode = scene.mode
+        battleModeState.setActive(scene.inBattle)
         if (diamondVisible) {
             // Never let a HUD-shaped false positive cached on the same frame
             // compete with the authoritative story marker on later frames.
@@ -306,6 +308,7 @@ class BattleSubtitleController @Inject constructor(
     fun suspendObservation() {
         pause()
         scene.reset()
+        battleModeState.setActive(false)
         delivery.endAllSources(SystemClock.elapsedRealtime())
         subtitles.clear()
         screenWidth = 0
@@ -325,6 +328,7 @@ class BattleSubtitleController @Inject constructor(
         delivery.clear()
         subtitles.clear()
         scene.reset()
+        battleModeState.setActive(false)
         subtitleCandidateSeen = false
         hudMatch = null
         nextResultCheckAt = 0

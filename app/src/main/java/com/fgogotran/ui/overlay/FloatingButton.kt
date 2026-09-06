@@ -28,6 +28,8 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -42,16 +44,29 @@ enum class FloatingButtonMode {
     MANUAL,
     SEMI_AUTO,
     AUTO,
+    BATTLE,
     CROP
 }
+
+internal fun FloatingButtonMode.withBattleIndicator(battleModeActive: Boolean): FloatingButtonMode =
+    if (battleModeActive && this != FloatingButtonMode.CROP) FloatingButtonMode.BATTLE else this
 
 enum class FloatingActionIcon {
     GO,
     SEMI,
     AUTO,
+    BATTLE,
     CROP,
     HISTORY_LIST,
     CLOSE_CIRCLE
+}
+
+internal fun FloatingActionIcon.textLabel(): String = when (this) {
+    FloatingActionIcon.GO -> "GO"
+    FloatingActionIcon.SEMI -> "半"
+    FloatingActionIcon.AUTO -> "全"
+    FloatingActionIcon.BATTLE -> "戰"
+    else -> error("$this is not a text action")
 }
 
 /**
@@ -80,6 +95,7 @@ fun FloatingButton(
         FloatingButtonMode.MANUAL -> Color(0xFF1E1E1E)
         FloatingButtonMode.SEMI_AUTO -> Color(0xFF1E1E1E)
         FloatingButtonMode.AUTO -> Color(0xFF1E1E1E)
+        FloatingButtonMode.BATTLE -> Color(0xFF1E1E1E)
         FloatingButtonMode.CROP -> Color(0xFF075F66)
     }
     var pressed by remember { mutableStateOf(false) }
@@ -96,6 +112,15 @@ fun FloatingButton(
     Box(
         modifier = Modifier
             .size(visualButtonSize)
+            .semantics {
+                contentDescription = when (mode) {
+                    FloatingButtonMode.MANUAL -> "手動翻譯"
+                    FloatingButtonMode.SEMI_AUTO -> "半自動翻譯"
+                    FloatingButtonMode.AUTO -> "全自動翻譯"
+                    FloatingButtonMode.BATTLE -> "戰鬥字幕模式"
+                    FloatingButtonMode.CROP -> "裁切翻譯"
+                }
+            }
             .pointerInput(onClick, onLongClick, onDrag) {
                 try {
                     awaitEachGesture {
@@ -209,6 +234,7 @@ fun FloatingButton(
                         FloatingButtonMode.MANUAL -> FloatingActionIcon.GO
                         FloatingButtonMode.SEMI_AUTO -> FloatingActionIcon.SEMI
                         FloatingButtonMode.AUTO -> FloatingActionIcon.AUTO
+                        FloatingButtonMode.BATTLE -> FloatingActionIcon.BATTLE
                         FloatingButtonMode.CROP -> FloatingActionIcon.CROP
                     },
                     prominent = true,
@@ -232,16 +258,13 @@ fun FloatingActionGlyph(
     when (icon) {
         FloatingActionIcon.GO,
         FloatingActionIcon.SEMI,
-        FloatingActionIcon.AUTO -> Box(
+        FloatingActionIcon.AUTO,
+        FloatingActionIcon.BATTLE -> Box(
             modifier = modifier,
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = when (icon) {
-                    FloatingActionIcon.GO -> "GO"
-                    FloatingActionIcon.SEMI -> "半"
-                    else -> "全"
-                },
+                text = icon.textLabel(),
                 color = color,
                 fontSize = scaledGlyphFontSize(icon, prominent, contentScale),
                 fontWeight = FontWeight.Bold,
@@ -278,6 +301,8 @@ private fun scaledGlyphFontSize(
     icon == FloatingActionIcon.SEMI -> 17f
     icon == FloatingActionIcon.AUTO && prominent -> 21f
     icon == FloatingActionIcon.AUTO -> 17f
+    icon == FloatingActionIcon.BATTLE && prominent -> 21f
+    icon == FloatingActionIcon.BATTLE -> 17f
     else -> 13f
 } * contentScale).sp
 
