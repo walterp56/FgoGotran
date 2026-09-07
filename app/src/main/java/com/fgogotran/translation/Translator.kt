@@ -55,6 +55,19 @@ data class ChatMessage(
     val content: String
 )
 
+internal fun normalizeEscapedTranslationLineBreaks(
+    sourceText: String,
+    translatedText: String
+): String {
+    val sourceHasLineBreak = sourceText.any { it == '\n' || it == '\r' }
+    if (!sourceHasLineBreak || '\\' !in translatedText) return translatedText
+
+    return translatedText
+        .replace("\\r\\n", "\n")
+        .replace("\\n", "\n")
+        .replace("\\r", "\n")
+}
+
 data class TranslateResult(
     val translatedText: String,
     val backend: String,
@@ -90,25 +103,39 @@ internal fun buildPreviousSceneBilingualContextPrompt(
     contexts: List<SceneDialogueContext>
 ): String {
     if (contexts.isEmpty()) return ""
-    return buildString {
-        appendLine(
-            "Previous JP+CN scene pairs are reference only. Use them to clarify meaning, references, " +
-                "action roles, terminology, and voice. Never output, retranslate, rewrite, or continue them."
-        )
-        appendLine("Translate only the current input below.")
-        contexts.forEachIndexed { index, context ->
-            appendLine("Previous scene ${index + 1}:")
-            context.sourceSpeakerName?.takeIf(String::isNotBlank)?.let {
-                appendLine("Speaker JP: $it")
-            }
-            context.translatedSpeakerName?.takeIf(String::isNotBlank)?.let {
-                appendLine("Speaker CN: $it")
-            }
-            appendLine("Dialogue JP: ${context.sourceDialogue}")
-            appendLine("Dialogue CN: ${context.translatedDialogue.orEmpty()}")
+    val contextJson = buildJsonArray {
+        contexts.forEach { context ->
+            add(buildJsonObject {
+                put(
+                    "speaker_jp",
+                    context.sourceSpeakerName
+                        ?.takeIf(String::isNotBlank)
+                        ?.let(::JsonPrimitive)
+                        ?: JsonNull
+                )
+                put(
+                    "speaker_cn",
+                    context.translatedSpeakerName
+                        ?.takeIf(String::isNotBlank)
+                        ?.let(::JsonPrimitive)
+                        ?: JsonNull
+                )
+                put("dialogue_jp", JsonPrimitive(context.sourceDialogue))
+                put("dialogue_cn", JsonPrimitive(context.translatedDialogue.orEmpty()))
+            })
         }
-        appendLine()
     }
+    return buildPromptSection(
+        "reference_context",
+        buildString {
+            appendLine(
+                "Previous JP+CN scene pairs are reference only. Use them to clarify meaning, references, " +
+                    "action roles, terminology, and voice. Never output, retranslate, rewrite, or continue them."
+            )
+            appendLine("Translate only the current input below.")
+            append(contextJson)
+        }
+    )
 }
 
 data class SceneTranslateResult(
@@ -532,7 +559,7 @@ class Translator @Inject constructor(
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_LONG_MAX_TOKENS = 384
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_CHAR_LIMIT = 120
         private const val SCENE_TRANSLATION_MAX_TOKENS = 704
-        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-bilingual-v7"
+        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-bilingual-v8"
         private const val CURRENT_SPEAKER_CONTEXT_MAX_CHARS = 160
         private const val SCENE_DIALOGUE_CONTEXT_MAX_CHARS = 320
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
@@ -3378,7 +3405,11 @@ class Translator @Inject constructor(
     }
 
     private fun sanitizeTranslation(sourceText: String, translatedText: String): String {
-        val restoredText = restoreMalformedProtectedTokens(translatedText, emptyList())
+        val lineBreakNormalized = normalizeEscapedTranslationLineBreaks(sourceText, translatedText)
+        if (lineBreakNormalized != translatedText) {
+            FgoLogger.debug(tag, "Normalized escaped translation line break(s)")
+        }
+        val restoredText = restoreMalformedProtectedTokens(lineBreakNormalized, emptyList())
         val simplified = stripEdgeKanaLeak(
             cleanReturnedRubyMarkup(toSimplifiedChinese(restoredText))
         )
@@ -3461,7 +3492,11 @@ class Translator @Inject constructor(
     }
 
     private fun sanitizeTraditionalModelTranslation(sourceText: String, translatedText: String): String {
-        val restoredText = restoreMalformedProtectedTokens(translatedText, emptyList())
+        val lineBreakNormalized = normalizeEscapedTranslationLineBreaks(sourceText, translatedText)
+        if (lineBreakNormalized != translatedText) {
+            FgoLogger.debug(tag, "Normalized escaped translation line break(s)")
+        }
+        val restoredText = restoreMalformedProtectedTokens(lineBreakNormalized, emptyList())
         val cleaned = stripEdgeKanaLeak(cleanReturnedRubyMarkup(restoredText))
         val sanAdjusted = applySanHonorificPolicy(sourceText, cleaned)
         val kunAdjusted = applyKunHonorificPolicy(sourceText, sanAdjusted)
@@ -4854,34 +4889,40 @@ class Translator @Inject constructor(
         } else {
             SCENE_RESPONSE_EXAMPLE
         }
+        val inputJson = buildJsonObject {
+            put("name_jp", name?.let(::JsonPrimitive) ?: JsonNull)
+            put("translate_name", JsonPrimitive(translateName && name != null))
+            put("dialogue_jp", dialogue?.let(::JsonPrimitive) ?: JsonNull)
+            put("translate_dialogue", JsonPrimitive(translateDialogue && dialogue != null))
+            put("player_choices_jp", buildJsonArray {
+                choices.forEach { add(JsonPrimitive(it)) }
+            })
+        }
         return buildString {
-            appendLine("Return JSON only with keys: $responseKeys.")
-            appendLine("Format: $emptyExample")
-            appendLine(
-                "Fields: name=${if (translateName && name != null) "translate" else "null"}; " +
-                    "dialogue=${if (translateDialogue && dialogue != null) "translate" else "null"}; " +
-                    "choices=${choices.size}, same order."
-            )
-            if (requestVoiceHint) {
-                appendLine("voice_hint: delivery hint or null; must not change translation.")
-                appendLine("styles: ${VOICE_HINT_NORMAL_STYLES.joinToString(",")}")
-                appendLine("dragon_styles: ${VOICE_HINT_DRAGON_STYLES.joinToString(",")}")
-                appendLine("intensity/confidence 0-1; rate/pitch/pause -2..2; omit unchanged; null when unclear.")
-            }
-            appendLine()
             appendCurrentSpeakerContextBlock(currentSpeaker)
             appendSceneDialogueContextBlock(previousDialogueContexts)
-            appendLine("Scene:")
-            appendLine("name: ${name ?: "null"}")
-            appendLine("dialogue: ${dialogue ?: "null"}")
-            appendLine("player choices:")
-            if (choices.isEmpty()) {
-                appendLine("[]")
-            } else {
-                choices.forEachIndexed { index, choice ->
-                    appendLine("${index + 1}. $choice")
+            appendPromptSection("current_input", inputJson.toString())
+            appendPromptSection(
+                "output_contract",
+                buildString {
+                    appendLine("Return JSON only with exactly these keys: $responseKeys.")
+                    appendLine("Example shape: $emptyExample")
+                    appendLine(
+                        "Set name=${if (translateName && name != null) "translated name" else "null"}; " +
+                            "dialogue=${if (translateDialogue && dialogue != null) "translated dialogue" else "null"}; " +
+                            "choices=exactly ${choices.size} translated strings in the same order."
+                    )
+                    if (requestVoiceHint) {
+                        appendLine("voice_hint is a delivery hint or null and must not change translation.")
+                        appendLine("styles: ${VOICE_HINT_NORMAL_STYLES.joinToString(",")}")
+                        appendLine("dragon_styles: ${VOICE_HINT_DRAGON_STYLES.joinToString(",")}")
+                        append(
+                            "intensity/confidence 0-1; rate/pitch/pause -2..2; " +
+                                "omit unchanged values; use null when unclear."
+                        )
+                    }
                 }
-            }
+            )
         }
     }
 
@@ -4890,55 +4931,81 @@ class Translator @Inject constructor(
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = ""
     ): String {
+        val inputJson = buildJsonObject {
+            put("dialogue_jp", JsonPrimitive(dialogue))
+        }
         return buildString {
-            appendLine("Translate the dialogue and optionally create an Azure TTS acting hint.")
-            appendLine("""Return JSON only with keys: dialogue, voice_hint.""")
-            appendLine("""Neutral example: {"dialogue":"translated Chinese dialogue","voice_hint":null}""")
-            appendLine("Voice hint schema:")
-            appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
-            appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
-            appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; omit unchanged values or use null.")
-            appendLine()
             appendCurrentSpeakerContextBlock(currentSpeaker)
             appendSceneDialogueContextBlock(previousDialogueContexts)
-            appendLine("Dialogue input:")
-            appendLine(dialogue)
+            appendPromptSection("current_input", inputJson.toString())
+            appendPromptSection(
+                "output_contract",
+                buildString {
+                    appendLine("Translate dialogue_jp and optionally create an Azure TTS acting hint.")
+                    appendLine("Return JSON only with exactly these keys: dialogue, voice_hint.")
+                    appendLine("""Neutral example: {"dialogue":"translated Chinese dialogue","voice_hint":null}""")
+                    appendLine("styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
+                    appendLine(
+                        "dragon_styles <=3 DragonHDFlash-only: " +
+                            "${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}."
+                    )
+                    append(
+                        "intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; " +
+                            "omit unchanged values or use null."
+                    )
+                }
+            )
         }
     }
 
     private fun StringBuilder.appendCurrentSpeakerContextBlock(currentSpeaker: String) {
         if (currentSpeaker.isBlank()) return
-        appendLine(
-            "Current speaker (voice/register/relationship context only): $currentSpeaker. " +
-                "This label, identity, or gender alone does not establish an omitted participant or " +
-                "possessor; follow Japanese evidence and the pronoun rule. Never output this label. " +
-                "Translate any separate name field normally."
+        val speakerJson = buildJsonObject {
+            put("speaker", JsonPrimitive(currentSpeaker.trim()))
+        }
+        appendPromptSection(
+            "speaker_context",
+            "Use only for voice, register, and relationship. Never output this label or treat its " +
+                "identity/gender as evidence for an omitted participant or possessor. Translate any " +
+                "separate name field normally.\n$speakerJson"
         )
-        appendLine()
     }
 
     private fun StringBuilder.appendSceneDialogueContextBlock(
         previousDialogueContexts: List<SceneDialogueContext>
     ) {
-        append(buildPreviousSceneBilingualContextPrompt(previousDialogueContexts))
+        appendPromptSectionText(buildPreviousSceneBilingualContextPrompt(previousDialogueContexts))
     }
 
     private fun buildVoiceHintPrompt(
         speakerName: String,
         dialogue: String
     ): String {
+        val inputJson = buildJsonObject {
+            put("speaker", JsonPrimitive(speakerName))
+            put("dialogue", JsonPrimitive(dialogue))
+        }
         return buildString {
-            appendLine("Create an Azure TTS acting hint for this FGO line without translating it. Return JSON only.")
-            appendLine("Neutral/unclear example: $VOICE_HINT_NULL_EXAMPLE")
-            appendLine("Active example: $VOICE_HINT_ACTIVE_EXAMPLE")
-            appendLine("- Use null when neutral/unclear; otherwise choose only values supported by the line, never copied defaults.")
-            appendLine("- styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
-            appendLine("- dragon_styles <=3 DragonHDFlash-only: ${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}.")
-            appendLine("- intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; omit unchanged values or use null.")
-            appendLine("- No old keys: emotion, energy, delivery, attitude, pace.")
-            appendLine()
-            appendLine("speaker: $speakerName")
-            appendLine("dialogue: $dialogue")
+            appendPromptSection("current_input", inputJson.toString())
+            appendPromptSection(
+                "output_contract",
+                buildString {
+                    appendLine("Create an Azure TTS acting hint for this FGO line without translating it.")
+                    appendLine("Return JSON only. Neutral/unclear example: $VOICE_HINT_NULL_EXAMPLE")
+                    appendLine("Active example: $VOICE_HINT_ACTIVE_EXAMPLE")
+                    appendLine("Use null when neutral/unclear; otherwise choose only values supported by the line.")
+                    appendLine("styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
+                    appendLine(
+                        "dragon_styles <=3 DragonHDFlash-only: " +
+                            "${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}."
+                    )
+                    appendLine(
+                        "intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; " +
+                            "omit unchanged values or use null."
+                    )
+                    append("Do not use old keys: emotion, energy, delivery, attitude, pace.")
+                }
+            )
         }
     }
 
@@ -5239,7 +5306,16 @@ class Translator @Inject constructor(
         translateAsChoices: Boolean = false
     ): String {
         val basePrompt = if (translateAsChoices) {
-            "Player choice:\n$japaneseText"
+            buildString {
+                val inputJson = buildJsonObject {
+                    put("player_choice_jp", JsonPrimitive(japaneseText))
+                }
+                appendPromptSection("current_input", inputJson.toString())
+                appendPromptSection(
+                    "output_contract",
+                    "Return only the Chinese translation of player_choice_jp."
+                )
+            }
         } else {
             promptBuilder.buildUserPrompt(japaneseText, choiceTexts)
         }
@@ -5249,7 +5325,7 @@ class Translator @Inject constructor(
         return buildString {
             appendCurrentSpeakerContextBlock(currentSpeaker)
             appendSceneDialogueContextBlock(previousDialogueContexts)
-            append(basePrompt)
+            appendPromptSectionText(basePrompt)
         }
     }
 
@@ -5258,13 +5334,22 @@ class Translator @Inject constructor(
         currentSpeaker: String = "",
         translateAsChoices: Boolean = false
     ): String {
+        val inputJson = buildJsonObject {
+            put(
+                if (translateAsChoices) "player_choices_jp" else "items_jp",
+                buildJsonArray {
+                    texts.forEach { add(JsonPrimitive(it)) }
+                }
+            )
+        }
         return buildString {
-            appendLine("Return a JSON array of exactly ${texts.size} strings, one per item, in order.")
             appendCurrentSpeakerContextBlock(currentSpeaker)
-            appendLine(if (translateAsChoices) "Player choices:" else "Items:")
-            texts.forEachIndexed { index, text ->
-                appendLine("${index + 1}. $text")
-            }
+            appendPromptSection("current_input", inputJson.toString())
+            appendPromptSection(
+                "output_contract",
+                "Return a JSON array of exactly ${texts.size} translated strings, one per input item, " +
+                    "in the same order."
+            )
         }
     }
 
@@ -5356,15 +5441,7 @@ class Translator @Inject constructor(
         characterContextPrompt: String
     ): String {
         val targetChinese = targetChinesePromptLabel(targetChineseLocale)
-        return buildString {
-            appendLine("Repair this FGO translation: use only $targetChinese and remove all Japanese kana.")
-            appendLine(
-                if (cropMode) {
-                    "Crop mode: translate each OCR row independently; return a JSON array with one string per row, same order."
-                } else {
-                    "Return final translated text only; no source text, markdown, notes, or explanations."
-                }
-            )
+        val activeRules = buildString {
             appendLine(promptBuilder.buildPronounFidelityPrompt())
             appendLine("Keep __FGO tokens and masks (???, ？？？, ■, □, ▇, █) exact; never guess masks.")
             appendLine("Resolve leftover kana by context: SFX -> Chinese; names -> Chinese transliteration; other text -> meaning.")
@@ -5380,9 +5457,26 @@ class Translator @Inject constructor(
                 appendLine(promptBuilder.buildCharacterContextPrompt(characterContextPrompt))
             }
             if (playerName.isNotBlank()) {
-                appendLine("Player name: \"$playerName\". Keep it exactly if it appears.")
+                appendLine(
+                    "Player name: ${JsonPrimitive(playerName)}. Keep it exactly if it appears."
+                )
             }
-            appendLine(promptBuilder.buildSourceFidelityCheckPrompt())
+            append(promptBuilder.buildSourceFidelityCheckPrompt())
+        }
+        return buildString {
+            appendPromptSection(
+                "repair_task",
+                "Repair this FGO translation. Use only $targetChinese and remove all Japanese kana."
+            )
+            appendPromptSection("active_rules", activeRules)
+            appendPromptSection(
+                "output_contract",
+                if (cropMode) {
+                    "Crop mode: translate each OCR row independently; return a JSON array with one string per row, same order."
+                } else {
+                    "Return final translated text only; no source text, markdown, notes, or explanations."
+                }
+            )
         }
     }
 
@@ -5397,39 +5491,55 @@ class Translator @Inject constructor(
     ): String {
         return buildString {
             val hasBadTranslation = badTranslation.isNotBlank()
+            appendCurrentSpeakerContextBlock(currentSpeaker)
+            appendSceneDialogueContextBlock(previousDialogueContexts)
             if (hasBadTranslation) {
-                appendLine("Previous draft:")
-                appendLine(badTranslation)
-                if (kanaTokens.isNotEmpty()) {
-                    appendLine("Detected kana: ${kanaTokens.joinToString(", ")}")
+                val draftJson = buildJsonObject {
+                    put("draft", JsonPrimitive(badTranslation))
+                    put("detected_kana", buildJsonArray {
+                        kanaTokens.forEach { add(JsonPrimitive(it)) }
+                    })
                 }
-                appendLine()
+                appendPromptSection(
+                    "previous_draft",
+                    "Repair reference only; do not copy detected Japanese kana.\n$draftJson"
+                )
             }
             if (cropMode) {
                 val lines = japaneseText.lines()
                     .map { it.trim() }
                     .filter { it.isNotBlank() }
-                appendLine("Cropped OCR lines:")
-                lines.forEachIndexed { index, line ->
-                    appendLine("${index + 1}. $line")
+                val inputJson = buildJsonObject {
+                    put("ocr_rows_jp", buildJsonArray {
+                        lines.forEach { add(JsonPrimitive(it)) }
+                    })
                 }
-                appendLine()
-                appendLine("Return exactly ${lines.size} corrected strings in the JSON array, same order.")
+                appendPromptSection("current_input", inputJson.toString())
+                appendPromptSection(
+                    "output_contract",
+                    "Return exactly ${lines.size} corrected Chinese strings in a JSON array, in the same order. " +
+                        "Keep already-correct Chinese wording where possible."
+                )
                 return@buildString
             }
-            appendCurrentSpeakerContextBlock(currentSpeaker)
-            appendSceneDialogueContextBlock(previousDialogueContexts)
-            appendLine("Source:")
-            append(japaneseText)
             if (choiceTexts.isNotEmpty()) {
-                appendLine()
-                appendLine("Choices:")
-                choiceTexts.forEachIndexed { index, choice ->
-                    appendLine("${index + 1}. $choice")
+                val choicesJson = buildJsonArray {
+                    choiceTexts.forEach { add(JsonPrimitive(it)) }
                 }
+                appendPromptSection(
+                    "choice_context",
+                    "Player choices are context only; do not translate or output them.\n$choicesJson"
+                )
             }
-            appendLine()
-            appendLine("Keep already-correct Chinese wording where possible.")
+            val inputJson = buildJsonObject {
+                put("dialogue_jp", JsonPrimitive(japaneseText))
+            }
+            appendPromptSection("current_input", inputJson.toString())
+            appendPromptSection(
+                "output_contract",
+                "Return only the corrected Chinese translation of dialogue_jp. " +
+                    "Keep already-correct Chinese wording where possible."
+            )
         }
     }
 

@@ -3,9 +3,47 @@ package com.fgogotran.translation
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.TermEntity
 import com.fgogotran.util.FgoLogger
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import java.text.Normalizer
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private val promptSectionNamePattern = Regex("[a-z][a-z0-9_]*")
+
+internal fun buildPromptSection(
+    name: String,
+    content: String
+): String {
+    require(promptSectionNamePattern.matches(name)) { "Invalid prompt section name: $name" }
+    val trimmedContent = content.trim()
+    if (trimmedContent.isEmpty()) return ""
+    return "<$name>\n$trimmedContent\n</$name>"
+}
+
+internal fun StringBuilder.appendPromptSection(
+    name: String,
+    content: String
+) {
+    val section = buildPromptSection(name, content)
+    if (section.isEmpty()) return
+    if (isNotEmpty()) {
+        if (last() != '\n') append('\n')
+        if (length < 2 || this[length - 2] != '\n') append('\n')
+    }
+    append(section)
+}
+
+internal fun StringBuilder.appendPromptSectionText(section: String) {
+    val trimmedSection = section.trim()
+    if (trimmedSection.isEmpty()) return
+    if (isNotEmpty()) {
+        if (last() != '\n') append('\n')
+        if (length < 2 || this[length - 2] != '\n') append('\n')
+    }
+    append(trimmedSection)
+}
 
 enum class PromptOutputFormat(val logName: String) {
     PLAIN_TEXT("plain_text"),
@@ -75,12 +113,14 @@ data class PromptContext(
  * Constructs system and user prompts for the LLM translation backends.
  *
  * ## System prompt structure
- * 1. Tiny base role and output contract
+ * 1. Translation task
  * 2. Small safety, style, and feature blocks for the current source shape
+ * 3. Output contract
  *
  * ## User prompt structure
- * 1. Optional choice text context (if player choices are on screen)
- * 2. The actual Japanese dialogue text to translate
+ * 1. Optional context
+ * 2. The current Japanese input
+ * 3. The concrete output contract
  *
  * ## RAG (Retrieval-Augmented Generation)
  * The [extractTermMatches] method finds FGO-specific proper nouns in the JP text
@@ -91,8 +131,8 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v86"
-        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v3"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v87"
+        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v4"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -365,6 +405,7 @@ class PromptBuilder @Inject constructor() {
         context: PromptContext = PromptContext()
     ): String {
         val sb = StringBuilder()
+        val rules = StringBuilder()
         val blockNames = mutableListOf<String>()
         val targetChinese = targetChinesePromptLabel(context.targetChineseLocale)
         val isBattleSubtitle =
@@ -374,25 +415,19 @@ class PromptBuilder @Inject constructor() {
             isBattleSubtitle -> BATTLE_SUBTITLE_BASE_PROMPT
             else -> BASE_TRANSLATION_PROMPT
         }
-        appendPromptBlock(
-            sb,
-            blockNames,
-            when {
-                context.isCropMode -> "crop_base"
-                isBattleSubtitle -> "battle_base"
-                else -> "base"
-            },
+        val baseBlockName = when {
+            context.isCropMode -> "crop_base"
+            isBattleSubtitle -> "battle_base"
+            else -> "base"
+        }
+        sb.appendPromptSection(
+            "translation_task",
             applyTargetChinese(basePrompt, targetChinese)
         )
-        appendPromptBlock(
-            sb,
-            blockNames,
-            outputBlockName(context.outputFormat),
-            outputPromptBlock(context.outputFormat)
-        )
+        blockNames += baseBlockName
         if (context.isDialogue || context.hasChoices || context.isCropMode) {
             appendPromptBlock(
-                sb,
+                rules,
                 blockNames,
                 if (isBattleSubtitle) "battle_pronoun_fidelity" else "pronoun_fidelity",
                 if (isBattleSubtitle) {
@@ -404,37 +439,37 @@ class PromptBuilder @Inject constructor() {
         }
         if (isBattleSubtitle) {
             appendPromptBlock(
-                sb,
+                rules,
                 blockNames,
                 "battle_punctuation",
                 BATTLE_PUNCTUATION_PROMPT
             )
         }
         if (context.hasPlaceholders) {
-            appendPromptBlock(sb, blockNames, "placeholder", PLACEHOLDER_PROMPT)
+            appendPromptBlock(rules, blockNames, "placeholder", PLACEHOLDER_PROMPT)
         }
         if (context.hasMasks) {
-            appendPromptBlock(sb, blockNames, "mask", MASK_PROMPT)
+            appendPromptBlock(rules, blockNames, "mask", MASK_PROMPT)
         }
         if (context.needsPlayerNameRule) {
             appendPromptBlock(
-                sb,
+                rules,
                 blockNames,
                 "player_name",
                 PLAYER_NAME_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
             )
         }
         if (context.isCropMode) {
-            appendPromptBlock(sb, blockNames, "crop_style", CROP_STYLE_PROMPT)
+            appendPromptBlock(rules, blockNames, "crop_style", CROP_STYLE_PROMPT)
             if (context.hasMasterWord) {
-                appendPromptBlock(sb, blockNames, "master", MASTER_PROMPT)
+                appendPromptBlock(rules, blockNames, "master", MASTER_PROMPT)
             }
         } else {
             if (context.isDialogue && !isBattleSubtitle) {
-                appendPromptBlock(sb, blockNames, "dialogue_style", DIALOGUE_STYLE_PROMPT)
+                appendPromptBlock(rules, blockNames, "dialogue_style", DIALOGUE_STYLE_PROMPT)
                 if (context.characterContextPrompt.isNotBlank()) {
                     appendPromptBlock(
-                        sb,
+                        rules,
                         blockNames,
                         "character_context",
                         buildCharacterContextPrompt(context.characterContextPrompt)
@@ -442,7 +477,7 @@ class PromptBuilder @Inject constructor() {
                 }
                 if (context.isUnattributedDialogue) {
                     appendPromptBlock(
-                        sb,
+                        rules,
                         blockNames,
                         "unattributed_dialogue",
                         UNATTRIBUTED_DIALOGUE_PROMPT
@@ -450,21 +485,29 @@ class PromptBuilder @Inject constructor() {
                 }
             }
             if (!isBattleSubtitle && context.hasLineBreaks) {
-                appendPromptBlock(sb, blockNames, "line_break", LINE_BREAK_PROMPT)
+                appendPromptBlock(rules, blockNames, "line_break", LINE_BREAK_PROMPT)
             }
             if (context.hasMasterWord) {
-                appendPromptBlock(sb, blockNames, "master", MASTER_PROMPT)
+                appendPromptBlock(rules, blockNames, "master", MASTER_PROMPT)
             }
         }
         if (!isBattleSubtitle && context.requestVoiceHint) {
-            appendPromptBlock(sb, blockNames, "voice_hint", VOICE_HINT_PROMPT)
+            appendPromptBlock(rules, blockNames, "voice_hint", VOICE_HINT_PROMPT)
         }
         featurePromptBlocks(context).forEach { (name, block) ->
-            appendPromptBlock(sb, blockNames, name, applyTargetChinese(block, targetChinese))
+            appendPromptBlock(rules, blockNames, name, applyTargetChinese(block, targetChinese))
         }
         if (context.isDialogue || context.hasChoices || context.isCropMode) {
-            appendPromptBlock(sb, blockNames, "source_fidelity_check", buildSourceFidelityCheckPrompt())
+            appendPromptBlock(
+                rules,
+                blockNames,
+                "source_fidelity_check",
+                buildSourceFidelityCheckPrompt()
+            )
         }
+        sb.appendPromptSection("active_rules", rules.toString())
+        sb.appendPromptSection("output_contract", outputPromptBlock(context.outputFormat))
+        blockNames += outputBlockName(context.outputFormat)
         FgoLogger.debug(
             tag,
             "System prompt combination: profile=${context.promptProfile}, " +
@@ -574,17 +617,23 @@ class PromptBuilder @Inject constructor() {
     ): String {
         val sb = StringBuilder()
 
-        // Prepend choice context if present — helps the LLM understand
-        // that these are separate interactive elements, not dialogue lines
         if (choiceTexts.isNotEmpty()) {
-            sb.append("Player choices (context only; do not output):\n")
-            for ((i, choice) in choiceTexts.withIndex()) {
-                sb.append("${i + 1}. $choice\n")
+            val choicesJson = buildJsonArray {
+                choiceTexts.forEach { add(JsonPrimitive(it)) }
             }
-            sb.append('\n')
+            sb.appendPromptSection(
+                "choice_context",
+                "Player choices are context only; do not translate or output them.\n$choicesJson"
+            )
         }
-        sb.append("Source:\n")
-        sb.append(japaneseText)
+        val inputJson = buildJsonObject {
+            put("dialogue_jp", JsonPrimitive(japaneseText))
+        }
+        sb.appendPromptSection("current_input", inputJson.toString())
+        sb.appendPromptSection(
+            "output_contract",
+            "Return only the Chinese translation of dialogue_jp."
+        )
 
         FgoLogger.debug(tag, "User prompt: ${sb.length} chars, choices=${choiceTexts.size}")
         return sb.toString()
@@ -598,13 +647,16 @@ class PromptBuilder @Inject constructor() {
             .map { it.trim() }
             .filter { it.isNotBlank() }
 
-        sb.append("Return a JSON array of exactly ${lines.size} strings, one per OCR row, in order.\n")
-        sb.append("OCR rows:\n")
-        lines.forEachIndexed { index, line ->
-            sb.append("${index + 1}. ")
-            sb.append(line)
-            if (index != lines.lastIndex) sb.append('\n')
+        val inputJson = buildJsonObject {
+            put("ocr_rows_jp", buildJsonArray {
+                lines.forEach { add(JsonPrimitive(it)) }
+            })
         }
+        sb.appendPromptSection("current_input", inputJson.toString())
+        sb.appendPromptSection(
+            "output_contract",
+            "Return a JSON array of exactly ${lines.size} translated strings, one per OCR row, in the same order."
+        )
 
         FgoLogger.debug(tag, "Crop user prompt: ${sb.length} chars")
         return sb.toString()
