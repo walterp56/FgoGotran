@@ -288,7 +288,8 @@ class FgoAccessibilityService : AccessibilityService() {
         val voiceDialogue: String?,
         val fingerprint: String,
         val stabilityKey: String,
-        val hasDialogue: Boolean
+        val hasDialogue: Boolean,
+        val contextGeneration: Long
     )
 
     private data class OcrRegionTarget(
@@ -2268,7 +2269,8 @@ class FgoAccessibilityService : AccessibilityService() {
             voiceDialogue = voiceDialogue,
             fingerprint = fingerprint,
             stabilityKey = stabilityKey,
-            hasDialogue = dialogueText.isNotBlank()
+            hasDialogue = dialogueText.isNotBlank(),
+            contextGeneration = SessionTranslationHistory.currentSceneContextGeneration()
         )
     }
 
@@ -3149,7 +3151,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     targetLocale = targetLocale,
                     sourceKey = entrySourceKey,
                     dialogueSourceKey = dialogueSourceKey,
-                    contextDialogueTranslationTrusted = dialogueTrustedForContext
+                    contextDialogueTranslationTrusted = dialogueTrustedForContext,
+                    sceneContextGeneration = sceneSource.contextGeneration
                 )
             )
         }

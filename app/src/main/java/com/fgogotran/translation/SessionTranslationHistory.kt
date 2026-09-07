@@ -23,6 +23,7 @@ data class SessionTranslationEntry(
     val sourceKey: String = "",
     val dialogueSourceKey: String = "",
     val contextDialogueTranslationTrusted: Boolean = true,
+    val sceneContextGeneration: Long = SessionTranslationHistory.UNSPECIFIED_SCENE_CONTEXT_GENERATION,
     val createdAt: Long = System.currentTimeMillis(),
     val historyId: Long = 0L,
     val battleOccurrence: Boolean = false
@@ -48,29 +49,47 @@ object SessionTranslationHistory {
     val entries: StateFlow<List<SessionTranslationEntry>> = _entries.asStateFlow()
     private var session = 0L
     private var nextOrder = 0L
+    private var sceneContextGeneration = 0L
 
     @Synchronized
     fun add(entry: SessionTranslationEntry) {
+        val scopedEntry = if (entry.sceneContextGeneration == UNSPECIFIED_SCENE_CONTEXT_GENERATION) {
+            entry.copy(sceneContextGeneration = sceneContextGeneration)
+        } else {
+            entry
+        }
         val currentEntries = _entries.value
-        val originalKey = entry.contentKey()
+        val latestEntryInContextIndex = currentEntries.indexOfLast {
+            it.sceneContextGeneration == scopedEntry.sceneContextGeneration
+        }
+        val latestEntryInContext = currentEntries.getOrNull(latestEntryInContextIndex)
+        val originalKey = scopedEntry.contentKey()
         if (originalKey.isBlank()) return
-        if (currentEntries.lastOrNull()?.let { !it.battleOccurrence && it.contentKey() == originalKey } == true) {
+        if (latestEntryInContext?.let { !it.battleOccurrence && it.contentKey() == originalKey } == true) {
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
         }
 
         val previousDialogueEntry = currentEntries
             .asReversed()
-            .firstOrNull { !it.battleOccurrence && it.dialogueKey().isNotBlank() }
-        val normalizedEntry = entry.withoutRepeatedDialogueAfter(previousDialogueEntry)
+            .firstOrNull {
+                !it.battleOccurrence &&
+                    it.sceneContextGeneration == scopedEntry.sceneContextGeneration &&
+                    it.dialogueKey().isNotBlank()
+            }
+        val normalizedEntry = scopedEntry.withoutRepeatedDialogueAfter(previousDialogueEntry)
         val key = normalizedEntry.contentKey()
         if (key.isBlank()) return
-        if (normalizedEntry.shouldUpdateLatestSameSource(currentEntries.lastOrNull())) {
+        if (normalizedEntry.shouldUpdateLatestSameSource(latestEntryInContext)) {
             FgoLogger.debug(TAG, "History latest same-source entry updated")
-            _entries.value = currentEntries.dropLast(1) + normalizedEntry.copy(historyId = currentEntries.last().historyId)
+            _entries.value = currentEntries.toMutableList().apply {
+                this[latestEntryInContextIndex] = normalizedEntry.copy(
+                    historyId = latestEntryInContext!!.historyId
+                )
+            }
             return
         }
-        if (currentEntries.lastOrNull()?.let { !it.battleOccurrence && it.contentKey() == key } == true) {
+        if (latestEntryInContext?.let { !it.battleOccurrence && it.contentKey() == key } == true) {
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
         }
@@ -104,9 +123,21 @@ object SessionTranslationHistory {
     @Synchronized
     fun clear() {
         session++ // Invalidate reservations even if an old network callback survives cancellation.
+        sceneContextGeneration++
         _entries.value = emptyList()
     }
 
+    /** Starts a fresh story context without removing any user-visible LOG entries. */
+    @Synchronized
+    fun clearSceneDialogueContext() {
+        sceneContextGeneration++
+        FgoLogger.info(TAG, "Story translation context cleared at confirmed battle boundary")
+    }
+
+    @Synchronized
+    fun currentSceneContextGeneration(): Long = sceneContextGeneration
+
+    @Synchronized
     fun lastSceneDialogueContexts(
         limit: Int = DEFAULT_SCENE_DIALOGUE_CONTEXT_LIMIT,
         excludeDialogueSourceKey: String = ""
@@ -115,6 +146,9 @@ object SessionTranslationHistory {
         return _entries.value
             .asReversed()
             .asSequence()
+            .filter { entry ->
+                !entry.battleOccurrence && entry.sceneContextGeneration == sceneContextGeneration
+            }
             .filter { entry ->
                 val sourceDialogue = entry.contextSourceDialogue?.trim()
                 sourceDialogue != null && sourceDialogue.isNotBlank()
@@ -254,4 +288,6 @@ object SessionTranslationHistory {
             text == "翻译失败" ||
             text == "翻譯失敗"
     }
+
+    internal const val UNSPECIFIED_SCENE_CONTEXT_GENERATION = Long.MIN_VALUE
 }

@@ -83,3 +83,4 @@ app/src/test/**
 !app/src/test/java/com/fgogotran/translation/SessionHistoryRetentionTest.kt
 app/src/test/
 local-ai-studio/
+FgoGotranLocal/

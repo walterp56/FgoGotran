@@ -132,6 +132,11 @@ class BattleSubtitleController @Inject constructor(
         )
         val currentMode = scene.mode
         battleModeState.setActive(scene.inBattle)
+        if (previousMode == BattleSceneMode.STORY && currentMode == BattleSceneMode.BATTLE) {
+            // The battle is an authoritative context boundary. Keep LOG rows, glossary,
+            // memory and queued subtitles, but never carry story dialogue across it.
+            SessionTranslationHistory.clearSceneDialogueContext()
+        }
         if (diamondVisible) {
             // Never let a HUD-shaped false positive cached on the same frame
             // compete with the authoritative story marker on later frames.
