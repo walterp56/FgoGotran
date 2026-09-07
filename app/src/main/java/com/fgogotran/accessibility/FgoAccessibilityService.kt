@@ -105,8 +105,9 @@ class FgoAccessibilityService : AccessibilityService() {
     private var foregroundTestOverrideEnabled = false
     private val foregroundTestOverride = ForegroundTestOverride()
     private var battleMonitoring = false
-    private var battleFrameBusy = false
     private var battleScanJob: Job? = null
+    private val battleFrameBusy: Boolean
+        get() = battleScanJob?.isActive == true
     private var nextBattleScanAt = 0L
     private var translationJob: Job? = null
     private var cropTranslationJob: Job? = null
@@ -152,6 +153,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private var currentPlayerName = ""
     private var showOriginalGameText = false
     private var gameServer = SettingsRepository.DEFAULT_GAME_SERVER
+    private var translationContextEnabled = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_ENABLED
+    private var translationContextSceneCount = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT
     private var aiVoiceEnabled = false
     private var aiVoiceApiHintsEnabled = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
     private var aiVoiceNamedDialogueEnabled = SettingsRepository.DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED
@@ -178,7 +181,6 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val VOICE_HINT_REQUEST_TIMEOUT_MS = 2_500L
         private const val OVERLAY_BUTTON_LONG_PRESS_TIMEOUT = 420L
         private const val OVERLAY_BUTTON_TOUCH_SLOP = 18f
-        private const val CROP_TRANSLATION_WAIT_TIMEOUT = 700L
         private const val CROP_TRANSLATION_MAX_TOKENS = 512
         private const val CROP_OCR_SCALE = 2
         private const val CHOICE_OCR_SCALE = 2
@@ -355,6 +357,7 @@ class FgoAccessibilityService : AccessibilityService() {
         watchGameServer()
         watchPlayerName()
         watchOriginalTextDisplay()
+        watchTranslationContext()
         watchVoiceReadScope()
         serviceScope.launch {
             settingsRepository.foregroundTestOverrideEnabled.collect { enabled ->
@@ -399,6 +402,20 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             settingsRepository.showOriginalGameText.collect { enabled ->
                 showOriginalGameText = enabled
+            }
+        }
+    }
+
+    private fun watchTranslationContext() {
+        serviceScope.launch {
+            settingsRepository.translationContextEnabled.collect { enabled ->
+                translationContextEnabled = enabled
+            }
+        }
+        serviceScope.launch {
+            settingsRepository.translationContextSceneCount.collect { sceneCount ->
+                translationContextSceneCount =
+                    SettingsRepository.normalizeTranslationContextSceneCount(sceneCount)
             }
         }
     }
@@ -750,9 +767,13 @@ class FgoAccessibilityService : AccessibilityService() {
             return false
         }
 
+        val interruptedTranslation = translationJob
+        val interruptedCropTranslation = cropTranslationJob
+        val interruptedBattleScan = battleScanJob
         TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
         cancelCurrentTranslation()
         battleSubtitles.pause()
+        interruptedBattleScan?.cancel()
         serviceScope.launch(Dispatchers.IO) {
             appAnalytics.reportCropModeUsed()
         }
@@ -760,16 +781,21 @@ class FgoAccessibilityService : AccessibilityService() {
         cropTranslationJob = serviceScope.launch {
             var shouldRestoreMode = false
             try {
-                val deadline = SystemClock.elapsedRealtime() + CROP_TRANSLATION_WAIT_TIMEOUT
-                while ((isProcessing || battleFrameBusy) && SystemClock.elapsedRealtime() < deadline) {
-                    delay(CAPTURE_SETTLE_DELAY)
+                if (interruptedTranslation?.isCompleted == false ||
+                    interruptedCropTranslation?.isCompleted == false ||
+                    interruptedBattleScan?.isCompleted == false) {
+                    FgoLogger.debug(
+                        tag,
+                        "Crop translation waiting for interrupted pipeline: " +
+                            "processing=$isProcessing, battle=$battleFrameBusy"
+                    )
                 }
-                if (isProcessing || battleFrameBusy) {
-                    FgoLogger.warn(tag, "Crop translation skipped; previous pipeline is still busy")
-                    showCropStatus(bounds, "请稍后再试")
-                    shouldRestoreMode = true
-                    return@launch
-                }
+                // Crop is explicit user work. Wait for cancelled OCR owners to release
+                // OcrEngine's mutex instead of dropping the request after a short timeout.
+                interruptedTranslation?.join()
+                interruptedCropTranslation?.join()
+                interruptedBattleScan?.join()
+                if (battleScanJob === interruptedBattleScan) battleScanJob = null
                 processCropTranslation(Rect(bounds))
                 shouldRestoreMode = true
             } finally {
@@ -887,9 +913,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun stopBattleMonitoring(resetSession: Boolean = true) {
         battleMonitoring = false
         battleScanJob?.cancel()
-        battleScanJob = null
         if (resetSession) battleSubtitles.reset() else battleSubtitles.suspendObservation()
-        // The active OCR call owns its bitmap and clears battleFrameBusy in finally.
+        // Keep the cancelled job as the busy owner until its OCR call and bitmap cleanup finish.
     }
 
     private fun monitorBattleIfReady() {
@@ -912,7 +937,6 @@ class FgoAccessibilityService : AccessibilityService() {
         // processScreen also routes its captured frame through the battle observer. Do not
         // invalidate that observation merely because the normal pipeline owns the frame.
         if (isProcessing || battleFrameBusy || SystemClock.elapsedRealtime() < nextBattleScanAt) return
-        battleFrameBusy = true
         battleScanJob = serviceScope.launch {
             var frame: Bitmap? = null
             try {
@@ -927,7 +951,6 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             finally {
                 frame?.recycle()
-                battleFrameBusy = false
                 val interval = battleSubtitles.scanIntervalMs.coerceAtLeast(
                     if (MediaProjectionCapture.isAvailable()) 120L else 350L
                 )
@@ -2312,8 +2335,9 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun translateSceneSource(sceneSource: SceneSource): SceneTranslateResult {
-        val previousDialogueContexts = if (isJapaneseServer()) {
+        val previousDialogueContexts = if (isJapaneseServer() && translationContextEnabled) {
             SessionTranslationHistory.lastSceneDialogueContexts(
+                limit = translationContextSceneCount,
                 excludeDialogueSourceKey = sceneSource.historyDialogueSourceKey()
             )
         } else {

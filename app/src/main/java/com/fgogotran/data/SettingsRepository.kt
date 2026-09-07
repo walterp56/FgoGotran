@@ -24,6 +24,23 @@ import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
+data class ApiSamplingSettings(
+    val mode: String,
+    val temperatureEnabled: Boolean,
+    val temperature: Double,
+    val topPEnabled: Boolean,
+    val topP: Double
+)
+
+data class ApiSamplingCapabilities(
+    val supportsTemperature: Boolean,
+    val supportsTopP: Boolean,
+    val allowsCombinedParameters: Boolean
+) {
+    val supportsCustomization: Boolean
+        get() = supportsTemperature || supportsTopP
+}
+
 /**
  * Persistent application settings backed by Jetpack DataStore Preferences.
  *
@@ -44,6 +61,8 @@ class SettingsRepository @Inject constructor(
         val KEY_API_MODEL = stringPreferencesKey("api_model")
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
+        val KEY_TRANSLATION_CONTEXT_ENABLED = booleanPreferencesKey("translation_context_enabled")
+        val KEY_TRANSLATION_CONTEXT_SCENE_COUNT = intPreferencesKey("translation_context_scene_count")
         val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
         val KEY_AI_VOICE_ENABLED = booleanPreferencesKey("ai_voice_enabled")
         val KEY_AI_VOICE_LANGUAGE = stringPreferencesKey("ai_voice_language")
@@ -104,6 +123,10 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54
         const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
+        const val DEFAULT_TRANSLATION_CONTEXT_ENABLED = true
+        const val MIN_TRANSLATION_CONTEXT_SCENE_COUNT = 1
+        const val DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT = 2
+        const val MAX_TRANSLATION_CONTEXT_SCENE_COUNT = 5
         const val AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA = "southeastasia"
         const val AZURE_SPEECH_REGION_CHINA_NORTH3 = "chinanorth3"
         const val DEFAULT_AZURE_SPEECH_REGION = AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA
@@ -168,6 +191,15 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
         const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
         const val DEFAULT_CUSTOM_MODEL = ""
+        const val API_SAMPLING_MODE_AUTO = "auto"
+        const val API_SAMPLING_MODE_CUSTOM = "custom"
+        private const val LEGACY_API_SAMPLING_MODE_TEMPERATURE = "temperature"
+        private const val LEGACY_API_SAMPLING_MODE_TOP_P = "top_p"
+        const val MIN_API_TEMPERATURE = 0.0
+        const val MAX_API_TEMPERATURE = 1.0
+        const val MIN_API_TOP_P = 0.01
+        const val MAX_API_TOP_P = 1.0
+        const val DEFAULT_DEEPSEEK_TEMPERATURE = 1.0
         const val TARGET_LOCALE_SIMPLIFIED = "zh-Hans"
         const val TARGET_LOCALE_TRADITIONAL = "zh-Hant"
         const val GAME_SERVER_JP = "jp"
@@ -237,6 +269,12 @@ class SettingsRepository @Inject constructor(
         fun normalizeFloatingButtonSizeDp(sizeDp: Int): Int =
             sizeDp.coerceIn(MIN_FLOATING_BUTTON_SIZE_DP, MAX_FLOATING_BUTTON_SIZE_DP)
 
+        fun normalizeTranslationContextSceneCount(sceneCount: Int): Int =
+            sceneCount.coerceIn(
+                MIN_TRANSLATION_CONTEXT_SCENE_COUNT,
+                MAX_TRANSLATION_CONTEXT_SCENE_COUNT
+            )
+
         fun normalizeLiveVoiceSubtitleFontSizeSp(fontSizeSp: Int): Int =
             fontSizeSp.coerceIn(
                 MIN_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP,
@@ -304,6 +342,108 @@ class SettingsRepository @Inject constructor(
             else -> DEFAULT_DEEPSEEK_MODEL
         }
 
+        fun defaultApiSamplingSettings(backend: String): ApiSamplingSettings {
+            val normalizedBackend = normalizeBackend(backend)
+            val temperature = when (normalizedBackend) {
+                BACKEND_DEEPSEEK -> DEFAULT_DEEPSEEK_TEMPERATURE
+                BACKEND_ZHIPU -> 0.2
+                BACKEND_CUSTOM_OPENAI -> 0.2
+                else -> 0.3
+            }
+            val topP = when (normalizedBackend) {
+                BACKEND_ZHIPU -> 0.95
+                BACKEND_QWEN -> 0.8
+                else -> 0.9
+            }
+            return ApiSamplingSettings(
+                mode = API_SAMPLING_MODE_AUTO,
+                temperatureEnabled = false,
+                temperature = temperature,
+                topPEnabled = false,
+                topP = topP
+            )
+        }
+
+        fun normalizeApiSamplingMode(mode: String): String = when (mode) {
+            API_SAMPLING_MODE_CUSTOM,
+            LEGACY_API_SAMPLING_MODE_TEMPERATURE,
+            LEGACY_API_SAMPLING_MODE_TOP_P -> API_SAMPLING_MODE_CUSTOM
+            else -> API_SAMPLING_MODE_AUTO
+        }
+
+        fun apiSamplingCapabilities(
+            backend: String,
+            apiModel: String
+        ): ApiSamplingCapabilities {
+            return when (normalizeBackend(backend)) {
+                BACKEND_CLAUDE,
+                BACKEND_GEMINI -> ApiSamplingCapabilities(
+                    supportsTemperature = false,
+                    supportsTopP = false,
+                    allowsCombinedParameters = false
+                )
+                BACKEND_GPT -> {
+                    val normalizedModel = apiModel.trim().lowercase()
+                    val supportsSampling = normalizedModel.startsWith("gpt-4") ||
+                        normalizedModel.startsWith("gpt-3.5") ||
+                        normalizedModel.startsWith("chatgpt-4o")
+                    ApiSamplingCapabilities(
+                        supportsTemperature = supportsSampling,
+                        supportsTopP = supportsSampling,
+                        allowsCombinedParameters = false
+                    )
+                }
+                BACKEND_CUSTOM_OPENAI -> ApiSamplingCapabilities(
+                    supportsTemperature = true,
+                    supportsTopP = true,
+                    allowsCombinedParameters = true
+                )
+                else -> ApiSamplingCapabilities(
+                    supportsTemperature = true,
+                    supportsTopP = true,
+                    allowsCombinedParameters = false
+                )
+            }
+        }
+
+        fun supportsApiSamplingCustomization(backend: String, apiModel: String): Boolean =
+            apiSamplingCapabilities(backend, apiModel).supportsCustomization
+
+        fun normalizeApiSamplingSettings(
+            backend: String,
+            apiModel: String,
+            settings: ApiSamplingSettings
+        ): ApiSamplingSettings {
+            val defaults = defaultApiSamplingSettings(backend)
+            val capabilities = apiSamplingCapabilities(backend, apiModel)
+            val normalizedMode = normalizeApiSamplingMode(settings.mode).let { mode ->
+                if (capabilities.supportsCustomization) mode
+                else API_SAMPLING_MODE_AUTO
+            }
+            val temperatureEnabled =
+                normalizedMode == API_SAMPLING_MODE_CUSTOM &&
+                    capabilities.supportsTemperature &&
+                    settings.temperatureEnabled
+            var topPEnabled =
+                normalizedMode == API_SAMPLING_MODE_CUSTOM &&
+                    capabilities.supportsTopP &&
+                    settings.topPEnabled
+            if (!capabilities.allowsCombinedParameters && temperatureEnabled && topPEnabled) {
+                topPEnabled = false
+            }
+            return ApiSamplingSettings(
+                mode = normalizedMode,
+                temperatureEnabled = temperatureEnabled,
+                temperature = settings.temperature
+                    .takeIf { it.isFinite() && it in MIN_API_TEMPERATURE..MAX_API_TEMPERATURE }
+                    ?: defaults.temperature,
+                topPEnabled = topPEnabled,
+                topP = settings.topP
+                    .takeIf { it.isFinite() && it in MIN_API_TOP_P..MAX_API_TOP_P }
+                    ?: defaults.topP
+            )
+        }
+
         fun backendDisplayName(backend: String): String = when (normalizeBackend(backend)) {
             BACKEND_DEEPSEEK -> "DeepSeek"
             BACKEND_ZHIPU -> "智谱 GLM"
@@ -325,6 +465,21 @@ class SettingsRepository @Inject constructor(
 
         fun apiModelPreferenceKey(backend: String) =
             stringPreferencesKey("api_model_${normalizeBackend(backend)}")
+
+        fun apiSamplingModePreferenceKey(backend: String) =
+            stringPreferencesKey("api_sampling_mode_${normalizeBackend(backend)}")
+
+        fun apiTemperaturePreferenceKey(backend: String) =
+            stringPreferencesKey("api_temperature_${normalizeBackend(backend)}")
+
+        fun apiTemperatureEnabledPreferenceKey(backend: String) =
+            booleanPreferencesKey("api_temperature_enabled_${normalizeBackend(backend)}")
+
+        fun apiTopPPreferenceKey(backend: String) =
+            stringPreferencesKey("api_top_p_${normalizeBackend(backend)}")
+
+        fun apiTopPEnabledPreferenceKey(backend: String) =
+            booleanPreferencesKey("api_top_p_enabled_${normalizeBackend(backend)}")
 
         private fun analyticsModeDatePreferenceKey(mode: String) =
             stringPreferencesKey("analytics_mode_${analyticsSafeSegment(mode)}_date")
@@ -419,6 +574,36 @@ class SettingsRepository @Inject constructor(
         }.first()
     }
 
+    suspend fun getApiSamplingSettingsForBackend(
+        backend: String,
+        apiModel: String
+    ): ApiSamplingSettings {
+        val normalizedBackend = normalizeBackend(backend)
+        val defaults = defaultApiSamplingSettings(normalizedBackend)
+        return context.dataStore.data.map { prefs ->
+            val storedMode = prefs[apiSamplingModePreferenceKey(normalizedBackend)]
+                ?: defaults.mode
+            normalizeApiSamplingSettings(
+                backend = normalizedBackend,
+                apiModel = apiModel,
+                settings = ApiSamplingSettings(
+                    mode = storedMode,
+                    temperatureEnabled = prefs[
+                        apiTemperatureEnabledPreferenceKey(normalizedBackend)
+                    ] ?: (storedMode == LEGACY_API_SAMPLING_MODE_TEMPERATURE),
+                    temperature = prefs[apiTemperaturePreferenceKey(normalizedBackend)]
+                        ?.toDoubleOrNull()
+                        ?: defaults.temperature,
+                    topPEnabled = prefs[apiTopPEnabledPreferenceKey(normalizedBackend)]
+                        ?: (storedMode == LEGACY_API_SAMPLING_MODE_TOP_P),
+                    topP = prefs[apiTopPPreferenceKey(normalizedBackend)]
+                        ?.toDoubleOrNull()
+                        ?: defaults.topP
+                )
+            )
+        }.first()
+    }
+
     /** The player's FGO Master name for dialogue personalization. */
     val playerName: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_PLAYER_NAME] ?: ""
@@ -427,6 +612,19 @@ class SettingsRepository @Inject constructor(
     /** Whether translation caching is enabled. */
     val cacheEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_CACHE_ENABLED] ?: true
+    }
+
+    /** Whether recent trusted JP+CN scene pairs are sent as dialogue translation context. */
+    val translationContextEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_TRANSLATION_CONTEXT_ENABLED] ?: DEFAULT_TRANSLATION_CONTEXT_ENABLED
+    }
+
+    /** Number of recent trusted JP+CN scene pairs included in translation prompts. */
+    val translationContextSceneCount: Flow<Int> = context.dataStore.data.map { prefs ->
+        normalizeTranslationContextSceneCount(
+            prefs[KEY_TRANSLATION_CONTEXT_SCENE_COUNT]
+                ?: DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT
+        )
     }
 
     /** Whether the dialogue overlay also renders the original game text below translation. */
@@ -762,7 +960,8 @@ class SettingsRepository @Inject constructor(
         apiKey: String,
         apiBaseUrl: String,
         apiModel: String,
-        qwenSite: String = DEFAULT_QWEN_SITE
+        qwenSite: String = DEFAULT_QWEN_SITE,
+        samplingSettings: ApiSamplingSettings? = null
     ) {
         val normalizedBackend = normalizeBackend(backend)
         val normalizedQwenSite = normalizeQwenSite(qwenSite)
@@ -773,6 +972,26 @@ class SettingsRepository @Inject constructor(
         }
         val normalizedApiModel = apiModel.trim()
         require(normalizedApiModel.isNotEmpty()) { "模型名称不能为空" }
+        val requestedSamplingSettings = samplingSettings
+            ?: defaultApiSamplingSettings(normalizedBackend)
+        val normalizedSamplingSettings = normalizeApiSamplingSettings(
+            backend = normalizedBackend,
+            apiModel = normalizedApiModel,
+            settings = requestedSamplingSettings
+        )
+        if (normalizedSamplingSettings.temperatureEnabled) {
+            require(
+                requestedSamplingSettings.temperature.isFinite() &&
+                    requestedSamplingSettings.temperature in
+                    MIN_API_TEMPERATURE..MAX_API_TEMPERATURE
+            ) { "Temperature 必须在 0.00 到 1.00 之间" }
+        }
+        if (normalizedSamplingSettings.topPEnabled) {
+            require(
+                requestedSamplingSettings.topP.isFinite() &&
+                    requestedSamplingSettings.topP in MIN_API_TOP_P..MAX_API_TOP_P
+            ) { "Top-p 必须在 0.01 到 1.00 之间" }
+        }
         context.dataStore.edit {
             it[KEY_TRANSLATION_BACKEND] = normalizedBackend
             it[apiKeyPreferenceKey(normalizedBackend)] = apiKey.trim()
@@ -780,13 +999,25 @@ class SettingsRepository @Inject constructor(
             it[apiModelPreferenceKey(normalizedBackend)] = normalizedApiModel
             it[KEY_API_BASE_URL] = normalizedApiBaseUrl
             it[KEY_API_MODEL] = normalizedApiModel
+            it[apiSamplingModePreferenceKey(normalizedBackend)] = normalizedSamplingSettings.mode
+            it[apiTemperatureEnabledPreferenceKey(normalizedBackend)] =
+                normalizedSamplingSettings.temperatureEnabled
+            it[apiTemperaturePreferenceKey(normalizedBackend)] =
+                normalizedSamplingSettings.temperature.toString()
+            it[apiTopPEnabledPreferenceKey(normalizedBackend)] =
+                normalizedSamplingSettings.topPEnabled
+            it[apiTopPPreferenceKey(normalizedBackend)] = normalizedSamplingSettings.topP.toString()
             if (normalizedBackend == BACKEND_QWEN) {
                 it[KEY_QWEN_SITE] = normalizedQwenSite
             }
         }
         FgoLogger.debug(
             tag,
-            "API settings updated: backend=$normalizedBackend, model=${apiModel.trim()}, api_key=(redacted, ${apiKey.trim().length} chars)"
+            "API settings updated: backend=$normalizedBackend, model=${apiModel.trim()}, " +
+                "sampling=${normalizedSamplingSettings.mode}, " +
+                "temperatureEnabled=${normalizedSamplingSettings.temperatureEnabled}, " +
+                "topPEnabled=${normalizedSamplingSettings.topPEnabled}, " +
+                "api_key=(redacted, ${apiKey.trim().length} chars)"
         )
     }
 
@@ -813,6 +1044,17 @@ class SettingsRepository @Inject constructor(
     suspend fun setCacheEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_CACHE_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: cache_enabled=$enabled")
+    }
+
+    suspend fun setTranslationContextEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_TRANSLATION_CONTEXT_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: translation_context_enabled=$enabled")
+    }
+
+    suspend fun setTranslationContextSceneCount(sceneCount: Int) {
+        val normalizedCount = normalizeTranslationContextSceneCount(sceneCount)
+        context.dataStore.edit { it[KEY_TRANSLATION_CONTEXT_SCENE_COUNT] = normalizedCount }
+        FgoLogger.debug(tag, "Setting updated: translation_context_scene_count=$normalizedCount")
     }
 
     suspend fun setShowOriginalGameText(enabled: Boolean) {

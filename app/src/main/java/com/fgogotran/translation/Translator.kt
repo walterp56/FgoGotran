@@ -1,6 +1,7 @@
 package com.fgogotran.translation
 
 import android.icu.text.Transliterator
+import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
@@ -43,6 +44,7 @@ import java.text.Normalizer
 import java.security.MessageDigest
 import java.util.LinkedHashMap
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
@@ -62,6 +64,11 @@ data class TranslateResult(
     val isFailure: Boolean = false
 )
 
+data class ApiSettingsTestResult(
+    val translatedText: String,
+    val ignoredSamplingParameters: List<String>
+)
+
 data class SceneTranslateInput(
     val name: String?,
     val dialogue: String?,
@@ -79,16 +86,14 @@ data class SceneDialogueContext(
     val dialogueSourceKey: String
 )
 
-internal fun buildPreviousSceneJapaneseContextPrompt(
+internal fun buildPreviousSceneBilingualContextPrompt(
     contexts: List<SceneDialogueContext>
 ): String {
     if (contexts.isEmpty()) return ""
     return buildString {
         appendLine(
-            "Previous JP scenes are context only. Use relevant Japanese evidence to clarify meaning, " +
-                "references, and action roles, not to invent identities, ownership, or story facts. " +
-                "Keep unresolved references ambiguous and follow the pronoun rule when expressing them. " +
-                "Never output, translate, or continue previous scenes."
+            "Previous JP+CN scene pairs are reference only. Use them to clarify meaning, references, " +
+                "action roles, terminology, and voice. Never output, retranslate, rewrite, or continue them."
         )
         appendLine("Translate only the current input below.")
         contexts.forEachIndexed { index, context ->
@@ -96,7 +101,11 @@ internal fun buildPreviousSceneJapaneseContextPrompt(
             context.sourceSpeakerName?.takeIf(String::isNotBlank)?.let {
                 appendLine("Speaker JP: $it")
             }
+            context.translatedSpeakerName?.takeIf(String::isNotBlank)?.let {
+                appendLine("Speaker CN: $it")
+            }
             appendLine("Dialogue JP: ${context.sourceDialogue}")
+            appendLine("Dialogue CN: ${context.translatedDialogue.orEmpty()}")
         }
         appendLine()
     }
@@ -150,6 +159,7 @@ class Translator @Inject constructor(
         }
     }
     private val localApiRequestMutex = Mutex()
+    private val unsupportedSamplingParameters = ConcurrentHashMap.newKeySet<String>()
 
     private val cacheDao = cacheDb.cacheDao()
     private val tag = "Translator"
@@ -195,8 +205,10 @@ class Translator @Inject constructor(
         backend: String,
         apiKey: String,
         apiBaseUrl: String,
-        apiModel: String
-    ): String {
+        apiModel: String,
+        samplingSettings: ApiSamplingSettings =
+            SettingsRepository.defaultApiSamplingSettings(backend)
+    ): ApiSettingsTestResult {
         val normalizedBackend = SettingsRepository.normalizeBackend(backend)
         val resolvedApiBaseUrl = apiBaseUrl.trim().ifBlank {
             SettingsRepository.defaultApiBaseUrl(normalizedBackend)
@@ -213,7 +225,12 @@ class Translator @Inject constructor(
             playerName = "",
             cacheEnabled = false,
             targetChineseLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
-            glossaryCacheKey = "api-test"
+            glossaryCacheKey = "api-test",
+            samplingSettings = SettingsRepository.normalizeApiSamplingSettings(
+                backend = normalizedBackend,
+                apiModel = resolvedApiModel,
+                settings = samplingSettings
+            )
         )
         if (config.requiresApiKey && config.apiKey.isBlank()) {
             throw IllegalStateException("API Key is empty")
@@ -314,7 +331,10 @@ class Translator @Inject constructor(
             tag,
             "API test succeeded: backend=$normalizedBackend, model=${config.apiModel}, responseLen=${translated.length}"
         )
-        return translated
+        return ApiSettingsTestResult(
+            translatedText = translated,
+            ignoredSamplingParameters = ignoredSamplingParameters(config).toList()
+        )
     }
 
     suspend fun testVoiceHint(
@@ -408,10 +428,43 @@ class Translator @Inject constructor(
         val playerName: String,
         val cacheEnabled: Boolean,
         val targetChineseLocale: String,
-        val glossaryCacheKey: String
+        val glossaryCacheKey: String,
+        val samplingSettings: ApiSamplingSettings
     ) {
         val requiresApiKey: Boolean
             get() = SettingsRepository.requiresApiKey(backend)
+    }
+
+    private data class EffectiveApiSampling(
+        val temperature: Double? = null,
+        val topP: Double? = null,
+        val doSample: Boolean? = null
+    ) {
+        val parameterNames: Set<String>
+            get() = listOfNotNull(
+                temperature?.let { "temperature" },
+                topP?.let { "top_p" },
+                doSample?.let { "do_sample" }
+            ).toSet()
+
+        val parameterIdentity: String
+            get() = parameterNames.joinToString("+")
+
+        val logSummary: String
+            get() = listOfNotNull(
+                temperature?.let { "temperature=$it" },
+                topP?.let { "top_p=$it" },
+                doSample?.let { "do_sample=$it" }
+            ).joinToString(",").ifBlank { "provider-default" }
+
+        fun without(parameters: Set<String>): EffectiveApiSampling {
+            if (parameters.isEmpty()) return this
+            return EffectiveApiSampling(
+                temperature = temperature.takeUnless { "temperature" in parameters },
+                topP = topP.takeUnless { "top_p" in parameters },
+                doSample = doSample.takeUnless { "do_sample" in parameters }
+            )
+        }
     }
 
     private data class CharacterNameVariant(
@@ -479,7 +532,7 @@ class Translator @Inject constructor(
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_LONG_MAX_TOKENS = 384
         private const val SCENE_DIALOGUE_WITH_VOICE_HINT_SHORT_CHAR_LIMIT = 120
         private const val SCENE_TRANSLATION_MAX_TOKENS = 704
-        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-jp-v6"
+        private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-bilingual-v7"
         private const val CURRENT_SPEAKER_CONTEXT_MAX_CHARS = 160
         private const val SCENE_DIALOGUE_CONTEXT_MAX_CHARS = 320
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
@@ -781,7 +834,7 @@ class Translator @Inject constructor(
         val activePreviousDialogueContexts = if (cropMode || isBattleSubtitle) {
             emptyList()
         } else {
-            sceneDialogueContextsForPrompt(previousDialogueContexts)
+            sceneDialogueContextsForPrompt(previousDialogueContexts, config.targetChineseLocale)
         }
         val activeCurrentSpeaker = if (cropMode || isBattleSubtitle) {
             ""
@@ -1456,7 +1509,7 @@ class Translator @Inject constructor(
         val activePreviousDialogueContexts = if (
             hasDialogueNeedingApiBeforeCache || hasChoiceNeedingApiBeforeCache
         ) {
-            sceneDialogueContextsForPrompt(input.previousDialogueContexts)
+            sceneDialogueContextsForPrompt(input.previousDialogueContexts, config.targetChineseLocale)
         } else {
             emptyList()
         }
@@ -2049,7 +2102,11 @@ class Translator @Inject constructor(
             playerName = playerName,
             cacheEnabled = settingsRepository.cacheEnabled.first(),
             targetChineseLocale = settingsRepository.targetChineseLocale.first(),
-            glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "online-db-pending" }
+            glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "online-db-pending" },
+            samplingSettings = settingsRepository.getApiSamplingSettingsForBackend(
+                backend,
+                apiModel
+            )
         )
         cachedRuntimeConfig?.let { cached ->
             if (cached.playerName != loaded.playerName) {
@@ -4863,7 +4920,7 @@ class Translator @Inject constructor(
     private fun StringBuilder.appendSceneDialogueContextBlock(
         previousDialogueContexts: List<SceneDialogueContext>
     ) {
-        append(buildPreviousSceneJapaneseContextPrompt(previousDialogueContexts))
+        append(buildPreviousSceneBilingualContextPrompt(previousDialogueContexts))
     }
 
     private fun buildVoiceHintPrompt(
@@ -5451,12 +5508,131 @@ class Translator @Inject constructor(
         }
     }
 
+    private fun effectiveApiSampling(config: RuntimeConfig): EffectiveApiSampling {
+        val settings = SettingsRepository.normalizeApiSamplingSettings(
+            backend = config.backend,
+            apiModel = config.apiModel,
+            settings = config.samplingSettings
+        )
+        return when (settings.mode) {
+            SettingsRepository.API_SAMPLING_MODE_CUSTOM -> EffectiveApiSampling(
+                temperature = settings.temperature.takeIf { settings.temperatureEnabled },
+                topP = settings.topP.takeIf { settings.topPEnabled },
+                doSample = true.takeIf {
+                    config.backend == SettingsRepository.BACKEND_ZHIPU &&
+                        (settings.temperatureEnabled || settings.topPEnabled)
+                }
+            )
+            else -> when (config.backend) {
+                SettingsRepository.BACKEND_DEEPSEEK -> EffectiveApiSampling(
+                    temperature = SettingsRepository.DEFAULT_DEEPSEEK_TEMPERATURE
+                )
+                SettingsRepository.BACKEND_ZHIPU -> EffectiveApiSampling(doSample = false)
+                SettingsRepository.BACKEND_GPT -> {
+                    if (SettingsRepository.supportsApiSamplingCustomization(
+                            config.backend,
+                            config.apiModel
+                        )
+                    ) {
+                        EffectiveApiSampling(temperature = 0.3)
+                    } else {
+                        EffectiveApiSampling()
+                    }
+                }
+                SettingsRepository.BACKEND_CUSTOM_OPENAI -> EffectiveApiSampling()
+                else -> EffectiveApiSampling()
+            }
+        }
+    }
+
+    private fun samplingParameterCompatibilityKey(
+        apiBaseUrl: String,
+        apiModel: String,
+        parameter: String
+    ): String {
+        return listOf(
+            apiBaseUrl.trim(),
+            apiModel.trim().lowercase(Locale.US),
+            parameter
+        ).joinToString("\u001F")
+    }
+
+    private fun ignoredSamplingParameters(config: RuntimeConfig): Set<String> {
+        val sampling = effectiveApiSampling(config)
+        return rememberedUnsupportedSamplingParameters(
+            apiBaseUrl = config.apiBaseUrl,
+            apiModel = config.apiModel,
+            sampling = sampling
+        )
+    }
+
+    private fun rememberedUnsupportedSamplingParameters(
+        apiBaseUrl: String,
+        apiModel: String,
+        sampling: EffectiveApiSampling
+    ): Set<String> {
+        return sampling.parameterNames.filterTo(linkedSetOf()) { parameter ->
+            samplingParameterCompatibilityKey(apiBaseUrl, apiModel, parameter) in
+                unsupportedSamplingParameters
+        }
+    }
+
+    private fun rejectedSamplingParameters(
+        statusCode: Int,
+        responseBody: String,
+        requestedSampling: EffectiveApiSampling
+    ): Set<String> {
+        if (statusCode != 400 && statusCode != 422) return emptySet()
+        val normalized = responseBody.lowercase(Locale.US)
+        val rejectionMarkerFound = listOf(
+            "unsupported",
+            "not support",
+            "unknown",
+            "unrecognized",
+            "not allowed",
+            "invalid parameter",
+            "invalid value",
+            "extra inputs",
+            "does not accept",
+            "must be omitted",
+            "不支持",
+            "无效参数"
+        ).any { it in normalized }
+        if (!rejectionMarkerFound) return emptySet()
+
+        return requestedSampling.parameterNames.filterTo(linkedSetOf()) { parameter ->
+            when (parameter) {
+                "top_p" -> "top_p" in normalized || "top-p" in normalized
+                "do_sample" -> "do_sample" in normalized || "do-sample" in normalized
+                else -> parameter in normalized
+            }
+        }
+    }
+
+    private fun samplingCacheIdentity(config: RuntimeConfig): String {
+        val settings = SettingsRepository.normalizeApiSamplingSettings(
+            backend = config.backend,
+            apiModel = config.apiModel,
+            settings = config.samplingSettings
+        )
+        return when (settings.mode) {
+            SettingsRepository.API_SAMPLING_MODE_CUSTOM -> listOfNotNull(
+                "sampling-v2:custom",
+                settings.temperature.takeIf { settings.temperatureEnabled }
+                    ?.let { "temperature=$it" },
+                settings.topP.takeIf { settings.topPEnabled }?.let { "top_p=$it" }
+            ).joinToString(":")
+            else -> "sampling-v2:auto"
+        }
+    }
+
     private suspend fun translateDeepSeek(
         apiKey: String,
         apiBaseUrl: String,
         apiModel: String,
         messages: List<ChatMessage>,
-        maxTokens: Int
+        maxTokens: Int,
+        sampling: EffectiveApiSampling
     ): String {
         FgoLogger.debug(
             tag,
@@ -5473,7 +5649,8 @@ class Translator @Inject constructor(
                 buildJsonObject {
                     put("model", JsonPrimitive(apiModel))
                     put("max_tokens", JsonPrimitive(maxTokens))
-                    put("temperature", JsonPrimitive(0.3))
+                    sampling.temperature?.let { put("temperature", JsonPrimitive(it)) }
+                    sampling.topP?.let { put("top_p", JsonPrimitive(it)) }
                     put("messages", chatMessagesJson(messages))
                     if (apiModel.startsWith("deepseek-v4")) {
                         put("thinking", buildJsonObject {
@@ -5523,7 +5700,6 @@ class Translator @Inject constructor(
                 buildJsonObject {
                     put("model", JsonPrimitive(apiModel))
                     put("max_tokens", JsonPrimitive(maxTokens))
-                    put("temperature", JsonPrimitive(0.3))
                     if (systemPrompt.isNotBlank()) {
                         put("system", JsonPrimitive(systemPrompt))
                     }
@@ -5573,7 +5749,8 @@ class Translator @Inject constructor(
         messages: List<ChatMessage>,
         maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
         disableThinking: Boolean = false,
-        reasoningEffort: String? = null
+        reasoningEffort: String? = null,
+        sampling: EffectiveApiSampling
     ): String {
         val isPrivateLanHttp = ApiEndpointPolicy.isPrivateLanHttp(apiBaseUrl)
         return if (isPrivateLanHttp) {
@@ -5586,7 +5763,8 @@ class Translator @Inject constructor(
                     maxTokens = maxTokens,
                     disableThinking = disableThinking,
                     reasoningEffort = reasoningEffort,
-                    useLocalTimeout = true
+                    useLocalTimeout = true,
+                    sampling = sampling
                 )
             }
         } else {
@@ -5598,7 +5776,8 @@ class Translator @Inject constructor(
                 maxTokens = maxTokens,
                 disableThinking = disableThinking,
                 reasoningEffort = reasoningEffort,
-                useLocalTimeout = false
+                useLocalTimeout = false,
+                sampling = sampling
             )
         }
     }
@@ -5611,55 +5790,95 @@ class Translator @Inject constructor(
         maxTokens: Int,
         disableThinking: Boolean,
         reasoningEffort: String?,
-        useLocalTimeout: Boolean
+        useLocalTimeout: Boolean,
+        sampling: EffectiveApiSampling
     ): String {
-        val response = httpClient.post(apiBaseUrl) {
-            if (useLocalTimeout) {
-                timeout {
-                    connectTimeoutMillis = TRANSLATION_CONNECT_TIMEOUT_MS
-                    socketTimeoutMillis = LOCAL_API_SOCKET_TIMEOUT_MS
-                    requestTimeoutMillis = LOCAL_API_REQUEST_TIMEOUT_MS
-                }
-            }
-            if (apiKey.isNotBlank()) {
-                header("Authorization", "Bearer $apiKey")
-            }
-            contentType(ContentType.Application.Json)
-            setBody(
-                buildJsonObject {
-                    put("model", JsonPrimitive(apiModel))
-                    put("messages", chatMessagesJson(messages))
-                    put("max_tokens", JsonPrimitive(maxTokens))
-                    put("temperature", JsonPrimitive(0.3))
-                    if (!reasoningEffort.isNullOrBlank()) {
-                        put("reasoning_effort", JsonPrimitive(reasoningEffort))
-                    }
-                    if (disableThinking) {
-                        put(
-                            "thinking",
-                            buildJsonObject {
-                                put("type", JsonPrimitive("disabled"))
-                            }
-                        )
+        suspend fun executeRequest(requestSampling: EffectiveApiSampling): Pair<Int, String> {
+            val response = httpClient.post(apiBaseUrl) {
+                if (useLocalTimeout) {
+                    timeout {
+                        connectTimeoutMillis = TRANSLATION_CONNECT_TIMEOUT_MS
+                        socketTimeoutMillis = LOCAL_API_SOCKET_TIMEOUT_MS
+                        requestTimeoutMillis = LOCAL_API_REQUEST_TIMEOUT_MS
                     }
                 }
-            )
+                if (apiKey.isNotBlank()) {
+                    header("Authorization", "Bearer $apiKey")
+                }
+                contentType(ContentType.Application.Json)
+                setBody(
+                    buildJsonObject {
+                        put("model", JsonPrimitive(apiModel))
+                        put("messages", chatMessagesJson(messages))
+                        put("max_tokens", JsonPrimitive(maxTokens))
+                        requestSampling.temperature?.let {
+                            put("temperature", JsonPrimitive(it))
+                        }
+                        requestSampling.topP?.let { put("top_p", JsonPrimitive(it)) }
+                        requestSampling.doSample?.let { put("do_sample", JsonPrimitive(it)) }
+                        if (!reasoningEffort.isNullOrBlank()) {
+                            put("reasoning_effort", JsonPrimitive(reasoningEffort))
+                        }
+                        if (disableThinking) {
+                            put(
+                                "thinking",
+                                buildJsonObject {
+                                    put("type", JsonPrimitive("disabled"))
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+            return response.status.value to response.bodyAsText()
         }
-        val rawBody = response.bodyAsText()
-        if (!response.status.isSuccess()) {
+
+        val alreadyUnsupported = rememberedUnsupportedSamplingParameters(
+            apiBaseUrl = apiBaseUrl,
+            apiModel = apiModel,
+            sampling = sampling
+        )
+        val initialSampling = sampling.without(alreadyUnsupported)
+        var (statusCode, rawBody) = executeRequest(initialSampling)
+        val rejectedParameters = rejectedSamplingParameters(
+            statusCode = statusCode,
+            responseBody = rawBody,
+            requestedSampling = initialSampling
+        )
+        if (rejectedParameters.isNotEmpty()) {
+            rejectedParameters.forEach { parameter ->
+                unsupportedSamplingParameters += samplingParameterCompatibilityKey(
+                    apiBaseUrl = apiBaseUrl,
+                    apiModel = apiModel,
+                    parameter = parameter
+                )
+            }
+            val fallbackSampling = initialSampling.without(rejectedParameters)
+            FgoLogger.warn(
+                tag,
+                "Sampling parameter rejected; retrying once without only the rejected fields: " +
+                    "model=$apiModel, rejected=${rejectedParameters.joinToString("+")}, " +
+                    "preserved=${fallbackSampling.parameterIdentity.ifBlank { "none" }}, " +
+                    "status=$statusCode, body=${apiResponseLogSample(rawBody)}"
+            )
+            val fallbackResponse = executeRequest(fallbackSampling)
+            statusCode = fallbackResponse.first
+            rawBody = fallbackResponse.second
+        }
+        if (statusCode !in 200..299) {
             val apiError = extractChatApiError(rawBody)
-                ?: "HTTP ${response.status.value}: ${apiResponseLogSample(rawBody, 240)}"
+                ?: "HTTP $statusCode: ${apiResponseLogSample(rawBody, 240)}"
             FgoLogger.warn(
                 tag,
                 "Chat API error: model=$apiModel, baseUrl=$apiBaseUrl, " +
-                    "status=${response.status.value}, message=$apiError, " +
+                    "status=$statusCode, message=$apiError, " +
                     "body=${apiResponseLogSample(rawBody)}"
             )
-            throw TranslationApiHttpException(response.status.value, apiError)
+            throw TranslationApiHttpException(statusCode, apiError)
         }
         FgoLogger.debug(
             tag,
-            "Chat API success: model=$apiModel, status=${response.status.value}, bodyChars=${rawBody.length}"
+            "Chat API success: model=$apiModel, status=$statusCode, bodyChars=${rawBody.length}"
         )
         return parseChatCompletionContent(rawBody, "Chat completions API")
     }
@@ -5760,6 +5979,7 @@ class Translator @Inject constructor(
                 config.backend,
                 config.apiBaseUrl,
                 config.apiModel,
+                samplingCacheIdentity(config),
                 promptPolicyKey,
                 sceneContextPolicyKey,
                 normalizeCurrentSpeakerContext(currentSpeaker),
@@ -5810,7 +6030,8 @@ class Translator @Inject constructor(
     }
 
     private fun sceneDialogueContextsForPrompt(
-        contexts: List<SceneDialogueContext>
+        contexts: List<SceneDialogueContext>,
+        targetChineseLocale: String
     ): List<SceneDialogueContext> {
         if (contexts.isEmpty()) return emptyList()
         return contexts
@@ -5822,33 +6043,53 @@ class Translator @Inject constructor(
                 val sourceDialogue = normalizeSceneDialogueContext(
                     FgoDialogueSymbols.normalizeLeadingOcrDash(context.sourceDialogue)
                 )
-                if (sourceDialogue.isBlank()) {
+                val translatedDialogue = context.translatedDialogue
+                    ?.let { toTargetChinese(it, targetChineseLocale) }
+                    ?.let(::normalizeSceneDialogueContext)
+                    ?.takeIf(String::isNotBlank)
+                val translatedSpeakerName = context.translatedSpeakerName
+                    ?.let { toTargetChinese(it, targetChineseLocale) }
+                    ?.let(::normalizeCurrentSpeakerContext)
+                    ?.takeIf(String::isNotBlank)
+                if (
+                    sourceDialogue.isBlank() ||
+                    translatedDialogue == null ||
+                    (sourceSpeakerName != null && translatedSpeakerName == null)
+                ) {
                     null
                 } else {
                     context.copy(
                         sourceSpeakerName = sourceSpeakerName,
-                        translatedSpeakerName = null,
+                        translatedSpeakerName = translatedSpeakerName,
                         sourceDialogue = sourceDialogue,
-                        translatedDialogue = null
+                        translatedDialogue = translatedDialogue,
+                        targetLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
                     )
                 }
             }
-            .takeLast(SessionTranslationHistory.DEFAULT_SCENE_DIALOGUE_CONTEXT_LIMIT)
+            .takeLast(SettingsRepository.MAX_TRANSLATION_CONTEXT_SCENE_COUNT)
     }
 
     private fun sceneContextCachePolicyKey(contexts: List<SceneDialogueContext>): String {
         if (contexts.isEmpty()) return ""
-        val material = buildPreviousSceneJapaneseContextPrompt(contexts)
+        val material = buildPreviousSceneBilingualContextPrompt(contexts)
         return "$SCENE_CONTEXT_CACHE_POLICY_VERSION:${hashText(material)}"
     }
 
     private fun logSceneContext(promptKind: String, contexts: List<SceneDialogueContext>) {
         if (contexts.isEmpty()) return
-        val chars = contexts.sumOf { context ->
+        val jpChars = contexts.sumOf { context ->
             context.sourceSpeakerName.orEmpty().length +
                 context.sourceDialogue.length
         }
-        FgoLogger.debug(tag, "Scene context: kind=$promptKind, lines=${contexts.size}, jpChars=$chars")
+        val cnChars = contexts.sumOf { context ->
+            context.translatedSpeakerName.orEmpty().length +
+                context.translatedDialogue.orEmpty().length
+        }
+        FgoLogger.debug(
+            tag,
+            "Scene context: kind=$promptKind, scenes=${contexts.size}, jpChars=$jpChars, cnChars=$cnChars"
+        )
     }
 
     private fun String.isSceneContextErrorText(): Boolean {
@@ -5877,7 +6118,8 @@ class Translator @Inject constructor(
         } else {
             maxTokens
         }
-        logPromptRequest(promptKind, config, messages, effectiveMaxTokens)
+        val sampling = effectiveApiSampling(config)
+        logPromptRequest(promptKind, config, messages, effectiveMaxTokens, sampling)
         val startedAt = System.currentTimeMillis()
         val result = when (config.backend) {
             SettingsRepository.BACKEND_CLAUDE -> translateClaude(
@@ -5894,7 +6136,8 @@ class Translator @Inject constructor(
                 apiModel = config.apiModel,
                 messages = messages,
                 maxTokens = effectiveMaxTokens,
-                disableThinking = true
+                disableThinking = true,
+                sampling = sampling
             )
 
             SettingsRepository.BACKEND_GPT,
@@ -5904,7 +6147,8 @@ class Translator @Inject constructor(
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
-                maxTokens = effectiveMaxTokens
+                maxTokens = effectiveMaxTokens,
+                sampling = sampling
             )
 
             SettingsRepository.BACKEND_GEMINI -> translateOpenAiCompatible(
@@ -5913,7 +6157,8 @@ class Translator @Inject constructor(
                 apiModel = config.apiModel,
                 messages = messages,
                 maxTokens = effectiveMaxTokens,
-                reasoningEffort = "low"
+                reasoningEffort = "low",
+                sampling = sampling
             )
 
             else -> translateDeepSeek(
@@ -5921,7 +6166,8 @@ class Translator @Inject constructor(
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = messages,
-                maxTokens = effectiveMaxTokens
+                maxTokens = effectiveMaxTokens,
+                sampling = sampling
             )
         }
         FgoLogger.debug(
@@ -5936,7 +6182,8 @@ class Translator @Inject constructor(
         promptKind: String,
         config: RuntimeConfig,
         messages: List<ChatMessage>,
-        maxTokens: Int
+        maxTokens: Int,
+        sampling: EffectiveApiSampling
     ) {
         val systemChars = messages
             .filter { it.role == "system" }
@@ -5944,11 +6191,20 @@ class Translator @Inject constructor(
         val userChars = messages
             .filter { it.role != "system" }
             .sumOf { it.content.length }
+        val ignoredParameters = ignoredSamplingParameters(config)
+        val compatibleSampling = sampling.without(ignoredParameters)
+        val samplingLog = if (ignoredParameters.isNotEmpty()) {
+            "${compatibleSampling.logSummary} " +
+                "(compatibility ignored=${ignoredParameters.joinToString("+")})"
+        } else {
+            sampling.logSummary
+        }
         FgoLogger.debug(
             tag,
             "Prompt request: kind=$promptKind, backend=${config.backend}, model=${config.apiModel}, " +
                 "messages=${messages.size}, systemChars=$systemChars, userChars=$userChars, " +
-                "totalChars=${systemChars + userChars}, maxTokens=$maxTokens"
+                "totalChars=${systemChars + userChars}, maxTokens=$maxTokens, " +
+                "sampling=$samplingLog"
         )
     }
 }

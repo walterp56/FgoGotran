@@ -82,12 +82,13 @@ class BattleSubtitleController @Inject constructor(
         val detectedHud = withContext(Dispatchers.Default) {
             BattleHudDetector.locate(source.width, source.height, source::getPixel, hudMatch)
         }
-        var hudVisible = detectedHud != null
         if (version != generation) return blocksStory
-        if (hudVisible && scene.mode != BattleSceneMode.BATTLE && hudMatch == null) {
-            hudVisible = BattleHudDetector.confirmsLabels(
-                recognize(source, BattleLayout.hudSearch).joinToString(" ") { it.text }
-            )
+        // Outside battle, state detection is deliberately pixel-only. PaddleOCR is
+        // reserved for RESULT and subtitle reads after battle ownership is confirmed.
+        val hudVisible = if (scene.mode == BattleSceneMode.BATTLE) {
+            detectedHud != null
+        } else {
+            BattleHudDetector.isStrongEntryMatch(detectedHud)
         }
         if (hudVisible && detectedHud != null) hudMatch = detectedHud
         else if (!scene.blocksStory) hudMatch = null

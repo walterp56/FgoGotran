@@ -13,6 +13,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fgogotran.analytics.AppAnalytics
+import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.network.ApiEndpointPolicy
 import com.fgogotran.translation.Translator
@@ -37,6 +38,32 @@ private fun formatApiResponseTime(durationMs: Long): String {
 
 private fun apiTestMessage(status: String, durationMs: Long, result: String): String {
     return "状态：$status\n用时：${formatApiResponseTime(durationMs)}\n结果：$result"
+}
+
+private fun formatSamplingValue(value: Double): String = value.toString()
+
+private fun samplingRecommendation(backend: String, apiModel: String): String {
+    return when (SettingsRepository.normalizeBackend(backend)) {
+        SettingsRepository.BACKEND_DEEPSEEK ->
+            "自动：Temperature ${SettingsRepository.DEFAULT_DEEPSEEK_TEMPERATURE}；不发送 Top-p。"
+        SettingsRepository.BACKEND_ZHIPU ->
+            "自动：关闭随机采样；翻译输出更稳定。"
+        SettingsRepository.BACKEND_QWEN ->
+            "自动：使用当前 Qwen 模型的默认采样参数。"
+        SettingsRepository.BACKEND_GPT -> if (
+            SettingsRepository.supportsApiSamplingCustomization(backend, apiModel)
+        ) {
+            "自动：当前 GPT 模型使用 Temperature 0.3。"
+        } else {
+            "自动：当前 GPT 模型不发送采样参数，避免请求被拒绝。"
+        }
+        SettingsRepository.BACKEND_GEMINI ->
+            "自动：Gemini 使用模型默认值，不发送采样参数。"
+        SettingsRepository.BACKEND_CLAUDE ->
+            "自动：Claude 使用模型默认值，不发送采样参数。"
+        else ->
+            "自动：使用本地模型或兼容接口的默认采样参数。"
+    }
 }
 
 private fun apiTestFailureResult(error: Throwable): String {
@@ -111,11 +138,103 @@ fun ApiSettingsScreen(
     var apiBaseUrl by remember { mutableStateOf("") }
     var apiModel by remember { mutableStateOf(SettingsRepository.DEFAULT_DEEPSEEK_MODEL) }
     var apiKey by remember { mutableStateOf("") }
+    var advancedSamplingExpanded by remember { mutableStateOf(false) }
+    var samplingMode by remember { mutableStateOf(SettingsRepository.API_SAMPLING_MODE_AUTO) }
+    var temperatureEnabled by remember { mutableStateOf(false) }
+    var temperatureText by remember {
+        mutableStateOf(
+            formatSamplingValue(
+                SettingsRepository.defaultApiSamplingSettings(
+                    SettingsRepository.BACKEND_DEEPSEEK
+                ).temperature
+            )
+        )
+    }
+    var topPText by remember {
+        mutableStateOf(
+            formatSamplingValue(
+                SettingsRepository.defaultApiSamplingSettings(
+                    SettingsRepository.BACKEND_DEEPSEEK
+                ).topP
+            )
+        )
+    }
+    var topPEnabled by remember { mutableStateOf(false) }
     var saveMessage by remember { mutableStateOf("") }
     var saveMessageIsError by remember { mutableStateOf(false) }
     var testingApi by remember { mutableStateOf(false) }
     val isCustomBackend = selectedBackend == SettingsRepository.BACKEND_CUSTOM_OPENAI
     val isQwenBackend = selectedBackend == SettingsRepository.BACKEND_QWEN
+    val samplingCapabilities = SettingsRepository.apiSamplingCapabilities(
+        selectedBackend,
+        apiModel
+    )
+    val supportsSamplingCustomization = samplingCapabilities.supportsCustomization
+
+    fun applySamplingSettings(settings: ApiSamplingSettings) {
+        samplingMode = settings.mode
+        temperatureEnabled = settings.temperatureEnabled
+        temperatureText = formatSamplingValue(settings.temperature)
+        topPEnabled = settings.topPEnabled
+        topPText = formatSamplingValue(settings.topP)
+    }
+
+    fun currentSamplingSettings(): ApiSamplingSettings {
+        val defaults = SettingsRepository.defaultApiSamplingSettings(selectedBackend)
+        val effectiveMode = if (supportsSamplingCustomization) {
+            SettingsRepository.normalizeApiSamplingMode(samplingMode)
+        } else {
+            SettingsRepository.API_SAMPLING_MODE_AUTO
+        }
+        var effectiveTemperatureEnabled =
+            effectiveMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM &&
+                samplingCapabilities.supportsTemperature &&
+                temperatureEnabled
+        var effectiveTopPEnabled =
+            effectiveMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM &&
+                samplingCapabilities.supportsTopP &&
+                topPEnabled
+        if (
+            !samplingCapabilities.allowsCombinedParameters &&
+            effectiveTemperatureEnabled &&
+            effectiveTopPEnabled
+        ) {
+            effectiveTopPEnabled = false
+        }
+        val temperature = temperatureText.trim().replace(',', '.').toDoubleOrNull()
+        val topP = topPText.trim().replace(',', '.').toDoubleOrNull()
+        if (effectiveTemperatureEnabled) {
+            require(
+                temperature != null &&
+                    temperature in SettingsRepository.MIN_API_TEMPERATURE..
+                    SettingsRepository.MAX_API_TEMPERATURE
+            ) { "Temperature 必须在 0.00 到 1.00 之间" }
+        }
+        if (effectiveTopPEnabled) {
+            require(
+                topP != null &&
+                    topP in SettingsRepository.MIN_API_TOP_P..SettingsRepository.MAX_API_TOP_P
+            ) { "Top-p 必须在 0.01 到 1.00 之间" }
+        }
+        return ApiSamplingSettings(
+            mode = effectiveMode,
+            temperatureEnabled = effectiveTemperatureEnabled,
+            temperature = temperature
+                ?.takeIf {
+                    it.isFinite() &&
+                        it in SettingsRepository.MIN_API_TEMPERATURE..
+                        SettingsRepository.MAX_API_TEMPERATURE
+                }
+                ?: defaults.temperature,
+            topPEnabled = effectiveTopPEnabled,
+            topP = topP
+                ?.takeIf {
+                    it.isFinite() &&
+                        it in SettingsRepository.MIN_API_TOP_P..SettingsRepository.MAX_API_TOP_P
+                }
+                ?: defaults.topP
+        )
+    }
 
     fun effectiveApiBaseUrl(): String {
         return when {
@@ -138,6 +257,9 @@ fun ApiSettingsScreen(
         apiModel = settingsRepository.getApiModelForBackend(selectedBackend)
             .ifBlank { SettingsRepository.defaultApiModel(selectedBackend) }
         apiKey = settingsRepository.getApiKeyForBackend(selectedBackend)
+        applySamplingSettings(
+            settingsRepository.getApiSamplingSettingsForBackend(selectedBackend, apiModel)
+        )
     }
 
     fun selectBackend(backend: String) {
@@ -149,6 +271,7 @@ fun ApiSettingsScreen(
         }
         apiModel = SettingsRepository.defaultApiModel(backend)
         apiKey = ""
+        applySamplingSettings(SettingsRepository.defaultApiSamplingSettings(backend))
         saveMessage = ""
         saveMessageIsError = false
         scope.launch {
@@ -162,6 +285,10 @@ fun ApiSettingsScreen(
             val savedModel = settingsRepository.getApiModelForBackend(backend)
                 .ifBlank { SettingsRepository.defaultApiModel(backend) }
             val savedKey = settingsRepository.getApiKeyForBackend(backend)
+            val savedSamplingSettings = settingsRepository.getApiSamplingSettingsForBackend(
+                backend,
+                savedModel
+            )
             if (selectedBackend == backend) {
                 if (backend == SettingsRepository.BACKEND_QWEN) {
                     qwenSite = savedQwenSite
@@ -169,6 +296,7 @@ fun ApiSettingsScreen(
                 apiBaseUrl = savedBaseUrl
                 apiModel = savedModel
                 apiKey = savedKey
+                applySamplingSettings(savedSamplingSettings)
             }
         }
     }
@@ -188,6 +316,7 @@ fun ApiSettingsScreen(
             apiBaseUrl = SettingsRepository.defaultApiBaseUrl(selectedBackend)
         }
         apiModel = SettingsRepository.defaultApiModel(selectedBackend)
+        applySamplingSettings(SettingsRepository.defaultApiSamplingSettings(selectedBackend))
         saveMessage = ""
         saveMessageIsError = false
     }
@@ -200,7 +329,8 @@ fun ApiSettingsScreen(
                     apiKey = apiKey,
                     apiBaseUrl = effectiveApiBaseUrl(),
                     apiModel = apiModel,
-                    qwenSite = qwenSite
+                    qwenSite = qwenSite,
+                    samplingSettings = currentSamplingSettings()
                 )
                 saveMessage = "已保存"
                 saveMessageIsError = false
@@ -235,11 +365,12 @@ fun ApiSettingsScreen(
                     "baseUrl=$requestBaseUrl, keyChars=${apiKey.trim().length}"
             )
             try {
-                translator.testApiSettings(
+                val testResult = translator.testApiSettings(
                     backend = requestBackend,
                     apiKey = apiKey,
                     apiBaseUrl = requestBaseUrl,
-                    apiModel = requestModel
+                    apiModel = requestModel,
+                    samplingSettings = currentSamplingSettings()
                 )
                 val elapsedMs = SystemClock.elapsedRealtime() - startedAt
                 FgoLogger.info(
@@ -249,7 +380,19 @@ fun ApiSettingsScreen(
                 saveMessage = apiTestMessage(
                     status = "成功",
                     durationMs = elapsedMs,
-                    result = "可用于 FgoGotran 翻译"
+                    result = if (testResult.ignoredSamplingParameters.isNotEmpty()) {
+                        val ignoredLabels = testResult.ignoredSamplingParameters.joinToString("、") {
+                            when (it) {
+                                "temperature" -> "Temperature"
+                                "top_p" -> "Top-p"
+                                "do_sample" -> "采样开关"
+                                else -> it
+                            }
+                        }
+                        "可用于 FgoGotran 翻译；接口不接受 $ignoredLabels，已自动忽略"
+                    } else {
+                        "可用于 FgoGotran 翻译"
+                    }
                 )
                 saveMessageIsError = false
             } catch (e: CancellationException) {
@@ -432,6 +575,161 @@ fun ApiSettingsScreen(
                         },
                         singleLine = true
                     )
+                    HorizontalDivider()
+                    TextButton(
+                        onClick = { advancedSamplingExpanded = !advancedSamplingExpanded },
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Text(if (advancedSamplingExpanded) "收起高级自定义" else "高级自定义")
+                    }
+                    if (advancedSamplingExpanded) {
+                        Text(
+                            samplingRecommendation(selectedBackend, apiModel),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilterChip(
+                                selected = !supportsSamplingCustomization ||
+                                    samplingMode == SettingsRepository.API_SAMPLING_MODE_AUTO,
+                                onClick = {
+                                    samplingMode = SettingsRepository.API_SAMPLING_MODE_AUTO
+                                    saveMessage = ""
+                                    saveMessageIsError = false
+                                },
+                                label = { Text("自动（推荐）") }
+                            )
+                            FilterChip(
+                                selected = supportsSamplingCustomization &&
+                                    samplingMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM,
+                                onClick = {
+                                    if (supportsSamplingCustomization) {
+                                        samplingMode = SettingsRepository.API_SAMPLING_MODE_CUSTOM
+                                        if (!temperatureEnabled && !topPEnabled) {
+                                            when {
+                                                samplingCapabilities.supportsTemperature ->
+                                                    temperatureEnabled = true
+                                                samplingCapabilities.supportsTopP ->
+                                                    topPEnabled = true
+                                            }
+                                        }
+                                        saveMessage = ""
+                                        saveMessageIsError = false
+                                    }
+                                },
+                                enabled = supportsSamplingCustomization,
+                                label = { Text("自定义") }
+                            )
+                        }
+                        if (!supportsSamplingCustomization) {
+                            Text(
+                                "该服务商或模型为保证请求兼容性，仅使用自动模式。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        } else if (samplingMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM) {
+                            Text(
+                                if (samplingCapabilities.allowsCombinedParameters) {
+                                    "本地／自定义接口可单独启用，也可同时发送两个参数。"
+                                } else {
+                                    "云端接口一次只启用一个参数；开启另一项会自动关闭当前项。"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Temperature", style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        if (samplingCapabilities.supportsTemperature) {
+                                            "控制随机程度"
+                                        } else {
+                                            "当前模型不支持"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                                Switch(
+                                    checked = temperatureEnabled &&
+                                        samplingCapabilities.supportsTemperature,
+                                    onCheckedChange = { enabled ->
+                                        temperatureEnabled = enabled
+                                        if (enabled && !samplingCapabilities.allowsCombinedParameters) {
+                                            topPEnabled = false
+                                        }
+                                        saveMessage = ""
+                                        saveMessageIsError = false
+                                    },
+                                    enabled = samplingCapabilities.supportsTemperature
+                                )
+                            }
+                            OutlinedTextField(
+                                value = temperatureText,
+                                onValueChange = {
+                                    temperatureText = it
+                                    saveMessage = ""
+                                    saveMessageIsError = false
+                                },
+                                label = { Text("Temperature") },
+                                supportingText = { Text("范围 0.00–1.00；数值越低越稳定") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                enabled = temperatureEnabled &&
+                                    samplingCapabilities.supportsTemperature,
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Top-p", style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        if (samplingCapabilities.supportsTopP) {
+                                            "限制候选词范围"
+                                        } else {
+                                            "当前模型不支持"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                                Switch(
+                                    checked = topPEnabled && samplingCapabilities.supportsTopP,
+                                    onCheckedChange = { enabled ->
+                                        topPEnabled = enabled
+                                        if (enabled && !samplingCapabilities.allowsCombinedParameters) {
+                                            temperatureEnabled = false
+                                        }
+                                        saveMessage = ""
+                                        saveMessageIsError = false
+                                    },
+                                    enabled = samplingCapabilities.supportsTopP
+                                )
+                            }
+                            OutlinedTextField(
+                                value = topPText,
+                                onValueChange = {
+                                    topPText = it
+                                    saveMessage = ""
+                                    saveMessageIsError = false
+                                },
+                                label = { Text("Top-p") },
+                                supportingText = { Text("范围 0.01–1.00；数值越低候选范围越小") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                enabled = topPEnabled && samplingCapabilities.supportsTopP,
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                        }
+                    }
                     if (saveMessage.isNotBlank()) {
                         Text(
                             saveMessage,

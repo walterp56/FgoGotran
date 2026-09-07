@@ -43,7 +43,8 @@ data class BattleHistoryReservation internal constructor(
  */
 object SessionTranslationHistory {
     private const val TAG = "SessionHistory"
-    internal const val DEFAULT_SCENE_DIALOGUE_CONTEXT_LIMIT = 2
+    internal const val DEFAULT_SCENE_DIALOGUE_CONTEXT_LIMIT =
+        SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT
 
     private val _entries = MutableStateFlow<List<SessionTranslationEntry>>(emptyList())
     val entries: StateFlow<List<SessionTranslationEntry>> = _entries.asStateFlow()
@@ -142,6 +143,8 @@ object SessionTranslationHistory {
         limit: Int = DEFAULT_SCENE_DIALOGUE_CONTEXT_LIMIT,
         excludeDialogueSourceKey: String = ""
     ): List<SceneDialogueContext> {
+        val safeLimit = limit.coerceIn(0, SettingsRepository.MAX_TRANSLATION_CONTEXT_SCENE_COUNT)
+        if (safeLimit == 0) return emptyList()
         val excludeKey = excludeDialogueSourceKey.normalizeHistoryText()
         return _entries.value
             .asReversed()
@@ -154,10 +157,14 @@ object SessionTranslationHistory {
                 sourceDialogue != null && sourceDialogue.isNotBlank()
             }
             .filter { entry ->
+                entry.contextDialogueTranslationTrusted &&
+                    !entry.contextTranslatedDialogue.isNullOrBlank() &&
+                    !entry.contextTranslatedDialogue.isHistoryErrorText()
+            }
+            .filter { entry ->
                 excludeKey.isBlank() || entry.normalizedDialogueSourceKey() != excludeKey
             }
-            .take(limit)
-            .map { entry ->
+            .mapNotNull { entry ->
                 val sourceSpeakerName = entry.contextSourceSpeakerName
                     ?.trim()
                     ?.takeIf { it.isNotBlank() }
@@ -168,13 +175,11 @@ object SessionTranslationHistory {
                 } else {
                     null
                 }
-                val translatedDialogue = if (entry.contextDialogueTranslationTrusted) {
-                    entry.contextTranslatedDialogue
-                        ?.trim()
-                        ?.takeIf { it.isNotBlank() && !it.isHistoryErrorText() }
-                } else {
-                    null
-                }
+                if (sourceSpeakerName != null && translatedSpeakerName == null) return@mapNotNull null
+                val translatedDialogue = entry.contextTranslatedDialogue
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() && !it.isHistoryErrorText() }
+                    ?: return@mapNotNull null
                 SceneDialogueContext(
                     sourceSpeakerName = sourceSpeakerName,
                     translatedSpeakerName = translatedSpeakerName,
@@ -184,6 +189,7 @@ object SessionTranslationHistory {
                     dialogueSourceKey = entry.normalizedDialogueSourceKey()
                 )
             }
+            .take(safeLimit)
             .toList()
             .asReversed()
     }

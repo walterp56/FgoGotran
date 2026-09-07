@@ -118,6 +118,12 @@ fun SettingsScreen(
     var showOriginalGameText by remember { mutableStateOf(false) }
     var ocrEngine by remember { mutableStateOf(SettingsRepository.DEFAULT_OCR_ENGINE) }
     var cacheEnabled by remember { mutableStateOf(true) }
+    var translationContextEnabled by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_ENABLED)
+    }
+    var translationContextSceneCount by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT)
+    }
     var debugLoggingEnabled by remember { mutableStateOf(false) }
     var debugLogTapCount by remember { mutableStateOf(0) }
     var debugLogTapWindowStartedAt by remember { mutableStateOf(0L) }
@@ -135,6 +141,8 @@ fun SettingsScreen(
         showOriginalGameText = settingsRepository.showOriginalGameText.first()
         ocrEngine = settingsRepository.getOcrEngine()
         cacheEnabled = settingsRepository.cacheEnabled.first()
+        translationContextEnabled = settingsRepository.translationContextEnabled.first()
+        translationContextSceneCount = settingsRepository.translationContextSceneCount.first()
         debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
     }
 
@@ -324,6 +332,27 @@ fun SettingsScreen(
                     onSelect = { locale ->
                         scope.launch {
                             settingsRepository.setTargetChineseLocale(locale)
+                        }
+                    }
+                )
+                PreferenceSwitchRow(
+                    title = "使用双语剧情上下文",
+                    subtitle = "提供最近场景的日文与中文对照；模型误译前文时可关闭",
+                    checked = translationContextEnabled,
+                    onCheckedChange = { enabled ->
+                        translationContextEnabled = enabled
+                        scope.launch {
+                            settingsRepository.setTranslationContextEnabled(enabled)
+                        }
+                    }
+                )
+                TranslationContextSceneCountSelector(
+                    sceneCount = translationContextSceneCount,
+                    enabled = translationContextEnabled,
+                    onSceneCountChange = { sceneCount ->
+                        translationContextSceneCount = sceneCount
+                        scope.launch {
+                            settingsRepository.setTranslationContextSceneCount(sceneCount)
                         }
                     }
                 )
@@ -726,6 +755,70 @@ private fun floatingButtonSizeLabel(sizeDp: Int): String {
         safeSize == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> "标准"
         safeSize < SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -> "较大"
         else -> "最大"
+    }
+}
+
+@Composable
+private fun TranslationContextSceneCountSelector(
+    sceneCount: Int,
+    enabled: Boolean,
+    onSceneCountChange: (Int) -> Unit
+) {
+    val safeCount = SettingsRepository.normalizeTranslationContextSceneCount(sceneCount)
+    val contentColor = MaterialTheme.colorScheme.onSurface.copy(
+        alpha = if (enabled) 0.82f else 0.38f
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "参考场景数",
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor
+            )
+            Text(
+                "$safeCount 幕",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled) MaterialTheme.colorScheme.primary else contentColor
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                SettingsRepository.MIN_TRANSLATION_CONTEXT_SCENE_COUNT.toString(),
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor
+            )
+            Slider(
+                value = safeCount.toFloat(),
+                onValueChange = { rawValue ->
+                    val normalizedCount = SettingsRepository.normalizeTranslationContextSceneCount(
+                        rawValue.roundToInt()
+                    )
+                    if (normalizedCount != safeCount) {
+                        onSceneCountChange(normalizedCount)
+                    }
+                },
+                enabled = enabled,
+                valueRange = SettingsRepository.MIN_TRANSLATION_CONTEXT_SCENE_COUNT.toFloat()..
+                    SettingsRepository.MAX_TRANSLATION_CONTEXT_SCENE_COUNT.toFloat(),
+                steps = SettingsRepository.MAX_TRANSLATION_CONTEXT_SCENE_COUNT -
+                    SettingsRepository.MIN_TRANSLATION_CONTEXT_SCENE_COUNT - 1,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            )
+            Text(
+                SettingsRepository.MAX_TRANSLATION_CONTEXT_SCENE_COUNT.toString(),
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor
+            )
+        }
     }
 }
 
