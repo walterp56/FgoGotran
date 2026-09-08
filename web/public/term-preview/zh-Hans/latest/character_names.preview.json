@@ -225,7 +225,7 @@
     "jp_name": "エルメロイⅡ世",
     "cn_name": "埃尔梅罗Ⅱ世",
     "category": "character",
-    "aliases": "エルメロイ1世,エルメロイ世"
+    "aliases": "エルメロイ1世,エルメロイII世,エルメロイI世,エルメロイ11世"
   },
   {
     "jp_name": "佐々木小次郎",
@@ -981,7 +981,7 @@
     "jp_name": "メカエリチャンⅡ号機",
     "cn_name": "机械伊丽亲Ⅱ号机",
     "category": "character",
-    "aliases": "メカエリチャンII号機"
+    "aliases": "メカエリチャンII号機,メカエリチャンI号機,メカエリチャン11号機,メカエリチャン1号機"
   },
   {
     "jp_name": "オケアノス",
@@ -3075,7 +3075,7 @@
     "jp_name": "キャスパリーグ",
     "cn_name": "凯茜·帕鲁格",
     "category": "character",
-    "aliases": "Cath Palug"
+    "aliases": "Cath Palug,キャス・パリーグ"
   },
   {
     "jp_name": "ムニエル",
@@ -3154,6 +3154,12 @@
     "cn_name": "奥尔加玛丽·阿尼姆斯菲亚",
     "category": "character",
     "aliases": "オルガマリーアニムスフィア"
+  },
+  {
+    "jp_name": "オルガマリー",
+    "cn_name": "奥尔加玛丽",
+    "category": "character",
+    "aliases": "オルガマリ,オルガマリ一"
   },
   {
     "jp_name": "レフ・ライノール・フラウロス",
@@ -3393,7 +3399,7 @@
     "jp_name": "カヴァスⅡ世",
     "cn_name": "卡瓦斯Ⅱ世",
     "category": "character",
-    "aliases": ""
+    "aliases": "カヴァスII世,カヴァスI世,カヴァス11世,カヴァス1世"
   },
   {
     "jp_name": "ラニ=B",
@@ -3446,12 +3452,6 @@
   {
     "jp_name": "ムリアン",
     "cn_name": "缪瑞恩",
-    "category": "character",
-    "aliases": ""
-  },
-  {
-    "jp_name": "キャスパリーグ",
-    "cn_name": "凯茜帕鲁格",
     "category": "character",
     "aliases": ""
   },
@@ -3878,6 +3878,18 @@
   {
     "jp_name": "辈先",
     "cn_name": "辈前",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "サンチョ",
+    "cn_name": "桑丘",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "リンボ",
+    "cn_name": "Limbo",
     "category": "character",
     "aliases": ""
   }

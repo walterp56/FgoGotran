@@ -23,7 +23,9 @@ DEFAULT_DB = ROOT / "fgo_terms.db"
 DEFAULT_OUTPUT = REPO_ROOT / "release" / "cdn"
 DEFAULT_BASE_URL = "https://cdn.fgogotran.com"
 DEFAULT_LOCALE = "zh-Hans"
-DEFAULT_MIN_APP_VERSION = "1.0.0"
+DEFAULT_MIN_APP_VERSION = "2.5.0"
+EXPECTED_SCHEMA_VERSION = 2
+ALLOWED_GENDERS = {"", "女性", "男性", "性別不明"}
 HK_TIMEZONE = timezone(timedelta(hours=8))
 
 
@@ -54,6 +56,31 @@ def read_db_stats(db_path: Path) -> dict[str, Any]:
         missing_tables = sorted(required_tables - tables)
         if missing_tables:
             raise RuntimeError(f"DB is missing required tables: {', '.join(missing_tables)}")
+        if user_version != EXPECTED_SCHEMA_VERSION:
+            raise RuntimeError(
+                f"DB schema version {user_version} != expected {EXPECTED_SCHEMA_VERSION}"
+            )
+
+        for table_name in required_tables:
+            columns = {
+                row[1]
+                for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+            }
+            if "gender" not in columns:
+                raise RuntimeError(f"DB table {table_name} is missing gender column")
+
+        invalid_genders = {
+            row[0]
+            for row in conn.execute(
+                "SELECT DISTINCT gender FROM character_names"
+            ).fetchall()
+            if row[0] not in ALLOWED_GENDERS
+        }
+        if invalid_genders:
+            raise RuntimeError(
+                "DB contains unsupported character gender values: " +
+                ", ".join(sorted(repr(value) for value in invalid_genders))
+            )
 
         character_names = conn.execute(
             "SELECT COUNT(*) FROM character_names"

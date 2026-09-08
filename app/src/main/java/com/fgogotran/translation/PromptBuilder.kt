@@ -104,6 +104,7 @@ data class PromptContext(
     val hasAddressPronouns: Boolean = false,
     val hasBenefactivePassiveCausative: Boolean = false,
     val characterContextPrompt: String = "",
+    val currentSpeakerGender: String = "",
     val specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping> = emptyList(),
     val specialSecondPersonMappings: List<SpecialSecondPersonPromptMapping> = emptyList(),
     val hasAmbiguousRoman: Boolean = false
@@ -124,8 +125,8 @@ data class PromptContext(
  *
  * ## RAG (Retrieval-Augmented Generation)
  * The [extractTermMatches] method finds FGO-specific proper nouns in the JP text
- * so Translator can lock them as placeholders and restore official Chinese after
- * the model responds. This keeps terminology consistent across backends.
+ * so Translator can lock them as placeholders for general models. Sakura receives
+ * the same hits as a native JP->CN glossary while retaining the complete JP source.
  */
 @Singleton
 class PromptBuilder @Inject constructor() {
@@ -334,6 +335,7 @@ class PromptBuilder @Inject constructor() {
         requestVoiceHint: Boolean = false,
         playerName: String = "",
         currentSpeaker: String = "",
+        currentSpeakerGender: String = "",
         characterContextPrompt: String = "",
         isChoiceBatch: Boolean = false,
         promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL
@@ -382,6 +384,12 @@ class PromptBuilder @Inject constructor() {
             hasAddressPronouns = containsAddressPronoun(combinedText),
             hasBenefactivePassiveCausative = containsBenefactivePassiveCausative(combinedText),
             characterContextPrompt = characterContextPrompt.trim().takeUnless { isBattleSubtitle }.orEmpty(),
+            currentSpeakerGender = currentSpeakerGender.trim()
+                .takeIf {
+                    !isBattleSubtitle && !isCropMode && isDialogue &&
+                        !isChoiceBatch && currentSpeaker.isNotBlank()
+                }
+                .orEmpty(),
             specialFirstPersonMappings = SpecialFirstPersonPronouns.promptMappings(
                 combinedText,
                 normalizedTargetLocale

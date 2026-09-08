@@ -66,7 +66,7 @@ class GlossaryUpdateManager @Inject constructor(
 
     companion object {
         private const val MANIFEST_URL = "https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json"
-        private const val SUPPORTED_SCHEMA_VERSION = 1
+        private const val SUPPORTED_SCHEMA_VERSION = 2
         private const val TEMP_DB_NAME = "fgo_terms.db.download"
         private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val REQUEST_TIMEOUT_MS = 30_000L
@@ -464,6 +464,12 @@ class GlossaryUpdateManager @Inject constructor(
             }
             require(tableExists(db, "character_names")) { "DB missing character_names table" }
             require(tableExists(db, "terms")) { "DB missing terms table" }
+            require(columnExists(db, "character_names", "gender")) {
+                "DB character_names table missing gender column"
+            }
+            require(columnExists(db, "terms", "gender")) {
+                "DB terms table missing gender column"
+            }
 
             val characterNameCount = countRows(db, "character_names")
             val termCount = countRows(db, "terms")
@@ -491,6 +497,8 @@ class GlossaryUpdateManager @Inject constructor(
                 schemaVersion == manifest.schemaVersion &&
                     tableExists(db, "character_names") &&
                     tableExists(db, "terms") &&
+                    columnExists(db, "character_names", "gender") &&
+                    columnExists(db, "terms", "gender") &&
                     countRows(db, "character_names") == manifest.characterNameCount &&
                     countRows(db, "terms") == manifest.termCount
             }
@@ -545,6 +553,18 @@ class GlossaryUpdateManager @Inject constructor(
         ).use { cursor ->
             return cursor.moveToFirst() && cursor.getInt(0) > 0
         }
+    }
+
+    private fun columnExists(db: SQLiteDatabase, tableName: String, columnName: String): Boolean {
+        db.rawQuery("PRAGMA table_info($tableName)", null).use { cursor ->
+            val nameColumnIndex = cursor.getColumnIndex("name")
+            while (cursor.moveToNext()) {
+                if (nameColumnIndex >= 0 && cursor.getString(nameColumnIndex) == columnName) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private fun countRows(db: SQLiteDatabase, tableName: String): Int {

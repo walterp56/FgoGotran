@@ -5,6 +5,8 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fgogotran.util.FgoLogger
 import java.io.File
 
@@ -16,7 +18,7 @@ import java.io.File
  */
 @Database(
     entities = [TermEntity::class, CharacterNameEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class TermDatabase : RoomDatabase() {
@@ -28,6 +30,13 @@ abstract class TermDatabase : RoomDatabase() {
         private const val DB_NAME = "fgo_terms.db"
         private const val ONLINE_MARKER_NAME = "fgo_terms.db.online"
         private const val TAG = "TermDB"
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE terms ADD COLUMN gender TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE character_names ADD COLUMN gender TEXT NOT NULL DEFAULT ''")
+            }
+        }
 
         data class DbPackageMetadata(
             val contentVersion: String,
@@ -82,6 +91,7 @@ abstract class TermDatabase : RoomDatabase() {
             removeUnmarkedLegacyDb(dbFile)
             return try {
                 Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                     .also {
                         it.openHelper.readableDatabase
@@ -91,6 +101,7 @@ abstract class TermDatabase : RoomDatabase() {
                 FgoLogger.warn(TAG, "Term DB open failed; recreating empty online-only DB.", e)
                 deleteDatabaseFiles(dbFile)
                 Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                     .also {
                         it.openHelper.readableDatabase

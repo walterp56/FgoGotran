@@ -280,28 +280,56 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "API test RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
-        val protectedInput = protectText(
-            normalizedText,
-            matchedTerms,
-            config.playerName,
-            targetChineseLocale = config.targetChineseLocale
+        val useSakuraPrompt = usesSakuraPrompt(config)
+        val protectedInput = preparePromptText(
+            sourceText = normalizedText,
+            matchedTerms = matchedTerms,
+            playerName = config.playerName,
+            targetChineseLocale = config.targetChineseLocale,
+            useSakuraPrompt = useSakuraPrompt
         )
+        val sakuraGlossaryEntries = if (useSakuraPrompt) {
+            buildSakuraGlossaryEntries(
+                sourceText = normalizedText,
+                matchedTerms = matchedTerms,
+                playerName = config.playerName
+            )
+        } else {
+            emptyList()
+        }
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.PLAIN_TEXT,
             sourceText = protectedInput.text,
-            targetChineseLocale = config.targetChineseLocale,
+            targetChineseLocale = promptTargetChineseLocale(config),
             playerName = config.playerName
         )
         val response = callTranslationBackend(
             config = config,
             messages = listOf(
-                ChatMessage("system", promptBuilder.buildSystemPrompt(config.playerName, promptContext)),
+                ChatMessage(
+                    "system",
+                    if (useSakuraPrompt) {
+                        SakuraPromptBuilder.buildSystemPrompt()
+                    } else {
+                        promptBuilder.buildSystemPrompt(config.playerName, promptContext)
+                    }
+                ),
                 ChatMessage(
                     "user",
-                    buildSingleUserPrompt(
-                        japaneseText = protectedInput.text,
-                        choiceTexts = emptyList()
-                    )
+                    if (useSakuraPrompt) {
+                        SakuraPromptBuilder.buildSingleRequest(
+                            japaneseText = protectedInput.text,
+                            previousDialogueContexts = emptyList(),
+                            currentSpeaker = "",
+                            context = promptContext,
+                            glossaryEntries = sakuraGlossaryEntries
+                        ).userPrompt
+                    } else {
+                        buildSingleUserPrompt(
+                            japaneseText = protectedInput.text,
+                            choiceTexts = emptyList()
+                        )
+                    }
                 )
             ),
             maxTokens = API_TEST_MAX_TOKENS,
@@ -323,7 +351,12 @@ class Translator @Inject constructor(
             throw IllegalStateException("API returned an empty translation")
         }
         val initialSafety = restoredResponse?.let {
-            classifyTranslationSafety(normalizedText, translated, config.playerName)
+            classifyTranslationSafety(
+                normalizedText,
+                translated,
+                config.playerName,
+                rejectSakuraPromptEcho = useSakuraPrompt
+            )
         } ?: TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
         if (initialSafety.status != TranslationSafetyStatus.OK) {
             logUnsafeTranslationSafety("API test response needs repair", initialSafety)
@@ -338,14 +371,16 @@ class Translator @Inject constructor(
                 namePluralUsage = promptContext.namePluralUsage,
                 badTranslation = translated,
                 badSafety = initialSafety,
-                maxTokens = API_TEST_MAX_TOKENS
+                maxTokens = API_TEST_MAX_TOKENS,
+                sakuraGlossaryEntries = sakuraGlossaryEntries
             )?.text?.trim().orEmpty()
             FgoLogger.debug(tag, "API test retry content: ${apiResponseLogSample(translated)}")
             if (translated.isBlank() ||
                 classifyTranslationSafety(
                     normalizedText,
                     translated,
-                    config.playerName
+                    config.playerName,
+                    rejectSakuraPromptEcho = useSakuraPrompt
                 ).status != TranslationSafetyStatus.OK
             ) {
                 throw IllegalStateException("API returned untranslated Japanese")
@@ -514,6 +549,7 @@ class Translator @Inject constructor(
     private enum class TranslationSafetyStatus {
         OK,
         PARTIAL_KANA_LEAK,
+        PROMPT_ECHO,
         UNTRANSLATED
     }
 
@@ -612,6 +648,43 @@ class Translator @Inject constructor(
             "sentimental",
             "sorry",
             "whispering"
+        )
+        private val SAKURA_PROMPT_ECHO_STRONG_MARKERS = listOf(
+            "你是一个轻小说翻译模型",
+            "将下面的日文文本翻译成中文：",
+            "将下面的日文文本根据对应关系和备注翻译成中文：",
+            "根据以下术语表",
+            "根據以下術語表",
+            "上文（勿输出）",
+            "上文（勿輸出）",
+            "选项参考（勿输出）",
+            "選項參考（勿輸出）",
+            "重新翻译当前日文",
+            "重新翻譯當前日文",
+            "只供理解，不要翻译",
+            "只供理解，不要翻譯"
+        )
+        private val SAKURA_PROMPT_ECHO_SECTION_MARKERS = listOf(
+            "说话人：",
+            "說話人：",
+            "角色：",
+            "术语：",
+            "術語：",
+            "规则：",
+            "規則：",
+            "要求：",
+            "翻译：",
+            "翻譯：",
+            "翻译人名：",
+            "翻譯人名：",
+            "翻译选项",
+            "翻譯選項",
+            "翻译战斗字幕：",
+            "翻譯戰鬥字幕：",
+            "翻译OCR：",
+            "翻譯OCR：",
+            "逐行翻译：",
+            "逐行翻譯："
         )
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
         private val maskedTextPattern = Regex("[■□▇█]+")
@@ -793,11 +866,13 @@ class Translator @Inject constructor(
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
         currentSpeakerSourceName: String = "",
+        currentSpeakerGender: String = "",
         characterContext: CharacterContextProfile? = null,
         translateAsChoices: Boolean = false,
         maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS,
         restoreSourcePunctuation: Boolean = true,
-        promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL
+        promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL,
+        translateAsName: Boolean = false
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -810,7 +885,7 @@ class Translator @Inject constructor(
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled && useTranslationCache
         val attemptLimit = maxApiAttempts.coerceIn(1, MAX_TRANSLATION_API_ATTEMPTS)
-        val normalizedSourceText = if (!cropMode && !translateAsChoices) {
+        val normalizedSourceText = if (!cropMode && !translateAsChoices && !translateAsName) {
             FgoDialogueSymbols.normalizeLeadingOcrDash(rawNormalizedText)
         } else {
             rawNormalizedText
@@ -858,15 +933,24 @@ class Translator @Inject constructor(
             }
         }
 
-        val activePreviousDialogueContexts = if (cropMode || isBattleSubtitle) {
+        val useSakuraPrompt = usesSakuraPrompt(config)
+        val activePreviousDialogueContexts = if (cropMode || isBattleSubtitle || translateAsName) {
             emptyList()
         } else {
-            sceneDialogueContextsForPrompt(previousDialogueContexts, config.targetChineseLocale)
+            sceneDialogueContextsForPrompt(previousDialogueContexts, promptTargetChineseLocale(config))
         }
-        val activeCurrentSpeaker = if (cropMode || isBattleSubtitle) {
+        val activeCurrentSpeaker = if (cropMode || isBattleSubtitle || translateAsName) {
             ""
         } else {
             normalizeCurrentSpeakerContext(currentSpeaker)
+        }
+        val activeCurrentSpeakerGender = if (
+            cropMode || isBattleSubtitle || translateAsChoices || translateAsName ||
+            activeCurrentSpeaker.isBlank()
+        ) {
+            ""
+        } else {
+            normalizeCharacterGender(currentSpeakerGender)
         }
         val currentSpeakerCacheIdentity = if (isBattleSubtitle) {
             ""
@@ -876,12 +960,14 @@ class Translator @Inject constructor(
         }
         val activeCharacterContext = characterContext
             ?.takeUnless {
-                cropMode || isBattleSubtitle || translateAsChoices || activeCurrentSpeaker.isBlank()
+                cropMode || isBattleSubtitle || translateAsChoices || translateAsName ||
+                    activeCurrentSpeaker.isBlank()
             }
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val promptPolicyKey = when {
             isBattleSubtitle -> PromptBuilder.BATTLE_PROMPT_VERSION
             cropMode -> "crop-screen-v2"
+            translateAsName -> "name-only-v1"
             preserveRubyMeaning -> "ruby-angle-v3"
             else -> ""
         }
@@ -923,9 +1009,9 @@ class Translator @Inject constructor(
             ).forTargetLocale(config, punctuationSourceText)
         }
 
+        val ragSourceText = (listOf(normalizedText) + normalizedChoices).joinToString("\n")
         val matchedTerms = try {
             val allTerms = getCachedTerms()
-            val ragSourceText = (listOf(normalizedText) + normalizedChoices).joinToString("\n")
             val rawMatches = promptBuilder.extractTermMatches(ragSourceText, allTerms)
             val matches = if (cropMode) rawMatches else filterDialogueMatchedTerms(rawMatches)
             FgoLogger.debug(tag, "RAG: matched ${matches.size} of ${allTerms.size} terms")
@@ -936,44 +1022,86 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
-        val protectedInput = protectText(
-            normalizedText,
-            matchedTerms,
-            playerName,
-            targetChineseLocale = config.targetChineseLocale
+        val protectedInput = preparePromptText(
+            sourceText = normalizedText,
+            matchedTerms = matchedTerms,
+            playerName = playerName,
+            targetChineseLocale = config.targetChineseLocale,
+            useSakuraPrompt = useSakuraPrompt
         )
         val protectedChoiceTexts = normalizedChoices.map {
-            protectText(
-                it,
-                matchedTerms,
-                playerName,
-                targetChineseLocale = config.targetChineseLocale
+            preparePromptText(
+                sourceText = it,
+                matchedTerms = matchedTerms,
+                playerName = playerName,
+                targetChineseLocale = config.targetChineseLocale,
+                useSakuraPrompt = useSakuraPrompt
             ).text
+        }
+        val sakuraGlossaryEntries = if (useSakuraPrompt) {
+            buildSakuraGlossaryEntries(
+                sourceText = ragSourceText,
+                matchedTerms = matchedTerms,
+                playerName = playerName
+            )
+        } else {
+            emptyList()
         }
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = if (cropMode) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
             sourceText = protectedInput.text,
             choiceTexts = protectedChoiceTexts,
-            targetChineseLocale = config.targetChineseLocale,
+            targetChineseLocale = promptTargetChineseLocale(config),
+            hasName = translateAsName,
+            nameText = protectedInput.text.takeIf { translateAsName },
             forceRuby = preserveRubyMeaning,
             isCropMode = cropMode,
-            isDialogue = !cropMode,
+            isDialogue = !cropMode && !translateAsName,
             playerName = playerName,
             currentSpeaker = activeCurrentSpeaker,
+            currentSpeakerGender = activeCurrentSpeakerGender,
             characterContextPrompt = activeCharacterContext?.prompt.orEmpty(),
             isChoiceBatch = translateAsChoices,
             promptProfile = promptProfile
         )
-        val systemPrompt = promptBuilder.buildSystemPrompt(playerName, promptContext)
+        val systemPrompt = if (useSakuraPrompt) {
+            SakuraPromptBuilder.buildSystemPrompt()
+        } else {
+            promptBuilder.buildSystemPrompt(playerName, promptContext)
+        }
+        val sakuraSingleRequest = if (useSakuraPrompt && !cropMode) {
+            SakuraPromptBuilder.buildSingleRequest(
+                japaneseText = protectedInput.text,
+                previousDialogueContexts = activePreviousDialogueContexts,
+                currentSpeaker = activeCurrentSpeaker,
+                context = promptContext,
+                glossaryEntries = sakuraGlossaryEntries,
+                translateAsChoices = translateAsChoices,
+                translateAsName = translateAsName
+            )
+        } else {
+            null
+        }
         val userPrompt = if (cropMode) {
-            promptBuilder.buildCropUserPrompt(protectedInput.text)
+            if (useSakuraPrompt) {
+                SakuraPromptBuilder.buildCropUserPrompt(
+                    japaneseText = protectedInput.text,
+                    context = promptContext,
+                    glossaryEntries = sakuraGlossaryEntries
+                )
+            } else {
+                promptBuilder.buildCropUserPrompt(protectedInput.text)
+            }
+        } else if (useSakuraPrompt) {
+            requireNotNull(sakuraSingleRequest).userPrompt
         } else {
             buildSingleUserPrompt(
                 japaneseText = protectedInput.text,
                 choiceTexts = protectedChoiceTexts,
                 previousDialogueContexts = activePreviousDialogueContexts,
                 currentSpeaker = activeCurrentSpeaker,
-                translateAsChoices = translateAsChoices
+                translateAsChoices = translateAsChoices,
+                translateAsName = translateAsName
             )
         }
 
@@ -1025,12 +1153,34 @@ class Translator @Inject constructor(
             ).forTargetLocale(config, punctuationSourceText)
         }
 
-        val restoredResult = restoreProtectedTranslation(
+        val restoredFullResult = restoreProtectedTranslation(
             completedResult,
             protectedInput
         )
+        val restoredResult = if (useSakuraPrompt && sakuraSingleRequest != null) {
+            sakuraSingleRequest.extractCurrentTranslation(restoredFullResult.orEmpty())
+                .also { extracted ->
+                    if (restoredFullResult != null &&
+                        sakuraSingleRequest.previousSourceLineCount > 0 &&
+                        extracted == null
+                    ) {
+                        FgoLogger.warn(
+                            tag,
+                            "Sakura context response line count mismatch; retrying current JP only"
+                        )
+                    }
+                }
+        } else {
+            restoredFullResult
+        }
         var simplifiedResult = restoredResult?.let {
-            sanitizeModelTranslationForMode(normalizedText, it, config, cropMode)
+            sanitizeModelTranslationForMode(
+                normalizedText,
+                it,
+                config,
+                cropMode,
+                allowPlainLineResult = useSakuraPrompt
+            )
         }.orEmpty()
         simplifiedResult = enforceMaskedTranslationPolicy(normalizedText, simplifiedResult)
         if (isMaskedSourcePreserved(normalizedText, simplifiedResult)) {
@@ -1038,11 +1188,20 @@ class Translator @Inject constructor(
                 .forTargetLocale(config, punctuationSourceText)
         }
         var canCacheResult = true
-        val initialSafety = restoredResult?.let {
+        val initialSafety = if (useSakuraPrompt &&
+            restoredFullResult?.let(::looksLikeSakuraPromptEcho) == true
+        ) {
+            TranslationSafetyResult(TranslationSafetyStatus.PROMPT_ECHO)
+        } else restoredResult?.let {
             if (simplifiedResult.isBlank()) {
                 TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
             } else {
-                classifyTranslationSafety(normalizedText, simplifiedResult, playerName)
+                classifyTranslationSafety(
+                    normalizedText,
+                    simplifiedResult,
+                    playerName,
+                    rejectSakuraPromptEcho = useSakuraPrompt
+                )
             }
         } ?: TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
         if (initialSafety.status != TranslationSafetyStatus.OK) {
@@ -1050,7 +1209,9 @@ class Translator @Inject constructor(
             if (initialSafety.status == TranslationSafetyStatus.UNTRANSLATED) {
                 logUntranslatedResult("API response", normalizedText, simplifiedResult, playerName)
             }
-            var latestCandidate = simplifiedResult.takeIf { it.isNotBlank() }
+            var latestCandidate = simplifiedResult.takeIf {
+                it.isNotBlank() && initialSafety.status != TranslationSafetyStatus.PROMPT_ECHO
+            }
             var latestSafety = initialSafety
             var acceptedResult: String? = null
             for (attempt in (attemptsUsed + 1)..attemptLimit) {
@@ -1072,11 +1233,17 @@ class Translator @Inject constructor(
                     maxTokens = maxTokens,
                     previousDialogueContexts = activePreviousDialogueContexts,
                     currentSpeaker = activeCurrentSpeaker,
-                    characterContextPrompt = activeCharacterContext?.prompt.orEmpty()
+                    characterContextPrompt = activeCharacterContext?.prompt.orEmpty(),
+                    translateAsChoices = translateAsChoices,
+                    translateAsName = translateAsName,
+                    retryStage = attempt - attemptsUsed,
+                    sakuraGlossaryEntries = sakuraGlossaryEntries
                 ) ?: continue
                 val retryText = enforceMaskedTranslationPolicy(normalizedText, retryResult.text)
                 if (retryText.isBlank()) continue
-                latestCandidate = retryText
+                if (retryResult.safety.status != TranslationSafetyStatus.PROMPT_ECHO) {
+                    latestCandidate = retryText
+                }
                 latestSafety = retryResult.safety
                 if (isMaskedSourcePreserved(normalizedText, retryText)) {
                     return modelTranslateResult(retryText, MASKED_TEXT_BACKEND, true, config)
@@ -1120,7 +1287,15 @@ class Translator @Inject constructor(
         }
 
         if (cacheEnabled && canCacheResult) {
-            cacheTranslatedText(hash, japaneseText, normalizedText, simplifiedResult, backend, playerName)
+            cacheTranslatedText(
+                hash,
+                japaneseText,
+                normalizedText,
+                simplifiedResult,
+                backend,
+                playerName,
+                promptVersion = translationPromptVersion(config)
+            )
         }
 
         FgoLogger.info(tag, "Translation complete: backend=$backend, chars=${simplifiedResult.length}")
@@ -1138,7 +1313,8 @@ class Translator @Inject constructor(
         currentSpeaker: String = "",
         currentSpeakerSourceName: String = "",
         translateAsChoices: Boolean = false,
-        maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS
+        maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS,
+        previousDialogueContexts: List<SceneDialogueContext> = emptyList()
     ): List<TranslateResult> {
         if (japaneseTexts.isEmpty()) return emptyList()
 
@@ -1155,11 +1331,18 @@ class Translator @Inject constructor(
         val activeCurrentSpeaker = normalizeCurrentSpeakerContext(currentSpeaker)
         val currentSpeakerCacheIdentity = normalizeCurrentSpeakerContext(currentSpeakerSourceName)
             .ifBlank { activeCurrentSpeaker }
+        val useSakuraPrompt = usesSakuraPrompt(config)
+        val activePreviousDialogueContexts = sceneDialogueContextsForPrompt(
+            previousDialogueContexts,
+            promptTargetChineseLocale(config)
+        )
+        val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val hashes = normalizedTexts.map {
             cacheKey(
                 normalizedText = it,
                 choiceTexts = emptyList(),
                 config = config,
+                sceneContextPolicyKey = sceneContextPolicyKey,
                 currentSpeaker = currentSpeakerCacheIdentity,
                 choiceBatch = translateAsChoices
             )
@@ -1170,8 +1353,9 @@ class Translator @Inject constructor(
         FgoLogger.debug(
             tag,
             "translateBatch: count=${japaneseTexts.size}, chars=${normalizedTexts.sumOf { it.length }}, " +
-                "speaker=${activeCurrentSpeaker.isNotBlank()}"
+                "speaker=${activeCurrentSpeaker.isNotBlank()}, context=${activePreviousDialogueContexts.size}"
         )
+        logSceneContext("batch", activePreviousDialogueContexts)
 
         for (index in japaneseTexts.indices) {
             val normalizedText = normalizedTexts[index]
@@ -1244,11 +1428,11 @@ class Translator @Inject constructor(
         }
 
         val uncachedTexts = uncachedIndices.map { normalizedTexts[it] }
+        val ragSourceText = uncachedTexts.joinToString("\n")
         val matchedTerms = try {
             val allTerms = getCachedTerms()
-            val combinedText = uncachedTexts.joinToString("\n")
             val matches = filterDialogueMatchedTerms(
-                promptBuilder.extractTermMatches(combinedText, allTerms)
+                promptBuilder.extractTermMatches(ragSourceText, allTerms)
             )
             FgoLogger.debug(tag, "Batch RAG: matched ${matches.size} of ${allTerms.size} terms")
             matches
@@ -1259,31 +1443,57 @@ class Translator @Inject constructor(
             emptyList()
         }
         val protectedTexts = uncachedTexts.map {
-            protectText(
-                it,
-                matchedTerms,
-                playerName,
-                targetChineseLocale = config.targetChineseLocale
+            preparePromptText(
+                sourceText = it,
+                matchedTerms = matchedTerms,
+                playerName = playerName,
+                targetChineseLocale = config.targetChineseLocale,
+                useSakuraPrompt = useSakuraPrompt
             )
+        }
+        val sakuraGlossaryEntries = if (useSakuraPrompt) {
+            buildSakuraGlossaryEntries(
+                sourceText = ragSourceText,
+                matchedTerms = matchedTerms,
+                playerName = playerName
+            )
+        } else {
+            emptyList()
         }
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_ARRAY,
             sourceText = protectedTexts.joinToString("\n") { it.text },
-            targetChineseLocale = config.targetChineseLocale,
+            targetChineseLocale = promptTargetChineseLocale(config),
             playerName = playerName,
             currentSpeaker = activeCurrentSpeaker,
             isChoiceBatch = translateAsChoices
         )
 
         val messages = listOf(
-            ChatMessage("system", promptBuilder.buildSystemPrompt(playerName, promptContext)),
+            ChatMessage(
+                "system",
+                if (useSakuraPrompt) {
+                    SakuraPromptBuilder.buildSystemPrompt()
+                } else {
+                    promptBuilder.buildSystemPrompt(playerName, promptContext)
+                }
+            ),
             ChatMessage(
                 "user",
-                buildBatchUserPrompt(
-                    texts = protectedTexts.map { it.text },
-                    currentSpeaker = activeCurrentSpeaker,
-                    translateAsChoices = translateAsChoices
-                )
+                if (useSakuraPrompt) {
+                    SakuraPromptBuilder.buildBatchUserPrompt(
+                        texts = protectedTexts.map { it.text },
+                        currentSpeaker = activeCurrentSpeaker,
+                        context = promptContext,
+                        glossaryEntries = sakuraGlossaryEntries
+                    )
+                } else {
+                    buildBatchUserPrompt(
+                        texts = protectedTexts.map { it.text },
+                        currentSpeaker = activeCurrentSpeaker,
+                        translateAsChoices = translateAsChoices
+                    )
+                }
             )
         )
 
@@ -1298,7 +1508,11 @@ class Translator @Inject constructor(
                 maxTokens = BATCH_TRANSLATION_MAX_TOKENS,
                 promptKind = "batch"
             )
-            parseBatchResult(rawResult, uncachedTexts.size)
+            if (useSakuraPrompt) {
+                parseSakuraLineResult(rawResult, uncachedTexts.size)
+            } else {
+                parseBatchResult(rawResult, uncachedTexts.size)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -1321,7 +1535,8 @@ class Translator @Inject constructor(
                         currentSpeaker = activeCurrentSpeaker,
                         currentSpeakerSourceName = currentSpeakerCacheIdentity,
                         translateAsChoices = translateAsChoices,
-                        maxApiAttempts = remainingAttempts
+                        maxApiAttempts = remainingAttempts,
+                        previousDialogueContexts = activePreviousDialogueContexts
                     )
                 }
             } else {
@@ -1353,7 +1568,12 @@ class Translator @Inject constructor(
                 continue
             }
             val safety = restored?.let {
-                classifyTranslationSafety(normalizedTexts[originalIndex], maskedSafe, playerName)
+                classifyTranslationSafety(
+                    normalizedTexts[originalIndex],
+                    maskedSafe,
+                    playerName,
+                    rejectSakuraPromptEcho = useSakuraPrompt
+                )
             } ?: TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
             val needsRepair = safety.status != TranslationSafetyStatus.OK
             if (needsRepair) {
@@ -1371,7 +1591,8 @@ class Translator @Inject constructor(
                         currentSpeaker = activeCurrentSpeaker,
                         currentSpeakerSourceName = currentSpeakerCacheIdentity,
                         translateAsChoices = translateAsChoices,
-                        maxApiAttempts = remainingAttempts
+                        maxApiAttempts = remainingAttempts,
+                        previousDialogueContexts = activePreviousDialogueContexts
                     )
                     if (retryResult.translatedText.isNotBlank() &&
                         !retryResult.translatedText.isSceneContextErrorText()
@@ -1384,8 +1605,11 @@ class Translator @Inject constructor(
                         continue
                     }
                 }
+                val forcedText = maskedSafe.takeUnless {
+                    useSakuraPrompt && looksLikeSakuraPromptEcho(it)
+                }.orEmpty().ifBlank { EMPTY_API_OUTPUT_FALLBACK }
                 results[originalIndex] = forceRenderedApiResult(
-                    text = maskedSafe,
+                    text = forcedText,
                     backend = backend,
                     config = config,
                     reason = "batch item[$originalIndex] reached attempt limit"
@@ -1400,7 +1624,8 @@ class Translator @Inject constructor(
                     normalizedTexts[originalIndex],
                     maskedSafe,
                     backend,
-                    playerName
+                    playerName,
+                    promptVersion = translationPromptVersion(config)
                 )
             }
         }
@@ -1536,7 +1761,7 @@ class Translator @Inject constructor(
         val activePreviousDialogueContexts = if (
             hasDialogueNeedingApiBeforeCache || hasChoiceNeedingApiBeforeCache
         ) {
-            sceneDialogueContextsForPrompt(input.previousDialogueContexts, config.targetChineseLocale)
+            sceneDialogueContextsForPrompt(input.previousDialogueContexts, promptTargetChineseLocale(config))
         } else {
             emptyList()
         }
@@ -1559,9 +1784,14 @@ class Translator @Inject constructor(
         val currentSpeaker = buildCurrentSpeakerContext(
             sourceName = normalizedName,
             resolvedName = nameResult?.translatedText,
-            targetChineseLocale = config.targetChineseLocale
+            targetChineseLocale = promptTargetChineseLocale(config)
         )
         val currentSpeakerSourceName = normalizeCurrentSpeakerContext(normalizedName.orEmpty())
+        val currentSpeakerGender = if (usesSakuraPrompt(config) && normalizedDialogue != null) {
+            findUniqueCharacterGender(normalizedName.orEmpty())
+        } else {
+            ""
+        }
         val characterContext = normalizedDialogue?.let {
             characterContextRepository.resolveProfileOrNull(normalizedName)
         }
@@ -1628,6 +1858,7 @@ class Translator @Inject constructor(
                 previousDialogueContexts = activePreviousDialogueContexts,
                 currentSpeaker = currentSpeaker,
                 currentSpeakerSourceName = currentSpeakerSourceName,
+                currentSpeakerGender = currentSpeakerGender,
                 characterContext = characterContext
             )
             return SceneTranslateResult(
@@ -1709,6 +1940,74 @@ class Translator @Inject constructor(
                 name = nameResult,
                 dialogue = dialogueResult,
                 choices = choiceResults.map { it ?: TranslateResult("", "none", true) }
+            ).forTargetLocale(config, input)
+        }
+
+        if (usesSakuraPrompt(config) && (needsName || needsDialogue || neededChoiceIndices.isNotEmpty())) {
+            FgoLogger.info(
+                tag,
+                "Sakura scene path: translating fields without structured JSON " +
+                    "(name=$needsName, dialogue=$needsDialogue, choices=${neededChoiceIndices.size})"
+            )
+            if (needsName) {
+                val translatedName = translate(
+                    japaneseText = input.name.orEmpty(),
+                    maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
+                    restoreSourcePunctuation = false,
+                    translateAsName = true
+                )
+                nameResult = validateLlmNameResult(nameForLlm!!, translatedName, playerName)
+            }
+            val sakuraCurrentSpeaker = buildCurrentSpeakerContext(
+                sourceName = normalizedName,
+                resolvedName = nameResult?.translatedText,
+                targetChineseLocale = promptTargetChineseLocale(config)
+            )
+            if (needsDialogue) {
+                dialogueResult = translate(
+                    japaneseText = input.dialogue.orEmpty(),
+                    maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
+                    previousDialogueContexts = activePreviousDialogueContexts,
+                    currentSpeaker = sakuraCurrentSpeaker,
+                    currentSpeakerSourceName = currentSpeakerSourceName,
+                    currentSpeakerGender = currentSpeakerGender,
+                    characterContext = characterContext
+                )
+            }
+            if (neededChoiceIndices.isNotEmpty()) {
+                val translatedChoices = translateBatch(
+                    japaneseTexts = neededChoiceIndices.map { input.choices[it] },
+                    currentSpeaker = sakuraCurrentSpeaker,
+                    currentSpeakerSourceName = currentSpeakerSourceName,
+                    translateAsChoices = true,
+                    previousDialogueContexts = activePreviousDialogueContexts
+                )
+                translatedChoices.forEachIndexed { batchIndex, result ->
+                    choiceResults[neededChoiceIndices[batchIndex]] = result
+                }
+            }
+
+            val speakerForHint = nameResult?.translatedText
+                ?.takeIf { it.isNotBlank() }
+                ?: normalizedName.orEmpty()
+            val voiceHint = if (requestVoiceHint) {
+                try {
+                    requestVoiceHint(speakerForHint, normalizedDialogue.orEmpty())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    FgoLogger.warn(tag, "Sakura scene voice hint failed; continuing without hint", e)
+                    recordTranslationApiFailure(config, e, "voice_hint")
+                    null
+                }
+            } else {
+                null
+            }
+            return SceneTranslateResult(
+                name = nameResult,
+                dialogue = dialogueResult,
+                choices = choiceResults.map { it ?: TranslateResult("", "none", true) },
+                voiceHint = voiceHint
             ).forTargetLocale(config, input)
         }
 
@@ -2301,14 +2600,20 @@ class Translator @Inject constructor(
 
     private suspend fun getCachedCharacterNames(): List<CharacterNameEntity> {
         cachedCharacterNames?.let { return it }
+        val downloadedNames = termDao.getAllCharacterNames()
+        val downloadedGenderByName = downloadedNames.associate { character ->
+            TextNormalizer.normalizeForTranslation(character.jpName) to character.gender
+        }
         val localNames = localGlossaryDao.getAllCharacterNames().map { localName ->
             CharacterNameEntity(
                 jpName = localName.jpName,
                 cnName = localName.cnName,
+                gender = downloadedGenderByName[
+                    TextNormalizer.normalizeForTranslation(localName.jpName)
+                ].orEmpty(),
                 aliases = localName.aliases
             )
         }
-        val downloadedNames = termDao.getAllCharacterNames()
         val loaded = (localNames + downloadedNames)
             .distinctBy { TextNormalizer.normalizeForTranslation(it.jpName) }
         cachedCharacterNames = loaded
@@ -2380,6 +2685,36 @@ class Translator @Inject constructor(
                 variant.cnName.isNotBlank() && visibleNameBoxLookupKey(variant.jpName) == lookupKey
             }
             ?.cnName
+    }
+
+    /**
+     * Gender is prompt metadata, so only an exact variant that identifies one
+     * canonical character may supply it. Shared generated parts such as オルタ
+     * deliberately return no gender instead of borrowing the first DB row.
+     */
+    private suspend fun findUniqueCharacterGender(normalizedName: String): String {
+        val sourceName = parseCharacterNameState(normalizedName)?.baseName ?: normalizedName
+        if (sourceName.isBlank() || splitCombinedSpeakerNameParts(sourceName).isNotEmpty()) return ""
+        val lookupKey = normalizeNameLookup(TextNormalizer.stripRubyAnnotations(sourceName))
+        if (lookupKey.isBlank()) return ""
+
+        val matches = getCachedCharacterNames()
+            .asSequence()
+            .filter { normalizeCharacterGender(it.gender).isNotBlank() }
+            .filter { character -> lookupKey in characterLookupKeys(character) }
+            .distinctBy { character -> normalizeNameLookup(character.jpName) }
+            .toList()
+        return matches.singleOrNull()
+            ?.gender
+            ?.let(::normalizeCharacterGender)
+            .orEmpty()
+    }
+
+    private fun normalizeCharacterGender(gender: String): String = when (gender.trim()) {
+        "女性" -> "女性"
+        "男性" -> "男性"
+        "性別不明", "性别不明" -> "性别不明"
+        else -> ""
     }
 
     private suspend fun findCharacterNameTranslation(
@@ -2696,6 +3031,7 @@ class Translator @Inject constructor(
                     jpTerm = character.jpName,
                     cnTerm = character.cnName,
                     category = "character",
+                    gender = character.gender,
                     aliases = character.aliases
                 )
             )
@@ -3167,6 +3503,9 @@ class Translator @Inject constructor(
                         "kana=${safety.kanaCount}, cjk=${safety.cjkCount}, chars=${safety.meaningfulCount}"
                 )
             }
+            TranslationSafetyStatus.PROMPT_ECHO -> {
+                FgoLogger.warn(tag, "$message: sakura_prompt_echo")
+            }
             TranslationSafetyStatus.UNTRANSLATED -> {
                 FgoLogger.warn(tag, "$message: untranslated_or_unsafe")
             }
@@ -3176,11 +3515,15 @@ class Translator @Inject constructor(
     private fun classifyTranslationSafety(
         sourceText: String,
         translatedText: String,
-        playerName: String = ""
+        playerName: String = "",
+        rejectSakuraPromptEcho: Boolean = false
     ): TranslationSafetyResult {
         val source = TextNormalizer.normalizeForTranslation(sourceText)
         val translated = TextNormalizer.normalizeForTranslation(translatedText)
         if (source.isBlank() || translated.isBlank()) return TranslationSafetyResult(TranslationSafetyStatus.OK)
+        if (rejectSakuraPromptEcho && looksLikeSakuraPromptEcho(translated)) {
+            return TranslationSafetyResult(TranslationSafetyStatus.PROMPT_ECHO)
+        }
         if (hasLeakedStandaloneAddressWord(source, translated, playerName)) {
             return TranslationSafetyResult(TranslationSafetyStatus.UNTRANSLATED)
         }
@@ -3233,6 +3576,13 @@ class Translator @Inject constructor(
             cjkCount = cjkCount,
             meaningfulCount = meaningfulCount
         )
+    }
+
+    private fun looksLikeSakuraPromptEcho(text: String): Boolean {
+        if (SAKURA_PROMPT_ECHO_STRONG_MARKERS.any(text::contains)) return true
+        val trimmed = text.trimStart()
+        if (SAKURA_PROMPT_ECHO_SECTION_MARKERS.any(trimmed::startsWith)) return true
+        return SAKURA_PROMPT_ECHO_SECTION_MARKERS.count(text::contains) >= 2
     }
 
     private fun compactForCopyCheck(text: String): String {
@@ -3443,11 +3793,16 @@ class Translator @Inject constructor(
         sourceText: String,
         translatedText: String,
         config: RuntimeConfig,
-        cropMode: Boolean
+        cropMode: Boolean,
+        allowPlainLineResult: Boolean = false
     ): String {
         if (!cropMode) return sanitizeModelTranslation(sourceText, translatedText, config)
         val sourceLines = cropTranslationSourceLines(sourceText)
-        val translatedLines = parseCropTranslationResult(translatedText, sourceLines.size)
+        val translatedLines = parseCropTranslationResult(
+            rawResult = translatedText,
+            expectedCount = sourceLines.size,
+            allowPlainLines = allowPlainLineResult
+        )
         if (translatedLines == null) {
             FgoLogger.warn(tag, "Crop response was not a matching JSON array; falling back to plain text cleanup")
             return sanitizeModelTranslation(sourceText, translatedText, config)
@@ -3467,20 +3822,29 @@ class Translator @Inject constructor(
 
     private fun parseCropTranslationResult(
         rawResult: String,
-        expectedCount: Int
+        expectedCount: Int,
+        allowPlainLines: Boolean = false
     ): List<String>? {
         if (expectedCount <= 0) return null
         val trimmed = rawResult.trim()
         val start = trimmed.indexOf('[')
         val end = trimmed.lastIndexOf(']')
-        if (start < 0 || end <= start) return null
+        if (start < 0 || end <= start) {
+            if (!allowPlainLines) return null
+            return parsePlainLineResult(rawResult, expectedCount)
+        }
 
-        return runCatching {
+        val parsedJson = runCatching {
             val values = responseJson.parseToJsonElement(trimmed.substring(start, end + 1))
                 .jsonArray
                 .map { it.jsonPrimitive.content.trim() }
             values.takeIf { it.size == expectedCount }
         }.getOrNull()
+        return parsedJson ?: if (allowPlainLines) {
+            parsePlainLineResult(rawResult, expectedCount)
+        } else {
+            null
+        }
     }
 
     private fun String.asSingleCropRow(): String {
@@ -3948,6 +4312,75 @@ class Translator @Inject constructor(
         val pluralOfficialText: String? = null,
         val required: Boolean = false
     )
+
+    /**
+     * Sakura accepts a native JP->CN glossary and performs better when it can see
+     * the complete Japanese sentence. Other providers keep the stronger token
+     * locking and restoration path.
+     */
+    private fun preparePromptText(
+        sourceText: String,
+        matchedTerms: List<TermEntity>,
+        playerName: String,
+        targetChineseLocale: String,
+        useSakuraPrompt: Boolean
+    ): ProtectedText {
+        if (useSakuraPrompt) return ProtectedText(sourceText, emptyList())
+        return protectText(
+            sourceText = sourceText,
+            matchedTerms = matchedTerms,
+            playerName = playerName,
+            targetChineseLocale = targetChineseLocale
+        )
+    }
+
+    private fun buildSakuraGlossaryEntries(
+        sourceText: String,
+        matchedTerms: List<TermEntity>,
+        playerName: String
+    ): List<SakuraGlossaryEntry> {
+        val entries = buildList {
+            matchedTerms.forEach { term ->
+                if (term.cnTerm.isBlank()) return@forEach
+                val matchedForms = termProtectionCandidates(term)
+                    .filter { candidate -> sourceContainsTermCandidate(sourceText, candidate) }
+                    .ifEmpty { listOf(term.jpTerm) }
+                matchedForms.forEach { sourceForm ->
+                    add(
+                        SakuraGlossaryEntry(
+                            source = sourceForm,
+                            target = targetOfficialChinese(
+                                term.cnTerm,
+                                SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+                            ),
+                            note = normalizeCharacterGender(term.gender)
+                        )
+                    )
+                }
+            }
+
+            val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
+            if (normalizedPlayerName.length >= 2 &&
+                sourceContainsTermCandidate(sourceText, normalizedPlayerName)
+            ) {
+                add(
+                    SakuraGlossaryEntry(
+                        source = normalizedPlayerName,
+                        target = normalizedPlayerName,
+                        note = "玩家名"
+                    )
+                )
+            }
+        }.distinctBy { normalizeForTermProtection(it.source) }
+
+        FgoLogger.debug(tag, "Sakura glossary: ${entries.size} native JP->CN entry(s)")
+        return entries
+    }
+
+    private fun sourceContainsTermCandidate(sourceText: String, candidate: String): Boolean {
+        if (sourceText.isBlank() || candidate.isBlank()) return false
+        return replaceTermCandidate(sourceText, candidate, "__SAKURA_TERM_MATCH__") != sourceText
+    }
 
     private enum class HonorificPlacement {
         PREFIX,
@@ -4831,7 +5264,8 @@ class Translator @Inject constructor(
         normalizedText: String,
         translatedText: String,
         backend: String,
-        playerName: String
+        playerName: String,
+        promptVersion: String = PromptBuilder.PROMPT_VERSION
     ) {
         val simplified = sanitizeTranslation(normalizedText, translatedText)
         val safety = classifyTranslationSafety(normalizedText, simplified, playerName)
@@ -4846,7 +5280,7 @@ class Translator @Inject constructor(
                 normalizedJpText = normalizedText,
                 cnText = simplified,
                 backend = backend,
-                promptVersion = PromptBuilder.PROMPT_VERSION
+                promptVersion = promptVersion
             )
         )
         putMemoryCachedTranslation(hash, simplified)
@@ -5303,9 +5737,21 @@ class Translator @Inject constructor(
         choiceTexts: List<String>,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
-        translateAsChoices: Boolean = false
+        translateAsChoices: Boolean = false,
+        translateAsName: Boolean = false
     ): String {
-        val basePrompt = if (translateAsChoices) {
+        val basePrompt = if (translateAsName) {
+            buildString {
+                val inputJson = buildJsonObject {
+                    put("name_jp", JsonPrimitive(japaneseText))
+                }
+                appendPromptSection("current_input", inputJson.toString())
+                appendPromptSection(
+                    "output_contract",
+                    "Return only the Chinese translation of name_jp."
+                )
+            }
+        } else if (translateAsChoices) {
             buildString {
                 val inputJson = buildJsonObject {
                     put("player_choice_jp", JsonPrimitive(japaneseText))
@@ -5367,33 +5813,77 @@ class Translator @Inject constructor(
         maxTokens: Int,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
-        characterContextPrompt: String = ""
+        characterContextPrompt: String = "",
+        translateAsChoices: Boolean = false,
+        translateAsName: Boolean = false,
+        retryStage: Int = 1,
+        sakuraGlossaryEntries: List<SakuraGlossaryEntry> = emptyList()
     ): TranslationRepairResult? {
-        val retryMessages = listOf(
-            ChatMessage(
-                "system",
-                buildStrictRetrySystemPrompt(
-                    playerName,
-                    config.targetChineseLocale,
-                    cropMode,
-                    specialFirstPersonMappings,
-                    namePluralUsage,
-                    characterContextPrompt
-                )
-            ),
-            ChatMessage(
-                "user",
-                buildStrictRetryUserPrompt(
+        val useSakuraPrompt = usesSakuraPrompt(config)
+        val retryMessages = if (useSakuraPrompt) {
+            val retryContext = promptBuilder.buildPromptContext(
+                outputFormat = if (cropMode) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
+                sourceText = protectedInput.text,
+                choiceTexts = normalizedChoices.takeIf { translateAsChoices }.orEmpty(),
+                targetChineseLocale = promptTargetChineseLocale(config),
+                hasName = translateAsName,
+                nameText = protectedInput.text.takeIf { translateAsName },
+                isCropMode = cropMode,
+                isDialogue = !cropMode && !translateAsName,
+                playerName = playerName,
+                currentSpeaker = currentSpeaker,
+                characterContextPrompt = characterContextPrompt,
+                isChoiceBatch = translateAsChoices
+            )
+            val retryUserPrompt = if (cropMode) {
+                SakuraPromptBuilder.buildCropUserPrompt(
                     japaneseText = protectedInput.text,
-                    choiceTexts = normalizedChoices,
-                    cropMode = cropMode,
-                    badTranslation = badTranslation,
-                    kanaTokens = badSafety?.kanaTokens.orEmpty(),
+                    context = retryContext,
+                    glossaryEntries = sakuraGlossaryEntries
+                )
+            } else {
+                SakuraPromptBuilder.buildSingleRequest(
+                    japaneseText = protectedInput.text,
                     previousDialogueContexts = previousDialogueContexts,
-                    currentSpeaker = currentSpeaker
+                    currentSpeaker = currentSpeaker,
+                    context = retryContext,
+                    glossaryEntries = sakuraGlossaryEntries,
+                    translateAsChoices = translateAsChoices,
+                    translateAsName = translateAsName,
+                    retryStage = retryStage
+                ).userPrompt
+            }
+            listOf(
+                ChatMessage("system", SakuraPromptBuilder.buildSystemPrompt()),
+                ChatMessage("user", retryUserPrompt)
+            )
+        } else {
+            listOf(
+                ChatMessage(
+                    "system",
+                    buildStrictRetrySystemPrompt(
+                        playerName,
+                        config.targetChineseLocale,
+                        cropMode,
+                        specialFirstPersonMappings,
+                        namePluralUsage,
+                        characterContextPrompt
+                    )
+                ),
+                ChatMessage(
+                    "user",
+                    buildStrictRetryUserPrompt(
+                        japaneseText = protectedInput.text,
+                        choiceTexts = normalizedChoices,
+                        cropMode = cropMode,
+                        badTranslation = badTranslation,
+                        kanaTokens = badSafety?.kanaTokens.orEmpty(),
+                        previousDialogueContexts = previousDialogueContexts,
+                        currentSpeaker = currentSpeaker
+                    )
                 )
             )
-        )
+        }
 
         val retryRaw = try {
             callTranslationBackend(
@@ -5417,13 +5907,19 @@ class Translator @Inject constructor(
             normalizedText,
             retryRestored,
             config,
-            cropMode
+            cropMode,
+            allowPlainLineResult = useSakuraPrompt
         )
         if (retrySimplified.isBlank()) return null
         if (looksUntranslated(normalizedText, retrySimplified, playerName)) {
             logUntranslatedResult("Strict retry response", normalizedText, retrySimplified, playerName)
         }
-        val retrySafety = classifyTranslationSafety(normalizedText, retrySimplified, playerName)
+        val retrySafety = classifyTranslationSafety(
+            normalizedText,
+            retrySimplified,
+            playerName,
+            rejectSakuraPromptEcho = useSakuraPrompt
+        )
         if (retrySafety.status == TranslationSafetyStatus.OK) {
             FgoLogger.info(tag, "Strict retry produced translated result")
         } else {
@@ -5589,6 +6085,29 @@ class Translator @Inject constructor(
             )
         }
         return values
+    }
+
+    private fun parseSakuraLineResult(rawResult: String, expectedCount: Int): List<String> {
+        runCatching { parseBatchResult(rawResult, expectedCount) }
+            .getOrNull()
+            ?.let { return it }
+        return parsePlainLineResult(rawResult, expectedCount)
+            ?: throw IllegalArgumentException(
+                "Sakura response line count did not match expected $expectedCount"
+            )
+    }
+
+    private fun parsePlainLineResult(rawResult: String, expectedCount: Int): List<String>? {
+        if (expectedCount <= 0) return null
+        val normalized = cleanModelText(rawResult)
+            .replace("\\r\\n", "\n")
+            .replace("\\n", "\n")
+            .replace("\\r", "\n")
+        val lines = normalized.lineSequence()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .toList()
+        return lines.takeIf { it.size == expectedCount }
     }
 
     private fun chatMessagesJson(messages: List<ChatMessage>) = buildJsonArray {
@@ -6085,7 +6604,7 @@ class Translator @Inject constructor(
     ): String {
         return hashText(
             listOf(
-                PromptBuilder.PROMPT_VERSION,
+                translationPromptVersion(config),
                 config.backend,
                 config.apiBaseUrl,
                 config.apiModel,
@@ -6103,6 +6622,26 @@ class Translator @Inject constructor(
         )
     }
 
+    private fun usesSakuraPrompt(config: RuntimeConfig): Boolean {
+        return SakuraPromptBuilder.matchesModel(config.apiModel)
+    }
+
+    private fun promptTargetChineseLocale(config: RuntimeConfig): String {
+        return if (usesSakuraPrompt(config)) {
+            SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+        } else {
+            config.targetChineseLocale
+        }
+    }
+
+    private fun translationPromptVersion(config: RuntimeConfig): String {
+        return if (usesSakuraPrompt(config)) {
+            SakuraPromptBuilder.PROMPT_VERSION
+        } else {
+            PromptBuilder.PROMPT_VERSION
+        }
+    }
+
     private fun buildCurrentSpeakerContext(
         sourceName: String?,
         resolvedName: String?,
@@ -6113,7 +6652,7 @@ class Translator @Inject constructor(
 
         val resolved = resolvedName
             ?.takeIf { it.isNotBlank() && !it.isSceneContextErrorText() }
-            ?.let { toTargetChinese(it, targetChineseLocale) }
+            ?.let { targetOfficialChinese(it, targetChineseLocale) }
             ?.let(::normalizeCurrentSpeakerContext)
             .orEmpty()
         if (resolved.isBlank() || resolved == source) return source
@@ -6154,11 +6693,11 @@ class Translator @Inject constructor(
                     FgoDialogueSymbols.normalizeLeadingOcrDash(context.sourceDialogue)
                 )
                 val translatedDialogue = context.translatedDialogue
-                    ?.let { toTargetChinese(it, targetChineseLocale) }
+                    ?.let { targetOfficialChinese(it, targetChineseLocale) }
                     ?.let(::normalizeSceneDialogueContext)
                     ?.takeIf(String::isNotBlank)
                 val translatedSpeakerName = context.translatedSpeakerName
-                    ?.let { toTargetChinese(it, targetChineseLocale) }
+                    ?.let { targetOfficialChinese(it, targetChineseLocale) }
                     ?.let(::normalizeCurrentSpeakerContext)
                     ?.takeIf(String::isNotBlank)
                 if (
@@ -6312,6 +6851,7 @@ class Translator @Inject constructor(
         FgoLogger.debug(
             tag,
             "Prompt request: kind=$promptKind, backend=${config.backend}, model=${config.apiModel}, " +
+                "profile=${if (usesSakuraPrompt(config)) "sakura" else "general"}, " +
                 "messages=${messages.size}, systemChars=$systemChars, userChars=$userChars, " +
                 "totalChars=${systemChars + userChars}, maxTokens=$maxTokens, " +
                 "sampling=$samplingLog"

@@ -182,13 +182,13 @@
   {
     "jp_term": "聖晶石",
     "cn_term": "圣晶石",
-    "category": "item",
+    "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "聖杯",
     "cn_term": "圣杯",
-    "category": "item",
+    "category": "game_term",
     "aliases": ""
   },
   {
@@ -477,7 +477,7 @@
     "jp_term": "アンビースト",
     "cn_term": "UnBeast",
     "category": "class",
-    "aliases": "非兽"
+    "aliases": "越兽"
   },
   {
     "jp_term": "シャドウ・ボーダー",

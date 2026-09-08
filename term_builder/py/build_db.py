@@ -37,13 +37,14 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
 
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=DELETE")
-    conn.execute("PRAGMA user_version=1")
+    conn.execute("PRAGMA user_version=2")
     conn.execute(
         """
         CREATE TABLE character_names (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             jp_name TEXT NOT NULL,
             cn_name TEXT NOT NULL,
+            gender TEXT NOT NULL DEFAULT '',
             aliases TEXT
         )
         """
@@ -56,6 +57,7 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
             jp_term TEXT NOT NULL,
             cn_term TEXT NOT NULL,
             category TEXT NOT NULL,
+            gender TEXT NOT NULL DEFAULT '',
             aliases TEXT
         )
         """
@@ -95,20 +97,29 @@ def insert_term(conn: sqlite3.Connection, term: dict[str, Any]) -> tuple[int, in
     jp_name = clean(term.get("jp_name"))
     cn_name = clean(term.get("cn_name"))
     category = clean(term.get("category")) or "term"
+    gender = clean(term.get("gender"))
     aliases = clean(term.get("aliases")) or "[]"
     if not jp_name or not cn_name:
         return 0, 0
     if category in {"character", "servant"}:
-        insert_character_name(conn, jp_name, cn_name, aliases, replace=True)
+        insert_character_name(conn, jp_name, cn_name, gender, aliases, replace=True)
         generated = 0
         for jp_part, cn_part in character_name_components(jp_name, cn_name):
-            generated += insert_character_name(conn, jp_part, cn_part, "[]", replace=False)
+            generated += insert_character_name(conn, jp_part, cn_part, "", "[]", replace=False)
         return generated, 0
 
-    insert_term_row(conn, jp_name, cn_name, category, aliases, replace=True)
+    insert_term_row(conn, jp_name, cn_name, category, gender, aliases, replace=True)
     generated = 0
     for jp_part, cn_part in term_components(jp_name, cn_name):
-        generated += insert_term_row(conn, jp_part, cn_part, f"{category}_part", "[]", replace=False)
+        generated += insert_term_row(
+            conn,
+            jp_part,
+            cn_part,
+            f"{category}_part",
+            "",
+            "[]",
+            replace=False,
+        )
     return 0, generated
 
 
@@ -117,6 +128,7 @@ def insert_term_row(
     jp_term: str,
     cn_term: str,
     category: str,
+    gender: str,
     aliases: str,
     *,
     replace: bool,
@@ -124,10 +136,10 @@ def insert_term_row(
     conflict = "REPLACE" if replace else "IGNORE"
     cursor = conn.execute(
         f"""
-        INSERT OR {conflict} INTO terms (jp_term, cn_term, category, aliases)
-        VALUES (?, ?, ?, ?)
+        INSERT OR {conflict} INTO terms (jp_term, cn_term, category, gender, aliases)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (jp_term, cn_term, category, aliases),
+        (jp_term, cn_term, category, gender, aliases),
     )
     return max(cursor.rowcount, 0)
 
@@ -136,6 +148,7 @@ def insert_character_name(
     conn: sqlite3.Connection,
     jp_name: str,
     cn_name: str,
+    gender: str,
     aliases: str,
     *,
     replace: bool,
@@ -143,10 +156,10 @@ def insert_character_name(
     conflict = "REPLACE" if replace else "IGNORE"
     cursor = conn.execute(
         f"""
-        INSERT OR {conflict} INTO character_names (jp_name, cn_name, aliases)
-        VALUES (?, ?, ?)
+        INSERT OR {conflict} INTO character_names (jp_name, cn_name, gender, aliases)
+        VALUES (?, ?, ?, ?)
         """,
-        (jp_name, cn_name, aliases),
+        (jp_name, cn_name, gender, aliases),
     )
     return max(cursor.rowcount, 0)
 

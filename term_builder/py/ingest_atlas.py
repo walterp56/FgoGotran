@@ -31,6 +31,7 @@ DEFAULT_OUTPUT = ROOT / "fgo_terms.json"
 DEFAULT_CHARACTER_TSV = ROOT / "character_names.tsv"
 DEFAULT_TERMS_TSV = ROOT / "term.tsv"
 DEFAULT_LEGACY_MOONCELL_TSV = ROOT / "mooncell_terms.tsv"
+CHARACTER_GENDERS = {"女性", "男性", "性別不明"}
 
 
 COMMON_TERMS = [
@@ -92,6 +93,7 @@ def add_term(
     aliases: list[str] | None = None,
     source: str = "atlas",
     allow_same_text: bool = False,
+    gender: str | None = None,
 ) -> None:
     jp = clean_text(jp_name)
     cn = clean_text(cn_name)
@@ -111,6 +113,7 @@ def add_term(
             "category": category,
             "aliases": json.dumps(clean_aliases, ensure_ascii=False),
             "source": source,
+            "gender": clean_text(gender),
         }
     )
 
@@ -240,12 +243,21 @@ def ingest_character_names_tsv(terms: list[dict[str, Any]], path: Path) -> None:
     with path.open("r", encoding="utf-8-sig", newline="") as file:
         reader = csv.DictReader(file, delimiter="\t")
         required = {"jp_name", "cn_name"}
-        if not required.issubset(reader.fieldnames or []):
-            raise SystemExit(f"{path} must contain at least columns: jp_name, cn_name")
+        required_headers = required | {"gender"}
+        if not required_headers.issubset(reader.fieldnames or []):
+            raise SystemExit(
+                f"{path} must contain columns: jp_name, cn_name, gender"
+            )
         for row in reader:
             if not any(clean_text(value) for value in row.values()):
                 continue
             validate_required_columns(path, reader.line_num, row, required)
+            gender = clean_text(row.get("gender"))
+            if gender and gender not in CHARACTER_GENDERS:
+                raise SystemExit(
+                    f"{path}:{reader.line_num} has unsupported gender {gender!r}; "
+                    f"use 女性, 男性, 性別不明, or leave it blank"
+                )
             aliases = split_aliases(row.get("aliases") or "")
             add_term(
                 terms,
@@ -255,6 +267,7 @@ def ingest_character_names_tsv(terms: list[dict[str, Any]], path: Path) -> None:
                 aliases,
                 row.get("source") or "mooncell",
                 allow_same_text=True,
+                gender=gender,
             )
 
 
@@ -316,6 +329,14 @@ def dedupe_terms(terms: list[dict[str, Any]]) -> list[dict[str, Any]]:
         old_aliases = set(json.loads(merged[key].get("aliases") or "[]"))
         new_aliases = set(json.loads(term.get("aliases") or "[]"))
         merged[key]["aliases"] = json.dumps(sorted(old_aliases | new_aliases), ensure_ascii=False)
+        old_gender = clean_text(merged[key].get("gender"))
+        new_gender = clean_text(term.get("gender"))
+        if old_gender and new_gender and old_gender != new_gender:
+            raise SystemExit(
+                f"Conflicting genders for {key!r}: {old_gender!r} and {new_gender!r}"
+            )
+        if not old_gender:
+            merged[key]["gender"] = new_gender
     return sorted(merged.values(), key=lambda item: (item["category"], item["jp_name"]))
 
 

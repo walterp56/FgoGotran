@@ -20,10 +20,12 @@ Used for deterministic speaker-name translation. Exact Japanese names and aliase
 Columns:
 
 ```tsv
-jp_name	cn_name	aliases
-FULL_JP_NAME	OFFICIAL_CN_NAME	ALIAS_1,ALIAS_2
+jp_name	cn_name	gender	aliases
+FULL_JP_NAME	OFFICIAL_CN_NAME	女性	ALIAS_1,ALIAS_2
 ```
 
+`gender` accepts `女性`, `男性`, `性別不明`, or an empty value. It is translation
+metadata used by the Sakura glossary and is never appended to the displayed name.
 `aliases` is optional and comma-separated.
 
 Keep full character names here. `build_db.py` automatically adds component records for separator-based names, so a full official row can also become searchable through its name parts. Curated TSV rows still win over generated component rows.
@@ -150,6 +152,10 @@ To publish directly to S3 and invalidate CloudFront in the safe order:
 ```
 
 The script uploads the versioned DB and checksum first, uploads `db/zh-Hans/latest/manifest.json` last, waits for the CloudFront invalidation, then verifies the live manifest content version.
+
+Terminology schema 2 adds character gender metadata and requires app version
+2.5.0 or newer. Publish the schema-2 DB before releasing that app version;
+older apps reject the unsupported manifest and keep their installed database.
 
 ## Voice CDN Release Package
 

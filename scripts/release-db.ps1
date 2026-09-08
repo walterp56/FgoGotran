@@ -3,7 +3,7 @@ param(
     [string]$Output = "",
     [string]$BaseUrl = "https://cdn.fgogotran.com",
     [string]$ContentVersion = "",
-    [string]$MinimumAppVersion = "1.0.0",
+    [string]$MinimumAppVersion = "2.5.0",
     [string]$ReleaseNotes = "FgoGotran terminology database update",
     [string]$S3Uri = "",
     [string]$AwsCli = "aws",
