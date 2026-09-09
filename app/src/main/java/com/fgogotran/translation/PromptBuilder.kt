@@ -105,6 +105,7 @@ data class PromptContext(
     val hasBenefactivePassiveCausative: Boolean = false,
     val characterContextPrompt: String = "",
     val currentSpeakerGender: String = "",
+    val playerGender: String = SettingsRepository.DEFAULT_PLAYER_GENDER,
     val specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping> = emptyList(),
     val specialSecondPersonMappings: List<SpecialSecondPersonPromptMapping> = emptyList(),
     val hasAmbiguousRoman: Boolean = false
@@ -132,7 +133,7 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v87"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v88-master-gender"
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v4"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
@@ -233,10 +234,6 @@ class PromptBuilder @Inject constructor() {
             - Preserve masks (???, ？？？, ■, □, ▇, █) exactly; never guess them.
             """.trimIndent()
 
-        private val PLAYER_NAME_PROMPT = """
-            - Player name: "{player_name}". Keep it exactly if it appears.
-            """.trimIndent()
-
         private val DIALOGUE_STYLE_PROMPT = """
             - Preserve characterization and register in natural Chinese.
             """.trimIndent()
@@ -334,6 +331,8 @@ class PromptBuilder @Inject constructor() {
         isDialogue: Boolean = !isCropMode,
         requestVoiceHint: Boolean = false,
         playerName: String = "",
+        playerGender: String = SettingsRepository.DEFAULT_PLAYER_GENDER,
+        playerReferenceText: String = "",
         currentSpeaker: String = "",
         currentSpeakerGender: String = "",
         characterContextPrompt: String = "",
@@ -349,8 +348,18 @@ class PromptBuilder @Inject constructor() {
             .joinToString("\n")
         val otherText = (listOf(sourceText) + relevantChoiceTexts).joinToString("\n")
         val combinedText = (listOf(primarySourceText) + relevantChoiceTexts).joinToString("\n")
+        val playerRuleText = playerReferenceText.trim().ifBlank { combinedText }
         val cleanPlayerName = playerName.trim()
         val normalizedTargetLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
+        val hasMasterWord = containsMasterWord(playerRuleText)
+        val needsPlayerNameRule = cleanPlayerName.isNotBlank() &&
+            playerRuleText.contains(cleanPlayerName)
+        val relevantPlayerGender = SettingsRepository.normalizePlayerGender(playerGender)
+            .takeIf {
+                !isBattleSubtitle && !isChoiceBatch &&
+                    (hasMasterWord || needsPlayerNameRule)
+            }
+            ?: SettingsRepository.DEFAULT_PLAYER_GENDER
         return PromptContext(
             outputFormat = outputFormat,
             targetChineseLocale = normalizedTargetLocale,
@@ -367,8 +376,8 @@ class PromptBuilder @Inject constructor() {
             hasMasks = containsMask(combinedText),
             hasLineBreaks = !isBattleSubtitle &&
                 (containsLineBreak(primarySourceText) || relevantChoiceTexts.any(::containsLineBreak)),
-            hasMasterWord = containsMasterWord(combinedText),
-            needsPlayerNameRule = cleanPlayerName.isNotBlank() && combinedText.contains(cleanPlayerName),
+            hasMasterWord = hasMasterWord,
+            needsPlayerNameRule = needsPlayerNameRule,
             hasChoices = !isBattleSubtitle &&
                 (relevantChoiceTexts.isNotEmpty() || isChoiceBatch),
             hasName = hasName && !isBattleSubtitle,
@@ -390,6 +399,7 @@ class PromptBuilder @Inject constructor() {
                         !isChoiceBatch && currentSpeaker.isNotBlank()
                 }
                 .orEmpty(),
+            playerGender = relevantPlayerGender,
             specialFirstPersonMappings = SpecialFirstPersonPronouns.promptMappings(
                 combinedText,
                 normalizedTargetLocale
@@ -464,13 +474,13 @@ class PromptBuilder @Inject constructor() {
                 rules,
                 blockNames,
                 "player_name",
-                PLAYER_NAME_PROMPT.replace("{player_name}", playerName.ifBlank { "Master" })
+                buildPlayerNamePrompt(playerName.ifBlank { "Master" }, context.playerGender)
             )
         }
         if (context.isCropMode) {
             appendPromptBlock(rules, blockNames, "crop_style", CROP_STYLE_PROMPT)
             if (context.hasMasterWord) {
-                appendPromptBlock(rules, blockNames, "master", MASTER_PROMPT)
+                appendPromptBlock(rules, blockNames, "master", buildMasterPrompt(context.playerGender))
             }
         } else {
             if (context.isDialogue && !isBattleSubtitle) {
@@ -496,7 +506,18 @@ class PromptBuilder @Inject constructor() {
                 appendPromptBlock(rules, blockNames, "line_break", LINE_BREAK_PROMPT)
             }
             if (context.hasMasterWord) {
-                appendPromptBlock(rules, blockNames, "master", MASTER_PROMPT)
+                appendPromptBlock(rules, blockNames, "master", buildMasterPrompt(context.playerGender))
+            }
+            if (
+                context.currentSpeakerGender.isNotBlank() &&
+                playerGenderPromptLabel(context.playerGender).isBlank()
+            ) {
+                appendPromptBlock(
+                    rules,
+                    blockNames,
+                    "current_speaker_gender",
+                    buildCurrentSpeakerGenderPrompt(context.currentSpeakerGender)
+                )
             }
         }
         if (!isBattleSubtitle && context.requestVoiceHint) {
@@ -777,6 +798,43 @@ class PromptBuilder @Inject constructor() {
             append("- ")
             append(prompt.trim())
         }
+    }
+
+    private fun buildPlayerNamePrompt(playerName: String, playerGender: String): String {
+        val gender = playerGenderPromptLabel(playerGender)
+        return buildString {
+            append("- Player name: \"")
+            append(playerName)
+            append('"')
+            if (gender.isNotBlank()) append("; gender: $gender")
+            append(". Keep the name exactly if it appears.")
+            if (gender.isNotBlank()) {
+                append(" Use this gender only for explicit player references; never infer omitted pronouns or participants.")
+            }
+        }
+    }
+
+    private fun buildMasterPrompt(playerGender: String): String {
+        val gender = playerGenderPromptLabel(playerGender)
+        return buildString {
+            append(MASTER_PROMPT)
+            if (gender.isNotBlank()) {
+                append("\n- The configured Master is $gender. Use this only for explicit references to the Master; never infer omitted pronouns or participants.")
+            }
+        }
+    }
+
+    private fun buildCurrentSpeakerGenderPrompt(currentSpeakerGender: String): String {
+        val gender = playerGenderPromptLabel(currentSpeakerGender)
+        if (gender.isBlank()) return ""
+        return "- The current speaker is $gender. Use this only for explicit references to the speaker; " +
+            "never infer omitted pronouns or participants."
+    }
+
+    private fun playerGenderPromptLabel(gender: String): String = when (gender.trim()) {
+        SettingsRepository.PLAYER_GENDER_MALE, "男性" -> "male"
+        SettingsRepository.PLAYER_GENDER_FEMALE, "女性" -> "female"
+        else -> ""
     }
 
     internal fun buildNamePluralPrompt(

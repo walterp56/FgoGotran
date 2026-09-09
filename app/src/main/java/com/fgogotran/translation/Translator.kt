@@ -250,6 +250,7 @@ class Translator @Inject constructor(
             apiBaseUrl = validateApiBaseUrl(normalizedBackend, resolvedApiBaseUrl),
             apiModel = resolvedApiModel,
             playerName = "",
+            playerGender = SettingsRepository.DEFAULT_PLAYER_GENDER,
             cacheEnabled = false,
             targetChineseLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
             glossaryCacheKey = "api-test",
@@ -292,7 +293,8 @@ class Translator @Inject constructor(
             buildSakuraGlossaryEntries(
                 sourceText = normalizedText,
                 matchedTerms = matchedTerms,
-                playerName = config.playerName
+                playerName = config.playerName,
+                playerGender = config.playerGender
             )
         } else {
             emptyList()
@@ -301,7 +303,9 @@ class Translator @Inject constructor(
             outputFormat = PromptOutputFormat.PLAIN_TEXT,
             sourceText = protectedInput.text,
             targetChineseLocale = promptTargetChineseLocale(config),
-            playerName = config.playerName
+            playerName = config.playerName,
+            playerGender = config.playerGender,
+            playerReferenceText = normalizedText
         )
         val response = callTranslationBackend(
             config = config,
@@ -488,6 +492,7 @@ class Translator @Inject constructor(
         val apiBaseUrl: String,
         val apiModel: String,
         val playerName: String,
+        val playerGender: String,
         val cacheEnabled: Boolean,
         val targetChineseLocale: String,
         val glossaryCacheKey: String,
@@ -1042,7 +1047,8 @@ class Translator @Inject constructor(
             buildSakuraGlossaryEntries(
                 sourceText = ragSourceText,
                 matchedTerms = matchedTerms,
-                playerName = playerName
+                playerName = playerName,
+                playerGender = config.playerGender
             )
         } else {
             emptyList()
@@ -1058,6 +1064,8 @@ class Translator @Inject constructor(
             isCropMode = cropMode,
             isDialogue = !cropMode && !translateAsName,
             playerName = playerName,
+            playerGender = config.playerGender,
+            playerReferenceText = ragSourceText,
             currentSpeaker = activeCurrentSpeaker,
             currentSpeakerGender = activeCurrentSpeakerGender,
             characterContextPrompt = activeCharacterContext?.prompt.orEmpty(),
@@ -1233,6 +1241,7 @@ class Translator @Inject constructor(
                     maxTokens = maxTokens,
                     previousDialogueContexts = activePreviousDialogueContexts,
                     currentSpeaker = activeCurrentSpeaker,
+                    currentSpeakerGender = activeCurrentSpeakerGender,
                     characterContextPrompt = activeCharacterContext?.prompt.orEmpty(),
                     translateAsChoices = translateAsChoices,
                     translateAsName = translateAsName,
@@ -1455,7 +1464,8 @@ class Translator @Inject constructor(
             buildSakuraGlossaryEntries(
                 sourceText = ragSourceText,
                 matchedTerms = matchedTerms,
-                playerName = playerName
+                playerName = playerName,
+                playerGender = config.playerGender
             )
         } else {
             emptyList()
@@ -1465,6 +1475,8 @@ class Translator @Inject constructor(
             sourceText = protectedTexts.joinToString("\n") { it.text },
             targetChineseLocale = promptTargetChineseLocale(config),
             playerName = playerName,
+            playerGender = config.playerGender,
+            playerReferenceText = ragSourceText,
             currentSpeaker = activeCurrentSpeaker,
             isChoiceBatch = translateAsChoices
         )
@@ -1787,8 +1799,13 @@ class Translator @Inject constructor(
             targetChineseLocale = promptTargetChineseLocale(config)
         )
         val currentSpeakerSourceName = normalizeCurrentSpeakerContext(normalizedName.orEmpty())
-        val currentSpeakerGender = if (usesSakuraPrompt(config) && normalizedDialogue != null) {
-            findUniqueCharacterGender(normalizedName.orEmpty())
+        val currentSpeakerGender = if (normalizedDialogue != null) {
+            resolveCurrentSpeakerGender(
+                normalizedName = normalizedName.orEmpty(),
+                playerName = playerName,
+                playerGender = config.playerGender,
+                allowCharacterDatabase = usesSakuraPrompt(config)
+            )
         } else {
             ""
         }
@@ -2089,7 +2106,10 @@ class Translator @Inject constructor(
             isDialogue = sceneDialogueForApi != null,
             requestVoiceHint = requestVoiceHint,
             playerName = playerName,
+            playerGender = config.playerGender,
+            playerReferenceText = combinedText,
             currentSpeaker = currentSpeaker,
+            currentSpeakerGender = currentSpeakerGender,
             characterContextPrompt = if (sceneDialogueForApi != null) {
                 characterContext?.prompt.orEmpty()
             } else {
@@ -2213,6 +2233,7 @@ class Translator @Inject constructor(
                     previousDialogueContexts = activePreviousDialogueContexts,
                     currentSpeaker = currentSpeaker,
                     currentSpeakerSourceName = currentSpeakerSourceName,
+                    currentSpeakerGender = currentSpeakerGender,
                     characterContext = characterContext,
                     maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
                 )
@@ -2413,7 +2434,8 @@ class Translator @Inject constructor(
 
     private suspend fun getRuntimeConfig(): RuntimeConfig {
         val now = System.currentTimeMillis()
-        val playerName = userProfile.getPlayerName()
+        val playerProfile = userProfile.getPlayerProfile()
+        val playerName = playerProfile.name
         val backend = settingsRepository.translationBackend.first()
         val apiBaseUrl = settingsRepository.getApiBaseUrlForBackend(backend)
             .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) }
@@ -2426,6 +2448,7 @@ class Translator @Inject constructor(
             apiBaseUrl = validateApiBaseUrl(backend, apiBaseUrl),
             apiModel = apiModel,
             playerName = playerName,
+            playerGender = playerProfile.gender,
             cacheEnabled = settingsRepository.cacheEnabled.first(),
             targetChineseLocale = settingsRepository.targetChineseLocale.first(),
             glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "online-db-pending" },
@@ -2435,9 +2458,12 @@ class Translator @Inject constructor(
             )
         )
         cachedRuntimeConfig?.let { cached ->
-            if (cached.playerName != loaded.playerName) {
+            if (
+                cached.playerName != loaded.playerName ||
+                cached.playerGender != loaded.playerGender
+            ) {
                 clearCharacterNameCaches()
-                FgoLogger.info(tag, "Player name changed; local glossary cache cleared")
+                FgoLogger.info(tag, "Player profile changed; local glossary cache cleared")
             }
             if (cached == loaded && now - cachedRuntimeConfigAt < RUNTIME_CONFIG_CACHE_TTL_MS) {
                 return cached
@@ -2715,6 +2741,38 @@ class Translator @Inject constructor(
         "男性" -> "男性"
         "性別不明", "性别不明" -> "性别不明"
         else -> ""
+    }
+
+    private fun playerGenderToCharacterGender(playerGender: String): String = when (
+        SettingsRepository.normalizePlayerGender(playerGender)
+    ) {
+        SettingsRepository.PLAYER_GENDER_MALE -> "男性"
+        SettingsRepository.PLAYER_GENDER_FEMALE -> "女性"
+        else -> ""
+    }
+
+    private suspend fun resolveCurrentSpeakerGender(
+        normalizedName: String,
+        playerName: String,
+        playerGender: String,
+        allowCharacterDatabase: Boolean
+    ): String {
+        val configuredPlayerGender = playerGenderToCharacterGender(playerGender)
+        val speakerBaseName = parseCharacterNameState(normalizedName)?.baseName ?: normalizedName
+        val speakerKey = normalizeNameLookup(TextNormalizer.stripRubyAnnotations(speakerBaseName))
+        val playerKey = normalizeNameLookup(
+            TextNormalizer.stripRubyAnnotations(
+                TextNormalizer.normalizeForTranslation(playerName)
+            )
+        )
+        if (speakerKey.isNotBlank() && playerKey.isNotBlank() && speakerKey == playerKey) {
+            return configuredPlayerGender
+        }
+        return if (allowCharacterDatabase) {
+            findUniqueCharacterGender(normalizedName)
+        } else {
+            ""
+        }
     }
 
     private suspend fun findCharacterNameTranslation(
@@ -4337,7 +4395,8 @@ class Translator @Inject constructor(
     private fun buildSakuraGlossaryEntries(
         sourceText: String,
         matchedTerms: List<TermEntity>,
-        playerName: String
+        playerName: String,
+        playerGender: String
     ): List<SakuraGlossaryEntry> {
         val entries = buildList {
             matchedTerms.forEach { term ->
@@ -4367,7 +4426,10 @@ class Translator @Inject constructor(
                     SakuraGlossaryEntry(
                         source = normalizedPlayerName,
                         target = normalizedPlayerName,
-                        note = "玩家名"
+                        note = listOf(
+                            playerGenderToCharacterGender(playerGender),
+                            "玩家名"
+                        ).filter(String::isNotBlank).joinToString("；")
                     )
                 )
             }
@@ -5813,6 +5875,7 @@ class Translator @Inject constructor(
         maxTokens: Int,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
+        currentSpeakerGender: String = "",
         characterContextPrompt: String = "",
         translateAsChoices: Boolean = false,
         translateAsName: Boolean = false,
@@ -5831,7 +5894,10 @@ class Translator @Inject constructor(
                 isCropMode = cropMode,
                 isDialogue = !cropMode && !translateAsName,
                 playerName = playerName,
+                playerGender = config.playerGender,
+                playerReferenceText = (listOf(normalizedText) + normalizedChoices).joinToString("\n"),
                 currentSpeaker = currentSpeaker,
+                currentSpeakerGender = currentSpeakerGender,
                 characterContextPrompt = characterContextPrompt,
                 isChoiceBatch = translateAsChoices
             )
@@ -6616,6 +6682,7 @@ class Translator @Inject constructor(
                 if (choiceBatch) "choice-batch-v1" else "",
                 config.glossaryCacheKey,
                 TextNormalizer.normalizeForTranslation(config.playerName),
+                SettingsRepository.normalizePlayerGender(config.playerGender),
                 normalizedText,
                 choiceTexts.joinToString("\n")
             ).joinToString("\u001F")

@@ -10,7 +10,6 @@ import kotlin.math.roundToInt
 /** Stable battle regions on FGO's centered 1920x1080 gameplay canvas. */
 object BattleLayout {
     val subtitle = FgoReferenceRect(100, 688, 1820, 866)
-    val resultHeader = FgoReferenceRect(720, 0, 1200, 185)
 
     /**
      * FGO moves the battle counters horizontally for different aspect ratios and

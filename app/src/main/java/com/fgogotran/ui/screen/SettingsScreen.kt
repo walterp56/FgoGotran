@@ -111,6 +111,9 @@ fun SettingsScreen(
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
     var playerName by remember { mutableStateOf("") }
+    var playerGender by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_PLAYER_GENDER)
+    }
     var playerNameSaveMessage by remember { mutableStateOf("") }
     var floatingButtonSizeDp by remember {
         mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
@@ -137,6 +140,7 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         playerName = settingsRepository.playerName.first()
+        playerGender = settingsRepository.playerGender.first()
         floatingButtonSizeDp = settingsRepository.getFloatingButtonSizeDp()
         showOriginalGameText = settingsRepository.showOriginalGameText.first()
         ocrEngine = settingsRepository.getOcrEngine()
@@ -148,7 +152,7 @@ fun SettingsScreen(
 
     fun savePlayerName() {
         scope.launch {
-            settingsRepository.setPlayerName(playerName)
+            settingsRepository.setPlayerProfile(playerName, playerGender)
             playerNameSaveMessage = "已保存"
         }
     }
@@ -366,6 +370,13 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("例：藤丸立香") },
                     singleLine = true
+                )
+                PlayerGenderSelector(
+                    selectedGender = playerGender,
+                    onSelect = { gender ->
+                        playerGender = gender
+                        playerNameSaveMessage = ""
+                    }
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -609,6 +620,26 @@ private data class TargetChineseLocaleOption(
     val label: String
 )
 
+private val playerGenderOptions = listOf(
+    PlayerGenderOption(
+        gender = SettingsRepository.PLAYER_GENDER_UNSPECIFIED,
+        label = "未设置"
+    ),
+    PlayerGenderOption(
+        gender = SettingsRepository.PLAYER_GENDER_MALE,
+        label = "男"
+    ),
+    PlayerGenderOption(
+        gender = SettingsRepository.PLAYER_GENDER_FEMALE,
+        label = "女"
+    )
+)
+
+private data class PlayerGenderOption(
+    val gender: String,
+    val label: String
+)
+
 @Composable
 private fun TranslationLanguageSelector(
     selectedLocale: String,
@@ -683,6 +714,77 @@ private fun TranslationLanguageOption(
                 textAlign = TextAlign.Center
             )
         }
+    }
+}
+
+@Composable
+private fun PlayerGenderSelector(
+    selectedGender: String,
+    onSelect: (String) -> Unit
+) {
+    val normalizedGender = SettingsRepository.normalizePlayerGender(selectedGender)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            "御主性别",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+            fontWeight = FontWeight.SemiBold
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            playerGenderOptions.forEach { option ->
+                PlayerGenderOption(
+                    option = option,
+                    selected = option.gender == normalizedGender,
+                    onClick = { onSelect(option.gender) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerGenderOption(
+    option: PlayerGenderOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.small,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+        },
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+        )
+    ) {
+        Text(
+            text = option.label,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            textAlign = TextAlign.Center
+        )
     }
 }
 

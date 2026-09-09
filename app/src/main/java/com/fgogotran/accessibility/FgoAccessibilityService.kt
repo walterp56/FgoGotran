@@ -934,6 +934,11 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         battleSubtitles.resume()
         battleSubtitles.refreshCaption()
+        // AUTO/SEMI_AUTO story scans already supply frames to the battle detector.
+        // A separate capture is needed only in MANUAL mode, after the first HUD
+        // candidate, or while battle owns the screen.
+        if (TranslationTrigger.translationMode() != TranslationMode.MANUAL &&
+            !battleSubtitles.needsDedicatedScan) return
         // processScreen also routes its captured frame through the battle observer. Do not
         // invalidate that observation merely because the normal pipeline owns the frame.
         if (isProcessing || battleFrameBusy || SystemClock.elapsedRealtime() < nextBattleScanAt) return
@@ -963,7 +968,7 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             while (isActive) {
                 try {
-                    monitorBattleIfReady()
+                    var foregroundWorkStarted = false
                     if (canStartScreenTranslationNow()) {
                         val translationMode = TranslationTrigger.translationMode()
                         val manualRequest = if (TranslationTrigger.canUserTapTranslate()) {
@@ -983,6 +988,7 @@ class FgoAccessibilityService : AccessibilityService() {
                                 afterMenuDismiss = waitForMenuDismissal,
                                 requestedMode = translationMode
                             )
+                            foregroundWorkStarted = true
                         } else if (isEffectiveFgoForeground &&
                             !battleSubtitles.blocksStory &&
                             translationMode != TranslationMode.MANUAL &&
@@ -998,8 +1004,12 @@ class FgoAccessibilityService : AccessibilityService() {
                                 }
                                 processScreen(backgroundMode)
                             }
+                            foregroundWorkStarted = true
                         }
                     }
+                    // Explicit/story work owns the next screenshot. Idle battle monitoring
+                    // runs only when it cannot delay a user request or scheduled story OCR.
+                    if (!foregroundWorkStarted) monitorBattleIfReady()
                 } catch (e: Exception) {
                     diagnosticEventStore.record(
                         level = DiagnosticEventStore.LEVEL_ERROR,
@@ -1065,17 +1075,35 @@ class FgoAccessibilityService : AccessibilityService() {
                 return
             }
             val source = screenshot
-            if (FgoRunnerService.serviceStarted.value && isJapaneseServer() &&
-                battleSubtitles.inspect(source, capturedAt)) {
+            val currentScreenWidth = source.width
+            val currentScreenHeight = source.height
+            val screenRegions = FgoViewportLayout.regionsForScreen(currentScreenWidth, currentScreenHeight)
+            FgoLogger.debug(tag, "FGO viewport=${screenRegions.viewport}")
+            val dialogueComplete = if (isJapaneseServer()) {
+                backgroundDetector.isDialogueCompleteMarkerVisible(
+                    source,
+                    screenRegions.dialogueComplete
+                )
+            } else {
+                false
+            }
+            val battleOwnsScreen = if (FgoRunnerService.serviceStarted.value && isJapaneseServer()) {
+                battleSubtitles.resume()
+                battleSubtitles.inspect(
+                    source = source,
+                    capturedAt = capturedAt,
+                    knownDiamondVisible = dialogueComplete
+                )
+            } else {
+                false
+            }
+            if (battleOwnsScreen) {
+                if (battleSubtitles.needsDedicatedScan) nextBattleScanAt = 0L
                 restoreFgoForegroundAfterCapture("battle HUD")
                 restoreHiddenOverlay = false
                 return
             }
             reportGameServerPipelineUsed()
-            val currentScreenWidth = source.width
-            val currentScreenHeight = source.height
-            val screenRegions = FgoViewportLayout.regionsForScreen(currentScreenWidth, currentScreenHeight)
-            FgoLogger.debug(tag, "FGO viewport=${screenRegions.viewport}")
 
             if (!isJapaneseServer()) {
                 processVoiceOnlyScreen(
@@ -1096,7 +1124,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     currentScreenHeight = currentScreenHeight,
                     processStartedAt = processStartedAt,
                     processingVersion = processingVersion,
-                    restoreHiddenOverlay = restoreHiddenOverlay
+                    restoreHiddenOverlay = restoreHiddenOverlay,
+                    dialogueComplete = dialogueComplete
                 )
                 ProcessingMode.SEMI_AUTO_CHOICE_TAP -> processSemiAutoChoiceScreen(
                     source = source,
@@ -1114,7 +1143,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         currentScreenWidth = currentScreenWidth,
                         currentScreenHeight = currentScreenHeight,
                         processStartedAt = processStartedAt,
-                        processingVersion = processingVersion
+                        processingVersion = processingVersion,
+                        dialogueComplete = dialogueComplete
                     )
                     false
                 }
@@ -1125,7 +1155,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         currentScreenWidth = currentScreenWidth,
                         currentScreenHeight = currentScreenHeight,
                         processStartedAt = processStartedAt,
-                        processingVersion = processingVersion
+                        processingVersion = processingVersion,
+                        dialogueComplete = dialogueComplete
                     )
                     false
                 }
@@ -1555,9 +1586,10 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenHeight: Int,
         processStartedAt: Long,
         processingVersion: Long,
-        restoreHiddenOverlay: Boolean
+        restoreHiddenOverlay: Boolean,
+        dialogueComplete: Boolean
     ): Boolean {
-        val scan = scanManualScene(source, screenRegions)
+        val scan = scanManualScene(source, screenRegions, dialogueComplete)
         if (scan.regions.isEmpty()) {
             if (scan.dialogueComplete) {
                 FgoLogger.debug(tag, "No translatable completed dialogue detected in FGO regions")
@@ -1685,7 +1717,8 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun scanManualScene(
         source: Bitmap,
-        screenRegions: FgoScreenRegions
+        screenRegions: FgoScreenRegions,
+        dialogueComplete: Boolean
     ): ManualScanResult {
         val choiceRecognition = recognizeChoiceRegions(source, screenRegions, ProcessingMode.MANUAL_TAP)
         val choiceRegions = choiceRecognition.regions
@@ -1712,10 +1745,6 @@ class FgoAccessibilityService : AccessibilityService() {
         if (choiceRecognition.bounds.isNotEmpty()) {
             FgoLogger.debug(tag, "Manual choice panels detected but OCR returned no text")
         }
-        val dialogueComplete = backgroundDetector.isDialogueCompleteMarkerVisible(
-            source,
-            screenRegions.dialogueComplete
-        )
         return ManualScanResult(regions = emptyList(), dialogueComplete = dialogueComplete)
     }
 
@@ -1725,9 +1754,16 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenWidth: Int,
         currentScreenHeight: Int,
         processStartedAt: Long,
-        processingVersion: Long
+        processingVersion: Long,
+        dialogueComplete: Boolean
     ) {
-        when (val scan = scanSemiAutoDialogueScene(source, screenRegions, currentScreenWidth, currentScreenHeight)) {
+        when (val scan = scanSemiAutoDialogueScene(
+            source,
+            screenRegions,
+            currentScreenWidth,
+            currentScreenHeight,
+            dialogueComplete
+        )) {
             is AutoScanResult.Ready -> {
                 val sceneSource = sceneSourceFor(scan.regions)
                 if (sceneSource == null) {
@@ -1764,12 +1800,9 @@ class FgoAccessibilityService : AccessibilityService() {
         source: Bitmap,
         screenRegions: FgoScreenRegions,
         currentScreenWidth: Int,
-        currentScreenHeight: Int
+        currentScreenHeight: Int,
+        dialogueComplete: Boolean
     ): AutoScanResult {
-        val dialogueComplete = backgroundDetector.isDialogueCompleteMarkerVisible(
-            source,
-            screenRegions.dialogueComplete
-        )
         if (!dialogueComplete) {
             FgoLogger.debug(tag, "Semi-auto waiting for completed dialogue marker")
             rememberSemiAutoBlankOcr()
@@ -1802,9 +1835,16 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenWidth: Int,
         currentScreenHeight: Int,
         processStartedAt: Long,
-        processingVersion: Long
+        processingVersion: Long,
+        dialogueComplete: Boolean
     ) {
-        when (val scan = scanAutoScene(source, screenRegions, currentScreenWidth, currentScreenHeight)) {
+        when (val scan = scanAutoScene(
+            source,
+            screenRegions,
+            currentScreenWidth,
+            currentScreenHeight,
+            dialogueComplete
+        )) {
             is AutoScanResult.Ready -> {
                 val sceneSource = sceneSourceFor(scan.regions)
                 if (sceneSource == null) {
@@ -1851,7 +1891,8 @@ class FgoAccessibilityService : AccessibilityService() {
         source: Bitmap,
         screenRegions: FgoScreenRegions,
         currentScreenWidth: Int,
-        currentScreenHeight: Int
+        currentScreenHeight: Int,
+        dialogueComplete: Boolean
     ): AutoScanResult {
         val choiceBounds = detectChoiceBounds(source, screenRegions)
         if (waitingForChoiceSelectionExit) {
@@ -1868,11 +1909,7 @@ class FgoAccessibilityService : AccessibilityService() {
             val choiceRegions = choiceRecognition.regions
             if (choiceRegions.isNotEmpty()) {
                 FgoLogger.debug(tag, "Auto choice text detected")
-                val dialogueRegions = if (backgroundDetector.isDialogueCompleteMarkerVisible(
-                        source,
-                        screenRegions.dialogueComplete
-                    )
-                ) {
+                val dialogueRegions = if (dialogueComplete) {
                     recognizeDialogueRegions(
                         source,
                         screenRegions,
@@ -1889,10 +1926,6 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "Choice panels detected by pixels but OCR returned no text")
         }
 
-        val dialogueComplete = backgroundDetector.isDialogueCompleteMarkerVisible(
-            source,
-            screenRegions.dialogueComplete
-        )
         if (!dialogueComplete) {
             FgoLogger.debug(tag, "Auto waiting for completed dialogue marker")
             return AutoScanResult.Waiting

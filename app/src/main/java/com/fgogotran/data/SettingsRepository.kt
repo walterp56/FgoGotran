@@ -41,6 +41,11 @@ data class ApiSamplingCapabilities(
         get() = supportsTemperature || supportsTopP
 }
 
+data class PlayerProfileSettings(
+    val name: String,
+    val gender: String
+)
+
 /**
  * Persistent application settings backed by Jetpack DataStore Preferences.
  *
@@ -60,6 +65,7 @@ class SettingsRepository @Inject constructor(
         val KEY_API_BASE_URL = stringPreferencesKey("api_base_url")
         val KEY_API_MODEL = stringPreferencesKey("api_model")
         val KEY_PLAYER_NAME = stringPreferencesKey("player_name")
+        val KEY_PLAYER_GENDER = stringPreferencesKey("player_gender")
         val KEY_CACHE_ENABLED = booleanPreferencesKey("cache_enabled")
         val KEY_TRANSLATION_CONTEXT_ENABLED = booleanPreferencesKey("translation_context_enabled")
         val KEY_TRANSLATION_CONTEXT_SCENE_COUNT = intPreferencesKey("translation_context_scene_count")
@@ -127,6 +133,10 @@ class SettingsRepository @Inject constructor(
         const val MIN_TRANSLATION_CONTEXT_SCENE_COUNT = 1
         const val DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT = 2
         const val MAX_TRANSLATION_CONTEXT_SCENE_COUNT = 5
+        const val PLAYER_GENDER_UNSPECIFIED = "unspecified"
+        const val PLAYER_GENDER_MALE = "male"
+        const val PLAYER_GENDER_FEMALE = "female"
+        const val DEFAULT_PLAYER_GENDER = PLAYER_GENDER_UNSPECIFIED
         const val AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA = "southeastasia"
         const val AZURE_SPEECH_REGION_CHINA_NORTH3 = "chinanorth3"
         const val DEFAULT_AZURE_SPEECH_REGION = AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA
@@ -219,6 +229,11 @@ class SettingsRepository @Inject constructor(
         private val SUPPORTED_TRANSLATION_MODES = setOf("MANUAL", "SEMI_AUTO", "AUTO")
         private val SUPPORTED_OCR_ENGINES = setOf(OCR_ENGINE_MLKIT, OCR_ENGINE_PADDLE)
         private val SUPPORTED_GAME_SERVERS = setOf(GAME_SERVER_JP, GAME_SERVER_CN, GAME_SERVER_TW)
+        private val SUPPORTED_PLAYER_GENDERS = setOf(
+            PLAYER_GENDER_UNSPECIFIED,
+            PLAYER_GENDER_MALE,
+            PLAYER_GENDER_FEMALE
+        )
         private val SUPPORTED_AZURE_SPEECH_REGIONS = setOf(
             AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA,
             AZURE_SPEECH_REGION_CHINA_NORTH3
@@ -228,6 +243,9 @@ class SettingsRepository @Inject constructor(
 
         fun normalizeTranslationMode(mode: String): String =
             mode.takeIf { it in SUPPORTED_TRANSLATION_MODES } ?: DEFAULT_TRANSLATION_MODE
+
+        fun normalizePlayerGender(gender: String): String =
+            gender.takeIf { it in SUPPORTED_PLAYER_GENDERS } ?: DEFAULT_PLAYER_GENDER
 
         fun normalizeOcrEngine(engine: String): String =
             when (engine) {
@@ -604,10 +622,19 @@ class SettingsRepository @Inject constructor(
         }.first()
     }
 
-    /** The player's FGO Master name for dialogue personalization. */
-    val playerName: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_PLAYER_NAME] ?: ""
+    /** The player's local FGO Master profile for dialogue personalization. */
+    val playerProfile: Flow<PlayerProfileSettings> = context.dataStore.data.map { prefs ->
+        PlayerProfileSettings(
+            name = prefs[KEY_PLAYER_NAME] ?: "",
+            gender = normalizePlayerGender(
+                prefs[KEY_PLAYER_GENDER] ?: DEFAULT_PLAYER_GENDER
+            )
+        )
     }
+
+    val playerName: Flow<String> = playerProfile.map { profile -> profile.name }
+
+    val playerGender: Flow<String> = playerProfile.map { profile -> profile.gender }
 
     /** Whether translation caching is enabled. */
     val cacheEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -1021,9 +1048,13 @@ class SettingsRepository @Inject constructor(
         )
     }
 
-    suspend fun setPlayerName(name: String) {
+    suspend fun setPlayerProfile(name: String, gender: String) {
         val trimmedName = name.trim()
-        context.dataStore.edit { it[KEY_PLAYER_NAME] = trimmedName }
+        val normalizedGender = normalizePlayerGender(gender)
+        context.dataStore.edit {
+            it[KEY_PLAYER_NAME] = trimmedName
+            it[KEY_PLAYER_GENDER] = normalizedGender
+        }
         if (trimmedName.isBlank()) {
             localGlossaryDao.deleteCharacterName(LocalGlossaryDatabase.PLAYER_NAME_RECORD_ID)
             FgoLogger.debug(tag, "Local player name glossary row removed")
@@ -1038,7 +1069,14 @@ class SettingsRepository @Inject constructor(
             )
             FgoLogger.debug(tag, "Local player name glossary row updated")
         }
-        FgoLogger.debug(tag, "Setting updated: player_name=$trimmedName")
+        FgoLogger.debug(
+            tag,
+            "Setting updated: player_name=$trimmedName, player_gender=$normalizedGender"
+        )
+    }
+
+    suspend fun setPlayerName(name: String) {
+        setPlayerProfile(name, playerGender.first())
     }
 
     suspend fun setCacheEnabled(enabled: Boolean) {

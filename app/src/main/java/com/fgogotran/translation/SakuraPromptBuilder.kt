@@ -8,7 +8,7 @@ package com.fgogotran.translation
  * through the JP->CN glossary format used during Sakura training.
  */
 internal object SakuraPromptBuilder {
-    const val PROMPT_VERSION = "sakura-official-v5-gender"
+    const val PROMPT_VERSION = "sakura-official-v6-master-gender"
 
     private const val MODEL_MARKER = "Sakura"
     private const val SIMPLE_TRANSLATION_PREFIX = "将下面的日文文本翻译成中文："
@@ -168,7 +168,14 @@ internal object SakuraPromptBuilder {
                 .orEmpty()
             add(mapping.first, mapping.second, "人名后缀$exceptions")
         }
-        if (context.hasMasterWord) add("マスター", "御主")
+        if (context.hasMasterWord) {
+            val genderNote = context.playerGender.toSakuraGenderNote()
+            add(
+                "マスター",
+                "御主",
+                genderNote.takeIf(String::isNotBlank)?.let { "$it；玩家称谓" }.orEmpty()
+            )
+        }
         if (context.namePluralUsage.isPresent) {
             add("Xズ", "X们", "角色群体词尾；普通词除外")
         }
@@ -239,8 +246,8 @@ internal object SakuraPromptBuilder {
         .replace('#', '＃')
 
     private fun String.toSakuraGenderNote(): String = when (trim()) {
-        "女性" -> "女性"
-        "男性" -> "男性"
+        "女性", "female" -> "女性"
+        "男性", "male" -> "男性"
         "性別不明" -> "性别不明"
         else -> ""
     }

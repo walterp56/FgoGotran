@@ -18,10 +18,17 @@ class UserProfile @Inject constructor(
 ) {
     private val tag = "UserProfile"
 
+    suspend fun getPlayerProfile(): PlayerProfileSettings {
+        val profile = settingsRepository.playerProfile.first()
+        FgoLogger.debug(
+            tag,
+            "Player profile: name=${profile.name.ifBlank { "(empty)" }}, gender=${profile.gender}"
+        )
+        return profile
+    }
+
     /** Returns the player's Master name, or empty string if not configured. */
     suspend fun getPlayerName(): String {
-        val name = settingsRepository.playerName.first().ifBlank { null } ?: ""
-        FgoLogger.debug(tag, "Player name: ${name.ifBlank { "(empty)" }}")
-        return name
+        return getPlayerProfile().name
     }
 }

@@ -2,24 +2,20 @@ package com.fgogotran.battle
 
 import kotlin.math.abs
 
-enum class BattleSceneMode { STORY, BATTLE, WAITING }
+enum class BattleSceneMode { STORY, BATTLE }
 
 /** Pure state machine: only confirmed FGO UI evidence changes capture ownership. */
 class BattleSceneTracker {
     var mode = BattleSceneMode.STORY
         private set
     private var battleCount = 0
-    private var choiceCount = 0
-    private var resultCount = 0
 
     val inBattle: Boolean get() = mode == BattleSceneMode.BATTLE
-    val blocksStory: Boolean get() = mode != BattleSceneMode.STORY || battleCount > 0
+    val blocksStory: Boolean get() = inBattle || battleCount > 0
 
     fun observe(
         hudVisible: Boolean,
-        diamondVisible: Boolean = false,
-        resultVisible: Boolean = false,
-        choiceVisible: Boolean = false
+        diamondVisible: Boolean = false
     ): BattleSceneMode {
         // FGO's dialogue-complete diamond is the authoritative story signal.
         // It wins immediately even when remnants of the battle HUD are visible.
@@ -31,47 +27,14 @@ class BattleSceneTracker {
 
         when (mode) {
             BattleSceneMode.STORY -> {
-                choiceCount = 0
-                resultCount = 0
                 battleCount = if (hudVisible) battleCount + 1 else 0
                 if (battleCount >= REQUIRED_OBSERVATIONS) transitionTo(BattleSceneMode.BATTLE)
             }
 
-            BattleSceneMode.BATTLE -> when {
-                hudVisible -> {
-                    battleCount = 0
-                    choiceCount = 0
-                    resultCount = 0
-                }
-                resultVisible -> {
-                    battleCount = 0
-                    choiceCount = 0
-                    if (++resultCount >= REQUIRED_OBSERVATIONS) transitionTo(BattleSceneMode.WAITING)
-                }
-                else -> {
-                    // HUD-free attacks, Noble Phantasms and loading frames remain battle-owned.
-                    battleCount = 0
-                    choiceCount = 0
-                    resultCount = 0
-                }
-            }
-
-            BattleSceneMode.WAITING -> when {
-                choiceVisible -> {
-                    battleCount = 0
-                    resultCount = 0
-                    if (++choiceCount >= REQUIRED_OBSERVATIONS) transitionTo(BattleSceneMode.STORY)
-                }
-                hudVisible -> {
-                    choiceCount = 0
-                    resultCount = 0
-                    if (++battleCount >= REQUIRED_OBSERVATIONS) transitionTo(BattleSceneMode.BATTLE)
-                }
-                else -> {
-                    battleCount = 0
-                    choiceCount = 0
-                    resultCount = 0
-                }
+            BattleSceneMode.BATTLE -> {
+                // Attacks, Noble Phantasms, RESULT and loading can all hide the HUD.
+                // Battle keeps ownership until the authoritative story diamond returns.
+                battleCount = 0
             }
         }
         return mode
@@ -89,8 +52,6 @@ class BattleSceneTracker {
 
     private fun clearCounts() {
         battleCount = 0
-        choiceCount = 0
-        resultCount = 0
     }
 
     companion object { private const val REQUIRED_OBSERVATIONS = 2 }
@@ -110,6 +71,7 @@ class BattleSubtitleTracker {
     val endedEvents: List<BattleSubtitleEnd> get() = endedThisObservation
     val ended: BattleSubtitleEnd? get() = endedThisObservation.lastOrNull()
     val hasPending: Boolean get() = pending != null
+    val needsConfirmation: Boolean get() = pending != null || (current != null && absentSince != null)
     var lastConfirmationReason = ""
         private set
     var lastConfirmationObservations = 0
