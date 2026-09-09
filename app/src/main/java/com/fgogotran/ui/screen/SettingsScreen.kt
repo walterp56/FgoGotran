@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AppUpdateDialog
 import com.fgogotran.ui.component.BackendProviderLabel
 import com.fgogotran.ui.component.openAppDownloadPage
@@ -105,6 +106,7 @@ fun SettingsScreen(
     val aiVoiceApiHintsEnabled by settingsRepository.aiVoiceApiHintsEnabled.collectAsState(
         initial = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
     )
+    val apiVoiceHintsSupported = Translator.supportsApiVoiceHintsForModel(apiModel)
     val targetChineseLocale by settingsRepository.targetChineseLocale.collectAsState(
         initial = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
     )
@@ -427,8 +429,16 @@ fun SettingsScreen(
                 )
                 SettingsInfoRow(
                     label = "语气增强",
-                    value = if (aiVoiceApiHintsEnabled) "开启" else "关闭",
-                    valueColor = if (aiVoiceApiHintsEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                    value = when {
+                        !apiVoiceHintsSupported -> "Sakura：本机规则"
+                        aiVoiceApiHintsEnabled -> "开启"
+                        else -> "关闭"
+                    },
+                    valueColor = if (apiVoiceHintsSupported && aiVoiceApiHintsEnabled) {
+                        Color(0xFF4CAF50)
+                    } else {
+                        Color(0xFFFF9800)
+                    }
                 )
                 Button(
                     onClick = onVoiceSettings,

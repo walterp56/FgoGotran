@@ -415,6 +415,13 @@ class Translator @Inject constructor(
         dialogue: String
     ): VoiceLineHint? {
         val config = getRuntimeConfig()
+        if (!supportsApiVoiceHintsForModel(config.apiModel)) {
+            FgoLogger.debug(
+                tag,
+                "Voice hint skipped: Sakura uses local expression rules"
+            )
+            return null
+        }
         if (config.requiresApiKey && config.apiKey.isBlank()) {
             throw IllegalStateException("API Key is empty")
         }
@@ -577,6 +584,10 @@ class Translator @Inject constructor(
     ) : Exception(message)
 
     companion object {
+        /** Sakura is a translation specialist and does not reliably follow the voice-hint JSON contract. */
+        fun supportsApiVoiceHintsForModel(apiModel: String): Boolean =
+            !SakuraPromptBuilder.matchesModel(apiModel)
+
         private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
         private const val TRANSLATION_CONNECT_TIMEOUT_MS = 10_000L
@@ -1855,9 +1866,17 @@ class Translator @Inject constructor(
         val needsDialogue = normalizedDialogue != null && dialogueResult == null
         val neededChoiceIndices = normalizedChoices.indices
             .filter { normalizedChoices[it] != null && choiceResults[it] == null }
-        val requestVoiceHint = input.requestVoiceHint &&
+        val voiceHintRequested = input.requestVoiceHint &&
             normalizedDialogue != null &&
             TextNormalizer.hasTranslatableContent(normalizedDialogue)
+        val requestVoiceHint = voiceHintRequested &&
+            supportsApiVoiceHintsForModel(config.apiModel)
+        if (voiceHintRequested && !requestVoiceHint) {
+            FgoLogger.debug(
+                tag,
+                "Scene voice hint skipped: Sakura uses local expression rules"
+            )
+        }
 
         if (!needsName && !needsDialogue && neededChoiceIndices.isEmpty() && !requestVoiceHint) {
             return SceneTranslateResult(

@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +73,10 @@ fun VoiceSettingsScreen(
 ) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val apiModel by settingsRepository.apiModel.collectAsState(
+        initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
+    )
+    val apiVoiceHintsSupported = Translator.supportsApiVoiceHintsForModel(apiModel)
 
     var aiVoiceEnabled by remember { mutableStateOf(false) }
     var aiVoiceApiHintsEnabled by remember {
@@ -109,6 +114,7 @@ fun VoiceSettingsScreen(
     var azureSpeechTestMessage by remember { mutableStateOf("") }
     var azureSpeechTestIsError by remember { mutableStateOf(false) }
     var azureSpeechTesting by remember { mutableStateOf(false) }
+    val effectiveApiVoiceHintsEnabled = aiVoiceApiHintsEnabled && apiVoiceHintsSupported
 
     LaunchedEffect(Unit) {
         aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
@@ -166,7 +172,7 @@ fun VoiceSettingsScreen(
                 val sample = azureVoiceTestSample(settingsRepository.targetChineseLocale.first())
                 var voiceHint: VoiceLineHint? = null
                 var voiceHintError: Throwable? = null
-                if (aiVoiceApiHintsEnabled) {
+                if (effectiveApiVoiceHintsEnabled) {
                     runCatching {
                         translator.testVoiceHint(sample.speakerName, sample.dialogue)
                     }.onSuccess { hint ->
@@ -182,7 +188,7 @@ fun VoiceSettingsScreen(
                 )
                 azureSpeechTestMessage = voiceTestSuccessMessage(
                     result = result,
-                    apiHintsEnabled = aiVoiceApiHintsEnabled,
+                    apiHintsEnabled = effectiveApiVoiceHintsEnabled,
                     apiHintError = voiceHintError
                 )
             } catch (e: Throwable) {
@@ -386,8 +392,13 @@ fun VoiceSettingsScreen(
                 )
                 VoiceSwitchRow(
                     title = "AI 语气增强",
-                    body = "开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。",
-                    checked = aiVoiceApiHintsEnabled,
+                    body = if (apiVoiceHintsSupported) {
+                        "开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。"
+                    } else {
+                        "当前模型 Sakura 不支持 AI 语气增强，将自动使用本机语气规则。切换到其他模型后会恢复已保存的选择。"
+                    },
+                    checked = effectiveApiVoiceHintsEnabled,
+                    enabled = apiVoiceHintsSupported,
                     onCheckedChange = {
                         aiVoiceApiHintsEnabled = it
                         scope.launch { settingsRepository.setAiVoiceApiHintsEnabled(it) }
@@ -1048,6 +1059,7 @@ private fun VoiceSwitchRow(
     title: String,
     body: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -1070,7 +1082,8 @@ private fun VoiceSwitchRow(
         Spacer(modifier = Modifier.width(12.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
         )
     }
 }
