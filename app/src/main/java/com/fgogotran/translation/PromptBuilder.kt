@@ -3,9 +3,6 @@ package com.fgogotran.translation
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.TermEntity
 import com.fgogotran.util.FgoLogger
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import java.text.Normalizer
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,7 +16,22 @@ internal fun buildPromptSection(
     require(promptSectionNamePattern.matches(name)) { "Invalid prompt section name: $name" }
     val trimmedContent = content.trim()
     if (trimmedContent.isEmpty()) return ""
-    return "<$name>\n$trimmedContent\n</$name>"
+    val heading = when (name) {
+        "matched_glossary" -> "Glossary (use only when relevant)"
+        "choice_context" -> "Player choices (context only; do not translate)"
+        "current_japanese" -> "Current Japanese"
+        "current_japanese_rows" -> "Current Japanese rows"
+        "current_scene" -> "Current scene"
+        "current_line" -> "Current line"
+        "required_output" -> "Required output"
+        "reference_context" -> "Previous context (reference only)"
+        "speaker_context" -> "Current speaker (context only)"
+        "previous_draft" -> "Previous draft (repair only)"
+        else -> name.split('_').joinToString(" ") { word ->
+            word.replaceFirstChar { character -> character.uppercase() }
+        }
+    }
+    return "$heading:\n$trimmedContent"
 }
 
 internal fun StringBuilder.appendPromptSection(
@@ -44,6 +56,23 @@ internal fun StringBuilder.appendPromptSectionText(section: String) {
     }
     append(trimmedSection)
 }
+
+internal fun StringBuilder.appendTranslationGlossarySection(
+    entries: List<TranslationGlossaryEntry>
+) {
+    if (entries.isEmpty()) return
+    appendPromptSection(
+        "matched_glossary",
+        TranslationGlossaryBuilder.render(entries)
+    )
+}
+
+internal fun renderNumberedPromptItems(items: List<String>): String = items
+    .mapIndexed { index, item ->
+        val normalized = item.trim().replace("\n", "\n   ")
+        "${index + 1}. $normalized"
+    }
+    .joinToString("\n")
 
 enum class PromptOutputFormat(val logName: String) {
     PLAIN_TEXT("plain_text"),
@@ -115,26 +144,23 @@ data class PromptContext(
  * Constructs system and user prompts for the LLM translation backends.
  *
  * ## System prompt structure
- * 1. Translation task
- * 2. Small safety, style, and feature blocks for the current source shape
- * 3. Output contract
+ * Plain natural-language task, request-local rules, then one output instruction.
  *
  * ## User prompt structure
- * 1. Optional context
- * 2. The current Japanese input
- * 3. The concrete output contract
+ * Optional readable glossary/context followed by the unwrapped current Japanese.
+ * JSON is reserved for response contracts that genuinely return multiple fields.
  *
  * ## RAG (Retrieval-Augmented Generation)
- * The [extractTermMatches] method finds FGO-specific proper nouns in the JP text
- * so Translator can lock them as placeholders for general models. Sakura receives
- * the same hits as a native JP->CN glossary while retaining the complete JP source.
+ * The [extractTermMatches] method finds FGO-specific proper nouns in the JP text.
+ * Every model receives the complete JP source plus the same readable JP->CN glossary;
+ * exact character matches may include gender as context-only metadata.
  */
 @Singleton
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v88-master-gender"
-        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v4"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v90-plain-layout"
+        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v5-plain-layout"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
@@ -192,9 +218,8 @@ class PromptBuilder @Inject constructor() {
          */
         private val BASE_TRANSLATION_PROMPT = """
             You are an expert Japanese-to-Chinese localizer for Fate/Grand Order.
-            Translate Fate/Grand Order Japanese faithfully into natural {target_chinese} for an in-game overlay; be concise without losing information.
-            Preserve complete meaning, viewpoint, tone, character voice, relationships, intentional ambiguity, and ellipsis.
-            Use only {target_chinese}; leave no kana unless a rule allows it.
+            Translate the current Japanese faithfully into concise, natural {target_chinese} for an in-game overlay.
+            Preserve meaning, viewpoint, character voice, relationships, intentional ambiguity, and ellipsis. Use only {target_chinese}.
             """.trimIndent()
 
         private val BATTLE_SUBTITLE_BASE_PROMPT = """
@@ -215,7 +240,7 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT = """
-            Return only the Chinese translation; no notes, markdown, labels, wrappers, or source text.
+            Return only the Chinese translation, without notes, labels, wrappers, or source text.
             """.trimIndent()
 
         private val JSON_OBJECT_OUTPUT_PROMPT = """
@@ -239,8 +264,7 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val PRONOUN_FIDELITY_PROMPT = """
-            - Preserve stated personal references, who performs and receives each action, and whose things are involved. Speaker identity alone does not establish the actor or possessor.
-            - When subjects, objects, or possessors are omitted, prefer natural Chinese omission or restructuring. Express a personal reference only when the Japanese source and relevant Japanese context clearly establish it and accurate, natural Chinese needs it. Preserve unresolved ambiguity rather than guessing identity or ownership.
+            - Preserve explicit personal references and action/possession roles. When Japanese omits or leaves them ambiguous, use natural Chinese omission or restructuring; never infer them from speaker identity alone.
             """.trimIndent()
 
         private val BATTLE_PUNCTUATION_PROMPT = """
@@ -256,7 +280,7 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val SOURCE_FIDELITY_CHECK_PROMPT = """
-            - Before returning, check for unsupported additions, omitted meaning, and changed action roles. Correct only errors supported by the source; keep the requested output format.
+            - Before returning, check for added or omitted meaning and changed action roles; keep the requested format.
             """.trimIndent()
 
         private val LINE_BREAK_PROMPT = """
@@ -412,12 +436,7 @@ class PromptBuilder @Inject constructor() {
         )
     }
 
-    /**
-     * Builds the system prompt for source text that has already had locked RAG terms protected.
-     *
-     * @param playerName the user's FGO Master name for personalization
-     * @return complete system prompt string ready to send to the LLM
-     */
+    /** Builds the system prompt for the complete Japanese source text. */
     fun buildSystemPrompt(
         playerName: String,
         context: PromptContext = PromptContext()
@@ -438,10 +457,7 @@ class PromptBuilder @Inject constructor() {
             isBattleSubtitle -> "battle_base"
             else -> "base"
         }
-        sb.appendPromptSection(
-            "translation_task",
-            applyTargetChinese(basePrompt, targetChinese)
-        )
+        sb.append(applyTargetChinese(basePrompt, targetChinese))
         blockNames += baseBlockName
         if (context.isDialogue || context.hasChoices || context.isCropMode) {
             appendPromptBlock(
@@ -508,10 +524,7 @@ class PromptBuilder @Inject constructor() {
             if (context.hasMasterWord) {
                 appendPromptBlock(rules, blockNames, "master", buildMasterPrompt(context.playerGender))
             }
-            if (
-                context.currentSpeakerGender.isNotBlank() &&
-                playerGenderPromptLabel(context.playerGender).isBlank()
-            ) {
+            if (context.currentSpeakerGender.isNotBlank()) {
                 appendPromptBlock(
                     rules,
                     blockNames,
@@ -534,8 +547,8 @@ class PromptBuilder @Inject constructor() {
                 buildSourceFidelityCheckPrompt()
             )
         }
-        sb.appendPromptSection("active_rules", rules.toString())
-        sb.appendPromptSection("output_contract", outputPromptBlock(context.outputFormat))
+        sb.appendPromptSectionText(rules.toString())
+        sb.appendPromptSectionText(outputPromptBlock(context.outputFormat))
         blockNames += outputBlockName(context.outputFormat)
         FgoLogger.debug(
             tag,
@@ -640,50 +653,39 @@ class PromptBuilder @Inject constructor() {
      * @param choiceTexts optional player choice strings appearing on the same screen
      * @return complete user prompt string
      */
-    fun buildUserPrompt(
+    internal fun buildUserPrompt(
         japaneseText: String,
-        choiceTexts: List<String>
+        choiceTexts: List<String>,
+        glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
     ): String {
         val sb = StringBuilder()
 
+        sb.appendTranslationGlossarySection(glossaryEntries)
         if (choiceTexts.isNotEmpty()) {
-            val choicesJson = buildJsonArray {
-                choiceTexts.forEach { add(JsonPrimitive(it)) }
-            }
             sb.appendPromptSection(
                 "choice_context",
-                "Player choices are context only; do not translate or output them.\n$choicesJson"
+                renderNumberedPromptItems(choiceTexts)
             )
         }
-        val inputJson = buildJsonObject {
-            put("dialogue_jp", JsonPrimitive(japaneseText))
-        }
-        sb.appendPromptSection("current_input", inputJson.toString())
-        sb.appendPromptSection(
-            "output_contract",
-            "Return only the Chinese translation of dialogue_jp."
-        )
+        sb.appendPromptSection("current_japanese", japaneseText)
 
         FgoLogger.debug(tag, "User prompt: ${sb.length} chars, choices=${choiceTexts.size}")
         return sb.toString()
     }
 
-    fun buildCropUserPrompt(
-        japaneseText: String
+    internal fun buildCropUserPrompt(
+        japaneseText: String,
+        glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
     ): String {
         val sb = StringBuilder()
         val lines = japaneseText.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
 
-        val inputJson = buildJsonObject {
-            put("ocr_rows_jp", buildJsonArray {
-                lines.forEach { add(JsonPrimitive(it)) }
-            })
-        }
-        sb.appendPromptSection("current_input", inputJson.toString())
+        sb.appendTranslationGlossarySection(glossaryEntries)
+        sb.appendPromptSection("current_japanese_rows", renderNumberedPromptItems(lines))
         sb.appendPromptSection(
-            "output_contract",
+            "required_output",
             "Return a JSON array of exactly ${lines.size} translated strings, one per OCR row, in the same order."
         )
 
@@ -827,8 +829,7 @@ class PromptBuilder @Inject constructor() {
     private fun buildCurrentSpeakerGenderPrompt(currentSpeakerGender: String): String {
         val gender = playerGenderPromptLabel(currentSpeakerGender)
         if (gender.isBlank()) return ""
-        return "- The current speaker is $gender. Use this only for explicit references to the speaker; " +
-            "never infer omitted pronouns or participants."
+        return "- Current speaker gender: $gender. Use only for explicit references to the speaker."
     }
 
     private fun playerGenderPromptLabel(gender: String): String = when (gender.trim()) {
