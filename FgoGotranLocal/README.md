@@ -1,56 +1,72 @@
 # FgoGotran Local
 
-FgoGotranLocal 帮助 Windows 用户运行自己的 `llama.cpp` 翻译服务，并把它连接到同一可信 Wi-Fi 下的 FgoGotran Android 应用。
+[Complete Simplified Chinese guide](README.zh-CN.md)
 
-此文件夹只包含轻量控制界面和启动脚本。它**不包含** llama.cpp、GGUF 模型、CUDA 文件、角色语音或 TTS。
+FgoGotran Local is a Windows control interface for running a user-provided `llama.cpp` translation server and connecting it to the FgoGotran Android app over a trusted local network.
 
-## 最快开始
+This directory contains only the lightweight Gradio control interface, configuration logic, and Windows launcher. It does **not** include llama.cpp, CUDA runtime files, GGUF models, character voices, or TTS components.
 
-1. 安装 64 位 Python 3.11、3.12 或 3.13。
-2. 从 [llama.cpp 官方 Releases](https://github.com/ggml-org/llama.cpp/releases) 下载适合电脑的完整 Windows build。
-3. 准备支持日文输入、中文输出的 Instruction/Chat GGUF 模型。
-4. 双击 `Start-FgoGotranLocal.cmd`。
-5. 浏览器打开后，在“模型设置”选择 `llama-server.exe`、模型文件夹和 GGUF。
-6. 保存并启动，等待状态变成“已就绪”。
-7. 将页面显示的 Endpoint、Model ID 和 API Key 填入 FgoGotran。
+## Quick start
 
-第一次启动会在本文件夹建立私有 `.venv` 并安装控制界面的 Python 依赖，因此需要 Internet。之后启动不需要重新安装。
+1. Install 64-bit Python 3.11, 3.12, or 3.13.
+2. Download a complete Windows build from the official [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases).
+3. Download an Instruction or Chat GGUF model that accepts Japanese and produces Chinese.
+4. Double-click `Start-FgoGotranLocal.cmd`.
+5. In the model settings page, select `llama-server.exe`, the model directory, and the GGUF file.
+6. Save the profile, start the service, and wait for the status to become ready.
+7. Copy the displayed Endpoint, Model ID, and API Key into FgoGotran.
 
-详细步骤见 [快速设置](docs/QUICK_START.md)。
+The first launch creates a private `.venv` and installs the Python dependencies, so Internet access is required once. Later launches reuse the installed environment unless the dependency files change.
 
-## 文件放在哪里
+See [Quick Start](docs/QUICK_START.md) for the complete setup sequence.
 
-llama.cpp 和模型可以放在任何你有权限访问的位置，不必复制进本仓库。例如：
+## File placement
+
+llama.cpp and models may remain anywhere the current Windows user can access. They do not need to be copied into this repository. For example:
 
 ```text
 C:\AI\llama.cpp\llama-server.exe
 D:\AIModels\fgo-translator.gguf
 ```
 
-请完整解压 llama.cpp，保留 `llama-server.exe` 同目录的 DLL。不要把 `.gguf`、llama.cpp、`.venv` 或 `user_data` 提交到 Git。
+Extract the complete llama.cpp package and keep all required DLL files beside `llama-server.exe`. Never commit `.gguf` files, llama.cpp binaries, `.venv`, or `user_data`.
 
-## 页面
+## Control interface
 
-- 总览：启动、停止并复制手机连接信息。
-- 模型设置：管理 llama.cpp、GGUF 和推理参数。
-- 连接测试：验证 OpenAI Chat Completions 兼容性。
-- 系统：运行诊断并查看当前会话日志。
+The browser interface provides:
 
-## 安全边界
+- Runtime overview, start/stop controls, and phone connection values.
+- Model profiles, llama.cpp paths, network access, and inference parameters.
+- An OpenAI Chat Completions compatibility test.
+- Environment diagnostics and in-memory runtime logs.
 
-- 管理页面固定监听 `127.0.0.1:18081`，手机不能访问。
-- 翻译 API 默认监听 `0.0.0.0:18080`，供可信局域网中的手机连接。
-- 翻译 API 使用随机 API Key。
-- 不创建 UPnP 或路由器端口转发。
-- 日志只保留在当前运行的内存中，不写入磁盘。
+The current control interface uses Simplified Chinese. The Chinese guide identifies every control by its displayed label.
 
-只在可信家庭网络使用，并在 Windows 防火墙提示中只允许“专用网络”。参见 [安全说明](SECURITY.md)。
+## Security boundary
 
-## 开发验证
+- The control interface listens only on `127.0.0.1:18081`; phones cannot open it.
+- The translation API normally listens on `0.0.0.0:18080` when trusted-LAN access is selected.
+- A random API key protects the translation API.
+- The project does not create UPnP rules or router port forwarding.
+- Runtime logs stay in memory and redact the API key.
+
+Use LAN mode only on a trusted private network. If Windows Firewall asks for permission, allow only private networks. Read [Security](SECURITY.md) before exposing the inference port to another device.
+
+## Documentation
+
+- [Quick Start](docs/QUICK_START.md)
+- [llama.cpp Setup](docs/LLAMA_CPP_SETUP.md)
+- [GGUF Model Guide](docs/MODEL_GUIDE.md)
+- [Phone Connection](docs/PHONE_CONNECTION.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Security](SECURITY.md)
+- [Third-party Components](THIRD_PARTY.md)
+
+## Development verification
 
 ```powershell
 $env:PYTHONPATH = "$PWD\src"
 python -m pytest
 ```
 
-测试不会加载 GGUF 模型。
+The test suite does not load a GGUF model.

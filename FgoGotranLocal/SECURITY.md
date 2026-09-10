@@ -1,24 +1,56 @@
-# 安全说明
+# Security
 
-FgoGotranLocal 的管理页面只监听 `127.0.0.1`。翻译 API 可按 Profile 选择仅本机或可信局域网。
+FgoGotran Local separates the local control interface from the translation API. The control interface always listens on loopback. Each model profile may expose the translation API either to the same computer only or to the trusted local network.
 
-## 默认保护
+## Built-in protections
 
-- 首次生成随机 API Key，并通过 llama.cpp 的 API Key 文件传递。
-- 管理 API 拒绝非本机 Host、跨来源写操作和过大的 JSON 请求。
-- 不启用 llama.cpp 自带 Web UI。
-- llama.cpp 使用 offline 模式，不主动下载模型。
-- 配置写入 `user_data/config.json`，更新前保留一个备份。
-- API Key 临时文件在 llama-server 停止后删除。
-- 运行日志仅保存在当前进程内存，并会遮盖 API Key。
-- 不创建 UPnP、路由器端口转发或公网监听。
+- A random API key is generated during first initialization.
+- The key is passed to llama.cpp through a temporary API-key file instead of a command-line argument.
+- The temporary key file is removed after the managed llama-server stops.
+- The control server accepts only loopback host names.
+- State-changing control requests require the expected local header, JSON content type, same-origin checks, and a bounded request size.
+- The llama.cpp built-in Web UI is disabled.
+- llama.cpp is started in offline mode and does not download models.
+- Configuration is stored in `user_data/config.json`; a backup is retained before replacement.
+- Runtime logs are kept in memory and redact the API key.
+- Translation prompts and game dialogue are not intentionally written to the control log.
+- No UPnP rule, router port forwarding, or public Internet listener is created.
 
-## 用户责任
+## Network modes
 
-- 只从可信来源下载 llama.cpp 和 GGUF，并核对发布者提供的校验值。
-- 只在可信家庭网络使用局域网模式。
-- Windows 防火墙只允许专用网络。
-- 不要分享 API Key、`user_data` 或包含个人内容的诊断信息。
-- 不要把路由器端口转发到 18080 或 18081。
+- `127.0.0.1`: translation is available only on the PC.
+- `0.0.0.0`: translation is available through the PC's LAN addresses and requires Windows Firewall to permit the inference process.
 
-如果 API Key 可能泄露，先停止 llama-server，再在“总览”更换 Key，并同步更新手机。
+Binding to `0.0.0.0` does not by itself publish the service on the Internet. Router port forwarding, an unsafe VPN route, or an incorrectly scoped firewall rule can still expose it beyond the intended network.
+
+## User responsibilities
+
+- Download llama.cpp and GGUF files only from trusted publishers.
+- Verify checksums or signatures when the publisher provides them.
+- Use LAN mode only on a trusted home or private network.
+- Allow the service only on the Windows private-network profile.
+- Do not share the API key, `user_data`, or diagnostics containing private paths.
+- Never forward ports `18080` or `18081` on the router.
+- Do not use the service on a public Wi-Fi network.
+- Review VPN, virtual-machine, and container routes if they bridge the LAN interface.
+
+## If the API key may be exposed
+
+1. Stop llama-server from the overview page.
+2. Select the API-key rotation confirmation.
+3. Rotate the key.
+4. Replace the old key in FgoGotran on every phone that uses the service.
+5. Restart the translation service.
+
+The old key becomes invalid immediately after rotation.
+
+## Sensitive files
+
+Do not publish or attach these paths:
+
+- `user_data/config.json`
+- `user_data/config.json.bak`
+- `user_data/state/`
+- Any copied runtime log that contains private filesystem paths
+
+The repository `.gitignore` excludes the default sensitive and large-file locations, but users should still inspect staged files before committing.

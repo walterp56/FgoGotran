@@ -1,65 +1,82 @@
-# 快速设置
+# Quick Start
 
-## 1. 准备 Python
+## 1. Install Python
 
-安装 64 位 Python 3.11、3.12 或 3.13。安装程序中建议勾选“Add Python to PATH”。
+Install 64-bit Python 3.11, 3.12, or 3.13. Enabling **Add Python to PATH** during installation is recommended.
 
-如果电脑有多个 Python，可以在 PowerShell 中指定：
+If more than one Python installation exists, select one for the current PowerShell session before launching:
 
 ```powershell
 $env:FGO_LOCAL_PYTHON = 'C:\Path\To\python.exe'
 ```
 
-## 2. 下载 llama.cpp
+## 2. Download llama.cpp
 
-1. 打开 [llama.cpp 官方 Releases](https://github.com/ggml-org/llama.cpp/releases)。
-2. NVIDIA 显卡选择最新的 Windows x64 CUDA build；无 NVIDIA 显卡可选择 Windows x64 CPU 或 Vulkan build。
-3. 如果该 Release 把 CUDA runtime DLL 分成另一个压缩包，也一并下载。
-4. 将相关压缩包完整解压到同一文件夹。
-5. 确认文件夹中有 `llama-server.exe`，并保留全部 DLL。
+1. Open the official [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases).
+2. For an NVIDIA GPU, choose a current Windows x64 CUDA build compatible with the installed driver.
+3. Without an NVIDIA GPU, choose an appropriate Windows x64 CPU or Vulkan build.
+4. If the release provides CUDA runtime DLLs in another archive, download that archive too.
+5. Extract every required archive into the same directory.
+6. Confirm that `llama-server.exe` and its DLL files are present.
 
-不要只复制一个 `llama-server.exe`。
+Do not copy or run only `llama-server.exe` by itself.
 
-## 3. 准备 GGUF 模型
+## 3. Prepare a GGUF model
 
-选择支持日文输入、中文输出的 Instruction/Chat 模型，并下载它的 GGUF 量化版本。第一次可从 Q4_K_M 开始；模型越大，通常需要越多显存和加载时间。
+Choose an Instruction or Chat model that supports Japanese input and Chinese output, then download a GGUF quantization. `Q4_K_M` is a practical first test because it balances memory usage and quality.
 
-把模型放入专用文件夹，例如：
+Store models in a dedicated directory, for example:
 
 ```text
 D:\AIModels\FgoGotran\model.gguf
 ```
 
-## 4. 启动控制界面
+## 4. Start the control interface
 
-双击根目录的 `Start-FgoGotranLocal.cmd`。第一次运行会：
+Double-click `Start-FgoGotranLocal.cmd` in the project root. On first launch it will:
 
-1. 检查兼容的 Python。
-2. 创建 `.venv` 私有环境。
-3. 安装或更新轻量控制依赖。
-4. 检查 GPU 和已有设置。
-5. 打开 `http://127.0.0.1:18081`。
+1. Find a supported Python installation.
+2. Create the private `.venv` environment.
+3. Install or update the lightweight control dependencies.
+4. Run an environment check.
+5. Open `http://127.0.0.1:18081`.
 
-命令窗口必须保持开启。
+Keep the command window open while using local translation.
 
-## 5. 设置并启动模型
+## 5. Configure and start the model
 
-在“模型设置”填写：
+In the model settings page:
 
-1. 完整的 `llama-server.exe` 绝对路径。
-2. GGUF 模型文件夹。
-3. 扫描并选择 GGUF 模型。
-4. 保持默认 Model ID，或设置一个简单稳定的英文 ID。
-5. 需要手机连接时选择“可信局域网 + 本机”。
+1. Enter the absolute path to `llama-server.exe`.
+2. Enter the directory containing the GGUF files.
+3. Scan and select the desired GGUF model.
+4. Keep the generated Model ID or enter a short, stable ASCII identifier.
+5. Select trusted-LAN access when a phone must connect; otherwise select loopback-only access.
+6. Keep the inference defaults for the first test.
+7. Save the profile and return to the overview page.
+8. Start the service and wait until its state is ready.
 
-保存后回到“总览”，点击“启动服务”。首次加载完成前会显示“正在加载模型”。
+The initial model load may take some time. Saving a changed runtime profile does not modify an already running llama-server; restart it to apply the changes.
 
-## 6. 验证和连接手机
+## 6. Test the API
 
-状态变成“已就绪”后：
+Open the connection test page and run the compatibility test. It checks that:
 
-1. 打开“连接测试”，运行兼容性测试。
-2. 返回“总览”，复制 Endpoint、Model ID 和 API Key。
-3. 在 FgoGotran 的本地 AI 设置中填写这三项。
+- llama-server is ready.
+- The API key and Model ID are accepted.
+- The OpenAI Chat Completions response shape is usable.
+- The returned text is non-empty.
 
-更完整的网络检查见 [手机连接](PHONE_CONNECTION.md)。
+This test validates connectivity and format, not final translation quality.
+
+## 7. Connect FgoGotran
+
+From the overview page, copy the displayed:
+
+- Endpoint
+- Model ID
+- Complete API Key
+
+In the Android app, select the custom/local OpenAI-compatible backend and enter the same three values. The Endpoint must include `/v1/chat/completions`.
+
+For phone and firewall checks, continue with [Phone Connection](PHONE_CONNECTION.md).

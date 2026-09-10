@@ -1,26 +1,50 @@
-# 手机连接
+# Phone Connection
 
-## 正确地址
+## Use the correct address
 
-控制页面 `http://127.0.0.1:18081` 只能在电脑打开。手机应连接页面“总览”显示的翻译 Endpoint，例如：
+The control interface at `http://127.0.0.1:18081` is intentionally limited to the PC. A phone must use the translation Endpoint displayed on the overview page, for example:
 
 ```text
 http://<PC-LAN-IP>:18080/v1/chat/completions
 ```
 
-`192.168.3.1` 通常是路由器，不是电脑。
+The corresponding health address is:
 
-## 检查顺序
+```text
+http://<PC-LAN-IP>:18080/health
+```
 
-1. 手机和电脑连接同一个可信 Wi-Fi。
-2. Windows 网络类型设为“专用网络”。
-3. Profile 的网络访问选择“可信局域网 + 本机”。
-4. llama-server 状态为“已就绪”。
-5. 在手机浏览器访问页面显示的 Health 地址，例如 `http://<PC-LAN-IP>:18080/health`。
-6. 在 FgoGotran 填入完整 Endpoint、相同 Model ID 和完整 API Key。
+The router address is not the PC address. Always copy the address currently shown by FgoGotran Local.
 
-如果 Health 一直加载，检查 Windows 防火墙。首次弹窗只允许专用网络；不要允许公共网络。
+## Connection checklist
 
-## 地址变化
+1. Connect the phone and PC to the same trusted Wi-Fi or LAN.
+2. Set the current Windows network profile to **Private**.
+3. Select trusted-LAN plus local access in the active model profile.
+4. Save the profile and restart llama-server if it was already running.
+5. Wait until the server state is ready.
+6. If Windows Firewall prompts, allow the inference executable only on private networks.
+7. Open the displayed health address in the phone browser.
+8. Enter the complete Endpoint, identical Model ID, and complete API Key in FgoGotran.
 
-路由器可能在电脑重连后分配新的局域网地址。发生连接失败时，以“总览”当前显示的 Endpoint 为准。需要固定地址时，在路由器内为电脑设置 DHCP 地址保留，而不是建立公网端口转发。
+The Android app accepts cleartext HTTP only for numeric private-LAN addresses. Do not enter `localhost`, a PC host name, or a public HTTP address.
+
+## If the health page keeps loading
+
+- Confirm that the active profile uses `0.0.0.0`, not `127.0.0.1`.
+- Confirm that llama-server is ready rather than still loading or stopped.
+- Recheck the PC LAN address; do not use the router address.
+- Temporarily disconnect VPN software that blocks local-LAN traffic, or enable its LAN-access option.
+- Check that guest Wi-Fi or access-point isolation is not separating the phone from the PC.
+- Review the Windows Firewall private-network rule for the selected `llama-server.exe`.
+- Confirm that another process is not using the configured inference port.
+
+Do not solve a LAN failure by opening a router port or disabling the firewall globally.
+
+## Address changes
+
+A router may assign a different PC address after reconnecting. If a previously working connection fails, copy the current Endpoint again. For a stable LAN address, configure a DHCP reservation for the PC in the router. A DHCP reservation is not the same as public port forwarding.
+
+## Local-only mode
+
+Select `127.0.0.1` when only software on the PC needs the API. In this mode, the phone cannot connect by design.

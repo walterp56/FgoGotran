@@ -1,39 +1,88 @@
-# 故障排查
+# Troubleshooting
 
-## 找不到 Python
+## Python was not found
 
-安装 64 位 Python 3.11–3.13，然后重新双击 `Start-FgoGotranLocal.cmd`。也可设置环境变量 `FGO_LOCAL_PYTHON` 指向兼容的 `python.exe`。
+Install 64-bit Python 3.11–3.13 and run `Start-FgoGotranLocal.cmd` again. If several installations exist, set `FGO_LOCAL_PYTHON` to the desired `python.exe` before launching.
 
-## Python 依赖安装失败
+## Python dependency installation failed
 
-确认电脑可以访问 PyPI、系统时间正确，并重新运行启动 CMD。不要从未知压缩包复制别人创建的 `.venv`。
+Confirm that the PC can reach PyPI, Windows date and time are correct, and security software is not blocking Python. Run the launcher again. Do not copy another person's `.venv` from an untrusted archive.
 
-## llama-server 路径无效
+## The control port is already in use
 
-- 选择名为 `llama-server.exe` 的文件。
-- 保留官方压缩包的 DLL。
-- 不要从压缩包内部直接运行。
+The default control port is `18081`. Close the previous FgoGotran Local process, or set another port before starting:
 
-## 找不到 GGUF
+```powershell
+$env:FGO_LOCAL_CONTROL_PORT = '18082'
+.\Start-FgoGotranLocal.cmd
+```
 
-- 模型必须以 `.gguf` 结尾。
-- 模型必须位于设置的“GGUF 模型文件夹”内。
-- 点击“扫描 GGUF”重新载入列表。
+## The llama-server path is invalid
 
-## 模型加载后立即退出
+- Select a file named `llama-server.exe`.
+- Use an absolute path.
+- Extract the full official archive.
+- Keep every required DLL in the runtime directory.
+- Do not run the executable from inside a compressed archive.
 
-查看“系统 → 运行日志”。常见原因是显存不足、llama.cpp build 与显卡不匹配，或 GGUF 损坏。先关闭其他 GPU 程序、降低 Context Size，或改用更小量化。
+## No GGUF model appears
 
-## llama-server 不支持关闭模型思考
+- The file name must end in `.gguf`.
+- The configured model directory must exist and be an absolute path.
+- The model must be inside that directory or one of its subdirectories.
+- Rescan the model directory after adding files.
+- A custom absolute model path inside the configured model directory may be entered if needed.
 
-更新到 llama.cpp 官方近期 Release 并完整解压，然后重新选择新的 `llama-server.exe`。如果当前模型不需要关闭思考，也可以取消勾选“关闭模型思考”。
+The scanner intentionally limits how many filesystem entries and results it returns.
 
-如果启用后 API 返回 HTTP 200，但 `content` 为空且只生成一个 Token，请取消勾选并重新启动模型服务。Sakura-14B-Qwen3-v1.5 应保持此选项关闭。
+## The model exits during loading
 
-## 18080 或 18081 端口已占用
+Open the system page and inspect the runtime log. Common causes include:
 
-停止占用端口的旧 FgoGotranLocal/llama-server。管理端口可在启动前设置 `FGO_LOCAL_CONTROL_PORT`；翻译端口可在 Profile 中修改。
+- Insufficient VRAM or system memory.
+- A llama.cpp build that does not match the GPU or driver.
+- Missing CUDA/runtime DLL files.
+- A damaged or incomplete GGUF file.
+- Unsupported model architecture or chat template.
+- Incompatible Flash Attention support.
 
-## 手机无法连接
+Close other GPU applications and reduce Context Size. If the failure remains, use a smaller quantization, switch Flash Attention to automatic or off, or update llama.cpp.
 
-按 [手机连接](PHONE_CONNECTION.md) 的顺序检查。不要使用路由器地址，也不要把管理页面的 `18081` 当成翻译 API。
+## The server remains in loading state
+
+Large models can take time to load. Check whether GPU memory use is increasing and inspect the runtime log. If `/health` never becomes successful, the final llama-server log lines usually identify the problem.
+
+## Thinking control is unsupported
+
+Install a recent official llama.cpp release and select its new `llama-server.exe`. Alternatively, disable the thinking-control option when the model does not require it.
+
+If the API returns HTTP 200 but `content` is empty and only one token is generated, disable forced thinking control and restart the service. Sakura-14B-Qwen3-v1.5 should normally follow its default behavior.
+
+## The compatibility test fails
+
+Verify that the service is ready and that the active profile's Model ID matches the alias used by llama-server. Inspect the error and runtime log for authentication, template, or empty-output failures. The test has a 45-second request timeout.
+
+## The phone cannot connect
+
+Follow [Phone Connection](PHONE_CONNECTION.md) in order. Do not use the router address and do not use control port `18081` as the translation API port.
+
+## FgoGotran reports cleartext HTTP is not permitted
+
+Install a FgoGotran build that supports trusted-LAN local AI. Use a numeric private-LAN address such as `192.168.x.x`; host names and public HTTP endpoints are intentionally rejected.
+
+## FgoGotran reports an API-key error
+
+Reveal and copy the complete API key from the overview page. A rotated key invalidates the old value immediately. Avoid leading or trailing spaces.
+
+## Changes do not take effect
+
+Saving updates the profile, but runtime settings belong to the currently running llama-server process. Restart the service after changing the model, model ID, port, host, context, GPU, batch, thinking, cache, metrics, or slots settings.
+
+## Reset without immediately deleting data
+
+1. Stop llama-server and close the control window.
+2. Rename `user_data` to a backup name.
+3. Launch FgoGotran Local to generate a clean configuration.
+4. Restore individual settings only after confirming the new configuration works.
+
+Never publish the backup because it contains the API key.

@@ -1,26 +1,67 @@
-# GGUF 模型选择
+# GGUF Model Guide
 
-选择模型时，优先确认：
+## Model requirements
 
-- 它是 Instruction 或 Chat 模型，而不是 Base 模型。
-- 能理解日文并稳定输出目标中文。
-- GGUF 文件来自可信发布者，并与原始模型说明一致。
-- 模型大小适合可用显存。
+Prefer a model that:
 
-可从 Q4_K_M 量化开始测试。经验起点：
+- Is an Instruction or Chat model rather than an unaligned Base model.
+- Understands Japanese and reliably produces the selected Chinese variant.
+- Follows concise formatting instructions without adding explanations.
+- Uses a chat template supported by the selected llama.cpp release.
+- Comes from a trusted publisher and matches the original model documentation.
+- Fits in the available GPU memory with enough space for the context and compute buffers.
 
-| 可用显存 | 建议起点 |
+## Quantization starting points
+
+`Q4_K_M` is a practical first download. Higher-bit quantizations can improve quality slightly but require more memory and storage.
+
+| Available VRAM | Practical starting point |
 | --- | --- |
-| 6–8 GB | 7B/8B Q4 |
-| 10–12 GB | 8B–14B Q4 |
-| 16 GB | 14B 左右 Q4，或较小模型的更高量化 |
+| 6–8 GB | 7B/8B at Q4 |
+| 10–12 GB | 8B–14B at Q4 |
+| 16 GB | Around 14B at Q4, or a higher quantization of a smaller model |
 
-这只是显存起点，不代表翻译质量排名。长上下文、较大 Batch 和其他占用 GPU 的程序都会增加显存需求。
+These are memory-oriented starting points, not a translation-quality ranking. Context size, batch size, GPU applications, and model architecture all affect actual memory use.
 
-更换模型后，保持 Model ID 稳定可以减少 Android 端重复设置；保存设置后必须重新启动服务。
+## Runtime defaults
 
-## 关闭模型思考
+For the first compatibility test, keep the supplied defaults:
 
-此选项默认不勾选。当前 Sakura-14B-Qwen3-v1.5 应保留模型默认行为；强制关闭思考可能让它立即输出结束符，得到空译文。只有模型说明明确支持、并且实际测试会输出思考内容时，才开启“关闭模型思考”。保存后需要重新启动模型服务。
+- Context Size: `8192`
+- GPU Layers: `999` to request maximum practical offload
+- Batch Size: `512`
+- UBatch Size: `256`
+- CPU Threads: `0` for automatic selection
+- Flash Attention: `on`
+- Prompt Cache: enabled
+- Metrics: enabled
+- Slots: enabled
 
-启用后，FgoGotranLocal 会先检查所选 `llama-server`：新版优先使用 `--reasoning off`，旧版在支持时回退到 `--chat-template-kwargs`。如果两者都不支持，启动前会提示更新 llama.cpp，不会静默忽略此设置。Android 请求不需要再添加 `/no_think`。
+If loading fails because of memory pressure, reduce Context Size first. If necessary, use a smaller model or quantization, then reduce Batch Size and UBatch Size. UBatch Size must not exceed Batch Size.
+
+## Model ID and profiles
+
+The Model ID is the alias reported by llama-server. It must exactly match the Model ID entered in the Android app. Use a short, stable identifier containing only ASCII letters, digits, `.`, `_`, `:`, or `-`.
+
+Profiles store runtime settings for different models. Saving another profile makes it active, but a running service must be restarted before runtime changes take effect. Up to 12 profiles are supported.
+
+## Thinking control
+
+The thinking-disable option is off by default. Leave it off unless the model documentation explicitly supports disabling reasoning and testing shows that reasoning content is interfering with responses.
+
+Some translation fine-tunes, including Sakura-14B-Qwen3-v1.5, may immediately produce an end token and an empty translation when thinking is forcibly disabled. For such models, follow the model default.
+
+If enabling the option produces HTTP 200 with empty `content`, disable it, save the profile, and restart llama-server. The Android request does not need a `/no_think` suffix when server-side thinking control is used.
+
+## Evaluating a model
+
+Test more than one representative FGO scene. Evaluate:
+
+- Correct Japanese-to-Chinese meaning.
+- Stable output structure and preserved line breaks.
+- Names and glossary terms.
+- Omitted subjects and character relationships.
+- Response latency after the first request.
+- Failure rate across repeated requests.
+
+The built-in compatibility test alone does not measure translation quality.

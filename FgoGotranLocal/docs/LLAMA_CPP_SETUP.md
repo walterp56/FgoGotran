@@ -1,11 +1,42 @@
-# llama.cpp 设置
+# llama.cpp Setup
 
-FgoGotranLocal 不下载、修改或更新 llama.cpp。
+FgoGotran Local does not download, modify, bundle, or update llama.cpp.
 
-1. 只从 [ggml-org/llama.cpp 官方 Releases](https://github.com/ggml-org/llama.cpp/releases) 下载。
-2. Windows + NVIDIA 用户选择 Windows x64 CUDA build。
-3. CPU 或其他显卡用户选择与硬件相符的 build。
-4. 完整解压所有文件；某些 Release 会把 CUDA runtime DLL 放在单独压缩包中，需要解压到同一个目录。
-5. 在“模型设置”选择真正的 `llama-server.exe`。
+## Installation
 
-升级时建议解压到新的版本文件夹，测试正常后再删除旧版本。不要覆盖正在运行的目录。
+1. Download only from the official [ggml-org/llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases), unless you have independently verified another build publisher.
+2. Windows systems with NVIDIA GPUs should normally use a Windows x64 CUDA build.
+3. CPU-only systems and other GPUs should use a backend compatible with their hardware.
+4. Extract the complete package. Some releases provide the CUDA runtime DLLs in a separate archive; extract those files into the same runtime directory.
+5. Verify that `llama-server.exe` starts from its extracted directory and that its companion DLL files remain beside it.
+6. Select the actual `llama-server.exe` file in the FgoGotran Local model settings page.
+
+Example layout:
+
+```text
+C:\AI\llama.cpp\
+  llama-server.exe
+  ggml*.dll
+  llama*.dll
+  cudart*.dll
+  cublas*.dll
+```
+
+The exact DLL list varies by release. Preserve all files supplied by the selected build.
+
+## Updating llama.cpp
+
+1. Stop the managed llama-server.
+2. Extract the new release into a new directory.
+3. Update the executable path in FgoGotran Local.
+4. Save the profile and start the service.
+5. Run the compatibility test.
+6. Keep the old runtime until the new build has passed loading and translation tests.
+
+Do not overwrite a runtime directory while llama-server is running.
+
+## Thinking-control compatibility
+
+When the optional thinking-disable control is enabled, FgoGotran Local checks `llama-server --help` before startup. It prefers `--reasoning off` and uses `--chat-template-kwargs` only as a compatibility fallback. If neither option is supported, startup stops with an actionable error instead of silently ignoring the setting.
+
+Update llama.cpp if the selected model requires a control option that the current runtime does not provide.
