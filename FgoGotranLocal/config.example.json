@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "llamaServerPath": "C:\\llama.cpp\\llama-server.exe",
+  "modelsDirectory": "C:\\models",
+  "activeProfile": "fgo-balanced",
+  "apiKey": "",
+  "profiles": {
+    "fgo-balanced": {
+      "displayName": "FGO 本地翻译",
+      "modelPath": "C:\\models\\your-instruct-model.gguf",
+      "modelAlias": "fgo-local-v1",
+      "host": "0.0.0.0",
+      "port": 18080,
+      "contextSize": 8192,
+      "gpuLayers": 999,
+      "batchSize": 512,
+      "ubatchSize": 256,
+      "threads": 0,
+      "flashAttention": "on",
+      "disableThinking": false,
+      "promptCache": true,
+      "metrics": true,
+      "slots": true,
+      "webUi": false
+    }
+  }
+}

@@ -1,0 +1,13 @@
+.venv/
+user_data/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+config.json
+config.json.bak
+config.json.tmp
+state/
+*.gguf
+llama.cpp/
+*.log

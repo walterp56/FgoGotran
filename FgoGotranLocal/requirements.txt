@@ -1,0 +1,6 @@
+fastapi>=0.115,<1
+gradio==6.26.0
+httpx>=0.28,<1
+psutil>=7,<8
+pydantic>=2.11,<3
+uvicorn>=0.35,<1

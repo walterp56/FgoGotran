@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fgogotran-local"
+version = "0.1.0"
+description = "Local llama.cpp translation runtime for FgoGotran"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "gradio==6.26.0",
+  "httpx>=0.28,<1",
+  "psutil>=7,<8",
+  "pydantic>=2.11,<3",
+  "uvicorn>=0.35,<1"
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.4,<9"
+]
+
+[project.scripts]
+fgogotran-local = "fgogotran_local.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

@@ -78,7 +78,6 @@ class SettingsRepository @Inject constructor(
         val KEY_AI_VOICE_NAMED_DIALOGUE_ENABLED = booleanPreferencesKey("ai_voice_named_dialogue_enabled")
         val KEY_AI_VOICE_NO_SPEAKER_DIALOGUE_ENABLED = booleanPreferencesKey("ai_voice_no_speaker_dialogue_enabled")
         val KEY_AI_VOICE_CHOICE_TEXT_ENABLED = booleanPreferencesKey("ai_voice_choice_text_enabled")
-        val KEY_AI_VOICE_MASTER_VOICE = stringPreferencesKey("ai_voice_master_voice")
         val KEY_AZURE_SPEECH_KEY = stringPreferencesKey("azure_speech_key")
         val KEY_AZURE_SPEECH_REGION = stringPreferencesKey("azure_speech_region")
         val KEY_AZURE_SPEECH_ENDPOINT = stringPreferencesKey("azure_speech_endpoint")
@@ -133,10 +132,11 @@ class SettingsRepository @Inject constructor(
         const val MIN_TRANSLATION_CONTEXT_SCENE_COUNT = 1
         const val DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT = 2
         const val MAX_TRANSLATION_CONTEXT_SCENE_COUNT = 5
+        // Kept only so previously stored values can fall back cleanly to the new male default.
         const val PLAYER_GENDER_UNSPECIFIED = "unspecified"
         const val PLAYER_GENDER_MALE = "male"
         const val PLAYER_GENDER_FEMALE = "female"
-        const val DEFAULT_PLAYER_GENDER = PLAYER_GENDER_UNSPECIFIED
+        const val DEFAULT_PLAYER_GENDER = PLAYER_GENDER_MALE
         const val AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA = "southeastasia"
         const val AZURE_SPEECH_REGION_CHINA_NORTH3 = "chinanorth3"
         const val DEFAULT_AZURE_SPEECH_REGION = AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA
@@ -230,7 +230,6 @@ class SettingsRepository @Inject constructor(
         private val SUPPORTED_OCR_ENGINES = setOf(OCR_ENGINE_MLKIT, OCR_ENGINE_PADDLE)
         private val SUPPORTED_GAME_SERVERS = setOf(GAME_SERVER_JP, GAME_SERVER_CN, GAME_SERVER_TW)
         private val SUPPORTED_PLAYER_GENDERS = setOf(
-            PLAYER_GENDER_UNSPECIFIED,
             PLAYER_GENDER_MALE,
             PLAYER_GENDER_FEMALE
         )
@@ -278,6 +277,12 @@ class SettingsRepository @Inject constructor(
             masterVoice.takeIf {
                 it == AI_VOICE_MASTER_MALE || it == AI_VOICE_MASTER_FEMALE
             } ?: DEFAULT_AI_VOICE_MASTER_VOICE
+
+        fun aiVoiceMasterVoiceForPlayerGender(playerGender: String): String =
+            when (normalizePlayerGender(playerGender)) {
+                PLAYER_GENDER_FEMALE -> AI_VOICE_MASTER_FEMALE
+                else -> AI_VOICE_MASTER_MALE
+            }
 
         fun ocrEngineDisplayName(engine: String): String = when (normalizeOcrEngine(engine)) {
             OCR_ENGINE_PADDLE -> "PaddleOCR PP-OCRv6"
@@ -713,10 +718,8 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_AI_VOICE_CHOICE_TEXT_ENABLED] ?: DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED
     }
 
-    /** Master voice used when reading choice text. */
-    val aiVoiceMasterVoice: Flow<String> = context.dataStore.data.map { prefs ->
-        normalizeAiVoiceMasterVoice(prefs[KEY_AI_VOICE_MASTER_VOICE] ?: DEFAULT_AI_VOICE_MASTER_VOICE)
-    }
+    /** Master voice used for choice text, derived from the single saved Master gender setting. */
+    val aiVoiceMasterVoice: Flow<String> = playerGender.map(::aiVoiceMasterVoiceForPlayerGender)
 
     /** Azure Speech resource key shared by opt-in voice reading and live voice translation. */
     val azureSpeechKey: Flow<String> = context.dataStore.data.map { prefs ->
@@ -1140,12 +1143,6 @@ class SettingsRepository @Inject constructor(
     suspend fun setAiVoiceChoiceTextEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AI_VOICE_CHOICE_TEXT_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: ai_voice_choice_text_enabled=$enabled")
-    }
-
-    suspend fun setAiVoiceMasterVoice(masterVoice: String) {
-        val normalizedMasterVoice = normalizeAiVoiceMasterVoice(masterVoice)
-        context.dataStore.edit { it[KEY_AI_VOICE_MASTER_VOICE] = normalizedMasterVoice }
-        FgoLogger.debug(tag, "Setting updated: ai_voice_master_voice=$normalizedMasterVoice")
     }
 
     suspend fun saveAzureSpeechSettings(

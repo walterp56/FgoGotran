@@ -76,6 +76,9 @@ fun VoiceSettingsScreen(
     val apiModel by settingsRepository.apiModel.collectAsState(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
+    val playerGender by settingsRepository.playerGender.collectAsState(
+        initial = SettingsRepository.DEFAULT_PLAYER_GENDER
+    )
     val apiVoiceHintsSupported = Translator.supportsApiVoiceHintsForModel(apiModel)
 
     var aiVoiceEnabled by remember { mutableStateOf(false) }
@@ -96,9 +99,6 @@ fun VoiceSettingsScreen(
     }
     var aiVoiceChoiceTextEnabled by remember {
         mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED)
-    }
-    var aiVoiceMasterVoice by remember {
-        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_MASTER_VOICE)
     }
     var azureSpeechKey by remember { mutableStateOf("") }
     var azureSpeechRegion by remember {
@@ -124,7 +124,6 @@ fun VoiceSettingsScreen(
         aiVoiceNamedDialogueEnabled = settingsRepository.aiVoiceNamedDialogueEnabled.first()
         aiVoiceNoSpeakerDialogueEnabled = settingsRepository.aiVoiceNoSpeakerDialogueEnabled.first()
         aiVoiceChoiceTextEnabled = settingsRepository.aiVoiceChoiceTextEnabled.first()
-        aiVoiceMasterVoice = settingsRepository.aiVoiceMasterVoice.first()
         azureSpeechKey = settingsRepository.azureSpeechKey.first()
         azureSpeechRegion = settingsRepository.azureSpeechRegion.first()
         azureSpeechEndpoint = settingsRepository.azureSpeechEndpoint.first()
@@ -316,7 +315,7 @@ fun VoiceSettingsScreen(
                 )
                 VoiceCheckboxRow(
                     title = "御主选项",
-                    body = "使用御主（男）/（女）语音。",
+                    body = "使用与御主性别对应的语音。",
                     checked = aiVoiceChoiceTextEnabled,
                     enabled = aiVoiceEnabled,
                     onCheckedChange = {
@@ -324,34 +323,9 @@ fun VoiceSettingsScreen(
                         scope.launch { settingsRepository.setAiVoiceChoiceTextEnabled(it) }
                     }
                 )
-                Text(
-                    "选项文字声音",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(
-                        alpha = if (aiVoiceEnabled && aiVoiceChoiceTextEnabled) 0.82f else 0.48f
-                    )
-                )
-                VoiceMasterVoiceOption(
-                    title = "御主（男）",
-                    selected = aiVoiceMasterVoice == SettingsRepository.AI_VOICE_MASTER_MALE,
-                    enabled = aiVoiceEnabled && aiVoiceChoiceTextEnabled,
-                    onClick = {
-                        aiVoiceMasterVoice = SettingsRepository.AI_VOICE_MASTER_MALE
-                        scope.launch {
-                            settingsRepository.setAiVoiceMasterVoice(SettingsRepository.AI_VOICE_MASTER_MALE)
-                        }
-                    }
-                )
-                VoiceMasterVoiceOption(
-                    title = "御主（女）",
-                    selected = aiVoiceMasterVoice == SettingsRepository.AI_VOICE_MASTER_FEMALE,
-                    enabled = aiVoiceEnabled && aiVoiceChoiceTextEnabled,
-                    onClick = {
-                        aiVoiceMasterVoice = SettingsRepository.AI_VOICE_MASTER_FEMALE
-                        scope.launch {
-                            settingsRepository.setAiVoiceMasterVoice(SettingsRepository.AI_VOICE_MASTER_FEMALE)
-                        }
-                    }
+                VoiceMasterGenderIndicator(
+                    playerGender = playerGender,
+                    enabled = aiVoiceEnabled && aiVoiceChoiceTextEnabled
                 )
             }
 
@@ -928,41 +902,42 @@ private fun VoiceCheckboxRow(
 }
 
 @Composable
-private fun VoiceMasterVoiceOption(
-    title: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit
+private fun VoiceMasterGenderIndicator(
+    playerGender: String,
+    enabled: Boolean
 ) {
+    val genderLabel = when (SettingsRepository.normalizePlayerGender(playerGender)) {
+        SettingsRepository.PLAYER_GENDER_FEMALE -> "女"
+        else -> "男"
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 0.32f else 0.16f)
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
-        }
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 0.32f else 0.16f)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            RadioButton(
-                selected = selected,
-                onClick = if (enabled) onClick else null,
-                enabled = enabled
-            )
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(
-                    alpha = when {
-                        !enabled -> 0.48f
-                        selected -> 0.82f
-                        else -> 0.68f
-                    }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "当前御主性别",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.82f else 0.48f)
                 )
+                Text(
+                    "由“设置 → 御主性别”决定",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.6f else 0.38f)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                genderLabel,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.48f)
             )
         }
     }

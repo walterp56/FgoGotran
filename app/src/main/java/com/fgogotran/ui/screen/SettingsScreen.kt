@@ -632,10 +632,6 @@ private data class TargetChineseLocaleOption(
 
 private val playerGenderOptions = listOf(
     PlayerGenderOption(
-        gender = SettingsRepository.PLAYER_GENDER_UNSPECIFIED,
-        label = "未设置"
-    ),
-    PlayerGenderOption(
         gender = SettingsRepository.PLAYER_GENDER_MALE,
         label = "男"
     ),
