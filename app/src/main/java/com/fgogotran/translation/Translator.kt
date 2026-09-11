@@ -996,6 +996,12 @@ class Translator @Inject constructor(
                 cropMode || isBattleSubtitle || translateAsChoices || translateAsName ||
                     activeCurrentSpeaker.isBlank()
             }
+        val activeCharacterContextPrompt = activeCharacterContext
+            ?.promptFor(isSakuraModel = useSakuraPrompt)
+            .orEmpty()
+        val activeCharacterContextCacheIdentity = activeCharacterContext
+            ?.cacheIdentityFor(isSakuraModel = useSakuraPrompt)
+            .orEmpty()
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val promptPolicyKey = when {
             isBattleSubtitle -> PromptBuilder.BATTLE_PROMPT_VERSION
@@ -1011,7 +1017,7 @@ class Translator @Inject constructor(
             promptPolicyKey,
             sceneContextPolicyKey,
             currentSpeakerCacheIdentity,
-            activeCharacterContext?.cacheIdentity.orEmpty(),
+            activeCharacterContextCacheIdentity,
             translateAsChoices
         )
 
@@ -1081,7 +1087,7 @@ class Translator @Inject constructor(
             playerReferenceText = ragSourceText,
             currentSpeaker = activeCurrentSpeaker,
             currentSpeakerGender = activeCurrentSpeakerGender,
-            characterContextPrompt = activeCharacterContext?.prompt.orEmpty(),
+            characterContextPrompt = activeCharacterContextPrompt,
             isChoiceBatch = translateAsChoices,
             promptProfile = promptProfile
         )
@@ -1266,7 +1272,7 @@ class Translator @Inject constructor(
                     previousDialogueContexts = activePreviousDialogueContexts,
                     currentSpeaker = activeCurrentSpeaker,
                     currentSpeakerGender = activeCurrentSpeakerGender,
-                    characterContextPrompt = activeCharacterContext?.prompt.orEmpty(),
+                    characterContextPrompt = activeCharacterContextPrompt,
                     translateAsChoices = translateAsChoices,
                     translateAsName = translateAsName,
                     retryStage = attempt - attemptsUsed,
@@ -1684,6 +1690,7 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val cacheEnabled = config.cacheEnabled
         val playerName = config.playerName
+        val useSakuraPrompt = usesSakuraPrompt(config)
         val normalizedName = rawNormalizedName?.let { correctPlayerNameOcr(it, playerName, "SCENE_NAME") }
         val normalizedDialogue = rawNormalizedDialogue?.let { correctPlayerNameOcr(it, playerName, "SCENE_DIALOGUE") }
         val normalizedChoices = rawNormalizedChoices.mapIndexed { index, text ->
@@ -1834,6 +1841,12 @@ class Translator @Inject constructor(
         val characterContext = normalizedDialogue?.let {
             characterContextRepository.resolveProfileOrNull(normalizedName)
         }
+        val characterContextPrompt = characterContext
+            ?.promptFor(isSakuraModel = useSakuraPrompt)
+            .orEmpty()
+        val characterContextCacheIdentity = characterContext
+            ?.cacheIdentityFor(isSakuraModel = useSakuraPrompt)
+            .orEmpty()
         val dialogueHash = normalizedDialogue?.let {
             cacheKey(
                 normalizedText = it,
@@ -1841,7 +1854,7 @@ class Translator @Inject constructor(
                 config = config,
                 sceneContextPolicyKey = sceneContextPolicyKey,
                 currentSpeaker = currentSpeakerSourceName,
-                characterContextCacheIdentity = characterContext?.cacheIdentity.orEmpty()
+                characterContextCacheIdentity = characterContextCacheIdentity
             )
         }
         val choiceHashes = normalizedChoices.map { text ->
@@ -1990,7 +2003,7 @@ class Translator @Inject constructor(
             ).forTargetLocale(config, input)
         }
 
-        if (usesSakuraPrompt(config) && (needsName || needsDialogue || neededChoiceIndices.isNotEmpty())) {
+        if (useSakuraPrompt && (needsName || needsDialogue || neededChoiceIndices.isNotEmpty())) {
             FgoLogger.info(
                 tag,
                 "Sakura scene path: translating fields without structured JSON " +
@@ -2127,7 +2140,7 @@ class Translator @Inject constructor(
             currentSpeaker = currentSpeaker,
             currentSpeakerGender = currentSpeakerGender,
             characterContextPrompt = if (sceneDialogueForApi != null) {
-                characterContext?.prompt.orEmpty()
+                characterContextPrompt
             } else {
                 ""
             }

@@ -10,10 +10,17 @@ import javax.inject.Singleton
 data class CharacterContextProfile internal constructor(
     val speakerId: String,
     val aliases: List<String>,
-    val prompt: String
+    val generalPrompt: String,
+    val sakuraPrompt: String
 ) {
-    internal val cacheIdentity: String
-        get() = listOf(speakerId, prompt).joinToString("\u001D")
+    internal fun promptFor(isSakuraModel: Boolean): String =
+        if (isSakuraModel) sakuraPrompt else generalPrompt
+
+    internal fun cacheIdentityFor(isSakuraModel: Boolean): String = listOf(
+        speakerId,
+        if (isSakuraModel) "sakura" else "general",
+        promptFor(isSakuraModel)
+    ).joinToString("\u001D")
 }
 
 @Singleton
@@ -89,18 +96,26 @@ internal fun parseCharacterContextProfiles(
             .map(String::trim)
             .filter(String::isNotBlank)
             .distinct()
-        val prompt = columns[2]
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        val generalPrompt = columns[2].normalizeCharacterContextPrompt()
+        val sakuraPrompt = columns[3].normalizeCharacterContextPrompt()
         require(speakerId.isNotBlank()) { "Blank speaker_id at character context TSV line $lineNumber" }
-        require(prompt.isNotBlank()) { "Blank prompt at character context TSV line $lineNumber" }
-        require(prompt.length <= CHARACTER_CONTEXT_PROMPT_MAX_CHARS) {
-            "Character context prompt is too long at line $lineNumber: ${prompt.length} chars"
+        require(generalPrompt.isNotBlank()) {
+            "Blank prompt_general at character context TSV line $lineNumber"
+        }
+        require(sakuraPrompt.isNotBlank()) {
+            "Blank prompt_sakura at character context TSV line $lineNumber"
+        }
+        require(generalPrompt.length <= CHARACTER_CONTEXT_PROMPT_MAX_CHARS) {
+            "Character context prompt_general is too long at line $lineNumber: ${generalPrompt.length} chars"
+        }
+        require(sakuraPrompt.length <= CHARACTER_CONTEXT_PROMPT_MAX_CHARS) {
+            "Character context prompt_sakura is too long at line $lineNumber: ${sakuraPrompt.length} chars"
         }
         CharacterContextProfile(
             speakerId = speakerId,
             aliases = aliases,
-            prompt = prompt
+            generalPrompt = generalPrompt,
+            sakuraPrompt = sakuraPrompt
         )
     }
 }
@@ -150,5 +165,9 @@ internal fun normalizeCharacterContextSpeakerName(name: String): String {
         .trim()
 }
 
-private val CHARACTER_CONTEXT_HEADER = listOf("speaker_id", "aliases", "prompt")
+private fun String.normalizeCharacterContextPrompt(): String =
+    replace(Regex("\\s+"), " ").trim()
+
+private val CHARACTER_CONTEXT_HEADER =
+    listOf("speaker_id", "aliases", "prompt_general", "prompt_sakura")
 private const val CHARACTER_CONTEXT_PROMPT_MAX_CHARS = 800
