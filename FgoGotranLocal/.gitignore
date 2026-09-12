@@ -11,3 +11,4 @@ state/
 *.gguf
 llama.cpp/
 *.log
+tests/

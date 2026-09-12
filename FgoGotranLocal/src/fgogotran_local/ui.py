@@ -311,8 +311,8 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                     )
                     with gr.Row():
                         disable_thinking = gr.Checkbox(
-                            label="关闭模型思考",
-                            info="默认关闭。仅在模型明确支持且需要时开启；保存后需重新启动模型服务。",
+                            label="强制关闭模型思考",
+                            info="默认不启用，即跟随模型。启用后会自动检测兼容性；不兼容时安全回退到模型默认。",
                             value=False,
                         )
                         prompt_cache = gr.Checkbox(label="Prompt Cache", value=True)
@@ -751,7 +751,7 @@ def _unique_alias(config: dict, base: str) -> str:
 
 def _status_markup(status: dict) -> str:
     state = status.get("state", "STOPPED")
-    state_class = "status-ready" if state in {"READY", "BUSY"} else "status-loading" if state in {"STARTING", "LOADING"} else "status-error" if state == "ERROR" else "status-stopped"
+    state_class = "status-ready" if state in {"READY", "BUSY"} else "status-loading" if state in {"STARTING", "LOADING", "VERIFYING", "RECOVERING"} else "status-error" if state == "ERROR" else "status-stopped"
     gpu = status.get("gpu") or {}
     metrics = status.get("metrics") or {}
     gpu_memory = "无法获取"
@@ -778,8 +778,22 @@ def _status_markup(status: dict) -> str:
 def _profile_summary_markup(status: dict) -> str:
     profile = status.get("profile") or {}
     thinking = status.get("thinking") or {}
-    thinking_label = thinking.get("label") or ("将在启动时关闭" if profile.get("disableThinking") else "跟随模型默认")
+    compatibility = status.get("compatibility") or {}
+    thinking_label = thinking.get("label") or ("将在启动时尝试关闭" if profile.get("disableThinking") else "跟随模型默认")
     thinking_method = f"　<span class='code-text'>{html.escape(thinking['method'])}</span>" if thinking.get("method") else ""
+    compatibility_label = {
+        "PASS": "已通过",
+        "FALLBACK": "已通过（使用兼容回退）",
+        "VERIFYING": "正在检查",
+        "RECOVERING": "正在回退",
+        "FAILED": "失败",
+        "PENDING": "等待检查",
+    }.get(str(compatibility.get("status", "PENDING")), "等待检查")
+    compatibility_detail = str(compatibility.get("message") or "")
+    compatibility_latency = compatibility.get("latencyMs")
+    compatibility_suffix = f"　{int(compatibility_latency)} ms" if isinstance(compatibility_latency, (int, float)) else ""
+    fallback_reason = str(thinking.get("reason") or "")
+    fallback_markup = f"<p class='restart-warning'>{html.escape(fallback_reason)}</p>" if fallback_reason else ""
     restart = "<p class='restart-warning'>设置已更改，需要重新启动 llama-server。</p>" if status.get("restartRequired") else ""
     return f"""
     <div class="status-card">
@@ -788,6 +802,8 @@ def _profile_summary_markup(status: dict) -> str:
       <p><strong>GGUF：</strong><span class="code-text">{html.escape(profile.get('modelPath') or '尚未选择')}</span></p>
       <p><strong>Context：</strong>{_number(profile.get('contextSize'))}　<strong>Flash Attention：</strong>{html.escape(str(profile.get('flashAttention', 'auto')))}　<strong>Prompt Cache：</strong>{'开启' if profile.get('promptCache') else '关闭'}</p>
       <p><strong>模型思考：</strong>{html.escape(thinking_label)}{thinking_method}</p>
+      <p><strong>Chat 兼容性：</strong>{html.escape(compatibility_label)}{html.escape(compatibility_suffix)}　{html.escape(compatibility_detail)}</p>
+      {fallback_markup}
       {restart}
     </div>
     """

@@ -21,8 +21,10 @@ def build_llama_server_args(
     runtime: dict[str, Any],
     key_file: str,
     thinking_control: ThinkingControl | None = None,
+    apply_disable_thinking: bool | None = None,
 ) -> list[str]:
     profile = runtime["profile"]
+    disable_thinking = profile.disable_thinking if apply_disable_thinking is None else apply_disable_thinking
     args = [
         "--model", runtime["model"],
         "--alias", profile.model_alias,
@@ -44,13 +46,13 @@ def build_llama_server_args(
     ]
     if profile.threads > 0:
         args.extend(["--threads", str(profile.threads)])
-    if profile.disable_thinking:
+    if disable_thinking:
         if thinking_control == "reasoning":
             args.extend(["--reasoning", "off"])
         elif thinking_control == "chat-template-kwargs":
             args.extend(["--chat-template-kwargs", json.dumps({"enable_thinking": False}, separators=(",", ":"))])
         else:
-            raise ValueError("关闭模型思考已启用，但没有可用的 llama-server 控制参数。")
+            raise ValueError("强制关闭模型思考已启用，但没有可用的 llama-server 控制参数。")
     args.append("--cache-prompt" if profile.prompt_cache else "--no-cache-prompt")
     if profile.metrics:
         args.append("--metrics")

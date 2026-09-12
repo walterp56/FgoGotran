@@ -47,11 +47,11 @@ Profiles store runtime settings for different models. Saving another profile mak
 
 ## Thinking control
 
-The thinking-disable option is off by default. Leave it off unless the model documentation explicitly supports disabling reasoning and testing shows that reasoning content is interfering with responses.
+The **Force-disable model thinking** option is off by default. Leave it off unless the model documentation explicitly supports disabling reasoning and testing shows that reasoning content is interfering with responses.
 
 Some translation fine-tunes, including Sakura-14B-Qwen3-v1.5, may immediately produce an end token and an empty translation when thinking is forcibly disabled. For such models, follow the model default.
 
-If enabling the option produces HTTP 200 with empty `content`, disable it, save the profile, and restart llama-server. The Android request does not need a `/no_think` suffix when server-side thinking control is used.
+FgoGotran Local now detects the specific HTTP 200, empty-content, end-token response during startup. It retries once using the model default and remembers the result for the same GGUF and llama-server files. If the fallback probe also fails, inspect the compatibility result and runtime log rather than repeatedly restarting. The Android request does not need a `/no_think` suffix when server-side thinking control is used.
 
 ## Evaluating a model
 

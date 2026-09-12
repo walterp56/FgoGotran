@@ -3,7 +3,13 @@ from pathlib import Path
 import gradio as gr
 
 from fgogotran_local.service import LocalTranslationService
-from fgogotran_local.ui import STUDIO_CSS, UI_TAB_LABELS, build_ui
+from fgogotran_local.ui import (
+    STUDIO_CSS,
+    UI_TAB_LABELS,
+    _profile_summary_markup,
+    _status_markup,
+    build_ui,
+)
 
 
 def test_gradio_ui_builds_without_starting_a_model(tmp_path: Path):
@@ -44,9 +50,37 @@ def test_model_settings_explain_when_disable_thinking_takes_effect(tmp_path: Pat
     checkbox = next(
         component
         for component in config["components"]
-        if component.get("type") == "checkbox" and component.get("props", {}).get("label") == "关闭模型思考"
+        if component.get("type") == "checkbox"
+        and component.get("props", {}).get("label") == "强制关闭模型思考"
     )
 
     assert checkbox["props"]["value"] is False
-    assert "默认关闭" in checkbox["props"]["info"]
-    assert "重新启动" in checkbox["props"]["info"]
+    assert "跟随模型" in checkbox["props"]["info"]
+    assert "自动检测兼容性" in checkbox["props"]["info"]
+
+
+def test_compatibility_states_and_fallback_reason_are_visible_and_escaped():
+    status = {
+        "state": "VERIFYING",
+        "stateLabel": "正在检查兼容性",
+        "message": "正在检查",
+        "profile": {},
+        "thinking": {
+            "label": "跟随模型默认（兼容回退）",
+            "reason": "model <template> conflict",
+        },
+        "compatibility": {
+            "status": "FALLBACK",
+            "message": "自动回退成功",
+            "latencyMs": 123,
+        },
+    }
+
+    status_markup = _status_markup(status)
+    profile_markup = _profile_summary_markup(status)
+
+    assert "status-loading" in status_markup
+    assert "已通过（使用兼容回退）" in profile_markup
+    assert "123 ms" in profile_markup
+    assert "model &lt;template&gt; conflict" in profile_markup
+    assert "model <template> conflict" not in profile_markup

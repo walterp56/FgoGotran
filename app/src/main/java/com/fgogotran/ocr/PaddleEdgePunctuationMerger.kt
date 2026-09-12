@@ -194,7 +194,13 @@ internal object PaddleEdgePunctuationMerger {
 
     fun mayHaveRecoverableEdges(text: String): Boolean {
         val trimmed = text.trim()
-        return trimmed.isNotBlank() && splitEdges(trimmed).body.hasJapaneseOrCjkText()
+        if (trimmed.isBlank()) return false
+        val parts = splitEdges(trimmed)
+        if (!parts.body.hasJapaneseOrCjkText()) return false
+        val bodyLength = parts.body.count { !it.isWhitespace() }
+        return bodyLength >= MIN_EDGE_RECOVERY_BODY_LENGTH ||
+            parts.leading.isNotBlank() ||
+            parts.trailing.isNotBlank()
     }
 
     fun isRecoverableDetachedFragment(text: String): Boolean {
@@ -427,6 +433,7 @@ internal object PaddleEdgePunctuationMerger {
     private val DETACHED_EDGE_SYMBOLS = LEADING_EDGE_SYMBOLS + TRAILING_EDGE_SYMBOLS
     private val MASK_SYMBOLS = setOf('■', '□', '▇', '█')
     private const val MIN_LEADING_PAUSE_DOTS = 2
+    private const val MIN_EDGE_RECOVERY_BODY_LENGTH = 4
     private const val DETACHED_MIN_VERTICAL_OVERLAP_RATIO = 0.25f
     private const val DETACHED_MAX_CENTER_DIFFERENCE_RATIO = 0.55f
     private const val DETACHED_MAX_HORIZONTAL_GAP_HEIGHT_RATIO = 1.5f

@@ -54,13 +54,13 @@ In the model settings page:
 5. Select trusted-LAN access when a phone must connect; otherwise select loopback-only access.
 6. Keep the inference defaults for the first test.
 7. Save the profile and return to the overview page.
-8. Start the service and wait until its state is ready.
+8. Start the service and wait for loading and the automatic compatibility check to finish.
 
-The initial model load may take some time. Saving a changed runtime profile does not modify an already running llama-server; restart it to apply the changes.
+The initial model load may take some time. The service is marked ready only after a short Chat Completions probe returns usable text. If forced thinking control is incompatible, FgoGotran Local may restart the managed model once with its default behavior. Saving a changed runtime profile does not modify an already running llama-server; restart it to apply the changes.
 
 ## 6. Test the API
 
-Open the connection test page and run the compatibility test. It checks that:
+Startup performs this check automatically. You can repeat it from the connection test page. It checks that:
 
 - llama-server is ready.
 - The API key and Model ID are accepted.

@@ -56,11 +56,13 @@ Large models can take time to load. Check whether GPU memory use is increasing a
 
 Install a recent official llama.cpp release and select its new `llama-server.exe`. Alternatively, disable the thinking-control option when the model does not require it.
 
-If the API returns HTTP 200 but `content` is empty and only one token is generated, disable forced thinking control and restart the service. Sakura-14B-Qwen3-v1.5 should normally follow its default behavior.
+If forced-off mode returns HTTP 200 with empty `content` and only an end token, FgoGotran Local automatically restarts the managed server once with model-default behavior. The overview shows the requested and effective thinking state separately. A successful fallback is cached for that GGUF and llama-server file pair.
+
+If the fallback also fails, the service remains in the error state instead of restarting repeatedly. Leave forced thinking control disabled, inspect the runtime log, and confirm that the model's chat template works with the selected llama.cpp build.
 
 ## The compatibility test fails
 
-Verify that the service is ready and that the active profile's Model ID matches the alias used by llama-server. Inspect the error and runtime log for authentication, template, or empty-output failures. The test has a 45-second request timeout.
+Startup must pass the same Chat Completions check before the service becomes ready. Verify that the active profile's Model ID matches the alias used by llama-server. Inspect the displayed compatibility result and runtime log for authentication, template, reasoning-only, or empty-output failures. The request timeout is 45 seconds.
 
 ## The phone cannot connect
 

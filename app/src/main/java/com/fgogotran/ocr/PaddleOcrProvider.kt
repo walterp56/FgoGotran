@@ -3,6 +3,7 @@ package com.fgogotran.ocr
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import ai.onnxruntime.TensorInfo
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -53,6 +54,7 @@ private class PaddleOcrRuntime(
     private var detSession: OrtSession? = null
     private var recSession: OrtSession? = null
     private var dictionary: List<String> = emptyList()
+    private var recognitionBatchEnabled = false
     @Volatile
     private var initialized = false
 
@@ -75,10 +77,14 @@ private class PaddleOcrRuntime(
                     options.close()
                 }
                 dictionary = loadDictionary()
+                val recognitionInputShape = recognitionInputShape(recSession)
+                recognitionBatchEnabled = supportsDynamicRecognitionBatch(recognitionInputShape)
                 initialized = true
                 FgoLogger.info(
                     tag,
                     "PaddleOCR initialized: dict=${dictionary.size}, " +
+                        "recInput=${recognitionInputShape.contentToString()}, " +
+                        "recBatch=$recognitionBatchEnabled, " +
                         "elapsed=${System.currentTimeMillis() - startedAt}ms"
                 )
             } catch (e: Exception) {
@@ -97,6 +103,7 @@ private class PaddleOcrRuntime(
             recSession = null
             environment = null
             dictionary = emptyList()
+            recognitionBatchEnabled = false
             initialized = false
         }
     }
@@ -112,57 +119,83 @@ private class PaddleOcrRuntime(
         val boxes = detection.boxes
             .sortedWith(compareBy({ boxMinY(it) }, { boxMinX(it) }))
 
-        val detectedTextBoxes = mutableListOf<PaddleDetectedTextBox>()
-        for (box in boxes) {
+        val recognitionTargets = boxes.mapIndexed { index, box ->
             val bounds = boxToRect(box, bitmap.width, bitmap.height)
             val crop = cropTextLine(bitmap, box)
-            if (crop == null) {
-                detectedTextBoxes += PaddleDetectedTextBox(bounds = bounds)
+            val prepared = if (crop == null) {
+                null
+            } else {
+                try {
+                    prepareRecognitionCrop(crop)
+                } finally {
+                    if (!crop.isRecycled) crop.recycle()
+                }
+            }
+            PaddleRecognitionTarget(
+                index = index,
+                box = box,
+                bounds = bounds,
+                prepared = prepared
+            )
+        }
+        val tightRecognitions = recognizePreparedTargets(recognitionTargets)
+
+        val detectedTextBoxes = mutableListOf<PaddleDetectedTextBox>()
+        var edgeRecoveryAttempts = 0
+        var edgeRecoveryChanges = 0
+        for (target in recognitionTargets) {
+            val tightRecognition = tightRecognitions[target.index]
+            if (tightRecognition == null) {
+                detectedTextBoxes += PaddleDetectedTextBox(bounds = target.bounds)
                 continue
             }
-            try {
-                val tightRecognition = recognizeCrop(crop)
-                val edgeRecovery = recoverEdgePunctuation(
-                    source = bitmap,
-                    box = box,
-                    tightRecognition = tightRecognition
+            val edgeRecovery = recoverEdgePunctuation(
+                source = bitmap,
+                box = target.box,
+                tightRecognition = tightRecognition
+            )
+            if (edgeRecovery.attempted) edgeRecoveryAttempts++
+            if (edgeRecovery.recognition.text != tightRecognition.text) edgeRecoveryChanges++
+            val recognition = edgeRecovery.recognition
+            val text = recognition.text
+            val confidence = recognition.confidence
+            if (text.isNotBlank() && confidence >= REC_TEXT_SCORE_THRESHOLD) {
+                detectedTextBoxes += PaddleDetectedTextBox(
+                    bounds = target.bounds,
+                    line = OcrTextLine(
+                        text = text,
+                        boundingBox = target.bounds,
+                        confidence = confidence.coerceIn(0f, 1f)
+                    ),
+                    recoveredMaskCount = recognition.recoveredMaskCount,
+                    noisyLeadingQuoteCandidate = edgeRecovery.noisyLeadingQuoteCandidate
                 )
-                val recognition = edgeRecovery.recognition
-                val text = recognition.text
-                val confidence = recognition.confidence
-                if (text.isNotBlank() && confidence >= REC_TEXT_SCORE_THRESHOLD) {
-                    detectedTextBoxes += PaddleDetectedTextBox(
-                        bounds = bounds,
-                        line = OcrTextLine(
-                            text = text,
-                            boundingBox = bounds,
+            } else {
+                val lowConfidenceEdgeFragment = text
+                    .takeIf {
+                        confidence >= EDGE_RECOVERY_TEXT_SCORE_THRESHOLD &&
+                            PaddleEdgePunctuationMerger.isRecoverableDetachedFragment(it) &&
+                            it.hasEdgeQuotationMark()
+                    }
+                    ?.let {
+                        OcrTextLine(
+                            text = it,
+                            boundingBox = target.bounds,
                             confidence = confidence.coerceIn(0f, 1f)
-                        ),
-                        recoveredMaskCount = recognition.recoveredMaskCount,
-                        noisyLeadingQuoteCandidate = edgeRecovery.noisyLeadingQuoteCandidate
-                    )
-                } else {
-                    val lowConfidenceEdgeFragment = text
-                        .takeIf {
-                            confidence >= EDGE_RECOVERY_TEXT_SCORE_THRESHOLD &&
-                                PaddleEdgePunctuationMerger.isRecoverableDetachedFragment(it) &&
-                                it.hasEdgeQuotationMark()
-                        }
-                        ?.let {
-                            OcrTextLine(
-                                text = it,
-                                boundingBox = bounds,
-                                confidence = confidence.coerceIn(0f, 1f)
-                            )
-                        }
-                    detectedTextBoxes += PaddleDetectedTextBox(
-                        bounds = bounds,
-                        lowConfidenceEdgeFragment = lowConfidenceEdgeFragment
-                    )
-                }
-            } finally {
-                if (!crop.isRecycled) crop.recycle()
+                        )
+                    }
+                detectedTextBoxes += PaddleDetectedTextBox(
+                    bounds = target.bounds,
+                    lowConfidenceEdgeFragment = lowConfidenceEdgeFragment
+                )
             }
+        }
+        if (boxes.isNotEmpty()) {
+            FgoLogger.debug(
+                tag,
+                "PaddleOCR edge recovery gate: attempts=$edgeRecoveryAttempts/${boxes.size}, " +
+                    "changes=$edgeRecoveryChanges"
+            )
         }
 
         val quoteRecoveredTextBoxes = recoverNoisyLeadingQuoteCandidates(detectedTextBoxes)
@@ -578,6 +611,9 @@ private class PaddleOcrRuntime(
             lineHeight * EDGE_HORIZONTAL_PADDING_HEIGHT_RATIO
         ).coerceAtMost(source.width * EDGE_MAX_PADDING_WIDTH_RATIO)
         val expandedBox = expandTextLineHorizontally(box, padding, source.width, source.height)
+        if (!hasEdgePunctuationEvidence(source, box, expandedBox)) {
+            return EdgePunctuationRecovery(tightRecognition)
+        }
         val expandedCrop = cropTextLine(source, expandedBox)
             ?: return EdgePunctuationRecovery(tightRecognition)
         val paddedRecognition = try {
@@ -593,7 +629,10 @@ private class PaddleOcrRuntime(
                         "confidence=${paddedRecognition.confidence}, padded=${paddedRecognition.text}"
                 )
             }
-            return EdgePunctuationRecovery(tightRecognition)
+            return EdgePunctuationRecovery(
+                recognition = tightRecognition,
+                attempted = true
+            )
         }
 
         val mergedText = PaddleEdgePunctuationMerger.merge(
@@ -616,7 +655,8 @@ private class PaddleOcrRuntime(
                 )
                 return EdgePunctuationRecovery(
                     recognition = tightRecognition,
-                    noisyLeadingQuoteCandidate = noisyLeadingQuoteCandidate
+                    noisyLeadingQuoteCandidate = noisyLeadingQuoteCandidate,
+                    attempted = true
                 )
             }
             if (paddedRecognition.text != tightRecognition.text &&
@@ -628,14 +668,50 @@ private class PaddleOcrRuntime(
                         "before=${tightRecognition.text}, padded=${paddedRecognition.text}"
                 )
             }
-            return EdgePunctuationRecovery(tightRecognition)
+            return EdgePunctuationRecovery(
+                recognition = tightRecognition,
+                attempted = true
+            )
         }
         FgoLogger.debug(
             tag,
             "PaddleOCR edge punctuation recovered: " +
                 "before=${tightRecognition.text}, padded=${paddedRecognition.text}, after=$mergedText"
         )
-        return EdgePunctuationRecovery(tightRecognition.copy(text = mergedText))
+        return EdgePunctuationRecovery(
+            recognition = tightRecognition.copy(text = mergedText),
+            attempted = true
+        )
+    }
+
+    private fun hasEdgePunctuationEvidence(
+        source: Bitmap,
+        tightBox: FloatArray,
+        expandedBox: FloatArray
+    ): Boolean {
+        val tightBounds = boxToRect(tightBox, source.width, source.height)
+        val sampleBounds = boxToRect(expandedBox, source.width, source.height)
+        if (sampleBounds == tightBounds) return false
+
+        val pixels = IntArray(sampleBounds.width() * sampleBounds.height())
+        source.getPixels(
+            pixels,
+            0,
+            sampleBounds.width(),
+            sampleBounds.left,
+            sampleBounds.top,
+            sampleBounds.width(),
+            sampleBounds.height()
+        )
+        return PaddleEdgePunctuationProbe.hasEvidence(
+            pixels = pixels,
+            width = sampleBounds.width(),
+            height = sampleBounds.height(),
+            textLeft = tightBounds.left - sampleBounds.left,
+            textTop = tightBounds.top - sampleBounds.top,
+            textRight = tightBounds.right - sampleBounds.left,
+            textBottom = tightBounds.bottom - sampleBounds.top
+        )
     }
 
     private fun recoverNoisyLeadingQuoteCandidates(
@@ -979,11 +1055,31 @@ private class PaddleOcrRuntime(
         return bounds
     }
 
-    private fun recognizeCrop(
+    private fun recognitionInputShape(session: OrtSession?): LongArray {
+        if (session == null) return longArrayOf()
+        val inputName = session.inputNames.firstOrNull() ?: return longArrayOf()
+        val tensorInfo = session.inputInfo[inputName]?.info as? TensorInfo
+            ?: return longArrayOf()
+        return tensorInfo.shape
+    }
+
+    private fun supportsDynamicRecognitionBatch(shape: LongArray): Boolean {
+        if (shape.size != 4) return false
+        val batch = shape[0]
+        val channels = shape[1]
+        val height = shape[2]
+        val width = shape[3]
+        return batch <= 0L &&
+            (channels <= 0L || channels == 3L) &&
+            (height <= 0L || height == REC_IMAGE_HEIGHT.toLong()) &&
+            width <= 0L
+    }
+
+    private fun prepareRecognitionCrop(
         crop: Bitmap,
         knownMasks: List<PaddleSolidMask>? = null,
         knownSeparators: List<PaddleSolidMaskSeparator> = emptyList()
-    ): PaddleMaskMergeResult {
+    ): PreparedRecognitionCrop {
         val resizedWidth = max(1, ceil(REC_IMAGE_HEIGHT.toDouble() * crop.width / crop.height).toInt())
             .coerceAtMost(REC_MAX_IMAGE_WIDTH)
         val resized = Bitmap.createScaledBitmap(crop, resizedWidth, REC_IMAGE_HEIGHT, true)
@@ -996,24 +1092,148 @@ private class PaddleOcrRuntime(
                 scaleY = REC_IMAGE_HEIGHT.toFloat() / crop.height.toFloat()
             )
         } ?: PaddleSolidMaskDetector.detect(
-                pixels = pixels,
-                width = resizedWidth,
-                height = REC_IMAGE_HEIGHT
-            )
+            pixels = pixels,
+            width = resizedWidth,
+            height = REC_IMAGE_HEIGHT
+        )
         val solidMaskSeparators = knownSeparators.map { separator ->
             separator.scaled(
                 scaleX = resizedWidth.toFloat() / crop.width.toFloat(),
                 scaleY = REC_IMAGE_HEIGHT.toFloat() / crop.height.toFloat()
             )
         }
+        return PreparedRecognitionCrop(
+            resizedWidth = resizedWidth,
+            pixels = pixels,
+            solidMasks = solidMasks,
+            solidMaskSeparators = solidMaskSeparators
+        )
+    }
 
-        val pixelCount = resizedWidth * REC_IMAGE_HEIGHT
-        val input = FloatArray(pixelCount * 3)
-        for (index in 0 until pixelCount) {
-            val pixel = pixels[index]
-            input[index] = ((pixel and 0xff) / 255f - 0.5f) / 0.5f
-            input[pixelCount + index] = (((pixel shr 8) and 0xff) / 255f - 0.5f) / 0.5f
-            input[pixelCount * 2 + index] = (((pixel shr 16) and 0xff) / 255f - 0.5f) / 0.5f
+    private fun recognizePreparedTargets(
+        targets: List<PaddleRecognitionTarget>
+    ): Map<Int, PaddleMaskMergeResult> {
+        val preparedTargets = targets
+            .mapNotNull { target ->
+                target.prepared?.let { prepared ->
+                    PreparedRecognitionTarget(target.index, prepared)
+                }
+            }
+            .sortedBy { it.prepared.resizedWidth }
+        if (preparedTargets.isEmpty()) return emptyMap()
+
+        val startedAt = System.currentTimeMillis()
+        val recognitions = mutableMapOf<Int, PaddleMaskMergeResult>()
+        var cursor = 0
+        var modelRuns = 0
+        var successfulBatchRuns = 0
+        var fellBackToSingle = false
+
+        while (cursor < preparedTargets.size) {
+            val requestedSize = if (recognitionBatchEnabled) {
+                recognitionBatchSize(preparedTargets, cursor)
+            } else {
+                1
+            }
+            val batch = preparedTargets.subList(cursor, cursor + requestedSize)
+            val preparedBatch = batch.map(PreparedRecognitionTarget::prepared)
+            val batchResults = if (preparedBatch.size > 1) {
+                try {
+                    modelRuns++
+                    runRecognitionBatch(preparedBatch).also { successfulBatchRuns++ }
+                } catch (error: Exception) {
+                    recognitionBatchEnabled = false
+                    fellBackToSingle = true
+                    FgoLogger.warn(
+                        tag,
+                        "PaddleOCR batched recognition failed; using single-crop recognition for this session",
+                        error
+                    )
+                    preparedBatch.map { prepared ->
+                        modelRuns++
+                        runRecognitionBatch(listOf(prepared)).single()
+                    }
+                }
+            } else {
+                modelRuns++
+                listOf(runRecognitionBatch(preparedBatch).single())
+            }
+            check(batchResults.size == batch.size) {
+                "PaddleOCR recognition result count mismatch: expected=${batch.size}, actual=${batchResults.size}"
+            }
+            batch.forEachIndexed { index, target ->
+                recognitions[target.index] = batchResults[index]
+            }
+            cursor += batch.size
+        }
+
+        FgoLogger.debug(
+            tag,
+            "PaddleOCR base recognition: boxes=${preparedTargets.size}, " +
+                "modelRuns=$modelRuns, batchRuns=$successfulBatchRuns, " +
+                "batchEnabled=$recognitionBatchEnabled, fallback=$fellBackToSingle, " +
+                "elapsed=${System.currentTimeMillis() - startedAt}ms"
+        )
+        return recognitions
+    }
+
+    private fun recognitionBatchSize(
+        sortedTargets: List<PreparedRecognitionTarget>,
+        startIndex: Int
+    ): Int {
+        // Paddle pads every sample to the widest row in the batch. Keep short names
+        // away from very long dialogue rows and cap the large [N, T, classes] output.
+        val firstWidth = sortedTargets[startIndex].prepared.resizedWidth
+        var size = 1
+        while (size < REC_MAX_BATCH_SIZE && startIndex + size < sortedTargets.size) {
+            val nextWidth = sortedTargets[startIndex + size].prepared.resizedWidth
+            if (nextWidth > firstWidth * REC_MAX_BATCH_WIDTH_RATIO) break
+            val candidateSize = size + 1
+            if (estimatedRecognitionOutputBytes(candidateSize, nextWidth) > REC_MAX_BATCH_OUTPUT_BYTES) break
+            size++
+        }
+        return size
+    }
+
+    private fun estimatedRecognitionOutputBytes(batchSize: Int, width: Int): Long {
+        val estimatedSequenceLength = (width + REC_SEQUENCE_WIDTH_STRIDE - 1) / REC_SEQUENCE_WIDTH_STRIDE
+        return batchSize.toLong() *
+            estimatedSequenceLength.toLong() *
+            dictionary.size.coerceAtLeast(1).toLong() *
+            FLOAT_BYTES
+    }
+
+    private fun recognizeCrop(
+        crop: Bitmap,
+        knownMasks: List<PaddleSolidMask>? = null,
+        knownSeparators: List<PaddleSolidMaskSeparator> = emptyList()
+    ): PaddleMaskMergeResult {
+        val prepared = prepareRecognitionCrop(crop, knownMasks, knownSeparators)
+        return runRecognitionBatch(listOf(prepared)).single()
+    }
+
+    private fun runRecognitionBatch(
+        preparedBatch: List<PreparedRecognitionCrop>
+    ): List<PaddleMaskMergeResult> {
+        require(preparedBatch.isNotEmpty()) { "PaddleOCR recognition batch must not be empty" }
+        val batchSize = preparedBatch.size
+        val batchWidth = preparedBatch.maxOf(PreparedRecognitionCrop::resizedWidth)
+        val planeSize = REC_IMAGE_HEIGHT * batchWidth
+        val sampleSize = planeSize * 3
+        val input = FloatArray(batchSize * sampleSize)
+        preparedBatch.forEachIndexed { sampleIndex, prepared ->
+            val sampleOffset = sampleIndex * sampleSize
+            for (y in 0 until REC_IMAGE_HEIGHT) {
+                val sourceRow = y * prepared.resizedWidth
+                val targetRow = y * batchWidth
+                for (x in 0 until prepared.resizedWidth) {
+                    val pixel = prepared.pixels[sourceRow + x]
+                    val target = sampleOffset + targetRow + x
+                    input[target] = ((pixel and 0xff) / 255f - 0.5f) / 0.5f
+                    input[target + planeSize] = (((pixel shr 8) and 0xff) / 255f - 0.5f) / 0.5f
+                    input[target + planeSize * 2] = (((pixel shr 16) and 0xff) / 255f - 0.5f) / 0.5f
+                }
+            }
         }
 
         val env = environment ?: error("PaddleOCR environment is not initialized")
@@ -1022,36 +1242,61 @@ private class PaddleOcrRuntime(
         val tensor = OnnxTensor.createTensor(
             env,
             FloatBuffer.wrap(input),
-            longArrayOf(1, 3, REC_IMAGE_HEIGHT.toLong(), resizedWidth.toLong())
+            longArrayOf(batchSize.toLong(), 3, REC_IMAGE_HEIGHT.toLong(), batchWidth.toLong())
         )
         return tensor.use { inputTensor ->
             session.run(mapOf(inputName to inputTensor)).use { result ->
                 val output = firstTensor(result, session)
                 val shape = output.info.shape
+                require(shape.size >= 2) {
+                    "Unexpected PaddleOCR recognition output shape: ${shape.contentToString()}"
+                }
                 val sequenceLength = shape[shape.size - 2].toInt()
                 val classCount = shape[shape.size - 1].toInt()
-                val values = FloatArray(sequenceLength * classCount)
-                output.floatBuffer.apply {
-                    rewind()
-                    get(values, 0, values.size)
+                require(sequenceLength > 0 && classCount > 0) {
+                    "Invalid PaddleOCR recognition output shape: ${shape.contentToString()}"
                 }
-                val tokens = ctcDecode(
-                    values = values,
-                    sequenceLength = sequenceLength,
-                    classCount = classCount,
-                    imageWidth = resizedWidth
-                )
-                PaddleSolidMaskMerger.merge(tokens, solidMasks, solidMaskSeparators).also { merged ->
-                    if (merged.recoveredMaskCount > 0) {
-                        val originalText = tokens.joinToString(separator = "") { it.text }.trim()
-                        FgoLogger.debug(
-                            tag,
-                            "PaddleOCR solid masks recovered: " +
-                                "count=${merged.recoveredMaskCount}, before=$originalText, after=${merged.text.trim()}"
-                        )
+                val outputBatchSize = shape
+                    .dropLast(2)
+                    .fold(1L) { count, dimension ->
+                        require(dimension > 0L) {
+                            "Unresolved PaddleOCR recognition output shape: ${shape.contentToString()}"
+                        }
+                        count * dimension
                     }
-                }.let { merged ->
-                    merged.copy(text = merged.text.trim())
+                    .toInt()
+                require(outputBatchSize == batchSize) {
+                    "PaddleOCR recognition batch mismatch: input=$batchSize, output=$outputBatchSize, " +
+                        "shape=${shape.contentToString()}"
+                }
+                val sampleOutputSize = sequenceLength * classCount
+                val sampleValues = FloatArray(sampleOutputSize)
+                val outputBuffer = output.floatBuffer.apply { rewind() }
+                preparedBatch.map { prepared ->
+                    outputBuffer.get(sampleValues, 0, sampleValues.size)
+                    val tokens = ctcDecode(
+                        values = sampleValues,
+                        sequenceLength = sequenceLength,
+                        classCount = classCount,
+                        imageWidth = batchWidth
+                    )
+                    PaddleSolidMaskMerger.merge(
+                        tokens,
+                        prepared.solidMasks,
+                        prepared.solidMaskSeparators
+                    ).also { merged ->
+                        if (merged.recoveredMaskCount > 0) {
+                            val originalText = tokens.joinToString(separator = "") { it.text }.trim()
+                            FgoLogger.debug(
+                                tag,
+                                "PaddleOCR solid masks recovered: " +
+                                    "count=${merged.recoveredMaskCount}, " +
+                                    "before=$originalText, after=${merged.text.trim()}"
+                            )
+                        }
+                    }.let { merged ->
+                        merged.copy(text = merged.text.trim())
+                    }
                 }
             }
         }
@@ -1130,6 +1375,25 @@ private class PaddleOcrRuntime(
         val solidMaskRows: List<PaddleSolidMaskRow>
     )
 
+    private data class PaddleRecognitionTarget(
+        val index: Int,
+        val box: FloatArray,
+        val bounds: Rect,
+        val prepared: PreparedRecognitionCrop?
+    )
+
+    private data class PreparedRecognitionCrop(
+        val resizedWidth: Int,
+        val pixels: IntArray,
+        val solidMasks: List<PaddleSolidMask>,
+        val solidMaskSeparators: List<PaddleSolidMaskSeparator>
+    )
+
+    private data class PreparedRecognitionTarget(
+        val index: Int,
+        val prepared: PreparedRecognitionCrop
+    )
+
     private data class PaddleDetectedTextBox(
         val bounds: Rect,
         val line: OcrTextLine? = null,
@@ -1140,7 +1404,8 @@ private class PaddleOcrRuntime(
 
     private data class EdgePunctuationRecovery(
         val recognition: PaddleMaskMergeResult,
-        val noisyLeadingQuoteCandidate: PaddleEdgePunctuationMerger.NoisyLeadingQuoteCandidate? = null
+        val noisyLeadingQuoteCandidate: PaddleEdgePunctuationMerger.NoisyLeadingQuoteCandidate? = null,
+        val attempted: Boolean = false
     )
 
     companion object {
@@ -1160,6 +1425,11 @@ private class PaddleOcrRuntime(
 
         private const val REC_IMAGE_HEIGHT = 48
         private const val REC_MAX_IMAGE_WIDTH = 3200
+        private const val REC_MAX_BATCH_SIZE = 4
+        private const val REC_MAX_BATCH_WIDTH_RATIO = 2f
+        private const val REC_SEQUENCE_WIDTH_STRIDE = 8
+        private const val REC_MAX_BATCH_OUTPUT_BYTES = 40L * 1024L * 1024L
+        private const val FLOAT_BYTES = 4L
         private const val REC_TEXT_SCORE_THRESHOLD = 0.5f
         private const val EDGE_RECOVERY_TEXT_SCORE_THRESHOLD = 0.35f
         private const val VERTICAL_TEXT_ROTATE_RATIO = 1.5f

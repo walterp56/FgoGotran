@@ -39,4 +39,8 @@ Do not overwrite a runtime directory while llama-server is running.
 
 When the optional thinking-disable control is enabled, FgoGotran Local checks `llama-server --help` before startup. It prefers `--reasoning off` and uses `--chat-template-kwargs` only as a compatibility fallback. If neither option is supported, startup stops with an actionable error instead of silently ignoring the setting.
 
+After `/health` becomes ready, FgoGotran Local sends a short Chat Completions probe before reporting the model as ready. If forced-off mode returns HTTP 200 but only an end token and empty content, the managed server is restarted once with the model's default thinking behavior and tested again. Other empty, invalid, or failed responses are reported as compatibility errors and do not trigger a restart.
+
+The result for forced-off mode is cached using a fingerprint of the GGUF and llama-server files. A known-incompatible pair uses model-default behavior on later starts. Replacing or updating either file automatically causes a fresh check. The cache contains hashes and results only; it does not contain the API key or file paths.
+
 Update llama.cpp if the selected model requires a control option that the current runtime does not provide.

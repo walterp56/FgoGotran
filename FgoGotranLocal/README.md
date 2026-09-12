@@ -37,7 +37,8 @@ The browser interface provides:
 
 - Runtime overview, start/stop controls, and phone connection values.
 - Model profiles, llama.cpp paths, network access, and inference parameters.
-- An OpenAI Chat Completions compatibility test.
+- An automatic OpenAI Chat Completions startup check plus a manual retest.
+- Safe one-time fallback to model-default thinking when forced-off mode returns only an end token.
 - Environment diagnostics and in-memory runtime logs.
 
 The current control interface uses Simplified Chinese. The Chinese guide identifies every control by its displayed label.

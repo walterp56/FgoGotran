@@ -9,3 +9,5 @@
 - Excluded voice profiles, GPT-SoVITS and all TTS dependencies.
 - Added opt-in thinking control with llama.cpp `--reasoning off` and a capability-checked fallback for older builds.
 - Kept thinking control off by default because some translation fine-tunes, including Sakura-14B-Qwen3-v1.5, return empty output when it is forced off.
+- Added an automatic startup Chat Completions probe before the server is marked ready.
+- Added one-time recovery to model-default thinking when forced-off mode returns only an end token, with a model/runtime-scoped compatibility cache.

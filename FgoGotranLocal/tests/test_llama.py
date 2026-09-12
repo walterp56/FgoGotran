@@ -83,6 +83,19 @@ def test_model_default_does_not_require_a_thinking_control_switch():
     assert "--chat-template-kwargs" not in args
 
 
+def test_compatibility_fallback_can_keep_saved_preference_without_forcing_runtime():
+    profile = ProfileConfig(disableThinking=True)
+
+    args = build_llama_server_args(
+        {"model": r"C:\models\fgo.gguf", "profile": profile},
+        r"C:\state\api-keys.txt",
+        apply_disable_thinking=False,
+    )
+
+    assert "--reasoning" not in args
+    assert "--chat-template-kwargs" not in args
+
+
 def test_prometheus_parser_accepts_current_metric_names():
     metrics = parse_prometheus_metrics(
         """
