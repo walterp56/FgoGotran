@@ -25,7 +25,9 @@ internal object TranslationGlossaryBuilder {
         matchedEntries: List<TranslationGlossaryEntry>,
         currentSpeaker: String,
         includeConditionalMappings: Boolean = true,
-        includeCurrentSpeaker: Boolean = true
+        includeCurrentSpeaker: Boolean = true,
+        includeHonorificTemplates: Boolean = true,
+        includeNamePluralTemplate: Boolean = true
     ): List<TranslationGlossaryEntry> {
         val entriesBySource = linkedMapOf<String, TranslationGlossaryEntry>()
 
@@ -55,24 +57,30 @@ internal object TranslationGlossaryBuilder {
             context.specialSecondPersonMappings.forEach { mapping ->
                 add(mapping.sourceForm, mapping.targetTranslation, "第二人称")
             }
-            context.honorificMatches.forEach { match ->
-                val mapping = when (match.rule) {
-                    HonorificPromptRule.SAN -> "XXさん" to "XX桑"
-                    HonorificPromptRule.KUN -> "XXくん" to "XX君"
-                    HonorificPromptRule.CHAN -> "XXちゃん" to context.localized("XX酱", "XX醬")
-                    HonorificPromptRule.TONO -> "XX殿" to context.localized("XX阁下", "XX閣下")
-                    HonorificPromptRule.TAN -> "XXたん" to "XX炭"
-                    HonorificPromptRule.TYA -> "XXてゃ" to context.localized("XX宝", "XX寶")
-                    HonorificPromptRule.SAMA -> "XX様" to "XX大人"
-                    HonorificPromptRule.SHI -> "XX氏" to "XX氏"
-                    HonorificPromptRule.CCHI -> "XXっち" to "小XX"
+            if (includeHonorificTemplates) {
+                context.honorificMatches.forEach { match ->
+                    val mapping = when (match.rule) {
+                        HonorificPromptRule.SAN -> "XXさん" to "XX桑"
+                        HonorificPromptRule.KUN -> "XXくん" to "XX君"
+                        HonorificPromptRule.CHAN -> "XXちゃん" to context.localized("XX酱", "XX醬")
+                        HonorificPromptRule.TONO -> "XX殿" to context.localized("XX阁下", "XX閣下")
+                        HonorificPromptRule.TAN -> "XXたん" to "XX炭"
+                        HonorificPromptRule.TYA -> "XXてゃ" to context.localized("XX宝", "XX寶")
+                        HonorificPromptRule.SAMA -> "XX様" to "XX大人"
+                        HonorificPromptRule.SHI -> "XX氏" to "XX氏"
+                        HonorificPromptRule.CCHI -> "XXっち" to "小XX"
+                    }
+                    val exceptions = match.presentExceptions
+                        .takeIf(List<String>::isNotEmpty)
+                        ?.joinToString("、")
+                        ?.let { context.localized("；不用于$it", "；不用於$it") }
+                        .orEmpty()
+                    add(
+                        mapping.first,
+                        mapping.second,
+                        context.localized("人名后缀", "人名後綴") + exceptions
+                    )
                 }
-                val exceptions = match.presentExceptions
-                    .takeIf(List<String>::isNotEmpty)
-                    ?.joinToString("、")
-                    ?.let { context.localized("；不用于$it", "；不用於$it") }
-                    .orEmpty()
-                add(mapping.first, mapping.second, context.localized("人名后缀", "人名後綴") + exceptions)
             }
             if (context.hasMasterWord) {
                 val genderNote = context.playerGender.toGenderNote(context.targetChineseLocale)
@@ -84,7 +92,7 @@ internal object TranslationGlossaryBuilder {
                         .orEmpty()
                 )
             }
-            if (context.namePluralUsage.isPresent) {
+            if (includeNamePluralTemplate && context.namePluralUsage.isPresent) {
                 add(
                     "Xズ",
                     context.localized("X们", "X們"),

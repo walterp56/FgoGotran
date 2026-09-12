@@ -8,7 +8,7 @@ package com.fgogotran.translation
  * through the JP->CN glossary format used during Sakura training.
  */
 internal object SakuraPromptBuilder {
-    const val PROMPT_VERSION = "sakura-official-v6-master-gender"
+    const val PROMPT_VERSION = "sakura-official-v7-concrete-glossary"
 
     private const val MODEL_MARKER = "Sakura"
     private const val SIMPLE_TRANSLATION_PREFIX = "将下面的日文文本翻译成中文："
@@ -20,8 +20,8 @@ internal object SakuraPromptBuilder {
         "你是一个轻小说翻译模型，可以流畅通顺地以日本轻小说的风格将日文翻译成简体中文，" +
             "并联系上下文正确使用人称代词，不擅自添加原文中没有的代词。"
 
-    /** Deliberately case-sensitive: Sakura matches, sakura and SAKURA do not. */
-    fun matchesModel(apiModel: String): Boolean = apiModel.contains(MODEL_MARKER)
+    /** Model IDs are user/provider supplied, so Sakura matching is case-insensitive. */
+    fun matchesModel(apiModel: String): Boolean = apiModel.contains(MODEL_MARKER, ignoreCase = true)
 
     fun buildSystemPrompt(): String = systemPrompt
 
@@ -46,7 +46,7 @@ internal object SakuraPromptBuilder {
             emptyList()
         }
         val sourceText = (previousLines + currentLines).joinToString("\n")
-        val entries = TranslationGlossaryBuilder.build(
+        val entries = buildSakuraGlossary(
             sourceText = japaneseText,
             context = context,
             matchedEntries = glossaryEntries,
@@ -68,7 +68,7 @@ internal object SakuraPromptBuilder {
         val sourceText = texts.joinToString("\n") { text ->
             text.asSourceLines().joinToString("\n")
         }
-        val entries = TranslationGlossaryBuilder.build(
+        val entries = buildSakuraGlossary(
             sourceText = sourceText,
             context = context,
             matchedEntries = glossaryEntries,
@@ -83,7 +83,7 @@ internal object SakuraPromptBuilder {
         glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
     ): String {
         val sourceText = japaneseText.asSourceLines().joinToString("\n")
-        val entries = TranslationGlossaryBuilder.build(
+        val entries = buildSakuraGlossary(
             sourceText = sourceText,
             context = context,
             matchedEntries = glossaryEntries,
@@ -91,6 +91,20 @@ internal object SakuraPromptBuilder {
         )
         return buildOfficialUserPrompt(sourceText, entries)
     }
+
+    private fun buildSakuraGlossary(
+        sourceText: String,
+        context: PromptContext,
+        matchedEntries: List<TranslationGlossaryEntry>,
+        currentSpeaker: String
+    ): List<TranslationGlossaryEntry> = TranslationGlossaryBuilder.build(
+        sourceText = sourceText,
+        context = context,
+        matchedEntries = matchedEntries,
+        currentSpeaker = currentSpeaker,
+        includeHonorificTemplates = false,
+        includeNamePluralTemplate = false
+    )
 
     private fun buildOfficialUserPrompt(
         sourceText: String,
