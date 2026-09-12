@@ -49,6 +49,10 @@ import com.fgogotran.overlay.TranslationOverlay
 import com.fgogotran.runner.FgoRunnerOverlay
 import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.story.StoryDetector
+import com.fgogotran.story.StoryOcrVisualAction
+import com.fgogotran.story.StoryOcrVisualBounds
+import com.fgogotran.story.StoryOcrVisualGate
+import com.fgogotran.story.StoryOcrVisualScope
 import com.fgogotran.translation.SceneTranslateInput
 import com.fgogotran.translation.SceneTranslateResult
 import com.fgogotran.translation.SessionTranslationEntry
@@ -103,6 +107,7 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var cropSelectionOverlay: CropSelectionOverlay
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val storyOcrVisualGate = StoryOcrVisualGate()
     private var isProcessing = false
     private var foregroundTestOverrideEnabled = false
     private val foregroundTestOverride = ForegroundTestOverride()
@@ -323,7 +328,8 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private sealed class AutoScanResult {
         data class Ready(
-            val regions: List<ClassifiedRegion>
+            val regions: List<ClassifiedRegion>,
+            val storyVisualRecognitionToken: Long? = null
         ) : AutoScanResult()
 
         object Waiting : AutoScanResult()
@@ -637,6 +643,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         cancelTransientForegroundLoss()
         if (externalPackage != null && !testTargetChanged && !wasFgoForeground) return
+        storyOcrVisualGate.reset()
         resetSemiAutoBackgroundState()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
@@ -879,6 +886,7 @@ class FgoAccessibilityService : AccessibilityService() {
         lastSemiAutoRenderedStabilityKey = ""
         lastSemiAutoChoiceRenderedStabilityKey = ""
         lastAutoRenderedStabilityKey = ""
+        storyOcrVisualGate.reset()
         failedAutoRenderFingerprint = ""
         failedAutoRenderRetryAt = 0L
         resetSemiAutoBackgroundState()
@@ -1765,25 +1773,41 @@ class FgoAccessibilityService : AccessibilityService() {
             is AutoScanResult.Ready -> {
                 val sceneSource = sceneSourceFor(scan.regions)
                 if (sceneSource == null) {
+                    storyOcrVisualGate.completeRecognition(
+                        scan.storyVisualRecognitionToken,
+                        accepted = false
+                    )
                     rememberSemiAutoBlankOcr()
                     translationOverlay.hide()
                     return
                 }
                 resetSemiAutoBackoff()
                 if (isAlreadyRenderedSource(ProcessingMode.SEMI_AUTO_BACKGROUND, sceneSource)) {
+                    storyOcrVisualGate.completeRecognition(
+                        scan.storyVisualRecognitionToken,
+                        accepted = true
+                    )
                     FgoLogger.debug(tag, "Semi-auto dialogue source unchanged; waiting for new OCR text")
                     return
                 }
-                translateAndRenderScene(
-                    mode = ProcessingMode.SEMI_AUTO_BACKGROUND,
-                    source = source,
-                    currentScreenWidth = currentScreenWidth,
-                    currentScreenHeight = currentScreenHeight,
-                    processStartedAt = processStartedAt,
-                    processingVersion = processingVersion,
-                    sceneSource = sceneSource,
-                    recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
-                )
+                var accepted = false
+                try {
+                    accepted = translateAndRenderScene(
+                        mode = ProcessingMode.SEMI_AUTO_BACKGROUND,
+                        source = source,
+                        currentScreenWidth = currentScreenWidth,
+                        currentScreenHeight = currentScreenHeight,
+                        processStartedAt = processStartedAt,
+                        processingVersion = processingVersion,
+                        sceneSource = sceneSource,
+                        recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
+                    )
+                } finally {
+                    storyOcrVisualGate.completeRecognition(
+                        scan.storyVisualRecognitionToken,
+                        accepted = accepted
+                    )
+                }
             }
             AutoScanResult.EmptyCompletedDialogue -> {
                 rememberSemiAutoBlankOcr()
@@ -1802,16 +1826,36 @@ class FgoAccessibilityService : AccessibilityService() {
         dialogueComplete: Boolean
     ): AutoScanResult {
         if (!dialogueComplete) {
+            storyOcrVisualGate.reset()
             FgoLogger.debug(tag, "Semi-auto waiting for completed dialogue marker")
             rememberSemiAutoBlankOcr()
             return AutoScanResult.Waiting
         }
 
-        val dialogueRegions = recognizeDialogueRegions(
-            source,
-            screenRegions,
-            allowRedTextFallback = true
+        val visualDecision = observeStoryOcrVisual(
+            source = source,
+            screenRegions = screenRegions,
+            scope = StoryOcrVisualScope.SEMI_AUTO
         )
+        if (visualDecision.action == StoryOcrVisualAction.SKIP_UNCHANGED) {
+            resetSemiAutoBackoff()
+            FgoLogger.debug(tag, "Semi-auto OCR skipped: ${visualDecision.reason}")
+            return AutoScanResult.Waiting
+        }
+
+        val dialogueRegions = try {
+            recognizeDialogueRegions(
+                source,
+                screenRegions,
+                allowRedTextFallback = true
+            )
+        } catch (error: Throwable) {
+            storyOcrVisualGate.completeRecognition(
+                visualDecision.recognitionToken,
+                accepted = false
+            )
+            throw error
+        }
         val dialogueScene = sceneSourceFor(dialogueRegions)
 
         if (dialogueScene?.hasDialogue == true) {
@@ -1822,8 +1866,15 @@ class FgoAccessibilityService : AccessibilityService() {
                 currentScreenWidth,
                 currentScreenHeight
             )
-            return AutoScanResult.Ready(regions = dialogueRegions)
+            return AutoScanResult.Ready(
+                regions = dialogueRegions,
+                storyVisualRecognitionToken = visualDecision.recognitionToken
+            )
         }
+        storyOcrVisualGate.completeRecognition(
+            visualDecision.recognitionToken,
+            accepted = false
+        )
         return AutoScanResult.EmptyCompletedDialogue
     }
 
@@ -1846,14 +1897,26 @@ class FgoAccessibilityService : AccessibilityService() {
             is AutoScanResult.Ready -> {
                 val sceneSource = sceneSourceFor(scan.regions)
                 if (sceneSource == null) {
+                    storyOcrVisualGate.completeRecognition(
+                        scan.storyVisualRecognitionToken,
+                        accepted = false
+                    )
                     translationOverlay.hide()
                     return
                 }
                 if (isAlreadyRenderedSource(ProcessingMode.AUTO_BACKGROUND, sceneSource)) {
+                    storyOcrVisualGate.completeRecognition(
+                        scan.storyVisualRecognitionToken,
+                        accepted = true
+                    )
                     FgoLogger.debug(tag, "Auto source unchanged; waiting for new OCR text")
                     return
                 }
                 if (isAutoFailedRenderCoolingDown(sceneSource)) {
+                    storyOcrVisualGate.completeRecognition(
+                        scan.storyVisualRecognitionToken,
+                        accepted = false
+                    )
                     return
                 }
                 if (shouldHoldAutoTapHandoffScene(
@@ -1863,18 +1926,30 @@ class FgoAccessibilityService : AccessibilityService() {
                         currentScreenHeight = currentScreenHeight
                     )
                 ) {
+                    storyOcrVisualGate.completeRecognition(
+                        scan.storyVisualRecognitionToken,
+                        accepted = false
+                    )
                     return
                 }
-                translateAndRenderScene(
-                    mode = ProcessingMode.AUTO_BACKGROUND,
-                    source = source,
-                    currentScreenWidth = currentScreenWidth,
-                    currentScreenHeight = currentScreenHeight,
-                    processStartedAt = processStartedAt,
-                    processingVersion = processingVersion,
-                    sceneSource = sceneSource,
-                    recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
-                )
+                var accepted = false
+                try {
+                    accepted = translateAndRenderScene(
+                        mode = ProcessingMode.AUTO_BACKGROUND,
+                        source = source,
+                        currentScreenWidth = currentScreenWidth,
+                        currentScreenHeight = currentScreenHeight,
+                        processStartedAt = processStartedAt,
+                        processingVersion = processingVersion,
+                        sceneSource = sceneSource,
+                        recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
+                    )
+                } finally {
+                    storyOcrVisualGate.completeRecognition(
+                        scan.storyVisualRecognitionToken,
+                        accepted = accepted
+                    )
+                }
             }
             AutoScanResult.EmptyCompletedDialogue -> {
                 FgoLogger.debug(tag, "No translatable completed dialogue detected in FGO regions")
@@ -1892,6 +1967,9 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenHeight: Int,
         dialogueComplete: Boolean
     ): AutoScanResult {
+        if (!dialogueComplete) {
+            storyOcrVisualGate.reset()
+        }
         val choiceBounds = detectChoiceBounds(source, screenRegions)
         if (waitingForChoiceSelectionExit) {
             if (choiceBounds.isNotEmpty()) {
@@ -1929,11 +2007,29 @@ class FgoAccessibilityService : AccessibilityService() {
             return AutoScanResult.Waiting
         }
 
-        val dialogueRegions = recognizeDialogueRegions(
-            source,
-            screenRegions,
-            allowRedTextFallback = true
+        val visualDecision = observeStoryOcrVisual(
+            source = source,
+            screenRegions = screenRegions,
+            scope = StoryOcrVisualScope.AUTO
         )
+        if (visualDecision.action == StoryOcrVisualAction.SKIP_UNCHANGED) {
+            FgoLogger.debug(tag, "Auto OCR skipped: ${visualDecision.reason}")
+            return AutoScanResult.Waiting
+        }
+
+        val dialogueRegions = try {
+            recognizeDialogueRegions(
+                source,
+                screenRegions,
+                allowRedTextFallback = true
+            )
+        } catch (error: Throwable) {
+            storyOcrVisualGate.completeRecognition(
+                visualDecision.recognitionToken,
+                accepted = false
+            )
+            throw error
+        }
         val dialogueScene = sceneSourceFor(dialogueRegions)
         if (dialogueScene?.hasDialogue == true) {
             val label = if (choiceBounds.isEmpty()) {
@@ -1942,11 +2038,35 @@ class FgoAccessibilityService : AccessibilityService() {
                 "Completed dialogue after empty choice"
             }
             logAutoStoryDetection(label, dialogueRegions, currentScreenWidth, currentScreenHeight)
-            return AutoScanResult.Ready(regions = dialogueRegions)
+            return AutoScanResult.Ready(
+                regions = dialogueRegions,
+                storyVisualRecognitionToken = visualDecision.recognitionToken
+            )
         }
 
+        storyOcrVisualGate.completeRecognition(
+            visualDecision.recognitionToken,
+            accepted = false
+        )
         return AutoScanResult.EmptyCompletedDialogue
     }
+
+    private fun observeStoryOcrVisual(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        scope: StoryOcrVisualScope
+    ) = storyOcrVisualGate.observe(
+        scope = scope,
+        width = source.width,
+        height = source.height,
+        nameBounds = screenRegions.name.toStoryOcrVisualBounds(),
+        dialogueBounds = screenRegions.dialogue.toStoryOcrVisualBounds(),
+        pixel = source::getPixel,
+        now = SystemClock.elapsedRealtime()
+    )
+
+    private fun Rect.toStoryOcrVisualBounds(): StoryOcrVisualBounds =
+        StoryOcrVisualBounds(left, top, right, bottom)
 
     private fun logAutoStoryDetection(
         label: String,
