@@ -41,11 +41,13 @@ private const val MENU_REFERENCE_DENSITY = 3f
 @Composable
 fun FloatingMenu(
     translationMode: TranslationMode,
+    battleModeActive: Boolean,
     viewportScale: Float = 1f,
     gameServer: String,
     aiVoiceEnabled: Boolean,
     liveVoiceTranslationEnabled: Boolean,
     onTranslationModeChange: (TranslationMode) -> Unit,
+    onBattleModeSelect: () -> Unit,
     onLiveVoiceTranslationToggle: (Boolean) -> Unit,
     onCropTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
@@ -83,9 +85,12 @@ fun FloatingMenu(
 
         TranslationModeSelector(
             selectedMode = translationMode,
+            battleModeActive = battleModeActive,
+            battleModeEnabled = isJapaneseServer,
             viewportScale = viewportScale,
             label = modeLabel,
-            onModeChange = onTranslationModeChange
+            onModeChange = onTranslationModeChange,
+            onBattleModeSelect = onBattleModeSelect
         )
 
         LiveVoiceTranslationSwitchRow(
@@ -292,9 +297,12 @@ private fun MenuRow(
 @Composable
 private fun TranslationModeSelector(
     selectedMode: TranslationMode,
+    battleModeActive: Boolean,
+    battleModeEnabled: Boolean,
     viewportScale: Float,
     label: String,
-    onModeChange: (TranslationMode) -> Unit
+    onModeChange: (TranslationMode) -> Unit,
+    onBattleModeSelect: () -> Unit
 ) {
     val density = LocalDensity.current
     Column(
@@ -321,23 +329,36 @@ private fun TranslationModeSelector(
         ) {
             ModeSegment(
                 label = TranslationMode.MANUAL.label(),
-                selected = selectedMode == TranslationMode.MANUAL,
+                selected = !battleModeActive && selectedMode == TranslationMode.MANUAL,
                 viewportScale = viewportScale,
                 onClick = { onModeChange(TranslationMode.MANUAL) },
                 modifier = Modifier.weight(1f)
             )
             ModeSegment(
                 label = TranslationMode.SEMI_AUTO.label(),
-                selected = selectedMode == TranslationMode.SEMI_AUTO,
+                selected = !battleModeActive && selectedMode == TranslationMode.SEMI_AUTO,
                 viewportScale = viewportScale,
                 onClick = { onModeChange(TranslationMode.SEMI_AUTO) },
                 modifier = Modifier.weight(1f)
             )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(scaledMenuDp(6f, viewportScale, density))
+        ) {
             ModeSegment(
                 label = TranslationMode.AUTO.label(),
-                selected = selectedMode == TranslationMode.AUTO,
+                selected = !battleModeActive && selectedMode == TranslationMode.AUTO,
                 viewportScale = viewportScale,
                 onClick = { onModeChange(TranslationMode.AUTO) },
+                modifier = Modifier.weight(1f)
+            )
+            ModeSegment(
+                label = "BATTLE字幕",
+                selected = battleModeActive,
+                enabled = battleModeEnabled,
+                viewportScale = viewportScale,
+                onClick = onBattleModeSelect,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -348,17 +369,26 @@ private fun TranslationModeSelector(
 private fun ModeSegment(
     label: String,
     selected: Boolean,
+    enabled: Boolean = true,
     viewportScale: Float,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
-    val background = if (selected) Color(0xFF075F66) else Color(0xFFF2F3F5)
-    val color = if (selected) Color.White else Color(0xFF333333)
+    val background = when {
+        selected -> Color(0xFF075F66)
+        enabled -> Color(0xFFF2F3F5)
+        else -> Color(0xFFE9EAEC)
+    }
+    val color = when {
+        selected -> Color.White
+        enabled -> Color(0xFF333333)
+        else -> Color(0xFFAAAAAA)
+    }
     Box(
         modifier = modifier
             .background(background, RoundedCornerShape(scaledMenuDp(8f, viewportScale, density)))
-            .clickable { onClick() }
+            .clickable(enabled = enabled) { onClick() }
             .padding(
                 horizontal = scaledMenuDp(4f, viewportScale, density),
                 vertical = scaledMenuDp(9f, viewportScale, density)

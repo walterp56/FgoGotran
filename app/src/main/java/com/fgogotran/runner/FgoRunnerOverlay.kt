@@ -371,6 +371,11 @@ class FgoRunnerOverlay @Inject constructor(
             return
         }
 
+        if (battleModeState.active.value) {
+            setBattleModeEnabled(false)
+            return
+        }
+
         if (!TranslationTrigger.canUserTapTranslate()) {
             FgoLogger.debug(tag, "Floating button tap ignored while full auto translation is enabled")
             return
@@ -472,6 +477,7 @@ class FgoRunnerOverlay @Inject constructor(
                 if (normalizedServer == gameServer) return@collect
                 gameServer = normalizedServer
                 if (!isJapaneseServer()) {
+                    setBattleModeEnabled(false)
                     cancelCropMode()
                     dismissHistoryPanel()
                 }
@@ -597,6 +603,7 @@ class FgoRunnerOverlay @Inject constructor(
         val menuHost = FakeComposeHost(context) {
             FloatingMenu(
                 translationMode = TranslationTrigger.translationMode(),
+                battleModeActive = battleModeActive,
                 viewportScale = currentViewportScale(),
                 gameServer = gameServer,
                 aiVoiceEnabled = aiVoiceEnabled,
@@ -604,8 +611,10 @@ class FgoRunnerOverlay @Inject constructor(
                 onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {
+                        accessibility.setBattleModeEnabled(false)
                         accessibility.setTranslationMode(mode)
                     } else {
+                        battleModeState.setEnabled(false)
                         TranslationTrigger.setTranslationMode(mode)
                         overlayScope.launch(Dispatchers.IO) {
                             settingsRepository.setLastTranslationMode(mode.name)
@@ -613,6 +622,13 @@ class FgoRunnerOverlay @Inject constructor(
                         refreshButtonMode()
                     }
                     dismissMenu()
+                },
+                onBattleModeSelect = {
+                    if (isJapaneseServer()) {
+                        cancelCropMode()
+                        setBattleModeEnabled(true)
+                        dismissMenu()
+                    }
                 },
                 onLiveVoiceTranslationToggle = { enabled ->
                     liveVoiceTranslationEnabled = enabled
@@ -674,6 +690,7 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun armOneShotCropMode() {
         if (!isJapaneseServer()) return
+        setBattleModeEnabled(false)
         if (cropModeState != CropModeState.SELECTING) {
             modeBeforeCrop = TranslationTrigger.translationMode()
         }
@@ -728,6 +745,16 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun isJapaneseServer(): Boolean {
         return SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
+    }
+
+    private fun setBattleModeEnabled(enabled: Boolean) {
+        val accessibility = FgoAccessibilityService.instance
+        if (accessibility != null) {
+            accessibility.setBattleModeEnabled(enabled)
+        } else {
+            battleModeState.setEnabled(enabled)
+            refreshButtonMode()
+        }
     }
 
     private fun updateButtonMode() {

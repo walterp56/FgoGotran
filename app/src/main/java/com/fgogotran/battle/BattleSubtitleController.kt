@@ -4,9 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
 import com.fgogotran.ocr.OcrEngine
-import com.fgogotran.overlay.BackgroundDetector
 import com.fgogotran.overlay.FgoReferenceRect
-import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.translation.BattleHistoryReservation
 import com.fgogotran.translation.SessionTranslationHistory
 import com.fgogotran.translation.TranslateResult
@@ -33,11 +31,9 @@ internal fun TranslateResult.isDisplayableBattleResponse(): Boolean =
 class BattleSubtitleController @Inject constructor(
     private val ocr: OcrEngine,
     private val translator: Translator,
-    private val background: BackgroundDetector,
     private val battleModeState: BattleModeState
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val scene = BattleSceneTracker()
     private val subtitles = BattleSubtitleTracker()
     private val subtitlePixelGate = BattleSubtitlePixelGate()
     private val delivery = BattleSubtitleDeliveryQueue<TranslateResult>()
@@ -49,23 +45,10 @@ class BattleSubtitleController @Inject constructor(
     private var sessionGeneration = 0L
     private var screenWidth = 0
     private var screenHeight = 0
-    private var nextHudSearchAt = 0L
     private var paused = true
-    private var hudMatch: BattleHudMatch? = null
-
-    // Finish queued battle lines before allowing an automatic story overlay to cover them.
-    val blocksStory: Boolean
-        get() = scene.blocksStory || delivery.hasPending
-
-    /** A confirmed battle or its first HUD candidate needs a service-owned follow-up frame. */
-    val needsDedicatedScan: Boolean
-        get() = scene.blocksStory
 
     val scanIntervalMs: Long
-        get() = when {
-            !scene.blocksStory -> 600L
-            else -> 120L
-        }
+        get() = 120L
 
     fun init(context: Context) {
         overlay = BattleSubtitleOverlay(context)
@@ -75,158 +58,27 @@ class BattleSubtitleController @Inject constructor(
         paused = false
     }
 
-    // Live game and package-bypassed tests share this exact frame path.
+    // Manual battle mode owns this path. It intentionally performs no story-marker
+    // or battle-HUD detection; the user selects when this OCR pipeline is active.
     suspend fun inspect(
         source: Bitmap,
-        capturedAt: Long,
-        knownDiamondVisible: Boolean? = null
-    ): Boolean {
-        if (paused) return blocksStory
+        capturedAt: Long
+    ) {
+        if (paused || !battleModeState.active.value) return
 
         if (source.width < source.height || source.height < 240) {
             suspendObservation()
-            return blocksStory
+            return
         }
 
         if (source.width != screenWidth || source.height != screenHeight) {
             generation++
             screenWidth = source.width
             screenHeight = source.height
-            hudMatch = null
-            nextHudSearchAt = 0L
             subtitlePixelGate.reset()
         }
 
         val version = generation
-
-        // A story pipeline can share its already computed marker result. Dedicated
-        // battle/manual scans still calculate it here from the same captured frame.
-        val diamondVisible = knownDiamondVisible ?: run {
-            val storyRegions =
-                FgoViewportLayout.regionsForScreen(source.width, source.height)
-
-            background.isDialogueCompleteMarkerVisible(
-                source,
-                storyRegions.dialogueComplete
-            )
-        }
-
-        if (version != generation) return blocksStory
-
-        val previousMode = scene.mode
-        var hudVisible = false
-
-        if (
-            !diamondVisible &&
-            previousMode == BattleSceneMode.STORY &&
-            (scene.blocksStory || capturedAt >= nextHudSearchAt)
-        ) {
-            val detectedHud = withContext(Dispatchers.Default) {
-                BattleHudDetector.locate(
-                    source.width,
-                    source.height,
-                    source::getPixel,
-                    hudMatch
-                )
-            }
-
-            if (version != generation) return blocksStory
-
-            hudVisible = BattleHudDetector.isStrongEntryMatch(detectedHud)
-
-            if (hudVisible && detectedHud != null) {
-                hudMatch = detectedHud
-                // Confirm a first strong match on the next available frame.
-                nextHudSearchAt = 0L
-            } else {
-                if (!scene.blocksStory) {
-                    hudMatch = null
-                }
-                nextHudSearchAt = capturedAt + HUD_SEARCH_INTERVAL_MS
-            }
-        }
-
-        scene.observe(
-            hudVisible = hudVisible,
-            diamondVisible = diamondVisible
-        )
-
-        val currentMode = scene.mode
-        battleModeState.setActive(scene.inBattle)
-
-        if (
-            previousMode == BattleSceneMode.STORY &&
-            currentMode == BattleSceneMode.BATTLE
-        ) {
-            // The battle is an authoritative context boundary. Keep LOG rows, glossary,
-            // memory and queued subtitles, but never carry story dialogue across it.
-            SessionTranslationHistory.clearSceneDialogueContext()
-        }
-
-        if (diamondVisible) {
-            // Never let a HUD-shaped false positive cached on the same frame
-            // compete with the authoritative story marker on later frames.
-            hudMatch = null
-        } else if (
-            currentMode == BattleSceneMode.STORY &&
-            !scene.blocksStory &&
-            !hudVisible
-        ) {
-            hudMatch = null
-        }
-
-        if (
-            previousMode == BattleSceneMode.BATTLE &&
-            currentMode != BattleSceneMode.BATTLE
-        ) {
-            val boundaryEvent =
-                subtitles.finalizePendingAtBoundary(capturedAt)
-
-            if (boundaryEvent != null) {
-                enqueueDetectedEvent(boundaryEvent)
-            }
-
-            subtitles.endedEvents.forEach {
-                delivery.endSource(it.id, it.at)
-            }
-
-            delivery.endAllSources(capturedAt)
-
-            if (boundaryEvent != null) {
-                pumpTranslations()
-            }
-
-            subtitles.clear()
-            subtitlePixelGate.reset()
-            hudMatch = null
-        }
-
-        if (previousMode != currentMode) {
-            val detail = when (currentMode) {
-                BattleSceneMode.BATTLE ->
-                    "dynamic HUD confirmed, screen=" +
-                            screenWidth +
-                            "x" +
-                            screenHeight +
-                            ", anchor=" +
-                            hudMatch?.referenceLeft +
-                            "," +
-                            hudMatch?.referenceTopOffset
-
-                BattleSceneMode.STORY ->
-                    "dialogue diamond detected; finishing queued battle subtitles"
-            }
-
-            FgoLogger.info(
-                "BattleSubtitle",
-                "Scene mode $previousMode -> $currentMode: $detail"
-            )
-        }
-
-        if (!scene.inBattle || diamondVisible) {
-            refreshCaption()
-            return blocksStory
-        }
 
         val shouldRecognize = withContext(Dispatchers.Default) {
             subtitlePixelGate.shouldRecognize(
@@ -240,7 +92,7 @@ class BattleSubtitleController @Inject constructor(
 
         if (!shouldRecognize) {
             refreshCaption()
-            return blocksStory
+            return
         }
 
         val lines = recognize(
@@ -248,8 +100,8 @@ class BattleSubtitleController @Inject constructor(
             BattleLayout.subtitle
         )
 
-        if (version != generation || paused) {
-            return blocksStory
+        if (version != generation || paused || !battleModeState.active.value) {
+            return
         }
 
         val candidate = BattleSubtitleText.extractCandidate(lines)
@@ -281,7 +133,6 @@ class BattleSubtitleController @Inject constructor(
         }
 
         refreshCaption()
-        return blocksStory
     }
 
     private fun enqueueDetectedEvent(event: BattleSubtitleEvent) {
@@ -505,14 +356,10 @@ class BattleSubtitleController @Inject constructor(
     /** Foreground loss/orientation changes stop observation, not delivery of captured lines. */
     fun suspendObservation() {
         pause()
-        scene.reset()
-        battleModeState.setActive(false)
         delivery.endAllSources(SystemClock.elapsedRealtime())
         subtitles.clear()
         screenWidth = 0
         screenHeight = 0
-        hudMatch = null
-        nextHudSearchAt = 0
         subtitlePixelGate.reset()
     }
 
@@ -530,10 +377,6 @@ class BattleSubtitleController @Inject constructor(
         history.clear()
         delivery.clear()
         subtitles.clear()
-        scene.reset()
-        battleModeState.setActive(false)
-        hudMatch = null
-        nextHudSearchAt = 0
         subtitlePixelGate.reset()
         screenWidth = 0
         screenHeight = 0
@@ -549,6 +392,5 @@ class BattleSubtitleController @Inject constructor(
 
     companion object {
         private const val MAX_CONCURRENT_TRANSLATIONS = 2
-        private const val HUD_SEARCH_INTERVAL_MS = 500L
     }
 }

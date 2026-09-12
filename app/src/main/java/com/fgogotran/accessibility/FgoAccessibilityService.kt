@@ -22,6 +22,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import com.fgogotran.analytics.AppAnalytics
+import com.fgogotran.battle.BattleModeState
 import com.fgogotran.battle.BattleSubtitleController
 import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
@@ -97,6 +98,7 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var appAnalytics: AppAnalytics
     @Inject lateinit var aiVoiceService: AiVoiceService
     @Inject lateinit var diagnosticEventStore: DiagnosticEventStore
+    @Inject lateinit var battleModeState: BattleModeState
     @Inject lateinit var battleSubtitles: BattleSubtitleController
     @Inject lateinit var cropSelectionOverlay: CropSelectionOverlay
 
@@ -338,6 +340,7 @@ class FgoAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        battleModeState.setEnabled(false)
         watchDebugLogging()
         initScreenSize()
         battleSubtitles.init(this)
@@ -459,6 +462,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 val normalizedServer = SettingsRepository.normalizeGameServer(server)
                 if (normalizedServer == gameServer) return@collect
                 gameServer = normalizedServer
+                battleModeState.setEnabled(false)
                 stopBattleMonitoring()
                 cancelCurrentTranslation()
                 if (!isJapaneseServer()) {
@@ -650,6 +654,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         FgoLogger.warn(tag, "Service interrupted")
+        battleModeState.setEnabled(false)
         cancelTransientForegroundLoss()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
@@ -659,6 +664,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
+        battleModeState.setEnabled(false)
         cancelTransientForegroundLoss()
         translationOverlay.destroy()
         cropResultOverlay.destroy()
@@ -682,6 +688,28 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Switches between the mutually exclusive story and manually selected battle OCR pipelines. */
+    fun setBattleModeEnabled(enabled: Boolean) {
+        if (battleModeState.active.value == enabled) return
+
+        cancelCurrentTranslation()
+        stopBattleMonitoring()
+        battleModeState.setEnabled(enabled)
+        nextBattleScanAt = 0L
+        translationOverlay.hideAll()
+        cropResultOverlay.hide()
+
+        if (enabled) {
+            // Manual battle selection is an explicit story-context boundary.
+            SessionTranslationHistory.clearSceneDialogueContext()
+            FgoLogger.info(tag, "Manual battle subtitle mode enabled")
+        } else {
+            FgoLogger.info(tag, "Manual battle subtitle mode disabled; returning to story mode")
+        }
+
+        runnerOverlay.refreshButtonMode()
+    }
+
     private fun applyTranslationMode(mode: TranslationMode) {
         TranslationTrigger.setTranslationMode(mode)
         cancelCurrentTranslation()
@@ -703,13 +731,12 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     fun requestManualTranslation(afterMenuDismiss: Boolean = false): Boolean {
-        if (!TranslationTrigger.canUserTapTranslate()) return false
-        cropResultOverlay.hide()
-        if (battleSubtitles.blocksStory) {
+        if (battleModeState.active.value) {
             nextBattleScanAt = 0L
             return true
         }
-
+        if (!TranslationTrigger.canUserTapTranslate()) return false
+        cropResultOverlay.hide()
         if (!canStartScreenTranslationNow()) {
             FgoLogger.debug(
                 tag,
@@ -827,6 +854,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     fun stopRunnerSession() {
         FgoLogger.info(tag, "Runner service stopped; disabling active translation")
+        battleModeState.setEnabled(false)
         TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
         autoScanReadyAt = 0L
         tapAdvancePolling = false
@@ -918,7 +946,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun monitorBattleIfReady() {
-        val eligible = isEffectiveFgoForeground && isJapaneseServer() &&
+        val eligible = battleModeState.active.value && isEffectiveFgoForeground && isJapaneseServer() &&
             FgoRunnerService.serviceStarted.value && !getSystemService(KeyguardManager::class.java).isKeyguardLocked
         if (!eligible) {
             if (battleMonitoring) stopBattleMonitoring(resetSession =
@@ -934,13 +962,6 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         battleSubtitles.resume()
         battleSubtitles.refreshCaption()
-        // AUTO/SEMI_AUTO story scans already supply frames to the battle detector.
-        // A separate capture is needed only in MANUAL mode, after the first HUD
-        // candidate, or while battle owns the screen.
-        if (TranslationTrigger.translationMode() != TranslationMode.MANUAL &&
-            !battleSubtitles.needsDedicatedScan) return
-        // processScreen also routes its captured frame through the battle observer. Do not
-        // invalidate that observation merely because the normal pipeline owns the frame.
         if (isProcessing || battleFrameBusy || SystemClock.elapsedRealtime() < nextBattleScanAt) return
         battleScanJob = serviceScope.launch {
             var frame: Bitmap? = null
@@ -968,48 +989,43 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             while (isActive) {
                 try {
-                    var foregroundWorkStarted = false
-                    if (canStartScreenTranslationNow()) {
-                        val translationMode = TranslationTrigger.translationMode()
-                        val manualRequest = if (TranslationTrigger.canUserTapTranslate()) {
-                            TranslationTrigger.consumeRequest()
-                        } else {
-                            false
-                        }
-                        if (manualRequest && battleSubtitles.blocksStory) {
-                            TranslationTrigger.consumeMenuDismissSettleRequired()
-                            cropResultOverlay.hide()
-                            nextBattleScanAt = 0L
-                        } else if (manualRequest) {
-                            FgoLogger.debug(tag, "Translate Now requested")
-                            val waitForMenuDismissal = TranslationTrigger.consumeMenuDismissSettleRequired()
-                            cropResultOverlay.hide()
-                            startManualTranslation(
-                                afterMenuDismiss = waitForMenuDismissal,
-                                requestedMode = translationMode
-                            )
-                            foregroundWorkStarted = true
-                        } else if (isEffectiveFgoForeground &&
-                            !battleSubtitles.blocksStory &&
-                            translationMode != TranslationMode.MANUAL &&
-                            !translationOverlay.isShowing() &&
-                            !(translationMode == TranslationMode.SEMI_AUTO && isSemiAutoBackgroundCoolingDown()) &&
-                            SystemClock.elapsedRealtime() >= autoScanReadyAt
-                        ) {
-                            translationJob = serviceScope.launch {
-                                val backgroundMode = when (translationMode) {
-                                    TranslationMode.SEMI_AUTO -> ProcessingMode.SEMI_AUTO_BACKGROUND
-                                    TranslationMode.AUTO -> ProcessingMode.AUTO_BACKGROUND
-                                    TranslationMode.MANUAL -> return@launch
-                                }
-                                processScreen(backgroundMode)
+                    if (battleModeState.active.value) {
+                        TranslationTrigger.cancelPendingTranslation()
+                        monitorBattleIfReady()
+                    } else {
+                        if (battleMonitoring) stopBattleMonitoring()
+                        if (canStartScreenTranslationNow()) {
+                            val translationMode = TranslationTrigger.translationMode()
+                            val manualRequest = if (TranslationTrigger.canUserTapTranslate()) {
+                                TranslationTrigger.consumeRequest()
+                            } else {
+                                false
                             }
-                            foregroundWorkStarted = true
+                            if (manualRequest) {
+                                FgoLogger.debug(tag, "Translate Now requested")
+                                val waitForMenuDismissal = TranslationTrigger.consumeMenuDismissSettleRequired()
+                                cropResultOverlay.hide()
+                                startManualTranslation(
+                                    afterMenuDismiss = waitForMenuDismissal,
+                                    requestedMode = translationMode
+                                )
+                            } else if (isEffectiveFgoForeground &&
+                                translationMode != TranslationMode.MANUAL &&
+                                !translationOverlay.isShowing() &&
+                                !(translationMode == TranslationMode.SEMI_AUTO && isSemiAutoBackgroundCoolingDown()) &&
+                                SystemClock.elapsedRealtime() >= autoScanReadyAt
+                            ) {
+                                translationJob = serviceScope.launch {
+                                    val backgroundMode = when (translationMode) {
+                                        TranslationMode.SEMI_AUTO -> ProcessingMode.SEMI_AUTO_BACKGROUND
+                                        TranslationMode.AUTO -> ProcessingMode.AUTO_BACKGROUND
+                                        TranslationMode.MANUAL -> return@launch
+                                    }
+                                    processScreen(backgroundMode)
+                                }
+                            }
                         }
                     }
-                    // Explicit/story work owns the next screenshot. Idle battle monitoring
-                    // runs only when it cannot delay a user request or scheduled story OCR.
-                    if (!foregroundWorkStarted) monitorBattleIfReady()
                 } catch (e: Exception) {
                     diagnosticEventStore.record(
                         level = DiagnosticEventStore.LEVEL_ERROR,
@@ -1027,6 +1043,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun processScreen(mode: ProcessingMode) {
+        if (battleModeState.active.value) return
         if (!mode.userInitiated && !isEffectiveFgoForeground) return
         if (isProcessing || battleFrameBusy) return
         if (!isProcessingModeEnabled(mode)) {
@@ -1052,10 +1069,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 delay(CAPTURE_SETTLE_DELAY)
             }
 
-            val capturedAt = SystemClock.elapsedRealtime()
             screenshot = takeScreenshotCompat()
             if (screenshot == null) {
-                battleSubtitles.observationUnavailable()
                 val failureInfo = screenshotFailureInfo(lastScreenshotErrorCode)
                 diagnosticEventStore.record(
                     level = DiagnosticEventStore.LEVEL_ERROR,
@@ -1086,22 +1101,6 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
             } else {
                 false
-            }
-            val battleOwnsScreen = if (FgoRunnerService.serviceStarted.value && isJapaneseServer()) {
-                battleSubtitles.resume()
-                battleSubtitles.inspect(
-                    source = source,
-                    capturedAt = capturedAt,
-                    knownDiamondVisible = dialogueComplete
-                )
-            } else {
-                false
-            }
-            if (battleOwnsScreen) {
-                if (battleSubtitles.needsDedicatedScan) nextBattleScanAt = 0L
-                restoreFgoForegroundAfterCapture("battle HUD")
-                restoreHiddenOverlay = false
-                return
             }
             reportGameServerPipelineUsed()
 
@@ -1165,7 +1164,6 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "Translation processing cancelled")
             throw e
         } catch (e: Exception) {
-            battleSubtitles.observationUnavailable()
             diagnosticEventStore.record(
                 level = DiagnosticEventStore.LEVEL_ERROR,
                 category = DiagnosticEventStore.CATEGORY_APP_ERROR,
@@ -2199,6 +2197,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun isProcessingModeEnabled(mode: ProcessingMode): Boolean {
+        if (battleModeState.active.value) return false
         return when (mode) {
             ProcessingMode.MANUAL_TAP -> TranslationTrigger.canUserTapTranslate()
             ProcessingMode.SEMI_AUTO_CHOICE_TAP -> TranslationTrigger.isSemiAutoEnabled()
