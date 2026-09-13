@@ -1,6 +1,16 @@
 # llama.cpp Setup
 
-FgoGotran Local does not download, modify, bundle, or update llama.cpp.
+FgoGotran Local does not bundle llama.cpp. On first start, the `platforms/windows-x64` package can download and install a verified official Windows x64 release into `user_data/runtime/windows-x64/llama.cpp`; manual runtimes remain fully supported. Existing valid runtimes from the former `user_data/runtime/llama.cpp` location continue to work.
+
+## Automatic setup
+
+The launcher queries official `ggml-org/llama.cpp` GitHub releases and accepts only complete Windows assets carrying SHA-256 metadata from GitHub. When `nvidia-smi` is available, it chooses the newest CUDA asset that is not newer than the CUDA compatibility level reported by the driver and downloads its matching CUDA runtime archive. Otherwise it uses the official CPU x64 build.
+
+Archives are downloaded resumably, checked for exact size and SHA-256, extracted through a staging directory, and adopted only after `llama-server.exe` is present. Existing non-empty configured paths are never replaced. The launcher does not install or update an NVIDIA driver.
+
+Set `FGO_LOCAL_AUTO_SETUP=0` before launch to keep setup manual.
+
+## Manual setup
 
 ## Installation
 

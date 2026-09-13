@@ -55,7 +55,7 @@ object ApiEndpointPolicy {
         }
 
         require(isPrivateLanLiteral(uri.host)) {
-            "HTTP 仅允许数字形式的私有局域网地址，例如 192.168.3.18；公网或主机名请使用 HTTPS"
+            "HTTP 仅允许数字形式的电脑私有局域网地址；公网或主机名请使用 HTTPS"
         }
         return ValidatedEndpoint(url = trimmed, isPrivateLanHttp = true)
     }

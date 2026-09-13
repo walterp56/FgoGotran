@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import shutil
 from collections import deque
 from pathlib import Path
@@ -15,11 +16,18 @@ from .errors import ConfigError
 
 MAX_MODEL_RESULTS = 250
 MAX_MODEL_SCAN_ENTRIES = 10_000
+MAX_MANAGED_MANIFEST_BYTES = 64 * 1024
+DEFAULT_PLATFORM_ID = "windows-x64"
+PLATFORM_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 
 
 class ConfigStore:
-    def __init__(self, config_path: Path | str) -> None:
+    def __init__(self, config_path: Path | str, platform_id: str = DEFAULT_PLATFORM_ID) -> None:
         self.config_path = Path(config_path).resolve()
+        normalized_platform_id = str(platform_id).strip().lower()
+        if not PLATFORM_ID_PATTERN.fullmatch(normalized_platform_id):
+            raise ConfigError("本地平台标识无效。", 500)
+        self.platform_id = normalized_platform_id
         self._config: LocalConfig | None = None
         self._revision = ""
         self._lock = asyncio.Lock()
@@ -32,13 +40,15 @@ class ConfigStore:
                 except (OSError, json.JSONDecodeError) as error:
                     raise ConfigError(f"无法读取设置：{error}") from error
                 missing_key = not str(raw.get("apiKey", "")).strip() if isinstance(raw, dict) else False
-                config = normalize_config(raw)
+                candidate, managed_changed = self._apply_managed_defaults(raw)
+                config = normalize_config(candidate)
                 self._config = config
                 self._revision = self._revision_of(config)
-                if missing_key:
+                if missing_key or managed_changed:
                     await self._persist(config, create_backup=True)
             else:
-                config = default_config()
+                candidate, _ = self._apply_managed_defaults(default_config().model_dump(by_alias=True))
+                config = normalize_config(candidate)
                 self._config = config
                 await self._persist(config, create_backup=False)
             return self.public_config()
@@ -206,6 +216,70 @@ class ConfigStore:
         if self._config is None:
             raise ConfigError("设置尚未加载。", 500)
         return self._config
+
+    def _apply_managed_defaults(self, raw: Any) -> tuple[Any, bool]:
+        if not isinstance(raw, dict):
+            return raw, False
+        manifest = self._load_managed_manifest()
+        if manifest is None:
+            return raw, False
+
+        data_root = self.config_path.parent.resolve()
+        candidate = json.loads(json.dumps(raw))
+        changed = False
+
+        llama = self._managed_file(manifest.get("llamaServerPath"), data_root)
+        if (
+            llama
+            and llama.name.lower() in {"llama-server", "llama-server.exe"}
+            and not str(candidate.get("llamaServerPath", "")).strip()
+        ):
+            candidate["llamaServerPath"] = str(llama)
+            changed = True
+
+        return candidate, changed
+
+    def _load_managed_manifest(self) -> dict[str, Any] | None:
+        runtime_root = self.config_path.parent / "runtime"
+        candidates = (
+            runtime_root / self.platform_id / "managed-runtime.json",
+            runtime_root / "managed-runtime.json",
+        )
+        for manifest_path in candidates:
+            try:
+                if manifest_path.is_symlink() or not manifest_path.is_file():
+                    continue
+                if manifest_path.stat().st_size > MAX_MANAGED_MANIFEST_BYTES:
+                    continue
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(manifest, dict) or manifest.get("version") != 1:
+                continue
+            platform_id = str(manifest.get("platformId", "")).strip()
+            if platform_id and platform_id != self.platform_id:
+                continue
+            return manifest
+        return None
+
+    @staticmethod
+    def _managed_file(value: Any, data_root: Path) -> Path | None:
+        path = ConfigStore._managed_path(value, data_root)
+        return path if path and path.is_file() else None
+
+    @staticmethod
+    def _managed_path(value: Any, data_root: Path) -> Path | None:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        path = Path(text)
+        if not path.is_absolute():
+            return None
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError:
+            return None
+        return resolved if is_path_inside(data_root, resolved) else None
 
 
 def is_path_inside(root_path: Path | str, candidate_path: Path | str) -> bool:

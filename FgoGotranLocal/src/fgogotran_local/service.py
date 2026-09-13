@@ -20,21 +20,41 @@ from .system_monitor import SystemMonitor
 class LocalTranslationService:
     def __init__(self, data_directory: Path | str) -> None:
         self.data_directory = Path(data_directory).resolve()
-        self.config_store = ConfigStore(self.data_directory / "config.json")
+        platform_id = os.environ.get("FGO_LOCAL_PLATFORM_ID", "windows-x64")
+        self.config_store = ConfigStore(self.data_directory / "config.json", platform_id=platform_id)
         self.logs: LogStore | None = None
         self.manager: LlamaManager | None = None
         self.monitor = SystemMonitor()
         self.started_at = time.monotonic()
+        self._auto_start_task: asyncio.Task[None] | None = None
 
     async def initialize(self) -> None:
         await self.config_store.load()
         self.logs = LogStore(self.data_directory / "state", self.config_store.get_secret)
         self.manager = LlamaManager(self.config_store, self.data_directory / "state", self.logs)
         await self.manager.start_background()
+        if os.environ.get("FGO_LOCAL_AUTO_START_MODEL") == "1":
+            self._auto_start_task = asyncio.create_task(self._auto_start_model(), name="llama-auto-start")
 
     async def close(self) -> None:
+        if self._auto_start_task and not self._auto_start_task.done():
+            self._auto_start_task.cancel()
+            try:
+                await self._auto_start_task
+            except asyncio.CancelledError:
+                pass
         if self.manager:
             await self.manager.shutdown()
+
+    async def _auto_start_model(self) -> None:
+        await asyncio.sleep(0)
+        try:
+            await self._manager().start()
+            self._logs().add("INFO", "已按当前 Profile 自动启动 llama-server。")
+        except (ConfigError, StudioError) as error:
+            self._logs().add("WARN", f"自动启动已跳过：{error}")
+        except Exception as error:  # Keep the local control interface available for recovery.
+            self._logs().add("ERROR", f"自动启动失败：{error}")
 
     async def status(self, *, include_sensitive: bool = False) -> dict[str, Any]:
         manager = self._manager()

@@ -104,7 +104,7 @@ export default function LocalGuidePage() {
             <BookOpenCheck size={22} aria-hidden="true" />
             <div>
               <h2>用途与边界</h2>
-              <p>FgoGotran Local 是本地运行控制工具，不是模型或 llama.cpp 的下载器。</p>
+              <p>FgoGotran Local 是本地运行控制工具，可在首次确认后自动准备 Python 和 llama.cpp；GGUF 始终由用户管理。</p>
             </div>
           </div>
           <div className="docs-scope-grid">
@@ -118,14 +118,14 @@ export default function LocalGuidePage() {
             <article className="docs-scope-card unsupported">
               <Boxes size={20} aria-hidden="true" />
               <div>
-                <h3>大型运行文件需要自行准备</h3>
-                <p>工具不会下载、打包、移动或更新 llama.cpp、CUDA Runtime、GGUF 模型或 TTS 资源。</p>
+                <h3>大型运行文件不进入 Git</h3>
+                <p>Python 和 llama.cpp 的可选下载只写入已忽略的 user_data；也可完全手动配置。工具不会自动修改驱动、防火墙、路由器，或下载 GGUF/TTS 资源。</p>
               </div>
             </article>
           </div>
           <div className="docs-callout local-inline-callout">
             <AlertTriangle size={20} aria-hidden="true" />
-            <p>首次启动需要联网建立 Python 环境；本地接口仍有独立 API Key，用于阻止局域网内未经授权的调用。</p>
+            <p>首次自动准备需要联网并会先显示确认；Python 发布者签名以及 llama.cpp 的大小和 SHA-256 必须验证通过。GGUF 请自行从可信发布者取得，本地接口仍使用独立 API Key。</p>
           </div>
         </section>
 
@@ -218,9 +218,9 @@ export default function LocalGuidePage() {
               <Server size={21} aria-hidden="true" />
               <h3>llama.cpp 运行包</h3>
               <ul>
-                <li>NVIDIA 显卡通常选择 Windows x64 CUDA build。</li>
-                <li>其他显卡或纯 CPU 环境选择兼容的 Vulkan 或 CPU build。</li>
-                <li>同一 Release 如另有 CUDA DLL 压缩包，也要一起下载并解压。</li>
+                <li>自动设置按 nvidia-smi 的兼容版本选择官方 Windows x64 CUDA build。</li>
+                <li>没有匹配 NVIDIA/CUDA 组合时，自动使用官方 CPU x64 build。</li>
+                <li>同一 Release 的主包与 CUDA DLL 包会一起校验并解压。</li>
                 <li>更新时解压到新目录，测试通过前保留旧版本。</li>
               </ul>
             </article>

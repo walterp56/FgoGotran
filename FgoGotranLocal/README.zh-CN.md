@@ -2,9 +2,9 @@
 
 [English README](README.md)
 
-FgoGotran Local 用于在 Windows 电脑上管理用户自行下载的 `llama.cpp` 和 GGUF 翻译模型，并通过兼容 OpenAI Chat Completions 的本地接口连接 FgoGotran Android 应用。
+FgoGotran Local 用于在 Windows 电脑上运行本地 `llama.cpp` 和用户选择的 GGUF 翻译模型，并通过兼容 OpenAI Chat Completions 的本地接口连接 FgoGotran Android 应用。第一次启动可在用户确认后自动准备 Python 和 llama.cpp，也继续支持完全手动配置；GGUF 模型始终由用户自行取得和管理。
 
-本项目只提供轻量的 Gradio 管理页面、配置管理和 Windows 启动脚本，不包含以下大型或第三方组件：
+Git 仓库只包含轻量的 Gradio 管理页面、配置管理和 Windows 启动脚本，不直接附带以下大型或第三方组件：
 
 - llama.cpp 可执行文件和 DLL
 - CUDA Runtime
@@ -12,19 +12,20 @@ FgoGotran Local 用于在 Windows 电脑上管理用户自行下载的 `llama.cp
 - GPT-SoVITS、角色语音或其他 TTS 组件
 - 云端 API Key
 
+自动下载的 Python 和 llama.cpp 组件只保存在已被 `.gitignore` 排除的 `.venv` 和 `user_data` 中，不会成为仓库内容。启动器不会下载、更新、替换或删除任何 GGUF 模型。
+
 ## 1. 工作流程
 
 完整流程如下：
 
-1. 在电脑安装兼容的 Python。
-2. 从官方渠道下载并完整解压 llama.cpp。
-3. 准备能够进行日文到中文翻译的 GGUF 模型。
-4. 启动 FgoGotran Local 管理页面。
-5. 建立并保存模型 Profile。
-6. 启动 llama-server 并等待模型就绪。
-7. 等待自动兼容性检测通过，也可在连接测试页手动复测。
-8. 在总览按需显示 Endpoint 与 API Key，再和 Model ID 一起填入手机上的 FgoGotran。
-9. 手机通过可信局域网调用电脑上的模型进行翻译。
+1. 双击启动器，复用现有兼容 Python，或确认安装项目私有 Python 3.13.15。
+2. 复用已有配置，或确认下载经过校验的官方 llama.cpp。
+3. 用户自行下载可信的 GGUF 模型，并在管理页面选择模型目录和文件。
+4. 启动 FgoGotran Local 管理页面并生成本地配置。
+5. 配置完整时自动启动 llama-server；也可保留手动启动。
+6. 等待自动兼容性检测通过，也可在连接测试页手动复测。
+7. 在总览按需显示 Endpoint 与 API Key，再和 Model ID 一起填入手机上的 FgoGotran。
+8. 手机通过可信局域网调用电脑上的模型进行翻译。
 
 ## 2. 安全边界
 
@@ -37,6 +38,9 @@ FgoGotran Local 将管理页面和翻译接口分开：
 - llama.cpp 以 offline 模式启动，不会主动下载模型。
 - llama.cpp 自带的 Web UI 被关闭。
 - 运行日志只保存在当前进程内存，并遮盖 API Key。
+- 下载 Python 安装程序后先验证 Python Software Foundation 的有效数字签名。
+- 下载 llama.cpp 后先验证 GitHub 提供的文件大小和 SHA-256，再解压采用。
+- 自动管理的文件只写入 `user_data`，不会修改系统 PATH、显卡驱动、防火墙或路由器。
 
 局域网 HTTP 没有传输加密，因此只能在可信家庭网络或可信专用网络中使用。不要在公共 Wi-Fi 使用，不要把 `18080` 或 `18081` 端口映射到公网。
 
@@ -49,6 +53,7 @@ FgoGotran Local 将管理页面和翻译接口分开：
 - 足够存放 GGUF 的磁盘空间
 - 与目标模型匹配的内存或显存
 - 首次安装 Python 依赖时可访问 Internet
+- 自动安装 Python 和 llama.cpp 时建议目标磁盘至少有 2 GiB 可用空间；GGUF 空间由用户按所选模型另行预留
 - 手机连接时，手机与电脑位于同一个可信局域网
 
 ### 3.2 建议的目录结构
@@ -68,9 +73,11 @@ C:\Projects\FgoGotran\FgoGotranLocal\
 - `.venv/`
 - `user_data/`
 
-## 4. 安装 Python
+## 4. 准备 Python
 
-从 Python 官方网站安装 64 位 Python 3.11、3.12 或 3.13。建议在安装程序中勾选 `Add Python to PATH`。
+启动器会先寻找 64 位 Python 3.11、3.12 或 3.13。如果找不到，会询问是否从 `python.org` 下载 Python 3.13.15，并私有安装到 `user_data\runtime\windows-x64\python-3.13.15`。安装前必须同时通过固定 SHA-256 和 Python Software Foundation 的 Authenticode 签名验证；不会修改系统 PATH、文件关联或其他 Python 项目。旧版 `user_data\runtime\python-3.13.15` 仍可自动识别，不需要重新下载。
+
+也可以自行从 Python 官方网站安装兼容版本。
 
 如果电脑有多个 Python，可以先在 PowerShell 指定本次启动使用的版本：
 
@@ -79,9 +86,23 @@ $env:FGO_LOCAL_PYTHON = 'C:\Path\To\python.exe'
 .\Start-FgoGotranLocal.cmd
 ```
 
-首次启动会在 `FgoGotranLocal\.venv` 建立项目私有环境。它不会修改其他 Python 项目。只有依赖文件发生变化或环境缺失时，启动脚本才会重新安装依赖。
+首次启动会在 `FgoGotranLocal\.venv` 建立项目私有环境。已有 `.venv` 如果版本或位数不兼容，会被保留为带时间戳的 `.venv.incompatible-*`，再建立干净环境。只有依赖文件发生变化或环境缺失时，启动脚本才会重新安装依赖。
 
 ## 5. 安装 llama.cpp
+
+### 5.1 自动安装
+
+没有已有配置时，启动器会询问是否自动安装。它会读取 `ggml-org/llama.cpp` 官方 GitHub Release：
+
+1. 有 NVIDIA GPU 时，读取 `nvidia-smi` 报告的最高兼容 CUDA 版本。
+2. 选择不高于驱动兼容版本、且主程序与 CUDA DLL 包齐全的 Windows x64 构建。
+3. 没有可用 NVIDIA/CUDA 组合时，回退到官方 CPU x64 构建。
+4. 要求 GitHub 提供完整文件大小和 SHA-256，下载后逐项校验。
+5. 先解压到临时目录，确认存在 `llama-server.exe` 后再采用。
+
+自动文件位于 `user_data\runtime\windows-x64\llama.cpp`。旧版本安装在 `user_data\runtime\llama.cpp` 的有效运行时会继续使用并自动迁移清单。启动器不会安装或更新显卡驱动，也不会覆盖仍然有效的配置路径。如果保存的 `llama-server.exe` 已不存在，启动器会先询问；用户同意后才安装替代运行时，并且只更新这个失效路径，不改变模型目录、GGUF、Model ID 或其他 Profile 参数。
+
+### 5.2 手动安装
 
 1. 打开 [llama.cpp 官方 Releases](https://github.com/ggml-org/llama.cpp/releases)。
 2. NVIDIA 显卡通常选择 Windows x64 CUDA build。
@@ -95,6 +116,8 @@ $env:FGO_LOCAL_PYTHON = 'C:\Path\To\python.exe'
 更新 llama.cpp 时，应解压到新目录并先完成测试，不要覆盖正在运行的旧目录。
 
 ## 6. 选择 GGUF 模型
+
+FgoGotran Local 不提供默认模型，也不会自动访问模型仓库。请自行从可信发布者取得兼容的 GGUF，核对发布者提供的许可证、文件大小和校验值，然后在管理页面设置模型目录并扫描选择。
 
 优先选择：
 
@@ -133,12 +156,16 @@ Start-FgoGotranLocal.cmd
 
 第一次启动会依次：
 
-1. 寻找兼容 Python。
-2. 创建 `.venv`。
+1. 寻找兼容 Python，缺失时询问是否私有安装。
+2. 创建或验证 `.venv`。
 3. 安装 Gradio、FastAPI、Uvicorn 等轻量依赖。
-4. 检查当前环境和已有配置。
-5. 启动本地管理页面。
-6. 打开 `http://127.0.0.1:18081`。
+4. 检查已有配置；仅在缺少 llama.cpp 时询问是否自动下载。
+5. 验证并登记自动管理的 llama.cpp；不读取或改变模型选择。
+6. 检查环境，启动本地管理页面。
+7. 打开 `http://127.0.0.1:18081`。
+8. Profile 文件完整时自动启动模型；失败时仍保留管理页面供修复。
+
+Python 或 llama.cpp 的提示问题直接按 Enter 表示接受默认自动设置；输入 `n` 表示跳过该组件并稍后手动配置。模型不会出现自动下载提示。
 
 使用期间必须保留命令窗口。需要退出时，应先在总览停止 llama-server，再关闭命令窗口。
 
@@ -446,11 +473,36 @@ FgoGotranLocal\user_data\
 
 ### 12.4 卸载
 
-停止服务后，可以删除 FgoGotran Local 文件夹。llama.cpp 和 GGUF 位于独立目录时不会受影响。如果不再使用它们，可另外处理对应目录。
+停止服务后，可以删除 FgoGotran Local 文件夹。自动管理的 llama.cpp 和下载缓存位于其中的 `user_data`，会随文件夹一起删除；配置在其他目录的模型不会受影响。如果用户自行把 GGUF 放进 `user_data`，删除前必须先备份。自动安装的 Python 文件也位于 `user_data`，但官方安装器可能在 Windows 留下当前用户的卸载登记；删除目录前应在“已安装的应用”确认其安装路径并卸载该副本。
 
 ## 13. 高级启动选项
 
-### 13.1 修改管理页面端口
+### 13.1 自动设置与自动启动
+
+无人值守接受 Python 和 llama.cpp 的可选下载：
+
+```powershell
+$env:FGO_LOCAL_AUTO_SETUP = '1'
+.\Start-FgoGotranLocal.cmd
+```
+
+完全禁用 Python 和 llama.cpp 的可选自动下载：
+
+```powershell
+$env:FGO_LOCAL_AUTO_SETUP = '0'
+.\Start-FgoGotranLocal.cmd
+```
+
+禁止自动启动已配置模型，保留页面内手动启动：
+
+```powershell
+$env:FGO_LOCAL_AUTO_START_MODEL = '0'
+.\Start-FgoGotranLocal.cmd
+```
+
+这些变量只影响当前 PowerShell 会话，不会更改保存的 Profile。
+
+### 13.2 修改管理页面端口
 
 默认端口 `18081` 被占用时：
 
@@ -461,7 +513,7 @@ $env:FGO_LOCAL_CONTROL_PORT = '18082'
 
 允许范围为 1024–65535。管理页面仍然只监听 `127.0.0.1`。
 
-### 13.2 禁止自动打开浏览器
+### 13.3 禁止自动打开浏览器
 
 ```powershell
 $env:FGO_LOCAL_OPEN_BROWSER = '0'
@@ -470,7 +522,7 @@ $env:FGO_LOCAL_OPEN_BROWSER = '0'
 
 然后手动访问管理页面。
 
-### 13.3 指定其他数据目录
+### 13.4 指定其他数据目录
 
 高级用户可以直接运行 PowerShell 启动脚本：
 
@@ -498,7 +550,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\windows\start
 
 ### 为什么第一次启动较慢？
 
-第一次需要创建 `.venv` 并下载 Python 依赖。第一次加载 GGUF 和第一次推理也通常比后续请求慢。
+第一次可能需要准备私有 Python、`.venv` 和 llama.cpp。用户还需要自行下载并选择 GGUF；第一次加载 GGUF 和第一次推理通常比后续请求慢。
 
 ### 是否可以使用云端模型？
 
@@ -516,10 +568,10 @@ FgoGotran Local 本身用于控制本机 llama.cpp。FgoGotran Android 应用可
 
 开始使用前确认：
 
-- [ ] Python 为 64 位 3.11–3.13
-- [ ] llama.cpp 来自可信来源并完整解压
+- [ ] Python 为 64 位 3.11–3.13，或私有 Python 已通过签名验证并安装
+- [ ] llama.cpp 来自可信来源并完整解压，自动下载文件已通过大小和 SHA-256 校验
 - [ ] `llama-server.exe` 同目录保留全部 DLL
-- [ ] GGUF 是 Instruction/Chat 模型
+- [ ] GGUF 是从可信发布者自行取得的 Instruction/Chat 模型，并已按发布说明核对文件
 - [ ] 模型路径和 Model ID 正确
 - [ ] 手机连接时使用 `0.0.0.0` 网络模式
 - [ ] Windows 网络类型为专用网络

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "windows-x64",
+  "displayName": "Windows 10/11 x64",
+  "operatingSystem": "windows",
+  "architecture": "x64",
+  "pythonArchitecture": "amd64",
+  "pythonSetup": "setup.ps1",
+  "runtimeSetup": "runtime-setup.ps1",
+  "doctor": "doctor.ps1",
+  "backendPriority": [
+    "cuda",
+    "cpu"
+  ]
+}

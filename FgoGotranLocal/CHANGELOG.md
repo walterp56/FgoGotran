@@ -12,3 +12,9 @@
 - Added an automatic startup Chat Completions probe before the server is marked ready.
 - Added one-time recovery to model-default thinking when forced-off mode returns only an end token, with a model/runtime-scoped compatibility cache.
 - Masked endpoints, LAN addresses, API keys and repeated local paths by default, with temporary per-section reveal controls.
+- Added an optional verified first-run bootstrap for private Python and an official driver-compatible llama.cpp Windows runtime.
+- Kept GGUF acquisition and selection entirely user-managed; the launcher has no model-download path.
+- Added managed llama.cpp configuration adoption without overwriting existing user paths, plus automatic startup of a valid user-configured active model.
+- Detect missing or invalid saved llama-server paths and offer a verified replacement while preserving every model setting and a config backup.
+- Keep launcher-generated Python path and JSON files BOM-free for compatibility with the Windows PowerShell 5.1 entry point.
+- Separated Windows x64 setup, runtime selection and diagnostics into `platforms/windows-x64`, with a manifest-driven root launcher and compatibility for existing managed runtimes.

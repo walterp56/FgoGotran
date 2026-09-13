@@ -1,84 +1,49 @@
 # Quick Start
 
-## 1. Install Python
+## Automatic first start
 
-Install 64-bit Python 3.11, 3.12, or 3.13. Enabling **Add Python to PATH** during installation is recommended.
+Double-click `Start-FgoGotranLocal.cmd` and keep the command window open.
 
-If more than one Python installation exists, select one for the current PowerShell session before launching:
+When required, the launcher asks before downloading external components. Press Enter to accept the displayed default or enter `n` to keep that component manual.
+
+1. A compatible installed 64-bit Python 3.11–3.13 is reused. If none exists, the launcher can download the signed Python 3.13.15 installer from `python.org` and install it privately under `user_data/runtime/windows-x64` without changing `PATH` or file associations. An existing valid runtime in the former shared location remains usable.
+2. `.venv` is created and the Python UI dependencies are installed.
+3. If llama.cpp is not configured, the launcher can obtain an official Windows x64 release. An NVIDIA CUDA build compatible with the driver is preferred; the official CPU build is the fallback.
+4. Download a compatible GGUF model yourself from a trusted publisher and select it in the control interface.
+5. Downloaded Python and llama.cpp files are checked against their official signature or size/SHA-256 metadata before use.
+6. The browser opens `http://127.0.0.1:18081`. An already complete active profile starts automatically.
+
+Automatic setup never downloads or manages GGUF models and never overwrites a valid user-configured runtime or model path. If a saved llama-server path points to a missing file, the launcher asks before installing a replacement and updates only that stale setting. A failed llama.cpp download does not prevent the control interface from opening.
+
+## Manual setup remains supported
+
+You can decline automatic llama.cpp setup and configure your own runtime on the **Model settings** page. Model setup is always manual:
+
+1. Select the complete `llama-server.exe` from a trusted llama.cpp build.
+2. Select the directory containing your GGUF models.
+3. Scan and choose a Japanese-to-Chinese Instruction/Chat GGUF.
+4. Confirm the Model ID and network mode.
+5. Save the active profile and start the model.
+
+Keep all DLLs supplied with `llama-server.exe`; copying only the executable is insufficient.
+
+## Connect FgoGotran
+
+After the status becomes **Ready**:
+
+1. Reveal the endpoint and API key on the overview page.
+2. In FgoGotran, select the custom/local API provider.
+3. Copy the endpoint, Model ID, and API key exactly.
+4. Use `http://<PC-LAN-IP>:18080/health` in the phone browser to test basic LAN access.
+
+The PC and phone must be on the same trusted private network. Never expose the inference or control ports through router port forwarding.
+
+## Non-interactive choices
 
 ```powershell
-$env:FGO_LOCAL_PYTHON = 'C:\Path\To\python.exe'
+$env:FGO_LOCAL_AUTO_SETUP = '1'                  # accept automatic component setup
+$env:FGO_LOCAL_AUTO_START_MODEL = '0'            # keep model startup manual
+.\Start-FgoGotranLocal.cmd
 ```
 
-## 2. Download llama.cpp
-
-1. Open the official [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases).
-2. For an NVIDIA GPU, choose a current Windows x64 CUDA build compatible with the installed driver.
-3. Without an NVIDIA GPU, choose an appropriate Windows x64 CPU or Vulkan build.
-4. If the release provides CUDA runtime DLLs in another archive, download that archive too.
-5. Extract every required archive into the same directory.
-6. Confirm that `llama-server.exe` and its DLL files are present.
-
-Do not copy or run only `llama-server.exe` by itself.
-
-## 3. Prepare a GGUF model
-
-Choose an Instruction or Chat model that supports Japanese input and Chinese output, then download a GGUF quantization. `Q4_K_M` is a practical first test because it balances memory usage and quality.
-
-Store models in a dedicated directory, for example:
-
-```text
-D:\AIModels\FgoGotran\model.gguf
-```
-
-## 4. Start the control interface
-
-Double-click `Start-FgoGotranLocal.cmd` in the project root. On first launch it will:
-
-1. Find a supported Python installation.
-2. Create the private `.venv` environment.
-3. Install or update the lightweight control dependencies.
-4. Run an environment check.
-5. Open `http://127.0.0.1:18081`.
-
-Keep the command window open while using local translation.
-
-## 5. Configure and start the model
-
-In the model settings page:
-
-1. Enter the absolute path to `llama-server.exe`.
-2. Enter the directory containing the GGUF files.
-3. Scan and select the desired GGUF model.
-4. Keep the generated Model ID or enter a short, stable ASCII identifier.
-5. Select trusted-LAN access when a phone must connect; otherwise select loopback-only access.
-6. Keep the inference defaults for the first test.
-7. Save the profile and return to the overview page.
-8. Start the service and wait for loading and the automatic compatibility check to finish.
-
-The initial model load may take some time. The service is marked ready only after a short Chat Completions probe returns usable text. If forced thinking control is incompatible, FgoGotran Local may restart the managed model once with its default behavior. Saving a changed runtime profile does not modify an already running llama-server; restart it to apply the changes.
-
-## 6. Test the API
-
-Startup performs this check automatically. You can repeat it from the connection test page. It checks that:
-
-- llama-server is ready.
-- The API key and Model ID are accepted.
-- The OpenAI Chat Completions response shape is usable.
-- The returned text is non-empty.
-
-This test validates connectivity and format, not final translation quality.
-
-## 7. Connect FgoGotran
-
-From the overview page, click the reveal controls and copy:
-
-- Complete Endpoint
-- Model ID
-- Complete API Key
-
-The reveal state is temporary and resets when the control page is reloaded.
-
-In the Android app, select the custom/local OpenAI-compatible backend and enter the same three values. The Endpoint must include `/v1/chat/completions`.
-
-For phone and firewall checks, continue with [Phone Connection](PHONE_CONNECTION.md).
+Use `FGO_LOCAL_AUTO_SETUP=0` to disable the optional Python/llama.cpp downloads. It never enables model downloading. See [Troubleshooting](TROUBLESHOOTING.md) if setup stops or the server does not become ready.

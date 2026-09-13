@@ -2,57 +2,63 @@
 
 [Complete Simplified Chinese guide](README.zh-CN.md)
 
-FgoGotran Local is a Windows control interface for running a user-provided `llama.cpp` translation server and connecting it to the FgoGotran Android app over a trusted local network.
+FgoGotran Local is a Windows control interface for running a local `llama.cpp` translation server and connecting it to the FgoGotran Android app over a trusted local network.
 
-This directory contains only the lightweight Gradio control interface, configuration logic, and Windows launcher. It does **not** include llama.cpp, CUDA runtime files, GGUF models, character voices, or TTS components.
+The repository contains only the lightweight launcher, Gradio control interface, configuration logic, and documentation. Python, llama.cpp, and CUDA runtime files can be downloaded to ignored local directories only after first-run confirmation; they are never committed or redistributed in this folder. GGUF models are always obtained and selected by the user.
 
 ## Quick start
 
-1. Install 64-bit Python 3.11, 3.12, or 3.13.
-2. Download a complete Windows build from the official [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases).
-3. Download an Instruction or Chat GGUF model that accepts Japanese and produces Chinese.
-4. Double-click `Start-FgoGotranLocal.cmd`.
-5. In the model settings page, select `llama-server.exe`, the model directory, and the GGUF file.
-6. Save the profile, start the service, and wait for the status to become ready.
-7. Reveal the Endpoint and API Key on the overview page, then copy them with the visible Model ID into FgoGotran.
+Double-click `Start-FgoGotranLocal.cmd`. On a new PC, the launcher can:
 
-The first launch creates a private `.venv` and installs the Python dependencies, so Internet access is required once. Later launches reuse the installed environment unless the dependency files change.
+1. Use an existing 64-bit Python 3.11–3.13, or offer to install an isolated Python 3.13.15 runtime under `user_data`.
+2. Create `.venv` and install the control-interface dependencies.
+3. Load the `platforms/windows-x64` package, detect the NVIDIA driver, and download a compatible official llama.cpp CUDA build with a CPU fallback.
+4. Verify the Python publisher signature and the official size/SHA-256 metadata before using downloads.
+5. Create the local configuration and open `http://127.0.0.1:18081`.
+6. Start an existing valid active model automatically, or wait for the user to configure one.
 
-See [Quick Start](docs/QUICK_START.md) for the complete setup sequence.
+Press Enter at the setup questions to accept the default. Existing valid llama.cpp and model paths are never replaced. If a saved llama-server path no longer exists, the launcher asks before installing a replacement and updates only that stale path; model settings remain unchanged. If automatic llama.cpp setup fails, the control interface still opens when Python is ready, allowing manual configuration. The launcher never downloads, updates, replaces, or deletes a GGUF model.
 
-## File placement
+## Managed files
 
-llama.cpp and models may remain anywhere the current Windows user can access. They do not need to be copied into this repository. For example:
+Automatic setup stores its files in locations already excluded by `.gitignore`:
 
 ```text
-C:\AI\llama.cpp\llama-server.exe
-D:\AIModels\fgo-translator.gguf
+.venv\
+user_data\downloads\
+user_data\runtime\windows-x64\python-3.13.15\
+user_data\runtime\windows-x64\llama.cpp\
+user_data\config.json
 ```
 
-Extract the complete llama.cpp package and keep all required DLL files beside `llama-server.exe`. Never commit `.gguf` files, llama.cpp binaries, `.venv`, or `user_data`.
+It does not modify the system `PATH` or file associations, install a GPU driver, change router settings, open firewall rules, or expose the control interface to the LAN. The official Python installer may create its normal per-user uninstall entry. User-managed models may remain elsewhere on the computer, or in an ignored directory chosen by the user.
 
-## Control interface
+## Phone connection
 
-The browser interface provides:
+- Control UI: `http://127.0.0.1:18081` — PC only.
+- Translation API: `http://<PC-LAN-IP>:18080/v1/chat/completions` — phone and PC when the active profile uses trusted-LAN mode.
+- Health check: `http://<PC-LAN-IP>:18080/health`.
 
-- Runtime overview, start/stop controls, and phone connection values.
-- Model profiles, llama.cpp paths, network access, and inference parameters.
-- An automatic OpenAI Chat Completions startup check plus a manual retest.
-- Safe one-time fallback to model-default thinking when forced-off mode returns only an end token.
-- Environment diagnostics and in-memory runtime logs.
+Use LAN mode only on a trusted private network. Allow the inference process only on the Windows private-network profile and never forward ports `18080` or `18081` on the router.
 
-The current control interface uses Simplified Chinese. The Chinese guide identifies every control by its displayed label.
+## Advanced launcher controls
 
-## Security boundary
+Set these variables in PowerShell before launching when needed:
 
-- The control interface listens only on `127.0.0.1:18081`; phones cannot open it.
-- The translation API normally listens on `0.0.0.0:18080` when trusted-LAN access is selected.
-- A random API key protects the translation API.
-- The project does not create UPnP rules or router port forwarding.
-- Runtime logs stay in memory and redact the API key.
-- LAN addresses, endpoints, and repeated local paths are masked by default and revealed only on explicit user action.
+```powershell
+# Accept or decline the optional Python/llama.cpp setup questions.
+$env:FGO_LOCAL_AUTO_SETUP = '1'       # use '0' to disable automatic downloads
 
-Use LAN mode only on a trusted private network. If Windows Firewall asks for permission, allow only private networks. Read [Security](SECURITY.md) before exposing the inference port to another device.
+# Keep the control UI running but do not start the active model automatically.
+$env:FGO_LOCAL_AUTO_START_MODEL = '0'
+
+# Select an existing compatible Python explicitly.
+$env:FGO_LOCAL_PYTHON = 'C:\Path\To\python.exe'
+
+.\Start-FgoGotranLocal.cmd
+```
+
+The automatic runtime selector uses the newest complete official llama.cpp release whose Windows asset includes GitHub SHA-256 metadata. For NVIDIA, it never selects a CUDA package newer than the maximum CUDA version reported by `nvidia-smi`; otherwise it uses the official CPU x64 build.
 
 ## Documentation
 
@@ -71,4 +77,4 @@ $env:PYTHONPATH = "$PWD\src"
 python -m pytest
 ```
 
-The test suite does not load a GGUF model.
+The tests do not download Python, llama.cpp, or CUDA files. The launcher has no GGUF download path.

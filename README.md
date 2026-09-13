@@ -51,16 +51,16 @@ Punctuation Wait Time: 0
 
 FgoGotran also requires Android overlay and Accessibility permissions. A working translation API key is required for AI translation.
 
-For a local OpenAI-compatible server such as llama.cpp, enter the phone-reachable Chat Completions endpoint (for example, `http://192.168.3.18:18080/v1/chat/completions`). Unencrypted HTTP is accepted only for numeric private-LAN addresses and should be used only on a trusted Wi-Fi network. Keep API-key authentication enabled on the local server.
+For a local OpenAI-compatible server such as llama.cpp, enter the phone-reachable Chat Completions endpoint (for example, `http://<PC-LAN-IP>:18080/v1/chat/completions`). Unencrypted HTTP is accepted only for numeric private-LAN addresses and should be used only on a trusted Wi-Fi network. Keep API-key authentication enabled on the local server.
 
 ## Project Structure
 
 ```text
-app/           Android app source code
-web/           FgoGotran website, built with Next.js static export
-local-ai-studio/  FgoGotran Local AI Studio and llama.cpp process manager
-term_builder/  Glossary TSV files and database build scripts
-scripts/       Helper scripts for APK, DB, and preview JSON release workflows
+app/             Android app source code
+web/             FgoGotran website, built with Next.js static export
+FgoGotranLocal/  Guided local-AI setup and llama.cpp process manager
+term_builder/    Glossary TSV files and database build scripts
+scripts/         Helper scripts for APK, DB, and preview JSON release workflows
 ```
 
 ## Android Development
@@ -97,16 +97,16 @@ Static output:
 web/out
 ```
 
-## Local AI Studio
+## FgoGotran Local
 
-FgoGotran Local AI Studio can configure, start, stop, and monitor an authenticated `llama-server` instance without exposing its control interface to the phone or LAN.
+FgoGotran Local provides a guided first-run setup and a local control interface for configuring, starting, stopping, and monitoring an authenticated `llama-server`. It can optionally download verified Python and llama.cpp components, while GGUF models remain entirely user-managed and the control interface stays available only on the PC loopback address.
 
 ```powershell
-cd local-ai-studio
-npm start
+cd FgoGotranLocal
+.\Start-FgoGotranLocal.cmd
 ```
 
-Open `http://127.0.0.1:18081`. Setup, firewall, and security details are in [local-ai-studio/README.md](local-ai-studio/README.md).
+Open `http://127.0.0.1:18081`. Setup, firewall, and security details are in [FgoGotranLocal/README.md](FgoGotranLocal/README.md).
 
 ## Terminology Database
 

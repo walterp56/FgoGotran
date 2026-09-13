@@ -19,31 +19,32 @@ export type LocalGuideParameter = {
 
 export const localQuickStartSteps: LocalGuideStep[] = [
   {
-    title: "安装 64 位 Python",
-    body: "安装 Python 3.11、3.12 或 3.13。建议在安装时启用 Add Python to PATH。",
-    note: "第一次启动控制面板时需要联网安装 Python 依赖；模型推理本身在电脑本地完成。"
+    title: "启动并检查 Python",
+    body: "双击 Start-FgoGotranLocal.cmd。程序会复用 64 位 Python 3.11–3.13；没有兼容版本时，可确认下载经签名和 SHA-256 校验的私有 Python 3.13.15。",
+    note: "私有 Python 位于 user_data，不修改系统 PATH 或文件关联。"
   },
   {
     title: "准备完整的 llama.cpp",
-    body: "从 llama.cpp 官方 Releases 下载适合硬件的 Windows x64 版本，并把同一发行版所需的压缩包完整解压到同一个目录。",
-    note: "不要只复制 llama-server.exe；它旁边的 DLL 同样是运行所需文件。"
+    body: "没有已有配置时，可确认自动下载经过大小和 SHA-256 校验的官方 Windows x64 构建；NVIDIA 会按驱动选择 CUDA 包，否则使用 CPU 构建。",
+    note: "也可按 n 跳过并手动选择；已有非空路径不会被覆盖。"
   },
   {
     title: "准备 GGUF 翻译模型",
-    body: "选择能够理解日文并输出中文的 Instruction 或 Chat 模型。初次测试可从 Q4_K_M 量化开始。"
+    body: "从可信发布者自行下载能够理解日文、稳定输出中文的 Instruction 或 Chat GGUF，再在管理页面选择模型目录和文件。",
+    note: "启动器不会下载、更新、替换或删除 GGUF 模型。"
   },
   {
     title: "启动管理页面",
-    body: "双击 FgoGotranLocal 根目录中的 Start-FgoGotranLocal.cmd，并在使用期间保留命令窗口。管理页面默认会在浏览器打开。",
+    body: "环境准备完成后，管理页面会在浏览器打开；使用期间保留命令窗口。完整的当前 Profile 会自动启动模型。",
     note: "管理页面默认地址是 http://127.0.0.1:18081，只能由当前电脑访问。"
   },
   {
     title: "填写模型设置",
-    body: "在“模型设置”中填写 llama-server.exe 的绝对路径和 GGUF 模型文件夹，扫描并选择模型，然后保留默认推理参数完成首次测试。"
+    body: "自动设置成功时会写入 llama-server.exe 路径；GGUF 始终由用户设置模型文件夹，再扫描并选择模型。"
   },
   {
     title: "保存并启动服务",
-    body: "选择“可信局域网 + 本机”，点击“保存并设为当前 Profile”，回到总览启动服务，并等待状态变成“已就绪”。",
+    body: "确认“可信局域网 + 本机”和 Model ID。自动启动失败或被关闭时，在总览手动启动服务并等待状态变成“已就绪”。",
     note: "运行参数保存后不会热更新；模型已经运行时，需要重新启动服务才能应用新设置。"
   },
   {
@@ -230,9 +231,9 @@ export const localTroubleshooting = [
 
 export const localFinalChecklist = [
   "使用 64 位 Python 3.11、3.12 或 3.13",
-  "llama.cpp 来自可信来源并已完整解压",
+  "llama.cpp 来自可信来源并已完整解压；自动下载已通过大小和 SHA-256 校验",
   "llama-server.exe 同目录保留所需 DLL",
-  "GGUF 是支持日文输入和中文输出的 Instruction 或 Chat 模型",
+  "GGUF 是从可信发布者自行取得、支持日文输入和中文输出的 Instruction 或 Chat 模型",
   "手机连接时选择“可信局域网 + 本机”",
   "Windows 防火墙只允许专用网络",
   "运行状态已经变为“已就绪”",

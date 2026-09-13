@@ -17,6 +17,11 @@ FgoGotran Local separates the local control interface from the translation API. 
 - Full connection values, diagnostic paths, and log paths are sent to the UI only after an explicit reveal action; reveal state is not persisted.
 - Translation prompts and game dialogue are not intentionally written to the control log.
 - No UPnP rule, router port forwarding, or public Internet listener is created.
+- Optional Python and llama.cpp first-run downloads require confirmation unless `FGO_LOCAL_AUTO_SETUP=1` was explicitly set for that launch.
+- The private Python installer is pinned to `python.org` and must have a valid Python Software Foundation Authenticode signature before execution.
+- Automatic llama.cpp downloads come only from official `ggml-org/llama.cpp` GitHub release assets and must match GitHub's exact size and SHA-256 digest.
+- The launcher contains no GGUF download source or automatic model-adoption path. Models remain entirely user-managed.
+- Managed component files are installed only below `user_data`; the launcher does not modify system `PATH`, file associations, drivers, firewall, UPnP, or router settings. The official Python installer may create normal per-user uninstall metadata.
 
 ## Network modes
 
@@ -27,7 +32,7 @@ Binding to `0.0.0.0` does not by itself publish the service on the Internet. Rou
 
 ## User responsibilities
 
-- Download llama.cpp and GGUF files only from trusted publishers.
+- Download every user-managed GGUF only from a trusted publisher.
 - Verify checksums or signatures when the publisher provides them.
 - Use LAN mode only on a trusted home or private network.
 - Allow the service only on the Windows private-network profile.
@@ -53,6 +58,9 @@ Do not publish or attach these paths:
 - `user_data/config.json`
 - `user_data/config.json.bak`
 - `user_data/state/`
+- `user_data/downloads/`
+- `user_data/runtime/`
+- `user_data/models/`
 - Any copied runtime log that contains private filesystem paths
 
 The repository `.gitignore` excludes the default sensitive and large-file locations, but users should still inspect staged files before committing.
