@@ -12,28 +12,18 @@ It reads the current FGO screen with OCR, matches FGO character names and termin
 ## Features
 
 - Designed specifically for FGO JP story reading.
-- Supports manual, semi-auto, auto, and crop translation modes.
+- Supports manual, semi-auto, auto, crop, and dedicated BATTLE subtitle modes for short in-battle dialogue.
 - Uses Japanese OCR to recognize story dialogue, choice text, and speaker names.
 - Uses a glossary/RAG layer before AI translation to keep FGO names, official terms, and story tone more stable.
 - Supports user-provided OpenAI-compatible API settings, including DeepSeek, Qwen, Alibaba Cloud Model Studio, custom endpoints, and authenticated local models on a trusted LAN.
+- Includes FgoGotran Local, a guided Windows x64 setup and control interface for authenticated local AI translation with llama.cpp.
 - Downloads the latest online terminology database instead of bundling a local DB inside the APK.
 - Includes a translation LOG so users can review translated speaker names, dialogue, and choices from the current session.
 - Optionally captures eligible FGO playback audio and streams it to a user-configured Azure Speech resource for low-latency Japanese-to-Chinese subtitles.
-- Battle-subtitle OCR automatically detects the BATTLE / ENEMY / TURN HUD and translates short on-screen battle dialogue independently of story translation mode.
 
 ### Battle subtitles
 
-Start the floating service and open FGO JP in landscape. Battle-subtitle translation is always active while the service is running on the Japanese server. It uses the selected OCR engine and text-translation API; Azure is not required.
-
-Battle detection and subtitle cropping use FGO's centered 16:9 layout. Captions appear above the original subtitle and do not intercept taps. Battle-caption typography follows the same viewport scale as FGO's native subtitle, using a 44-pixel reference size at 1920x1080. Soft OCR/API line breaks are reflowed and the background grows to the safe battle-caption width before longer translations wrap, without shrinking the text. Every confirmed OCR occurrence is queued independently of source disappearance or replacement. At most two translations run concurrently, with one API attempt per occurrence; results display in Japanese appearance order. Normally captions remain until one second after the source ends, or a newer ready caption replaces them after the minimum reading time. Late and queued captions always receive at least one second of actual visible time, even after the original window has ended. This prioritizes completeness over perfect synchronization when processing falls behind. OCR-missed lines and failed/timed-out API requests cannot be guaranteed; failures are logged and do not block later successful results.
-
-Battle dialogue uses a dedicated independent prompt with no speaker, character, choice, ruby, or previous-scene context. It retains the shared glossary, first/second-person, honorific, action-direction, katakana, pause, source-fidelity, and FGO punctuation rules. Source punctuation is reconciled locally after translation.
-
-Menus and LOG pause battle-caption display and its reading timer, without deleting queued results. Leaving the foreground pauses battle observation/display; returning resumes delivery. After a battle, the remaining queue can finish while the game remains foreground; automatic story translation waits for it to drain. Stopping the service cancels pending delivery. Azure voice subtitles remain independently configurable and do not change battle-caption capture, translation, visibility, timing, position, or cleanup. When both produce text, both overlays may be visible simultaneously; the draggable Azure position can be moved away from the fixed battle-caption area.
-
-Successful battle translations are recorded immediately in LOG as speakerless Chinese/Japanese dialogue, in source occurrence order, even before their on-screen turn. They are excluded from story prompt context. LOG retains all entries without a count limit for the current floating-service run; stopping/restarting the service clears it. It is not permanent storage. The LOG panel recycles visible rows for long sessions, and adding entries does not force a user reading older records to the bottom. Text history still consumes memory as the session grows.
-
-The detector is calibrated against the supplied battle recording, including one- and two-line dialogue and portrait cut-ins. It targets dialogue subtitles, not skill/status banners, damage numbers, or all spoken battle audio. Other game UI layouts and device OCR latency still need on-device validation.
+Select `BATTLE字幕` from the floating menu during FGO JP battles. It uses the selected OCR engine and translation API to display translated dialogue above the original subtitle and record it in LOG. Switch back to a story translation mode after the battle.
 
 ## Installation Note
 
@@ -99,14 +89,14 @@ web/out
 
 ## FgoGotran Local
 
-FgoGotran Local provides a guided first-run setup and a local control interface for configuring, starting, stopping, and monitoring an authenticated `llama-server`. It can optionally download verified Python and llama.cpp components, while GGUF models remain entirely user-managed and the control interface stays available only on the PC loopback address.
+FgoGotran Local provides a guided Windows 10/11 x64 setup for authenticated local AI translation with llama.cpp. It can prepare verified Python and llama.cpp components, prefers NVIDIA CUDA with a CPU fallback, and provides a local interface for configuring and monitoring the server. GGUF models remain user-managed.
 
 ```powershell
 cd FgoGotranLocal
 .\Start-FgoGotranLocal.cmd
 ```
 
-Open `http://127.0.0.1:18081`. Setup, firewall, and security details are in [FgoGotranLocal/README.md](FgoGotranLocal/README.md).
+Open `http://127.0.0.1:18081`. Setup and security guidance is available in [FgoGotranLocal/README.md](FgoGotranLocal/README.md).
 
 ## Terminology Database
 
