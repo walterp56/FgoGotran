@@ -240,7 +240,7 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                 gr.HTML(_page_intro_markup(
                     "MODEL SETUP",
                     "模型设置",
-                    "选择你单独下载的 llama.cpp 与 GGUF。FgoGotranLocal 不会自动下载或移动大型文件。",
+                    "llama.cpp 可由启动器自动准备或手动选择；GGUF 模型始终由用户下载，程序不会移动模型文件。",
                 ))
                 with gr.Group(elem_classes=["panel-card"]):
                     with gr.Row():

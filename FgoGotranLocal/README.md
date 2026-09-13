@@ -1,6 +1,6 @@
 # FgoGotran Local
 
-[Complete Simplified Chinese guide](README.zh-CN.md)
+[简体中文完整使用指南](简体中文使用指南.md)
 
 FgoGotran Local is a Windows control interface for running a local `llama.cpp` translation server and connecting it to the FgoGotran Android app over a trusted local network.
 

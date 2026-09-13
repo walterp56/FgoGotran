@@ -14,7 +14,7 @@ Confirm that the PC can reach PyPI, Windows date and time are correct, and secur
 
 ## Automatic llama.cpp setup did not complete
 
-Check Internet access to GitHub and make sure the system drive has at least 2 GiB free. The launcher accepts only official Windows x64 assets with complete size and SHA-256 metadata; if the newest upstream release is incomplete, run again later or configure a trusted runtime manually. The control interface continues to open when Python is ready.
+Check Internet access to GitHub and make sure the drive containing `user_data` has at least 2 GiB free. The launcher accepts only official Windows x64 assets with complete size and SHA-256 metadata; if the newest upstream release is incomplete, run again later or configure a trusted runtime manually. The control interface continues to open when Python is ready.
 
 Older launcher builds could incorrectly read GitHub's release array as one nested object under Windows PowerShell 5.1 and report that no SHA-256-addressed release existed even though the assets were present. Update the launcher files before retrying. Current builds also recognize both `CUDA Version` and the newer `CUDA UMD Version` label from `nvidia-smi`.
 

@@ -12,8 +12,6 @@ Set `FGO_LOCAL_AUTO_SETUP=0` before launch to keep setup manual.
 
 ## Manual setup
 
-## Installation
-
 1. Download only from the official [ggml-org/llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases), unless you have independently verified another build publisher.
 2. Windows systems with NVIDIA GPUs should normally use a Windows x64 CUDA build.
 3. CPU-only systems and other GPUs should use a backend compatible with their hardware.
