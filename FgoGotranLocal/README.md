@@ -14,7 +14,7 @@ This directory contains only the lightweight Gradio control interface, configura
 4. Double-click `Start-FgoGotranLocal.cmd`.
 5. In the model settings page, select `llama-server.exe`, the model directory, and the GGUF file.
 6. Save the profile, start the service, and wait for the status to become ready.
-7. Copy the displayed Endpoint, Model ID, and API Key into FgoGotran.
+7. Reveal the Endpoint and API Key on the overview page, then copy them with the visible Model ID into FgoGotran.
 
 The first launch creates a private `.venv` and installs the Python dependencies, so Internet access is required once. Later launches reuse the installed environment unless the dependency files change.
 
@@ -50,6 +50,7 @@ The current control interface uses Simplified Chinese. The Chinese guide identif
 - A random API key protects the translation API.
 - The project does not create UPnP rules or router port forwarding.
 - Runtime logs stay in memory and redact the API key.
+- LAN addresses, endpoints, and repeated local paths are masked by default and revealed only on explicit user action.
 
 Use LAN mode only on a trusted private network. If Windows Firewall asks for permission, allow only private networks. Read [Security](SECURITY.md) before exposing the inference port to another device.
 

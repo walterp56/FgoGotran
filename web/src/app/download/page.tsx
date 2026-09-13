@@ -79,6 +79,11 @@ export default function DownloadPage() {
             </a>{" "}
             后再安装 FgoGotran。
           </div>
+          <div className="download-reminder" role="note">
+            <strong>电脑本地模型：</strong>
+            想让手机调用 Windows 电脑上的 llama.cpp 与 GGUF，可查看{" "}
+            <Link href="/local-guide">FgoGotran Local 使用指南</Link>。
+          </div>
         </div>
 
         <div className="download-source-grid">

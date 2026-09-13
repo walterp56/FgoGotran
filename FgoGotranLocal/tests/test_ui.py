@@ -59,6 +59,26 @@ def test_model_settings_explain_when_disable_thinking_takes_effect(tmp_path: Pat
     assert "自动检测兼容性" in checkbox["props"]["info"]
 
 
+def test_sensitive_values_are_hidden_until_the_user_reveals_them(tmp_path: Path):
+    icon = Path(__file__).parents[1] / "public" / "gotran-icon.png"
+    studio = build_ui(LocalTranslationService(tmp_path), str(icon))
+    config = studio.get_config_file()
+    labels = [component.get("props", {}).get("label") for component in config["components"]]
+    button_values = [
+        component.get("props", {}).get("value")
+        for component in config["components"]
+        if component.get("type") == "button"
+    ]
+
+    assert labels.count("Endpoint") == 1
+    assert labels.count("API Key") == 1
+    assert "完整 Endpoint" not in labels
+    assert "完整 API Key" not in labels
+    assert "显示 Endpoint" in button_values
+    assert "显示 API Key" in button_values
+    assert button_values.count("显示敏感信息") == 2
+
+
 def test_compatibility_states_and_fallback_reason_are_visible_and_escaped():
     status = {
         "state": "VERIFYING",

@@ -23,7 +23,7 @@ FgoGotran Local 用于在 Windows 电脑上管理用户自行下载的 `llama.cp
 5. 建立并保存模型 Profile。
 6. 启动 llama-server 并等待模型就绪。
 7. 等待自动兼容性检测通过，也可在连接测试页手动复测。
-8. 将 Endpoint、Model ID 和 API Key 填入手机上的 FgoGotran。
+8. 在总览按需显示 Endpoint 与 API Key，再和 Model ID 一起填入手机上的 FgoGotran。
 9. 手机通过可信局域网调用电脑上的模型进行翻译。
 
 ## 2. 安全边界
@@ -160,10 +160,10 @@ http://127.0.0.1:18081
 - 当前 Profile
 - GPU 和显存状态
 - 启动、重新启动和停止按钮
-- 手机需要填写的 Endpoint
+- 默认遮盖的 Endpoint
 - Model ID
 - 已遮盖的 API Key
-- 显示完整 API Key 和更换 Key 的控制
+- 分别显示完整 Endpoint、完整 API Key 和更换 Key 的控制
 
 常见状态：
 
@@ -288,7 +288,7 @@ Model ID 长度为 1–80，只能使用英文字母、数字、`.`、`_`、`:` 
 - 局域网地址
 - GPU、显存和系统内存
 
-`运行日志` 显示当前进程内存中的 INFO、WARN 和 ERROR。可以筛选级别、刷新、复制或清除显示。日志不会故意保存翻译 Prompt 或游戏对白，但可能包含本机文件路径，分享前仍需检查。
+`环境诊断` 和 `运行日志` 默认遮盖局域网 IP 与本机文件路径，可临时点击`显示敏感信息`查看；刷新管理页面后会恢复隐藏。日志可以筛选级别、刷新、复制或清除显示。API Key 在日志中始终会被移除，日志也不会故意保存翻译 Prompt 或游戏对白。
 
 ## 9. 连接 Android 手机
 
@@ -312,7 +312,7 @@ http://127.0.0.1:18081
 
 它只能在电脑打开，不能填入 Android。
 
-手机应使用总览显示的翻译 Endpoint，例如：
+手机应使用总览点击`显示 Endpoint`后出现的翻译地址，例如：
 
 ```text
 http://<PC-LAN-IP>:18080/v1/chat/completions
@@ -324,7 +324,7 @@ http://<PC-LAN-IP>:18080/v1/chat/completions
 http://<PC-LAN-IP>:18080/health
 ```
 
-路由器地址不是电脑地址。不要猜测 IP，以总览当前显示为准。
+路由器地址不是电脑地址。不要猜测 IP，以总览点击显示的当前地址为准。
 
 ### 9.3 手机浏览器测试
 
@@ -347,9 +347,9 @@ http://<PC-LAN-IP>:18080/health
 在 Android 应用的 API 设置中：
 
 1. 选择 `自定义 / 本地 AI`。
-2. 将总览显示的完整 Endpoint 填入 API 地址。
+2. 点击`显示 Endpoint`，将出现的完整地址填入 API 地址。
 3. 填入完全相同的 Model ID。
-4. 点击显示完整 API Key，并复制到 Android。
+4. 点击`显示 API Key`，并把完整 Key 复制到 Android。
 5. 保存并运行连接测试。
 
 Android 对本地 HTTP 有额外保护：

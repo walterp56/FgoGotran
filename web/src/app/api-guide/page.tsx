@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Laptop } from "lucide-react";
 import { apiProviderGuides } from "@/data/apiProviderGuides";
 
 export const metadata: Metadata = {
@@ -32,6 +32,17 @@ export default function ApiGuidePage() {
       </section>
 
       <section className="section">
+        <Link className="api-hero-recommendation local-api-entry" href="/local-guide">
+          <span className="api-hero-icon">
+            <Laptop size={21} aria-hidden="true" />
+          </span>
+          <span>
+            <span className="api-hero-kicker">电脑本地模型</span>
+            <strong>使用 FgoGotran Local 运行 llama.cpp 与 GGUF</strong>
+          </span>
+          <ArrowRight size={18} aria-hidden="true" />
+        </Link>
+
         <div className="section-header">
           <p className="eyebrow">Providers</p>
           <h2>服务商文档</h2>

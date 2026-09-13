@@ -38,6 +38,7 @@ export const navItems: NavItem[] = [
   { href: "/guide", label: "使用指南" },
   { href: "/troubleshooting", label: "故障排查" },
   { href: "/api-guide", label: "API 指南" },
+  { href: "/local-guide", label: "本地 AI" },
   { href: "/speech-guide", label: "语音指南" },
   { href: "/terms", label: "术语表" },
   { href: "/media", label: "媒体" },

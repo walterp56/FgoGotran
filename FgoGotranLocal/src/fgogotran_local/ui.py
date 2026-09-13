@@ -186,6 +186,10 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
     with gr.Blocks(title="FgoGotran Local", fill_width=True) as studio:
         config_state = gr.State({})
         editing_profile_state = gr.State("")
+        endpoint_revealed_state = gr.State(False)
+        key_revealed_state = gr.State(False)
+        diagnostics_sensitive_state = gr.State(False)
+        logs_sensitive_state = gr.State(False)
 
         gr.HTML(
             f"""
@@ -219,20 +223,14 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                             action_result = gr.Markdown(elem_classes=["inline-result"])
                     with gr.Column(scale=3):
                         with gr.Group(elem_classes=["panel-card"]):
-                            gr.HTML(_panel_title_markup("FgoGotran 连接信息", "手机与电脑需连接同一个可信 Wi-Fi。"))
+                            gr.HTML(_panel_title_markup("FgoGotran 连接信息", "敏感信息默认隐藏；手机与电脑需连接同一个可信 Wi-Fi。"))
                             endpoint_box = gr.Textbox(label="Endpoint", interactive=False, buttons=["copy"], elem_classes=["code-field"])
                             model_id_box = gr.Textbox(label="Model ID", interactive=False, buttons=["copy"], elem_classes=["code-field"])
-                            masked_key_box = gr.Textbox(label="API Key", interactive=False, buttons=["copy"], elem_classes=["code-field"])
+                            api_key_box = gr.Textbox(label="API Key", interactive=False, buttons=["copy"], elem_classes=["code-field"])
                             with gr.Row():
+                                reveal_endpoint_button = gr.Button("显示 Endpoint", size="sm")
                                 reveal_key_button = gr.Button("显示 API Key", size="sm")
                                 rotate_key_button = gr.Button("更换 API Key", size="sm")
-                            revealed_key_box = gr.Textbox(
-                                label="完整 API Key",
-                                visible=False,
-                                interactive=False,
-                                buttons=["copy"],
-                                elem_classes=["code-field"],
-                            )
                             rotate_confirmation = gr.Checkbox(label="确认更换；手机中的旧 Key 将立即失效", value=False)
                             key_result = gr.Markdown(elem_classes=["inline-result"])
                 profile_summary = gr.HTML()
@@ -359,7 +357,10 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                 with gr.Tabs():
                     with gr.Tab("环境诊断"):
                         with gr.Group(elem_classes=["panel-card"]):
-                            diagnostics_button = gr.Button("运行诊断", variant="primary")
+                            with gr.Row():
+                                diagnostics_button = gr.Button("运行诊断", variant="primary")
+                                diagnostics_privacy_button = gr.Button("显示敏感信息")
+                            gr.Markdown("本机路径和局域网地址默认隐藏；显示状态不会保存。", elem_classes=["security-note"])
                             diagnostics_output = gr.Markdown()
                     with gr.Tab("运行日志"):
                         with gr.Group(elem_classes=["panel-card"]):
@@ -371,7 +372,9 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                                     scale=4,
                                 )
                                 refresh_logs_button = gr.Button("刷新", size="sm", scale=1)
+                                logs_privacy_button = gr.Button("显示敏感信息", size="sm", scale=1)
                                 clear_logs_button = gr.Button("清除显示", size="sm", scale=1)
+                            gr.Markdown("IP 和本机路径默认隐藏；API Key 无论何时都不会显示。", elem_classes=["security-note"])
                             logs_box = gr.Textbox(
                                 label="Runtime Log",
                                 lines=22,
@@ -410,21 +413,27 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
         ]
 
         async def load_initial():
-            config = service.public_config()
+            config = service.public_config(include_sensitive=True)
             profile_id = config["activeProfile"]
             return _profile_state_result(config, profile_id, "设置已加载。")
 
-        async def refresh_overview():
+        async def refresh_overview(endpoint_revealed: bool = False, key_revealed: bool = False):
             try:
                 status = await service.status()
                 config = service.public_config()
                 running = bool(status.get("pid"))
                 ready = status.get("state") in {"READY", "BUSY"}
+                if endpoint_revealed:
+                    sensitive_status = await service.status(include_sensitive=True)
+                    endpoint_value = sensitive_status["connection"]["endpoint"]
+                else:
+                    endpoint_value = status["connection"]["endpoint"]
+                key_value = service.api_key() if key_revealed else config["apiKeyMasked"]
                 return (
                     _status_markup(status),
-                    status["connection"]["endpoint"],
+                    endpoint_value,
                     status["connection"]["modelAlias"],
-                    config["apiKeyMasked"],
+                    key_value,
                     gr.update(interactive=not running),
                     gr.update(interactive=running),
                     gr.update(interactive=running),
@@ -450,7 +459,7 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
             status_html,
             endpoint_box,
             model_id_box,
-            masked_key_box,
+            api_key_box,
             start_button,
             restart_button,
             stop_button,
@@ -488,12 +497,28 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
             except Exception as error:
                 return _error_message(error)
 
-        async def reveal_key():
-            return gr.update(value=service.api_key(), visible=True)
+        async def toggle_endpoint_reveal(is_visible: bool):
+            reveal = not bool(is_visible)
+            if reveal:
+                status = await service.status(include_sensitive=True)
+                return (
+                    True,
+                    status["connection"]["endpoint"],
+                    gr.update(value="隐藏 Endpoint"),
+                )
+            status = await service.status()
+            return False, status["connection"]["endpoint"], gr.update(value="显示 Endpoint")
+
+        def toggle_key_reveal(is_visible: bool):
+            reveal = not bool(is_visible)
+            if reveal:
+                return True, service.api_key(), gr.update(value="隐藏 API Key")
+            return False, service.public_config()["apiKeyMasked"], gr.update(value="显示 API Key")
 
         async def rotate_key(confirmed: bool):
             if not confirmed:
                 return (
+                    gr.update(),
                     gr.update(),
                     gr.update(),
                     gr.update(),
@@ -505,12 +530,13 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                 return (
                     result["config"],
                     result["config"]["apiKeyMasked"],
-                    gr.update(value=result["apiKey"], visible=True),
-                    "<span class='result-ok'>API Key 已更换，请同步更新手机设置。</span>",
+                    False,
+                    gr.update(value="显示 API Key"),
+                    "<span class='result-ok'>API Key 已更换。点击“显示 API Key”后复制到手机。</span>",
                     False,
                 )
             except Exception as error:
-                return gr.update(), gr.update(), gr.update(), _error_message(error), False
+                return gr.update(), gr.update(), gr.update(), gr.update(), _error_message(error), False
 
         async def change_profile(new_profile_id: str, config: dict, editing_id: str, *values):
             draft = _apply_profile_form(config, editing_id, values)
@@ -576,34 +602,78 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
             choices = [(item["relativePath"], item["path"]) for item in models]
             return gr.update(choices=choices, value=current_model or None)
 
-        def render_logs(levels: list[str] | None) -> str:
-            return service.formatted_logs(set(levels or []))
+        def render_logs(levels: list[str] | None, include_sensitive: bool = False) -> str:
+            return service.formatted_logs(set(levels or []), include_sensitive=bool(include_sensitive))
 
-        def clear_log_display() -> str:
+        def clear_log_display(levels: list[str] | None, include_sensitive: bool) -> str:
             service.clear_logs()
-            return service.formatted_logs()
+            return render_logs(levels, include_sensitive)
 
-        async def run_diagnostics() -> str:
+        def toggle_logs_privacy(levels: list[str] | None, is_visible: bool):
+            reveal = not bool(is_visible)
+            return (
+                reveal,
+                gr.update(value="隐藏敏感信息" if reveal else "显示敏感信息"),
+                render_logs(levels, reveal),
+            )
+
+        async def run_diagnostics(include_sensitive: bool = False) -> str:
             try:
-                return _diagnostics_markdown(await service.diagnostics())
+                return _diagnostics_markdown(await service.diagnostics(include_sensitive=bool(include_sensitive)))
             except Exception as error:
                 return _error_message(error)
 
+        async def toggle_diagnostics_privacy(is_visible: bool):
+            reveal = not bool(is_visible)
+            return (
+                reveal,
+                gr.update(value="隐藏敏感信息" if reveal else "显示敏感信息"),
+                await run_diagnostics(reveal),
+            )
+
         studio.load(load_initial, outputs=profile_state_outputs, api_visibility="private")
-        studio.load(refresh_overview, outputs=overview_outputs, api_visibility="private")
-        studio.load(render_logs, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
-        overview_timer.tick(refresh_overview, outputs=overview_outputs, api_visibility="private")
-        logs_timer.tick(render_logs, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
+        studio.load(
+            refresh_overview,
+            inputs=[endpoint_revealed_state, key_revealed_state],
+            outputs=overview_outputs,
+            api_visibility="private",
+        )
+        studio.load(render_logs, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
+        overview_timer.tick(
+            refresh_overview,
+            inputs=[endpoint_revealed_state, key_revealed_state],
+            outputs=overview_outputs,
+            api_visibility="private",
+        )
+        logs_timer.tick(render_logs, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
 
         start_button.click(start_action, outputs=[action_result], concurrency_id="llama-control", concurrency_limit=1, api_visibility="private")
         stop_button.click(stop_action, outputs=[action_result], concurrency_id="llama-control", concurrency_limit=1, api_visibility="private")
         restart_button.click(restart_action, outputs=[action_result], concurrency_id="llama-control", concurrency_limit=1, api_visibility="private")
         test_button.click(run_test, outputs=[test_result], concurrency_id="llama-control", concurrency_limit=1, api_visibility="private")
-        reveal_key_button.click(reveal_key, outputs=[revealed_key_box], api_visibility="private")
+        reveal_endpoint_button.click(
+            toggle_endpoint_reveal,
+            inputs=[endpoint_revealed_state],
+            outputs=[endpoint_revealed_state, endpoint_box, reveal_endpoint_button],
+            api_visibility="private",
+        )
+        reveal_key_button.click(
+            toggle_key_reveal,
+            inputs=[key_revealed_state],
+            outputs=[key_revealed_state, api_key_box, reveal_key_button],
+            api_visibility="private",
+        )
         rotate_key_button.click(
             rotate_key,
             inputs=[rotate_confirmation],
-            outputs=[config_state, masked_key_box, revealed_key_box, key_result, rotate_confirmation],
+            outputs=[
+                config_state,
+                api_key_box,
+                key_revealed_state,
+                reveal_key_button,
+                key_result,
+                rotate_confirmation,
+            ],
             concurrency_id="llama-control",
             concurrency_limit=1,
             api_visibility="private",
@@ -628,10 +698,27 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
             api_visibility="private",
         )
         refresh_models_button.click(scan_models, inputs=[models_directory, model_path], outputs=[model_path], api_visibility="private")
-        diagnostics_button.click(run_diagnostics, outputs=[diagnostics_output], api_visibility="private")
-        refresh_logs_button.click(render_logs, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
-        log_levels.change(render_logs, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
-        clear_logs_button.click(clear_log_display, outputs=[logs_box], api_visibility="private")
+        diagnostics_button.click(
+            run_diagnostics,
+            inputs=[diagnostics_sensitive_state],
+            outputs=[diagnostics_output],
+            api_visibility="private",
+        )
+        diagnostics_privacy_button.click(
+            toggle_diagnostics_privacy,
+            inputs=[diagnostics_sensitive_state],
+            outputs=[diagnostics_sensitive_state, diagnostics_privacy_button, diagnostics_output],
+            api_visibility="private",
+        )
+        refresh_logs_button.click(render_logs, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
+        log_levels.change(render_logs, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
+        logs_privacy_button.click(
+            toggle_logs_privacy,
+            inputs=[log_levels, logs_sensitive_state],
+            outputs=[logs_sensitive_state, logs_privacy_button, logs_box],
+            api_visibility="private",
+        )
+        clear_logs_button.click(clear_log_display, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
 
     studio.queue(default_concurrency_limit=4, max_size=32)
     return studio

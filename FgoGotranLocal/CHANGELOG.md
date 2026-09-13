@@ -11,3 +11,4 @@
 - Kept thinking control off by default because some translation fine-tunes, including Sakura-14B-Qwen3-v1.5, return empty output when it is forced off.
 - Added an automatic startup Chat Completions probe before the server is marked ready.
 - Added one-time recovery to model-default thinking when forced-off mode returns only an end token, with a model/runtime-scoped compatibility cache.
+- Masked endpoints, LAN addresses, API keys and repeated local paths by default, with temporary per-section reveal controls.

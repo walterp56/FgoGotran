@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from .errors import ConfigError
+from .privacy import redact_sensitive_payload
 from .security import require_safe_mutation
 from .service import LocalTranslationService
 
@@ -24,11 +25,11 @@ def create_control_router(service: LocalTranslationService) -> APIRouter:
 
     @router.get("/api/key", include_in_schema=False)
     async def key() -> dict:
-        return {"apiKey": service.api_key()}
+        return {"apiKeyMasked": service.public_config()["apiKeyMasked"]}
 
     @router.get("/api/models", include_in_schema=False)
     async def models() -> dict:
-        return {"models": await service.list_models()}
+        return {"models": await service.public_models()}
 
     @router.get("/api/logs", include_in_schema=False)
     async def logs(after: int = 0) -> dict:
@@ -46,17 +47,17 @@ def create_control_router(service: LocalTranslationService) -> APIRouter:
     @router.post("/api/actions/start", include_in_schema=False)
     async def start(request: Request) -> dict:
         await require_safe_mutation(request)
-        return {"status": await service.start()}
+        return {"status": redact_sensitive_payload(await service.start())}
 
     @router.post("/api/actions/stop", include_in_schema=False)
     async def stop(request: Request) -> dict:
         await require_safe_mutation(request)
-        return {"status": await service.stop()}
+        return {"status": redact_sensitive_payload(await service.stop())}
 
     @router.post("/api/actions/restart", include_in_schema=False)
     async def restart(request: Request) -> dict:
         await require_safe_mutation(request)
-        return {"status": await service.restart()}
+        return {"status": redact_sensitive_payload(await service.restart())}
 
     @router.post("/api/actions/test", include_in_schema=False)
     async def test(request: Request) -> dict:

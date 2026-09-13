@@ -71,11 +71,13 @@ This test validates connectivity and format, not final translation quality.
 
 ## 7. Connect FgoGotran
 
-From the overview page, copy the displayed:
+From the overview page, click the reveal controls and copy:
 
-- Endpoint
+- Complete Endpoint
 - Model ID
 - Complete API Key
+
+The reveal state is temporary and resets when the control page is reloaded.
 
 In the Android app, select the custom/local OpenAI-compatible backend and enter the same three values. The Endpoint must include `/v1/chat/completions`.
 

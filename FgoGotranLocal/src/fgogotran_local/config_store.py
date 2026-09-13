@@ -200,7 +200,7 @@ class ConfigStore:
 
     @staticmethod
     def _mask_secret(secret: str) -> str:
-        return "••••••••" if len(secret) < 10 else f"{secret[:5]}••••••••{secret[-4:]}"
+        return "••••••••••••" if secret else ""
 
     def _require_loaded(self) -> LocalConfig:
         if self._config is None:

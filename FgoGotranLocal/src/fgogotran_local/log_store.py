@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from .privacy import redact_sensitive_text
+
 
 BEARER_PATTERN = re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]+", re.IGNORECASE)
 
@@ -29,13 +31,17 @@ class LogStore:
         self.entries.append(entry)
         return entry
 
-    def since(self, after: int | str = 0) -> dict:
+    def since(self, after: int | str = 0, *, include_sensitive: bool = False) -> dict:
         try:
             cursor = int(after)
         except (TypeError, ValueError):
             cursor = 0
+        entries = [dict(entry) for entry in self.entries if entry["id"] > cursor]
+        if not include_sensitive:
+            for entry in entries:
+                entry["message"] = redact_sensitive_text(entry["message"])
         return {
-            "entries": [dict(entry) for entry in self.entries if entry["id"] > cursor],
+            "entries": entries,
             "cursor": self.entries[-1]["id"] if self.entries else cursor,
         }
 
@@ -44,14 +50,15 @@ class LogStore:
         self.add("INFO", "日志显示已清除。")
         return self.since(0)
 
-    def formatted(self, levels: set[str] | None = None) -> str:
+    def formatted(self, levels: set[str] | None = None, *, include_sensitive: bool = False) -> str:
         selected = levels or {"INFO", "WARN", "ERROR"}
         lines = []
         for entry in self.entries:
             if entry["level"] not in selected:
                 continue
             timestamp = entry["timestamp"].replace("T", " ").replace("Z", "")
-            lines.append(f"{timestamp} {entry['level']:<5} {entry['message']}")
+            message = entry["message"] if include_sensitive else redact_sensitive_text(entry["message"])
+            lines.append(f"{timestamp} {entry['level']:<5} {message}")
         return "\n".join(lines)
 
     def _redact(self, message: str) -> str:
