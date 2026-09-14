@@ -74,7 +74,7 @@ Close other GPU applications and reduce Context Size. If the failure remains, us
 
 ## The server remains in loading state
 
-Large models can take time to load. Check whether GPU memory use is increasing and inspect the runtime log. If `/health` never becomes successful, the final llama-server log lines usually identify the problem.
+Large models can take time to load. Allow more loading time and inspect the runtime log. If `/health` never becomes successful, the final llama-server log lines usually identify the problem.
 
 ## Thinking control is unsupported
 

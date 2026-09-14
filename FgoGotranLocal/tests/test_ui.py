@@ -7,6 +7,8 @@ from fgogotran_local.ui import (
     STUDIO_CSS,
     UI_TAB_LABELS,
     _profile_summary_markup,
+    _error_message,
+    _error_status_markup,
     _status_markup,
     build_ui,
 )
@@ -76,7 +78,11 @@ def test_sensitive_values_are_hidden_until_the_user_reveals_them(tmp_path: Path)
     assert "完整 API Key" not in labels
     assert "显示 Endpoint" in button_values
     assert "显示 API Key" in button_values
-    assert button_values.count("显示敏感信息") == 2
+    assert "显示敏感信息" not in button_values
+    serialized = str(config)
+    assert "GPU / VRAM" not in serialized
+    assert "系统内存" not in serialized
+    assert "设备信息和 API Key 始终不会显示" in serialized
 
 
 def test_compatibility_states_and_fallback_reason_are_visible_and_escaped():
@@ -104,3 +110,14 @@ def test_compatibility_states_and_fallback_reason_are_visible_and_escaped():
     assert "123 ms" in profile_markup
     assert "model &lt;template&gt; conflict" in profile_markup
     assert "model <template> conflict" not in profile_markup
+    assert "GPU" not in status_markup
+    assert "VRAM" not in status_markup
+
+
+def test_ui_error_messages_redact_local_paths_and_network_addresses():
+    error = RuntimeError(r"Failed at C:\Users\Alice\Models\fgo.gguf on 192.168.1.20")
+
+    for markup in (_error_message(error), _error_status_markup(error)):
+        assert "Alice" not in markup
+        assert "192.168.1.20" not in markup
+        assert "路径已隐藏" in markup

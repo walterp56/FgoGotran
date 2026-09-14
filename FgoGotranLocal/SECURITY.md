@@ -12,9 +12,10 @@ FgoGotran Local separates the local control interface from the translation API. 
 - The llama.cpp built-in Web UI is disabled.
 - llama.cpp is started in offline mode and does not download models.
 - Configuration is stored in `user_data/config.json`; a backup is retained before replacement.
-- Runtime logs are kept in memory and redact the API key.
-- LAN addresses, endpoints, and repeated local paths are masked in the control UI and read-only control responses by default.
-- Full connection values, diagnostic paths, and log paths are sent to the UI only after an explicit reveal action; reveal state is not persisted.
+- Runtime logs are kept in memory and permanently redact API keys, IP addresses, local paths, and device identifiers.
+- Hardware and system inventory is not collected for the overview, diagnostics, or read-only status response.
+- The phone endpoint and API key are shown only after their separate explicit reveal actions; reveal state is not persisted.
+- User-selected runtime and model paths are visible only in the model settings form where they are required for configuration.
 - Translation prompts and game dialogue are not intentionally written to the control log.
 - No UPnP rule, router port forwarding, or public Internet listener is created.
 - Optional Python and llama.cpp first-run downloads require confirmation unless `FGO_LOCAL_AUTO_SETUP=1` was explicitly set for that launch.
@@ -36,7 +37,7 @@ Binding to `0.0.0.0` does not by itself publish the service on the Internet. Rou
 - Verify checksums or signatures when the publisher provides them.
 - Use LAN mode only on a trusted home or private network.
 - Allow the service only on the Windows private-network profile.
-- Do not share the API key, `user_data`, or diagnostics/logs after revealing private paths.
+- Do not share the API key or `user_data`; inspect copied diagnostics and logs before publishing them even though current builds redact known sensitive fields.
 - Never forward ports `18080` or `18081` on the router.
 - Do not use the service on a public Wi-Fi network.
 - Review VPN, virtual-machine, and container routes if they bridge the LAN interface.
@@ -61,6 +62,6 @@ Do not publish or attach these paths:
 - `user_data/downloads/`
 - `user_data/runtime/`
 - `user_data/models/`
-- Any copied runtime log that contains private filesystem paths
+- Runtime logs copied from older versions that may contain private filesystem paths
 
 The repository `.gitignore` excludes the default sensitive and large-file locations, but users should still inspect staged files before committing.

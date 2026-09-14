@@ -10,6 +10,7 @@ from typing import Any
 import gradio as gr
 
 from .errors import StudioError
+from .privacy import redact_sensitive_text
 from .service import LocalTranslationService
 
 
@@ -146,7 +147,7 @@ STUDIO_CSS = """
 .status-loading { color: var(--fgo-warning); background: #fff5d9; }
 .status-error { color: var(--fgo-danger); background: #fff0f0; }
 .status-stopped { color: #687587; background: #eef2f6; }
-.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .metric { border: 1px solid #e0e8f0; border-radius: 12px; padding: 12px; background: rgba(255, 255, 255, .78); }
 .metric span { display: block; color: #728096; font-size: .8rem; font-weight: 620; line-height: 1.35; }
 .metric strong { display: block; margin-top: 5px; color: #172d49; font-size: 1rem; font-weight: 680; overflow-wrap: anywhere; }
@@ -188,8 +189,6 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
         editing_profile_state = gr.State("")
         endpoint_revealed_state = gr.State(False)
         key_revealed_state = gr.State(False)
-        diagnostics_sensitive_state = gr.State(False)
-        logs_sensitive_state = gr.State(False)
 
         gr.HTML(
             f"""
@@ -357,10 +356,8 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                 with gr.Tabs():
                     with gr.Tab("环境诊断"):
                         with gr.Group(elem_classes=["panel-card"]):
-                            with gr.Row():
-                                diagnostics_button = gr.Button("运行诊断", variant="primary")
-                                diagnostics_privacy_button = gr.Button("显示敏感信息")
-                            gr.Markdown("本机路径和局域网地址默认隐藏；显示状态不会保存。", elem_classes=["security-note"])
+                            diagnostics_button = gr.Button("运行诊断", variant="primary")
+                            gr.Markdown("诊断只显示检查状态，不显示本机路径、网络地址或硬件信息。", elem_classes=["security-note"])
                             diagnostics_output = gr.Markdown()
                     with gr.Tab("运行日志"):
                         with gr.Group(elem_classes=["panel-card"]):
@@ -372,9 +369,8 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                                     scale=4,
                                 )
                                 refresh_logs_button = gr.Button("刷新", size="sm", scale=1)
-                                logs_privacy_button = gr.Button("显示敏感信息", size="sm", scale=1)
                                 clear_logs_button = gr.Button("清除显示", size="sm", scale=1)
-                            gr.Markdown("IP 和本机路径默认隐藏；API Key 无论何时都不会显示。", elem_classes=["security-note"])
+                            gr.Markdown("IP、本机路径、设备信息和 API Key 始终不会显示。", elem_classes=["security-note"])
                             logs_box = gr.Textbox(
                                 label="Runtime Log",
                                 lines=22,
@@ -424,8 +420,7 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                 running = bool(status.get("pid"))
                 ready = status.get("state") in {"READY", "BUSY"}
                 if endpoint_revealed:
-                    sensitive_status = await service.status(include_sensitive=True)
-                    endpoint_value = sensitive_status["connection"]["endpoint"]
+                    endpoint_value = (await service.connection_details(reveal=True))["endpoint"]
                 else:
                     endpoint_value = status["connection"]["endpoint"]
                 key_value = service.api_key() if key_revealed else config["apiKeyMasked"]
@@ -500,10 +495,10 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
         async def toggle_endpoint_reveal(is_visible: bool):
             reveal = not bool(is_visible)
             if reveal:
-                status = await service.status(include_sensitive=True)
+                connection = await service.connection_details(reveal=True)
                 return (
                     True,
-                    status["connection"]["endpoint"],
+                    connection["endpoint"],
                     gr.update(value="隐藏 Endpoint"),
                 )
             status = await service.status()
@@ -602,34 +597,18 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
             choices = [(item["relativePath"], item["path"]) for item in models]
             return gr.update(choices=choices, value=current_model or None)
 
-        def render_logs(levels: list[str] | None, include_sensitive: bool = False) -> str:
-            return service.formatted_logs(set(levels or []), include_sensitive=bool(include_sensitive))
+        def render_logs(levels: list[str] | None) -> str:
+            return service.formatted_logs(set(levels or []))
 
-        def clear_log_display(levels: list[str] | None, include_sensitive: bool) -> str:
+        def clear_log_display(levels: list[str] | None) -> str:
             service.clear_logs()
-            return render_logs(levels, include_sensitive)
+            return render_logs(levels)
 
-        def toggle_logs_privacy(levels: list[str] | None, is_visible: bool):
-            reveal = not bool(is_visible)
-            return (
-                reveal,
-                gr.update(value="隐藏敏感信息" if reveal else "显示敏感信息"),
-                render_logs(levels, reveal),
-            )
-
-        async def run_diagnostics(include_sensitive: bool = False) -> str:
+        async def run_diagnostics() -> str:
             try:
-                return _diagnostics_markdown(await service.diagnostics(include_sensitive=bool(include_sensitive)))
+                return _diagnostics_markdown(await service.diagnostics())
             except Exception as error:
                 return _error_message(error)
-
-        async def toggle_diagnostics_privacy(is_visible: bool):
-            reveal = not bool(is_visible)
-            return (
-                reveal,
-                gr.update(value="隐藏敏感信息" if reveal else "显示敏感信息"),
-                await run_diagnostics(reveal),
-            )
 
         studio.load(load_initial, outputs=profile_state_outputs, api_visibility="private")
         studio.load(
@@ -638,14 +617,14 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
             outputs=overview_outputs,
             api_visibility="private",
         )
-        studio.load(render_logs, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
+        studio.load(render_logs, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
         overview_timer.tick(
             refresh_overview,
             inputs=[endpoint_revealed_state, key_revealed_state],
             outputs=overview_outputs,
             api_visibility="private",
         )
-        logs_timer.tick(render_logs, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
+        logs_timer.tick(render_logs, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
 
         start_button.click(start_action, outputs=[action_result], concurrency_id="llama-control", concurrency_limit=1, api_visibility="private")
         stop_button.click(stop_action, outputs=[action_result], concurrency_id="llama-control", concurrency_limit=1, api_visibility="private")
@@ -700,25 +679,12 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
         refresh_models_button.click(scan_models, inputs=[models_directory, model_path], outputs=[model_path], api_visibility="private")
         diagnostics_button.click(
             run_diagnostics,
-            inputs=[diagnostics_sensitive_state],
             outputs=[diagnostics_output],
             api_visibility="private",
         )
-        diagnostics_privacy_button.click(
-            toggle_diagnostics_privacy,
-            inputs=[diagnostics_sensitive_state],
-            outputs=[diagnostics_sensitive_state, diagnostics_privacy_button, diagnostics_output],
-            api_visibility="private",
-        )
-        refresh_logs_button.click(render_logs, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
-        log_levels.change(render_logs, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
-        logs_privacy_button.click(
-            toggle_logs_privacy,
-            inputs=[log_levels, logs_sensitive_state],
-            outputs=[logs_sensitive_state, logs_privacy_button, logs_box],
-            api_visibility="private",
-        )
-        clear_logs_button.click(clear_log_display, inputs=[log_levels, logs_sensitive_state], outputs=[logs_box], api_visibility="private")
+        refresh_logs_button.click(render_logs, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
+        log_levels.change(render_logs, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
+        clear_logs_button.click(clear_log_display, inputs=[log_levels], outputs=[logs_box], api_visibility="private")
 
     studio.queue(default_concurrency_limit=4, max_size=32)
     return studio
@@ -839,11 +805,7 @@ def _unique_alias(config: dict, base: str) -> str:
 def _status_markup(status: dict) -> str:
     state = status.get("state", "STOPPED")
     state_class = "status-ready" if state in {"READY", "BUSY"} else "status-loading" if state in {"STARTING", "LOADING", "VERIFYING", "RECOVERING"} else "status-error" if state == "ERROR" else "status-stopped"
-    gpu = status.get("gpu") or {}
     metrics = status.get("metrics") or {}
-    gpu_memory = "无法获取"
-    if gpu.get("memoryTotalMiB") is not None:
-        gpu_memory = f"{_number(gpu.get('memoryUsedMiB'))} / {_number(gpu.get('memoryTotalMiB'))} MiB"
     token_speed = "—" if metrics.get("predictedTokensPerSecond") is None else f"{float(metrics['predictedTokensPerSecond']):.1f} Token/s"
     return f"""
     <div class="status-card">
@@ -854,7 +816,6 @@ def _status_markup(status: dict) -> str:
       <p>{html.escape(status.get('message', ''))}</p>
       <div class="metric-grid">
         <div class="metric"><span>Profile</span><strong>{html.escape(status.get('profile', {}).get('displayName', '—'))}</strong></div>
-        <div class="metric"><span>GPU / VRAM</span><strong>{html.escape(gpu_memory)}</strong></div>
         <div class="metric"><span>推理速度</span><strong>{html.escape(token_speed)}</strong></div>
         <div class="metric"><span>请求</span><strong>等待 {_number(metrics.get('requestsDeferred'))} · 处理中 {_number(metrics.get('requestsProcessing'))}</strong></div>
       </div>
@@ -880,13 +841,14 @@ def _profile_summary_markup(status: dict) -> str:
     compatibility_latency = compatibility.get("latencyMs")
     compatibility_suffix = f"　{int(compatibility_latency)} ms" if isinstance(compatibility_latency, (int, float)) else ""
     fallback_reason = str(thinking.get("reason") or "")
+    model_status = "已选择" if profile.get("modelPath") else "尚未选择"
     fallback_markup = f"<p class='restart-warning'>{html.escape(fallback_reason)}</p>" if fallback_reason else ""
     restart = "<p class='restart-warning'>设置已更改，需要重新启动 llama-server。</p>" if status.get("restartRequired") else ""
     return f"""
     <div class="status-card">
       <div class="status-eyebrow">ACTIVE PROFILE</div>
       <h2>{html.escape(profile.get('displayName', '当前 Profile'))}</h2>
-      <p><strong>GGUF：</strong><span class="code-text">{html.escape(profile.get('modelPath') or '尚未选择')}</span></p>
+      <p><strong>GGUF：</strong>{model_status}</p>
       <p><strong>Context：</strong>{_number(profile.get('contextSize'))}　<strong>Flash Attention：</strong>{html.escape(str(profile.get('flashAttention', 'auto')))}　<strong>Prompt Cache：</strong>{'开启' if profile.get('promptCache') else '关闭'}</p>
       <p><strong>模型思考：</strong>{html.escape(thinking_label)}{thinking_method}</p>
       <p><strong>Chat 兼容性：</strong>{html.escape(compatibility_label)}{html.escape(compatibility_suffix)}　{html.escape(compatibility_detail)}</p>
@@ -897,30 +859,30 @@ def _profile_summary_markup(status: dict) -> str:
 
 
 def _diagnostics_markdown(value: dict) -> str:
-    gpu = value.get("gpu") or {}
-    addresses = ", ".join(value.get("lanAddresses") or []) or "未检测到"
-    port_status = "可用" if value.get("portAvailable") else "已被占用（服务器运行时属于正常现象）"
+    def state(key: str) -> str:
+        return "正常" if value.get(key) else "需要检查"
+
+    port_status = "正常（服务正在运行）" if value.get("serverRunning") else state("portAvailable")
     return "\n".join([
         "### 诊断结果",
-        f"- FgoGotranLocal：`{value['version']}`",
-        f"- Python：`{value['pythonVersion']}`",
-        f"- 数据目录：`{value['dataDirectory']}`",
-        f"- llama-server：`{value['llamaServerPath']}`",
-        f"- 模型目录：`{value['modelsDirectory']}`",
-        f"- Runtime 验证：{value['runtimeValidation']}",
-        f"- API Port `{value['inferencePort']}`：{port_status}",
-        f"- 局域网地址：{addresses}",
-        f"- GPU：{gpu.get('name', '无法获取')}，VRAM {_number(gpu.get('memoryUsedMiB'))}/{_number(gpu.get('memoryTotalMiB'))} MiB",
-        f"- 系统内存：{_number(value['memory'].get('usedMiB'))}/{_number(value['memory'].get('totalMiB'))} MiB",
+        f"- Python 环境：{state('pythonEnvironmentReady')}",
+        f"- Python 依赖：{state('pythonDependenciesReady')}",
+        f"- 配置：{state('configurationReady')}",
+        f"- llama.cpp：{state('llamaConfigured')}",
+        f"- GGUF 模型：{state('modelConfigured')}",
+        f"- Runtime 验证：{state('runtimeReady')}",
+        f"- API 端口：{port_status}",
     ])
 
 
 def _error_status_markup(error: Exception) -> str:
-    return f"<div class='status-card'><div class='status-heading'><div><div class='status-eyebrow'>LLAMA.CPP RUNTIME</div><h2>本地翻译服务器</h2></div><span class='status-pill status-error'>控制台错误</span></div><p>{html.escape(str(error))}</p></div>"
+    message = redact_sensitive_text(str(error))
+    return f"<div class='status-card'><div class='status-heading'><div><div class='status-eyebrow'>LLAMA.CPP RUNTIME</div><h2>本地翻译服务器</h2></div><span class='status-pill status-error'>控制台错误</span></div><p>{html.escape(message)}</p></div>"
 
 
 def _error_message(error: Exception) -> str:
-    message = str(error) if isinstance(error, StudioError) else f"操作失败：{error}"
+    raw_message = str(error) if isinstance(error, StudioError) else f"操作失败：{error}"
+    message = redact_sensitive_text(raw_message)
     return f"<span class='result-error'>{html.escape(message)}</span>"
 
 

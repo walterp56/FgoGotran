@@ -74,3 +74,18 @@ def test_large_external_runtime_files_are_gitignored():
     assert "llama.cpp/" in ignore
     assert ".venv/" in ignore
     assert "user_data/" in ignore
+
+
+def test_startup_diagnostics_do_not_print_computer_inventory():
+    doctor = (ROOT / "platforms" / "windows-x64" / "doctor.ps1").read_text(encoding="utf-8")
+    runtime = (ROOT / "platforms" / "windows-x64" / "runtime-setup.ps1").read_text(encoding="utf-8")
+
+    assert "Project:" not in doctor
+    assert "User data:" not in doctor
+    assert "--query-gpu=name" not in doctor
+    assert "NVIDIA GPU" not in doctor
+    assert "Report 'OK' 'Configuration' $configPath" not in doctor
+    assert "{ $llamaPath }" not in doctor
+    assert "{ $modelPath }" not in doctor
+    assert "not found at '$staleDisplay'" not in runtime
+    assert "kept: $staleDisplay" not in runtime

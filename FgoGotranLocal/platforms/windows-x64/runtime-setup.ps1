@@ -448,11 +448,10 @@ if ($manifest) {
 }
 
 if ($settings.LlamaPathStale) {
-    $staleDisplay = $settings.LlamaPath
     $question = if ($llama) {
-        "Configured llama-server.exe was not found at '$staleDisplay'. Use the existing verified managed runtime and replace only this stale path?"
+        'The configured llama-server.exe is missing. Use the existing verified managed runtime and replace only this stale setting?'
     } else {
-        "Configured llama-server.exe was not found at '$staleDisplay'. Download a verified official replacement and replace only this stale path?"
+        'The configured llama-server.exe is missing. Download a verified official replacement and replace only this stale setting?'
     }
     if (Confirm-AutomaticSetup $question) {
         if (-not $llama) {
@@ -461,7 +460,7 @@ if ($settings.LlamaPathStale) {
         }
         $replaceStaleLlamaPath = $true
     } else {
-        Write-Warning "The stale llama-server path was kept: $staleDisplay"
+        Write-Warning 'The stale llama-server setting was kept.'
     }
 } elseif (-not $settings.LlamaConfigured -and -not $llama) {
     if (Confirm-AutomaticSetup 'llama.cpp is not configured. Download a verified official Windows x64 runtime automatically?') {

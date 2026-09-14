@@ -31,15 +31,12 @@ class LogStore:
         self.entries.append(entry)
         return entry
 
-    def since(self, after: int | str = 0, *, include_sensitive: bool = False) -> dict:
+    def since(self, after: int | str = 0) -> dict:
         try:
             cursor = int(after)
         except (TypeError, ValueError):
             cursor = 0
         entries = [dict(entry) for entry in self.entries if entry["id"] > cursor]
-        if not include_sensitive:
-            for entry in entries:
-                entry["message"] = redact_sensitive_text(entry["message"])
         return {
             "entries": entries,
             "cursor": self.entries[-1]["id"] if self.entries else cursor,
@@ -50,19 +47,19 @@ class LogStore:
         self.add("INFO", "日志显示已清除。")
         return self.since(0)
 
-    def formatted(self, levels: set[str] | None = None, *, include_sensitive: bool = False) -> str:
+    def formatted(self, levels: set[str] | None = None) -> str:
         selected = levels or {"INFO", "WARN", "ERROR"}
         lines = []
         for entry in self.entries:
             if entry["level"] not in selected:
                 continue
             timestamp = entry["timestamp"].replace("T", " ").replace("Z", "")
-            message = entry["message"] if include_sensitive else redact_sensitive_text(entry["message"])
-            lines.append(f"{timestamp} {entry['level']:<5} {message}")
+            lines.append(f"{timestamp} {entry['level']:<5} {entry['message']}")
         return "\n".join(lines)
 
     def _redact(self, message: str) -> str:
         secret = self.secret_provider()
         if secret:
             message = message.replace(secret, "[API_KEY_REDACTED]")
-        return BEARER_PATTERN.sub("Bearer [REDACTED]", message)[:2000]
+        message = BEARER_PATTERN.sub("Bearer [REDACTED]", message)
+        return redact_sensitive_text(message)[:2000]

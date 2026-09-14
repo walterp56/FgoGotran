@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from .control_api import create_control_router
 from .errors import StudioError
+from .privacy import redact_sensitive_text
 from .security import LocalControlSecurityMiddleware
 from .service import LocalTranslationService
 from .ui import STUDIO_CSS, build_ui, studio_theme
@@ -42,7 +43,7 @@ def create_application(
 
     @app.exception_handler(StudioError)
     async def local_error_handler(_: Request, error: StudioError) -> JSONResponse:
-        return JSONResponse({"error": str(error)}, status_code=error.status_code)
+        return JSONResponse({"error": redact_sensitive_text(str(error))}, status_code=error.status_code)
 
     app.include_router(create_control_router(service))
     if not mount_ui:

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from fgogotran_local.application import create_application
 from fgogotran_local.config_models import default_config
 from fgogotran_local.log_store import LogStore
-from fgogotran_local.privacy import MASKED_PATH, MASKED_VALUE, mask_endpoint, redact_sensitive_payload
+from fgogotran_local.privacy import MASKED_DEVICE, MASKED_PATH, MASKED_VALUE, mask_endpoint, redact_sensitive_payload
 from fgogotran_local.service import LocalTranslationService, default_data_directory, resolve_data_directory
 
 
@@ -57,6 +57,28 @@ def test_control_server_returns_config_error_for_missing_runtime(tmp_path: Path)
     assert "llama-server" in response.json()["error"]
 
 
+def test_control_server_redacts_paths_from_expected_errors(tmp_path: Path):
+    service = LocalTranslationService(tmp_path)
+    application = create_application(service, mount_ui=False, allow_test_host=True)
+
+    async def fail_without_exposing_path():
+        from fgogotran_local.errors import ConfigError
+
+        raise ConfigError(r"Missing C:\Users\Alice\Models\fgo.gguf")
+
+    service.start = fail_without_exposing_path
+    with TestClient(application) as client:
+        response = client.post(
+            "/api/actions/start",
+            headers={"X-FGO-Control": "1"},
+            json={},
+        )
+
+    assert response.status_code == 400
+    assert "Alice" not in response.text
+    assert "路径已隐藏" in response.text
+
+
 def test_control_server_rejects_non_object_json(tmp_path: Path):
     service = LocalTranslationService(tmp_path)
     application = create_application(service, mount_ui=False, allow_test_host=True)
@@ -74,11 +96,12 @@ def test_control_server_rejects_non_object_json(tmp_path: Path):
 
 def test_control_status_masks_lan_address_and_endpoint(tmp_path: Path):
     service = LocalTranslationService(tmp_path)
+    monitor_called = False
 
     async def fake_system_snapshot():
+        nonlocal monitor_called
+        monitor_called = True
         return {
-            "gpu": None,
-            "memory": {"usedMiB": 1024, "totalMiB": 2048},
             "lanAddresses": ["192.168.50.23"],
         }
 
@@ -87,10 +110,20 @@ def test_control_status_masks_lan_address_and_endpoint(tmp_path: Path):
 
     with TestClient(application) as client:
         response = client.get("/api/status")
+        assert monitor_called is False
+
+        async def reveal_connection():
+            return await service.connection_details(reveal=True)
+
+        revealed = client.portal.call(reveal_connection)
 
     assert response.status_code == 200
     assert "192.168.50.23" not in response.text
     assert response.json()["connection"]["endpoint"].endswith(":18080/v1/chat/completions")
+    assert monitor_called is True
+    assert "192.168.50.23" in revealed["endpoint"]
+    assert "gpu" not in response.json()
+    assert "memory" not in response.json()
 
 
 def test_read_only_config_and_status_mask_local_paths(tmp_path: Path):
@@ -141,20 +174,57 @@ def test_endpoint_mask_keeps_port_and_openai_path():
     assert masked == f"http://{MASKED_VALUE}:18080/v1/chat/completions"
 
 
-def test_logs_always_remove_key_and_only_reveal_network_and_paths_on_request(tmp_path: Path):
+def test_logs_permanently_remove_key_network_paths_and_device_details(tmp_path: Path):
     secret = "fgo_test_secret_123456789"
     logs = LogStore(tmp_path, lambda: secret)
     private_path = r"C:\Users\Alice\Private Models\fgo.gguf"
     logs.add("INFO", f"Endpoint http://192.168.1.9:18080 model {private_path} key {secret}")
+    logs.add("INFO", f"Authorization Bearer {secret}")
+    logs.add("INFO", "Listening on http://[fe80::1234]:18080")
+    logs.add("INFO", "NVIDIA GeForce RTX 5080 Laptop GPU")
 
     masked = logs.formatted()
-    revealed = logs.formatted(include_sensitive=True)
 
     assert "192.168.1.9" not in masked
     assert "Alice" not in masked
     assert "Private Models" not in masked
+    assert "fe80::1234" not in masked
     assert secret not in masked
-    assert "192.168.1.9" in revealed
-    assert private_path in revealed
-    assert secret not in revealed
-    assert "[API_KEY_REDACTED]" in revealed
+    assert "NVIDIA" not in masked
+    assert "5080" not in masked
+    assert MASKED_DEVICE in masked
+    assert "[API_KEY_REDACTED]" in masked
+
+
+def test_status_and_diagnostics_never_expose_computer_inventory(tmp_path: Path):
+    service = LocalTranslationService(tmp_path)
+    application = create_application(service, mount_ui=False, allow_test_host=True)
+
+    with TestClient(application) as client:
+        status = client.get("/api/status").json()
+        diagnostics = client.portal.call(service.diagnostics)
+
+    assert "gpu" not in status
+    assert "memory" not in status
+    forbidden = {
+        "version",
+        "pythonVersion",
+        "dataDirectory",
+        "llamaServerPath",
+        "modelsDirectory",
+        "inferencePort",
+        "lanAddresses",
+        "gpu",
+        "memory",
+    }
+    assert forbidden.isdisjoint(diagnostics)
+    assert set(diagnostics) == {
+        "pythonEnvironmentReady",
+        "pythonDependenciesReady",
+        "configurationReady",
+        "llamaConfigured",
+        "modelConfigured",
+        "runtimeReady",
+        "portAvailable",
+        "serverRunning",
+    }

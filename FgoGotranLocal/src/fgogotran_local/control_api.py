@@ -42,7 +42,7 @@ def create_control_router(service: LocalTranslationService) -> APIRouter:
         if not isinstance(candidate, dict):
             raise ConfigError("config 必须是 JSON 对象。")
         revision = body.get("revision") or candidate.get("revision")
-        return {"config": await service.update_config(candidate, revision)}
+        return {"config": redact_sensitive_payload(await service.update_config(candidate, revision))}
 
     @router.post("/api/actions/start", include_in_schema=False)
     async def start(request: Request) -> dict:
@@ -67,7 +67,11 @@ def create_control_router(service: LocalTranslationService) -> APIRouter:
     @router.post("/api/actions/rotate-key", include_in_schema=False)
     async def rotate_key(request: Request) -> dict:
         await require_safe_mutation(request)
-        return await service.rotate_api_key()
+        result = await service.rotate_api_key()
+        return {
+            "apiKey": result["apiKey"],
+            "config": redact_sensitive_payload(result["config"]),
+        }
 
     @router.delete("/api/logs", include_in_schema=False)
     async def clear_logs(request: Request) -> dict:

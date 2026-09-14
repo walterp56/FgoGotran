@@ -3,18 +3,16 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
-import sys
 import time
 from pathlib import Path
 from typing import Any
 
-from . import __version__
 from .config_store import ConfigStore
 from .errors import ConfigError, StudioError
 from .llama_manager import LlamaManager
 from .log_store import LogStore
-from .privacy import MASKED_VALUE, redact_connection, redact_sensitive_payload
-from .system_monitor import SystemMonitor
+from .network_monitor import NetworkMonitor
+from .privacy import redact_connection, redact_sensitive_payload
 
 
 class LocalTranslationService:
@@ -24,7 +22,7 @@ class LocalTranslationService:
         self.config_store = ConfigStore(self.data_directory / "config.json", platform_id=platform_id)
         self.logs: LogStore | None = None
         self.manager: LlamaManager | None = None
-        self.monitor = SystemMonitor()
+        self.monitor = NetworkMonitor()
         self.started_at = time.monotonic()
         self._auto_start_task: asyncio.Task[None] | None = None
 
@@ -56,31 +54,38 @@ class LocalTranslationService:
         except Exception as error:  # Keep the local control interface available for recovery.
             self._logs().add("ERROR", f"自动启动失败：{error}")
 
-    async def status(self, *, include_sensitive: bool = False) -> dict[str, Any]:
+    async def status(self) -> dict[str, Any]:
         manager = self._manager()
-        runtime, system = manager.snapshot(), await self.monitor.snapshot()
+        runtime = manager.snapshot()
+        connection_profile = runtime.get("runningProfile") or runtime["profile"]
+        placeholder_host = "192.168.x.x" if connection_profile["host"] == "0.0.0.0" else "127.0.0.1"
+        connection = {
+            "modelAlias": connection_profile["modelAlias"],
+            "endpoint": f"http://{placeholder_host}:{connection_profile['port']}/v1/chat/completions",
+            "health": f"http://{placeholder_host}:{connection_profile['port']}/health",
+        }
+        result = {
+            **runtime,
+            "uptimeSeconds": int(time.monotonic() - self.started_at),
+            "connection": redact_connection(connection),
+        }
+        return redact_sensitive_payload(result)
+
+    async def connection_details(self, *, reveal: bool = False) -> dict[str, Any]:
+        runtime = self._manager().snapshot()
+        system = await self.monitor.snapshot()
         connection_profile = runtime.get("runningProfile") or runtime["profile"]
         lan_address = next(iter(system["lanAddresses"]), None)
         connection_host = lan_address if connection_profile["host"] == "0.0.0.0" else "127.0.0.1"
         display_host = connection_host or "192.168.x.x"
-        result = {
-            **runtime,
-            "uptimeSeconds": int(time.monotonic() - self.started_at),
-            "gpu": system["gpu"],
-            "memory": system["memory"],
-            "connection": {
-                "lanAddress": lan_address,
-                "lanAccessible": connection_profile["host"] == "0.0.0.0" and bool(lan_address),
-                "modelAlias": connection_profile["modelAlias"],
-                "endpoint": f"http://{display_host}:{connection_profile['port']}/v1/chat/completions",
-                "health": f"http://{display_host}:{connection_profile['port']}/health",
-            },
+        connection = {
+            "lanAddress": lan_address,
+            "lanAccessible": connection_profile["host"] == "0.0.0.0" and bool(lan_address),
+            "modelAlias": connection_profile["modelAlias"],
+            "endpoint": f"http://{display_host}:{connection_profile['port']}/v1/chat/completions",
+            "health": f"http://{display_host}:{connection_profile['port']}/health",
         }
-        if include_sensitive:
-            return result
-        safe = redact_sensitive_payload(result)
-        safe["connection"] = redact_connection(result["connection"])
-        return safe
+        return connection if reveal else redact_connection(connection)
 
     def public_config(self, *, include_sensitive: bool = False) -> dict[str, Any]:
         config = self.config_store.public_config()
@@ -107,11 +112,11 @@ class LocalTranslationService:
     async def public_models(self) -> list[dict[str, str]]:
         return redact_sensitive_payload(await self.list_models())
 
-    def log_entries(self, after: int | str = 0, *, include_sensitive: bool = False) -> dict[str, Any]:
-        return self._logs().since(after, include_sensitive=include_sensitive)
+    def log_entries(self, after: int | str = 0) -> dict[str, Any]:
+        return self._logs().since(after)
 
-    def formatted_logs(self, levels: set[str] | None = None, *, include_sensitive: bool = False) -> str:
-        return self._logs().formatted(levels, include_sensitive=include_sensitive)
+    def formatted_logs(self, levels: set[str] | None = None) -> str:
+        return self._logs().formatted(levels)
 
     def clear_logs(self) -> dict[str, Any]:
         return self._logs().clear_display()
@@ -128,32 +133,24 @@ class LocalTranslationService:
     async def test_compatibility(self) -> dict[str, Any]:
         return await self._manager().test_compatibility()
 
-    async def diagnostics(self, *, include_sensitive: bool = False) -> dict[str, Any]:
+    async def diagnostics(self) -> dict[str, Any]:
         config = self.config_store.get_raw_config()
-        system = await self.monitor.snapshot()
-        runtime_validation = "通过"
+        profile = config.profiles[config.active_profile]
+        runtime_ready = True
         try:
             await self.config_store.validate_runtime_files()
-        except ConfigError as error:
-            runtime_validation = str(error)
-        result = {
-            "version": __version__,
-            "pythonVersion": sys.version.split()[0],
-            "dataDirectory": str(self.data_directory),
-            "llamaServerPath": config.llama_server_path or "尚未设置",
-            "modelsDirectory": config.models_directory or "尚未设置",
-            "runtimeValidation": runtime_validation,
-            "inferencePort": config.profiles[config.active_profile].port,
-            "portAvailable": await asyncio.to_thread(_port_available, config.profiles[config.active_profile].port),
-            "lanAddresses": system["lanAddresses"],
-            "gpu": system["gpu"],
-            "memory": system["memory"],
+        except ConfigError:
+            runtime_ready = False
+        return {
+            "pythonEnvironmentReady": True,
+            "pythonDependenciesReady": True,
+            "configurationReady": True,
+            "llamaConfigured": bool(config.llama_server_path.strip()),
+            "modelConfigured": bool(profile.model_path.strip()),
+            "runtimeReady": runtime_ready,
+            "portAvailable": await asyncio.to_thread(_port_available, profile.port),
+            "serverRunning": self._manager().is_running(),
         }
-        if include_sensitive:
-            return result
-        safe = redact_sensitive_payload(result)
-        safe["lanAddresses"] = [MASKED_VALUE for _ in result["lanAddresses"]]
-        return safe
 
     def _manager(self) -> LlamaManager:
         if self.manager is None:

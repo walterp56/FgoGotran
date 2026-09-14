@@ -8,6 +8,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 MASKED_VALUE = "••••••"
 MASKED_PATH = "（路径已隐藏）"
+MASKED_DEVICE = "（设备信息已隐藏）"
 
 IPV4_PATTERN = re.compile(
     r"(?<![\d.])"
@@ -17,10 +18,29 @@ IPV4_PATTERN = re.compile(
     r"(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)"
     r"(?![\d.])"
 )
+IPV6_PATTERN = re.compile(
+    r"(?:"
+    r"\[[0-9A-Fa-f:]*:[0-9A-Fa-f:]*\]|"
+    r"(?<![0-9A-Fa-f:])(?:"
+    r"(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|"
+    r"(?:[0-9A-Fa-f]{1,4}:){0,7}::(?:[0-9A-Fa-f]{1,4}:?){0,7}"
+    r")(?![0-9A-Fa-f:])"
+    r")",
+    re.IGNORECASE,
+)
 QUOTED_WINDOWS_PATH_PATTERN = re.compile(r"(?P<quote>[\"'])(?:[A-Za-z]:[\\/])[^\"'\r\n]+(?P=quote)")
 UNQUOTED_WINDOWS_PATH_PATTERN = re.compile(r"(?<![\w])(?:[A-Za-z]:[\\/])[^\"'<>|\r\n]*")
 UNC_PATH_PATTERN = re.compile(r"(?<!\\)\\\\[^\"'<>|\r\n]+")
 UNIX_HOME_PATTERN = re.compile(r"(?<!\w)/(?:home|Users)/[^\"'\r\n]+")
+DEVICE_DETAIL_LINE_PATTERN = re.compile(
+    r"^.*(?:"
+    r"NVIDIA\s+(?:GeForce|RTX|GTX|Quadro|Tesla)|"
+    r"AMD\s+(?:Radeon|Ryzen)|"
+    r"Intel(?:\(R\))?.*(?:CPU|Processor)|"
+    r"Microsoft Windows\s*\[Version"
+    r").*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 PATH_FIELD_NAMES = {
     "dataDirectory",
@@ -50,10 +70,12 @@ def mask_endpoint(value: str | None) -> str:
 
 def redact_sensitive_text(value: str) -> str:
     text = str(value)
+    text = DEVICE_DETAIL_LINE_PATTERN.sub(MASKED_DEVICE, text)
     text = QUOTED_WINDOWS_PATH_PATTERN.sub(lambda match: f"{match.group('quote')}{MASKED_PATH}{match.group('quote')}", text)
     text = UNC_PATH_PATTERN.sub(MASKED_PATH, text)
     text = UNQUOTED_WINDOWS_PATH_PATTERN.sub(MASKED_PATH, text)
     text = UNIX_HOME_PATTERN.sub(MASKED_PATH, text)
+    text = IPV6_PATTERN.sub(MASKED_VALUE, text)
     return IPV4_PATTERN.sub(MASKED_VALUE, text)
 
 

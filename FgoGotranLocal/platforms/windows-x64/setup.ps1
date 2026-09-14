@@ -133,7 +133,7 @@ function Move-Aside([string]$Path, [string]$Label) {
         $backup = "$backup-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
     }
     Move-Item -LiteralPath $resolved -Destination $backup
-    Write-Step "Preserved the incompatible $Label as $backup"
+    Write-Step "Preserved the incompatible $Label as a backup."
 }
 
 function Invoke-Download([string]$Url, [string]$Destination) {
