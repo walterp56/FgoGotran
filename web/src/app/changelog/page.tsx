@@ -8,6 +8,22 @@ export const metadata: Metadata = {
 
 const changelog = [
   {
+    title: "v3.0.0",
+    date: "15-9-2026",
+    icon: Smartphone,
+    items: ["新增 BATTLE字幕 模式，支持翻译战斗中的短对白",
+      "新增 Azure 实时日语语音识别与中文字幕功能",
+      "新增 FgoGotran Local，提供 Windows x64 本地 AI 快速配置及 llama.cpp 管理界面",
+      "支持通过可信局域网安全连接带 API Key 验证的本地 AI","提升 ML Kit 与 PaddleOCR 的速度和准确率，并支持 ■ 遮挡字符及边缘标点恢复",
+      "改进 FGO 风格翻译、角色语气、说话人性别、术语及日语省略主语处理",
+      "新增 Sakura 专用提示词，并精简通用 AI 模型提示词",
+      "新增可配置的双语剧情上下文，可使用最近 1–5 个场景",
+      "新增 Temperature 与 Top-p 高级设置，并根据不同 API 自动处理兼容性",
+      "翻译失败最多重试三次，避免长时间等待",
+      "改进对白换行、显示格式及中文标点规范化",
+      "APK 目前仅保留 arm64-v8a 与 x86_64 架构"]
+  },
+  {
     title: "v2.4.0",
     date: "26-8-2026",
     icon: Smartphone,
