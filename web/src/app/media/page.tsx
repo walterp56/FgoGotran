@@ -8,6 +8,20 @@ export const metadata: Metadata = {
 const mediaItems = [
   {
     platform: "Bilibili",
+    title: "B站演示视频3",
+    description: "",
+    href: "https://www.bilibili.com/video/BV1MKeE6DEgx/",
+    embedSrc: "https://player.bilibili.com/player.html?bvid=BV1MKeE6DEgx&page=1&high_quality=1&autoplay=0"
+  },
+  {
+    platform: "YouTube",
+    title: "YouTube 演示视频3",
+    description: "",
+    href: "https://www.youtube.com/watch?v=prS8kIj-zYY",
+    embedSrc: "https://www.youtube.com/embed/prS8kIj-zYY"
+  },
+  {
+    platform: "Bilibili",
     title: "B站演示视频2",
     description: "",
     href: "https://www.bilibili.com/video/BV19GgW6UEGa/?share_source=copy_web&vd_source=1c2307ecc4e2bc7ffe79b038dcd58242",
