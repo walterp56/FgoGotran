@@ -14,7 +14,7 @@ FgoGotran Local separates the local control interface from the translation API. 
 - Configuration is stored in `user_data/config.json`; a backup is retained before replacement.
 - Runtime logs are kept in memory and permanently redact API keys, IP addresses, local paths, and device identifiers.
 - Hardware and system inventory is not collected for the overview, diagnostics, or read-only status response.
-- The phone endpoint and API key are shown only after their separate explicit reveal actions; reveal state is not persisted.
+- The phone endpoint and API key remain masked unless explicitly revealed. Their copy icons transfer the real value only after a user action and immediately clear the temporary browser buffer; reveal state is not persisted.
 - User-selected runtime and model paths are visible only in the model settings form where they are required for configuration.
 - Translation prompts and game dialogue are not intentionally written to the control log.
 - No UPnP rule, router port forwarding, or public Internet listener is created.
@@ -38,6 +38,7 @@ Binding to `0.0.0.0` does not by itself publish the service on the Internet. Rou
 - Use LAN mode only on a trusted home or private network.
 - Allow the service only on the Windows private-network profile.
 - Do not share the API key or `user_data`; inspect copied diagnostics and logs before publishing them even though current builds redact known sensitive fields.
+- Remember that the API Key copy icon places the complete key in the operating-system clipboard; avoid shared clipboard-history or clipboard-sync services and overwrite it after configuring the phone when necessary.
 - Never forward ports `18080` or `18081` on the router.
 - Do not use the service on a public Wi-Fi network.
 - Review VPN, virtual-machine, and container routes if they bridge the LAN interface.

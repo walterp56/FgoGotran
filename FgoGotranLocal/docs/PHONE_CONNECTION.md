@@ -2,7 +2,7 @@
 
 ## Use the correct address
 
-The control interface at `http://127.0.0.1:18081` is intentionally limited to the PC. A phone must use the translation endpoint shown after clicking **Reveal Endpoint** on the overview page, for example:
+The control interface at `http://127.0.0.1:18081` is intentionally limited to the PC. A phone must use the translation endpoint obtained from the Endpoint copy icon or **Reveal Endpoint** on the overview page, for example:
 
 ```text
 http://<PC-LAN-IP>:18080/v1/chat/completions
@@ -14,7 +14,7 @@ The corresponding health address is:
 http://<PC-LAN-IP>:18080/health
 ```
 
-The router address is not the PC address. Always reveal and copy the current address from FgoGotran Local.
+The router address is not the PC address. Always copy the current address from FgoGotran Local. The dedicated copy action copies the real value even while the field remains masked.
 
 ## Connection checklist
 
@@ -24,8 +24,8 @@ The router address is not the PC address. Always reveal and copy the current add
 4. Save the profile and restart llama-server if it was already running.
 5. Wait until the server state is ready.
 6. If Windows Firewall prompts, allow the inference executable only on private networks.
-7. Click **Reveal Endpoint**, then open the corresponding health address in the phone browser.
-8. Enter the complete endpoint, identical Model ID, and the API key shown after clicking **Reveal API Key** in FgoGotran.
+7. Click the Endpoint copy icon and use the corresponding health address in the phone browser. Use **Reveal Endpoint** only when you need to inspect the value.
+8. Enter the complete endpoint, identical Model ID, and the API key obtained with the API Key copy icon in FgoGotran.
 
 The Android app accepts cleartext HTTP only for numeric private-LAN addresses. Do not enter `localhost`, a PC host name, or a public HTTP address.
 

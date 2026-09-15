@@ -183,12 +183,49 @@ STUDIO_CSS = """
 UI_TAB_LABELS = ("总览", "模型设置", "连接测试", "系统")
 
 
+def _clipboard_copy_js(label: str) -> str:
+    safe_label = label.replace("\\", "\\\\").replace('"', '\\"')
+    return f"""
+    async (value, serverMessage) => {{
+      if (!value) {{
+        return [serverMessage || "<span class='result-error'>没有可复制的内容。</span>", ""];
+      }}
+      try {{
+        try {{
+          await navigator.clipboard.writeText(value);
+        }} catch (clipboardError) {{
+          const temporary = document.createElement("textarea");
+          temporary.value = value;
+          temporary.setAttribute("readonly", "");
+          temporary.style.position = "fixed";
+          temporary.style.opacity = "0";
+          document.body.appendChild(temporary);
+          let copied = false;
+          try {{
+            temporary.focus();
+            temporary.select();
+            copied = document.execCommand("copy");
+          }} finally {{
+            temporary.remove();
+          }}
+          if (!copied) throw clipboardError;
+        }}
+        return ["", ""];
+      }} catch (error) {{
+        return ["<span class='result-error'>复制失败；请先显示 {safe_label}，再手动复制。</span>", ""];
+      }}
+    }}
+    """
+
+
 def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
     with gr.Blocks(title="FgoGotran Local", fill_width=True) as studio:
         config_state = gr.State({})
         editing_profile_state = gr.State("")
         endpoint_revealed_state = gr.State(False)
         key_revealed_state = gr.State(False)
+        endpoint_copy_buffer = gr.Textbox(value="", visible=False, show_label=False)
+        key_copy_buffer = gr.Textbox(value="", visible=False, show_label=False)
 
         gr.HTML(
             f"""
@@ -510,6 +547,22 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
                 return True, service.api_key(), gr.update(value="隐藏 API Key")
             return False, service.public_config()["apiKeyMasked"], gr.update(value="显示 API Key")
 
+        async def prepare_endpoint_copy():
+            try:
+                connection = await service.connection_details(reveal=True)
+                endpoint = connection["endpoint"]
+                if "192.168.x.x" in endpoint:
+                    return "", "<span class='result-error'>未检测到可复制的局域网地址，请检查网络设置。</span>"
+                return endpoint, ""
+            except Exception as error:
+                return "", _error_message(error)
+
+        def prepare_key_copy():
+            try:
+                return service.api_key(), ""
+            except Exception as error:
+                return "", _error_message(error)
+
         async def rotate_key(confirmed: bool):
             if not confirmed:
                 return (
@@ -640,6 +693,38 @@ def build_ui(service: LocalTranslationService, icon_path: str) -> gr.Blocks:
             toggle_key_reveal,
             inputs=[key_revealed_state],
             outputs=[key_revealed_state, api_key_box, reveal_key_button],
+            api_visibility="private",
+        )
+        copy_endpoint_event = endpoint_box.copy(
+            prepare_endpoint_copy,
+            outputs=[endpoint_copy_buffer, key_result],
+            show_progress="hidden",
+            queue=False,
+            api_visibility="private",
+        )
+        copy_endpoint_event.then(
+            fn=None,
+            inputs=[endpoint_copy_buffer, key_result],
+            outputs=[key_result, endpoint_copy_buffer],
+            js=_clipboard_copy_js("Endpoint"),
+            show_progress="hidden",
+            queue=False,
+            api_visibility="private",
+        )
+        copy_key_event = api_key_box.copy(
+            prepare_key_copy,
+            outputs=[key_copy_buffer, key_result],
+            show_progress="hidden",
+            queue=False,
+            api_visibility="private",
+        )
+        copy_key_event.then(
+            fn=None,
+            inputs=[key_copy_buffer, key_result],
+            outputs=[key_result, key_copy_buffer],
+            js=_clipboard_copy_js("API Key"),
+            show_progress="hidden",
+            queue=False,
             api_visibility="private",
         )
         rotate_key_button.click(

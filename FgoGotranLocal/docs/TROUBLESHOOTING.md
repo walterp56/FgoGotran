@@ -98,7 +98,7 @@ Install a FgoGotran build that supports trusted-LAN local AI. Use a numeric priv
 
 ## FgoGotran reports an API-key error
 
-Reveal and copy the complete API key from the overview page. A rotated key invalidates the old value immediately. Avoid leading or trailing spaces.
+Use the API Key copy icon on the overview page; it copies the complete key even while the field is masked. A rotated key invalidates the old value immediately. Avoid leading or trailing spaces.
 
 ## Changes do not take effect
 

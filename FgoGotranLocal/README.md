@@ -33,7 +33,7 @@ user_data\config.json
 
 It does not modify the system `PATH` or file associations, install a GPU driver, change router settings, open firewall rules, or expose the control interface to the LAN. The official Python installer may create its normal per-user uninstall entry. User-managed models may remain elsewhere on the computer, or in an ignored directory chosen by the user.
 
-The overview, diagnostics, startup report, and runtime logs do not display hardware inventory or system details. Logs permanently redact API keys, IP addresses, and local paths. The phone endpoint is revealed only when the user explicitly selects **Show Endpoint**; user-selected runtime and model paths remain visible only in the model settings form where they are required for configuration.
+The overview, diagnostics, startup report, and runtime logs do not display hardware inventory or system details. Logs permanently redact API keys, IP addresses, and local paths. Endpoint and API Key fields remain masked by default; their existing copy icons copy the real value without revealing it on screen. User-selected runtime and model paths remain visible only in the model settings form where they are required for configuration.
 
 ## Phone connection
 

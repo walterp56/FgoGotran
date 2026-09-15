@@ -13,6 +13,7 @@
 - Added one-time recovery to model-default thinking when forced-off mode returns only an end token, with a model/runtime-scoped compatibility cache.
 - Removed hardware and system inventory from the overview, diagnostics, status API, and startup report.
 - Permanently redact API keys, IP addresses, local paths, and device identifiers from runtime logs; only the phone Endpoint and API Key retain explicit reveal controls.
+- Make the existing Endpoint and API Key copy controls copy the real value while their fields remain masked.
 - Added an optional verified first-run bootstrap for private Python and an official driver-compatible llama.cpp Windows runtime.
 - Kept GGUF acquisition and selection entirely user-managed; the launcher has no model-download path.
 - Added managed llama.cpp configuration adoption without overwriting existing user paths, plus automatic startup of a valid user-configured active model.
