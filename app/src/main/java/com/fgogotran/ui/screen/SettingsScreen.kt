@@ -343,7 +343,7 @@ fun SettingsScreen(
                 )
                 PreferenceSwitchRow(
                     title = "使用双语剧情上下文",
-                    subtitle = "提供最近场景的日文与中文对照；模型误译前文时可关闭",
+                    subtitle = "提供最近场景的日文与中文对照；模型误译前文时可关闭；会增加Token消耗(云端API)",
                     checked = translationContextEnabled,
                     onCheckedChange = { enabled ->
                         translationContextEnabled = enabled
