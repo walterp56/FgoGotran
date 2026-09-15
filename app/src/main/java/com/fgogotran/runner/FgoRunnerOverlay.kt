@@ -372,7 +372,6 @@ class FgoRunnerOverlay @Inject constructor(
         }
 
         if (battleModeState.active.value) {
-            setBattleModeEnabled(false)
             return
         }
 

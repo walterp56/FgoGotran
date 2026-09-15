@@ -117,7 +117,7 @@ fun FloatingButton(
                     FloatingButtonMode.MANUAL -> "手動翻譯"
                     FloatingButtonMode.SEMI_AUTO -> "半自動翻譯"
                     FloatingButtonMode.AUTO -> "全自動翻譯"
-                    FloatingButtonMode.BATTLE -> "BATTLE字幕模式，点击返回剧情模式"
+                    FloatingButtonMode.BATTLE -> "BATTLE字幕模式，长按切换模式"
                     FloatingButtonMode.CROP -> "裁切翻譯"
                 }
             }
