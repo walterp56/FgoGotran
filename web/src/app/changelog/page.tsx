@@ -8,6 +8,17 @@ export const metadata: Metadata = {
 
 const changelog = [
   {
+    title: "v3.1.0",
+    date: "17-9-2026",
+    icon: Smartphone,
+    items: ["悬浮菜单改为两页弧形菜单，围绕悬浮球展开，所有功能一屏可见、无需滚动",
+      "BATTLE 模式下单击悬浮球不再退出战斗模式（改为长按切换模式）", 
+      "减少剧情翻译的等待时间，对白推进后能更快开始翻译",
+      "减少投屏授权弹窗：仅在游戏内真正 180° 旋转后才重新请求授权",
+      "提升 MediaProjection 稳定性：连续失败时自动改用无障碍截图，不再卡住",
+      "修复人名框被无关文字拉长的问题"]
+  },
+  {
     title: "v3.0.0",
     date: "15-9-2026",
     icon: Smartphone,
