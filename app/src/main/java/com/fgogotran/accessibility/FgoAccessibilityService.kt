@@ -208,6 +208,9 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val RED_DIALOGUE_MIN_SAMPLE_PIXELS = 18
         private const val RED_DIALOGUE_MIN_SAMPLE_RATIO = 0.0006f
         private const val RED_DIALOGUE_FORCE_FALLBACK_RATIO = 0.0025f
+        private const val NAME_OCR_MAX_GAP_HEIGHT_RATIO = 1.35f
+        private const val NAME_OCR_MIN_VERTICAL_OVERLAP_RATIO = 0.25f
+        private const val NAME_OCR_MAX_CENTER_OFFSET_HEIGHT_RATIO = 0.55f
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
         private const val RUBY_HEIGHT_RATIO = 0.72f
@@ -2679,6 +2682,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun sourceTextFor(region: ClassifiedRegion): String {
         val rawText = when (region.region) {
             TextRegion.DIALOGUE_BOX -> formatDialogueForTranslation(region.lines, RubyDetectionMode.STRICT)
+            TextRegion.NAME_LABEL -> nameLabelSourceText(region.lines)
             else -> cleanRubyNoiseLines(region.lines)
                 .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
                 .joinToString("\n") { it.text }
@@ -2693,6 +2697,56 @@ class FgoAccessibilityService : AccessibilityService() {
                 ocrEngine = region.ocrEngine
             )
         }
+    }
+
+    /** FGO speaker names occupy one left-to-right row; distant OCR boxes are UI noise. */
+    private fun nameLabelSourceText(lines: List<OcrTextLine>): String {
+        val sorted = cleanRubyNoiseLines(lines)
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy({ it.boundingBox.left }, { it.boundingBox.top }))
+        if (sorted.size < 2) return sorted.firstOrNull()?.text?.trim().orEmpty()
+
+        val selected = mutableListOf(sorted.first())
+
+        for (line in sorted.drop(1)) {
+            val previous = selected.last()
+            if (!isNameLabelContinuation(previous, line)) break
+            selected += line
+        }
+
+        val text = selected.joinToString("") { it.text.trim() }.trim()
+        if (selected.size < sorted.size) {
+            val dropped = sorted.drop(selected.size).joinToString(" | ") { it.text.trim() }
+            FgoLogger.debug(
+                tag,
+                "Name OCR kept left-to-right cluster ${debugQuote(text)}; " +
+                    "dropped distant boxes ${debugQuote(dropped)}"
+            )
+        }
+        return text
+    }
+
+    private fun isNameLabelContinuation(
+        previous: OcrTextLine,
+        current: OcrTextLine
+    ): Boolean {
+        val previousHeight = previous.boundingBox.height().coerceAtLeast(1)
+        val currentHeight = current.boundingBox.height().coerceAtLeast(1)
+        val gap = (current.boundingBox.left - previous.boundingBox.right).coerceAtLeast(0)
+        if (gap > previousHeight * NAME_OCR_MAX_GAP_HEIGHT_RATIO) return false
+
+        val overlap = (
+            minOf(previous.boundingBox.bottom, current.boundingBox.bottom) -
+                maxOf(previous.boundingBox.top, current.boundingBox.top)
+            ).coerceAtLeast(0)
+        val shorterHeight = minOf(previousHeight, currentHeight)
+        val centerOffset = kotlin.math.abs(
+            previous.boundingBox.centerY() - current.boundingBox.centerY()
+        )
+
+        return overlap >= shorterHeight * NAME_OCR_MIN_VERTICAL_OVERLAP_RATIO ||
+            centerOffset <= maxOf(previousHeight, currentHeight) *
+            NAME_OCR_MAX_CENTER_OFFSET_HEIGHT_RATIO
     }
 
     private fun voiceTextForDialogueRegion(region: ClassifiedRegion): String {

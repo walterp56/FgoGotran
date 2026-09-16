@@ -93,17 +93,17 @@ fun FloatingMenu(
             onBattleModeSelect = onBattleModeSelect
         )
 
-        LiveVoiceTranslationSwitchRow(
-            checked = liveVoiceTranslationEnabled,
-            viewportScale = viewportScale,
-            onCheckedChange = onLiveVoiceTranslationToggle
-        )
-
         MenuActionGroup(
             isJapaneseServer = isJapaneseServer,
             viewportScale = viewportScale,
             onCropTranslateClick = onCropTranslateClick,
             onHistoryClick = onHistoryClick
+        )
+
+        LiveVoiceTranslationSwitchRow(
+            checked = liveVoiceTranslationEnabled,
+            viewportScale = viewportScale,
+            onCheckedChange = onLiveVoiceTranslationToggle
         )
 
         CloseServiceRow(
