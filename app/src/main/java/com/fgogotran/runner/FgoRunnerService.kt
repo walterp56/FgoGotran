@@ -23,6 +23,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
 import com.fgogotran.MainActivity
+import com.fgogotran.ProjectionConsentActivity
 import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
@@ -60,9 +61,12 @@ class FgoRunnerService : Service() {
     private var lastHeight = 0
     private var lastDensityDpi = 0
     private var lastRotation = -1
+    private var landscapeBaselineEstablished = false
+    private var initialProjectionStarted = false
     @Volatile private var mediaProjection: MediaProjection? = null
     private var mediaProjectionCallback: MediaProjection.Callback? = null
     private var liveVoicePreferenceWriteJob: Job? = null
+    private var projectionReconsentInProgress = false
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = Unit
@@ -71,9 +75,7 @@ class FgoRunnerService : Service() {
             if (displayId != Display.DEFAULT_DISPLAY) return
             mainHandler.post {
                 realtimeVoiceTranslationController.onDisplayChanged()
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    resizeMediaProjection()
-                }
+                evaluateProjectionRotation()
             }
         }
     }
@@ -111,6 +113,10 @@ class FgoRunnerService : Service() {
             return context.stopService(intent)
         }
 
+        fun deliverProjectionReconsentResult(resultCode: Int, resultData: Intent?) {
+            instance?.handleProjectionReconsentResult(resultCode, resultData)
+        }
+
         private const val CHANNEL_ID = "fgogotran_runner"
         private const val NOTIFICATION_ID = 1001
     }
@@ -126,7 +132,8 @@ class FgoRunnerService : Service() {
         createNotificationChannel()
         startForegroundCompat()
         displayManager = getSystemService(DisplayManager::class.java)
-        createMediaProjection()
+        MediaProjectionCapture.resetForNewRun()
+        maybeStartInitialProjection()
         watchLiveVoiceTranslation()
         displayManager?.registerDisplayListener(displayListener, mainHandler)
         serviceScope.launch {
@@ -144,32 +151,76 @@ class FgoRunnerService : Service() {
         overlay.show()
     }
 
-    private fun resizeMediaProjection() {
+    private fun evaluateProjectionRotation(capturedWidth: Int = 0, capturedHeight: Int = 0) {
+        maybeStartInitialProjection()
+        if (mediaProjection == null) return
         val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+        val width = if (capturedWidth > 0 && capturedHeight > 0) capturedWidth else bounds.width()
+        val height = if (capturedWidth > 0 && capturedHeight > 0) capturedHeight else bounds.height()
         val densityDpi = resources.configuration.densityDpi
         val rotation = defaultDisplayRotation()
-        if (bounds.width() == lastWidth && bounds.height() == lastHeight && densityDpi == lastDensityDpi && rotation == lastRotation) {
-            return
-        }
-        FgoLogger.info(tag, "Display changed; resizing MediaProjection: ${bounds.width()}x${bounds.height()}, rotation=$rotation")
-        val resized = MediaProjectionCapture.resize(
-            width = bounds.width(),
-            height = bounds.height(),
-            densityDpi = densityDpi
-        )
-        if (resized) {
-            lastWidth = bounds.width()
-            lastHeight = bounds.height()
+        val isLandscape = width > height
+
+        if (FgoAccessibilityService.instance?.isFgoForegroundActive() != true || !isLandscape) {
+            // Not FGO foreground or not landscape: never re-consent here. Re-baseline once FGO is landscape again.
+            landscapeBaselineEstablished = false
+            lastWidth = width
+            lastHeight = height
             lastDensityDpi = densityDpi
             lastRotation = rotation
+            return
+        }
+
+        if (!landscapeBaselineEstablished) {
+            landscapeBaselineEstablished = true
+            lastWidth = width
+            lastHeight = height
+            lastDensityDpi = densityDpi
+            lastRotation = rotation
+            FgoLogger.info(tag, "MediaProjection landscape baseline established: ${width}x${height}, rotation=$rotation")
+            return
+        }
+
+        val previousRotation = lastRotation
+        lastWidth = width
+        lastHeight = height
+        lastDensityDpi = densityDpi
+        lastRotation = rotation
+
+        val flipped180 = previousRotation != rotation &&
+            isLandscapeRotation(previousRotation) &&
+            isLandscapeRotation(rotation)
+        if (flipped180) {
+            FgoLogger.info(tag, "FGO landscape rotated 180°; requesting fresh MediaProjection consent: rotation $previousRotation -> $rotation")
+            requestProjectionReconsent()
         }
     }
 
-    private fun createMediaProjection() {
+    private fun isLandscapeRotation(rotation: Int): Boolean {
+        return rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270
+    }
+
+    private fun maybeStartInitialProjection() {
+        if (initialProjectionStarted) return
         val resultCode = pendingResultCode
         val resultData = pendingResultData ?: return
+        if (FgoAccessibilityService.instance?.isFgoForegroundActive() != true) return
+        val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+        if (bounds.width() <= bounds.height()) return
+        initialProjectionStarted = true
         pendingResultData = null
-        try {
+        val started = startProjectionSession(resultCode, resultData)
+        if (started) {
+            serviceScope.launch {
+                if (settingsRepository.liveVoiceTranslationEnabled.first()) {
+                    realtimeVoiceTranslationController.start(mediaProjection)
+                }
+            }
+        }
+    }
+
+    private fun startProjectionSession(resultCode: Int, resultData: Intent): Boolean {
+        return try {
             val manager = getSystemService(MediaProjectionManager::class.java)
             val projection = manager.getMediaProjection(resultCode, resultData)
             val callback = mediaProjectionCallbackFor(projection)
@@ -178,10 +229,17 @@ class FgoRunnerService : Service() {
             projection.registerCallback(callback, mainHandler)
             val bounds = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
             val densityDpi = resources.configuration.densityDpi
+            val rotation = defaultDisplayRotation()
             lastWidth = bounds.width()
             lastHeight = bounds.height()
             lastDensityDpi = densityDpi
-            lastRotation = defaultDisplayRotation()
+            lastRotation = rotation
+            landscapeBaselineEstablished = bounds.width() > bounds.height()
+            if (landscapeBaselineEstablished) {
+                FgoLogger.info(tag, "MediaProjection landscape baseline established at start: ${bounds.width()}x${bounds.height()}, rotation=$rotation")
+            } else {
+                FgoLogger.debug(tag, "MediaProjection waiting for landscape baseline at start: ${bounds.width()}x${bounds.height()}, rotation=$rotation")
+            }
             val started = MediaProjectionCapture.start(
                 projection = projection,
                 width = bounds.width(),
@@ -190,10 +248,48 @@ class FgoRunnerService : Service() {
             )
             if (!started) {
                 FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot")
+                releaseMediaProjection(stopProjection = true)
+                MediaProjectionCapture.fallbackToAccessibility("start failed")
             }
+            started
         } catch (e: Exception) {
             FgoLogger.warn(tag, "MediaProjection start failed; falling back to accessibility screenshot", e)
             releaseMediaProjection(stopProjection = true)
+            MediaProjectionCapture.fallbackToAccessibility("start failed")
+            false
+        }
+    }
+
+    private fun requestProjectionReconsent() {
+        if (projectionReconsentInProgress) {
+            FgoLogger.debug(tag, "MediaProjection re-consent already in progress; ignoring resize")
+            return
+        }
+        if (mediaProjection == null) {
+            FgoLogger.debug(tag, "No MediaProjection to re-consent; skipping")
+            return
+        }
+        projectionReconsentInProgress = true
+        FgoLogger.info(tag, "Display size changed; requesting fresh MediaProjection consent")
+        releaseMediaProjection(stopProjection = true)
+        val intent = Intent(this, ProjectionConsentActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
+
+    private fun handleProjectionReconsentResult(resultCode: Int, resultData: Intent?) {
+        projectionReconsentInProgress = false
+        if (resultCode != android.app.Activity.RESULT_OK || resultData == null) {
+            FgoLogger.warn(tag, "MediaProjection re-consent denied; falling back to accessibility screenshot")
+            MediaProjectionCapture.fallbackToAccessibility("re-consent denied")
+            return
+        }
+        if (startProjectionSession(resultCode, resultData)) {
+            serviceScope.launch {
+                if (settingsRepository.liveVoiceTranslationEnabled.first()) {
+                    realtimeVoiceTranslationController.start(mediaProjection)
+                }
+            }
         }
     }
 
@@ -217,14 +313,7 @@ class FgoRunnerService : Service() {
                 mainHandler.post {
                     if (mediaProjection !== projection) return@post
                     realtimeVoiceTranslationController.onDisplayChanged()
-                    val densityDpi = resources.configuration.densityDpi
-                    val resized = MediaProjectionCapture.resize(width, height, densityDpi)
-                    if (resized) {
-                        lastWidth = width
-                        lastHeight = height
-                        lastDensityDpi = densityDpi
-                        lastRotation = defaultDisplayRotation()
-                    }
+                    evaluateProjectionRotation(capturedWidth = width, capturedHeight = height)
                 }
             }
         }
@@ -235,6 +324,7 @@ class FgoRunnerService : Service() {
         val callback = mediaProjectionCallback
         mediaProjection = null
         mediaProjectionCallback = null
+        landscapeBaselineEstablished = false
         realtimeVoiceTranslationController.stop()
         MediaProjectionCapture.stop()
         if (projection != null && callback != null) {

@@ -53,6 +53,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ProjectionConsentActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Accessibility Service for touch detection + screenshot fallback -->
         <service
             android:name=".accessibility.FgoAccessibilityService"

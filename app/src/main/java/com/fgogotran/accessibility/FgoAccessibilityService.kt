@@ -126,6 +126,9 @@ class FgoAccessibilityService : AccessibilityService() {
     private var isFgoForeground = false
     private val isEffectiveFgoForeground: Boolean
         get() = foregroundTestOverride.isEffective(foregroundTestOverrideEnabled, isFgoForeground)
+
+    fun isFgoForegroundActive(): Boolean = isEffectiveFgoForeground
+
     private var lastManualRenderedSourceText = ""
     private var lastSemiAutoRenderedSourceText = ""
     private var lastSemiAutoChoiceRenderedSourceText = ""
@@ -989,7 +992,7 @@ class FgoAccessibilityService : AccessibilityService() {
             finally {
                 frame?.recycle()
                 val interval = battleSubtitles.scanIntervalMs.coerceAtLeast(
-                    if (MediaProjectionCapture.isAvailable()) 120L else 350L
+                    if (MediaProjectionCapture.isUsable()) 120L else 350L
                 )
                 nextBattleScanAt = SystemClock.elapsedRealtime() + interval
             }
@@ -4367,9 +4370,11 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun takeScreenshotCompat(): Bitmap? {
-        MediaProjectionCapture.capture()?.let {
-            lastScreenshotErrorCode = 0
-            return it
+        if (MediaProjectionCapture.isUsable()) {
+            MediaProjectionCapture.capture()?.let {
+                lastScreenshotErrorCode = 0
+                return it
+            }
         }
 
         return withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {

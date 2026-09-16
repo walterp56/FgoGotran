@@ -17,6 +17,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 object MediaProjectionCapture {
     private const val tag = "MediaProjectionCapture"
 
+    private const val MAX_FAILURES_BEFORE_DISABLE = 3
+
     private val stateLock = Any()
 
     private var nextSessionId = 0L
@@ -30,15 +32,60 @@ object MediaProjectionCapture {
     @Volatile
     private var missingLogged = false
 
+    @Volatile
+    private var sessionFailureCount = 0
+
+    @Volatile
+    private var disabledForSession = false
+
     fun isAvailable(): Boolean = synchronized(stateLock) { captureTarget != null }
 
+    fun isUsable(): Boolean = !disabledForSession && isAvailable()
+
+    /** Called once per runner service run so a new service start gets a fresh set of chances. */
+    fun resetForNewRun() {
+        synchronized(stateLock) {
+            sessionFailureCount = 0
+            disabledForSession = false
+        }
+    }
+
+    /**
+     * Disables MediaProjection for the rest of this run and releases its capture
+     * resources. Used when the display size/orientation changes, because Android 14
+     * forbids a second createVirtualDisplay() on the same MediaProjection instance
+     * and re-consent is intentionally not requested from this path.
+     */
+    fun fallbackToAccessibility(reason: String) {
+        var first = false
+        synchronized(stateLock) {
+            if (!disabledForSession) {
+                disabledForSession = true
+                first = true
+            }
+        }
+        if (first) {
+            FgoLogger.error(tag, "MediaProjection disabled for this run: $reason; using accessibility screenshot")
+        }
+        stop()
+    }
+
     fun start(projection: MediaProjection, width: Int, height: Int, densityDpi: Int): Boolean {
+        if (disabledForSession) {
+            FgoLogger.debug(tag, "MediaProjection disabled for this run; skipping start")
+            return false
+        }
+
         stop()
 
         val safeWidth = width.coerceAtLeast(1)
         val safeHeight = height.coerceAtLeast(1)
         val safeDensityDpi = densityDpi.coerceAtLeast(1)
-        val reader = createImageReader(safeWidth, safeHeight) ?: return false
+        val reader = createImageReader(safeWidth, safeHeight)
+        if (reader == null) {
+            recordFailure("image_reader_create")
+            return false
+        }
         val target = CaptureTarget(reader, safeWidth, safeHeight, safeDensityDpi)
 
         val sessionId = synchronized(stateLock) {
@@ -66,6 +113,7 @@ object MediaProjectionCapture {
         if (display == null) {
             reader.close()
             releaseSession(sessionId)
+            recordFailure("virtual_display_create")
             return false
         }
 
@@ -90,16 +138,11 @@ object MediaProjectionCapture {
         return true
     }
 
-    fun resize(width: Int, height: Int, densityDpi: Int): Boolean {
-        return resizeSession(
-            expectedSessionId = null,
-            width = width,
-            height = height,
-            densityDpi = densityDpi
-        )
-    }
-
     suspend fun capture(): Bitmap? {
+        if (disabledForSession) {
+            return null
+        }
+
         val target = acquireCaptureTarget()
         if (target == null) {
             if (!missingLogged) {
@@ -111,16 +154,28 @@ object MediaProjectionCapture {
 
         var image: Image? = null
         try {
+            var acquireFailureReason: String? = null
             image = withTimeoutOrNull(750L) {
                 withContext(Dispatchers.IO) {
                     var acquired: Image? = null
-                    while (acquired == null) {
-                        acquired = runCatching { target.reader.acquireLatestImage() }.getOrNull()
-                        if (acquired == null) delay(16L)
+                    while (acquired == null && acquireFailureReason == null) {
+                        val attempt = runCatching { target.reader.acquireLatestImage() }
+                        acquired = attempt.getOrNull()
+                        if (acquired == null) {
+                            if (attempt.isFailure) {
+                                acquireFailureReason = "acquire_exception"
+                            } else {
+                                delay(16L)
+                            }
+                        }
                     }
                     acquired
                 }
-            } ?: return null
+            }
+            if (image == null) {
+                recordFailure(acquireFailureReason ?: "timeout")
+                return null
+            }
 
             val plane = image.planes[0]
             val buffer = plane.buffer
@@ -153,6 +208,7 @@ object MediaProjectionCapture {
             throw e
         } catch (e: Exception) {
             FgoLogger.warn(tag, "MediaProjection frame conversion failed", e)
+            recordFailure("conversion")
             return null
         } finally {
             image?.close()
@@ -167,81 +223,26 @@ object MediaProjectionCapture {
         }
     }
 
-    private fun resizeSession(
-        expectedSessionId: Long?,
-        width: Int,
-        height: Int,
-        densityDpi: Int
-    ): Boolean {
-        val safeWidth = width.coerceAtLeast(1)
-        val safeHeight = height.coerceAtLeast(1)
-        val safeDensityDpi = densityDpi.coerceAtLeast(1)
-        val snapshot = synchronized(stateLock) {
-            val sessionId = currentSessionId
-            val display = virtualDisplay
-            val target = captureTarget
-            when {
-                sessionId == 0L || display == null || target == null -> null
-                expectedSessionId != null && sessionId != expectedSessionId -> null
-                else -> ResizeSnapshot(sessionId, display, target)
-            }
-        } ?: return false
-
-        if (snapshot.target.width == safeWidth &&
-            snapshot.target.height == safeHeight &&
-            snapshot.target.densityDpi == safeDensityDpi
-        ) {
-            return true
-        }
-
-        val replacementReader = createImageReader(safeWidth, safeHeight) ?: return false
-        val replacementTarget = CaptureTarget(
-            reader = replacementReader,
-            width = safeWidth,
-            height = safeHeight,
-            densityDpi = safeDensityDpi
-        )
-        var retiredReader: ImageReader? = null
-        var resizeFailure: Throwable? = null
-
-        val resized = synchronized(stateLock) {
-            if (currentSessionId != snapshot.sessionId ||
-                virtualDisplay !== snapshot.display ||
-                captureTarget !== snapshot.target
-            ) {
-                false
-            } else {
-                try {
-                    snapshot.display.resize(safeWidth, safeHeight, safeDensityDpi)
-                    snapshot.display.setSurface(replacementReader.surface)
-                    captureTarget = replacementTarget
-                    retiredReader = retireCaptureTargetLocked(snapshot.target)
-                    successLogged = false
-                    missingLogged = false
-                    true
-                } catch (t: Throwable) {
-                    resizeFailure = t
-                    false
-                }
+    private fun recordFailure(reason: String) {
+        var reachedLimit = false
+        var count = 0
+        synchronized(stateLock) {
+            if (disabledForSession) return
+            sessionFailureCount += 1
+            count = sessionFailureCount
+            if (sessionFailureCount >= MAX_FAILURES_BEFORE_DISABLE) {
+                disabledForSession = true
+                reachedLimit = true
             }
         }
-
-        if (!resized) {
-            replacementReader.close()
-            resizeFailure?.let { failure ->
-                FgoLogger.warn(
-                    tag,
-                    "MediaProjection resize failed; ending the capture session",
-                    failure
-                )
-                releaseSession(snapshot.sessionId)
-            }
-            return false
+        FgoLogger.warn(tag, "MediaProjection capture failure #$count: $reason")
+        if (reachedLimit) {
+            FgoLogger.error(
+                tag,
+                "MediaProjection disabled for this run after $MAX_FAILURES_BEFORE_DISABLE failures; using accessibility screenshot"
+            )
+            stop()
         }
-
-        retiredReader?.close()
-        FgoLogger.info(tag, "MediaProjection capture resized: ${safeWidth}x${safeHeight}")
-        return true
     }
 
     private fun createImageReader(width: Int, height: Int): ImageReader? {
@@ -317,12 +318,6 @@ object MediaProjectionCapture {
         var activeCaptures: Int = 0,
         var retired: Boolean = false,
         var closed: Boolean = false
-    )
-
-    private data class ResizeSnapshot(
-        val sessionId: Long,
-        val display: VirtualDisplay,
-        val target: CaptureTarget
     )
 
     private data class SessionResources(
