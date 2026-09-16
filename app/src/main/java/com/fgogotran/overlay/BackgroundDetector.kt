@@ -39,6 +39,8 @@ class BackgroundDetector @Inject constructor() {
         private const val COMPLETE_MARKER_MIN_ASPECT = 0.42f
         private const val COMPLETE_MARKER_MAX_ASPECT = 0.95f
         private const val COMPLETE_MARKER_EDGE_GUARD_PX = 2
+        private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 100
+        private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.05f
         private const val MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO = 0.35f
     }
 
@@ -280,6 +282,32 @@ class BackgroundDetector @Inject constructor() {
                 "whitePixels=${baseScore.whitePixels} markerShape=$markerShapeVisible bounds=$baseBounds"
         )
         return visible
+    }
+
+    /**
+     * Loose evidence that the continue-diamond region contains some white
+     * marker pixels. Used only as a secondary completion signal together with
+     * three-frame dialogue-region stability, never as a standalone decision.
+     */
+    fun hasDialogueCompleteMarkerEvidence(bitmap: Bitmap, markerRegion: Rect): Boolean {
+        val baseBounds = Rect(
+            markerRegion.left.coerceIn(0, bitmap.width),
+            markerRegion.top.coerceIn(0, bitmap.height),
+            markerRegion.right.coerceIn(0, bitmap.width),
+            markerRegion.bottom.coerceIn(0, bitmap.height)
+        )
+        if (baseBounds.width() <= 0 || baseBounds.height() <= 0) return false
+
+        val markerProfile = completeMarkerColorProfile(bitmap, baseBounds)
+        val baseScore = completeMarkerWhiteScore(bitmap, baseBounds, markerProfile)
+        val evidence = baseScore.whitePixels >= MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
+            baseScore.ratio >= MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO
+        FgoLogger.debug(
+            tag,
+            "Dialogue complete marker evidence=$evidence markerRatio=${baseScore.ratio} " +
+                "whitePixels=${baseScore.whitePixels}"
+        )
+        return evidence
     }
 
     /**

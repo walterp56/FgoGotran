@@ -141,6 +141,14 @@ class FgoAccessibilityService : AccessibilityService() {
     private var semiAutoBackgroundRetryAt = 0L
     private var semiAutoBlankOcrStreak = 0
     private var semiAutoScreenshotFailStreak = 0
+    private var autoBackgroundRetryAt = 0L
+    private var autoScreenshotFailStreak = 0
+    private var nextStoryBackgroundScanAt = 0L
+    private var emptyOcrRetryStreak = 0
+    private var dialogueFallbackMaskPrev1: VisualTextMask? = null
+    private var dialogueFallbackMaskPrev2: VisualTextMask? = null
+    private var dialogueFallbackEvidencePrev1 = false
+    private var dialogueFallbackEvidencePrev2 = false
     private var renderedChoiceBounds: List<Rect> = emptyList()
     private var waitingForChoiceSelectionExit = false
     private var isForwardingOverlayTap = false
@@ -178,6 +186,14 @@ class FgoAccessibilityService : AccessibilityService() {
         const val FGO_PACKAGE = FgoPackages.JP
         private const val APP_PACKAGE = "com.fgogotran"
         private const val DETECTION_INTERVAL = 120L
+        private const val STORY_BACKGROUND_IDLE_INTERVAL = 400L
+        private const val DIAMOND_WAIT_RETRY_INTERVAL = 400L
+        private const val EMPTY_OCR_RETRY_BASE_MS = 400L
+        private const val EMPTY_OCR_RETRY_MAX_MS = 1_200L
+        private const val EMPTY_OCR_MAX_RETRIES = 3
+        private const val FALLBACK_MAX_OCR_LINES = 10
+        private const val FALLBACK_MAX_OCR_CHARS = 90
+        private const val FALLBACK_MIN_STORY_CONFIDENCE = 0.85f
         private const val CAPTURE_SETTLE_DELAY = 16L
         private const val SEMI_AUTO_CHOICE_RETRY_DELAY_MS = 250L
         private const val MANUAL_MENU_DISMISS_SETTLE_DELAY = 300L
@@ -201,6 +217,8 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val SEMI_AUTO_BLANK_OCR_MAX_COOLDOWN = 900L
         private const val SEMI_AUTO_SCREENSHOT_FAIL_BASE_COOLDOWN = 250L
         private const val SEMI_AUTO_SCREENSHOT_FAIL_MAX_COOLDOWN = 1_000L
+        private const val AUTO_SCREENSHOT_FAIL_BASE_COOLDOWN = 250L
+        private const val AUTO_SCREENSHOT_FAIL_MAX_COOLDOWN = 1_000L
         private const val FRESHNESS_CHECK_TRANSLATION_DELAY = 800L
         private const val UNSUPPORTED_FGO_PACKAGE_LOG_COOLDOWN_MS = 10L * 60L * 1000L
         private const val VISUAL_FINGERPRINT_STEP = 3
@@ -212,6 +230,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val RED_DIALOGUE_MIN_SAMPLE_RATIO = 0.0006f
         private const val RED_DIALOGUE_FORCE_FALLBACK_RATIO = 0.0025f
         private const val NAME_OCR_MAX_GAP_HEIGHT_RATIO = 1.35f
+        private const val NAME_OCR_DOT_SEPARATOR_MAX_GAP_HEIGHT_RATIO = 2.5f
         private const val NAME_OCR_MIN_VERTICAL_OVERLAP_RATIO = 0.25f
         private const val NAME_OCR_MAX_CENTER_OFFSET_HEIGHT_RATIO = 0.55f
         private const val RUBY_MAX_CHARS = 14
@@ -549,10 +568,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
                 isFgoForeground = true
                 if (event.isDialogueAdvanceEvent()) {
-                    if (translationOverlay.isShowing()) {
-                        FgoLogger.debug(tag, "FGO dialogue advance detected; hiding translated overlay for next OCR")
-                        translationOverlay.hide()
-                    }
+                    onDialogueAdvanceObserved()
                 }
             }
             else -> {
@@ -778,6 +794,21 @@ class FgoAccessibilityService : AccessibilityService() {
                 !TranslationTrigger.isUiBlockingOcr()
     }
 
+    private fun onDialogueAdvanceObserved() {
+        if (translationOverlay.isShowing()) {
+            FgoLogger.debug(tag, "FGO dialogue advance detected; hiding translated overlay for next OCR")
+            translationOverlay.hide()
+        }
+        semiAutoBackgroundRetryAt = 0L
+        autoBackgroundRetryAt = 0L
+        nextStoryBackgroundScanAt = 0L
+        emptyOcrRetryStreak = 0
+        semiAutoBlankOcrStreak = 0
+        semiAutoScreenshotFailStreak = 0
+        autoScreenshotFailStreak = 0
+        resetDialogueFallbackState()
+    }
+
     private fun startManualTranslation(
         afterMenuDismiss: Boolean = false,
         requestedMode: TranslationMode = TranslationMode.MANUAL
@@ -915,14 +946,20 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun resetSemiAutoBackgroundState() {
         semiAutoBackgroundRetryAt = 0L
+        autoBackgroundRetryAt = 0L
+        nextStoryBackgroundScanAt = 0L
+        emptyOcrRetryStreak = 0
         semiAutoBlankOcrStreak = 0
         semiAutoScreenshotFailStreak = 0
+        autoScreenshotFailStreak = 0
+        resetDialogueFallbackState()
     }
 
     private fun resetSemiAutoBackoff() {
         semiAutoBackgroundRetryAt = 0L
         semiAutoBlankOcrStreak = 0
         semiAutoScreenshotFailStreak = 0
+        emptyOcrRetryStreak = 0
     }
 
     private fun delaySemiAutoBackgroundFor(durationMs: Long, reason: String) {
@@ -930,8 +967,11 @@ class FgoAccessibilityService : AccessibilityService() {
         val retryAt = SystemClock.elapsedRealtime() + durationMs
         if (retryAt > semiAutoBackgroundRetryAt) {
             semiAutoBackgroundRetryAt = retryAt
-            FgoLogger.debug(tag, "Semi-auto background delayed ${durationMs}ms: $reason")
         }
+        if (retryAt > nextStoryBackgroundScanAt) {
+            nextStoryBackgroundScanAt = retryAt
+        }
+        FgoLogger.debug(tag, "Semi-auto background delayed ${durationMs}ms: $reason")
     }
 
     private fun rememberSemiAutoBlankOcr() {
@@ -950,6 +990,62 @@ class FgoAccessibilityService : AccessibilityService() {
         val cooldown = (SEMI_AUTO_SCREENSHOT_FAIL_BASE_COOLDOWN * semiAutoScreenshotFailStreak)
             .coerceAtMost(SEMI_AUTO_SCREENSHOT_FAIL_MAX_COOLDOWN)
         delaySemiAutoBackgroundFor(cooldown, "screenshot failed")
+    }
+
+    private fun isAutoBackgroundCoolingDown(): Boolean {
+        if (!TranslationTrigger.isAutoTranslateEnabled()) return false
+        return SystemClock.elapsedRealtime() < autoBackgroundRetryAt
+    }
+
+    private fun delayAutoBackgroundFor(durationMs: Long, reason: String) {
+        if (!TranslationTrigger.isAutoTranslateEnabled()) return
+        val retryAt = SystemClock.elapsedRealtime() + durationMs
+        if (retryAt > autoBackgroundRetryAt) {
+            autoBackgroundRetryAt = retryAt
+        }
+        if (retryAt > nextStoryBackgroundScanAt) {
+            nextStoryBackgroundScanAt = retryAt
+        }
+        FgoLogger.debug(tag, "Auto background delayed ${durationMs}ms: $reason")
+    }
+
+    private fun resetAutoBackoff() {
+        autoBackgroundRetryAt = 0L
+        autoScreenshotFailStreak = 0
+        emptyOcrRetryStreak = 0
+    }
+
+    private fun rememberAutoScreenshotFailure() {
+        if (!TranslationTrigger.isAutoTranslateEnabled()) return
+        autoScreenshotFailStreak++
+        val cooldown = (AUTO_SCREENSHOT_FAIL_BASE_COOLDOWN * autoScreenshotFailStreak)
+            .coerceAtMost(AUTO_SCREENSHOT_FAIL_MAX_COOLDOWN)
+        delayAutoBackgroundFor(cooldown, "screenshot failed")
+    }
+
+    private fun rememberDialogueWait(mode: ProcessingMode) {
+        when (mode) {
+            ProcessingMode.SEMI_AUTO_BACKGROUND -> {
+                semiAutoBlankOcrStreak = 0
+                semiAutoScreenshotFailStreak = 0
+                delaySemiAutoBackgroundFor(DIAMOND_WAIT_RETRY_INTERVAL, "dialogue marker not ready")
+            }
+            ProcessingMode.AUTO_BACKGROUND -> {
+                autoScreenshotFailStreak = 0
+                delayAutoBackgroundFor(DIAMOND_WAIT_RETRY_INTERVAL, "dialogue marker not ready")
+            }
+            else -> Unit
+        }
+    }
+
+    private fun rememberEmptyOcrRetry(mode: ProcessingMode) {
+        emptyOcrRetryStreak = (emptyOcrRetryStreak + 1).coerceAtMost(EMPTY_OCR_MAX_RETRIES)
+        val durationMs = (EMPTY_OCR_RETRY_BASE_MS * emptyOcrRetryStreak).coerceAtMost(EMPTY_OCR_RETRY_MAX_MS)
+        when (mode) {
+            ProcessingMode.SEMI_AUTO_BACKGROUND -> delaySemiAutoBackgroundFor(durationMs, "empty OCR")
+            ProcessingMode.AUTO_BACKGROUND -> delayAutoBackgroundFor(durationMs, "empty OCR")
+            else -> Unit
+        }
     }
 
     private fun stopBattleMonitoring(resetSession: Boolean = true) {
@@ -1027,8 +1123,11 @@ class FgoAccessibilityService : AccessibilityService() {
                                 translationMode != TranslationMode.MANUAL &&
                                 !translationOverlay.isShowing() &&
                                 !(translationMode == TranslationMode.SEMI_AUTO && isSemiAutoBackgroundCoolingDown()) &&
-                                SystemClock.elapsedRealtime() >= autoScanReadyAt
+                                !(translationMode == TranslationMode.AUTO && isAutoBackgroundCoolingDown()) &&
+                                SystemClock.elapsedRealtime() >= autoScanReadyAt &&
+                                SystemClock.elapsedRealtime() >= nextStoryBackgroundScanAt
                             ) {
+                                nextStoryBackgroundScanAt = SystemClock.elapsedRealtime() + STORY_BACKGROUND_IDLE_INTERVAL
                                 translationJob = serviceScope.launch {
                                     val backgroundMode = when (translationMode) {
                                         TranslationMode.SEMI_AUTO -> ProcessingMode.SEMI_AUTO_BACKGROUND
@@ -1054,6 +1153,72 @@ class FgoAccessibilityService : AccessibilityService() {
                 delay(DETECTION_INTERVAL)
             }
         }
+    }
+
+    private fun resetDialogueFallbackState() {
+        dialogueFallbackMaskPrev1 = null
+        dialogueFallbackMaskPrev2 = null
+        dialogueFallbackEvidencePrev1 = false
+        dialogueFallbackEvidencePrev2 = false
+    }
+
+    /**
+     * Strict diamond shape is the primary completion signal. When the shape is
+     * not visible on an animated frame, accept completion only if the fixed
+     * dialogue region is visually stable across three consecutive frames and the
+     * marker region keeps showing white marker evidence on all three frames.
+     */
+    private fun dialogueCompleteWithFallback(source: Bitmap, screenRegions: FgoScreenRegions): Boolean {
+        val markerEvidence = backgroundDetector.hasDialogueCompleteMarkerEvidence(
+            source,
+            screenRegions.dialogueComplete
+        )
+        val dialogueMask = textMaskFor(source, screenRegions.dialogue)
+        val previousMask = dialogueFallbackMaskPrev1
+        val beforePreviousMask = dialogueFallbackMaskPrev2
+
+        val stableAcrossThree = dialogueMask != null && previousMask != null && beforePreviousMask != null &&
+            masksAreSimilar(beforePreviousMask, previousMask) &&
+            masksAreSimilar(previousMask, dialogueMask)
+        val evidenceAcrossThree = markerEvidence && dialogueFallbackEvidencePrev1 && dialogueFallbackEvidencePrev2
+
+        if (stableAcrossThree && evidenceAcrossThree) {
+            FgoLogger.debug(tag, "Dialogue completion fallback accepted: three stable dialogue frames with persistent marker evidence")
+            resetDialogueFallbackState()
+            return true
+        }
+
+        dialogueFallbackMaskPrev2 = dialogueFallbackMaskPrev1
+        dialogueFallbackMaskPrev1 = dialogueMask
+        dialogueFallbackEvidencePrev2 = dialogueFallbackEvidencePrev1
+        dialogueFallbackEvidencePrev1 = markerEvidence
+        return false
+    }
+
+    private fun isSuspiciousFallbackOcr(
+        regions: List<ClassifiedRegion>,
+        currentScreenWidth: Int,
+        currentScreenHeight: Int
+    ): Boolean {
+        val lines = regions.flatMap { it.lines }
+        val charCount = lines.sumOf { it.text.length }
+        val story = storyDetector.detect(
+            lines = lines,
+            screenWidth = currentScreenWidth,
+            screenHeight = currentScreenHeight,
+            viewport = FgoViewportLayout.viewportForScreen(currentScreenWidth, currentScreenHeight)
+        )
+        val suspicious = lines.size > FALLBACK_MAX_OCR_LINES ||
+            charCount > FALLBACK_MAX_OCR_CHARS ||
+            !story.isStoryScene ||
+            story.confidence < FALLBACK_MIN_STORY_CONFIDENCE
+        if (suspicious) {
+            FgoLogger.debug(
+                tag,
+                "Fallback OCR post-validation rejected: lines=${lines.size}, chars=$charCount, conf=${story.confidence}"
+            )
+        }
+        return suspicious
     }
 
     private suspend fun processScreen(mode: ProcessingMode) {
@@ -1099,6 +1264,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
                 if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
                     rememberSemiAutoScreenshotFailure()
+                } else if (mode == ProcessingMode.AUTO_BACKGROUND) {
+                    rememberAutoScreenshotFailure()
                 }
                 runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
                 return
@@ -1108,13 +1275,28 @@ class FgoAccessibilityService : AccessibilityService() {
             val currentScreenHeight = source.height
             val screenRegions = FgoViewportLayout.regionsForScreen(currentScreenWidth, currentScreenHeight)
             FgoLogger.debug(tag, "FGO viewport=${screenRegions.viewport}")
-            val dialogueComplete = if (isJapaneseServer()) {
+            val strictDialogueComplete = if (isJapaneseServer()) {
                 backgroundDetector.isDialogueCompleteMarkerVisible(
                     source,
                     screenRegions.dialogueComplete
                 )
             } else {
                 false
+            }
+            var fallbackAccepted = false
+            val dialogueComplete = if (isJapaneseServer() &&
+                (mode == ProcessingMode.SEMI_AUTO_BACKGROUND || mode == ProcessingMode.AUTO_BACKGROUND)
+            ) {
+                if (strictDialogueComplete) {
+                    resetDialogueFallbackState()
+                    true
+                } else {
+                    val fallback = dialogueCompleteWithFallback(source, screenRegions)
+                    fallbackAccepted = fallback
+                    fallback
+                }
+            } else {
+                strictDialogueComplete
             }
             reportGameServerPipelineUsed()
 
@@ -1157,7 +1339,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         currentScreenHeight = currentScreenHeight,
                         processStartedAt = processStartedAt,
                         processingVersion = processingVersion,
-                        dialogueComplete = dialogueComplete
+                        dialogueComplete = dialogueComplete,
+                        dialogueCompleteByFallback = fallbackAccepted
                     )
                     false
                 }
@@ -1169,7 +1352,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         currentScreenHeight = currentScreenHeight,
                         processStartedAt = processStartedAt,
                         processingVersion = processingVersion,
-                        dialogueComplete = dialogueComplete
+                        dialogueComplete = dialogueComplete,
+                        dialogueCompleteByFallback = fallbackAccepted
                     )
                     false
                 }
@@ -1767,14 +1951,16 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenHeight: Int,
         processStartedAt: Long,
         processingVersion: Long,
-        dialogueComplete: Boolean
+        dialogueComplete: Boolean,
+        dialogueCompleteByFallback: Boolean
     ) {
         when (val scan = scanSemiAutoDialogueScene(
             source,
             screenRegions,
             currentScreenWidth,
             currentScreenHeight,
-            dialogueComplete
+            dialogueComplete,
+            dialogueCompleteByFallback
         )) {
             is AutoScanResult.Ready -> {
                 val sceneSource = sceneSourceFor(scan.regions)
@@ -1783,7 +1969,7 @@ class FgoAccessibilityService : AccessibilityService() {
                         scan.storyVisualRecognitionToken,
                         accepted = false
                     )
-                    rememberSemiAutoBlankOcr()
+                    rememberEmptyOcrRetry(ProcessingMode.SEMI_AUTO_BACKGROUND)
                     translationOverlay.hide()
                     return
                 }
@@ -1816,7 +2002,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
             }
             AutoScanResult.EmptyCompletedDialogue -> {
-                rememberSemiAutoBlankOcr()
+                rememberEmptyOcrRetry(ProcessingMode.SEMI_AUTO_BACKGROUND)
                 FgoLogger.debug(tag, "Semi-auto found completed dialogue marker with no translatable text")
                 translationOverlay.hide()
             }
@@ -1829,12 +2015,13 @@ class FgoAccessibilityService : AccessibilityService() {
         screenRegions: FgoScreenRegions,
         currentScreenWidth: Int,
         currentScreenHeight: Int,
-        dialogueComplete: Boolean
+        dialogueComplete: Boolean,
+        dialogueCompleteByFallback: Boolean
     ): AutoScanResult {
         if (!dialogueComplete) {
             storyOcrVisualGate.reset()
             FgoLogger.debug(tag, "Semi-auto waiting for completed dialogue marker")
-            rememberSemiAutoBlankOcr()
+            rememberDialogueWait(ProcessingMode.SEMI_AUTO_BACKGROUND)
             return AutoScanResult.Waiting
         }
 
@@ -1865,6 +2052,17 @@ class FgoAccessibilityService : AccessibilityService() {
         val dialogueScene = sceneSourceFor(dialogueRegions)
 
         if (dialogueScene?.hasDialogue == true) {
+            if (dialogueCompleteByFallback &&
+                isSuspiciousFallbackOcr(dialogueRegions, currentScreenWidth, currentScreenHeight)
+            ) {
+                storyOcrVisualGate.completeRecognition(
+                    visualDecision.recognitionToken,
+                    accepted = false
+                )
+                rememberDialogueWait(ProcessingMode.SEMI_AUTO_BACKGROUND)
+                FgoLogger.debug(tag, "Semi-auto fallback OCR rejected; waiting for strict marker")
+                return AutoScanResult.Waiting
+            }
             resetSemiAutoBackoff()
             logAutoStoryDetection(
                 "Semi-auto completed dialogue",
@@ -1891,14 +2089,16 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenHeight: Int,
         processStartedAt: Long,
         processingVersion: Long,
-        dialogueComplete: Boolean
+        dialogueComplete: Boolean,
+        dialogueCompleteByFallback: Boolean
     ) {
         when (val scan = scanAutoScene(
             source,
             screenRegions,
             currentScreenWidth,
             currentScreenHeight,
-            dialogueComplete
+            dialogueComplete,
+            dialogueCompleteByFallback
         )) {
             is AutoScanResult.Ready -> {
                 val sceneSource = sceneSourceFor(scan.regions)
@@ -1907,9 +2107,11 @@ class FgoAccessibilityService : AccessibilityService() {
                         scan.storyVisualRecognitionToken,
                         accepted = false
                     )
+                    rememberEmptyOcrRetry(ProcessingMode.AUTO_BACKGROUND)
                     translationOverlay.hide()
                     return
                 }
+                resetAutoBackoff()
                 if (isAlreadyRenderedSource(ProcessingMode.AUTO_BACKGROUND, sceneSource)) {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
@@ -1959,6 +2161,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             AutoScanResult.EmptyCompletedDialogue -> {
                 FgoLogger.debug(tag, "No translatable completed dialogue detected in FGO regions")
+                rememberEmptyOcrRetry(ProcessingMode.AUTO_BACKGROUND)
                 runnerOverlay.showTranslationFailureFeedback(fromUserTap = false)
                 translationOverlay.hide()
             }
@@ -1971,7 +2174,8 @@ class FgoAccessibilityService : AccessibilityService() {
         screenRegions: FgoScreenRegions,
         currentScreenWidth: Int,
         currentScreenHeight: Int,
-        dialogueComplete: Boolean
+        dialogueComplete: Boolean,
+        dialogueCompleteByFallback: Boolean
     ): AutoScanResult {
         if (!dialogueComplete) {
             storyOcrVisualGate.reset()
@@ -2010,6 +2214,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
         if (!dialogueComplete) {
             FgoLogger.debug(tag, "Auto waiting for completed dialogue marker")
+            rememberDialogueWait(ProcessingMode.AUTO_BACKGROUND)
             return AutoScanResult.Waiting
         }
 
@@ -2019,6 +2224,7 @@ class FgoAccessibilityService : AccessibilityService() {
             scope = StoryOcrVisualScope.AUTO
         )
         if (visualDecision.action == StoryOcrVisualAction.SKIP_UNCHANGED) {
+            resetAutoBackoff()
             FgoLogger.debug(tag, "Auto OCR skipped: ${visualDecision.reason}")
             return AutoScanResult.Waiting
         }
@@ -2038,6 +2244,17 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         val dialogueScene = sceneSourceFor(dialogueRegions)
         if (dialogueScene?.hasDialogue == true) {
+            if (dialogueCompleteByFallback &&
+                isSuspiciousFallbackOcr(dialogueRegions, currentScreenWidth, currentScreenHeight)
+            ) {
+                storyOcrVisualGate.completeRecognition(
+                    visualDecision.recognitionToken,
+                    accepted = false
+                )
+                rememberDialogueWait(ProcessingMode.AUTO_BACKGROUND)
+                FgoLogger.debug(tag, "Auto fallback OCR rejected; waiting for strict marker")
+                return AutoScanResult.Waiting
+            }
             val label = if (choiceBounds.isEmpty()) {
                 "Completed dialogue"
             } else {
@@ -2736,7 +2953,12 @@ class FgoAccessibilityService : AccessibilityService() {
         val previousHeight = previous.boundingBox.height().coerceAtLeast(1)
         val currentHeight = current.boundingBox.height().coerceAtLeast(1)
         val gap = (current.boundingBox.left - previous.boundingBox.right).coerceAtLeast(0)
-        if (gap > previousHeight * NAME_OCR_MAX_GAP_HEIGHT_RATIO) return false
+        val maxGapRatio = if (previous.text.trim().endsWith("・")) {
+            NAME_OCR_DOT_SEPARATOR_MAX_GAP_HEIGHT_RATIO
+        } else {
+            NAME_OCR_MAX_GAP_HEIGHT_RATIO
+        }
+        if (gap > previousHeight * maxGapRatio) return false
 
         val overlap = (
             minOf(previous.boundingBox.bottom, current.boundingBox.bottom) -
