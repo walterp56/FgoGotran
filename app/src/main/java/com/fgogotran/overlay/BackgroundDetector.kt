@@ -41,6 +41,8 @@ class BackgroundDetector @Inject constructor() {
         private const val COMPLETE_MARKER_EDGE_GUARD_PX = 2
         private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 100
         private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.05f
+        private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 600
+        private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.35f
         private const val MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO = 0.35f
     }
 
@@ -288,6 +290,11 @@ class BackgroundDetector @Inject constructor() {
      * Loose evidence that the continue-diamond region contains some white
      * marker pixels. Used only as a secondary completion signal together with
      * three-frame dialogue-region stability, never as a standalone decision.
+     *
+     * Bounded on both sides. A real diamond covers only a small part of the
+     * region (~360 px, ratio ~0.14), while mostly-white UI panels on menu
+     * screens (2000+ px, ratio 0.8+) used to pass a minimum-only check and made
+     * the fallback treat a menu screen as a completed dialogue.
      */
     fun hasDialogueCompleteMarkerEvidence(bitmap: Bitmap, markerRegion: Rect): Boolean {
         val baseBounds = Rect(
@@ -300,8 +307,10 @@ class BackgroundDetector @Inject constructor() {
 
         val markerProfile = completeMarkerColorProfile(bitmap, baseBounds)
         val baseScore = completeMarkerWhiteScore(bitmap, baseBounds, markerProfile)
-        val evidence = baseScore.whitePixels >= MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
-            baseScore.ratio >= MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO
+        val evidence = baseScore.whitePixels in
+            MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS..MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
+            baseScore.ratio in
+            MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO..MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO
         FgoLogger.debug(
             tag,
             "Dialogue complete marker evidence=$evidence markerRatio=${baseScore.ratio} " +

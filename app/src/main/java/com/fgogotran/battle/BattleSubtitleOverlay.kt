@@ -40,7 +40,9 @@ class BattleSubtitleOverlay(private val context: Context) {
             breakStrategy = LineBreaker.BREAK_STRATEGY_SIMPLE
             hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
             setShadowLayer(1.5f, 0f, 0f, Color.BLACK)
-            background = GradientDrawable().apply { setColor(0xCC101010.toInt()); cornerRadius = 8f * scale }
+            // Fixed 55% black, matching FGO's own battle subtitle plate. The visible
+            // color intentionally tracks the scene behind it, exactly like the game.
+            background = GradientDrawable().apply { setColor(0x8C000000.toInt()); cornerRadius = 8f * scale }
         }.also { view = it }
         this.onVisible = onVisible
         if (lastText == text && lastWidth == screenWidth && lastHeight == screenHeight &&

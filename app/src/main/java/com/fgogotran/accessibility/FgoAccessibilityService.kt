@@ -2919,12 +2919,18 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** FGO speaker names occupy one left-to-right row; distant OCR boxes are UI noise. */
-    private fun nameLabelSourceText(lines: List<OcrTextLine>): String {
+    /**
+     * FGO speaker names occupy one left-to-right row; distant OCR boxes are UI noise.
+     *
+     * Returns the exact boxes that form the name so every downstream consumer
+     * (name-plate sizing, original-colour sampling, visual fingerprint) sees the
+     * name only and never the dropped boxes.
+     */
+    private fun selectNameLabelCluster(lines: List<OcrTextLine>): List<OcrTextLine> {
         val sorted = cleanRubyNoiseLines(lines)
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy({ it.boundingBox.left }, { it.boundingBox.top }))
-        if (sorted.size < 2) return sorted.firstOrNull()?.text?.trim().orEmpty()
+        if (sorted.size < 2) return sorted
 
         val selected = mutableListOf(sorted.first())
 
@@ -2934,17 +2940,20 @@ class FgoAccessibilityService : AccessibilityService() {
             selected += line
         }
 
-        val text = selected.joinToString("") { it.text.trim() }.trim()
         if (selected.size < sorted.size) {
+            val kept = selected.joinToString("") { it.text.trim() }.trim()
             val dropped = sorted.drop(selected.size).joinToString(" | ") { it.text.trim() }
             FgoLogger.debug(
                 tag,
-                "Name OCR kept left-to-right cluster ${debugQuote(text)}; " +
+                "Name OCR kept left-to-right cluster ${debugQuote(kept)}; " +
                     "dropped distant boxes ${debugQuote(dropped)}"
             )
         }
-        return text
+        return selected
     }
+
+    private fun nameLabelSourceText(lines: List<OcrTextLine>): String =
+        selectNameLabelCluster(lines).joinToString("") { it.text.trim() }.trim()
 
     private fun isNameLabelContinuation(
         previous: OcrTextLine,
@@ -3441,6 +3450,11 @@ class FgoAccessibilityService : AccessibilityService() {
             for (y in bounds.top until bounds.bottom step 2) {
                 for (x in bounds.left until bounds.right step 2) {
                     val pixel = source.getPixel(x, y)
+                    // Only glyph pixels vote. The box also covers the nameplate and the
+                    // scene art showing through it; counting those pixels let the
+                    // background outvote the name and made the colour flip per frame.
+                    // Same text-pixel test the visual fingerprint mask uses.
+                    if (!isLikelyTextPixel(pixel)) continue
                     val r = (pixel shr 16) and 0xFF
                     val g = (pixel shr 8) and 0xFF
                     val b = pixel and 0xFF
@@ -3930,7 +3944,10 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         ).map { region ->
             when (region.region) {
-                TextRegion.NAME_LABEL -> region.copy(boundingBox = screenRegions.nameRender)
+                TextRegion.NAME_LABEL -> region.copy(
+                    lines = selectNameLabelCluster(region.lines),
+                    boundingBox = screenRegions.nameRender
+                )
                 TextRegion.DIALOGUE_BOX -> region.copy(boundingBox = screenRegions.dialogueRender)
                 TextRegion.CHOICE_BUTTON -> region
             }
