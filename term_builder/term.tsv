@@ -1,137 +1,137 @@
-jp_term	cn_term	category	aliases
-オリュンポス	奥林波斯	place	
-妖精國	妖精国	place	妖精国
-カルデア	迦勒底	place	Chaldea
-カルデアス	迦勒底亚斯	game_term	CHALDEAS
-ノウム・カルデア	新迦勒底	place	
-フィニス・カルデア	菲尼斯·迦勒底	place	
-人理	人理	game_term	
-人理修復	人理修复	game_term	
-人理継続保障機関	人理续存保障机构	organization	
-人理保障機関カルデア	人理保障机构迦勒底	organization	
-特異点	特异点	game_term	
-亜種特異点	亚种特异点	game_term	
-異聞帯	异闻带	game_term	Lostbelt
-ロストベルト	异闻带	game_term	Lostbelt
-空想樹	空想树	game_term	
-クリプター	隐匿者	game_term	Crypter
-異星の神	异星之神	game_term	
-ビースト	Beast	class	兽
-グランド	冠位	game_term	Grand
-グランドサーヴァント	冠位从者	game_term	Grand Servant
-サーヴァント	从者	game_term	Servant
-マスター	御主	game_term	Master
-英霊	英灵	game_term	
-守護者	守护者	game_term	
-疑似サーヴァント	拟似从者	game_term	
-デミ・サーヴァント	亚从者	game_term	Demi-Servant
-シャドウサーヴァント	影从者	game_term	Shadow Servant
-宝具	宝具	game_term	Noble Phantasm
-スキル	技能	game_term	Skill
-概念礼装	概念礼装	game_term	Craft Essence
-聖晶石	圣晶石	game_term	
-聖杯	圣杯	game_term	
-聖杯戦争	圣杯战争	game_term	
-令呪	令咒	game_term	Command Spell
-魔術	魔术	game_term	
-魔術師	魔术师	game_term	
-魔力	魔力	game_term	
-魔眼	魔眼	game_term	
-魔術回路	魔术回路	game_term	
-霊基	灵基	game_term	
-霊核	灵核	game_term	
-霊脈	灵脉	game_term	
-霊子	灵子	game_term	
-レイシフト	灵子转移	game_term	Rayshift,霊子転移
-霊衣	灵衣	game_term	
-聖杯探索	圣杯探索	game_term	
-グランドオーダー	冠位指定	game_term	Grand Order
-冠位指定	冠位指定	game_term	Grand Order
-抑止力	抑止力	game_term	
-根源	根源	game_term	
-アラヤ	阿赖耶	game_term	
-ガイア	盖亚	game_term	
-ムーンセル	月之圣杯	game_term	Moon Cell
-聖剣	圣剑	game_term	
-円卓	圆桌	game_term	
-円卓の騎士	圆桌骑士	game_term	
-妖精	妖精	game_term	
-竜種	龙种	game_term	
-神霊	神灵	game_term	
-英霊召喚	英灵召唤	game_term	
-召喚	召唤	game_term	
-強化	强化	game_term	
-再臨	再临	game_term	再臨
-セイバー	Saber	class	剑士
-アーチャー	Archer	class	弓兵
-ランサー	Lancer	class	枪兵
-ライダー	Rider	class	骑兵
-キャスター	Caster	class	术士
-アサシン	Assassin	class	暗匿者
-バーサーカー	Berserker	class	狂战士
-シールダー	Shielder	class	盾兵
-ルーラー	Ruler	class	裁定者
-アヴェンジャー	Avenger	class	复仇者
-ムーンキャンサー	MoonCancer	class	月之癌
-アルターエゴ	Alterego	class	Alter Ego,他人格
-フォーリナー	Foreigner	class	降临者
-プリテンダー	Pretender	class	身披角色者
-ストーム・ボーダー	Storm Border	place	ストームボーダー,ストーム・ボーダ一,ストームボーダ一,ストーム・ホーダー,ストームホーダー,ストーム・ポーダー,ストームポーダー,Storm Border,StormBorder
-ボーダー	Border	place	ボーダ一,ホーダー,ポーダー,Border
-アンビースト	UnBeast	class	越兽
-シャドウ・ボーダー	Shadow Border	place	シャドウボーダー,シャドウ・ボーダ一,シャドウボーダ一,シャドウ・ホーダー,シャドウホーダー,シャドウ・ポーダー,シャドウポーダー,Shadow Border,ShadowBorder
-汎人類史	泛人类史	game_term	Proper Human History
-人理定礎	人理奠基	game_term	
-剪定事象	剪定事象	game_term	
-残存詩篇	残存诗篇	game_term	Remnant Order
-英霊召喚システム・Fate	英灵召唤系统·Fate	game_term	英霊召喚システム·Fate
-霊子演算器·トリスメギストス	灵子演算装置·特里斯墨吉斯忒斯	game_term	霊子演算器トリスメギストス
-聖堂教会	圣堂教会	organization	
-魔術協会	魔术协会	organization	
-時計塔	时钟塔	organization	
-アトラス院	阿特拉斯院	organization	
-彷徨海	彷徨海	organization	
-冬木市	冬木市	place	
-虚数空間	虚数空间	place	
-神代	神代	game_term	
-固有結界	固有结界	game_term	Reality Marble
-投影魔術	投影魔术	game_term	
-空想具現化	空想具现化	game_term	
-無限の剣製	无限剑制	noble_phantasm	アンリミテッドブレイドワークス,Unlimited Blade Works
-エクスカリバー	誓约胜利之剑	noble_phantasm	約束された勝利の剣
-アヴァロン	阿瓦隆	place	
-ロー・アイアス	覆盖炽天之七圆环	noble_phantasm	
-ルールブレイカー	万符必应破戒	noble_phantasm	破戒すべき全ての符
-ロンゴミニアド	伦戈米尼亚德	noble_phantasm	Rhongomyniad
-ゲイ・ボルク	穿刺死棘之枪	noble_phantasm	刺し穿つ死棘の槍
-ブラックバレル	Black Barrel	game_term	ブラック・バレル,Black Barrel
-ヤガ	雅嘎	game_term	
-虚数観測機・ペーパームーン	虛數觀測機·平面之月	game_term	虚数観測機ペーパームーン
-近未来観測レンズ・シバ	近未来观测透镜·示巴	game_term	
-虚数羅針	虚数罗盘	game_term	
-ポイント・ネモ	尼莫点	place	ポイントネモ
-アーキタイプ	Archetype	game_term	
-ムーン・ドバイ	月面杜拜	place	ムーン・ドバイ
-転移孔	转移孔	place	
-バルトアンデルス	波丹德斯	organization	
-マイルーム	My room	place	
-オーディール・コール	Ordeal Call	game_term	
-ホムンクルス	人工生命体	game_term	
-戦乙女	女武神	game_term	
-リリン	莉莉恩	game_term	
-サクラファイブ	Sakura Five	game_term	
-タマモナイン	Tamamo Nine	game_term	
-カルデニア	迦勒迪尼亚	place	カルデ二ア
-アルスィア	Althea	game_term
-パラディーン	Paladin	class	圣骑士
-シールダー・パラディーン	Shielder・Paladin	class	圣骑士盾兵
-シリウスライト	Sirius Light	game_term
-トリスメギストスI	特里斯墨吉斯忒斯II	game_term	
-マジムンアイランド	魔物岛	place	
-マジムン	魔物	game_term
-ニライカナイ	尼来卡奈	place
-くらくら	头晕目眩	place
-マブイ	魂魄	game_term
-キュケオーン	休刻翁	game_term
-ベーケス	涩涩的	game_term
-ブレイブ	勇者	game_term	
+jp_term	cn_term	en_term	category	aliases
+オリュンポス	奥林波斯	Olympus	place	
+妖精國	妖精国	Faerie Britain	place	妖精国
+カルデア	迦勒底	Chaldea	place	Chaldea
+カルデアス	迦勒底亚斯	CHALDEAS	game_term	CHALDEAS
+ノウム・カルデア	新迦勒底	Novum Chaldea	place	
+フィニス・カルデア	菲尼斯·迦勒底	Finis Chaldea	place	
+人理	人理	Human Order	game_term	
+人理修復	人理修复	Restoration of Humanity	game_term	
+人理継続保障機関	人理续存保障机构	Security Organization for the Preservation of Humanity	organization	
+人理保障機関カルデア	人理保障机构迦勒底	Security Organization for the Preservation of Humanity - Chaldea	organization	
+特異点	特异点	Singularity	game_term	
+亜種特異点	亚种特异点	Pseudo-Singularity	game_term	
+異聞帯	异闻带	Lostbelt	game_term	Lostbelt
+ロストベルト	异闻带	Lostbelt	game_term	Lostbelt
+空想樹	空想树	Fantasy Tree	game_term	
+クリプター	隐匿者	Crypter	game_term	Crypter
+異星の神	异星之神	Alien God	game_term	
+ビースト	Beast	Beast	class	兽
+グランド	冠位	Grand	game_term	Grand
+グランドサーヴァント	冠位从者	Grand Servant	game_term	Grand Servant
+サーヴァント	从者	Servant	game_term	Servant
+マスター	御主	Master	game_term	Master
+英霊	英灵	Heroic Spirit	game_term	
+守護者	守护者	Counter Guardian	game_term	
+疑似サーヴァント	拟似从者	Pseudo-Servant	game_term	
+デミ・サーヴァント	亚从者	Demi-Servant	game_term	Demi-Servant
+シャドウサーヴァント	影从者	Shadow Servant	game_term	Shadow Servant
+宝具	宝具	Noble Phantasm	game_term	Noble Phantasm
+スキル	技能	Skill	game_term	Skill
+概念礼装	概念礼装	Craft Essence	game_term	Craft Essence
+聖晶石	圣晶石	Saint Quartz	game_term	
+聖杯	圣杯	Holy Grail	game_term	
+聖杯戦争	圣杯战争	Holy Grail War	game_term	
+令呪	令咒	Command Spell	game_term	Command Spell
+魔術	魔术	Magecraft	game_term	
+魔術師	魔术师	Mage	game_term	
+魔力	魔力	Magical Energy	game_term	
+魔眼	魔眼	Mystic Eyes	game_term	
+魔術回路	魔术回路	Magic Circuit	game_term	
+霊基	灵基	Spirit Origin	game_term	
+霊核	灵核	Spiritual Core	game_term	
+霊脈	灵脉	Leyline	game_term	
+霊子	灵子	Spiritron	game_term	
+レイシフト	灵子转移	Rayshift	game_term	Rayshift,霊子転移
+霊衣	灵衣	Spiritron Dress	game_term	
+聖杯探索	圣杯探索	Grail Quest	game_term	
+グランドオーダー	冠位指定	Grand Order	game_term	Grand Order
+冠位指定	冠位指定	Grand Order	game_term	Grand Order
+抑止力	抑止力	Counter Force	game_term	
+根源	根源	Root	game_term	
+アラヤ	阿赖耶	Alaya	game_term	
+ガイア	盖亚	Gaia	game_term	
+ムーンセル	月之圣杯	Moon Cell	game_term	Moon Cell
+聖剣	圣剑	Holy Sword	game_term	
+円卓	圆桌	Round Table	game_term	
+円卓の騎士	圆桌骑士	Knights of the Round Table	game_term	
+妖精	妖精	Fairy	game_term	
+竜種	龙种	Dragon Kind	game_term	
+神霊	神灵	Divine Spirit	game_term	
+英霊召喚	英灵召唤	Heroic Spirit Summoning	game_term	
+召喚	召唤	Summoning	game_term	
+強化	强化	Enhancement	game_term	
+再臨	再临	Ascension	game_term	再臨
+セイバー	Saber	Saber	class	剑士
+アーチャー	Archer	Archer	class	弓兵
+ランサー	Lancer	Lancer	class	枪兵
+ライダー	Rider	Rider	class	骑兵
+キャスター	Caster	Caster	class	术士
+アサシン	Assassin	Assassin	class	暗匿者
+バーサーカー	Berserker	Berserker	class	狂战士
+シールダー	Shielder	Shielder	class	盾兵
+ルーラー	Ruler	Ruler	class	裁定者
+アヴェンジャー	Avenger	Avenger	class	复仇者
+ムーンキャンサー	MoonCancer	Moon Cancer	class	月之癌
+アルターエゴ	Alterego	Alter Ego	class	Alter Ego,他人格
+フォーリナー	Foreigner	Foreigner	class	降临者
+プリテンダー	Pretender	Pretender	class	身披角色者
+ストーム・ボーダー	Storm Border	Storm Border	place	ストームボーダー,ストーム・ボーダ一,ストームボーダ一,ストーム・ホーダー,ストームホーダー,ストーム・ポーダー,ストームポーダー,Storm Border,StormBorder
+ボーダー	Border	Border	place	ボーダ一,ホーダー,ポーダー,Border
+アンビースト	UnBeast	UnBeast	class	越兽
+シャドウ・ボーダー	Shadow Border	Shadow Border	place	シャドウボーダー,シャドウ・ボーダ一,シャドウボーダ一,シャドウ・ホーダー,シャドウホーダー,シャドウ・ポーダー,シャドウポーダー,Shadow Border,ShadowBorder
+汎人類史	泛人类史	Proper Human History	game_term	Proper Human History
+人理定礎	人理奠基	Human Order Foundation	game_term	
+剪定事象	剪定事象	Pruned Event	game_term	
+残存詩篇	残存诗篇	Remnant Order	game_term	Remnant Order
+英霊召喚システム・Fate	英灵召唤系统·Fate	Heroic Spirit Summoning System: Fate	game_term	英霊召喚システム·Fate
+霊子演算器·トリスメギストス	灵子演算装置·特里斯墨吉斯忒斯	Spiritron Calculation Engine “TRISMEGISTUS”	game_term	霊子演算器トリスメギストス
+聖堂教会	圣堂教会	Holy Church	organization	
+魔術協会	魔术协会	Mage’s Association	organization	
+時計塔	时钟塔	Clock Tower	organization	
+アトラス院	阿特拉斯院	Atlas Institute	organization	
+彷徨海	彷徨海	Wandering Sea	organization	
+冬木市	冬木市	Fuyuki City	place	
+虚数空間	虚数空间	Imaginary Number Space	place	
+神代	神代	Age of Gods	game_term	
+固有結界	固有结界	Reality Marble	game_term	Reality Marble
+投影魔術	投影魔术	Projection Magecraft	game_term	
+空想具現化	空想具现化	Marble Phantasm	game_term	
+無限の剣製	无限剑制	Unlimited Blade Works	noble_phantasm	アンリミテッドブレイドワークス,Unlimited Blade Works
+エクスカリバー	誓约胜利之剑	Excalibur	noble_phantasm	約束された勝利の剣
+アヴァロン	阿瓦隆	Avalon	place	
+ロー・アイアス	覆盖炽天之七圆环	Rho Aias	noble_phantasm	
+ルールブレイカー	万符必应破戒	Rule Breaker	noble_phantasm	破戒すべき全ての符
+ロンゴミニアド	伦戈米尼亚德	Rhongomyniad	noble_phantasm	Rhongomyniad
+ゲイ・ボルク	穿刺死棘之枪	Gáe Bolg	noble_phantasm	刺し穿つ死棘の槍
+ブラックバレル	Black Barrel	Black Barrel	game_term	ブラック・バレル,Black Barrel
+ヤガ	雅嘎	Yaga	game_term	
+虚数観測機・ペーパームーン	虛數觀測機·平面之月	Imaginary Number Observation Device Paper Moon	game_term	虚数観測機ペーパームーン
+近未来観測レンズ・シバ	近未来观测透镜·示巴	Near-Future Observation Lens “SHEBA”	game_term	
+虚数羅針	虚数罗盘	Imaginary Number Compass	game_term	
+ポイント・ネモ	尼莫点	Point Nemo	place	ポイントネモ
+アーキタイプ	Archetype	Archetype	game_term	
+ムーン・ドバイ	月面杜拜	Moon Dubai	place	ムーン・ドバイ
+転移孔	转移孔		place	
+バルトアンデルス	波丹德斯		organization	
+マイルーム	My room	My Room	place	
+オーディール・コール	Ordeal Call	Ordeal Call	game_term	
+ホムンクルス	人工生命体	Homunculus	game_term	
+戦乙女	女武神	Valkyrie	game_term	
+リリン	莉莉恩	Lilin	game_term	
+サクラファイブ	Sakura Five	Sakura Five	game_term	
+タマモナイン	Tamamo Nine	Tamamo Nine	game_term	
+カルデニア	迦勒迪尼亚		place	カルデ二ア
+アルスィア	Althea		game_term	
+パラディーン	Paladin	Paladin	class	圣骑士
+シールダー・パラディーン	Shielder・Paladin	Shielder Paladin	class	圣骑士盾兵
+シリウスライト	Sirius Light	Sirius Light	game_term	
+トリスメギストスI	特里斯墨吉斯忒斯II		game_term	
+マジムンアイランド	魔物岛	Majimun Island	place	
+マジムン	魔物	Majimun	game_term	
+ニライカナイ	尼来卡奈	Nirai Kanai	place	
+くらくら	头晕目眩		place	
+マブイ	魂魄	Mabui	game_term	
+キュケオーン	休刻翁	Kykeon	game_term	
+ベーケス	涩涩的		game_term	
+ブレイブ	勇者	Brave	game_term	

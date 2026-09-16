@@ -4,9 +4,7 @@ import android.content.Context
 import android.content.ComponentCallbacks
 import android.content.res.Configuration
 import android.graphics.Rect
-import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -17,7 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
-import com.fgogotran.R
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.battle.BattleModeState
 import com.fgogotran.crop.CropModeState
@@ -29,7 +26,7 @@ import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
 import com.fgogotran.ui.overlay.FloatingButtonMode
 import com.fgogotran.ui.overlay.HistoryOverlayPanel
-import com.fgogotran.ui.overlay.FloatingMenu
+import com.fgogotran.ui.overlay.FloatingArcMenu
 import com.fgogotran.ui.overlay.withBattleIndicator
 import com.fgogotran.util.FakeComposeHost
 import com.fgogotran.util.FgoLogger
@@ -54,7 +51,7 @@ import javax.inject.Singleton
  * - Adds a [androidx.compose.ui.platform.ComposeView] to the WindowManager
  * - Renders the [FloatingButton] composable inside it
  * - Handles drag-to-reposition via [onDrag]
- * - Requests translation on tap and shows the popup [FloatingMenu] on long press
+ * - Requests translation on tap and shows the popup [FloatingArcMenu] on long press
  * - Persists button position via DataStore
  *
  * The overlay uses [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY]
@@ -71,7 +68,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var windowManager: WindowManager? = null
     private var composeHost: FakeComposeHost? = null
     private var historyHost: FakeComposeHost? = null
-    private var floatingMenuDialog: androidx.appcompat.app.AlertDialog? = null
+    private var floatingMenuHost: FakeComposeHost? = null
     private var onCloseRequested: (() -> Unit)? = null
     private var onLiveVoiceTranslationToggleRequested: ((Boolean) -> Unit)? = null
     private var shown = false
@@ -140,6 +137,24 @@ class FgoRunnerOverlay @Inject constructor(
         }
 
     private val historyLayoutParams: WindowManager.LayoutParams
+        get() = WindowManager.LayoutParams().apply {
+            type = overlayType
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+
+    /** Layout params for the full-screen arc menu overlay. */
+    private val menuLayoutParams: WindowManager.LayoutParams
         get() = WindowManager.LayoutParams().apply {
             type = overlayType
             format = PixelFormat.TRANSLUCENT
@@ -254,6 +269,7 @@ class FgoRunnerOverlay @Inject constructor(
     /** Hides the floating button and saves its position. */
     fun hide() {
         if (!shown) return
+        dismissMenu()
         showRequestVersion += 1
         buttonSizeJob?.cancel()
         buttonSizeJob = null
@@ -546,6 +562,7 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun handleScreenBoundsChanged() {
+        dismissMenu()
         if (!shown) {
             buttonPositionScreen = null
             buttonPositionLoaded = false
@@ -585,28 +602,38 @@ class FgoRunnerOverlay @Inject constructor(
 
     /** Called when the user holds the floating button (not drags). */
     private fun onButtonLongClick() {
-        if (floatingMenuDialog?.isShowing == true) {
-            floatingMenuDialog?.dismiss()
+        if (floatingMenuHost != null) {
+            dismissMenu()
         }
-        floatingMenuDialog = showMenuDialog()
+        showArcMenu()
     }
 
     /**
-     * Creates and shows the white popup menu as an overlay AlertDialog.
+     * Creates and shows the arc fan menu as a full-screen overlay window.
      *
-     * Uses [FakeComposeHost] to render the [FloatingMenu] composable
-     * inside the dialog, so it has the correct plain white style.
+     * Uses [FakeComposeHost] to render the [FloatingArcMenu] composable
+     * anchored around the floating button.
      */
-    private fun showMenuDialog(): androidx.appcompat.app.AlertDialog {
+    private fun showArcMenu() {
+        val wm = windowManager ?: return
+        dismissMenu()
         TranslationTrigger.setMenuVisible(true)
-        val menuHost = FakeComposeHost(context) {
-            FloatingMenu(
+
+        val buttonSizePx = currentButtonSizePx()
+        val centerX = btnX + buttonSizePx / 2
+        val centerY = btnY + buttonSizePx / 2
+        val viewportScale = currentViewportScale()
+
+        val host = FakeComposeHost(context) {
+            FloatingArcMenu(
                 translationMode = TranslationTrigger.translationMode(),
                 battleModeActive = battleModeActive,
-                viewportScale = currentViewportScale(),
                 gameServer = gameServer,
-                aiVoiceEnabled = aiVoiceEnabled,
                 liveVoiceTranslationEnabled = liveVoiceTranslationEnabled,
+                buttonCenterX = centerX,
+                buttonCenterY = centerY,
+                viewportScale = viewportScale,
+                onDismiss = { dismissMenu() },
                 onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {
@@ -649,22 +676,17 @@ class FgoRunnerOverlay @Inject constructor(
             )
         }
 
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-            .setView(menuHost.view)
-            .create()
-
-        dialog.window?.setType(overlayType)
-        // Make the dialog background transparent so only our white card shows
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.setOnDismissListener {
+        floatingMenuHost = host
+        try {
+            wm.addView(host.view, menuLayoutParams)
+        } catch (e: Exception) {
+            host.close()
+            floatingMenuHost = null
             TranslationTrigger.setMenuVisible(false)
-            if (floatingMenuDialog === dialog) {
-                floatingMenuDialog = null
-            }
+            FgoLogger.warn(tag, "Failed to show arc menu", e)
+            return
         }
-        dialog.show()
-
-        return dialog
+        FgoLogger.info(tag, "Arc menu shown at ($centerX, $centerY)")
     }
 
     private fun currentViewportScale(): Float {
@@ -674,8 +696,12 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun dismissMenu() {
-        floatingMenuDialog?.dismiss()
-        floatingMenuDialog = null
+        val wm = windowManager
+        floatingMenuHost?.let {
+            try { wm?.removeView(it.view) } catch (_: Exception) {}
+            it.close()
+        }
+        floatingMenuHost = null
         TranslationTrigger.setMenuVisible(false)
     }
 
