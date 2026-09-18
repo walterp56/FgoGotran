@@ -19,6 +19,18 @@ object MediaProjectionCapture {
 
     private const val MAX_FAILURES_BEFORE_DISABLE = 3
 
+    /**
+     * A broken MediaProjection pipe keeps handing back frames that contain no
+     * picture at all (fully transparent / black). Such frames must never reach OCR,
+     * but a genuinely dark game scene must not disable projection either, so the
+     * failure is only counted after several consecutive unusable frames.
+     */
+    private const val BLANK_FRAME_STREAK_BEFORE_FAILURE = 3
+    private const val BLANK_FRAME_MIN_LUMINANCE = 24
+    private const val BLANK_FRAME_MIN_VISIBLE_RATIO = 0.02f
+    private const val BLANK_FRAME_SAMPLE_COLUMNS = 16
+    private const val BLANK_FRAME_SAMPLE_ROWS = 9
+
     private val stateLock = Any()
 
     private var nextSessionId = 0L
@@ -38,6 +50,16 @@ object MediaProjectionCapture {
     @Volatile
     private var disabledForSession = false
 
+    @Volatile
+    private var consecutiveBlankFrames = 0
+
+    /**
+     * Invoked when this run loses MediaProjection for good, so the owner can record a
+     * diagnostic entry and stop waiting for projection frames.
+     */
+    @Volatile
+    var onRunDisabled: ((String) -> Unit)? = null
+
     fun isAvailable(): Boolean = synchronized(stateLock) { captureTarget != null }
 
     fun isUsable(): Boolean = !disabledForSession && isAvailable()
@@ -48,26 +70,12 @@ object MediaProjectionCapture {
             sessionFailureCount = 0
             disabledForSession = false
         }
+        consecutiveBlankFrames = 0
     }
 
-    /**
-     * Disables MediaProjection for the rest of this run and releases its capture
-     * resources. Used when the display size/orientation changes, because Android 14
-     * forbids a second createVirtualDisplay() on the same MediaProjection instance
-     * and re-consent is intentionally not requested from this path.
-     */
-    fun fallbackToAccessibility(reason: String) {
-        var first = false
-        synchronized(stateLock) {
-            if (!disabledForSession) {
-                disabledForSession = true
-                first = true
-            }
-        }
-        if (first) {
-            FgoLogger.error(tag, "MediaProjection disabled for this run: $reason; using accessibility screenshot")
-        }
-        stop()
+    /** Records a start attempt that failed before any frame could be captured. */
+    fun noteStartFailure(reason: String) {
+        recordFailure(reason)
     }
 
     fun start(projection: MediaProjection, width: Int, height: Int, densityDpi: Int): Boolean {
@@ -134,6 +142,7 @@ object MediaProjectionCapture {
 
         successLogged = false
         missingLogged = false
+        consecutiveBlankFrames = 0
         FgoLogger.info(tag, "MediaProjection capture started: ${safeWidth}x${safeHeight}")
         return true
     }
@@ -199,6 +208,21 @@ object MediaProjectionCapture {
                 result.recycle()
                 return null
             }
+            if (!hasVisibleContent(result)) {
+                consecutiveBlankFrames += 1
+                FgoLogger.warn(
+                    tag,
+                    "MediaProjection delivered a blank frame (streak=$consecutiveBlankFrames); " +
+                        "using accessibility screenshot"
+                )
+                if (consecutiveBlankFrames >= BLANK_FRAME_STREAK_BEFORE_FAILURE) {
+                    consecutiveBlankFrames = 0
+                    recordFailure("blank_frame")
+                }
+                result.recycle()
+                return null
+            }
+            consecutiveBlankFrames = 0
             if (!successLogged) {
                 successLogged = true
                 FgoLogger.info(tag, "MediaProjection captured first frame: ${target.width}x${target.height}")
@@ -242,7 +266,41 @@ object MediaProjectionCapture {
                 "MediaProjection disabled for this run after $MAX_FAILURES_BEFORE_DISABLE failures; using accessibility screenshot"
             )
             stop()
+            notifyRunDisabled(reason)
         }
+    }
+
+    private fun notifyRunDisabled(reason: String) {
+        val hook = onRunDisabled ?: return
+        runCatching { hook(reason) }
+            .onFailure { FgoLogger.warn(tag, "MediaProjection disable notification failed", it) }
+    }
+
+    /**
+     * Sampled brightness check. A frame whose pixels are essentially all black or
+     * fully transparent carries no OCR text and signals a broken projection pipe
+     * (typical on emulators with GPU/Vulkan capture bugs).
+     */
+    private fun hasVisibleContent(bitmap: Bitmap): Boolean {
+        if (bitmap.width <= 0 || bitmap.height <= 0) return false
+        var visibleSamples = 0
+        var totalSamples = 0
+        for (row in 0 until BLANK_FRAME_SAMPLE_ROWS) {
+            val y = ((row + 0.5f) * bitmap.height / BLANK_FRAME_SAMPLE_ROWS)
+                .toInt()
+                .coerceIn(0, bitmap.height - 1)
+            for (column in 0 until BLANK_FRAME_SAMPLE_COLUMNS) {
+                val x = ((column + 0.5f) * bitmap.width / BLANK_FRAME_SAMPLE_COLUMNS)
+                    .toInt()
+                    .coerceIn(0, bitmap.width - 1)
+                val pixel = bitmap.getPixel(x, y)
+                val luminance = ((pixel shr 16) and 0xFF) + ((pixel shr 8) and 0xFF) + (pixel and 0xFF)
+                totalSamples += 1
+                if (luminance >= BLANK_FRAME_MIN_LUMINANCE) visibleSamples += 1
+            }
+        }
+        if (totalSamples == 0) return false
+        return visibleSamples.toFloat() / totalSamples.toFloat() >= BLANK_FRAME_MIN_VISIBLE_RATIO
     }
 
     private fun createImageReader(width: Int, height: Int): ImageReader? {

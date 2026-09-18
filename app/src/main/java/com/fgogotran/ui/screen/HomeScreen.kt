@@ -1,12 +1,10 @@
 package com.fgogotran.ui.screen
 
 import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.media.projection.MediaProjectionManager
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -21,6 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,13 +64,6 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val projectionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            FgoRunnerService.startService(context, result.resultCode, result.data)
-        }
-    }
     val audioCapturePermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -85,8 +77,7 @@ fun HomeScreen(
                 detail = "Android 使用 RECORD_AUDIO 权限保护其他应用的播放声音捕获"
             )
         }
-        val projectionManager = context.getSystemService(MediaProjectionManager::class.java)
-        projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+        FgoRunnerService.startService(context)
     }
     val scrollState = rememberScrollState()
     val gameServer by settingsRepository.gameServer.collectAsState(
@@ -96,13 +87,21 @@ fun HomeScreen(
         initial = false
     )
     val serviceRunning = FgoRunnerService.serviceStarted.value
-    val accessibilityServiceConnected = FgoAccessibilityService.serviceStarted.value
-    var accessibilityEnabled by remember {
-        mutableStateOf(FgoAccessibilityService.isEnabledInSettings(context))
+    // Android keeps a service listed as enabled even when its binding is dead, so the card
+    // reflects the real connection state instead of the settings flag alone.
+    val accessibilityState = FgoAccessibilityService.connectionState.value
+    val accessibilityNotConnected = accessibilityState ==
+        FgoAccessibilityService.ConnectionState.ENABLED_NOT_CONNECTED
+    val accessibilityRunningStatusColor = when (accessibilityState) {
+        FgoAccessibilityService.ConnectionState.CONNECTED -> Color(0xFF4CAF50)
+        FgoAccessibilityService.ConnectionState.ENABLED_NOT_CONNECTED -> Color(0xFFFF9800)
+        FgoAccessibilityService.ConnectionState.DISABLED -> Color(0xFFFF9800)
     }
-    val accessibilityRunning = accessibilityEnabled || accessibilityServiceConnected
-    val accessibilityRunningStatusColor = if (accessibilityRunning) Color(0xFF4CAF50) else Color(0xFFFF9800) // Green vs Orange
-    val accessibilityRunningStatusText = if (accessibilityRunning) "已启用" else "未启用"
+    val accessibilityRunningStatusText = when (accessibilityState) {
+        FgoAccessibilityService.ConnectionState.CONNECTED -> "已启用"
+        FgoAccessibilityService.ConnectionState.ENABLED_NOT_CONNECTED -> "已开启，未连接"
+        FgoAccessibilityService.ConnectionState.DISABLED -> "未启用"
+    }
 
     // Reactive state for permissions that change via system settings
     // (refreshed on Activity resume via LifecycleEventObserver)
@@ -114,15 +113,33 @@ fun HomeScreen(
     var showServerDialog by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    var homeResumed by remember {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+
+    // Keep the accessibility card honest while it is on screen: the binding can die or come
+    // back without any lifecycle callback reaching the app.
+    LaunchedEffect(homeResumed) {
+        while (homeResumed) {
+            FgoAccessibilityService.refreshConnectionState(context, "home_poll")
+            delay(2_000L)
+        }
+    }
+
     // update permissions state
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                accessibilityEnabled = FgoAccessibilityService.isEnabledInSettings(context)
-                canDrawOverlays = Settings.canDrawOverlays(context)
-                isIgnoringBatteryOptimizations = context
-                    .getSystemService(PowerManager::class.java)
-                    .isIgnoringBatteryOptimizations(context.packageName)
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    homeResumed = true
+                    FgoAccessibilityService.refreshConnectionState(context, "activity_resumed")
+                    canDrawOverlays = Settings.canDrawOverlays(context)
+                    isIgnoringBatteryOptimizations = context
+                        .getSystemService(PowerManager::class.java)
+                        .isIgnoringBatteryOptimizations(context.packageName)
+                }
+                Lifecycle.Event.ON_PAUSE -> homeResumed = false
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -153,8 +170,13 @@ fun HomeScreen(
             return
         }
 
-        // Check 2: Accessibility service
-        if (!FgoAccessibilityService.isEnabledInSettings(context)) {
+        // Check 2: Accessibility service. "Enabled in settings" alone is not enough: a dead
+        // binding looks identical there but cannot take screenshots.
+        val freshAccessibilityState = FgoAccessibilityService.refreshConnectionState(
+            context,
+            "toggle_service"
+        )
+        if (freshAccessibilityState == FgoAccessibilityService.ConnectionState.DISABLED) {
             diagnosticEventStore.record(
                 level = DiagnosticEventStore.LEVEL_WARNING,
                 category = DiagnosticEventStore.CATEGORY_SETUP,
@@ -165,6 +187,19 @@ fun HomeScreen(
             )
             showAccessibilityDisclosure(context)
             return
+        }
+        if (freshAccessibilityState ==
+            FgoAccessibilityService.ConnectionState.ENABLED_NOT_CONNECTED
+        ) {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                category = DiagnosticEventStore.CATEGORY_SETUP,
+                eventId = "accessibility_service_not_connected",
+                title = "无障碍服务已开启但未连接",
+                message = "系统仍标记服务为已启用，但 FgoGotran 没有收到连接",
+                detail = "关闭无障碍服务 → 等 2–3 秒 → 重新开启；刚切换模拟器图形模式时请完整重启模拟器"
+            )
+            showAccessibilityNotConnectedDialog(context)
         }
 
         // All permissions granted → start service
@@ -178,6 +213,8 @@ fun HomeScreen(
                 detail = "battery_optimization=active"
             )
         }
+        // Plain OCR no longer needs a MediaProjection consent at startup; the live voice feature
+        // asks for screen capture itself when the user switches it on.
         if (
             liveVoiceTranslationEnabled &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
@@ -185,8 +222,7 @@ fun HomeScreen(
         ) {
             audioCapturePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         } else {
-            val projectionManager = context.getSystemService(MediaProjectionManager::class.java)
-            projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+            FgoRunnerService.startService(context)
         }
     }
 
@@ -271,9 +307,15 @@ fun HomeScreen(
                 label = "无障碍服务",
                 statusText = accessibilityRunningStatusText,
                 statusColor = accessibilityRunningStatusColor,
-                enabled = accessibilityRunning,
-                actionText = "去设置 →",
-                onClick = { showAccessibilityDisclosure(context) }
+                enabled = accessibilityState == FgoAccessibilityService.ConnectionState.CONNECTED,
+                actionText = if (accessibilityNotConnected) "点此修复 →" else "去设置 →",
+                onClick = {
+                    if (accessibilityNotConnected) {
+                        showAccessibilityNotConnectedDialog(context)
+                    } else {
+                        showAccessibilityDisclosure(context)
+                    }
+                }
             )
 
             StatusActionCard(
@@ -648,6 +690,36 @@ private fun showAccessibilityDisclosure(context: Context) {
             context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         .setNegativeButton("取消", null)
+        .show()
+}
+
+/**
+ * Shown when Android still lists the accessibility service as enabled but the app has no
+ * live binding. This is the usual cause of "设置里显示已启用，App 里却显示未启用" and of
+ * screenshots failing on emulators after a graphics-mode change or emulator restart.
+ */
+private fun showAccessibilityNotConnectedDialog(context: Context) {
+    AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
+        .setTitle("无障碍服务已开启但未连接")
+        .setMessage(
+            """
+            系统设置里显示"已启用"，只代表服务已登记，并不代表它真的连接正常。
+
+            FgoGotran 目前取不到画面，因此自动 / 半自动 / 手动翻译和区域翻译都会失败或提示"未识别到文字"。
+
+            修复步骤：
+            1. 打开系统设置 → 无障碍 → 已下载的服务
+            2. 先关闭 FgoGotran 无障碍服务，等待 2–3 秒
+            3. 再重新开启 FgoGotran
+            4. 回到 FGO，重新启动悬浮服务
+
+            如果刚切换过模拟器图形模式（Vulkan / OpenGL）或刚重启过模拟器，请先完整重启模拟器再试。
+            """.trimIndent()
+        )
+        .setPositiveButton("去设置") { _, _ ->
+            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        .setNegativeButton("关闭", null)
         .show()
 }
 

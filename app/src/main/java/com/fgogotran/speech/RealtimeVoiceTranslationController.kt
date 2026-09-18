@@ -63,7 +63,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
         if (activeProjection == null) {
             failConfigurationIfCurrent(
                 startRequestId,
-                "屏幕捕获会话不可用，请重新启动悬浮服务",
+                "屏幕捕获未就绪：请回到 FGO 横屏画面后，重新启动悬浮服务并允许屏幕捕获授权",
                 "media_projection_missing"
             )
             return

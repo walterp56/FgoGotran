@@ -20,6 +20,7 @@ import com.fgogotran.battle.BattleModeState
 import com.fgogotran.crop.CropModeState
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
@@ -63,7 +64,8 @@ class FgoRunnerOverlay @Inject constructor(
     @ApplicationContext private val context: Context,
     private val cropSelectionOverlay: CropSelectionOverlay,
     private val settingsRepository: SettingsRepository,
-    private val battleModeState: BattleModeState
+    private val battleModeState: BattleModeState,
+    private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private var windowManager: WindowManager? = null
     private var composeHost: FakeComposeHost? = null
@@ -396,13 +398,33 @@ class FgoRunnerOverlay @Inject constructor(
             return
         }
 
-        val requested = FgoAccessibilityService.instance
-            ?.requestManualTranslation()
-            ?: false
-        if (!requested) {
-            FgoLogger.debug(tag, "Accessibility service unavailable; queued manual translation")
+        val accessibility = FgoAccessibilityService.instance
+        if (accessibility == null) {
+            reportAccessibilityServiceUnavailable("手动翻译")
+            return
+        }
+        if (!accessibility.requestManualTranslation()) {
+            FgoLogger.debug(tag, "Manual translation queued by the translation trigger")
             TranslationTrigger.requestTranslation()
         }
+    }
+
+    /**
+     * The floating menu keeps working when the accessibility binding dies, but every OCR
+     * action used to silently do nothing. Reporting it tells the user to re-enable the
+     * service instead of assuming the translation itself is broken.
+     */
+    private fun reportAccessibilityServiceUnavailable(action: String) {
+        FgoLogger.warn(tag, "Accessibility service unavailable; $action ignored")
+        showTranslationFailureFeedback(fromUserTap = true)
+        diagnosticEventStore.record(
+            level = DiagnosticEventStore.LEVEL_WARNING,
+            category = DiagnosticEventStore.CATEGORY_SETUP,
+            eventId = "accessibility_service_unavailable",
+            title = "无障碍服务不可用",
+            message = "系统设置显示已开启，但 FgoGotran 没有收到连接",
+            detail = "关闭无障碍服务，等待 2–3 秒后重新开启，然后回到 FGO 重试"
+        )
     }
 
     // ─── Drag handling ────────────────────────────────────────────────
@@ -745,12 +767,15 @@ class FgoRunnerOverlay @Inject constructor(
             return
         }
 
-        val requested = FgoAccessibilityService.instance
-            ?.requestCropTranslation(Rect(bounds), restoreMode)
-            ?: false
-        if (!requested) {
+        val accessibility = FgoAccessibilityService.instance
+        if (accessibility == null) {
             restoreModeAfterCropSelection(restoreMode)
-            FgoLogger.warn(tag, "Accessibility service unavailable; crop translation ignored")
+            reportAccessibilityServiceUnavailable("区域翻译")
+            return
+        }
+        if (!accessibility.requestCropTranslation(Rect(bounds), restoreMode)) {
+            restoreModeAfterCropSelection(restoreMode)
+            FgoLogger.warn(tag, "Crop translation rejected by the accessibility service")
         }
     }
 

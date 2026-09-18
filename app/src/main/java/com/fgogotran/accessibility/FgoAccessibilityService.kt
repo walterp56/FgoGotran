@@ -6,6 +6,7 @@ import android.accessibilityservice.AccessibilityService.ScreenshotResult
 import android.accessibilityservice.AccessibilityService.TakeScreenshotCallback
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.app.KeyguardManager
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -77,6 +78,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
@@ -88,6 +91,17 @@ import kotlin.coroutines.suspendCoroutine
  */
 @AndroidEntryPoint
 class FgoAccessibilityService : AccessibilityService() {
+
+    /**
+     * Screenshot availability has three distinct states. Android keeps a service listed
+     * as enabled even when its binding is dead (service crashed, emulator restarted, GPU
+     * mode switched), so "enabled in settings" must never be shown as a working status.
+     */
+    enum class ConnectionState {
+        DISABLED,
+        ENABLED_NOT_CONNECTED,
+        CONNECTED
+    }
 
     @Inject lateinit var ocrEngine: OcrEngine
     @Inject lateinit var backgroundDetector: BackgroundDetector
@@ -180,6 +194,17 @@ class FgoAccessibilityService : AccessibilityService() {
     private var aiVoiceChoiceTextEnabled = SettingsRepository.DEFAULT_AI_VOICE_CHOICE_TEXT_ENABLED
     private var aiVoiceMasterVoice = SettingsRepository.DEFAULT_AI_VOICE_MASTER_VOICE
     private var lastScreenshotErrorCode = 0
+
+    /**
+     * Serializes every OCR screenshot and paces accessibility captures. Story scans,
+     * battle scans, crop requests and freshness checks all share this one queue, so
+     * the platform never sees two overlapping takeScreenshot() calls.
+     */
+    private val screenshotMutex = Mutex()
+    private var lastAccessibilityScreenshotAt = 0L
+
+    @Volatile
+    private var lastScreenshotSource = SCREENSHOT_SOURCE_NONE
     private val unsupportedFgoLikePackageLoggedAt = LinkedHashMap<String, Long>()
 
     companion object {
@@ -200,7 +225,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val TRANSIENT_SYSTEM_UI_FOREGROUND_RECHECK_DELAY = 3_000L
         private const val TRANSIENT_SYSTEM_UI_FOREGROUND_MAX_DELAY = 30_000L
         private const val TAP_TRANSLATION_READ_HOLD_DELAY = 120L
-        private const val NEXT_DIALOGUE_POLL_INTERVAL = 120L
+        private const val NEXT_DIALOGUE_POLL_INTERVAL = 400L
         private const val NEXT_DIALOGUE_POLL_TIMEOUT = 2_500L
         private const val TAP_PASSTHROUGH_SETTLE_DELAY = 56L
         private const val TAP_REPLAY_TIMEOUT = 500L
@@ -229,10 +254,67 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val RED_DIALOGUE_MIN_SAMPLE_PIXELS = 18
         private const val RED_DIALOGUE_MIN_SAMPLE_RATIO = 0.0006f
         private const val RED_DIALOGUE_FORCE_FALLBACK_RATIO = 0.0025f
-        private const val NAME_OCR_MAX_GAP_HEIGHT_RATIO = 1.35f
-        private const val NAME_OCR_DOT_SEPARATOR_MAX_GAP_HEIGHT_RATIO = 2.5f
-        private const val NAME_OCR_MIN_VERTICAL_OVERLAP_RATIO = 0.25f
-        private const val NAME_OCR_MAX_CENTER_OFFSET_HEIGHT_RATIO = 0.55f
+        /** A coloured name needs this much more support than the runner-up, else it stays white. */
+        private const val NAME_COLOR_MIN_WINNER_RATIO = 1.5f
+
+        /**
+         * The speaker name sits on a blue plate whose width follows the name (with a minimum for
+         * short names). Locating that plate gives the true plate length without depending on glyph
+         * pixels, which a bright scene showing through the semi-transparent plate would poison.
+         */
+        private const val NAME_PLATE_MIN_BLUE = 55
+        private const val NAME_PLATE_MIN_BLUE_OVER_RED = 20
+        private const val NAME_PLATE_MIN_BLUE_OVER_GREEN = 12
+
+        /** Fraction of the scanned rows in a column that must look like the plate blue. */
+        private const val NAME_PLATE_COLUMN_SCORE = 0.6f
+
+        /**
+         * The plate fades out on the right, but the fade is not measured: the blue is solid up to a
+         * point and a fixed safety pad after that point is enough for the painted plate and for the
+         * OCR region. The fade never contains text, so the pad only has to cover soft edges.
+         */
+        private const val NAME_PLATE_SOLID_END_SCORE = 0.97f
+        private const val NAME_PLATE_SOLID_SCORE = 0.90f
+        private const val NAME_PLATE_END_SAFETY_PX = 30
+
+        /** The plate must start solid at the fixed left edge, otherwise this is not a name plate. */
+        private const val NAME_PLATE_START_SCORE = 0.80f
+        private const val NAME_PLATE_START_SAMPLE_PX = 8
+
+        /** A score drop only counts when it persists; shorter dips are white glyph strokes. */
+        private const val NAME_PLATE_END_CONFIRM_PX = 24
+
+        /** A measured plate must be at least this many times its own height wide. */
+        private const val NAME_PLATE_MIN_WIDTH_HEIGHT_RATIO = 3.0f
+
+        /**
+         * The plate's blue is sampled only in the bands above and below the name text. The middle
+         * rows are covered by white glyphs, and a wide stroke there made the plate look shorter
+         * than it is - that wrong boundary then cut the name out of the OCR region.
+         */
+        private const val NAME_PLATE_SAMPLE_TOP_START = 0.04f
+        private const val NAME_PLATE_SAMPLE_TOP_END = 0.15f
+        private const val NAME_PLATE_SAMPLE_BOTTOM_START = 0.85f
+        private const val NAME_PLATE_SAMPLE_BOTTOM_END = 0.94f
+
+        /** Warn when an OCR line reaches the narrowed region's edge: the name may be clipped. */
+        private const val NAME_PLATE_CLIP_WARNING_MARGIN_PX = 8
+
+        /**
+         * The plate has to fit the name text, but PaddleOCR's name box is 15-20% wider than the
+         * glyphs. The box is trimmed to the glyph extent measured with a stroke test: white pixels
+         * that have darker neighbours (the plate fill and the scene are uniform, the glyphs are not).
+         */
+        private const val NAME_INK_MIN_BRIGHTNESS = 170
+        private const val NAME_INK_MAX_SPREAD = 80
+        private const val NAME_INK_NEIGHBOUR_DROP = 60
+        private const val NAME_INK_MIN_WIDTH_RATIO = 0.25f
+        private const val NAME_INK_PADDING = 2
+
+        /** A plate must be at least this long; shorter measurements are not worth trusting. */
+        private const val NAME_PLATE_MIN_RUN_PX = 60
+
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
         private const val RUBY_HEIGHT_RATIO = 0.72f
@@ -242,6 +324,19 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val MASTER_PROFILE_MALE = "藤丸立香(男)"
         private const val MASTER_PROFILE_FEMALE = "藤丸立香(女)"
         private const val SCREENSHOT_ERROR_BITMAP_UNAVAILABLE = -1
+        private const val SCREENSHOT_ERROR_TIMEOUT = -2
+
+        /**
+         * AOSP rejects takeScreenshot() calls that arrive less than ~333ms apart with
+         * ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT. 400ms keeps a safety margin and
+         * matches what the reference accessibility capture projects use.
+         */
+        private const val ACCESSIBILITY_SCREENSHOT_MIN_INTERVAL_MS = 400L
+        private const val ACCESSIBILITY_SCREENSHOT_RETRY_DELAY_MS = 400L
+        private const val ACCESSIBILITY_SCREENSHOT_MAX_RETRIES = 2
+        private const val SCREENSHOT_SOURCE_PROJECTION = "media_projection"
+        private const val SCREENSHOT_SOURCE_ACCESSIBILITY = "accessibility"
+        private const val SCREENSHOT_SOURCE_NONE = "none"
         private const val SCREENSHOT_TIMEOUT_MS = 3_000L
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
@@ -285,6 +380,25 @@ class FgoAccessibilityService : AccessibilityService() {
                 field = value
                 _serviceStarted.value = value != null
             }
+
+        private val _connectionState = mutableStateOf(ConnectionState.DISABLED)
+        val connectionState: State<ConnectionState>
+            get() = _connectionState
+
+        /** Re-derives the connection state from the live binding plus system settings. */
+        fun refreshConnectionState(context: Context, reason: String): ConnectionState {
+            val next = when {
+                instance != null -> ConnectionState.CONNECTED
+                isEnabledInSettings(context) -> ConnectionState.ENABLED_NOT_CONNECTED
+                else -> ConnectionState.DISABLED
+            }
+            val previous = _connectionState.value
+            if (previous != next) {
+                _connectionState.value = next
+                FgoLogger.info("Accessibility", "Connection state $previous -> $next ($reason)")
+            }
+            return next
+        }
 
         fun isEnabledInSettings(context: Context): Boolean {
             if (_serviceStarted.value) return true
@@ -413,8 +527,25 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         reportServiceUsage()
         warmUpManualPipeline()
+        MediaProjectionCapture.onRunDisabled = { reason ->
+            reportProjectionRunDisabled(reason)
+            // The experimental screenshot source exhausted its failure budget; switch it off so
+            // the setting matches reality and OCR keeps using accessibility screenshots.
+            serviceScope.launch {
+                settingsRepository.setExperimentalMediaProjectionScreenshotEnabled(false)
+            }
+        }
+        refreshAccessibilityConnectionState("service_connected")
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
+        FgoLogger.info(tag, "Screenshot capability: ${canTakeScreenshots()}")
         FgoLogger.info(tag, "Service connected: ${screenWidth}x${screenHeight}")
+        diagnosticEventStore.record(
+            level = DiagnosticEventStore.LEVEL_INFO,
+            category = DiagnosticEventStore.CATEGORY_SETUP,
+            eventId = "accessibility_service_connected",
+            title = "无障碍服务已连接",
+            message = "截图能力=${canTakeScreenshots()}，屏幕=${screenWidth}x${screenHeight}"
+        )
     }
 
     private fun reportServiceUsage() {
@@ -681,6 +812,21 @@ class FgoAccessibilityService : AccessibilityService() {
         FgoLogger.info(tag, "FGO foreground restored from OCR capture: $reason")
     }
 
+    /**
+     * A dead binding is the usual reason a user sees "已启用" in the system settings
+     * while the app still cannot take screenshots. Recording it lets the UI and the
+     * diagnostic log point at the real fix (toggle the service off and on again).
+     */
+    override fun onUnbind(intent: Intent?): Boolean {
+        FgoLogger.warn(tag, "Service unbound by the system")
+        // Drop the instance first: the binding is already gone, so every caller that
+        // checks instance != null must stop treating the service as usable.
+        instance = null
+        battleModeState.setEnabled(false)
+        refreshAccessibilityConnectionState("unbind")
+        return super.onUnbind(intent)
+    }
+
     override fun onInterrupt() {
         FgoLogger.warn(tag, "Service interrupted")
         battleModeState.setEnabled(false)
@@ -688,17 +834,20 @@ class FgoAccessibilityService : AccessibilityService() {
         translationOverlay.hideAll()
         cropResultOverlay.hide()
         battleSubtitles.destroy()
+        refreshAccessibilityConnectionState("interrupt")
         serviceScope.cancel()
     }
 
     override fun onDestroy() {
         instance = null
+        MediaProjectionCapture.onRunDisabled = null
         battleModeState.setEnabled(false)
         cancelTransientForegroundLoss()
         translationOverlay.destroy()
         cropResultOverlay.destroy()
         battleSubtitles.destroy()
         aiVoiceService.stop()
+        refreshAccessibilityConnectionState("destroy")
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -1087,9 +1236,9 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             finally {
                 frame?.recycle()
-                val interval = battleSubtitles.scanIntervalMs.coerceAtLeast(
-                    if (MediaProjectionCapture.isUsable()) 120L else 350L
-                )
+                // Battle subtitles stay on screen long enough that one paced scan per 400ms is
+                // plenty; the screenshot funnel enforces the same interval for accessibility.
+                val interval = battleSubtitles.scanIntervalMs.coerceAtLeast(400L)
                 nextBattleScanAt = SystemClock.elapsedRealtime() + interval
             }
         }
@@ -1259,7 +1408,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     message = "Android/模拟器没有返回截图：${failureInfo.reason}",
                     server = gameServer,
                     mode = mode.name,
-                    detail = failureInfo.detail,
+                    detail = "${failureInfo.detail}（截图来源：${screenshotSourceLabel()}）",
                     errorCode = failureInfo.code
                 )
                 if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
@@ -2919,68 +3068,327 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    /**
-     * FGO speaker names occupy one left-to-right row; distant OCR boxes are UI noise.
-     *
-     * Returns the exact boxes that form the name so every downstream consumer
-     * (name-plate sizing, original-colour sampling, visual fingerprint) sees the
-     * name only and never the dropped boxes.
-     */
-    private fun selectNameLabelCluster(lines: List<OcrTextLine>): List<OcrTextLine> {
-        val sorted = cleanRubyNoiseLines(lines)
+    /** Speaker name text: the OCR lines of the already narrowed name region, left to right. */
+    private fun nameLabelSourceText(lines: List<OcrTextLine>): String =
+        cleanRubyNoiseLines(lines)
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy({ it.boundingBox.left }, { it.boundingBox.top }))
-        if (sorted.size < 2) return sorted
+            .joinToString("") { it.text.trim() }
+            .trim()
 
-        val selected = mutableListOf(sorted.first())
+    /**
+     * Measures the blue speaker-name plate inside the fixed name region.
+     *
+     * The plate always starts at the region's left edge, so only its right boundary has to be found.
+     * FGO fades that boundary out instead of cutting it, and the fade never contains text: it is
+     * only a guide, so the boundary is taken where the plate's own blue ramp reaches 50%. The
+     * returned rectangle is what the overlay paints (left edge fixed to the region); null means the
+     * plate could not be measured confidently and the caller keeps the full region.
+     */
+    private fun detectNamePlate(source: Bitmap, region: Rect): Rect? {
+        val scan = Rect(region).apply { intersect(0, 0, source.width, source.height) }
+        if (scan.width() <= 1 || scan.height() <= 1) return null
 
-        for (line in sorted.drop(1)) {
-            val previous = selected.last()
-            if (!isNameLabelContinuation(previous, line)) break
-            selected += line
+        val sampleRows = namePlateSampleRows(scan)
+
+        // Per-column blue coverage of the text-free rows, smoothed over three columns so single
+        // noisy columns cannot break the ramp the fade is measured on.
+        val rawScores = FloatArray(scan.width()) { index ->
+            namePlateColumnScore(source, scan.left + index, sampleRows)
+        }
+        val scores = FloatArray(rawScores.size)
+        for (index in rawScores.indices) {
+            var sum = 0f
+            var count = 0
+            for (offset in -1..1) {
+                val at = index + offset
+                if (at !in rawScores.indices) continue
+                sum += rawScores[at]
+                count++
+            }
+            scores[index] = sum / count
         }
 
-        if (selected.size < sorted.size) {
-            val kept = selected.joinToString("") { it.text.trim() }.trim()
-            val dropped = sorted.drop(selected.size).joinToString(" | ") { it.text.trim() }
+        val startSamples = minOf(NAME_PLATE_START_SAMPLE_PX, scores.size)
+        var startSum = 0f
+        for (index in 0 until startSamples) startSum += scores[index]
+        val startScore = if (startSamples > 0) startSum / startSamples else 0f
+        if (startScore < NAME_PLATE_START_SCORE) {
             FgoLogger.debug(
                 tag,
-                "Name OCR kept left-to-right cluster ${debugQuote(kept)}; " +
-                    "dropped distant boxes ${debugQuote(dropped)}"
+                "Name plate detect skipped: no plate at the region's left edge " +
+                    "(startScore=${(startScore * 100).toInt()}%)"
             )
+            return null
         }
-        return selected
+
+        // Where the solid blue ends. When the score never drops the last mostly solid column is
+        // used instead; either way the boundary is that point plus the fixed safety pad.
+        val solidEnd = findPlateDrop(scores, NAME_PLATE_SOLID_END_SCORE)
+        val measuredEnd = if (solidEnd >= 0) solidEnd else lastIndexAtLeast(scores, NAME_PLATE_SOLID_SCORE)
+        val boundary = if (measuredEnd >= 0) {
+            measuredEnd + NAME_PLATE_END_SAFETY_PX
+        } else {
+            -1
+        }
+
+        val minimumRun = maxOf(
+            NAME_PLATE_MIN_RUN_PX,
+            (scan.height() * NAME_PLATE_MIN_WIDTH_HEIGHT_RATIO).toInt(),
+            NAME_PLATE_END_SAFETY_PX
+        )
+        if (boundary < minimumRun || boundary >= scores.size) {
+            FgoLogger.debug(
+                tag,
+                "Name plate detect skipped: boundary=$boundary (solidEnd=$solidEnd, " +
+                    "min=$minimumRun, width=${scores.size})"
+            )
+            return null
+        }
+
+        val rect = buildNamePlateRect(source, scan, boundary)
+        FgoLogger.debug(
+            tag,
+            "Name plate detect: solidEnd=$solidEnd boundary=$boundary (+${NAME_PLATE_END_SAFETY_PX}px) " +
+                "rect=${rect.flattenToString()}"
+        )
+        return rect
     }
 
-    private fun nameLabelSourceText(lines: List<OcrTextLine>): String =
-        selectNameLabelCluster(lines).joinToString("") { it.text.trim() }.trim()
-
-    private fun isNameLabelContinuation(
-        previous: OcrTextLine,
-        current: OcrTextLine
-    ): Boolean {
-        val previousHeight = previous.boundingBox.height().coerceAtLeast(1)
-        val currentHeight = current.boundingBox.height().coerceAtLeast(1)
-        val gap = (current.boundingBox.left - previous.boundingBox.right).coerceAtLeast(0)
-        val maxGapRatio = if (previous.text.trim().endsWith("・")) {
-            NAME_OCR_DOT_SEPARATOR_MAX_GAP_HEIGHT_RATIO
-        } else {
-            NAME_OCR_MAX_GAP_HEIGHT_RATIO
+    /**
+     * Vertical extent of the plate up to [boundary], plus the rectangle the overlay paints. Rows
+     * whose run is mostly plate coloured define the top and bottom edges.
+     */
+    private fun buildNamePlateRect(source: Bitmap, scan: Rect, boundary: Int): Rect {
+        val plateLeft = scan.left
+        val plateRightExclusive = scan.left + boundary
+        val sampledColumns = ((boundary + 1) / 2).coerceAtLeast(1)
+        var plateTop = -1
+        var plateBottom = -1
+        for (y in scan.top until scan.bottom) {
+            var hits = 0
+            var x = plateLeft
+            while (x < plateRightExclusive) {
+                if (isNamePlatePixel(source.getPixel(x, y))) hits++
+                x += 2
+            }
+            if (hits * 10 >= (sampledColumns * NAME_PLATE_COLUMN_SCORE * 10).toInt()) {
+                if (plateTop < 0) plateTop = y
+                plateBottom = y
+            }
         }
-        if (gap > previousHeight * maxGapRatio) return false
+        if (plateTop < 0) {
+            plateTop = scan.top
+            plateBottom = scan.bottom - 1
+        }
+        return Rect(plateLeft, plateTop, plateRightExclusive, plateBottom + 1)
+    }
 
-        val overlap = (
-            minOf(previous.boundingBox.bottom, current.boundingBox.bottom) -
-                maxOf(previous.boundingBox.top, current.boundingBox.top)
-            ).coerceAtLeast(0)
-        val shorterHeight = minOf(previousHeight, currentHeight)
-        val centerOffset = kotlin.math.abs(
-            previous.boundingBox.centerY() - current.boundingBox.centerY()
+    /** Last column whose smoothed score is still at or above [threshold], or -1 when there is none. */
+    private fun lastIndexAtLeast(scores: FloatArray, threshold: Float): Int {
+        for (index in scores.indices.reversed()) {
+            if (scores[index] >= threshold) return index
+        }
+        return -1
+    }
+
+    /**
+     * Rows used to measure the plate: the bands above and below the name text, which are pure
+     * plate blue. The text rows are never sampled, so glyph strokes cannot shorten the plate.
+     */
+    private fun namePlateSampleRows(scan: Rect): List<IntRange> {
+        val height = scan.height()
+        fun rowRange(startFraction: Float, endFraction: Float): IntRange {
+            val start = (scan.top + height * startFraction).toInt().coerceIn(scan.top, scan.bottom - 1)
+            val end = (scan.top + height * endFraction).toInt().coerceIn(start, scan.bottom - 1)
+            return start..end
+        }
+        return listOf(
+            rowRange(NAME_PLATE_SAMPLE_TOP_START, NAME_PLATE_SAMPLE_TOP_END),
+            rowRange(NAME_PLATE_SAMPLE_BOTTOM_START, NAME_PLATE_SAMPLE_BOTTOM_END)
         )
+    }
 
-        return overlap >= shorterHeight * NAME_OCR_MIN_VERTICAL_OVERLAP_RATIO ||
-            centerOffset <= maxOf(previousHeight, currentHeight) *
-            NAME_OCR_MAX_CENTER_OFFSET_HEIGHT_RATIO
+    /**
+     * Trims an OCR name box down to the glyph extent it actually contains, so the rendered plate can
+     * fit the text instead of the loose detection box. Boxes without a usable measurement are kept.
+     */
+    private fun tightenNameLabelLines(source: Bitmap, lines: List<OcrTextLine>): List<OcrTextLine> {
+        if (lines.isEmpty()) return lines
+        return lines.map { line ->
+            val raw = line.boundingBox
+            if (raw.width() <= 0 || raw.height() <= 0) return@map line
+
+            val ink = measureNameGlyphBounds(source, raw)
+            if (ink == null) {
+                FgoLogger.debug(
+                    tag,
+                    "Name ink box: no glyph pixels in ${raw.flattenToString()}; keeping the OCR box"
+                )
+                return@map line
+            }
+            if (ink.bounds.width() < raw.width() * NAME_INK_MIN_WIDTH_RATIO) {
+                FgoLogger.debug(
+                    tag,
+                    "Name ink box rejected: ink=${ink.bounds.width()}px of ${raw.width()}px OCR box"
+                )
+                return@map line
+            }
+            val tight = Rect(
+                (ink.bounds.left - NAME_INK_PADDING).coerceAtLeast(raw.left),
+                (ink.bounds.top - NAME_INK_PADDING).coerceAtLeast(raw.top),
+                (ink.bounds.right + NAME_INK_PADDING).coerceAtMost(raw.right),
+                (ink.bounds.bottom + NAME_INK_PADDING).coerceAtMost(raw.bottom)
+            )
+            if (tight.width() <= 0 || tight.height() <= 0) return@map line
+            FgoLogger.debug(
+                tag,
+                "Name ink box: raw=${raw.flattenToString()} -> tight=${tight.flattenToString()} " +
+                    "(${ink.glyphPixels} glyph px)"
+            )
+            OcrTextLine(text = line.text, boundingBox = tight, confidence = line.confidence)
+        }
+    }
+
+    private data class NameInkBounds(
+        val bounds: Rect,
+        val glyphPixels: Int
+    )
+
+    /** Glyph extent of an OCR box, measured with the stroke test, or null when nothing matches. */
+    private fun measureNameGlyphBounds(source: Bitmap, box: Rect): NameInkBounds? {
+        val bounds = Rect(box).apply { intersect(0, 0, source.width, source.height) }
+        if (bounds.width() <= 0 || bounds.height() <= 0) return null
+
+        var left = -1
+        var right = -1
+        var top = -1
+        var bottom = -1
+        var glyphPixels = 0
+        for (y in bounds.top until bounds.bottom step 2) {
+            for (x in bounds.left until bounds.right) {
+                if (!isNameGlyphPixel(source, x, y)) continue
+                glyphPixels++
+                if (left < 0 || x < left) left = x
+                if (x > right) right = x
+                if (top < 0 || y < top) top = y
+                if (y > bottom) bottom = y
+            }
+        }
+        if (left < 0 || top < 0 || right < left || bottom < top) return null
+        return NameInkBounds(
+            bounds = Rect(left, top, right + 1, bottom + 1),
+            glyphPixels = glyphPixels
+        )
+    }
+
+    /**
+     * A name glyph pixel: bright white with at least two clearly darker neighbours. The plate fill
+     * and the scene behind it are uniform, so they never qualify; glyph strokes (including their
+     * anti-aliased edges) do.
+     */
+    private fun isNameGlyphPixel(source: Bitmap, x: Int, y: Int): Boolean {
+        val pixel = source.getPixel(x, y)
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        val brightest = maxOf(r, g, b)
+        val darkest = minOf(r, g, b)
+        if (brightest < NAME_INK_MIN_BRIGHTNESS) return false
+        if (brightest - darkest > NAME_INK_MAX_SPREAD) return false
+
+        val dropThreshold = brightest - NAME_INK_NEIGHBOUR_DROP
+        var darkerNeighbours = 0
+        for (dy in -2..2 step 2) {
+            for (dx in -2..2 step 2) {
+                if (dx == 0 && dy == 0) continue
+                val nx = x + dx
+                val ny = y + dy
+                if (nx < 0 || ny < 0 || nx >= source.width || ny >= source.height) continue
+                val neighbour = source.getPixel(nx, ny)
+                val neighbourBrightest = maxOf(
+                    (neighbour shr 16) and 0xFF,
+                    (neighbour shr 8) and 0xFF,
+                    neighbour and 0xFF
+                )
+                if (neighbourBrightest < dropThreshold) {
+                    darkerNeighbours++
+                    if (darkerNeighbours >= 2) return true
+                }
+            }
+        }
+        return false
+    }
+
+    /**
+     * The name OCR region is narrowed to the measured plate. A recognised line that reaches that
+     * region's right edge means the text may have been cut there, and a cut name is dropped from the
+     * overlay entirely, so it is worth a warning in the log.
+     */
+    private fun warnIfNameClipped(lines: List<OcrTextLine>, ocrRegion: Rect, plate: Rect?) {
+        if (plate == null || lines.isEmpty()) return
+        val right = lines.maxOfOrNull { it.boundingBox.right } ?: return
+        if (right < ocrRegion.right - NAME_PLATE_CLIP_WARNING_MARGIN_PX) return
+        FgoLogger.warn(
+            tag,
+            "Name OCR may be clipped by the plate boundary: lineRight=$right, " +
+                "region=${ocrRegion.flattenToString()}, plate=${plate.flattenToString()}"
+        )
+    }
+
+    /** Fraction of the sampled (text-free) rows in one column that look like the plate blue (0..1). */
+    private fun namePlateColumnScore(source: Bitmap, x: Int, rows: List<IntRange>): Float {
+        var hits = 0
+        var sampled = 0
+        for (range in rows) {
+            var y = range.first
+            while (y <= range.last) {
+                sampled++
+                if (isNamePlatePixel(source.getPixel(x, y))) hits++
+                y += 2
+            }
+        }
+        if (sampled == 0) return 0f
+        return hits.toFloat() / sampled.toFloat()
+    }
+
+    /**
+     * First column from [from] whose smoothed score stays below [threshold] for the confirmation
+     * length. Short dips are ignored, so white glyph strokes and single noisy columns cannot end
+     * the plate early.
+     */
+    private fun findPlateDrop(scores: FloatArray, threshold: Float, from: Int = 0): Int {
+        var index = from.coerceAtLeast(0)
+        while (index < scores.size) {
+            if (scores[index] >= threshold) {
+                index++
+                continue
+            }
+            val confirmEnd = minOf(scores.size, index + NAME_PLATE_END_CONFIRM_PX)
+            var recoveredAt = -1
+            for (check in index until confirmEnd) {
+                if (scores[check] >= threshold) {
+                    recoveredAt = check
+                    break
+                }
+            }
+            if (recoveredAt < 0) return index
+            index = recoveredAt + 1
+        }
+        return -1
+    }
+
+    /**
+     * Blue-plate test for the name band. The plate is blue dominant; the white glyphs and the
+     * pink/red scenery that shows through the semi-transparent plate stay outside this range.
+     */
+    private fun isNamePlatePixel(pixel: Int): Boolean {
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        return b >= NAME_PLATE_MIN_BLUE &&
+            b - r >= NAME_PLATE_MIN_BLUE_OVER_RED &&
+            b - g >= NAME_PLATE_MIN_BLUE_OVER_GREEN
     }
 
     private fun voiceTextForDialogueRegion(region: ClassifiedRegion): String {
@@ -3440,6 +3848,9 @@ class FgoAccessibilityService : AccessibilityService() {
             return FGO_RENDER_RED
         }
 
+        // The name region is already narrowed to the blue plate, so the OCR box covers the name
+        // only and one pass over it is enough: bright glyph pixels vote, the blue plate and the
+        // scene behind it do not match any sample.
         val matchCounts = IntArray(FGO_TEXT_COLOR_SAMPLES.size)
 
         for (line in region.lines) {
@@ -3468,7 +3879,26 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         val bestIndex = matchCounts.indices.maxByOrNull { matchCounts[it] } ?: return null
-        return if (matchCounts[bestIndex] >= MIN_PALETTE_TEXT_PIXELS) {
+        val bestCount = matchCounts[bestIndex]
+        if (region.region == TextRegion.NAME_LABEL) {
+            val runnerUp = matchCounts.indices
+                .filter { it != bestIndex }
+                .maxOfOrNull { matchCounts[it] }
+                ?: 0
+            FgoLogger.debug(
+                tag,
+                "Name colour sample: lines=${region.lines.size}, " +
+                    "votes=${matchCounts.toList()}, picked=$bestIndex (${bestCount}px), " +
+                    "runnerUp=$runnerUp"
+            )
+            // A name is never two-coloured: without a clear winner the white default is the only
+            // safe answer, otherwise bright scenery bleeding through the plate turns it red.
+            if (bestIndex != 0 && bestCount < runnerUp * NAME_COLOR_MIN_WINNER_RATIO) {
+                FgoLogger.debug(tag, "Name colour ambiguous; falling back to white")
+                return FGO_RENDER_WHITE
+            }
+        }
+        return if (bestCount >= MIN_PALETTE_TEXT_PIXELS) {
             FGO_TEXT_COLOR_SAMPLES[bestIndex].renderColor
         } else {
             null
@@ -3936,18 +4366,38 @@ class FgoAccessibilityService : AccessibilityService() {
         screenRegions: FgoScreenRegions,
         allowRedTextFallback: Boolean = false
     ): List<ClassifiedRegion> {
+        // The blue plate is the only geometry source for the name: it decides where the name OCR
+        // region ends (FGO gives short names a minimum plate width) and how wide the rendered plate
+        // is. Without a confident measurement the full name region is kept.
+        val namePlate = detectNamePlate(source, screenRegions.name)
+        val nameOcrRegion = namePlate?.let { plate ->
+            // The boundary already includes the safety pad, so the OCR region uses it directly: the
+            // name stays inside and dialogue to the right stays outside.
+            Rect(
+                screenRegions.name.left,
+                screenRegions.name.top,
+                plate.right,
+                screenRegions.name.bottom
+            )
+        } ?: screenRegions.name
         val regions = recognizeScreenRegions(
             source = source,
             targets = listOf(
                 OcrRegionTarget(screenRegions.dialogue, TextRegion.DIALOGUE_BOX),
-                OcrRegionTarget(screenRegions.name, TextRegion.NAME_LABEL)
+                OcrRegionTarget(nameOcrRegion, TextRegion.NAME_LABEL)
             )
         ).map { region ->
             when (region.region) {
-                TextRegion.NAME_LABEL -> region.copy(
-                    lines = selectNameLabelCluster(region.lines),
-                    boundingBox = screenRegions.nameRender
-                )
+                TextRegion.NAME_LABEL -> {
+                    warnIfNameClipped(region.lines, nameOcrRegion, namePlate)
+                    region.copy(
+                        // The rendered plate has to fit the name text, so the loose OCR box is
+                        // trimmed to its glyph extent. The blue plate measurement is unaffected.
+                        lines = tightenNameLabelLines(source, region.lines),
+                        boundingBox = screenRegions.nameRender,
+                        sourcePlateBounds = namePlate
+                    )
+                }
                 TextRegion.DIALOGUE_BOX -> region.copy(boundingBox = screenRegions.dialogueRender)
                 TextRegion.CHOICE_BUTTON -> region
             }
@@ -4608,22 +5058,89 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private suspend fun takeScreenshotCompat(): Bitmap? {
+    /**
+     * Single funnel for every OCR screenshot.
+     *
+     * Accessibility screenshots are the source for OCR. MediaProjection is only consulted when the
+     * experimental screenshot source is enabled in settings and the runner service actually holds
+     * a session for it; a frame that times out, comes back blank, or already tripped its
+     * 3-failure limit falls through to the accessibility screenshot instead of failing the pass.
+     */
+    private suspend fun takeScreenshotCompat(): Bitmap? = screenshotMutex.withLock {
         if (MediaProjectionCapture.isUsable()) {
-            MediaProjectionCapture.capture()?.let {
+            lastScreenshotSource = SCREENSHOT_SOURCE_PROJECTION
+            MediaProjectionCapture.capture()?.let { frame ->
                 lastScreenshotErrorCode = 0
-                return it
+                return@withLock frame
             }
         }
+        captureAccessibilityScreenshotPaced()
+    }
 
-        return withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
+    /**
+     * Accessibility screenshots are paced to one per 400ms and retried when Android
+     * reports a rate limit or a transient internal error. A rate-limited request is a
+     * timing problem rather than an OCR failure, so it must never surface as "截图失败".
+     */
+    private suspend fun captureAccessibilityScreenshotPaced(): Bitmap? {
+        var attempt = 0
+        while (true) {
+            lastScreenshotSource = SCREENSHOT_SOURCE_ACCESSIBILITY
+            awaitAccessibilityScreenshotSlot()
+            lastAccessibilityScreenshotAt = SystemClock.elapsedRealtime()
+            val result = captureAccessibilityScreenshot()
+            if (result.bitmap != null) {
+                lastScreenshotErrorCode = 0
+                reportBlankAccessibilityFrameIfNeeded(result.bitmap)
+                return result.bitmap
+            }
+            lastScreenshotErrorCode = result.errorCode
+            val retryable = result.errorCode ==
+                AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT ||
+                result.errorCode == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR
+            if (!retryable || attempt >= ACCESSIBILITY_SCREENSHOT_MAX_RETRIES) {
+                if (result.errorCode ==
+                    AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS
+                ) {
+                    recordAccessibilityScreenshotAccessLost()
+                }
+                return null
+            }
+            attempt += 1
+            val reason = if (result.errorCode ==
+                AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT
+            ) {
+                "rate limited by Android"
+            } else {
+                "transient internal error"
+            }
+            FgoLogger.debug(
+                tag,
+                "Accessibility screenshot $reason; retry $attempt/$ACCESSIBILITY_SCREENSHOT_MAX_RETRIES"
+            )
+            delay(ACCESSIBILITY_SCREENSHOT_RETRY_DELAY_MS)
+        }
+    }
+
+    private suspend fun awaitAccessibilityScreenshotSlot() {
+        val waitMs = lastAccessibilityScreenshotAt + ACCESSIBILITY_SCREENSHOT_MIN_INTERVAL_MS -
+            SystemClock.elapsedRealtime()
+        if (waitMs > 0L) {
+            FgoLogger.debug(tag, "Spacing accessibility screenshots by ${waitMs}ms")
+            delay(waitMs)
+        }
+    }
+
+    private suspend fun captureAccessibilityScreenshot(): ScreenshotAttempt {
+        var attemptErrorCode = SCREENSHOT_ERROR_TIMEOUT
+        val bitmap = withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
                 takeScreenshot(
                     Display.DEFAULT_DISPLAY,
                     mainExecutor,
                     object : TakeScreenshotCallback {
                         override fun onSuccess(result: ScreenshotResult) {
-                            val bitmap = try {
+                            val converted = try {
                                 Bitmap.wrapHardwareBuffer(
                                     result.hardwareBuffer,
                                     result.colorSpace
@@ -4634,20 +5151,20 @@ class FgoAccessibilityService : AccessibilityService() {
                             } finally {
                                 result.hardwareBuffer.close()
                             }
-                            lastScreenshotErrorCode = if (bitmap == null) {
+                            attemptErrorCode = if (converted == null) {
                                 SCREENSHOT_ERROR_BITMAP_UNAVAILABLE
                             } else {
                                 0
                             }
                             if (cont.isActive) {
-                                cont.resume(bitmap)
+                                cont.resume(converted)
                             } else {
-                                bitmap?.recycle()
+                                converted?.recycle()
                             }
                         }
 
                         override fun onFailure(errorCode: Int) {
-                            lastScreenshotErrorCode = errorCode
+                            attemptErrorCode = errorCode
                             val failureInfo = screenshotFailureInfo(errorCode)
                             FgoLogger.warn(tag, "Screenshot failed: code=$errorCode, reason=${failureInfo.reason}")
                             if (cont.isActive) cont.resume(null)
@@ -4656,7 +5173,101 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
             }
         }
+        return ScreenshotAttempt(bitmap, if (bitmap != null) 0 else attemptErrorCode)
     }
+
+    private fun refreshAccessibilityConnectionState(reason: String) {
+        val previous = _connectionState.value
+        val next = refreshConnectionState(this, reason)
+        if (previous == next || next != ConnectionState.ENABLED_NOT_CONNECTED) return
+        diagnosticEventStore.record(
+            level = DiagnosticEventStore.LEVEL_WARNING,
+            category = DiagnosticEventStore.CATEGORY_SETUP,
+            eventId = "accessibility_service_not_connected",
+            title = "无障碍服务已开启但未连接",
+            message = "系统仍标记服务为已启用，但 FgoGotran 没有收到连接",
+            detail = "请关闭无障碍服务，等待 2–3 秒后重新开启；刚切换模拟器图形模式时请完整重启模拟器"
+        )
+    }
+
+    private fun reportProjectionRunDisabled(reason: String) {
+        diagnosticEventStore.record(
+            level = DiagnosticEventStore.LEVEL_WARNING,
+            category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+            eventId = "media_projection_disabled_for_run",
+            title = "实验截图源已停用，改用无障碍截图",
+            message = "本次运行不再使用屏幕捕获：$reason",
+            server = gameServer,
+            detail = "OCR 已自动改用无障碍截图；需要时可以重新开启实验截图"
+        )
+    }
+
+    private fun canTakeScreenshots(): Boolean {
+        return serviceInfo.capabilities and AccessibilityServiceInfo.CAPABILITY_CAN_TAKE_SCREENSHOT != 0
+    }
+
+    private fun screenshotSourceLabel(): String {
+        return when (lastScreenshotSource) {
+            SCREENSHOT_SOURCE_PROJECTION -> "MediaProjection"
+            SCREENSHOT_SOURCE_ACCESSIBILITY -> "无障碍截图"
+            else -> "未知来源"
+        }
+    }
+
+    /**
+     * An all-black accessibility screenshot (emulator GPU glitch, protected surface)
+     * reaches OCR as "no text". Recording it keeps that failure diagnosable instead of
+     * surfacing only as "未识别到文字".
+     */
+    private fun reportBlankAccessibilityFrameIfNeeded(frame: Bitmap) {
+        if (hasVisiblePixels(frame)) return
+        diagnosticEventStore.record(
+            level = DiagnosticEventStore.LEVEL_WARNING,
+            category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+            eventId = "screenshot_blank_frame",
+            title = "截图内容为空（全黑）",
+            message = "无障碍截图返回了全黑画面，OCR 无法识别文字",
+            server = gameServer,
+            detail = "多见于模拟器图形渲染异常：请完整重启模拟器，或切换图形渲染模式后再试"
+        )
+    }
+
+    private fun hasVisiblePixels(frame: Bitmap): Boolean {
+        if (frame.width <= 0 || frame.height <= 0) return false
+        val columns = 16
+        val rows = 9
+        var visibleSamples = 0
+        var totalSamples = 0
+        for (row in 0 until rows) {
+            val y = ((row + 0.5f) * frame.height / rows).toInt().coerceIn(0, frame.height - 1)
+            for (column in 0 until columns) {
+                val x = ((column + 0.5f) * frame.width / columns).toInt().coerceIn(0, frame.width - 1)
+                val pixel = frame.getPixel(x, y)
+                val luminance = ((pixel shr 16) and 0xFF) + ((pixel shr 8) and 0xFF) + (pixel and 0xFF)
+                totalSamples += 1
+                if (luminance >= 24) visibleSamples += 1
+            }
+        }
+        if (totalSamples == 0) return false
+        return visibleSamples.toFloat() / totalSamples.toFloat() >= 0.02f
+    }
+
+    private fun recordAccessibilityScreenshotAccessLost() {
+        diagnosticEventStore.record(
+            level = DiagnosticEventStore.LEVEL_ERROR,
+            category = DiagnosticEventStore.CATEGORY_APP_ERROR,
+            eventId = "accessibility_screenshot_no_access",
+            title = "无障碍截屏权限失效",
+            message = "服务仍显示已连接，但系统拒绝了截屏请求",
+            server = gameServer,
+            detail = "请关闭并重新开启 FgoGotran 无障碍服务；模拟器切换图形模式后需完整重启模拟器"
+        )
+    }
+
+    private data class ScreenshotAttempt(
+        val bitmap: Bitmap?,
+        val errorCode: Int
+    )
 
     private data class ScreenshotFailureInfo(
         val reason: String,
@@ -4695,6 +5306,11 @@ class FgoAccessibilityService : AccessibilityService() {
                 reason = "当前画面禁止系统截屏",
                 detail = "系统标记了安全画面，应用无法读取截图。请避开受保护页面后再试。",
                 code = errorCode.toString()
+            )
+            SCREENSHOT_ERROR_TIMEOUT -> ScreenshotFailureInfo(
+                reason = "Android 没有在限定时间内返回截图",
+                detail = "截屏请求超时，通常是模拟器图形层或系统繁忙。稍后会自动重试；若持续出现可重启游戏或切换模拟器渲染模式。",
+                code = "timeout"
             )
             SCREENSHOT_ERROR_BITMAP_UNAVAILABLE -> ScreenshotFailureInfo(
                 reason = "模拟器返回了截图对象，但无法转换成图片",

@@ -70,7 +70,6 @@ class OverlayRenderer @Inject constructor(
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private val ORIGINAL_TEXT_COLOR = Color.rgb(80, 235, 235)
-        private const val MIN_NAME_PLATE_WIDTH = 130f
         private const val CHOICE_REFERENCE_WIDTH = 1470f
         private const val CHOICE_REFERENCE_HEIGHT = 135f
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
@@ -107,6 +106,7 @@ class OverlayRenderer @Inject constructor(
         private const val NAME_TEXT_SIZE = 56f
         private const val NAME_TEXT_MIN_SIZE = 31f
         private const val NAME_TEXT_LEFT_INSET = 52f
+        private const val NAME_PLATE_LEFT_INSET = 42f
         private const val NAME_TEXT_TOP_INSET = 8f
         private const val NAME_TEXT_BOTTOM_INSET = 6f
         private const val NAME_TEXT_BASELINE_OFFSET = 12f
@@ -614,31 +614,40 @@ class OverlayRenderer @Inject constructor(
             textSize = NAME_TEXT_SIZE * scale
         }
 
+        // The plate fits the recognised name text: the OCR box was trimmed to the glyph extent, so
+        // the plate is the text width plus a small inset. The measured blue plate is only an upper
+        // bound, so the overlay can never grow past the game's own plate. When the translated name
+        // still does not fit, the text shrinks rather than stretching the plate.
         val originalNameBounds = originalTextBounds(instruction)
-        val originalNameRight = originalNameBounds
-            ?.right
-            ?.toFloat()
-            ?.plus(30f * scale)
-            ?: box.left.toFloat()
-        val requiredWidth = NAME_TEXT_LEFT_INSET * scale + paint.measureText(name) + 18f * scale
-        val renderedRight = maxOf(
-            box.left + MIN_NAME_PLATE_WIDTH * scale,
-            box.left + requiredWidth,
-            originalNameRight + 10f * scale
-        )
-            .coerceAtMost(canvas.width.toFloat())
+        val detectedPlate = instruction.region.sourcePlateBounds
+        val textLeft = box.left + NAME_TEXT_LEFT_INSET * scale
+        paint.textSize = NAME_TEXT_MIN_SIZE * scale
+        val minimumTextWidth = paint.measureText(name)
+        paint.textSize = NAME_TEXT_SIZE * scale
+        val textFitRight = (originalNameBounds?.right?.toFloat() ?: box.left.toFloat()) +
+            NAME_TEXT_RIGHT_INSET * scale
+        val fittedRight = detectedPlate?.let { plate -> minOf(textFitRight, plate.right.toFloat()) }
+            ?: textFitRight
+        val plateRight = maxOf(
+            fittedRight,
+            textLeft + minimumTextWidth + NAME_TEXT_RIGHT_INSET * scale
+        ).coerceAtMost(canvas.width.toFloat())
+        // The left edge is fixed to the render band plus the arrow inset, exactly like the previous
+        // release: the plate must not start further left, and detected/undetected frames must not
+        // shift by a few pixels. Only the right edge comes from the measurements.
+        val plateLeft = box.left + NAME_PLATE_LEFT_INSET * scale
 
         canvas.drawRoundRect(
-            box.left + 42f * scale, box.top + 8f * scale,
-            renderedRight - 10f * scale, box.bottom - 8f * scale,
+            plateLeft, box.top + 8f * scale,
+            plateRight, box.bottom - 8f * scale,
             8f, 8f, nameClearPaint
         )
 
         // FGO draws the speaker name inset from the arrow-shaped leading edge.
         val textArea = RectF(
-            box.left + NAME_TEXT_LEFT_INSET * scale,
+            textLeft,
             box.top + NAME_TEXT_TOP_INSET * scale,
-            renderedRight - NAME_TEXT_RIGHT_INSET * scale,
+            (plateRight - NAME_TEXT_RIGHT_INSET * scale).coerceAtLeast(textLeft),
             box.bottom - NAME_TEXT_BOTTOM_INSET * scale
         )
         val fittedName = fitSingleLine(
@@ -647,6 +656,15 @@ class OverlayRenderer @Inject constructor(
             initialTextSize = NAME_TEXT_SIZE * scale,
             minimumTextSize = NAME_TEXT_MIN_SIZE * scale,
             maxWidth = textArea.width()
+        )
+        val detectedPlateLabel = detectedPlate?.flattenToString() ?: "none"
+        FgoLogger.debug(
+            tag,
+            "Name plate: name=$name, box=$box, sourceName=$originalNameBounds, " +
+                "detected=$detectedPlateLabel, " +
+                "plate=${plateLeft.toInt()}..${plateRight.toInt()}, " +
+                "textWidth=${paint.measureText(fittedName).toInt()}, " +
+                "textSize=${paint.textSize.toInt()}"
         )
 
         canvas.save()

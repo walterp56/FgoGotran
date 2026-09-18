@@ -25,8 +25,12 @@ object FgoViewportLayout {
         listOf(choiceSlot(36f, 171f), choiceSlot(214f, 349f), choiceSlot(392f, 527f), choiceSlot(571f, 706f)),
         listOf(choiceSlot(14f, 149f), choiceSlot(158f, 293f), choiceSlot(302f, 437f), choiceSlot(447f, 582f), choiceSlot(591f, 726f))
     )
-    // OCR starts inside the nameplate arrow; rendering keeps the original plate alignment.
-    private val nameOcrRegion = RectF(32f, 739f, 1172f, 821f)
+    /**
+     * Name text and name plate share the same left edge: the OCR region starts at the same reference
+     * x (42) the renderer uses for the painted plate (render band left + 42). Keeping one source for
+     * both means the recognised name sits exactly inside the plate that is drawn for it.
+     */
+    private val nameOcrRegion = RectF(42f, 739f, 1172f, 821f)
     private val nameRenderRegion = RectF(0f, 735f, 1085f, 828f)
     private val dialogueRegion = RectF(106f, 833f, 1805f, 1052f)
     private val dialogueRenderRegion = RectF(35f, 830f, 1810f, 1055f)

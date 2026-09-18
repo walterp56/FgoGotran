@@ -130,6 +130,7 @@ fun SettingsScreen(
         mutableStateOf(SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT)
     }
     var debugLoggingEnabled by remember { mutableStateOf(false) }
+    var experimentalProjectionScreenshot by remember { mutableStateOf(false) }
     var debugLogTapCount by remember { mutableStateOf(0) }
     var debugLogTapWindowStartedAt by remember { mutableStateOf(0L) }
     var debugLogMessage by remember { mutableStateOf("") }
@@ -150,6 +151,8 @@ fun SettingsScreen(
         translationContextEnabled = settingsRepository.translationContextEnabled.first()
         translationContextSceneCount = settingsRepository.translationContextSceneCount.first()
         debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
+        experimentalProjectionScreenshot =
+            settingsRepository.experimentalMediaProjectionScreenshotEnabled.first()
     }
 
     fun savePlayerName() {
@@ -324,6 +327,19 @@ fun SettingsScreen(
                     onClick = {
                         ocrEngine = SettingsRepository.OCR_ENGINE_PADDLE
                         scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_PADDLE) }
+                    }
+                )
+                PreferenceSwitchRow(
+                    title = "实验：MediaProjection 截图",
+                    subtitle = "默认关闭。默认用无障碍服务截图；仅当截图全黑或区域翻译一直识别不到文字时才开启。" +
+                        "开启后需要屏幕捕获授权，OCR 改用 MediaProjection 画面。",
+                    checked = experimentalProjectionScreenshot,
+                    onCheckedChange = { enabled ->
+                        experimentalProjectionScreenshot = enabled
+                        scope.launch {
+                            settingsRepository
+                                .setExperimentalMediaProjectionScreenshotEnabled(enabled)
+                        }
                     }
                 )
             }
