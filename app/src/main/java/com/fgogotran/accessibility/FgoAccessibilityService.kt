@@ -187,6 +187,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var gameServer = SettingsRepository.DEFAULT_GAME_SERVER
     private var translationContextEnabled = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_ENABLED
     private var translationContextSceneCount = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT
+    @Volatile
     private var aiVoiceEnabled = false
     private var aiVoiceApiHintsEnabled = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
     private var aiVoiceNamedDialogueEnabled = SettingsRepository.DEFAULT_AI_VOICE_NAMED_DIALOGUE_ENABLED
@@ -2790,10 +2791,16 @@ class FgoAccessibilityService : AccessibilityService() {
         val nameRegion = translatableRegions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
         val dialogueRegion = translatableRegions.firstOrNull { it.region.region == TextRegion.DIALOGUE_BOX }
         val choiceRegions = translatableRegions.filter { it.region.region == TextRegion.CHOICE_BUTTON }
-        val voiceDialogue = dialogueRegion
-            ?.region
-            ?.let(::voiceTextForDialogueRegion)
-            ?.takeIf { it.isNotBlank() }
+        // Only computed while the AI voice feature is on: it is a second ruby pass whose result is
+        // unused otherwise.
+        val voiceDialogue = if (aiVoiceEnabled) {
+            dialogueRegion
+                ?.region
+                ?.let(::voiceTextForDialogueRegion)
+                ?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
         val fingerprint = translatableRegions.joinToString("\n\n") { regionText ->
             "${regionText.region.region}:${regionText.region.boundingBox.flattenToString()}\n${regionText.text}"
         }.trim()
@@ -3048,14 +3055,23 @@ class FgoAccessibilityService : AccessibilityService() {
                 this == '\u3005'
     }
 
+    /**
+     * Source text of one recognised region.
+     *
+     * Choices use the same ruby formatting as dialogue: a choice has at most two lines, an optional
+     * small ruby line above the normal choice line, both read left to right. The formatter removes
+     * ruby noise, matches the small line to the line below it and writes it back as 《...》 markup, so
+     * the translator receives 南瓜狼《ブキンウルフ》 instead of a stray reading line. Two equally sized
+     * lines are not ruby and are passed through unchanged.
+     */
     private fun sourceTextFor(region: ClassifiedRegion): String {
         val rawText = when (region.region) {
-            TextRegion.DIALOGUE_BOX -> formatDialogueForTranslation(region.lines, RubyDetectionMode.STRICT)
+            TextRegion.DIALOGUE_BOX,
+            TextRegion.CHOICE_BUTTON -> formatDialogueForTranslation(
+                lines = region.lines,
+                rubyDetectionMode = RubyDetectionMode.STRICT
+            )
             TextRegion.NAME_LABEL -> nameLabelSourceText(region.lines)
-            else -> cleanRubyNoiseLines(region.lines)
-                .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-                .joinToString("\n") { it.text }
-                .trim()
         }
         return when (region.region) {
             TextRegion.NAME_LABEL -> rawText
@@ -3419,7 +3435,12 @@ class FgoAccessibilityService : AccessibilityService() {
         lines: List<OcrTextLine>,
         rubyDetectionMode: RubyDetectionMode
     ): String {
-        return dialogueSourceTextFor(lines, rubyDetectionMode).translationText
+        // Translation never needs the voice reading text, so it is not built here.
+        return dialogueSourceTextFor(
+            lines = lines,
+            rubyDetectionMode = rubyDetectionMode,
+            needVoiceText = false
+        ).translationText
     }
 
     private fun formatDialogueForVoice(
@@ -3431,7 +3452,8 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun dialogueSourceTextFor(
         lines: List<OcrTextLine>,
-        rubyDetectionMode: RubyDetectionMode
+        rubyDetectionMode: RubyDetectionMode,
+        needVoiceText: Boolean = true
     ): DialogueSourceText {
         val cleanedLines = cleanRubyNoiseLines(lines)
         if (cleanedLines.size < 2) {
@@ -3452,12 +3474,17 @@ class FgoAccessibilityService : AccessibilityService() {
         val rubyLines = sorted.filter { line ->
             isLikelyRubyLine(line, medianHeight, rubyDetectionMode)
         }.toSet()
-        val voiceLines = voiceDialogueLines(
-            sorted = sorted,
-            rubyLines = rubyLines,
-            medianHeight = medianHeight
-        )
-        val voiceText = voiceLines.joinToString("\n") { it.text.trim() }.trim()
+        // The voice reading text (ruby lines removed) is only built when a voice feature asks for
+        // it; the fallbacks below replace a blank value with the main text.
+        val voiceText = if (needVoiceText) {
+            voiceDialogueLines(
+                sorted = sorted,
+                rubyLines = rubyLines,
+                medianHeight = medianHeight
+            ).joinToString("\n") { it.text.trim() }.trim()
+        } else {
+            ""
+        }
         if (rubyLines.isEmpty()) {
             val text = sorted.joinToString("\n") { it.text }.trim()
             return DialogueSourceText(translationText = text, voiceText = voiceText.ifBlank { text })

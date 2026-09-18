@@ -249,6 +249,12 @@ class OverlayRenderer @Inject constructor(
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
         paint.color = textColor
         val layout = layoutDialogueText(instruction, paint, scale)
+        FgoLogger.debug(
+            tag,
+            "Dialogue render lines: count=${layout.lines.size}, " +
+                "widths=${layout.lines.map { paint.measureText(it).toInt() }}, " +
+                "maxWidth=${layout.textArea.width().toInt()}, textSize=${paint.textSize.toInt()}"
+        )
         val clearBox = layout.clearBox
 
         canvas.drawRoundRect(
@@ -1359,10 +1365,14 @@ class OverlayRenderer @Inject constructor(
         val canonicalText = translatedText
             .replace("\r\n", "\n")
             .replace('\r', '\n')
-        val normalizedLines = canonicalText.lines()
+        // Normalise the whole text once, before splitting it into lines: a quote opened on one line
+        // and closed on the next has to pair up, otherwise the per-line bracket-noise repair deletes
+        // the closing quote and the drawn text silently loses its last character.
+        val normalizedLines = canonicalText
+            .normalizeDialogueSymbolsAndSpacing()
+            .lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .map { it.normalizeDialogueSymbolsAndSpacing() }
         val preserveExplicitLineBreaks = normalizedLines.size >= DIALOGUE_MAX_LINES
         val planned = DialogueLinePlanner.plan(
             lines = normalizedLines,
