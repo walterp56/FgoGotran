@@ -129,6 +129,9 @@ fun SettingsScreen(
     var translationContextSceneCount by remember {
         mutableStateOf(SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT)
     }
+    var translationIncludeRuby by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_TRANSLATION_INCLUDE_RUBY)
+    }
     var debugLoggingEnabled by remember { mutableStateOf(false) }
     var experimentalProjectionScreenshot by remember { mutableStateOf(false) }
     var debugLogTapCount by remember { mutableStateOf(0) }
@@ -150,6 +153,7 @@ fun SettingsScreen(
         cacheEnabled = settingsRepository.cacheEnabled.first()
         translationContextEnabled = settingsRepository.translationContextEnabled.first()
         translationContextSceneCount = settingsRepository.translationContextSceneCount.first()
+        translationIncludeRuby = settingsRepository.translationIncludeRuby.first()
         debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
         experimentalProjectionScreenshot =
             settingsRepository.experimentalMediaProjectionScreenshotEnabled.first()
@@ -376,6 +380,15 @@ fun SettingsScreen(
                         scope.launch {
                             settingsRepository.setTranslationContextSceneCount(sceneCount)
                         }
+                    }
+                )
+                PreferenceSwitchRow(
+                    title = "翻译时包含注音《ruby》",
+                    subtitle = "默认关闭：送翻译前会移除《…》注音，注音有时会干扰翻译质量；需要读音提示时可打开",
+                    checked = translationIncludeRuby,
+                    onCheckedChange = { enabled ->
+                        translationIncludeRuby = enabled
+                        scope.launch { settingsRepository.setTranslationIncludeRuby(enabled) }
                     }
                 )
                 OutlinedTextField(

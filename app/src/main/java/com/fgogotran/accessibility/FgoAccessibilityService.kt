@@ -184,6 +184,9 @@ class FgoAccessibilityService : AccessibilityService() {
     private var overlayButtonLongPressJob: Job? = null
     private var currentPlayerName = ""
     private var showOriginalGameText = false
+
+    @Volatile
+    private var translationIncludeRuby = SettingsRepository.DEFAULT_TRANSLATION_INCLUDE_RUBY
     private var gameServer = SettingsRepository.DEFAULT_GAME_SERVER
     private var translationContextEnabled = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_ENABLED
     private var translationContextSceneCount = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT
@@ -310,7 +313,14 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NAME_INK_MIN_BRIGHTNESS = 170
         private const val NAME_INK_MAX_SPREAD = 80
         private const val NAME_INK_NEIGHBOUR_DROP = 60
-        private const val NAME_INK_MIN_WIDTH_RATIO = 0.25f
+        private const val NAME_INK_MIN_GLYPH_PIXELS = 24
+
+        /**
+         * The trimmed box must keep at least this fraction of the OCR box width. The stroke test can
+         * miss thin or low contrast strokes, which used to end the rendered plate before the name
+         * did, so a much narrower measurement is treated as unreliable and the OCR box is kept.
+         */
+        private const val NAME_INK_MIN_WIDTH_RATIO = 0.85f
         private const val NAME_INK_PADDING = 2
 
         /** A plate must be at least this long; shorter measurements are not worth trusting. */
@@ -339,6 +349,9 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val SCREENSHOT_SOURCE_ACCESSIBILITY = "accessibility"
         private const val SCREENSHOT_SOURCE_NONE = "none"
         private const val SCREENSHOT_TIMEOUT_MS = 3_000L
+        /** 《…》 (and its half-width variant) is the ruby reading markup our formatter writes. */
+        private val RUBY_MARKUP_PATTERN = Regex("《[^》]*》|〈[^〉]*〉")
+
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
         private val FGO_TEXT_COLOR_SAMPLES = listOf(
@@ -506,6 +519,7 @@ class FgoAccessibilityService : AccessibilityService() {
         watchGameServer()
         watchPlayerName()
         watchOriginalTextDisplay()
+        watchTranslationIncludeRuby()
         watchTranslationContext()
         watchVoiceReadScope()
         serviceScope.launch {
@@ -568,6 +582,14 @@ class FgoAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             settingsRepository.showOriginalGameText.collect { enabled ->
                 showOriginalGameText = enabled
+            }
+        }
+    }
+
+    private fun watchTranslationIncludeRuby() {
+        serviceScope.launch {
+            settingsRepository.translationIncludeRuby.collect { enabled ->
+                translationIncludeRuby = enabled
             }
         }
     }
@@ -3073,7 +3095,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
             TextRegion.NAME_LABEL -> nameLabelSourceText(region.lines)
         }
-        return when (region.region) {
+        val corrected = when (region.region) {
             TextRegion.NAME_LABEL -> rawText
             TextRegion.DIALOGUE_BOX,
             TextRegion.CHOICE_BUTTON -> correctMlKitOcrSourceText(
@@ -3082,6 +3104,32 @@ class FgoAccessibilityService : AccessibilityService() {
                 ocrEngine = region.ocrEngine
             )
         }
+        // Only the text handed to the translator loses the ruby readings: they help some models and
+        // disturb others, so the user can decide in the translation preferences.
+        return when (region.region) {
+            TextRegion.NAME_LABEL -> corrected
+            TextRegion.DIALOGUE_BOX,
+            TextRegion.CHOICE_BUTTON -> dropRubyMarkupForTranslation(corrected)
+        }
+    }
+
+    /**
+     * Removes 《…》 ruby readings from the text that goes to the translator unless the user enabled
+     * them. A line that was nothing but a reading keeps its original text.
+     */
+    private fun dropRubyMarkupForTranslation(text: String): String {
+        if (translationIncludeRuby || text.isBlank()) return text
+        val stripped = RUBY_MARKUP_PATTERN.replace(text, "")
+            .replace(Regex("[ \t]{2,}"), " ")
+            .trim()
+        if (stripped.isBlank()) return text
+        if (stripped != text) {
+            FgoLogger.debug(
+                tag,
+                "Ruby markup dropped for translation: ${debugQuote(text)} -> ${debugQuote(stripped)}"
+            )
+        }
+        return stripped
     }
 
     /** Speaker name text: the OCR lines of the already narrowed name region, left to right. */
@@ -3243,10 +3291,23 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
                 return@map line
             }
+            // Very few glyph pixels means the measurement does not describe the text (coloured
+            // names, unusual effects). Keeping the OCR box then is far better than drawing a plate
+            // that ends before the name does.
+            if (ink.glyphPixels < NAME_INK_MIN_GLYPH_PIXELS) {
+                FgoLogger.debug(
+                    tag,
+                    "Name ink box rejected: only ${ink.glyphPixels} glyph pixels in " +
+                        "${raw.width()}x${raw.height()}; keeping the OCR box"
+                )
+                return@map line
+            }
             if (ink.bounds.width() < raw.width() * NAME_INK_MIN_WIDTH_RATIO) {
                 FgoLogger.debug(
                     tag,
-                    "Name ink box rejected: ink=${ink.bounds.width()}px of ${raw.width()}px OCR box"
+                    "Name ink box rejected: trimmed to " +
+                        "${ink.bounds.width() * 100 / raw.width()}% of the ${raw.width()}px OCR box; " +
+                        "keeping the OCR box"
                 )
                 return@map line
             }
@@ -5034,7 +5095,10 @@ class FgoAccessibilityService : AccessibilityService() {
         val whiteText = r >= 170 && g >= 170 && b >= 170 && spread <= 95
         val redText = r >= 165 && r - maxOf(g, b) >= 40
         val cyanText = g >= 140 && b >= 140 && minOf(g, b) - r >= 35
-        return whiteText || redText || cyanText
+        // Some speakers use the yellow-green palette colour. Without this branch those glyphs never
+        // reached the colour vote (and the visual mask ignored them completely).
+        val yellowGreenText = g >= 150 && g - maxOf(r, b) >= 15
+        return whiteText || redText || cyanText || yellowGreenText
     }
 
     private fun masksAreSimilar(expected: VisualTextMask, current: VisualTextMask): Boolean {

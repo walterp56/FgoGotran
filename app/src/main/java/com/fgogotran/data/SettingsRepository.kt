@@ -70,6 +70,7 @@ class SettingsRepository @Inject constructor(
         val KEY_TRANSLATION_CONTEXT_ENABLED = booleanPreferencesKey("translation_context_enabled")
         val KEY_TRANSLATION_CONTEXT_SCENE_COUNT = intPreferencesKey("translation_context_scene_count")
         val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
+        val KEY_TRANSLATION_INCLUDE_RUBY = booleanPreferencesKey("translation_include_ruby")
         val KEY_AI_VOICE_ENABLED = booleanPreferencesKey("ai_voice_enabled")
         val KEY_AI_VOICE_LANGUAGE = stringPreferencesKey("ai_voice_language")
         val KEY_AI_VOICE_API_HINTS_ENABLED = booleanPreferencesKey("ai_voice_api_hints_enabled")
@@ -131,6 +132,8 @@ class SettingsRepository @Inject constructor(
         const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
         const val DEFAULT_TRANSLATION_CONTEXT_ENABLED = true
+        /** Ruby readings are removed before translation unless the user opts in. */
+        const val DEFAULT_TRANSLATION_INCLUDE_RUBY = false
         const val MIN_TRANSLATION_CONTEXT_SCENE_COUNT = 1
         const val DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT = 2
         const val MAX_TRANSLATION_CONTEXT_SCENE_COUNT = 5
@@ -667,6 +670,14 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_SHOW_ORIGINAL_GAME_TEXT] ?: false
     }
 
+    /**
+     * Whether 《…》 ruby readings are kept in the text sent to the translator. They help some engines
+     * and disturb others, so they are dropped by default.
+     */
+    val translationIncludeRuby: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_TRANSLATION_INCLUDE_RUBY] ?: DEFAULT_TRANSLATION_INCLUDE_RUBY
+    }
+
     /** Hidden test override for treating the current external app as the FGO foreground target. */
     val foregroundTestOverrideEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_FOREGROUND_TEST_OVERRIDE_ENABLED] ?: false
@@ -1118,6 +1129,11 @@ class SettingsRepository @Inject constructor(
     suspend fun setShowOriginalGameText(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SHOW_ORIGINAL_GAME_TEXT] = enabled }
         FgoLogger.debug(tag, "Setting updated: show_original_game_text=$enabled")
+    }
+
+    suspend fun setTranslationIncludeRuby(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_TRANSLATION_INCLUDE_RUBY] = enabled }
+        FgoLogger.debug(tag, "Setting updated: translation_include_ruby=$enabled")
     }
 
     suspend fun setAiVoiceEnabled(enabled: Boolean) {
