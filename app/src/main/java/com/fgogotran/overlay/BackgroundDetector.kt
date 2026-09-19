@@ -44,6 +44,13 @@ class BackgroundDetector @Inject constructor() {
         private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 600
         private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.35f
         private const val MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO = 0.35f
+        /**
+         * Lower bound for the "diamond is still fading in" evidence. The strict shape only passes
+         * once the marker is nearly full size, so the early-OCR trigger needs its own loose band:
+         * it must not reuse the lower evidence/ratio bounds above, which reject every early frame.
+         */
+        private const val MIN_PARTIAL_DIALOGUE_COMPLETE_WHITE_PIXELS = 10
+        private const val MIN_PARTIAL_MARKER_COMPONENT_PIXELS = 8
     }
 
     private val tag = "BackgroundDetector"
@@ -263,61 +270,71 @@ class BackgroundDetector @Inject constructor() {
     }
 
     /**
-     * Detects FGO's continue diamond after dialogue typing completes.
+     * One-shot report for the continue diamond: white-pixel evidence, the strict shape verdict and
+     * the loose "diamond is still fading in" evidence used to start OCR early. Computing all three
+     * from one pass keeps the per-frame cost identical to the old strict-only check.
      */
-    fun isDialogueCompleteMarkerVisible(bitmap: Bitmap, markerRegion: Rect): Boolean {
-        val baseBounds = Rect(
-            markerRegion.left.coerceIn(0, bitmap.width),
-            markerRegion.top.coerceIn(0, bitmap.height),
-            markerRegion.right.coerceIn(0, bitmap.width),
-            markerRegion.bottom.coerceIn(0, bitmap.height)
-        )
-        if (baseBounds.width() <= 0 || baseBounds.height() <= 0) return false
+    fun dialogueCompleteMarkerReport(bitmap: Bitmap, markerRegion: Rect): DialogueMarkerReport {
+        val baseBounds = clampMarkerBounds(bitmap, markerRegion)
+        if (baseBounds.width() <= 0 || baseBounds.height() <= 0) {
+            return DialogueMarkerReport(
+                whitePixels = 0,
+                ratio = 0f,
+                shapeVisible = false,
+                evidence = false,
+                partialEvidence = false
+            )
+        }
 
         val markerProfile = completeMarkerColorProfile(bitmap, baseBounds)
         val baseScore = completeMarkerWhiteScore(bitmap, baseBounds, markerProfile)
-        val markerShapeVisible = hasCompleteMarkerShape(bitmap, baseBounds, markerProfile)
-        val visible = markerShapeVisible
-        FgoLogger.debug(
-            tag,
-            "Dialogue complete marker visible=$visible markerRatio=${baseScore.ratio} " +
-                "whitePixels=${baseScore.whitePixels} markerShape=$markerShapeVisible bounds=$baseBounds"
-        )
-        return visible
-    }
-
-    /**
-     * Loose evidence that the continue-diamond region contains some white
-     * marker pixels. Used only as a secondary completion signal together with
-     * three-frame dialogue-region stability, never as a standalone decision.
-     *
-     * Bounded on both sides. A real diamond covers only a small part of the
-     * region (~360 px, ratio ~0.14), while mostly-white UI panels on menu
-     * screens (2000+ px, ratio 0.8+) used to pass a minimum-only check and made
-     * the fallback treat a menu screen as a completed dialogue.
-     */
-    fun hasDialogueCompleteMarkerEvidence(bitmap: Bitmap, markerRegion: Rect): Boolean {
-        val baseBounds = Rect(
-            markerRegion.left.coerceIn(0, bitmap.width),
-            markerRegion.top.coerceIn(0, bitmap.height),
-            markerRegion.right.coerceIn(0, bitmap.width),
-            markerRegion.bottom.coerceIn(0, bitmap.height)
-        )
-        if (baseBounds.width() <= 0 || baseBounds.height() <= 0) return false
-
-        val markerProfile = completeMarkerColorProfile(bitmap, baseBounds)
-        val baseScore = completeMarkerWhiteScore(bitmap, baseBounds, markerProfile)
+        val components = markerComponents(bitmap, baseBounds, markerProfile)
+        val regionWidth = baseBounds.width()
+        val regionHeight = baseBounds.height()
+        val shapeVisible = components.any { it.matchesStrictShape(regionWidth, regionHeight) }
         val evidence = baseScore.whitePixels in
             MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS..MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
             baseScore.ratio in
             MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO..MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO
+        val partialEvidence = baseScore.whitePixels in
+            MIN_PARTIAL_DIALOGUE_COMPLETE_WHITE_PIXELS..MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
+            baseScore.ratio <= MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO &&
+            components.any { it.matchesPartialShape(regionWidth, regionHeight) }
+
         FgoLogger.debug(
             tag,
-            "Dialogue complete marker evidence=$evidence markerRatio=${baseScore.ratio} " +
-                "whitePixels=${baseScore.whitePixels}"
+            "Dialogue complete marker visible=$shapeVisible markerRatio=${baseScore.ratio} " +
+                "whitePixels=${baseScore.whitePixels} markerShape=$shapeVisible bounds=$baseBounds"
         )
-        return evidence
+        if (partialEvidence) {
+            FgoLogger.debug(
+                tag,
+                "Dialogue complete marker partial evidence: markerRatio=${baseScore.ratio} " +
+                    "whitePixels=${baseScore.whitePixels} bounds=$baseBounds"
+            )
+        }
+        return DialogueMarkerReport(
+            whitePixels = baseScore.whitePixels,
+            ratio = baseScore.ratio,
+            shapeVisible = shapeVisible,
+            evidence = evidence,
+            partialEvidence = partialEvidence
+        )
     }
+
+    /**
+     * Detects FGO's continue diamond after dialogue typing completes.
+     */
+    fun isDialogueCompleteMarkerVisible(bitmap: Bitmap, markerRegion: Rect): Boolean =
+        dialogueCompleteMarkerReport(bitmap, markerRegion).shapeVisible
+
+    private fun clampMarkerBounds(bitmap: Bitmap, markerRegion: Rect): Rect =
+        Rect(
+            markerRegion.left.coerceIn(0, bitmap.width),
+            markerRegion.top.coerceIn(0, bitmap.height),
+            markerRegion.right.coerceIn(0, bitmap.width),
+            markerRegion.bottom.coerceIn(0, bitmap.height)
+        )
 
     /**
      * Detects the SKIP confirmation modal's paired white buttons.
@@ -334,21 +351,59 @@ class BackgroundDetector @Inject constructor() {
         return visible
     }
 
-    private fun hasCompleteMarkerShape(
+    /** One white blob found inside the continue-diamond region. */
+    private data class MarkerComponent(
+        val pixels: Int,
+        val minX: Int,
+        val minY: Int,
+        val maxX: Int,
+        val maxY: Int
+    ) {
+        val width: Int get() = maxX - minX + 1
+        val height: Int get() = maxY - minY + 1
+        val aspect: Float get() = width.toFloat() / height.coerceAtLeast(1)
+
+        fun touchesRegionEdge(regionWidth: Int, regionHeight: Int): Boolean =
+            minX <= COMPLETE_MARKER_EDGE_GUARD_PX ||
+                minY <= COMPLETE_MARKER_EDGE_GUARD_PX ||
+                maxX >= regionWidth - 1 - COMPLETE_MARKER_EDGE_GUARD_PX ||
+                maxY >= regionHeight - 1 - COMPLETE_MARKER_EDGE_GUARD_PX
+
+        /** The strict test the dialogue-complete gate has always used. */
+        fun matchesStrictShape(regionWidth: Int, regionHeight: Int): Boolean {
+            val minPixels = maxOf(35, (regionWidth * regionHeight * 0.015f).toInt())
+            val minWidth = maxOf(10, (regionWidth * 0.16f).toInt())
+            val minHeight = maxOf(18, (regionHeight * 0.34f).toInt())
+            val maxWidth = maxOf(minWidth, (regionWidth * 0.78f).toInt())
+            val maxHeight = maxOf(minHeight, (regionHeight * 0.98f).toInt())
+            return pixels >= minPixels &&
+                width in minWidth..maxWidth &&
+                height in minHeight..maxHeight &&
+                aspect in COMPLETE_MARKER_MIN_ASPECT..COMPLETE_MARKER_MAX_ASPECT &&
+                !touchesRegionEdge(regionWidth, regionHeight)
+        }
+
+        /**
+         * Loose shape test for the fade-in / rotating frames that never pass the strict test.
+         * Only the position is checked: a real diamond sits inside the region instead of bleeding
+         * into the screen edge, which is what keeps menu panels from triggering the early OCR.
+         */
+        fun matchesPartialShape(regionWidth: Int, regionHeight: Int): Boolean =
+            pixels >= MIN_PARTIAL_MARKER_COMPONENT_PIXELS &&
+                !touchesRegionEdge(regionWidth, regionHeight)
+    }
+
+    private fun markerComponents(
         bitmap: Bitmap,
         bounds: Rect,
         markerProfile: MarkerColorProfile?
-    ): Boolean {
+    ): List<MarkerComponent> {
         val width = bounds.width()
         val height = bounds.height()
-        if (width <= 0 || height <= 0) return false
+        if (width <= 0 || height <= 0) return emptyList()
 
         val visited = BooleanArray(width * height)
-        val minPixels = maxOf(35, (width * height * 0.015f).toInt())
-        val minWidth = maxOf(10, (width * 0.16f).toInt())
-        val minHeight = maxOf(18, (height * 0.34f).toInt())
-        val maxWidth = maxOf(minWidth, (width * 0.78f).toInt())
-        val maxHeight = maxOf(minHeight, (height * 0.98f).toInt())
+        val components = mutableListOf<MarkerComponent>()
 
         fun index(x: Int, y: Int): Int = y * width + x
 
@@ -392,24 +447,14 @@ class BackgroundDetector @Inject constructor() {
                     }
                 }
 
-                val componentWidth = maxX - minX + 1
-                val componentHeight = maxY - minY + 1
-                val aspect = componentWidth.toFloat() / componentHeight.coerceAtLeast(1)
-                val touchesRegionEdge = minX <= COMPLETE_MARKER_EDGE_GUARD_PX ||
-                    minY <= COMPLETE_MARKER_EDGE_GUARD_PX ||
-                    maxX >= width - 1 - COMPLETE_MARKER_EDGE_GUARD_PX ||
-                    maxY >= height - 1 - COMPLETE_MARKER_EDGE_GUARD_PX
-                if (count >= minPixels &&
-                    componentWidth in minWidth..maxWidth &&
-                    componentHeight in minHeight..maxHeight &&
-                    aspect in COMPLETE_MARKER_MIN_ASPECT..COMPLETE_MARKER_MAX_ASPECT &&
-                    !touchesRegionEdge
-                ) {
-                    return true
+                // Sub-pixel specks cannot be the marker, so they are dropped here: the strict test
+                // needs far more pixels anyway, and the partial test stays cheap on bright scenes.
+                if (count >= MIN_PARTIAL_MARKER_COMPONENT_PIXELS) {
+                    components.add(MarkerComponent(count, minX, minY, maxX, maxY))
                 }
             }
         }
-        return false
+        return components
     }
 
     private fun completeMarkerColorProfile(bitmap: Bitmap, bounds: Rect): MarkerColorProfile? {
@@ -841,4 +886,23 @@ class BackgroundDetector @Inject constructor() {
         val b = pixel and 0xFF
         return (0.299f * r + 0.587f * g + 0.114f * b).toInt()
     }
+
 }
+
+/**
+ * Result of one continue-diamond check.
+ *
+ * @property whitePixels sampled white marker pixels inside the fixed marker region
+ * @property ratio sampled white ratio; menu panels and other bright UI push it far higher
+ * @property shapeVisible the strict diamond shape used as the primary completion signal
+ * @property evidence bounded white evidence used by the three-frame completion fallback
+ * @property partialEvidence the diamond is fading in / rotating: loose shape, small size. Used to
+ *   start the OCR before the strict shape passes, never to render on its own.
+ */
+data class DialogueMarkerReport(
+    val whitePixels: Int,
+    val ratio: Float,
+    val shapeVisible: Boolean,
+    val evidence: Boolean,
+    val partialEvidence: Boolean
+)
