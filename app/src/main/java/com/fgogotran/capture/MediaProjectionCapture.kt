@@ -73,10 +73,6 @@ object MediaProjectionCapture {
         consecutiveBlankFrames = 0
     }
 
-    /** Records a start attempt that failed before any frame could be captured. */
-    fun noteStartFailure(reason: String) {
-        recordFailure(reason)
-    }
 
     fun start(projection: MediaProjection, width: Int, height: Int, densityDpi: Int): Boolean {
         if (disabledForSession) {

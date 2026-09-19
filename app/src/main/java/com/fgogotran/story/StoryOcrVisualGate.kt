@@ -164,7 +164,10 @@ internal class StoryOcrVisualGate {
         val whiteText = red >= 170 && green >= 170 && blue >= 170 && spread <= 95
         val redText = red >= 165 && red - maxOf(green, blue) >= 40
         val cyanText = green >= 140 && blue >= 140 && minOf(green, blue) - red >= 35
-        return whiteText || redText || cyanText
+        // Same yellow-green palette branch the service colour vote uses: without it the sampled
+        // mask ignores those glyphs completely and the gate re-schedules OCR on every frame.
+        val yellowGreenText = green >= 150 && green - maxOf(red, blue) >= 15
+        return whiteText || redText || cyanText || yellowGreenText
     }
 
     private data class PendingRecognition(

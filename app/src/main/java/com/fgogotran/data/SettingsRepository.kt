@@ -259,9 +259,6 @@ class SettingsRepository @Inject constructor(
                 else -> DEFAULT_OCR_ENGINE
             }
 
-        fun normalizeAiVoiceLanguage(language: String): String =
-            language.takeIf { it == AI_VOICE_LANGUAGE_CN_TRANSLATION } ?: DEFAULT_AI_VOICE_LANGUAGE
-
         fun normalizeAiVoiceVolumePercent(volumePercent: Int): Int =
             volumePercent.coerceIn(MIN_AI_VOICE_VOLUME_PERCENT, MAX_AI_VOICE_VOLUME_PERCENT)
 
@@ -1106,10 +1103,6 @@ class SettingsRepository @Inject constructor(
         )
     }
 
-    suspend fun setPlayerName(name: String) {
-        setPlayerProfile(name, playerGender.first())
-    }
-
     suspend fun setCacheEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_CACHE_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: cache_enabled=$enabled")
@@ -1139,11 +1132,6 @@ class SettingsRepository @Inject constructor(
     suspend fun setAiVoiceEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AI_VOICE_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: ai_voice_enabled=$enabled")
-    }
-
-    suspend fun setAiVoiceLanguage(language: String) {
-        context.dataStore.edit { it[KEY_AI_VOICE_LANGUAGE] = DEFAULT_AI_VOICE_LANGUAGE }
-        FgoLogger.debug(tag, "Setting updated: ai_voice_language=$DEFAULT_AI_VOICE_LANGUAGE")
     }
 
     suspend fun setAiVoiceApiHintsEnabled(enabled: Boolean) {

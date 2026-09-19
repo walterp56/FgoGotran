@@ -27,8 +27,4 @@ class UserProfile @Inject constructor(
         return profile
     }
 
-    /** Returns the player's Master name, or empty string if not configured. */
-    suspend fun getPlayerName(): String {
-        return getPlayerProfile().name
-    }
 }

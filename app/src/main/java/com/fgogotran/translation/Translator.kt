@@ -720,7 +720,6 @@ class Translator @Inject constructor(
             RegexOption.IGNORE_CASE
         )
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
-        private val maskedTextPattern = Regex("[■□▇█]+")
         private val returnedRubyAnglePattern = Regex("""([^《》\s]{1,24})《([^》]{1,32})》""")
         private val maskedSourceIgnoredChars = setOf(
             '、', '。', '，', '．', '.', ',', '・', '･', '·', '：', ':',
@@ -772,40 +771,15 @@ class Translator @Inject constructor(
         private val leakedStandaloneAddressWordPattern =
             Regex("""貴方|贵方|貴様|贵样""")
         private val honorificExceptionPhrases = PromptBuilder.HONORIFIC_EXCEPTION_PHRASES
-        private val NAME_PLURAL_ZU_SUFFIXES = listOf("ズ", "ず")
-        private const val NAME_HONORIFIC_SAN_SOURCE_SUFFIX = "さん"
         private const val NAME_HONORIFIC_SAN_TARGET_SUFFIX = "桑"
-        private const val NAME_HONORIFIC_KUN_SOURCE_SUFFIX = "くん"
         private const val NAME_HONORIFIC_KUN_TARGET_SUFFIX = "君"
-        private const val NAME_HONORIFIC_CHAN_SOURCE_SUFFIX = "ちゃん"
         private const val NAME_HONORIFIC_CHAN_TARGET_SUFFIX = "酱"
-        private const val NAME_HONORIFIC_TAN_SOURCE_SUFFIX = "たん"
         private const val NAME_HONORIFIC_TAN_TARGET_SUFFIX = "炭"
-        private const val NAME_HONORIFIC_TYA_SOURCE_SUFFIX = "てゃ"
         private const val NAME_HONORIFIC_TYA_TARGET_SUFFIX = "宝"
-        private const val NAME_HONORIFIC_CCHI_SOURCE_SUFFIX = "っち"
         private const val NAME_HONORIFIC_CCHI_TARGET_PREFIX = "小"
-        private const val NAME_HONORIFIC_SAMA_SOURCE_SUFFIX = "様"
         private const val NAME_HONORIFIC_SAMA_TARGET_SUFFIX = "大人"
-        private const val NAME_HONORIFIC_TONO_SOURCE_SUFFIX = "殿"
         private const val NAME_HONORIFIC_TONO_TARGET_SUFFIX = "阁下"
-        private const val NAME_HONORIFIC_SHI_SOURCE_SUFFIX = "氏"
         private const val NAME_HONORIFIC_SHI_TARGET_SUFFIX = "氏"
-        private val visibleLockBlockedSuffixes = NAME_PLURAL_ZU_SUFFIXES + listOf(
-            "たち",
-            "達",
-            "ら",
-            "等",
-            NAME_HONORIFIC_SAN_SOURCE_SUFFIX,
-            NAME_HONORIFIC_KUN_SOURCE_SUFFIX,
-            NAME_HONORIFIC_CHAN_SOURCE_SUFFIX,
-            NAME_HONORIFIC_TAN_SOURCE_SUFFIX,
-            NAME_HONORIFIC_TYA_SOURCE_SUFFIX,
-            NAME_HONORIFIC_CCHI_SOURCE_SUFFIX,
-            NAME_HONORIFIC_SAMA_SOURCE_SUFFIX,
-            NAME_HONORIFIC_TONO_SOURCE_SUFFIX,
-            NAME_HONORIFIC_SHI_SOURCE_SUFFIX
-        )
         private const val MASTER_TITLE_SOURCE = "マスター"
         private const val MASTER_TITLE_OFFICIAL = "御主"
         private val malformedProtectedTokenPattern =
@@ -4463,288 +4437,12 @@ class Translator @Inject constructor(
         return replaceTermCandidate(sourceText, candidate, "__SAKURA_TERM_MATCH__") != sourceText
     }
 
-    private enum class HonorificPlacement {
-        PREFIX,
-        SUFFIX
-    }
-
-    private data class HonorificProtectionVariant(
-        val token: String,
-        val sourceSuffix: String,
-        val officialAffix: String,
-        val placement: HonorificPlacement = HonorificPlacement.SUFFIX,
-        var matched: Boolean = false
-    ) {
-        fun applyTo(name: String): String {
-            return when (placement) {
-                HonorificPlacement.PREFIX -> officialAffix + name
-                HonorificPlacement.SUFFIX -> name + officialAffix
-            }
-        }
-    }
-
-    private fun protectText(
-        sourceText: String,
-        matchedTerms: List<TermEntity>,
-        playerName: String,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
-    ): ProtectedText {
-        val maskProtected = protectMaskedSpans(sourceText)
-        val masterProtected = protectMasterTitle(
-            sourceText = maskProtected.text,
-            targetChineseLocale = targetChineseLocale
-        )
-        val playerProtected = protectPlayerName(masterProtected.text, playerName, targetChineseLocale)
-        val matchedProtected = protectMatchedTerms(
-            sourceText = playerProtected.text,
-            matchedTerms = matchedTerms,
-            targetChineseLocale = targetChineseLocale
-        )
-        return ProtectedText(
-            text = matchedProtected.text,
-            terms = maskProtected.terms + masterProtected.terms + playerProtected.terms + matchedProtected.terms
-        )
-    }
-
-    private fun protectMatchedTerms(
-        sourceText: String,
-        matchedTerms: List<TermEntity>,
-        targetChineseLocale: String
-    ): ProtectedText {
-        if (sourceText.isBlank() || matchedTerms.isEmpty()) {
-            return ProtectedText(sourceText, emptyList())
-        }
-
-        val lockableTerms = matchedTerms
-            .filter(::shouldProtectMatchedTerm)
-            .distinctBy { matchedTermProtectionKey(it) }
-            .sortedWith(
-                compareByDescending<TermEntity> { longestTermProtectionLength(it) }
-                    .thenBy { it.category }
-                    .thenBy { it.jpTerm }
-            )
-
-        if (lockableTerms.isEmpty()) {
-            FgoLogger.debug(
-                tag,
-                "RAG source: no extra glossary lock applied for ${matchedTerms.size} matched term(s)"
-            )
-            return ProtectedText(sourceText, emptyList())
-        }
-
-        var protectedText = sourceText
-        var tokenIndex = 1
-        val protections = mutableListOf<TermProtection>()
-        for (term in lockableTerms) {
-            val token = "__FGOTERM_LOCK${tokenIndex}__"
-            val before = protectedText
-            for (candidate in termProtectionCandidates(term)) {
-                protectedText = replaceTermCandidate(protectedText, candidate, token)
-            }
-            if (protectedText != before) {
-                tokenIndex++
-                protections += TermProtection(
-                    token = token,
-                    officialText = targetOfficialChinese(term.cnTerm, targetChineseLocale),
-                    required = true
-                )
-            }
-        }
-
-        if (protections.isNotEmpty()) {
-            val coveredByLongerLock = lockableTerms.size - protections.size
-            val coveredSuffix = if (coveredByLongerLock > 0) {
-                "; $coveredByLongerLock covered or absent after longer locks"
-            } else {
-                ""
-            }
-            FgoLogger.debug(
-                tag,
-                "RAG source: locked ${protections.size} of ${matchedTerms.size} matched glossary term(s)$coveredSuffix"
-            )
-        }
-        if (protections.isEmpty()) {
-            FgoLogger.warn(
-                tag,
-                "RAG source: matched ${matchedTerms.size} glossary term(s), but no source span was locked"
-            )
-        }
-        val skippedLockCount = matchedTerms.size - lockableTerms.size
-        if (skippedLockCount > 0) {
-            FgoLogger.debug(
-                tag,
-                "RAG source: skipped $skippedLockCount matched glossary term(s) already protected or invalid"
-            )
-        }
-        return ProtectedText(protectedText, protections)
-    }
-
-    private fun shouldProtectMatchedTerm(term: TermEntity): Boolean {
-        if (term.jpTerm.isBlank() || term.cnTerm.isBlank()) return false
-        val key = normalizeForTermProtection(term.jpTerm)
-        return key.length >= 2 && key != normalizeForTermProtection(MASTER_TITLE_SOURCE)
-    }
-
-    private fun matchedTermProtectionKey(term: TermEntity): String {
-        return normalizeForTermProtection(term.jpTerm)
-    }
-
-    private fun longestTermProtectionLength(term: TermEntity): Int {
-        return termProtectionCandidates(term)
-            .maxOfOrNull { normalizeForTermProtection(it).length }
-            ?: 0
-    }
-
     private fun termProtectionCandidates(term: TermEntity): List<String> {
         return (listOf(term.jpTerm) + aliases(term.aliases))
             .map(TextNormalizer::normalizeForTranslation)
             .filter { normalizeForTermProtection(it).length >= 2 }
             .distinctBy { normalizeForTermProtection(it) }
             .sortedByDescending { normalizeForTermProtection(it).length }
-    }
-
-    private fun protectMaskedSpans(sourceText: String): ProtectedText {
-        if (sourceText.isBlank() || !containsMaskPlaceholders(sourceText)) {
-            return ProtectedText(sourceText, emptyList())
-        }
-
-        var tokenIndex = 1
-        val protections = mutableListOf<TermProtection>()
-        val protectedText = maskedTextPattern.replace(sourceText) { match ->
-            val token = "__FGOTERM_MASK_${tokenIndex++}__"
-            protections += TermProtection(
-                token = token,
-                officialText = match.value
-            )
-            token
-        }
-        return ProtectedText(protectedText, protections)
-    }
-
-    private fun protectMasterTitle(
-        sourceText: String,
-        protectBaseTitle: Boolean = true,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
-    ): ProtectedText {
-        val normalized = Normalizer.normalize(sourceText, Normalizer.Form.NFKC)
-        if (sourceText.isBlank() || !normalized.contains(MASTER_TITLE_SOURCE)) {
-            return ProtectedText(sourceText, emptyList())
-        }
-
-        val token = "__FGOTERM_MASTER__"
-        val pluralToken = "__FGOTERM_MASTER_PLURAL__"
-        val honorificVariants = honorificProtectionVariants("__FGOTERM_MASTER", targetChineseLocale)
-        val officialText = targetOfficialChinese(MASTER_TITLE_OFFICIAL, targetChineseLocale)
-        var protectedText = sourceText
-        val protections = mutableListOf<TermProtection>()
-
-        for (variant in honorificVariants) {
-            val before = protectedText
-            protectedText = replaceTermHonorificCandidate(
-                protectedText,
-                MASTER_TITLE_SOURCE,
-                variant.sourceSuffix,
-                variant.token
-            )
-            variant.matched = protectedText != before
-        }
-
-        val pluralBefore = protectedText
-        protectedText = replaceTermPluralCandidate(protectedText, MASTER_TITLE_SOURCE, pluralToken)
-        val pluralMatched = protectedText != pluralBefore
-
-        val baseMatched = if (protectBaseTitle) {
-            val baseBefore = protectedText
-            protectedText = replaceTermCandidate(protectedText, MASTER_TITLE_SOURCE, token)
-            protectedText != baseBefore
-        } else {
-            false
-        }
-
-        return if (baseMatched || pluralMatched || honorificVariants.any { it.matched }) {
-            if (baseMatched || pluralMatched) {
-                protections += TermProtection(
-                    token = token,
-                    officialText = officialText,
-                    pluralToken = pluralToken.takeIf { pluralMatched },
-                    pluralOfficialText = pluralNameText(officialText, targetChineseLocale).takeIf { pluralMatched }
-                )
-            }
-            for (variant in honorificVariants) {
-                if (variant.matched) {
-                    protections += TermProtection(
-                        token = variant.token,
-                        officialText = variant.applyTo(officialText)
-                    )
-                }
-            }
-            ProtectedText(protectedText, protections)
-        } else {
-            ProtectedText(sourceText, emptyList())
-        }
-    }
-
-    private fun protectPlayerName(
-        sourceText: String,
-        playerName: String,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
-    ): ProtectedText {
-        val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
-        if (sourceText.isBlank() || normalizedPlayerName.length < 2) {
-            return ProtectedText(sourceText, emptyList())
-        }
-
-        val token = "__FGOPLAYER_1__"
-        val pluralToken = "__FGOPLAYER_1_PLURAL__"
-        val honorificVariants = honorificProtectionVariants("__FGOPLAYER_1", targetChineseLocale)
-        var protectedText = sourceText
-        val protections = mutableListOf<TermProtection>()
-
-        for (variant in honorificVariants) {
-            val before = protectedText
-            protectedText = replaceTermHonorificCandidate(
-                protectedText,
-                normalizedPlayerName,
-                variant.sourceSuffix,
-                variant.token
-            )
-            variant.matched = protectedText != before
-        }
-
-        val pluralBefore = protectedText
-        protectedText = replaceTermPluralCandidate(protectedText, normalizedPlayerName, pluralToken)
-        val pluralMatched = protectedText != pluralBefore
-
-        val baseBefore = protectedText
-        protectedText = replaceTermCandidate(protectedText, normalizedPlayerName, token)
-        val baseMatched = protectedText != baseBefore
-
-        return if (baseMatched || pluralMatched || honorificVariants.any { it.matched }) {
-            if (baseMatched || pluralMatched) {
-                protections += TermProtection(
-                    token = token,
-                    officialText = normalizedPlayerName,
-                    pluralToken = pluralToken.takeIf { pluralMatched },
-                    pluralOfficialText = pluralNameText(normalizedPlayerName, targetChineseLocale)
-                        .takeIf { pluralMatched }
-                )
-            }
-            for (variant in honorificVariants) {
-                if (variant.matched) {
-                    protections += TermProtection(
-                        token = variant.token,
-                        officialText = variant.applyTo(normalizedPlayerName)
-                    )
-                }
-            }
-            FgoLogger.debug(tag, "Protected player name as $token")
-            ProtectedText(
-                text = protectedText,
-                terms = protections
-            )
-        } else {
-            ProtectedText(sourceText, emptyList())
-        }
     }
 
     private fun replaceTermCandidate(text: String, candidate: String, token: String): String {
@@ -4782,104 +4480,6 @@ class Translator @Inject constructor(
         if (!changed) return text
         result.append(text, searchStart, text.length)
         return result.toString()
-    }
-
-    private fun replaceTermPluralCandidate(text: String, candidate: String, token: String): String {
-        var current = text
-        for (suffix in NAME_PLURAL_ZU_SUFFIXES) {
-            current = replaceTermCandidate(current, candidate + suffix, token)
-        }
-        return current
-    }
-
-    private fun honorificProtectionVariants(
-        tokenPrefix: String,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
-    ): List<HonorificProtectionVariant> {
-        return listOf(
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_SAN__",
-                sourceSuffix = NAME_HONORIFIC_SAN_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_SAN_TARGET_SUFFIX,
-                    targetChineseLocale
-                )
-            ),
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_KUN__",
-                sourceSuffix = NAME_HONORIFIC_KUN_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_KUN_TARGET_SUFFIX,
-                    targetChineseLocale
-                )
-            ),
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_CHAN__",
-                sourceSuffix = NAME_HONORIFIC_CHAN_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_CHAN_TARGET_SUFFIX,
-                    targetChineseLocale
-                )
-            ),
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_TAN__",
-                sourceSuffix = NAME_HONORIFIC_TAN_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_TAN_TARGET_SUFFIX,
-                    targetChineseLocale
-                )
-            ),
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_TYA__",
-                sourceSuffix = NAME_HONORIFIC_TYA_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_TYA_TARGET_SUFFIX,
-                    targetChineseLocale
-                )
-            ),
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_CCHI__",
-                sourceSuffix = NAME_HONORIFIC_CCHI_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_CCHI_TARGET_PREFIX,
-                    targetChineseLocale
-                ),
-                placement = HonorificPlacement.PREFIX
-            ),
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_SAMA__",
-                sourceSuffix = NAME_HONORIFIC_SAMA_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_SAMA_TARGET_SUFFIX,
-                    targetChineseLocale
-                )
-            ),
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_TONO__",
-                sourceSuffix = NAME_HONORIFIC_TONO_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_TONO_TARGET_SUFFIX,
-                    targetChineseLocale
-                )
-            ),
-            HonorificProtectionVariant(
-                token = "${tokenPrefix}_SHI__",
-                sourceSuffix = NAME_HONORIFIC_SHI_SOURCE_SUFFIX,
-                officialAffix = targetOfficialChinese(
-                    NAME_HONORIFIC_SHI_TARGET_SUFFIX,
-                    targetChineseLocale
-                )
-            )
-        )
-    }
-
-    private fun replaceTermHonorificCandidate(
-        text: String,
-        candidate: String,
-        sourceSuffix: String,
-        token: String
-    ): String {
-        return replaceTermCandidate(text, candidate + sourceSuffix, token)
     }
 
     private fun replaceNormalizedTermCandidate(text: String, candidate: String, token: String): String {
@@ -5081,21 +4681,6 @@ class Translator @Inject constructor(
         if (protectedTokenNumericVariantBodyPattern.matches(upper)) return false
 
         return trimmed.any { !it.isAsciiLetterOrDigit() } || trimmed.any { it.isLowerCase() }
-    }
-
-    private fun pluralNameText(
-        name: String,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
-    ): String {
-        val trimmed = name.trim()
-        if (trimmed.isBlank()) return trimmed
-        return if (trimmed.endsWith("们") || trimmed.endsWith("組") || trimmed.endsWith("组") ||
-            trimmed.endsWith("隊") || trimmed.endsWith("队")
-        ) {
-            trimmed
-        } else {
-            trimmed + targetOfficialChinese("们", targetChineseLocale)
-        }
     }
 
     private fun Char.isAsciiLetter(): Boolean {

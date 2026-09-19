@@ -47,10 +47,6 @@ object TranslationTrigger {
         return translationMode.get()
     }
 
-    fun isBackgroundTranslateEnabled(): Boolean {
-        return translationMode.get() != TranslationMode.MANUAL
-    }
-
     fun isFullAutoEnabled(): Boolean {
         return translationMode.get() == TranslationMode.AUTO
     }
@@ -63,10 +59,6 @@ object TranslationTrigger {
         return translationMode.get() != TranslationMode.AUTO
     }
 
-    fun setAutoTranslateEnabled(enabled: Boolean) {
-        setTranslationMode(if (enabled) TranslationMode.AUTO else TranslationMode.MANUAL)
-    }
-
     fun isAutoTranslateEnabled(): Boolean {
         return isFullAutoEnabled()
     }
@@ -75,16 +67,8 @@ object TranslationTrigger {
         historyVisible.set(visible)
     }
 
-    fun isHistoryVisible(): Boolean {
-        return historyVisible.get()
-    }
-
     fun setMenuVisible(visible: Boolean) {
         menuVisible.set(visible)
-    }
-
-    fun isMenuVisible(): Boolean {
-        return menuVisible.get()
     }
 
     fun isUiBlockingOcr(): Boolean {

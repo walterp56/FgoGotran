@@ -92,18 +92,6 @@ data class BattleHudMatch(
 
 /** Locates the stable three-label stack while excluding the changing battle counters. */
 object BattleHudDetector {
-    /**
-     * Story/waiting mode must stay OCR-free. Requiring all three coloured rows gives
-     * the state machine strong entry evidence without invoking PaddleOCR. Once battle
-     * owns the frame, a two-row match remains enough to tolerate effects over the HUD.
-     */
-    fun isStrongEntryMatch(match: BattleHudMatch?): Boolean = match?.matchedLabels == 3
-
-    /** Text-only helper retained for detector regression fixtures; production entry is pixel-only. */
-    fun confirmsLabels(text: String): Boolean {
-        val compact = text.filterNot(Char::isWhitespace).uppercase(java.util.Locale.ROOT)
-        return listOf("BATTLE", "ENEMY", "TURN").count { it in compact } >= 2
-    }
 
     /** Compatibility entry point for callers that only need presence. */
     fun isVisible(width: Int, height: Int, pixel: (Int, Int) -> Int): Boolean {

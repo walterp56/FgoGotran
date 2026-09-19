@@ -1058,46 +1058,6 @@ class OverlayRenderer @Inject constructor(
         return fallbackLines to lineHeight
     }
 
-    private fun fitOriginalText(
-        candidates: List<String>,
-        paint: Paint,
-        initialTextSize: Float,
-        minimumTextSize: Float,
-        maxWidth: Float,
-        maxHeight: Float,
-        maxLines: Int
-    ): Pair<List<String>, Float> {
-        val distinctCandidates = candidates
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .ifEmpty { listOf("") }
-
-        distinctCandidates.forEach { candidate ->
-            fitWrappedTextOrNull(
-                text = candidate,
-                paint = paint,
-                initialTextSize = initialTextSize,
-                minimumTextSize = minimumTextSize,
-                maxWidth = maxWidth,
-                maxHeight = maxHeight,
-                maxLines = maxLines,
-                lineHeightMultiplier = ORIGINAL_LINE_HEIGHT_MULTIPLIER
-            )?.let { return it }
-        }
-
-        val fallbackText = distinctCandidates.last()
-        paint.textSize = minimumTextSize
-        val lineHeight = minimumTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
-        val maximumLines = maximumFittingLineCount(
-            paint = paint,
-            lineHeight = lineHeight,
-            maxHeight = maxHeight,
-            maxLines = maxLines
-        )
-        return limitLines(wrapText(fallbackText, paint, maxWidth), maximumLines, paint, maxWidth) to lineHeight
-    }
-
     private fun fitBilingualLinePairs(
         instruction: RenderInstruction,
         paint: Paint,
@@ -1330,34 +1290,6 @@ class OverlayRenderer @Inject constructor(
         return height
     }
 
-    private fun fitWrappedTextOrNull(
-        text: String,
-        paint: Paint,
-        initialTextSize: Float,
-        minimumTextSize: Float,
-        maxWidth: Float,
-        maxHeight: Float,
-        maxLines: Int,
-        lineHeightMultiplier: Float
-    ): Pair<List<String>, Float>? {
-        var textSize = initialTextSize
-        val allowedLines = maxLines.coerceAtLeast(1)
-        while (true) {
-            paint.textSize = textSize
-            val lineHeight = textSize * lineHeightMultiplier
-            val lines = wrapText(text, paint, maxWidth)
-            if (lines.size <= allowedLines &&
-                textBlockHeight(paint, lineHeight, lines.size) <= maxHeight + 0.5f
-            ) {
-                return lines to lineHeight
-            }
-            if (textSize <= minimumTextSize) {
-                return null
-            }
-            textSize = (textSize - 2f).coerceAtLeast(minimumTextSize)
-        }
-    }
-
     private fun RenderInstruction.dialogueRenderCandidates(
         paint: Paint,
         maxWidth: Float
@@ -1555,21 +1487,6 @@ class OverlayRenderer @Inject constructor(
             paint.textSize = (paint.textSize - 2f).coerceAtLeast(minimumTextSize)
         }
         return ellipsize(text, paint, maxWidth)
-    }
-
-    private fun fitSingleLineOrNull(
-        text: String,
-        paint: Paint,
-        initialTextSize: Float,
-        minimumTextSize: Float,
-        maxWidth: Float
-    ): String? {
-        if (text.isBlank() || maxWidth <= 0f) return null
-        paint.textSize = initialTextSize
-        while (paint.measureText(text) > maxWidth && paint.textSize > minimumTextSize) {
-            paint.textSize = (paint.textSize - 2f).coerceAtLeast(minimumTextSize)
-        }
-        return text.takeIf { paint.measureText(it) <= maxWidth }
     }
 
     private fun limitLines(

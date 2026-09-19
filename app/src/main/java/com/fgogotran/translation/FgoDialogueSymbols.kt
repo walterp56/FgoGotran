@@ -27,15 +27,6 @@ object FgoDialogueSymbols {
         return longPausePattern.containsMatchIn(text)
     }
 
-    fun startsWithLongPause(text: String): Boolean {
-        return longPausePattern.find(text)?.range?.first == 0
-    }
-
-    fun endsWithLongPause(text: String): Boolean {
-        val match = longPausePattern.findAll(text).lastOrNull() ?: return false
-        return match.range.last == text.lastIndex
-    }
-
     /**
      * Converts common OCR/model pause substitutes without changing the length
      * of a genuine Unicode ellipsis run. FGO uses intentional odd as well as
@@ -458,12 +449,6 @@ object FgoDialogueSymbols {
             .let(::normalizePauseDots)
             .replace(Regex("[ \\t]+"), " ")
             .trim()
-    }
-
-    fun isDashRunChar(char: Char): Boolean {
-        // `ー` is lexical (the katakana prolonged-sound mark), including when
-        // repeated for shouted FGO dialogue. It must never be treated as a dash.
-        return char in DASH_RUN_SYMBOLS
     }
 
     private fun restoreLeadingSourcePause(sourceText: String, translatedText: String): String {

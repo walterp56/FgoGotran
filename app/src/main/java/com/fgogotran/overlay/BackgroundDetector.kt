@@ -34,8 +34,6 @@ class BackgroundDetector @Inject constructor() {
         private const val MIN_PARTIAL_FIXED_CHOICE_WIDTH_RATIO = 0.86f
         private const val MIN_PARTIAL_FIXED_CHOICE_SLOT_OVERLAP_RATIO = 0.82f
 
-        private const val MIN_SKIP_WHITE_RATIO = 0.08f
-        private const val MAX_SKIP_WHITE_RATIO = 0.55f
         private const val COMPLETE_MARKER_MIN_ASPECT = 0.42f
         private const val COMPLETE_MARKER_MAX_ASPECT = 0.95f
         private const val COMPLETE_MARKER_EDGE_GUARD_PX = 2
@@ -43,14 +41,7 @@ class BackgroundDetector @Inject constructor() {
         private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.05f
         private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 600
         private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.35f
-        private const val MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO = 0.35f
-        /**
-         * Lower bound for the "diamond is still fading in" evidence. The strict shape only passes
-         * once the marker is nearly full size, so the early-OCR trigger needs its own loose band:
-         * it must not reuse the lower evidence/ratio bounds above, which reject every early frame.
-         */
-        private const val MIN_PARTIAL_DIALOGUE_COMPLETE_WHITE_PIXELS = 10
-        private const val MIN_PARTIAL_MARKER_COMPONENT_PIXELS = 8
+        private const val MIN_MARKER_COMPONENT_PIXELS = 8
     }
 
     private val tag = "BackgroundDetector"
@@ -236,40 +227,6 @@ class BackgroundDetector @Inject constructor() {
     }
 
     /**
-     * Checks the stable top-right SKIP region before story OCR begins.
-     */
-    fun isSkipButtonVisible(bitmap: Bitmap, skipRegion: Rect): Boolean {
-        val bounds = Rect(
-            skipRegion.left.coerceIn(0, bitmap.width),
-            skipRegion.top.coerceIn(0, bitmap.height),
-            skipRegion.right.coerceIn(0, bitmap.width),
-            skipRegion.bottom.coerceIn(0, bitmap.height)
-        )
-        if (bounds.width() <= 0 || bounds.height() <= 0) return false
-
-        var whitePixels = 0
-        var totalPixels = 0
-        for (y in bounds.top until bounds.bottom step 2) {
-            for (x in bounds.left until bounds.right step 2) {
-                val pixel = bitmap.getPixel(x, y)
-                val r = (pixel shr 16) and 0xFF
-                val g = (pixel shr 8) and 0xFF
-                val b = pixel and 0xFF
-                val channelSpread = maxOf(r, g, b) - minOf(r, g, b)
-                if (r >= 190 && g >= 190 && b >= 190 && channelSpread <= 30) {
-                    whitePixels++
-                }
-                totalPixels++
-            }
-        }
-
-        val whiteRatio = if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
-        val visible = whiteRatio in MIN_SKIP_WHITE_RATIO..MAX_SKIP_WHITE_RATIO
-        FgoLogger.debug(tag, "SKIP marker visible=$visible whiteRatio=$whiteRatio bounds=$bounds")
-        return visible
-    }
-
-    /**
      * One-shot report for the continue diamond: white-pixel evidence, the strict shape verdict and
      * the loose "diamond is still fading in" evidence used to start OCR early. Computing all three
      * from one pass keeps the per-frame cost identical to the old strict-only check.
@@ -281,8 +238,7 @@ class BackgroundDetector @Inject constructor() {
                 whitePixels = 0,
                 ratio = 0f,
                 shapeVisible = false,
-                evidence = false,
-                partialEvidence = false
+                evidence = false
             )
         }
 
@@ -296,29 +252,17 @@ class BackgroundDetector @Inject constructor() {
             MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS..MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
             baseScore.ratio in
             MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO..MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO
-        val partialEvidence = baseScore.whitePixels in
-            MIN_PARTIAL_DIALOGUE_COMPLETE_WHITE_PIXELS..MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
-            baseScore.ratio <= MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO &&
-            components.any { it.matchesPartialShape(regionWidth, regionHeight) }
 
         FgoLogger.debug(
             tag,
             "Dialogue complete marker visible=$shapeVisible markerRatio=${baseScore.ratio} " +
                 "whitePixels=${baseScore.whitePixels} markerShape=$shapeVisible bounds=$baseBounds"
         )
-        if (partialEvidence) {
-            FgoLogger.debug(
-                tag,
-                "Dialogue complete marker partial evidence: markerRatio=${baseScore.ratio} " +
-                    "whitePixels=${baseScore.whitePixels} bounds=$baseBounds"
-            )
-        }
         return DialogueMarkerReport(
             whitePixels = baseScore.whitePixels,
             ratio = baseScore.ratio,
             shapeVisible = shapeVisible,
-            evidence = evidence,
-            partialEvidence = partialEvidence
+            evidence = evidence
         )
     }
 
@@ -335,21 +279,6 @@ class BackgroundDetector @Inject constructor() {
             markerRegion.right.coerceIn(0, bitmap.width),
             markerRegion.bottom.coerceIn(0, bitmap.height)
         )
-
-    /**
-     * Detects the SKIP confirmation modal's paired white buttons.
-     */
-    fun isSkipConfirmationVisible(bitmap: Bitmap, noButtonRegion: Rect, yesButtonRegion: Rect): Boolean {
-        val noButtonRatio = neutralWhiteRatio(bitmap, noButtonRegion)
-        val yesButtonRatio = neutralWhiteRatio(bitmap, yesButtonRegion)
-        val visible = noButtonRatio >= MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO &&
-            yesButtonRatio >= MIN_SKIP_CONFIRM_BUTTON_WHITE_RATIO
-        FgoLogger.debug(
-            tag,
-            "SKIP confirmation visible=$visible noRatio=$noButtonRatio yesRatio=$yesButtonRatio"
-        )
-        return visible
-    }
 
     /** One white blob found inside the continue-diamond region. */
     private data class MarkerComponent(
@@ -383,14 +312,6 @@ class BackgroundDetector @Inject constructor() {
                 !touchesRegionEdge(regionWidth, regionHeight)
         }
 
-        /**
-         * Loose shape test for the fade-in / rotating frames that never pass the strict test.
-         * Only the position is checked: a real diamond sits inside the region instead of bleeding
-         * into the screen edge, which is what keeps menu panels from triggering the early OCR.
-         */
-        fun matchesPartialShape(regionWidth: Int, regionHeight: Int): Boolean =
-            pixels >= MIN_PARTIAL_MARKER_COMPONENT_PIXELS &&
-                !touchesRegionEdge(regionWidth, regionHeight)
     }
 
     private fun markerComponents(
@@ -447,9 +368,8 @@ class BackgroundDetector @Inject constructor() {
                     }
                 }
 
-                // Sub-pixel specks cannot be the marker, so they are dropped here: the strict test
-                // needs far more pixels anyway, and the partial test stays cheap on bright scenes.
-                if (count >= MIN_PARTIAL_MARKER_COMPONENT_PIXELS) {
+                // Sub-pixel specks cannot be the marker: the strict test needs far more pixels.
+                if (count >= MIN_MARKER_COMPONENT_PIXELS) {
                     components.add(MarkerComponent(count, minX, minY, maxX, maxY))
                 }
             }
@@ -550,34 +470,6 @@ class BackgroundDetector @Inject constructor() {
 
     private fun luminance(r: Int, g: Int, b: Int): Int {
         return (r * 299 + g * 587 + b * 114) / 1000
-    }
-
-    private fun neutralWhiteRatio(bitmap: Bitmap, region: Rect): Float {
-        val bounds = Rect(
-            region.left.coerceIn(0, bitmap.width),
-            region.top.coerceIn(0, bitmap.height),
-            region.right.coerceIn(0, bitmap.width),
-            region.bottom.coerceIn(0, bitmap.height)
-        )
-        if (bounds.width() <= 0 || bounds.height() <= 0) return 0f
-
-        var whitePixels = 0
-        var totalPixels = 0
-        for (y in bounds.top until bounds.bottom step 2) {
-            for (x in bounds.left until bounds.right step 2) {
-                val pixel = bitmap.getPixel(x, y)
-                val r = (pixel shr 16) and 0xFF
-                val g = (pixel shr 8) and 0xFF
-                val b = pixel and 0xFF
-                val channelSpread = maxOf(r, g, b) - minOf(r, g, b)
-                if (r >= 190 && g >= 190 && b >= 190 && channelSpread <= 35) {
-                    whitePixels++
-                }
-                totalPixels++
-            }
-        }
-
-        return if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
     }
 
     private fun isChoicePanelAnchorRow(
@@ -896,13 +788,10 @@ class BackgroundDetector @Inject constructor() {
  * @property ratio sampled white ratio; menu panels and other bright UI push it far higher
  * @property shapeVisible the strict diamond shape used as the primary completion signal
  * @property evidence bounded white evidence used by the three-frame completion fallback
- * @property partialEvidence the diamond is fading in / rotating: loose shape, small size. Used to
- *   start the OCR before the strict shape passes, never to render on its own.
  */
 data class DialogueMarkerReport(
     val whitePixels: Int,
     val ratio: Float,
     val shapeVisible: Boolean,
-    val evidence: Boolean,
-    val partialEvidence: Boolean
+    val evidence: Boolean
 )

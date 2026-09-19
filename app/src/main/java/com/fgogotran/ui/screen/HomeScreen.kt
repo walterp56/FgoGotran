@@ -388,8 +388,6 @@ private val gameServerOptions = listOf(
     SettingsRepository.GAME_SERVER_TW to "繁中服"
 )
 
-private const val SERVICE_START_CHECK_DELAY_MS = 1_500L
-
 @Composable
 private fun ServerPreference(
     selectedLabel: String,

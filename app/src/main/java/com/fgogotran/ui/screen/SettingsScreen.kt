@@ -1076,22 +1076,6 @@ private fun HiddenToggleNotice(
     }
 }
 
-@Composable
-private fun StatusDetailText(
-    text: String,
-    isError: Boolean = false
-) {
-    if (text.isBlank()) return
-    Text(
-        text,
-        style = MaterialTheme.typography.bodySmall,
-        color = if (isError) {
-            MaterialTheme.colorScheme.error
-        } else {
-            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-        }
-    )
-}
 
 @Composable
 private fun SettingsInfoRow(

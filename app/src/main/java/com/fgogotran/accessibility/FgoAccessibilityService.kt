@@ -164,12 +164,6 @@ class FgoAccessibilityService : AccessibilityService() {
     private var dialogueFallbackMaskPrev2: VisualTextMask? = null
     private var dialogueFallbackEvidencePrev1 = false
     private var dialogueFallbackEvidencePrev2 = false
-    /** Early-OCR state: the diamond fades in long before the strict shape passes. */
-    private var previousMarkerWhitePixels: Int? = null
-    private var pendingSpeculativeOcr: PendingSpeculativeOcr? = null
-    private var speculativePageMask: VisualTextMask? = null
-    private var speculativePageAttempts = 0
-    private var speculativePageCooldownUntil = 0L
     private var renderedChoiceBounds: List<Rect> = emptyList()
     private var waitingForChoiceSelectionExit = false
     private var isForwardingOverlayTap = false
@@ -223,18 +217,6 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val DETECTION_INTERVAL = 120L
         private const val STORY_BACKGROUND_IDLE_INTERVAL = 400L
         private const val DIAMOND_WAIT_RETRY_INTERVAL = 400L
-        /**
-         * Early ("speculative") OCR: start recognizing as soon as the continue diamond shows
-         * partial evidence instead of waiting for the strict shape, then reuse that result when the
-         * page is confirmed. Semi-auto only, one attempt per page, results expire after ~2 s.
-         */
-        private const val SPECULATIVE_OCR_ENABLED = true
-        private const val SPECULATIVE_FIRST_FRAME_MIN_WHITE_PIXELS = 60
-        private const val SPECULATIVE_GROWTH_MIN_WHITE_PIXELS = 10
-        private const val SPECULATIVE_MAX_WHITE_PIXELS = 600
-        private const val SPECULATIVE_MAX_PER_PAGE = 1
-        private const val SPECULATIVE_PAGE_COOLDOWN_MS = 2_000L
-        private const val SPECULATIVE_REUSE_TTL_MS = 2_000L
         private const val EMPTY_OCR_RETRY_BASE_MS = 400L
         private const val EMPTY_OCR_RETRY_MAX_MS = 1_200L
         private const val EMPTY_OCR_MAX_RETRIES = 3
@@ -495,22 +477,6 @@ class FgoAccessibilityService : AccessibilityService() {
     private data class DialogueSourceText(
         val translationText: String,
         val voiceText: String
-    )
-
-    /**
-     * Result of an early OCR started while the continue diamond was still fading in. Kept until the
-     * completion signal confirms the same page, so no bitmap or screen reference is retained.
-     */
-    private data class PendingSpeculativeOcr(
-        val dialogueMask: VisualTextMask,
-        val nameMask: VisualTextMask?,
-        val regions: List<ClassifiedRegion>,
-        val screenWidth: Int,
-        val screenHeight: Int,
-        val capturedAt: Long,
-        val markerWhitePixels: Int,
-        val recognitionDurationMs: Long,
-        val textPreview: String
     )
 
     private sealed class AutoScanResult {
@@ -909,10 +875,6 @@ class FgoAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
-    fun setAutoTranslationEnabled(enabled: Boolean) {
-        setTranslationMode(if (enabled) TranslationMode.AUTO else TranslationMode.MANUAL)
-    }
-
     fun setTranslationMode(mode: TranslationMode, persist: Boolean = true) {
         applyTranslationMode(mode)
         if (persist) {
@@ -1159,7 +1121,6 @@ class FgoAccessibilityService : AccessibilityService() {
         semiAutoScreenshotFailStreak = 0
         autoScreenshotFailStreak = 0
         resetDialogueFallbackState()
-        clearSpeculativeOcrState()
     }
 
     private fun resetSemiAutoBackoff() {
@@ -1554,8 +1515,7 @@ class FgoAccessibilityService : AccessibilityService() {
                         processStartedAt = processStartedAt,
                         processingVersion = processingVersion,
                         dialogueComplete = dialogueComplete,
-                        dialogueCompleteByFallback = fallbackAccepted,
-                        markerReport = markerReport
+                        dialogueCompleteByFallback = fallbackAccepted
                     )
                     false
                 }
@@ -2167,8 +2127,7 @@ class FgoAccessibilityService : AccessibilityService() {
         processStartedAt: Long,
         processingVersion: Long,
         dialogueComplete: Boolean,
-        dialogueCompleteByFallback: Boolean,
-        markerReport: DialogueMarkerReport?
+        dialogueCompleteByFallback: Boolean
     ) {
         when (val scan = scanSemiAutoDialogueScene(
             source,
@@ -2176,8 +2135,7 @@ class FgoAccessibilityService : AccessibilityService() {
             currentScreenWidth,
             currentScreenHeight,
             dialogueComplete,
-            dialogueCompleteByFallback,
-            markerReport
+            dialogueCompleteByFallback
         )) {
             is AutoScanResult.Ready -> {
                 val sceneSource = sceneSourceFor(scan.regions)
@@ -2233,18 +2191,12 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenWidth: Int,
         currentScreenHeight: Int,
         dialogueComplete: Boolean,
-        dialogueCompleteByFallback: Boolean,
-        markerReport: DialogueMarkerReport?
+        dialogueCompleteByFallback: Boolean
     ): AutoScanResult {
         if (!dialogueComplete) {
-            // A speculative OCR already ran for most of a second; another diamond backoff on top
-            // of it would waste the head start, so the next poll happens right away.
-            val speculativeRan = maybeStartSpeculativeSemiAutoOcr(source, screenRegions, markerReport)
             storyOcrVisualGate.reset()
             FgoLogger.debug(tag, "Semi-auto waiting for completed dialogue marker")
-            if (!speculativeRan) {
-                rememberDialogueWait(ProcessingMode.SEMI_AUTO_BACKGROUND)
-            }
+            rememberDialogueWait(ProcessingMode.SEMI_AUTO_BACKGROUND)
             return AutoScanResult.Waiting
         }
 
@@ -2259,7 +2211,7 @@ class FgoAccessibilityService : AccessibilityService() {
             return AutoScanResult.Waiting
         }
 
-        val dialogueRegions = takeReusableSpeculativeOcr(source, screenRegions) ?: try {
+        val dialogueRegions = try {
             recognizeDialogueRegions(
                 source,
                 screenRegions,
@@ -2303,128 +2255,6 @@ class FgoAccessibilityService : AccessibilityService() {
             accepted = false
         )
         return AutoScanResult.EmptyCompletedDialogue
-    }
-
-    /**
-     * Early ("speculative") OCR: the continue diamond fades in, rotates and scales, so the strict
-     * shape only passes ~0.5 s after the marker is already visible. Starting the recognition on the
-     * first frame that shows marker evidence overlaps that wait with the OCR. The result is stored
-     * and reused only after completion is confirmed (strict shape or the three-frame fallback).
-     */
-    private suspend fun maybeStartSpeculativeSemiAutoOcr(
-        source: Bitmap,
-        screenRegions: FgoScreenRegions,
-        markerReport: DialogueMarkerReport?
-    ): Boolean {
-        if (!SPECULATIVE_OCR_ENABLED) return false
-        val now = SystemClock.elapsedRealtime()
-        pendingSpeculativeOcr?.let { pending ->
-            if (now - pending.capturedAt <= SPECULATIVE_REUSE_TTL_MS) return false
-            pendingSpeculativeOcr = null
-            FgoLogger.debug(tag, "Speculative OCR discarded: reason=ttl-expired (waiting)")
-        }
-        if (markerReport == null) {
-            previousMarkerWhitePixels = null
-            return false
-        }
-
-        val whitePixels = markerReport.whitePixels
-        val previous = previousMarkerWhitePixels
-        previousMarkerWhitePixels = whitePixels
-        if (now < speculativePageCooldownUntil) return false
-        if (whitePixels > SPECULATIVE_MAX_WHITE_PIXELS) return false
-        if (!markerReport.partialEvidence) return false
-
-        val firstFrameTrigger = whitePixels >= SPECULATIVE_FIRST_FRAME_MIN_WHITE_PIXELS
-        val growthTrigger = previous != null &&
-            previous >= SPECULATIVE_GROWTH_MIN_WHITE_PIXELS &&
-            whitePixels > previous
-        if (!firstFrameTrigger && !growthTrigger) return false
-
-        val dialogueMask = textMaskFor(source, screenRegions.dialogue) ?: return false
-        val samePage = speculativePageMask?.let { masksAreSimilar(it, dialogueMask) } == true
-        if (samePage && speculativePageAttempts >= SPECULATIVE_MAX_PER_PAGE) return false
-        if (!samePage) {
-            speculativePageMask = dialogueMask
-            speculativePageAttempts = 0
-        }
-        speculativePageAttempts++
-        speculativePageCooldownUntil = now + SPECULATIVE_PAGE_COOLDOWN_MS
-
-        FgoLogger.debug(
-            tag,
-            "Speculative OCR start: wp=$whitePixels prev=${previous ?: -1} growth=$growthTrigger"
-        )
-        val startedAt = SystemClock.elapsedRealtime()
-        val regions = recognizeDialogueRegions(source, screenRegions, allowRedTextFallback = true)
-        val durationMs = SystemClock.elapsedRealtime() - startedAt
-        val scene = sceneSourceFor(regions)
-        if (scene?.hasDialogue != true) {
-            FgoLogger.debug(tag, "Speculative OCR discarded: reason=empty ocr=${durationMs}ms wp=$whitePixels")
-            return true
-        }
-        val preview = scene.input.dialogue.orEmpty().replace("\n", "\\n").take(48)
-        pendingSpeculativeOcr = PendingSpeculativeOcr(
-            dialogueMask = dialogueMask,
-            nameMask = textMaskFor(source, screenRegions.name),
-            regions = regions,
-            screenWidth = source.width,
-            screenHeight = source.height,
-            capturedAt = SystemClock.elapsedRealtime(),
-            markerWhitePixels = whitePixels,
-            recognitionDurationMs = durationMs,
-            textPreview = preview
-        )
-        FgoLogger.debug(
-            tag,
-            "Speculative OCR stored: ocr=${durationMs}ms regions=${regions.size} wp=$whitePixels text=\"$preview\""
-        )
-        return true
-    }
-
-    /**
-     * Reuses the speculative OCR only for the same page: same screen size, same dialogue/name text
-     * mask and within the reuse TTL. Anything else falls back to a normal OCR.
-     */
-    private fun takeReusableSpeculativeOcr(
-        source: Bitmap,
-        screenRegions: FgoScreenRegions
-    ): List<ClassifiedRegion>? {
-        val pending = pendingSpeculativeOcr ?: return null
-        pendingSpeculativeOcr = null
-        val age = SystemClock.elapsedRealtime() - pending.capturedAt
-        if (pending.screenWidth != source.width || pending.screenHeight != source.height) {
-            FgoLogger.debug(tag, "Speculative OCR discarded: reason=screen-changed age=${age}ms")
-            return null
-        }
-        if (age > SPECULATIVE_REUSE_TTL_MS) {
-            FgoLogger.debug(tag, "Speculative OCR discarded: reason=ttl-expired age=${age}ms")
-            return null
-        }
-        val dialogueMask = textMaskFor(source, screenRegions.dialogue)
-        if (dialogueMask == null || !masksAreSimilar(pending.dialogueMask, dialogueMask)) {
-            FgoLogger.debug(tag, "Speculative OCR discarded: reason=mask-changed age=${age}ms")
-            return null
-        }
-        val nameMask = textMaskFor(source, screenRegions.name)
-        if (pending.nameMask != null && nameMask != null && !masksAreSimilar(pending.nameMask, nameMask)) {
-            FgoLogger.debug(tag, "Speculative OCR discarded: reason=name-changed age=${age}ms")
-            return null
-        }
-        FgoLogger.debug(
-            tag,
-            "Speculative OCR reused: age=${age}ms wp=${pending.markerWhitePixels} " +
-                "saved=${pending.recognitionDurationMs}ms"
-        )
-        return pending.regions
-    }
-
-    private fun clearSpeculativeOcrState() {
-        previousMarkerWhitePixels = null
-        pendingSpeculativeOcr = null
-        speculativePageMask = null
-        speculativePageAttempts = 0
-        speculativePageCooldownUntil = 0L
     }
 
     private suspend fun processAutoScreen(
@@ -3944,19 +3774,6 @@ class FgoAccessibilityService : AccessibilityService() {
             result = result.substring(0, index) + insertion.annotation + result.substring(index)
         }
         return result
-    }
-
-    private fun insertRubyAnnotation(
-        mainText: String,
-        mainBounds: Rect,
-        ruby: OcrTextLine,
-        useJapaneseRubyMarkup: Boolean
-    ): String {
-        val insertion = rubyInsertion(mainText, mainBounds, ruby, useJapaneseRubyMarkup)
-            ?: return mainText
-        return mainText.substring(0, insertion.index) +
-                insertion.annotation +
-                mainText.substring(insertion.index)
     }
 
     private fun rubyInsertion(

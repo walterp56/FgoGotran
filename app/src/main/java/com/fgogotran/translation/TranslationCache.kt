@@ -56,17 +56,9 @@ interface TranslationCacheDao {
     @Query("DELETE FROM translation_cache")
     suspend fun clearAll()
 
-    /** Returns newest cache entries for the history screen. */
-    @Query("SELECT * FROM translation_cache ORDER BY created_at DESC LIMIT :limit")
-    suspend fun getRecent(limit: Int = 100): List<CachedTranslation>
-
     /** Inserts or replaces a cached translation (upsert by hash). */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(translation: CachedTranslation)
-
-    /** Removes cache entries older than [before] (epoch millis). */
-    @Query("DELETE FROM translation_cache WHERE created_at < :before")
-    suspend fun pruneOlderThan(before: Long)
 
     /** Returns the total number of cached entries. */
     @Query("SELECT COUNT(*) FROM translation_cache")

@@ -108,10 +108,6 @@ object ChineseVoiceEmotionStyle {
         return abs(left - right) < MIN_EXPRESSION_DOUBLE_DELTA
     }
 
-    fun styleFor(profile: VoiceProfile, text: String): String? {
-        return expressionFor(profile, text)?.styleOverride
-    }
-
     fun resolveStyle(profile: VoiceProfile, styleOverride: String?): String {
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) {
             return styleOverride?.takeIf(String::isNotBlank)
