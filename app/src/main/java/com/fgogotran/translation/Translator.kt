@@ -571,6 +571,14 @@ class Translator @Inject constructor(
 
         private const val RUNTIME_CONFIG_CACHE_TTL_MS = 60_000L
         private const val MEMORY_TRANSLATION_CACHE_MAX_ENTRIES = 256
+        /**
+         * Cache-miss reason codes: they make "why did this line miss" readable straight from the
+         * log instead of a bare "Cache miss".
+         */
+        private const val CACHE_MISS_DISABLED = "cache_disabled"
+        private const val CACHE_MISS_KEY_NOT_FOUND = "key_not_found"
+        private const val CACHE_MISS_CACHED_EMPTY = "cached_empty"
+        private const val CACHE_MISS_CACHED_UNSAFE = "cached_unsafe"
         private const val TRANSLATION_CONNECT_TIMEOUT_MS = 10_000L
         private const val TRANSLATION_SOCKET_TIMEOUT_MS = 20_000L
         private const val TRANSLATION_REQUEST_TIMEOUT_MS = 20_000L
@@ -984,7 +992,22 @@ class Translator @Inject constructor(
             preserveRubyMeaning -> "ruby-angle-v3"
             else -> ""
         }
-        val hash = cacheKey(
+        // The matched terms are part of the cache identity, so they are resolved before the
+        // lookup. The indexed matcher keeps this cheap enough to also run on cache hits.
+        val ragSourceText = (listOf(normalizedText) + normalizedChoices).joinToString("\n")
+        val matchedTerms = try {
+            val allTerms = getCachedTerms()
+            val rawMatches = promptBuilder.extractTermMatches(ragSourceText, allTerms)
+            val matches = if (cropMode) rawMatches else filterDialogueMatchedTerms(rawMatches)
+            FgoLogger.debug(tag, "RAG: matched ${matches.size} of ${allTerms.size} terms")
+            matches
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "RAG term lookup failed, continuing without glossary", e)
+            emptyList()
+        }
+        val cacheKeyInfo = cacheKey(
             normalizedText,
             normalizedChoices,
             config,
@@ -992,8 +1015,10 @@ class Translator @Inject constructor(
             sceneContextPolicyKey,
             currentSpeakerCacheIdentity,
             activeCharacterContextCacheIdentity,
-            translateAsChoices
+            translateAsChoices,
+            glossaryFingerprintOf(matchedTerms)
         )
+        val hash = cacheKeyInfo.hash
 
         FgoLogger.debug(
             tag,
@@ -1004,10 +1029,12 @@ class Translator @Inject constructor(
         logSceneContext("single", activePreviousDialogueContexts)
 
         if (cacheEnabled) {
-            lookupCachedTranslation(hash, normalizedText, playerName, "Cache")?.let { cached ->
+            lookupCachedTranslation(hash, normalizedText, playerName, "Cache", cacheKeyInfo.parts)?.let { cached ->
                 return TranslateResult(cached, "cache", true)
                     .forTargetLocale(config, punctuationSourceText)
             }
+        } else {
+            logCacheMiss("Cache", CACHE_MISS_DISABLED, hash, cacheKeyInfo.parts)
         }
         FgoLogger.debug(tag, "Cache miss, hash=${hash.take(8)}...")
 
@@ -1022,19 +1049,6 @@ class Translator @Inject constructor(
             ).forTargetLocale(config, punctuationSourceText)
         }
 
-        val ragSourceText = (listOf(normalizedText) + normalizedChoices).joinToString("\n")
-        val matchedTerms = try {
-            val allTerms = getCachedTerms()
-            val rawMatches = promptBuilder.extractTermMatches(ragSourceText, allTerms)
-            val matches = if (cropMode) rawMatches else filterDialogueMatchedTerms(rawMatches)
-            FgoLogger.debug(tag, "RAG: matched ${matches.size} of ${allTerms.size} terms")
-            matches
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            FgoLogger.warn(tag, "RAG term lookup failed, continuing without glossary", e)
-            emptyList()
-        }
         val protectedInput = preparePromptText(normalizedText)
         val protectedChoiceTexts = normalizedChoices.map {
             preparePromptText(it).text
@@ -1350,16 +1364,19 @@ class Translator @Inject constructor(
             promptTargetChineseLocale(config)
         )
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
-        val hashes = normalizedTexts.map {
+        val glossaryFingerprints = normalizedTexts.map { text -> glossaryFingerprintFor(text) }
+        val cacheKeys = normalizedTexts.mapIndexed { index, text ->
             cacheKey(
-                normalizedText = it,
+                normalizedText = text,
                 choiceTexts = emptyList(),
                 config = config,
                 sceneContextPolicyKey = sceneContextPolicyKey,
                 currentSpeaker = currentSpeakerCacheIdentity,
-                choiceBatch = translateAsChoices
+                choiceBatch = translateAsChoices,
+                glossaryFingerprint = glossaryFingerprints[index]
             )
         }
+        val hashes = cacheKeys.map { it.hash }
         val results = MutableList<TranslateResult?>(japaneseTexts.size) { null }
         val uncachedIndices = mutableListOf<Int>()
 
@@ -1369,6 +1386,9 @@ class Translator @Inject constructor(
                 "speaker=${activeCurrentSpeaker.isNotBlank()}, context=${activePreviousDialogueContexts.size}"
         )
         logSceneContext("batch", activePreviousDialogueContexts)
+        if (!cacheEnabled) {
+            logCacheMiss("Batch", CACHE_MISS_DISABLED, "-", "")
+        }
 
         for (index in japaneseTexts.indices) {
             val normalizedText = normalizedTexts[index]
@@ -1412,7 +1432,13 @@ class Translator @Inject constructor(
             }
 
             if (cacheEnabled) {
-                val cached = lookupCachedTranslation(hashes[index], normalizedText, playerName, "Batch")
+                val cached = lookupCachedTranslation(
+                    hashes[index],
+                    normalizedText,
+                    playerName,
+                    "Batch",
+                    cacheKeys[index].parts
+                )
                 if (cached != null) {
                     results[index] = TranslateResult(cached, "cache", true)
                     continue
@@ -1782,10 +1808,18 @@ class Translator @Inject constructor(
             emptyList()
         }
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
-        val nameHash = nameForLlm?.let { cacheKey(it, emptyList(), config) }
+        val nameKey = nameForLlm?.let {
+            cacheKey(
+                normalizedText = it,
+                choiceTexts = emptyList(),
+                config = config,
+                glossaryFingerprint = glossaryFingerprintFor(it)
+            )
+        }
+        val nameHash = nameKey?.hash
 
         if (cacheEnabled && nameForLlm != null && nameHash != null && nameResult == null) {
-            lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name")?.let { cached ->
+            lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name", nameKey?.parts.orEmpty())?.let { cached ->
                 val cachedName = sanitizeSceneNameTranslation(nameForLlm, cached)
                 if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName)) {
                     FgoLogger.warn(tag, "Dropping unsafe cached name translation, hash=${nameHash.take(8)}...")
@@ -1821,17 +1855,19 @@ class Translator @Inject constructor(
         val characterContextCacheIdentity = characterContext
             ?.cacheIdentityFor(isSakuraModel = useSakuraPrompt)
             .orEmpty()
-        val dialogueHash = normalizedDialogue?.let {
+        val dialogueKey = normalizedDialogue?.let {
             cacheKey(
                 normalizedText = it,
                 choiceTexts = emptyList(),
                 config = config,
                 sceneContextPolicyKey = sceneContextPolicyKey,
                 currentSpeaker = currentSpeakerSourceName,
-                characterContextCacheIdentity = characterContextCacheIdentity
+                characterContextCacheIdentity = characterContextCacheIdentity,
+                glossaryFingerprint = glossaryFingerprintFor(it)
             )
         }
-        val choiceHashes = normalizedChoices.map { text ->
+        val dialogueHash = dialogueKey?.hash
+        val choiceKeys = normalizedChoices.map { text ->
             text?.let {
                 cacheKey(
                     normalizedText = it,
@@ -1839,14 +1875,22 @@ class Translator @Inject constructor(
                     config = config,
                     sceneContextPolicyKey = sceneContextPolicyKey,
                     currentSpeaker = currentSpeakerSourceName,
-                    choiceBatch = true
+                    choiceBatch = true,
+                    glossaryFingerprint = glossaryFingerprintFor(it)
                 )
             }
         }
+        val choiceHashes = choiceKeys.map { it?.hash }
 
         if (cacheEnabled) {
             if (normalizedDialogue != null && dialogueHash != null && dialogueResult == null) {
-                lookupCachedTranslation(dialogueHash, normalizedDialogue, playerName, "Scene dialogue")?.let { cached ->
+                lookupCachedTranslation(
+                    dialogueHash,
+                    normalizedDialogue,
+                    playerName,
+                    "Scene dialogue",
+                    dialogueKey?.parts.orEmpty()
+                )?.let { cached ->
                     dialogueResult = TranslateResult(cached, "cache", true)
                 }
             }
@@ -1854,10 +1898,18 @@ class Translator @Inject constructor(
                 if (choiceResults[index] != null) continue
                 val hash = choiceHashes[index] ?: continue
                 val source = normalizedChoices[index] ?: continue
-                lookupCachedTranslation(hash, source, playerName, "Scene choice[$index]")?.let { cached ->
+                lookupCachedTranslation(
+                    hash,
+                    source,
+                    playerName,
+                    "Scene choice[$index]",
+                    choiceKeys[index]?.parts.orEmpty()
+                )?.let { cached ->
                     choiceResults[index] = TranslateResult(cached, "cache", true)
                 }
             }
+        } else {
+            logCacheMiss("Scene", CACHE_MISS_DISABLED, "-", "")
         }
 
         val needsName = nameForLlm != null && nameResult == null
@@ -3487,20 +3539,49 @@ class Translator @Inject constructor(
         hash: String,
         sourceText: String,
         playerName: String,
-        label: String
+        label: String,
+        keyParts: String = ""
     ): String? {
+        var rejectedFromMemory = false
         getMemoryCachedTranslation(hash)?.let { cached ->
             validateCachedTranslation(hash, sourceText, cached, playerName)?.let { validCached ->
                 FgoLogger.info(tag, "$label memory HIT, hash=${hash.take(8)}...")
                 return validCached
             }
+            rejectedFromMemory = true
         }
 
-        val cached = cacheDao.getCached(hash) ?: return null
-        return validateCachedTranslation(hash, sourceText, cached, playerName)?.also { validCached ->
-            putMemoryCachedTranslation(hash, validCached)
-            FgoLogger.info(tag, "$label cache HIT, hash=${hash.take(8)}...")
+        val cached = cacheDao.getCached(hash)
+        if (cached == null) {
+            logCacheMiss(
+                label,
+                if (rejectedFromMemory) CACHE_MISS_CACHED_UNSAFE else CACHE_MISS_KEY_NOT_FOUND,
+                hash,
+                keyParts
+            )
+            return null
         }
+        if (cached.isBlank()) {
+            logCacheMiss(label, CACHE_MISS_CACHED_EMPTY, hash, keyParts)
+            return null
+        }
+        val validCached = validateCachedTranslation(hash, sourceText, cached, playerName)
+        if (validCached == null) {
+            logCacheMiss(label, CACHE_MISS_CACHED_UNSAFE, hash, keyParts)
+            return null
+        }
+        putMemoryCachedTranslation(hash, validCached)
+        FgoLogger.info(tag, "$label cache HIT, hash=${hash.take(8)}...")
+        return validCached
+    }
+
+    private fun logCacheMiss(label: String, reason: String, hash: String, keyParts: String) {
+        val hashLabel = if (hash.isBlank() || hash == "-") "-" else "${hash.take(8)}..."
+        FgoLogger.debug(
+            tag,
+            "$label cache MISS, reason=$reason, hash=$hashLabel" +
+                if (keyParts.isBlank()) "" else ", parts=$keyParts"
+        )
     }
 
     private fun getMemoryCachedTranslation(hash: String): String? {
@@ -6260,6 +6341,41 @@ class Translator @Inject constructor(
         }
     }
 
+    /** Cache identity plus a short, log-friendly digest of the fields that produced it. */
+    private data class CacheKeyInfo(val hash: String, val parts: String)
+
+    /**
+     * The glossary entries this line actually matched, rendered deterministically. The cache key
+     * uses this instead of the whole glossary-DB hash: updating an unrelated term no longer
+     * invalidates every cached line, while a change to a term this line matches still does.
+     */
+    private fun glossaryFingerprintOf(matchedTerms: List<TermEntity>): String =
+        matchedTerms
+            .sortedBy { it.jpTerm }
+            .joinToString("\u001F") {
+                "${it.jpTerm}→${it.cnTerm}#${it.category}|${it.gender}|${it.aliases.orEmpty()}"
+            }
+
+    /** Matched-term fingerprint for one text (used by the paths that look up the cache per field). */
+    private suspend fun glossaryFingerprintFor(
+        sourceText: String,
+        choiceTexts: List<String> = emptyList(),
+        cropMode: Boolean = false
+    ): String {
+        val ragSourceText = (listOf(sourceText) + choiceTexts).joinToString("\n")
+        return try {
+            val allTerms = getCachedTerms()
+            val rawMatches = promptBuilder.extractTermMatches(ragSourceText, allTerms)
+            val matches = if (cropMode) rawMatches else filterDialogueMatchedTerms(rawMatches)
+            glossaryFingerprintOf(matches)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "Glossary fingerprint failed; using empty fingerprint", e)
+            ""
+        }
+    }
+
     private fun cacheKey(
         normalizedText: String,
         choiceTexts: List<String>,
@@ -6268,28 +6384,57 @@ class Translator @Inject constructor(
         sceneContextPolicyKey: String = "",
         currentSpeaker: String = "",
         characterContextCacheIdentity: String = "",
-        choiceBatch: Boolean = false
-    ): String {
-        return hashText(
+        choiceBatch: Boolean = false,
+        glossaryFingerprint: String
+    ): CacheKeyInfo {
+        val promptVersion = translationPromptVersion(config)
+        val backend = config.backend
+        val sampling = samplingCacheIdentity(config)
+        val speakerIdentity = normalizeCurrentSpeakerContext(currentSpeaker)
+        val playerIdentity = TextNormalizer.normalizeForTranslation(config.playerName)
+        val genderIdentity = SettingsRepository.normalizePlayerGender(config.playerGender)
+        val hash = hashText(
             listOf(
-                translationPromptVersion(config),
-                config.backend,
+                promptVersion,
+                backend,
                 config.apiBaseUrl,
                 config.apiModel,
-                samplingCacheIdentity(config),
+                sampling,
                 promptPolicyKey,
                 sceneContextPolicyKey,
-                normalizeCurrentSpeakerContext(currentSpeaker),
+                speakerIdentity,
                 characterContextCacheIdentity,
                 if (choiceBatch) "choice-batch-v1" else "",
-                config.glossaryCacheKey,
-                TextNormalizer.normalizeForTranslation(config.playerName),
-                SettingsRepository.normalizePlayerGender(config.playerGender),
+                glossaryFingerprint,
+                playerIdentity,
+                genderIdentity,
                 normalizedText,
                 choiceTexts.joinToString("\n")
             ).joinToString("\u001F")
         )
+        // Diagnostic only: two miss lines for the same text can be diffed on "parts" to see which
+        // key field changed (prompt / model / speaker / glossary / ...).
+        val parts = listOf(
+            "prompt=$promptVersion",
+            "backend=$backend",
+            "model=${config.apiModel}",
+            "base=${shortKeyDigest(config.apiBaseUrl)}",
+            "sampling=$sampling",
+            "policy=${promptPolicyKey.ifBlank { "-" }}",
+            "ctx=${sceneContextPolicyKey.ifBlank { "-" }}",
+            "speaker=${shortKeyDigest(speakerIdentity)}",
+            "char=${shortKeyDigest(characterContextCacheIdentity)}",
+            "choice=${if (choiceBatch) 1 else 0}",
+            "glossary=${shortKeyDigest(glossaryFingerprint)}",
+            "player=${shortKeyDigest(playerIdentity)}",
+            "gender=${genderIdentity.ifBlank { "-" }}",
+            "text=${hashText(normalizedText).take(6)}/${normalizedText.length}"
+        ).joinToString(",")
+        return CacheKeyInfo(hash, parts)
     }
+
+    private fun shortKeyDigest(value: String): String =
+        if (value.isBlank()) "-" else hashText(value).take(6)
 
     private fun usesSakuraPrompt(config: RuntimeConfig): Boolean {
         return SakuraPromptBuilder.matchesModel(config.apiModel)

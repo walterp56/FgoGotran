@@ -1503,7 +1503,13 @@
     "jp_name": "渡辺綱",
     "cn_name": "渡边纲",
     "category": "character",
-    "aliases": ""
+    "aliases": "ワタナベノツナ"
+  },
+  {
+    "jp_name": "綱",
+    "cn_name": "纲",
+    "category": "character",
+    "aliases": "ツナ"
   },
   {
     "jp_name": "伊吹童子",
@@ -1581,7 +1587,7 @@
     "jp_name": "バーヴァン・シー",
     "cn_name": "芭万·希",
     "category": "character",
-    "aliases": "バーヴァンシー"
+    "aliases": "バーヴァンシー,バーヴァンシ,バーヴァン・シ"
   },
   {
     "jp_name": "妖精騎士トリスタン",
@@ -2048,6 +2054,12 @@
   {
     "jp_name": "ヤマトタケル",
     "cn_name": "大和武尊",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "タケル",
+    "cn_name": "武尊",
     "category": "character",
     "aliases": ""
   },
@@ -3890,6 +3902,66 @@
   {
     "jp_name": "リンボ",
     "cn_name": "Limbo",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ダイダロス",
+    "cn_name": "代达罗斯",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ナウクラテー",
+    "cn_name": "瑙克拉特",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ナウ子",
+    "cn_name": "瑙子",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "イカロス",
+    "cn_name": "伊卡洛斯",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ときこ",
+    "cn_name": "時子",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ジャック",
+    "cn_name": "杰克",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "エリザ",
+    "cn_name": "伊莉莎",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "テノチティトラン・バニー",
+    "cn_name": "特诺奇蒂特兰·兔女郎",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ゴッホ",
+    "cn_name": "梵高",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "超絶神託ちゃん",
+    "cn_name": "超绝神谕酱",
     "category": "character",
     "aliases": ""
   }

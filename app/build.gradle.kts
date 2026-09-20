@@ -15,8 +15,8 @@ android {
         applicationId = "com.fgogotran"
         minSdk = 30
         targetSdk = 34
-        versionCode = 12
-        versionName = "3.1.0"
+        versionCode = 13
+        versionName = "3.1.1"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")

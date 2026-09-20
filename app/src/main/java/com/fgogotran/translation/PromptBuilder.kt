@@ -163,6 +163,8 @@ class PromptBuilder @Inject constructor() {
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v7-plain-layout"
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
+        /** Rollback switch: false restores the old linear term scan. */
+        private const val TERM_MATCH_INDEX_ENABLED = true
         private val pauseDashPattern = Regex("""[—―─━ー－\-一]{2,}""")
         private val maskPattern = Regex("""\?{3,}|？{3,}|[■□▇█]""")
         private val honorificExceptionsByRule = mapOf(
@@ -326,6 +328,21 @@ class PromptBuilder @Inject constructor() {
     }
 
     private val tag = "PromptBuilder"
+
+    private class TermMatchIndex(
+        val buckets: Map<Char, List<IndexedNeedle>>,
+        val needleCount: Int
+    )
+
+    private data class IndexedNeedle(
+        val termIndex: Int,
+        val needle: String,
+        val katakanaBoundaryRequired: Boolean
+    )
+
+    private val termIndexLock = Any()
+    private var cachedTermIndexTerms: List<TermEntity>? = null
+    private var cachedTermIndex: TermMatchIndex? = null
 
     private data class TermSearchText(
         val sourceText: String,
@@ -902,9 +919,17 @@ class PromptBuilder @Inject constructor() {
         val searchText = buildTermSearchText(japaneseText)
         if (searchText.compactText.isBlank()) return emptyList()
 
+        val bestLengths = if (TERM_MATCH_INDEX_ENABLED) {
+            val index = termMatchIndexFor(terms)
+            matchTermLengthsWithIndex(index, searchText, terms.size)
+        } else {
+            IntArray(terms.size) { termIndex ->
+                longestMatchedNeedleLength(searchText, terms[termIndex])
+            }
+        }
         val matches = terms.asSequence()
-            .mapNotNull { term ->
-                val matchedLength = longestMatchedNeedleLength(searchText, term)
+            .mapIndexedNotNull { termIndex, term ->
+                val matchedLength = bestLengths[termIndex]
                 if (matchedLength > 0) term to matchedLength else null
             }
             .sortedWith(
@@ -929,6 +954,79 @@ class PromptBuilder @Inject constructor() {
             )
         }
         return matches
+    }
+
+    /**
+     * Builds (once per glossary list instance) the needle buckets used to find term occurrences.
+     * Normalizing every term on every call was the dominant cost of the old linear scan.
+     */
+    private fun termMatchIndexFor(terms: List<TermEntity>): TermMatchIndex {
+        synchronized(termIndexLock) {
+            val cached = cachedTermIndex
+            if (cached != null && cachedTermIndexTerms === terms) return cached
+
+            val startedAt = System.currentTimeMillis()
+            val buckets = HashMap<Char, MutableList<IndexedNeedle>>()
+            var needleCount = 0
+            terms.forEachIndexed { termIndex, term ->
+                candidateNeedles(term).forEach { needle ->
+                    if (needle.isEmpty()) return@forEach
+                    buckets.getOrPut(needle[0]) { ArrayList() }.add(
+                        IndexedNeedle(
+                            termIndex = termIndex,
+                            needle = needle,
+                            katakanaBoundaryRequired = needle.requiresKatakanaBoundary()
+                        )
+                    )
+                    needleCount++
+                }
+            }
+            val frozen = buckets.mapValues { (_, needles) ->
+                needles.sortedByDescending { it.needle.length }
+            }
+            val built = TermMatchIndex(frozen, needleCount)
+            cachedTermIndexTerms = terms
+            cachedTermIndex = built
+            FgoLogger.debug(
+                tag,
+                "Term match index built: terms=${terms.size}, needles=$needleCount, " +
+                    "elapsed=${System.currentTimeMillis() - startedAt}ms"
+            )
+            return built
+        }
+    }
+
+    /**
+     * Same result as the linear scan: for every term the length of its longest needle that occurs
+     * in the text (katakana needles additionally require a katakana word boundary).
+     */
+    private fun matchTermLengthsWithIndex(
+        index: TermMatchIndex,
+        text: TermSearchText,
+        termCount: Int
+    ): IntArray {
+        val best = IntArray(termCount)
+        val compact = text.compactText
+        var position = 0
+        while (position < compact.length) {
+            val bucket = index.buckets[compact[position]]
+            if (bucket != null) {
+                for (needle in bucket) {
+                    if (!compact.startsWith(needle.needle, position)) continue
+                    if (needle.katakanaBoundaryRequired) {
+                        val sourceStart = text.sourceIndices[position]
+                        val sourceEndExclusive =
+                            text.sourceIndices[position + needle.needle.length - 1] + 1
+                        if (!text.hasKatakanaWordBoundary(sourceStart, sourceEndExclusive)) continue
+                    }
+                    if (needle.needle.length > best[needle.termIndex]) {
+                        best[needle.termIndex] = needle.needle.length
+                    }
+                }
+            }
+            position++
+        }
+        return best
     }
 
     private fun longestMatchedNeedleLength(text: TermSearchText, term: TermEntity): Int {

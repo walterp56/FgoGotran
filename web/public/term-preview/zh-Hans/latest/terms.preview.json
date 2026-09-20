@@ -808,5 +808,29 @@
     "cn_term": "涩涩的",
     "category": "game_term",
     "aliases": ""
+  },
+  {
+    "jp_term": "ブレイブ",
+    "cn_term": "勇者",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "バンプキンウルフ",
+    "cn_term": "Pumpkin Wolf",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "クラッキング",
+    "cn_term": "Cracking",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "クラッカー",
+    "cn_term": "Cracker",
+    "category": "game_term",
+    "aliases": ""
   }
 ]

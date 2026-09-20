@@ -328,7 +328,19 @@ class FgoAccessibilityService : AccessibilityService() {
 
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
+        /**
+         * Upper bound for "this box is a reading" relative to the main-line height reference.
+         *
+         * Measured readings range from ~0.40x (long reading over a long base word) to ~0.7x (a short
+         * reading sitting over a single kanji, whose OCR box is relatively taller), so 0.55 was too
+         * tight and dropped those frames. This bound only has to stay below a full-size dialogue
+         * line: the pairing geometry below (small gap to the line underneath + horizontal overlap)
+         * is what actually separates readings from real dialogue lines.
+         */
         private const val RUBY_HEIGHT_RATIO = 0.72f
+        /** Measured pairing geometry: ruby bottom ~0.10 x line height above the line top. */
+        private const val RUBY_PAIR_GAP_MAX_RATIO = 0.5f
+        private const val RUBY_PAIR_OVERLAP_TOLERANCE_RATIO = 0.2f
         private const val LOG_TEXT_CHUNK_SIZE = 900
         private const val MIN_PALETTE_TEXT_PIXELS = 8
         private const val NO_SPEAKER_PROFILE_ID = "no_speaker"
@@ -3514,6 +3526,22 @@ class FgoAccessibilityService : AccessibilityService() {
         return dialogueSourceTextFor(lines, rubyDetectionMode).voiceText
     }
 
+    /**
+     * Height reference for ruby detection: the *main* dialogue lines, not the upper median.
+     *
+     * A reading is ~0.40x the main-line height, and ruby lines can outnumber main lines in one
+     * dialogue box (e.g. 2 ruby + 1 main). The old `heights[size / 2]` reference landed on a ruby
+     * box in exactly those frames, so the threshold rejected every reading and they were
+     * translated as normal dialogue. The 75th percentile lands on a main line as long as main
+     * lines are at least a quarter of the boxes.
+     */
+    private fun rubyHeightReference(lines: List<OcrTextLine>): Int {
+        if (lines.isEmpty()) return 0
+        val heights = lines.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
+        val index = (heights.size * 3 / 4).coerceIn(0, heights.lastIndex)
+        return heights[index]
+    }
+
     private fun dialogueSourceTextFor(
         lines: List<OcrTextLine>,
         rubyDetectionMode: RubyDetectionMode,
@@ -3533,18 +3561,58 @@ class FgoAccessibilityService : AccessibilityService() {
             return DialogueSourceText(translationText = text, voiceText = text)
         }
 
-        val heights = sorted.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
-        val medianHeight = heights[heights.size / 2]
-        val rubyLines = sorted.filter { line ->
-            isLikelyRubyLine(line, medianHeight, rubyDetectionMode)
+        val heightReference = rubyHeightReference(sorted)
+        val rubyCandidates = sorted.filter { line ->
+            isLikelyRubyLine(line, heightReference, rubyDetectionMode)
         }.toSet()
+        val mainCandidates = sorted.filterNot { it in rubyCandidates }.toMutableList()
+        if (mainCandidates.isEmpty()) {
+            val text = sorted.joinToString("\n") { it.text }.trim()
+            return DialogueSourceText(translationText = text, voiceText = text)
+        }
+
+        val rubyByMain = mutableMapOf<OcrTextLine, MutableList<OcrTextLine>>()
+        for (ruby in rubyCandidates) {
+            val main = mainCandidates
+                .filter {
+                    it.boundingBox.top >= ruby.boundingBox.bottom -
+                        (heightReference * RUBY_PAIR_OVERLAP_TOLERANCE_RATIO).toInt()
+                }
+                .filter {
+                    it.boundingBox.top - ruby.boundingBox.bottom <=
+                        (heightReference * RUBY_PAIR_GAP_MAX_RATIO).toInt()
+                }
+                .filter {
+                    horizontalOverlap(ruby.boundingBox, it.boundingBox) >= ruby.boundingBox.width() / 4 ||
+                            ruby.boundingBox.centerX() in it.boundingBox.left..it.boundingBox.right
+                }
+                .minWithOrNull(
+                    compareByDescending<OcrTextLine> { horizontalOverlap(ruby.boundingBox, it.boundingBox) }
+                        .thenBy { kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }
+                        .thenBy { it.boundingBox.top - ruby.boundingBox.bottom }
+                )
+            if (main != null) {
+                rubyByMain.getOrPut(main) { mutableListOf() }.add(ruby)
+            }
+        }
+        // Only readings that actually attached to a dialogue line count as ruby. A candidate that
+        // found no line underneath stays in the text instead of being dropped, so dialogue can never
+        // be lost to a false positive.
+        val rubyLines = rubyByMain.values.flatten().toSet()
+        FgoLogger.debug(
+            tag,
+            "Ruby detection (${rubyDetectionMode.name.lowercase()}): ref=${heightReference}px, " +
+                "ruby=${rubyLines.size}/${rubyCandidates.size}, lines=${sorted.size}, " +
+                "boxes=${sorted.joinToString(",") { "${it.boundingBox.height()}@${it.boundingBox.top}" }}"
+        )
+
         // The voice reading text (ruby lines removed) is only built when a voice feature asks for
         // it; the fallbacks below replace a blank value with the main text.
         val voiceText = if (needVoiceText) {
             voiceDialogueLines(
                 sorted = sorted,
                 rubyLines = rubyLines,
-                medianHeight = medianHeight
+                heightReference = heightReference
             ).joinToString("\n") { it.text.trim() }.trim()
         } else {
             ""
@@ -3558,25 +3626,6 @@ class FgoAccessibilityService : AccessibilityService() {
         if (mainLines.isEmpty()) {
             val text = sorted.joinToString("\n") { it.text }.trim()
             return DialogueSourceText(translationText = text, voiceText = voiceText.ifBlank { text })
-        }
-
-        val rubyByMain = mutableMapOf<OcrTextLine, MutableList<OcrTextLine>>()
-        for (ruby in rubyLines) {
-            val main = mainLines
-                .filter { it.boundingBox.top >= ruby.boundingBox.bottom - medianHeight / 3 }
-                .filter { it.boundingBox.top - ruby.boundingBox.bottom <= medianHeight }
-                .filter {
-                    horizontalOverlap(ruby.boundingBox, it.boundingBox) >= ruby.boundingBox.width() / 4 ||
-                            ruby.boundingBox.centerX() in it.boundingBox.left..it.boundingBox.right
-                }
-                .minWithOrNull(
-                    compareByDescending<OcrTextLine> { horizontalOverlap(ruby.boundingBox, it.boundingBox) }
-                        .thenBy { kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }
-                        .thenBy { it.boundingBox.top - ruby.boundingBox.bottom }
-                )
-            if (main != null) {
-                rubyByMain.getOrPut(main) { mutableListOf() }.add(ruby)
-            }
         }
 
         val formatted = mainLines
@@ -3607,15 +3656,15 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun voiceDialogueLines(
         sorted: List<OcrTextLine>,
         rubyLines: Set<OcrTextLine>,
-        medianHeight: Int
+        heightReference: Int
     ): List<OcrTextLine> {
         val geometryRubyLines = sorted.filter { line ->
             line !in rubyLines &&
-                isRubyDotNoiseSized(line, medianHeight) &&
+                isRubyDotNoiseSized(line, heightReference) &&
                 sorted.any { main ->
                     main != line &&
                         main !in rubyLines &&
-                        isLikelyRubyAboveMain(line, main, medianHeight)
+                        isLikelyRubyAboveMain(line, main, heightReference)
                 }
         }.toSet()
         val mainLines = sorted.filterNot { it in rubyLines || it in geometryRubyLines }
@@ -3650,17 +3699,16 @@ class FgoAccessibilityService : AccessibilityService() {
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
         if (sorted.size < 2) return sorted.filterNot { isRubyDotNoiseLine(it) }
 
-        val heights = sorted.map { it.boundingBox.height().coerceAtLeast(1) }.sorted()
-        val medianHeight = heights[heights.size / 2]
+        val heightReference = rubyHeightReference(sorted)
         val meaningfulLines = sorted.filterNot { isRubyDotNoiseLine(it) }
         if (meaningfulLines.isEmpty()) return emptyList()
 
         val noiseLines = sorted.filter { line ->
             isRubyDotNoiseLine(line) &&
-                !isStandaloneDialoguePauseLine(line, meaningfulLines, medianHeight) &&
-                isRubyDotNoiseSized(line, medianHeight) &&
+                !isStandaloneDialoguePauseLine(line, meaningfulLines, heightReference) &&
+                isRubyDotNoiseSized(line, heightReference) &&
                 meaningfulLines.any { main ->
-                    isLikelyRubyAboveMain(line, main, medianHeight)
+                    isLikelyRubyAboveMain(line, main, heightReference)
                 }
         }.toSet()
 
@@ -3677,15 +3725,15 @@ class FgoAccessibilityService : AccessibilityService() {
         return dotLikeCount > 0 && text.all { it.isRubyDotNoiseChar() || it.isWhitespace() }
     }
 
-    private fun isRubyDotNoiseSized(line: OcrTextLine, medianHeight: Int): Boolean {
+    private fun isRubyDotNoiseSized(line: OcrTextLine, heightReference: Int): Boolean {
         val height = line.boundingBox.height().coerceAtLeast(1)
-        return height <= medianHeight * RUBY_HEIGHT_RATIO
+        return height <= heightReference * RUBY_HEIGHT_RATIO
     }
 
     private fun isStandaloneDialoguePauseLine(
         line: OcrTextLine,
         meaningfulLines: List<OcrTextLine>,
-        medianHeight: Int
+        heightReference: Int
     ): Boolean {
         val text = line.text.trim()
         if (!FgoDialogueSymbols.containsLongPause(text)) return false
@@ -3695,9 +3743,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
         return meaningfulLines.any { main ->
             val verticalDistance = main.boundingBox.top - line.boundingBox.bottom
-            val startsNearMain = kotlin.math.abs(line.boundingBox.left - main.boundingBox.left) <= medianHeight * 3
+            val startsNearMain =
+                kotlin.math.abs(line.boundingBox.left - main.boundingBox.left) <= heightReference * 3
             verticalDistance >= 0 &&
-                    verticalDistance <= medianHeight * 2 &&
+                    verticalDistance <= heightReference * 2 &&
                     startsNearMain
         }
     }
@@ -3705,10 +3754,18 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun isLikelyRubyAboveMain(
         ruby: OcrTextLine,
         main: OcrTextLine,
-        medianHeight: Int
+        heightReference: Int
     ): Boolean {
-        if (main.boundingBox.top < ruby.boundingBox.bottom - medianHeight / 3) return false
-        if (main.boundingBox.top - ruby.boundingBox.bottom > medianHeight * 2) return false
+        if (main.boundingBox.top < ruby.boundingBox.bottom -
+            (heightReference * RUBY_PAIR_OVERLAP_TOLERANCE_RATIO).toInt()
+        ) {
+            return false
+        }
+        if (main.boundingBox.top - ruby.boundingBox.bottom >
+            (heightReference * RUBY_PAIR_GAP_MAX_RATIO).toInt()
+        ) {
+            return false
+        }
         return horizontalOverlap(ruby.boundingBox, main.boundingBox) >= ruby.boundingBox.width() / 4 ||
                 ruby.boundingBox.centerX() in main.boundingBox.left..main.boundingBox.right
     }
@@ -3723,13 +3780,13 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun isLikelyRubyLine(
         line: OcrTextLine,
-        medianHeight: Int,
+        heightReference: Int,
         rubyDetectionMode: RubyDetectionMode
     ): Boolean {
         val text = line.text.trim()
         if (text.length !in 1..RUBY_MAX_CHARS) return false
         val height = line.boundingBox.height().coerceAtLeast(1)
-        if (height > medianHeight * RUBY_HEIGHT_RATIO) return false
+        if (height > heightReference * RUBY_HEIGHT_RATIO) return false
         val rubyChars = text.count {
             it in '\u3040'..'\u30ff' ||
                     it in '\u4e00'..'\u9fff' ||
