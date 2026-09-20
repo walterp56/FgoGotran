@@ -12,12 +12,9 @@ import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.util.FgoLogger
 
 /**
- * Transparent host used to request MediaProjection consent from the runner service.
+ * Transparent host used to request MediaProjection consent for live voice playback capture.
  *
- * Consent is only asked for when a feature actually needs screen or playback audio capture
- * (live voice, or the experimental MediaProjection screenshot source) and after a 180°
- * landscape flip, because Android 14 forbids a second createVirtualDisplay() on the same
- * MediaProjection instance. Plain OCR never triggers this activity.
+ * OCR never triggers this activity.
  */
 class ProjectionConsentActivity : Activity() {
 
@@ -30,7 +27,7 @@ class ProjectionConsentActivity : Activity() {
         }
         // Live voice capture also needs the playback audio permission; ask for it here so the
         // floating-menu toggle works even when the app was never started with voice enabled.
-        if (needsAudioPermission() && !hasAudioPermission()) {
+        if (!hasAudioPermission()) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(Manifest.permission.RECORD_AUDIO),
@@ -51,10 +48,6 @@ class ProjectionConsentActivity : Activity() {
             // Continue either way: a denied microphone shows up in the voice feature's own error.
             requestProjectionConsent()
         }
-    }
-
-    private fun needsAudioPermission(): Boolean {
-        return intent?.getBooleanExtra(EXTRA_REQUEST_AUDIO_PERMISSION, false) == true
     }
 
     private fun hasAudioPermission(): Boolean {
@@ -78,9 +71,6 @@ class ProjectionConsentActivity : Activity() {
     }
 
     companion object {
-        /** Set when the requesting feature also needs the playback audio permission. */
-        const val EXTRA_REQUEST_AUDIO_PERMISSION = "request_audio_permission"
-
         private const val REQUEST_CODE = 9001
         private const val REQUEST_AUDIO_PERMISSION = 9002
     }

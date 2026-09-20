@@ -89,8 +89,6 @@ class SettingsRepository @Inject constructor(
         val KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_X = intPreferencesKey("live_voice_subtitle_landscape_x")
         val KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_Y = intPreferencesKey("live_voice_subtitle_landscape_y")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
-        val KEY_EXPERIMENTAL_MEDIA_PROJECTION_SCREENSHOT =
-            booleanPreferencesKey("experimental_media_projection_screenshot_enabled")
         val KEY_FOREGROUND_TEST_OVERRIDE_ENABLED = booleanPreferencesKey("foreground_test_override_enabled")
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
@@ -152,7 +150,6 @@ class SettingsRepository @Inject constructor(
         const val AI_VOICE_LANGUAGE_CN_TRANSLATION = "cn_translation"
         const val DEFAULT_AI_VOICE_LANGUAGE = AI_VOICE_LANGUAGE_CN_TRANSLATION
         const val DEFAULT_AI_VOICE_API_HINTS_ENABLED = false
-        const val DEFAULT_EXPERIMENTAL_MEDIA_PROJECTION_SCREENSHOT = false
         const val MIN_AI_VOICE_VOLUME_PERCENT = 0
         const val DEFAULT_AI_VOICE_VOLUME_PERCENT = 100
         const val MAX_AI_VOICE_VOLUME_PERCENT = 100
@@ -779,20 +776,6 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_DEBUG_LOGGING_ENABLED] ?: false
     }
 
-    /**
-     * Experimental OCR screenshot source.
-     *
-     * OCR reads the screen through AccessibilityService.takeScreenshot() by default because
-     * that path needs no per-session consent and behaves consistently on emulators. Some
-     * devices return blank accessibility frames, so MediaProjection can be enabled manually
-     * as an explicit second source. It is never selected automatically.
-     */
-    val experimentalMediaProjectionScreenshotEnabled: Flow<Boolean> =
-        context.dataStore.data.map { prefs ->
-            prefs[KEY_EXPERIMENTAL_MEDIA_PROJECTION_SCREENSHOT]
-                ?: DEFAULT_EXPERIMENTAL_MEDIA_PROJECTION_SCREENSHOT
-        }
-
     /** Local OCR engine used for screenshot text recognition. */
     val ocrEngine: Flow<String> = context.dataStore.data.map { prefs ->
         normalizeOcrEngine(prefs[KEY_OCR_ENGINE] ?: DEFAULT_OCR_ENGINE)
@@ -1191,14 +1174,6 @@ class SettingsRepository @Inject constructor(
     suspend fun setLiveVoiceTranslationEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LIVE_VOICE_TRANSLATION_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: live_voice_translation_enabled=$enabled")
-    }
-
-    suspend fun setExperimentalMediaProjectionScreenshotEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_EXPERIMENTAL_MEDIA_PROJECTION_SCREENSHOT] = enabled }
-        FgoLogger.debug(
-            tag,
-            "Setting updated: experimental_media_projection_screenshot_enabled=$enabled"
-        )
     }
 
     suspend fun setLiveVoiceSubtitleFontSizeSp(fontSizeSp: Int) {

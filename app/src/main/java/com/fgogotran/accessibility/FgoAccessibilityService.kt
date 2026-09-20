@@ -19,6 +19,7 @@ import android.view.Display
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
 import android.accessibilityservice.AccessibilityServiceInfo
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -28,7 +29,6 @@ import com.fgogotran.battle.BattleSubtitleController
 import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.crop.CropSelectionOverlay
-import com.fgogotran.capture.MediaProjectionCapture
 import com.fgogotran.crop.CropTextLine
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.game.FgoPackages
@@ -92,18 +92,6 @@ import kotlin.coroutines.suspendCoroutine
  */
 @AndroidEntryPoint
 class FgoAccessibilityService : AccessibilityService() {
-
-    /**
-     * Screenshot availability has three distinct states. Android keeps a service listed
-     * as enabled even when its binding is dead (service crashed, emulator restarted, GPU
-     * mode switched), so "enabled in settings" must never be shown as a working status.
-     */
-    enum class ConnectionState {
-        DISABLED,
-        ENABLED_NOT_CONNECTED,
-        CONNECTED
-    }
-
     @Inject lateinit var ocrEngine: OcrEngine
     @Inject lateinit var backgroundDetector: BackgroundDetector
     @Inject lateinit var translationOverlay: TranslationOverlay
@@ -208,8 +196,6 @@ class FgoAccessibilityService : AccessibilityService() {
     private val screenshotMutex = Mutex()
     private var lastAccessibilityScreenshotAt = 0L
 
-    @Volatile
-    private var lastScreenshotSource = SCREENSHOT_SOURCE_NONE
     private val unsupportedFgoLikePackageLoggedAt = LinkedHashMap<String, Long>()
     companion object {
         const val FGO_PACKAGE = FgoPackages.JP
@@ -357,9 +343,6 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val ACCESSIBILITY_SCREENSHOT_MIN_INTERVAL_MS = 400L
         private const val ACCESSIBILITY_SCREENSHOT_RETRY_DELAY_MS = 400L
         private const val ACCESSIBILITY_SCREENSHOT_MAX_RETRIES = 2
-        private const val SCREENSHOT_SOURCE_PROJECTION = "media_projection"
-        private const val SCREENSHOT_SOURCE_ACCESSIBILITY = "accessibility"
-        private const val SCREENSHOT_SOURCE_NONE = "none"
         private const val SCREENSHOT_TIMEOUT_MS = 3_000L
         /** 《…》 (and its half-width variant) is the ruby reading markup our formatter writes. */
         private val RUBY_MARKUP_PATTERN = Regex("《[^》]*》|〈[^〉]*〉")
@@ -407,37 +390,38 @@ class FgoAccessibilityService : AccessibilityService() {
                 _serviceStarted.value = value != null
             }
 
-        private val _connectionState = mutableStateOf(ConnectionState.DISABLED)
-        val connectionState: State<ConnectionState>
+        private val _connectionState = mutableStateOf(AccessibilityConnectionState.UNKNOWN)
+        val connectionState: State<AccessibilityConnectionState>
             get() = _connectionState
 
-        /** Re-derives the connection state from the live binding plus system settings. */
-        fun refreshConnectionState(context: Context, reason: String): ConnectionState {
-            val next = when {
-                instance != null -> ConnectionState.CONNECTED
-                isEnabledInSettings(context) -> ConnectionState.ENABLED_NOT_CONNECTED
-                else -> ConnectionState.DISABLED
-            }
+        /** A listed service may have lost its binding; neither system listing proves readiness. */
+        fun refreshConnectionState(context: Context, reason: String): AccessibilityConnectionState {
+            val connected = instance != null
+            val managerListed = if (connected) null else listedByAccessibilityManager(context)
+            val settingsListed = if (connected) null else listedInSecureSettings(context)
+            val next = resolveAccessibilityConnectionState(connected, managerListed, settingsListed)
             val previous = _connectionState.value
             if (previous != next) {
                 _connectionState.value = next
-                FgoLogger.info("Accessibility", "Connection state $previous -> $next ($reason)")
+                FgoLogger.info(
+                    "Accessibility",
+                    "Connection state $previous -> $next ($reason; manager=$managerListed, settings=$settingsListed)"
+                )
             }
             return next
         }
 
-        fun isEnabledInSettings(context: Context): Boolean {
-            if (_serviceStarted.value) return true
+        private fun listedByAccessibilityManager(context: Context): Boolean? = runCatching {
+            val expected = ComponentName(context, FgoAccessibilityService::class.java)
+            val manager = context.getSystemService(AccessibilityManager::class.java)
+                ?: error("AccessibilityManager unavailable")
+            manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                .any { ComponentName.unflattenFromString(it.id) == expected }
+        }.getOrNull()
 
+        private fun listedInSecureSettings(context: Context): Boolean? {
             return runCatching {
                 val resolver = context.contentResolver
-                val accessibilityEnabled = Settings.Secure.getInt(
-                    resolver,
-                    Settings.Secure.ACCESSIBILITY_ENABLED,
-                    0
-                ) == 1
-                if (!accessibilityEnabled) return@runCatching false
-
                 val expected = ComponentName(context, FgoAccessibilityService::class.java)
                 Settings.Secure.getString(
                     resolver,
@@ -446,7 +430,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     .split(':')
                     .mapNotNull { ComponentName.unflattenFromString(it.trim()) }
                     .any { it.packageName == expected.packageName && it.className == expected.className }
-            }.getOrDefault(false)
+            }.getOrNull()
         }
     }
 
@@ -554,14 +538,6 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         reportServiceUsage()
         warmUpManualPipeline()
-        MediaProjectionCapture.onRunDisabled = { reason ->
-            reportProjectionRunDisabled(reason)
-            // The experimental screenshot source exhausted its failure budget; switch it off so
-            // the setting matches reality and OCR keeps using accessibility screenshots.
-            serviceScope.launch {
-                settingsRepository.setExperimentalMediaProjectionScreenshotEnabled(false)
-            }
-        }
         refreshAccessibilityConnectionState("service_connected")
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
         FgoLogger.info(tag, "Screenshot capability: ${canTakeScreenshots()}")
@@ -864,18 +840,18 @@ class FgoAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         FgoLogger.warn(tag, "Service interrupted")
+        // Feedback interruption is not service teardown. Keep the scopes alive so
+        // the still-bound service can resume OCR when the user returns to FGO.
         battleModeState.setEnabled(false)
         cancelTransientForegroundLoss()
+        cancelCurrentTranslation()
+        stopBattleMonitoring()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
-        battleSubtitles.destroy()
-        refreshAccessibilityConnectionState("interrupt")
-        serviceScope.cancel()
     }
 
     override fun onDestroy() {
         instance = null
-        MediaProjectionCapture.onRunDisabled = null
         battleModeState.setEnabled(false)
         cancelTransientForegroundLoss()
         translationOverlay.destroy()
@@ -1445,7 +1421,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     message = "Android/模拟器没有返回截图：${failureInfo.reason}",
                     server = gameServer,
                     mode = mode.name,
-                    detail = "${failureInfo.detail}（截图来源：${screenshotSourceLabel()}）",
+                    detail = failureInfo.detail,
                     errorCode = failureInfo.code
                 )
                 if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
@@ -5197,21 +5173,10 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Single funnel for every OCR screenshot.
-     *
-     * Accessibility screenshots are the source for OCR. MediaProjection is only consulted when the
-     * experimental screenshot source is enabled in settings and the runner service actually holds
-     * a session for it; a frame that times out, comes back blank, or already tripped its
-     * 3-failure limit falls through to the accessibility screenshot instead of failing the pass.
+     * Single funnel for every OCR screenshot. OCR always uses the accessibility screenshot API;
+     * MediaProjection is reserved for live voice audio capture.
      */
     private suspend fun takeScreenshotCompat(): Bitmap? = screenshotMutex.withLock {
-        if (MediaProjectionCapture.isUsable()) {
-            lastScreenshotSource = SCREENSHOT_SOURCE_PROJECTION
-            MediaProjectionCapture.capture()?.let { frame ->
-                lastScreenshotErrorCode = 0
-                return@withLock frame
-            }
-        }
         captureAccessibilityScreenshotPaced()
     }
 
@@ -5223,7 +5188,6 @@ class FgoAccessibilityService : AccessibilityService() {
     private suspend fun captureAccessibilityScreenshotPaced(): Bitmap? {
         var attempt = 0
         while (true) {
-            lastScreenshotSource = SCREENSHOT_SOURCE_ACCESSIBILITY
             awaitAccessibilityScreenshotSlot()
             lastAccessibilityScreenshotAt = SystemClock.elapsedRealtime()
             val result = captureAccessibilityScreenshot()
@@ -5317,7 +5281,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun refreshAccessibilityConnectionState(reason: String) {
         val previous = _connectionState.value
         val next = refreshConnectionState(this, reason)
-        if (previous == next || next != ConnectionState.ENABLED_NOT_CONNECTED) return
+        if (previous == next || next != AccessibilityConnectionState.ENABLED_NOT_CONNECTED) return
         diagnosticEventStore.record(
             level = DiagnosticEventStore.LEVEL_WARNING,
             category = DiagnosticEventStore.CATEGORY_SETUP,
@@ -5328,28 +5292,8 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun reportProjectionRunDisabled(reason: String) {
-        diagnosticEventStore.record(
-            level = DiagnosticEventStore.LEVEL_WARNING,
-            category = DiagnosticEventStore.CATEGORY_APP_ERROR,
-            eventId = "media_projection_disabled_for_run",
-            title = "实验截图源已停用，改用无障碍截图",
-            message = "本次运行不再使用屏幕捕获：$reason",
-            server = gameServer,
-            detail = "OCR 已自动改用无障碍截图；需要时可以重新开启实验截图"
-        )
-    }
-
     private fun canTakeScreenshots(): Boolean {
         return serviceInfo.capabilities and AccessibilityServiceInfo.CAPABILITY_CAN_TAKE_SCREENSHOT != 0
-    }
-
-    private fun screenshotSourceLabel(): String {
-        return when (lastScreenshotSource) {
-            SCREENSHOT_SOURCE_PROJECTION -> "MediaProjection"
-            SCREENSHOT_SOURCE_ACCESSIBILITY -> "无障碍截图"
-            else -> "未知来源"
-        }
     }
 
     /**

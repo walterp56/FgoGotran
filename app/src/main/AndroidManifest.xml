@@ -20,6 +20,7 @@
     <!-- Foreground service (required for the floating button overlay service) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Post notifications (required for foreground service notification on Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -53,14 +54,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Keep this activity on the stack until the consent result returns. -->
         <activity
             android:name=".ProjectionConsentActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
-        <!-- Accessibility Service for touch detection + screenshot fallback -->
+        <!-- Accessibility Service for OCR screenshots and touch detection -->
         <service
             android:name=".accessibility.FgoAccessibilityService"
             android:exported="true"
@@ -76,8 +77,12 @@
         <!-- Foreground service hosting the floating translation button overlay -->
         <service
             android:name=".runner.FgoRunnerService"
-            android:foregroundServiceType="mediaProjection"
-            android:exported="false" />
+            android:foregroundServiceType="specialUse|mediaProjection"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Persistent floating controls and translation over FGO while the user runs the service" />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -35,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.fgogotran.accessibility.AccessibilityConnectionState
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
@@ -77,7 +78,9 @@ fun HomeScreen(
                 detail = "Android 使用 RECORD_AUDIO 权限保护其他应用的播放声音捕获"
             )
         }
-        FgoRunnerService.startService(context)
+        if (ensureAccessibilityConnected(context, diagnosticEventStore, "audio_permission_result")) {
+            FgoRunnerService.startService(context)
+        }
     }
     val scrollState = rememberScrollState()
     val gameServer by settingsRepository.gameServer.collectAsState(
@@ -87,20 +90,16 @@ fun HomeScreen(
         initial = false
     )
     val serviceRunning = FgoRunnerService.serviceStarted.value
-    // Android keeps a service listed as enabled even when its binding is dead, so the card
-    // reflects the real connection state instead of the settings flag alone.
     val accessibilityState = FgoAccessibilityService.connectionState.value
-    val accessibilityNotConnected = accessibilityState ==
-        FgoAccessibilityService.ConnectionState.ENABLED_NOT_CONNECTED
     val accessibilityRunningStatusColor = when (accessibilityState) {
-        FgoAccessibilityService.ConnectionState.CONNECTED -> Color(0xFF4CAF50)
-        FgoAccessibilityService.ConnectionState.ENABLED_NOT_CONNECTED -> Color(0xFFFF9800)
-        FgoAccessibilityService.ConnectionState.DISABLED -> Color(0xFFFF9800)
+        AccessibilityConnectionState.CONNECTED -> Color(0xFF4CAF50)
+        else -> Color(0xFFFF9800)
     }
     val accessibilityRunningStatusText = when (accessibilityState) {
-        FgoAccessibilityService.ConnectionState.CONNECTED -> "已启用"
-        FgoAccessibilityService.ConnectionState.ENABLED_NOT_CONNECTED -> "已开启，未连接"
-        FgoAccessibilityService.ConnectionState.DISABLED -> "未启用"
+        AccessibilityConnectionState.CONNECTED -> "已连接"
+        AccessibilityConnectionState.ENABLED_NOT_CONNECTED -> "已开启，未连接"
+        AccessibilityConnectionState.DISABLED -> "未启用"
+        AccessibilityConnectionState.UNKNOWN -> "状态无法确认"
     }
 
     // Reactive state for permissions that change via system settings
@@ -170,37 +169,8 @@ fun HomeScreen(
             return
         }
 
-        // Check 2: Accessibility service. "Enabled in settings" alone is not enough: a dead
-        // binding looks identical there but cannot take screenshots.
-        val freshAccessibilityState = FgoAccessibilityService.refreshConnectionState(
-            context,
-            "toggle_service"
-        )
-        if (freshAccessibilityState == FgoAccessibilityService.ConnectionState.DISABLED) {
-            diagnosticEventStore.record(
-                level = DiagnosticEventStore.LEVEL_WARNING,
-                category = DiagnosticEventStore.CATEGORY_SETUP,
-                eventId = "accessibility_service_missing",
-                title = "无障碍服务未启用",
-                message = "启动服务被阻止",
-                detail = "FgoGotran 无障碍服务未在系统设置中开启"
-            )
-            showAccessibilityDisclosure(context)
-            return
-        }
-        if (freshAccessibilityState ==
-            FgoAccessibilityService.ConnectionState.ENABLED_NOT_CONNECTED
-        ) {
-            diagnosticEventStore.record(
-                level = DiagnosticEventStore.LEVEL_WARNING,
-                category = DiagnosticEventStore.CATEGORY_SETUP,
-                eventId = "accessibility_service_not_connected",
-                title = "无障碍服务已开启但未连接",
-                message = "系统仍标记服务为已启用，但 FgoGotran 没有收到连接",
-                detail = "关闭无障碍服务 → 等 2–3 秒 → 重新开启；刚切换模拟器图形模式时请完整重启模拟器"
-            )
-            showAccessibilityNotConnectedDialog(context)
-        }
+        // The system switch alone does not mean Android has bound our service.
+        if (!ensureAccessibilityConnected(context, diagnosticEventStore, "toggle_service")) return
 
         // All permissions granted → start service
         if (!isIgnoringBatteryOptimizations) {
@@ -307,13 +277,14 @@ fun HomeScreen(
                 label = "无障碍服务",
                 statusText = accessibilityRunningStatusText,
                 statusColor = accessibilityRunningStatusColor,
-                enabled = accessibilityState == FgoAccessibilityService.ConnectionState.CONNECTED,
-                actionText = if (accessibilityNotConnected) "点此修复 →" else "去设置 →",
+                enabled = accessibilityState == AccessibilityConnectionState.CONNECTED,
+                actionText = "设置 →",
                 onClick = {
-                    if (accessibilityNotConnected) {
-                        showAccessibilityNotConnectedDialog(context)
-                    } else {
-                        showAccessibilityDisclosure(context)
+                    when (accessibilityState) {
+                        AccessibilityConnectionState.DISABLED,
+                        AccessibilityConnectionState.CONNECTED -> showAccessibilityDisclosure(context)
+                        AccessibilityConnectionState.ENABLED_NOT_CONNECTED,
+                        AccessibilityConnectionState.UNKNOWN -> showAccessibilityNotConnectedDialog(context)
                     }
                 }
             )
@@ -667,6 +638,42 @@ private fun StatusRow(
     }
 }
 
+/** Both start paths must check the live binding immediately before launching the runner. */
+private fun ensureAccessibilityConnected(
+    context: Context,
+    diagnosticEventStore: DiagnosticEventStore,
+    reason: String
+): Boolean {
+    return when (FgoAccessibilityService.refreshConnectionState(context, reason)) {
+        AccessibilityConnectionState.CONNECTED -> true
+        AccessibilityConnectionState.DISABLED -> {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                category = DiagnosticEventStore.CATEGORY_SETUP,
+                eventId = "accessibility_service_missing",
+                title = "无障碍服务未启用",
+                message = "启动服务被阻止",
+                detail = "若 Android 已显示开启，请关闭 FgoGotran 无障碍服务后重新开启"
+            )
+            showAccessibilityDisclosure(context)
+            false
+        }
+        AccessibilityConnectionState.ENABLED_NOT_CONNECTED,
+        AccessibilityConnectionState.UNKNOWN -> {
+            diagnosticEventStore.record(
+                level = DiagnosticEventStore.LEVEL_WARNING,
+                category = DiagnosticEventStore.CATEGORY_SETUP,
+                eventId = "accessibility_service_not_connected",
+                title = "无障碍服务未连接",
+                message = "启动服务被阻止：FgoGotran 没有收到无障碍服务连接",
+                detail = "关闭 FgoGotran 无障碍服务 → 等 2–3 秒 → 重新开启；若仍失败请重启模拟器"
+            )
+            showAccessibilityNotConnectedDialog(context)
+            false
+        }
+    }
+}
+
 private fun showAccessibilityDisclosure(context: Context) {
     AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
         .setTitle("无障碍服务用途说明")
@@ -681,6 +688,8 @@ private fun showAccessibilityDisclosure(context: Context) {
 
             如果使用在线翻译接口，识别出的待翻译文字会发送到您选择或配置的翻译服务。FgoGotran 不会读取联系人、短信、密码、银行应用内容，也不会在未启动服务时自动控制其他应用。
 
+            如果 Android 已显示此服务开启，但 FgoGotran 仍显示未连接，请在系统设置中先关闭该服务，再重新开启。
+
             继续表示您理解并同意上述用途。
             """.trimIndent()
         )
@@ -692,26 +701,22 @@ private fun showAccessibilityDisclosure(context: Context) {
 }
 
 /**
- * Shown when Android still lists the accessibility service as enabled but the app has no
- * live binding. This is the usual cause of "设置里显示已启用，App 里却显示未启用" and of
- * screenshots failing on emulators after a graphics-mode change or emulator restart.
+ * Shown when no live binding exists even though Android may show the service as enabled.
  */
 private fun showAccessibilityNotConnectedDialog(context: Context) {
     AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-        .setTitle("无障碍服务已开启但未连接")
+        .setTitle("无障碍服务未连接")
         .setMessage(
             """
-            系统设置里显示"已启用"，只代表服务已登记，并不代表它真的连接正常。
+            即使系统设置显示"已启用"，FgoGotran 仍可能没有收到服务连接。
 
-            FgoGotran 目前取不到画面，因此自动 / 半自动 / 手动翻译和区域翻译都会失败或提示"未识别到文字"。
+            目前无法启动翻译。请在系统设置中检查 FgoGotran 无障碍服务：
 
-            修复步骤：
-            1. 打开系统设置 → 无障碍 → 已下载的服务
-            2. 先关闭 FgoGotran 无障碍服务，等待 2–3 秒
-            3. 再重新开启 FgoGotran
-            4. 回到 FGO，重新启动悬浮服务
+            • 如果开关已开启：先关闭，等待 2–3 秒，再重新开启。
+            • 如果开关已关闭：直接开启。
+            • 返回 FgoGotran，确认状态变为"已连接"后启动悬浮服务。
 
-            如果刚切换过模拟器图形模式（Vulkan / OpenGL）或刚重启过模拟器，请先完整重启模拟器再试。
+            如果仍无法连接，请完整重启模拟器后重试。
             """.trimIndent()
         )
         .setPositiveButton("去设置") { _, _ ->
