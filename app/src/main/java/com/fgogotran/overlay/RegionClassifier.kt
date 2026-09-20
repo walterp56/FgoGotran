@@ -25,10 +25,8 @@ data class ClassifiedRegion(
     val lines: List<OcrTextLine>,
     val boundingBox: Rect,
     val ocrEngine: OcrEngineId,
-    /**
-     * Measured on-screen rectangle of the game's own name plate, when the blue plate could be
-     * located inside the name band. It is the authoritative length reference for the rendered
-     * name plate; null means "not measured, fall back to the OCR geometry".
-     */
-    val sourcePlateBounds: Rect? = null
+    /** The cyan top border bounds name OCR; it is not the width of the rendered cover. */
+    val sourcePlateBounds: Rect? = null,
+    /** Trusted extent of the original name glyphs. Null means the name cover must not be drawn. */
+    val sourceNameTextBounds: Rect? = null
 )

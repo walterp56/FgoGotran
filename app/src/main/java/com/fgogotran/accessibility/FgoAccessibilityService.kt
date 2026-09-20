@@ -247,70 +247,16 @@ class FgoAccessibilityService : AccessibilityService() {
         /** A coloured name needs this much more support than the runner-up, else it stays white. */
         private const val NAME_COLOR_MIN_WINNER_RATIO = 1.5f
 
-        /**
-         * The speaker name sits on a blue plate whose width follows the name (with a minimum for
-         * short names). Locating that plate gives the true plate length without depending on glyph
-         * pixels, which a bright scene showing through the semi-transparent plate would poison.
-         */
-        private const val NAME_PLATE_MIN_BLUE = 55
-        private const val NAME_PLATE_MIN_BLUE_OVER_RED = 20
-        private const val NAME_PLATE_MIN_BLUE_OVER_GREEN = 12
-
-        /** Fraction of the scanned rows in a column that must look like the plate blue. */
-        private const val NAME_PLATE_COLUMN_SCORE = 0.6f
-
-        /**
-         * The plate fades out on the right, but the fade is not measured: the blue is solid up to a
-         * point and a fixed safety pad after that point is enough for the painted plate and for the
-         * OCR region. The fade never contains text, so the pad only has to cover soft edges.
-         */
-        private const val NAME_PLATE_SOLID_END_SCORE = 0.97f
-        private const val NAME_PLATE_SOLID_SCORE = 0.90f
-        private const val NAME_PLATE_END_SAFETY_PX = 30
-
-        /** The plate must start solid at the fixed left edge, otherwise this is not a name plate. */
-        private const val NAME_PLATE_START_SCORE = 0.80f
-        private const val NAME_PLATE_START_SAMPLE_PX = 8
-
-        /** A score drop only counts when it persists; shorter dips are white glyph strokes. */
-        private const val NAME_PLATE_END_CONFIRM_PX = 24
-
-        /** A measured plate must be at least this many times its own height wide. */
-        private const val NAME_PLATE_MIN_WIDTH_HEIGHT_RATIO = 3.0f
-
-        /**
-         * The plate's blue is sampled only in the bands above and below the name text. The middle
-         * rows are covered by white glyphs, and a wide stroke there made the plate look shorter
-         * than it is - that wrong boundary then cut the name out of the OCR region.
-         */
-        private const val NAME_PLATE_SAMPLE_TOP_START = 0.04f
-        private const val NAME_PLATE_SAMPLE_TOP_END = 0.15f
-        private const val NAME_PLATE_SAMPLE_BOTTOM_START = 0.85f
-        private const val NAME_PLATE_SAMPLE_BOTTOM_END = 0.94f
-
         /** Warn when an OCR line reaches the narrowed region's edge: the name may be clipped. */
         private const val NAME_PLATE_CLIP_WARNING_MARGIN_PX = 8
 
-        /**
-         * The plate has to fit the name text, but PaddleOCR's name box is 15-20% wider than the
-         * glyphs. The box is trimmed to the glyph extent measured with a stroke test: white pixels
-         * that have darker neighbours (the plate fill and the scene are uniform, the glyphs are not).
-         */
+        /** PaddleOCR's name box can include scenery; only text-coloured strokes size the cover. */
         private const val NAME_INK_MIN_BRIGHTNESS = 170
         private const val NAME_INK_MAX_SPREAD = 80
         private const val NAME_INK_NEIGHBOUR_DROP = 60
         private const val NAME_INK_MIN_GLYPH_PIXELS = 24
 
-        /**
-         * The trimmed box must keep at least this fraction of the OCR box width. The stroke test can
-         * miss thin or low contrast strokes, which used to end the rendered plate before the name
-         * did, so a much narrower measurement is treated as unreliable and the OCR box is kept.
-         */
-        private const val NAME_INK_MIN_WIDTH_RATIO = 0.85f
         private const val NAME_INK_PADDING = 2
-
-        /** A plate must be at least this long; shorter measurements are not worth trusting. */
-        private const val NAME_PLATE_MIN_RUN_PX = 60
 
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
@@ -3131,176 +3077,41 @@ class FgoAccessibilityService : AccessibilityService() {
             .joinToString("") { it.text.trim() }
             .trim()
 
-    /**
-     * Measures the blue speaker-name plate inside the fixed name region.
-     *
-     * The plate always starts at the region's left edge, so only its right boundary has to be found.
-     * FGO fades that boundary out instead of cutting it, and the fade never contains text: it is
-     * only a guide, so the boundary is taken where the plate's own blue ramp reaches 50%. The
-     * returned rectangle is what the overlay paints (left edge fixed to the region); null means the
-     * plate could not be measured confidently and the caller keeps the full region.
-     */
+    /** Only the top cyan border determines the right edge of the fixed-height name OCR crop. */
     private fun detectNamePlate(source: Bitmap, region: Rect): Rect? {
         val scan = Rect(region).apply { intersect(0, 0, source.width, source.height) }
         if (scan.width() <= 1 || scan.height() <= 1) return null
-
-        val sampleRows = namePlateSampleRows(scan)
-
-        // Per-column blue coverage of the text-free rows, smoothed over three columns so single
-        // noisy columns cannot break the ramp the fade is measured on.
-        val rawScores = FloatArray(scan.width()) { index ->
-            namePlateColumnScore(source, scan.left + index, sampleRows)
-        }
-        val scores = FloatArray(rawScores.size)
-        for (index in rawScores.indices) {
-            var sum = 0f
-            var count = 0
-            for (offset in -1..1) {
-                val at = index + offset
-                if (at !in rawScores.indices) continue
-                sum += rawScores[at]
-                count++
-            }
-            scores[index] = sum / count
-        }
-
-        val startSamples = minOf(NAME_PLATE_START_SAMPLE_PX, scores.size)
-        var startSum = 0f
-        for (index in 0 until startSamples) startSum += scores[index]
-        val startScore = if (startSamples > 0) startSum / startSamples else 0f
-        if (startScore < NAME_PLATE_START_SCORE) {
-            FgoLogger.debug(
-                tag,
-                "Name plate detect skipped: no plate at the region's left edge " +
-                    "(startScore=${(startScore * 100).toInt()}%)"
-            )
+        val right = CyanNameLineDetector.rightEdge(
+            pixelAt = source::getPixel,
+            imageWidth = source.width,
+            imageHeight = source.height,
+            left = scan.left,
+            top = scan.top,
+            right = scan.right,
+            bottom = scan.bottom
+        )
+        if (right == null) {
+            FgoLogger.debug(tag, "Name cyan line not measured; skipping name OCR")
             return null
         }
-
-        // Where the solid blue ends. When the score never drops the last mostly solid column is
-        // used instead; either way the boundary is that point plus the fixed safety pad.
-        val solidEnd = findPlateDrop(scores, NAME_PLATE_SOLID_END_SCORE)
-        val measuredEnd = if (solidEnd >= 0) solidEnd else lastIndexAtLeast(scores, NAME_PLATE_SOLID_SCORE)
-        val boundary = if (measuredEnd >= 0) {
-            measuredEnd + NAME_PLATE_END_SAFETY_PX
-        } else {
-            -1
+        return Rect(scan.left, scan.top, right, scan.bottom).also {
+            FgoLogger.debug(tag, "Name cyan line: right=$right rect=${it.flattenToString()}")
         }
-
-        val minimumRun = maxOf(
-            NAME_PLATE_MIN_RUN_PX,
-            (scan.height() * NAME_PLATE_MIN_WIDTH_HEIGHT_RATIO).toInt(),
-            NAME_PLATE_END_SAFETY_PX
-        )
-        if (boundary < minimumRun || boundary >= scores.size) {
-            FgoLogger.debug(
-                tag,
-                "Name plate detect skipped: boundary=$boundary (solidEnd=$solidEnd, " +
-                    "min=$minimumRun, width=${scores.size})"
-            )
-            return null
-        }
-
-        val rect = buildNamePlateRect(source, scan, boundary)
-        FgoLogger.debug(
-            tag,
-            "Name plate detect: solidEnd=$solidEnd boundary=$boundary (+${NAME_PLATE_END_SAFETY_PX}px) " +
-                "rect=${rect.flattenToString()}"
-        )
-        return rect
     }
 
-    /**
-     * Vertical extent of the plate up to [boundary], plus the rectangle the overlay paints. Rows
-     * whose run is mostly plate coloured define the top and bottom edges.
-     */
-    private fun buildNamePlateRect(source: Bitmap, scan: Rect, boundary: Int): Rect {
-        val plateLeft = scan.left
-        val plateRightExclusive = scan.left + boundary
-        val sampledColumns = ((boundary + 1) / 2).coerceAtLeast(1)
-        var plateTop = -1
-        var plateBottom = -1
-        for (y in scan.top until scan.bottom) {
-            var hits = 0
-            var x = plateLeft
-            while (x < plateRightExclusive) {
-                if (isNamePlatePixel(source.getPixel(x, y))) hits++
-                x += 2
-            }
-            if (hits * 10 >= (sampledColumns * NAME_PLATE_COLUMN_SCORE * 10).toInt()) {
-                if (plateTop < 0) plateTop = y
-                plateBottom = y
-            }
-        }
-        if (plateTop < 0) {
-            plateTop = scan.top
-            plateBottom = scan.bottom - 1
-        }
-        return Rect(plateLeft, plateTop, plateRightExclusive, plateBottom + 1)
-    }
-
-    /** Last column whose smoothed score is still at or above [threshold], or -1 when there is none. */
-    private fun lastIndexAtLeast(scores: FloatArray, threshold: Float): Int {
-        for (index in scores.indices.reversed()) {
-            if (scores[index] >= threshold) return index
-        }
-        return -1
-    }
-
-    /**
-     * Rows used to measure the plate: the bands above and below the name text, which are pure
-     * plate blue. The text rows are never sampled, so glyph strokes cannot shorten the plate.
-     */
-    private fun namePlateSampleRows(scan: Rect): List<IntRange> {
-        val height = scan.height()
-        fun rowRange(startFraction: Float, endFraction: Float): IntRange {
-            val start = (scan.top + height * startFraction).toInt().coerceIn(scan.top, scan.bottom - 1)
-            val end = (scan.top + height * endFraction).toInt().coerceIn(start, scan.bottom - 1)
-            return start..end
-        }
-        return listOf(
-            rowRange(NAME_PLATE_SAMPLE_TOP_START, NAME_PLATE_SAMPLE_TOP_END),
-            rowRange(NAME_PLATE_SAMPLE_BOTTOM_START, NAME_PLATE_SAMPLE_BOTTOM_END)
-        )
-    }
-
-    /**
-     * Trims an OCR name box down to the glyph extent it actually contains, so the rendered plate can
-     * fit the text instead of the loose detection box. Boxes without a usable measurement are kept.
-     */
-    private fun tightenNameLabelLines(source: Bitmap, lines: List<OcrTextLine>): List<OcrTextLine> {
-        if (lines.isEmpty()) return lines
-        return lines.map { line ->
+    /** Keep OCR boxes intact; only a separately measured glyph box may size the name cover. */
+    private fun measureNameTextBounds(source: Bitmap, lines: List<OcrTextLine>, plate: Rect): Rect? {
+        if (lines.isEmpty()) return null
+        var combined: Rect? = null
+        for (line in lines) {
             val raw = line.boundingBox
-            if (raw.width() <= 0 || raw.height() <= 0) return@map line
-
-            val ink = measureNameGlyphBounds(source, raw)
-            if (ink == null) {
-                FgoLogger.debug(
-                    tag,
-                    "Name ink box: no glyph pixels in ${raw.flattenToString()}; keeping the OCR box"
-                )
-                return@map line
-            }
-            // Very few glyph pixels means the measurement does not describe the text (coloured
-            // names, unusual effects). Keeping the OCR box then is far better than drawing a plate
-            // that ends before the name does.
-            if (ink.glyphPixels < NAME_INK_MIN_GLYPH_PIXELS) {
-                FgoLogger.debug(
-                    tag,
-                    "Name ink box rejected: only ${ink.glyphPixels} glyph pixels in " +
-                        "${raw.width()}x${raw.height()}; keeping the OCR box"
-                )
-                return@map line
-            }
-            if (ink.bounds.width() < raw.width() * NAME_INK_MIN_WIDTH_RATIO) {
-                FgoLogger.debug(
-                    tag,
-                    "Name ink box rejected: trimmed to " +
-                        "${ink.bounds.width() * 100 / raw.width()}% of the ${raw.width()}px OCR box; " +
-                        "keeping the OCR box"
-                )
-                return@map line
+            val ink = measureNameGlyphBounds(source, raw) ?: return null
+            if (ink.glyphPixels < NAME_INK_MIN_GLYPH_PIXELS ||
+                ink.bounds.right >= plate.right - NAME_PLATE_CLIP_WARNING_MARGIN_PX
+            ) {
+                FgoLogger.warn(tag, "Name ink measurement uncertain: raw=${raw.flattenToString()}, " +
+                    "ink=${ink.bounds.flattenToString()}, plateRight=${plate.right}")
+                return null
             }
             val tight = Rect(
                 (ink.bounds.left - NAME_INK_PADDING).coerceAtLeast(raw.left),
@@ -3308,14 +3119,11 @@ class FgoAccessibilityService : AccessibilityService() {
                 (ink.bounds.right + NAME_INK_PADDING).coerceAtMost(raw.right),
                 (ink.bounds.bottom + NAME_INK_PADDING).coerceAtMost(raw.bottom)
             )
-            if (tight.width() <= 0 || tight.height() <= 0) return@map line
-            FgoLogger.debug(
-                tag,
-                "Name ink box: raw=${raw.flattenToString()} -> tight=${tight.flattenToString()} " +
-                    "(${ink.glyphPixels} glyph px)"
-            )
-            OcrTextLine(text = line.text, boundingBox = tight, confidence = line.confidence)
+            FgoLogger.debug(tag, "Name ink box: raw=${raw.flattenToString()} -> " +
+                "tight=${tight.flattenToString()} (${ink.glyphPixels} glyph px)")
+            if (combined == null) combined = tight else combined.union(tight)
         }
+        return combined
     }
 
     private data class NameInkBounds(
@@ -3323,25 +3131,50 @@ class FgoAccessibilityService : AccessibilityService() {
         val glyphPixels: Int
     )
 
-    /** Glyph extent of an OCR box, measured with the stroke test, or null when nothing matches. */
+    private enum class NameInkColor { NEUTRAL, RED, YELLOW_GREEN }
+
+    /** Follow only the colour of the first name characters, not colourful artwork farther right. */
     private fun measureNameGlyphBounds(source: Bitmap, box: Rect): NameInkBounds? {
         val bounds = Rect(box).apply { intersect(0, 0, source.width, source.height) }
         if (bounds.width() <= 0 || bounds.height() <= 0) return null
+
+        val anchorRight = minOf(bounds.right, bounds.left + maxOf(90, (bounds.height() * 1.6f).toInt()))
+        val votes = IntArray(NameInkColor.entries.size)
+        for (y in bounds.top until bounds.bottom step 2) {
+            for (x in bounds.left until anchorRight step 2) {
+                nameGlyphColor(source, x, y)?.let { votes[it.ordinal]++ }
+            }
+        }
+        val color = NameInkColor.entries.maxByOrNull { votes[it.ordinal] } ?: return null
+        val runnerUp = votes.indices.filter { it != color.ordinal }.maxOfOrNull { votes[it] } ?: 0
+        if (votes[color.ordinal] < NAME_INK_MIN_GLYPH_PIXELS / 2 ||
+            votes[color.ordinal] < runnerUp * NAME_COLOR_MIN_WINNER_RATIO
+        ) return null
 
         var left = -1
         var right = -1
         var top = -1
         var bottom = -1
         var glyphPixels = 0
-        for (y in bounds.top until bounds.bottom step 2) {
-            for (x in bounds.left until bounds.right) {
-                if (!isNameGlyphPixel(source, x, y)) continue
-                glyphPixels++
-                if (left < 0 || x < left) left = x
-                if (x > right) right = x
-                if (top < 0 || y < top) top = y
-                if (y > bottom) bottom = y
+        val maxCharacterGap = maxOf(32, (bounds.height() * 0.45f).toInt())
+        for (x in bounds.left until bounds.right) {
+            var columnPixels = 0
+            var columnTop = -1
+            var columnBottom = -1
+            for (y in bounds.top until bounds.bottom step 2) {
+                if (nameGlyphColor(source, x, y) != color) continue
+                columnPixels++
+                if (columnTop < 0) columnTop = y
+                columnBottom = y
             }
+            if (columnPixels == 0) continue
+            if (right >= 0 && x - right > maxCharacterGap) break
+            if (left < 0 && x - bounds.left > bounds.height()) return null
+            if (left < 0) left = x
+            right = x
+            glyphPixels += columnPixels
+            if (top < 0 || columnTop < top) top = columnTop
+            if (columnBottom > bottom) bottom = columnBottom
         }
         if (left < 0 || top < 0 || right < left || bottom < top) return null
         return NameInkBounds(
@@ -3350,20 +3183,21 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    /**
-     * A name glyph pixel: bright white with at least two clearly darker neighbours. The plate fill
-     * and the scene behind it are uniform, so they never qualify; glyph strokes (including their
-     * anti-aliased edges) do.
-     */
-    private fun isNameGlyphPixel(source: Bitmap, x: Int, y: Int): Boolean {
+    /** A bright text-coloured stroke has at least two darker neighbours. */
+    private fun nameGlyphColor(source: Bitmap, x: Int, y: Int): NameInkColor? {
         val pixel = source.getPixel(x, y)
         val r = (pixel shr 16) and 0xFF
         val g = (pixel shr 8) and 0xFF
         val b = pixel and 0xFF
         val brightest = maxOf(r, g, b)
         val darkest = minOf(r, g, b)
-        if (brightest < NAME_INK_MIN_BRIGHTNESS) return false
-        if (brightest - darkest > NAME_INK_MAX_SPREAD) return false
+        val color = when {
+            r >= NAME_INK_MIN_BRIGHTNESS && r - maxOf(g, b) >= 40 -> NameInkColor.RED
+            g >= NAME_INK_MIN_BRIGHTNESS && g - maxOf(r, b) >= 15 -> NameInkColor.YELLOW_GREEN
+            brightest >= NAME_INK_MIN_BRIGHTNESS && brightest - darkest <= NAME_INK_MAX_SPREAD ->
+                NameInkColor.NEUTRAL
+            else -> return null
+        }
 
         val dropThreshold = brightest - NAME_INK_NEIGHBOUR_DROP
         var darkerNeighbours = 0
@@ -3381,17 +3215,16 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
                 if (neighbourBrightest < dropThreshold) {
                     darkerNeighbours++
-                    if (darkerNeighbours >= 2) return true
+                    if (darkerNeighbours >= 2) return color
                 }
             }
         }
-        return false
+        return null
     }
 
     /**
-     * The name OCR region is narrowed to the measured plate. A recognised line that reaches that
-     * region's right edge means the text may have been cut there, and a cut name is dropped from the
-     * overlay entirely, so it is worth a warning in the log.
+     * OCR boxes can follow art inside the crop. Log edge contact; the separate ink measurement
+     * decides whether there is enough evidence to render a name cover.
      */
     private fun warnIfNameClipped(lines: List<OcrTextLine>, ocrRegion: Rect, plate: Rect?) {
         if (plate == null || lines.isEmpty()) return
@@ -3402,61 +3235,6 @@ class FgoAccessibilityService : AccessibilityService() {
             "Name OCR may be clipped by the plate boundary: lineRight=$right, " +
                 "region=${ocrRegion.flattenToString()}, plate=${plate.flattenToString()}"
         )
-    }
-
-    /** Fraction of the sampled (text-free) rows in one column that look like the plate blue (0..1). */
-    private fun namePlateColumnScore(source: Bitmap, x: Int, rows: List<IntRange>): Float {
-        var hits = 0
-        var sampled = 0
-        for (range in rows) {
-            var y = range.first
-            while (y <= range.last) {
-                sampled++
-                if (isNamePlatePixel(source.getPixel(x, y))) hits++
-                y += 2
-            }
-        }
-        if (sampled == 0) return 0f
-        return hits.toFloat() / sampled.toFloat()
-    }
-
-    /**
-     * First column from [from] whose smoothed score stays below [threshold] for the confirmation
-     * length. Short dips are ignored, so white glyph strokes and single noisy columns cannot end
-     * the plate early.
-     */
-    private fun findPlateDrop(scores: FloatArray, threshold: Float, from: Int = 0): Int {
-        var index = from.coerceAtLeast(0)
-        while (index < scores.size) {
-            if (scores[index] >= threshold) {
-                index++
-                continue
-            }
-            val confirmEnd = minOf(scores.size, index + NAME_PLATE_END_CONFIRM_PX)
-            var recoveredAt = -1
-            for (check in index until confirmEnd) {
-                if (scores[check] >= threshold) {
-                    recoveredAt = check
-                    break
-                }
-            }
-            if (recoveredAt < 0) return index
-            index = recoveredAt + 1
-        }
-        return -1
-    }
-
-    /**
-     * Blue-plate test for the name band. The plate is blue dominant; the white glyphs and the
-     * pink/red scenery that shows through the semi-transparent plate stay outside this range.
-     */
-    private fun isNamePlatePixel(pixel: Int): Boolean {
-        val r = (pixel shr 16) and 0xFF
-        val g = (pixel shr 8) and 0xFF
-        val b = pixel and 0xFF
-        return b >= NAME_PLATE_MIN_BLUE &&
-            b - r >= NAME_PLATE_MIN_BLUE_OVER_RED &&
-            b - g >= NAME_PLATE_MIN_BLUE_OVER_GREEN
     }
 
     private fun voiceTextForDialogueRegion(region: ClassifiedRegion): String {
@@ -3959,13 +3737,18 @@ class FgoAccessibilityService : AccessibilityService() {
             return FGO_RENDER_RED
         }
 
-        // The name region is already narrowed to the blue plate, so the OCR box covers the name
-        // only and one pass over it is enough: bright glyph pixels vote, the blue plate and the
-        // scene behind it do not match any sample.
+        // A name OCR box can still include artwork through the translucent plate. Vote only in
+        // the measured name glyph extent when it is available.
         val matchCounts = IntArray(FGO_TEXT_COLOR_SAMPLES.size)
 
         for (line in region.lines) {
-            val bounds = Rect(line.boundingBox)
+            val bounds = Rect(
+                if (region.region == TextRegion.NAME_LABEL) {
+                    region.sourceNameTextBounds ?: line.boundingBox
+                } else {
+                    line.boundingBox
+                }
+            )
             if (!bounds.intersect(0, 0, source.width, source.height)) continue
             if (bounds.width() <= 0 || bounds.height() <= 0) continue
 
@@ -4477,36 +4260,44 @@ class FgoAccessibilityService : AccessibilityService() {
         screenRegions: FgoScreenRegions,
         allowRedTextFallback: Boolean = false
     ): List<ClassifiedRegion> {
-        // The blue plate is the only geometry source for the name: it decides where the name OCR
-        // region ends (FGO gives short names a minimum plate width) and how wide the rendered plate
-        // is. Without a confident measurement the full name region is kept.
+        // The cyan name-plate line is the width authority for name OCR. Name and dialogue must not
+        // share an OCR bitmap: even when their result boxes are classified separately, a shared
+        // bitmap lets the OCR detector inspect the gap and dialogue pixels while recognising a name.
+        // Without a confident line measurement, do not OCR a wider name band.
         val namePlate = detectNamePlate(source, screenRegions.name)
         val nameOcrRegion = namePlate?.let { plate ->
-            // The boundary already includes the safety pad, so the OCR region uses it directly: the
-            // name stays inside and dialogue to the right stays outside.
+            // Keep the fixed name height; only the cyan-line end determines OCR input width.
             Rect(
                 screenRegions.name.left,
                 screenRegions.name.top,
                 plate.right,
                 screenRegions.name.bottom
             )
-        } ?: screenRegions.name
-        val regions = recognizeScreenRegions(
+        }
+
+        val dialogueRegion = recognizePaddedScreenRegion(
             source = source,
-            targets = listOf(
-                OcrRegionTarget(screenRegions.dialogue, TextRegion.DIALOGUE_BOX),
-                OcrRegionTarget(nameOcrRegion, TextRegion.NAME_LABEL)
+            target = OcrRegionTarget(screenRegions.dialogue, TextRegion.DIALOGUE_BOX)
+        )
+        val rawNameRegion = nameOcrRegion?.let { crop ->
+            // Deliberately no padding: this bitmap must contain only the cyan-bounded name region.
+            recognizeExactScreenRegion(
+                source = source,
+                target = OcrRegionTarget(crop, TextRegion.NAME_LABEL)
             )
-        ).map { region ->
+        }
+        val regions = listOfNotNull(dialogueRegion, rawNameRegion).map { region ->
             when (region.region) {
                 TextRegion.NAME_LABEL -> {
-                    warnIfNameClipped(region.lines, nameOcrRegion, namePlate)
+                    if (nameOcrRegion != null) {
+                        warnIfNameClipped(region.lines, nameOcrRegion, namePlate)
+                    }
                     region.copy(
-                        // The rendered plate has to fit the name text, so the loose OCR box is
-                        // trimmed to its glyph extent. The blue plate measurement is unaffected.
-                        lines = tightenNameLabelLines(source, region.lines),
                         boundingBox = screenRegions.nameRender,
-                        sourcePlateBounds = namePlate
+                        sourcePlateBounds = namePlate,
+                        sourceNameTextBounds = namePlate?.let { plate ->
+                            measureNameTextBounds(source, region.lines, plate)
+                        }
                     )
                 }
                 TextRegion.DIALOGUE_BOX -> region.copy(boundingBox = screenRegions.dialogueRender)
@@ -4689,6 +4480,83 @@ class FgoAccessibilityService : AccessibilityService() {
                 .toScreenCoordinates(cropBounds)
                 .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
                 .filter { lineBelongsToRegion(it.boundingBox, target.bounds) }
+            if (regionLines.isEmpty()) {
+                null
+            } else {
+                ClassifiedRegion(
+                    region = target.region,
+                    lines = regionLines,
+                    boundingBox = target.bounds,
+                    ocrEngine = ocrResult.engine
+                )
+            }
+        } finally {
+            cropped.recycle()
+        }
+    }
+
+    /**
+     * OCR dialogue with its historic small surrounding context. Name OCR uses
+     * [recognizeExactScreenRegion] only.
+     */
+    private suspend fun recognizePaddedScreenRegion(
+        source: Bitmap,
+        target: OcrRegionTarget
+    ): ClassifiedRegion? = recognizeScreenRegion(
+        source = source,
+        target = target,
+        cropBounds = paddedSharedOcrBounds(target.bounds, source.width, source.height),
+        requireFullContainment = false
+    )
+
+    /**
+     * OCR precisely the supplied target bitmap. This is the hard cyan-line guard for speaker
+     * names: there is no padding and no dialogue or intervening screen content in the OCR input.
+     */
+    private suspend fun recognizeExactScreenRegion(
+        source: Bitmap,
+        target: OcrRegionTarget
+    ): ClassifiedRegion? = recognizeScreenRegion(
+        source = source,
+        target = target,
+        cropBounds = Rect(target.bounds),
+        requireFullContainment = true
+    )
+
+    private suspend fun recognizeScreenRegion(
+        source: Bitmap,
+        target: OcrRegionTarget,
+        cropBounds: Rect,
+        requireFullContainment: Boolean
+    ): ClassifiedRegion? {
+        if (!cropBounds.intersect(0, 0, source.width, source.height) ||
+            cropBounds.width() <= 0 ||
+            cropBounds.height() <= 0
+        ) {
+            return null
+        }
+
+        val cropped = Bitmap.createBitmap(
+            source,
+            cropBounds.left,
+            cropBounds.top,
+            cropBounds.width(),
+            cropBounds.height()
+        )
+        return try {
+            val ocrResult = withContext(Dispatchers.Default) {
+                ocrEngine.recognize(cropped)
+            }
+            val regionLines = ocrResult.lines
+                .toScreenCoordinates(cropBounds)
+                .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
+                .filter { line ->
+                    if (requireFullContainment) {
+                        target.bounds.contains(line.boundingBox)
+                    } else {
+                        lineBelongsToRegion(line.boundingBox, target.bounds)
+                    }
+                }
             if (regionLines.isEmpty()) {
                 null
             } else {

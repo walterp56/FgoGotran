@@ -111,6 +111,7 @@ class OverlayRenderer @Inject constructor(
         private const val NAME_TEXT_BOTTOM_INSET = 6f
         private const val NAME_TEXT_BASELINE_OFFSET = 12f
         private const val NAME_TEXT_RIGHT_INSET = 10f
+        private const val NAME_SOURCE_COVER_PAD = 6f
         private const val CHOICE_TEXT_SIZE = 53f
         private const val CHOICE_TEXT_MIN_SIZE = 29f
         private const val WIDE_RENDER_SPACE = "\u3000"
@@ -620,28 +621,21 @@ class OverlayRenderer @Inject constructor(
             textSize = NAME_TEXT_SIZE * scale
         }
 
-        // The plate fits the recognised name text: the OCR box was trimmed to the glyph extent, so
-        // the plate is the text width plus a small inset. The measured blue plate is only an upper
-        // bound, so the overlay can never grow past the game's own plate. When the translated name
-        // still does not fit, the text shrinks rather than stretching the plate.
-        val originalNameBounds = originalTextBounds(instruction)
-        val detectedPlate = instruction.region.sourcePlateBounds
+        // The cyan border bounds OCR, but the original glyphs alone determine the painted width.
+        // A loose OCR box or a long translation must never enlarge the cover into the scene.
+        val originalNameBounds = instruction.region.sourceNameTextBounds ?: return
+        val detectedPlate = instruction.region.sourcePlateBounds ?: return
         val textLeft = box.left + NAME_TEXT_LEFT_INSET * scale
-        paint.textSize = NAME_TEXT_MIN_SIZE * scale
-        val minimumTextWidth = paint.measureText(name)
-        paint.textSize = NAME_TEXT_SIZE * scale
-        val textFitRight = (originalNameBounds?.right?.toFloat() ?: box.left.toFloat()) +
-            NAME_TEXT_RIGHT_INSET * scale
-        val fittedRight = detectedPlate?.let { plate -> minOf(textFitRight, plate.right.toFloat()) }
-            ?: textFitRight
-        val plateRight = maxOf(
-            fittedRight,
-            textLeft + minimumTextWidth + NAME_TEXT_RIGHT_INSET * scale
-        ).coerceAtMost(canvas.width.toFloat())
+        val plateRight = minOf(
+            originalNameBounds.right + NAME_SOURCE_COVER_PAD * scale,
+            detectedPlate.right.toFloat(),
+            canvas.width.toFloat()
+        )
         // The left edge is fixed to the render band plus the arrow inset, exactly like the previous
         // release: the plate must not start further left, and detected/undetected frames must not
         // shift by a few pixels. Only the right edge comes from the measurements.
         val plateLeft = box.left + NAME_PLATE_LEFT_INSET * scale
+        if (plateRight <= textLeft + NAME_TEXT_RIGHT_INSET * scale) return
 
         canvas.drawRoundRect(
             plateLeft, box.top + 8f * scale,
@@ -663,11 +657,10 @@ class OverlayRenderer @Inject constructor(
             minimumTextSize = NAME_TEXT_MIN_SIZE * scale,
             maxWidth = textArea.width()
         )
-        val detectedPlateLabel = detectedPlate?.flattenToString() ?: "none"
         FgoLogger.debug(
             tag,
             "Name plate: name=$name, box=$box, sourceName=$originalNameBounds, " +
-                "detected=$detectedPlateLabel, " +
+                "cyan=${detectedPlate.flattenToString()}, " +
                 "plate=${plateLeft.toInt()}..${plateRight.toInt()}, " +
                 "textWidth=${paint.measureText(fittedName).toInt()}, " +
                 "textSize=${paint.textSize.toInt()}"
