@@ -31,6 +31,11 @@ enum class OcrEngineId {
     UNKNOWN
 }
 
+enum class OcrContentKind {
+    GENERAL,
+    DIALOGUE
+}
+
 /**
  * Complete OCR result for one screenshot.
  * @property lines individual text lines with bounding boxes (for region classification)
@@ -48,6 +53,7 @@ internal interface OcrProvider {
         get() = OcrInputScale.X1
     suspend fun warmUp()
     suspend fun recognize(bitmap: Bitmap): OcrResult
+    suspend fun recognize(bitmap: Bitmap, contentKind: OcrContentKind): OcrResult = recognize(bitmap)
     fun close()
 }
 
@@ -89,7 +95,8 @@ class OcrEngine @Inject constructor(
 
     suspend fun recognize(
         bitmap: Bitmap,
-        inputScale: OcrInputScale = OcrInputScale.X1
+        inputScale: OcrInputScale = OcrInputScale.X1,
+        contentKind: OcrContentKind = OcrContentKind.GENERAL
     ): OcrResult {
         return try {
             providerMutex.withLock {
@@ -135,7 +142,7 @@ class OcrEngine @Inject constructor(
                 }
 
                 try {
-                    val result = provider.recognize(preparedBitmap)
+                    val result = provider.recognize(preparedBitmap, contentKind)
                     if (additionalScale > 1) {
                         result.toInputCoordinates(
                             scale = additionalScale,

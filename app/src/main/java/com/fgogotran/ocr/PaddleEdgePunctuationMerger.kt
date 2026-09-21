@@ -192,19 +192,27 @@ internal object PaddleEdgePunctuationMerger {
         }
     }
 
-    fun mayHaveRecoverableEdges(text: String): Boolean {
+    fun mayHaveRecoverableEdges(text: String, allowShortBody: Boolean = false): Boolean {
         val trimmed = text.trim()
         if (trimmed.isBlank()) return false
         val parts = splitEdges(trimmed)
         if (!parts.body.hasJapaneseOrCjkText()) return false
         val bodyLength = parts.body.count { !it.isWhitespace() }
-        return bodyLength >= MIN_EDGE_RECOVERY_BODY_LENGTH ||
+        return allowShortBody || bodyLength >= MIN_EDGE_RECOVERY_BODY_LENGTH ||
             parts.leading.isNotBlank() ||
             parts.trailing.isNotBlank()
     }
 
     fun isRecoverableDetachedFragment(text: String): Boolean {
         return text.isDetachedEdgeFragment()
+    }
+
+    fun isDialoguePauseOrDashFragment(text: String): Boolean {
+        val symbols = text.trim().filterNot(Char::isWhitespace)
+        if (!symbols.isDetachedEdgeFragment()) return false
+        return (symbols.all { it in PAUSE_SYMBOLS } &&
+            symbols.sumOf(::visualSymbolLength) >= MIN_LEADING_PAUSE_DOTS) ||
+            (symbols.all { it in DASH_SYMBOLS } && symbols.length >= 2)
     }
 
     private fun splitEdges(text: String): EdgeParts {
@@ -367,7 +375,7 @@ internal object PaddleEdgePunctuationMerger {
         return buildString {
             edge.forEach { symbol ->
                 when (symbol) {
-                    '.', '．', '·', '・', '･' -> append('.')
+                    '.', '．', '·', '・', '･', '•' -> append('.')
                     '‥' -> append("..")
                     '…', '⋯' -> append("...")
                     '—', '―', '─', '━', '－', '-' -> append('-')
@@ -414,7 +422,7 @@ internal object PaddleEdgePunctuationMerger {
         TRAILING
     }
 
-    private val PAUSE_SYMBOLS = setOf('.', '．', '·', '・', '･', '…', '‥', '⋯')
+    private val PAUSE_SYMBOLS = setOf('.', '．', '·', '・', '･', '•', '…', '‥', '⋯')
     private val DASH_SYMBOLS = setOf('—', '―', '─', '━', '－', '-')
     private val OPENING_QUOTE_SYMBOLS = setOf('「', '『', '“', '"')
     private val CLOSING_QUOTE_SYMBOLS = setOf('」', '』', '”', '"')

@@ -10,11 +10,12 @@ object FgoDialogueSymbols {
     const val PAUSE_ELLIPSIS = "……"
     const val LONG_DASH_RUN = "───"
 
-    val longPausePattern = Regex("[·・･]{2,}|\\.{2,}|…+|‥+|⋯+")
+    val longPausePattern = Regex("[·・･•]{2,}|\\.{2,}|…+|‥+|⋯+")
     val trailingDashRunPattern = Regex("[—―─━－\\-]{2,}\\s*$")
+    private val leadingDashRunPattern = Regex("[—―─━－\\-]{2,}")
 
     private val alternateEllipsisPattern = Regex("[‥⋯]+")
-    private val repeatedMiddleDotPattern = Regex("[·・･]{2,}")
+    private val repeatedMiddleDotPattern = Regex("[·・･•]{2,}")
     private val asciiPauseDotRunPattern = Regex("\\.+")
     private val leadingAsciiDashBeforeTextPattern =
         Regex("(?m)(^|[「『（(\\[\\s　])-+(?=[\\u3400-\\u9FFF■□▇█])")
@@ -172,7 +173,9 @@ object FgoDialogueSymbols {
             .let(::normalizeDashRuns)
         if (result.isBlank()) return result
 
+        result = restoreLeadingStandalonePauseLine(sourceText, result)
         result = restoreLeadingSourcePause(sourceText, result)
+        result = restoreLeadingSourceDash(sourceText, result)
         result = reconcileTrustedTerminal(sourceText, result)
         return restoreSourceOuterWrappers(sourceText, result)
     }
@@ -475,6 +478,51 @@ object FgoDialogueSymbols {
             translatedText.substring(insertionIndex)
     }
 
+    private fun restoreLeadingStandalonePauseLine(
+        sourceText: String,
+        translatedText: String
+    ): String {
+        val sourceBreak = sourceText.indexOf('\n')
+        if (sourceBreak < 0) return translatedText
+        val sourceFirstLine = sourceText.substring(0, sourceBreak).trim().trimEnd('\r')
+        if (!sourceFirstLine.isStandalonePauseLine()) return translatedText
+        val canonicalSourceLine = longPausePattern.replace(sourceFirstLine) { match ->
+            canonicalizePauseRun(match.value)
+        }
+
+        val targetBreak = translatedText.indexOf('\n')
+        val targetFirstLine = translatedText
+            .substring(0, if (targetBreak < 0) translatedText.length else targetBreak)
+            .trim()
+            .trimEnd('\r')
+        if (targetFirstLine.isStandalonePauseLine()) {
+            val suffix = if (targetBreak < 0) "" else translatedText.substring(targetBreak)
+            return canonicalSourceLine + suffix
+        }
+        return "$canonicalSourceLine\n$translatedText"
+    }
+
+    private fun restoreLeadingSourceDash(sourceText: String, translatedText: String): String {
+        val sourceStart = leadingOpeningPrefixEnd(sourceText)
+        val sourceDash = leadingDashRunPattern.find(sourceText, sourceStart)
+            ?.takeIf { it.range.first == sourceStart }
+            ?: return translatedText
+        val targetStart = leadingOpeningPrefixEnd(translatedText)
+        val targetDash = leadingDashRunPattern.find(translatedText, targetStart)
+            ?.takeIf { it.range.first == targetStart }
+        if (targetDash != null) return translatedText
+        return translatedText.substring(0, targetStart) +
+            LONG_DASH_RUN +
+            translatedText.substring(targetStart)
+    }
+
+    private fun String.isStandalonePauseLine(): Boolean {
+        val visible = trim()
+        return visible.isNotEmpty() &&
+            containsLongPause(visible) &&
+            visible.all { it in TERMINAL_PUNCTUATION_SYMBOLS }
+    }
+
     private fun leadingPauseSpan(text: String): PunctuationSpan? {
         val start = leadingOpeningPrefixEnd(text)
         if (start >= text.length) return null
@@ -603,8 +651,10 @@ object FgoDialogueSymbols {
                     index++
                 }
 
-                '·', '・', '･' -> {
-                    val end = raw.indexAfterMatchingRun(index) { it == '·' || it == '・' || it == '･' }
+                '·', '・', '･', '•' -> {
+                    val end = raw.indexAfterMatchingRun(index) {
+                        it == '·' || it == '・' || it == '･' || it == '•'
+                    }
                     if (end - index >= 2) {
                         repeat(end - index) { output.append('…') }
                     } else {
@@ -626,7 +676,7 @@ object FgoDialogueSymbols {
         return when {
             raw.all { it == '.' } && raw.length == 3 -> PAUSE_ELLIPSIS
             raw.all { it == '.' } && raw.length == 6 -> PAUSE_ELLIPSIS.repeat(2)
-            raw.all { it == '·' || it == '・' || it == '･' } -> "…".repeat(raw.length)
+            raw.all { it == '·' || it == '・' || it == '･' || it == '•' } -> "…".repeat(raw.length)
             raw.all { it == '‥' || it == '⋯' } -> "…".repeat(raw.length)
             else -> raw
         }
@@ -959,7 +1009,7 @@ object FgoDialogueSymbols {
     private val WEAK_TERMINAL_SYMBOLS = COMMA_SYMBOLS + PERIOD_SYMBOLS
     private val EMOTIONAL_SYMBOLS = setOf('!', '！', '?', '？')
     private val PAUSE_OR_DECORATIVE_SYMBOLS = setOf(
-        '…', '‥', '⋯', '·', '・', '･', '—', '―', '─', '━', '－', '-',
+        '…', '‥', '⋯', '·', '・', '･', '•', '—', '―', '─', '━', '－', '-',
         '〜', '～', '~', '♪', '♡', '♥', '☆', '★'
     )
     private val ASCII_ELLIPSIS_RUNS = setOf(3, 6)
@@ -975,7 +1025,7 @@ object FgoDialogueSymbols {
     )
     private val TERMINAL_PUNCTUATION_SYMBOLS = setOf(
         '。', '．', '.', '、', '，', ',', '！', '!', '？', '?',
-        '…', '‥', '⋯', '·', '・', '･', '—', '―', '─', '━', '－', '-',
+        '…', '‥', '⋯', '·', '・', '･', '•', '—', '―', '─', '━', '－', '-',
         '〜', '～', '~', '：', ':', '；', ';', '♪', '♡', '♥', '☆', '★'
     )
     private val CJK_CONTEXT_SKIPPED_SYMBOLS = setOf(

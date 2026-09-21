@@ -36,6 +36,7 @@ import com.fgogotran.game.ForegroundTestOverride
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrEngineId
+import com.fgogotran.ocr.OcrContentKind
 import com.fgogotran.ocr.OcrInputScale
 import com.fgogotran.ocr.OcrTextCorrector
 import com.fgogotran.ocr.OcrTextLine
@@ -195,6 +196,7 @@ class FgoAccessibilityService : AccessibilityService() {
      */
     private val screenshotMutex = Mutex()
     private var lastAccessibilityScreenshotAt = 0L
+    private var cachedNameOcr: CachedNameOcr? = null
 
     private val unsupportedFgoLikePackageLoggedAt = LinkedHashMap<String, Long>()
     companion object {
@@ -257,6 +259,10 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NAME_INK_MIN_GLYPH_PIXELS = 24
 
         private const val NAME_INK_PADDING = 2
+
+        /** Parenthesized/space-separated name suffixes have a deliberate wide visual gap. */
+        private const val NAME_INK_GROUP_GAP_HEIGHT_RATIO = 1.35f
+        private const val NAME_OCR_CACHE_MAX_DIFF_RATIO = 0.01f
 
         private const val RUBY_MAX_CHARS = 14
         private const val RUBY_MAX_BASE_CHARS = 12
@@ -399,6 +405,12 @@ class FgoAccessibilityService : AccessibilityService() {
     private data class OcrRegionTarget(
         val bounds: Rect,
         val region: TextRegion
+    )
+
+    private data class CachedNameOcr(
+        val cropBounds: Rect,
+        val mask: VisualTextMask,
+        val region: ClassifiedRegion
     )
 
     private data class ChoiceRecognitionResult(
@@ -3105,7 +3117,7 @@ class FgoAccessibilityService : AccessibilityService() {
         var combined: Rect? = null
         for (line in lines) {
             val raw = line.boundingBox
-            val ink = measureNameGlyphBounds(source, raw) ?: return null
+            val ink = measureNameGlyphBounds(source, raw, line.text) ?: return null
             if (ink.glyphPixels < NAME_INK_MIN_GLYPH_PIXELS ||
                 ink.bounds.right >= plate.right - NAME_PLATE_CLIP_WARNING_MARGIN_PX
             ) {
@@ -3134,15 +3146,19 @@ class FgoAccessibilityService : AccessibilityService() {
     private enum class NameInkColor { NEUTRAL, RED, YELLOW_GREEN }
 
     /** Follow only the colour of the first name characters, not colourful artwork farther right. */
-    private fun measureNameGlyphBounds(source: Bitmap, box: Rect): NameInkBounds? {
+    private fun measureNameGlyphBounds(source: Bitmap, box: Rect, text: String): NameInkBounds? {
         val bounds = Rect(box).apply { intersect(0, 0, source.width, source.height) }
         if (bounds.width() <= 0 || bounds.height() <= 0) return null
+        val width = bounds.width()
+        val height = bounds.height()
+        val pixels = IntArray(width * height)
+        source.getPixels(pixels, 0, width, bounds.left, bounds.top, width, height)
 
-        val anchorRight = minOf(bounds.right, bounds.left + maxOf(90, (bounds.height() * 1.6f).toInt()))
+        val anchorRight = minOf(width, maxOf(90, (height * 1.6f).toInt()))
         val votes = IntArray(NameInkColor.entries.size)
-        for (y in bounds.top until bounds.bottom step 2) {
-            for (x in bounds.left until anchorRight step 2) {
-                nameGlyphColor(source, x, y)?.let { votes[it.ordinal]++ }
+        for (y in 0 until height step 2) {
+            for (x in 0 until anchorRight step 2) {
+                nameGlyphColor(pixels, width, height, x, y)?.let { votes[it.ordinal]++ }
             }
         }
         val color = NameInkColor.entries.maxByOrNull { votes[it.ordinal] } ?: return null
@@ -3156,20 +3172,34 @@ class FgoAccessibilityService : AccessibilityService() {
         var top = -1
         var bottom = -1
         var glyphPixels = 0
-        val maxCharacterGap = maxOf(32, (bounds.height() * 0.45f).toInt())
-        for (x in bounds.left until bounds.right) {
+        // Ordinary names remain strict so similarly coloured artwork cannot enlarge the cover.
+        // A parenthesized or explicitly spaced suffix is still part of the same speaker label,
+        // though FGO leaves a much wider blank before it. Allow that blank without falling back
+        // to the full cyan width; the scan must still find matching glyph-colour pixels.
+        val hasSeparatedGroup = text.any { char ->
+            char.isWhitespace() || char in "()（）[]［］{}｛｝【】〈〉《》「」『』"
+        }
+        val maxCharacterGap = maxOf(
+            32,
+            (height * if (hasSeparatedGroup) {
+                NAME_INK_GROUP_GAP_HEIGHT_RATIO
+            } else {
+                0.45f
+            }).toInt()
+        )
+        for (x in 0 until width) {
             var columnPixels = 0
             var columnTop = -1
             var columnBottom = -1
-            for (y in bounds.top until bounds.bottom step 2) {
-                if (nameGlyphColor(source, x, y) != color) continue
+            for (y in 0 until height step 2) {
+                if (nameGlyphColor(pixels, width, height, x, y) != color) continue
                 columnPixels++
                 if (columnTop < 0) columnTop = y
                 columnBottom = y
             }
             if (columnPixels == 0) continue
             if (right >= 0 && x - right > maxCharacterGap) break
-            if (left < 0 && x - bounds.left > bounds.height()) return null
+            if (left < 0 && x > height) return null
             if (left < 0) left = x
             right = x
             glyphPixels += columnPixels
@@ -3178,14 +3208,25 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         if (left < 0 || top < 0 || right < left || bottom < top) return null
         return NameInkBounds(
-            bounds = Rect(left, top, right + 1, bottom + 1),
+            bounds = Rect(
+                bounds.left + left,
+                bounds.top + top,
+                bounds.left + right + 1,
+                bounds.top + bottom + 1
+            ),
             glyphPixels = glyphPixels
         )
     }
 
     /** A bright text-coloured stroke has at least two darker neighbours. */
-    private fun nameGlyphColor(source: Bitmap, x: Int, y: Int): NameInkColor? {
-        val pixel = source.getPixel(x, y)
+    private fun nameGlyphColor(
+        pixels: IntArray,
+        width: Int,
+        height: Int,
+        x: Int,
+        y: Int
+    ): NameInkColor? {
+        val pixel = pixels[y * width + x]
         val r = (pixel shr 16) and 0xFF
         val g = (pixel shr 8) and 0xFF
         val b = pixel and 0xFF
@@ -3206,8 +3247,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 if (dx == 0 && dy == 0) continue
                 val nx = x + dx
                 val ny = y + dy
-                if (nx < 0 || ny < 0 || nx >= source.width || ny >= source.height) continue
-                val neighbour = source.getPixel(nx, ny)
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+                val neighbour = pixels[ny * width + nx]
                 val neighbourBrightest = maxOf(
                     (neighbour shr 16) and 0xFF,
                     (neighbour shr 8) and 0xFF,
@@ -3301,7 +3342,9 @@ class FgoAccessibilityService : AccessibilityService() {
         rubyDetectionMode: RubyDetectionMode,
         needVoiceText: Boolean = true
     ): DialogueSourceText {
-        val cleanedLines = cleanRubyNoiseLines(lines)
+        // Dialogue OCR already runs in its own crop. A punctuation-only row such as `……。`
+        // is therefore real dialogue, not name ruby, and must survive the ruby-noise filter.
+        val cleanedLines = cleanRubyNoiseLines(lines, preserveLongPauses = true)
         if (cleanedLines.size < 2) {
             val text = cleanedLines.joinToString("\n") { it.text }.trim()
             return DialogueSourceText(translationText = text, voiceText = text)
@@ -3447,19 +3490,33 @@ class FgoAccessibilityService : AccessibilityService() {
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
     }
 
-    private fun cleanRubyNoiseLines(lines: List<OcrTextLine>): List<OcrTextLine> {
+    private fun cleanRubyNoiseLines(
+        lines: List<OcrTextLine>,
+        preserveLongPauses: Boolean = false
+    ): List<OcrTextLine> {
         val sorted = lines
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-        if (sorted.size < 2) return sorted.filterNot { isRubyDotNoiseLine(it) }
+        if (sorted.size < 2) {
+            return sorted.filterNot {
+                isRubyDotNoiseLine(it) &&
+                    !(preserveLongPauses && FgoDialogueSymbols.containsLongPause(it.text))
+            }
+        }
 
         val heightReference = rubyHeightReference(sorted)
         val meaningfulLines = sorted.filterNot { isRubyDotNoiseLine(it) }
-        if (meaningfulLines.isEmpty()) return emptyList()
+        if (meaningfulLines.isEmpty()) {
+            return if (preserveLongPauses) {
+                sorted.filter { FgoDialogueSymbols.containsLongPause(it.text) }
+            } else {
+                emptyList()
+            }
+        }
 
         val noiseLines = sorted.filter { line ->
             isRubyDotNoiseLine(line) &&
-                !isStandaloneDialoguePauseLine(line, meaningfulLines, heightReference) &&
+                !(preserveLongPauses && FgoDialogueSymbols.containsLongPause(line.text)) &&
                 isRubyDotNoiseSized(line, heightReference) &&
                 meaningfulLines.any { main ->
                     isLikelyRubyAboveMain(line, main, heightReference)
@@ -3482,27 +3539,6 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun isRubyDotNoiseSized(line: OcrTextLine, heightReference: Int): Boolean {
         val height = line.boundingBox.height().coerceAtLeast(1)
         return height <= heightReference * RUBY_HEIGHT_RATIO
-    }
-
-    private fun isStandaloneDialoguePauseLine(
-        line: OcrTextLine,
-        meaningfulLines: List<OcrTextLine>,
-        heightReference: Int
-    ): Boolean {
-        val text = line.text.trim()
-        if (!FgoDialogueSymbols.containsLongPause(text)) return false
-        val hasSentenceEnd = text.any { it in setOf('。', '！', '!', '？', '?') }
-        val dotLikeCount = text.count { it.isRubyDotNoiseChar() }
-        if (!hasSentenceEnd && dotLikeCount < 2) return false
-
-        return meaningfulLines.any { main ->
-            val verticalDistance = main.boundingBox.top - line.boundingBox.bottom
-            val startsNearMain =
-                kotlin.math.abs(line.boundingBox.left - main.boundingBox.left) <= heightReference * 3
-            verticalDistance >= 0 &&
-                    verticalDistance <= heightReference * 2 &&
-                    startsNearMain
-        }
     }
 
     private fun isLikelyRubyAboveMain(
@@ -4280,11 +4316,7 @@ class FgoAccessibilityService : AccessibilityService() {
             target = OcrRegionTarget(screenRegions.dialogue, TextRegion.DIALOGUE_BOX)
         )
         val rawNameRegion = nameOcrRegion?.let { crop ->
-            // Deliberately no padding: this bitmap must contain only the cyan-bounded name region.
-            recognizeExactScreenRegion(
-                source = source,
-                target = OcrRegionTarget(crop, TextRegion.NAME_LABEL)
-            )
+            recognizeNameRegion(source, crop)
         }
         val regions = listOfNotNull(dialogueRegion, rawNameRegion).map { region ->
             when (region.region) {
@@ -4311,6 +4343,30 @@ class FgoAccessibilityService : AccessibilityService() {
             dialogueRenderBounds = screenRegions.dialogueRender,
             regions = regions
         )
+    }
+
+    /** Reuse unchanged speaker OCR; dialogue changes far more often than the name label. */
+    private suspend fun recognizeNameRegion(source: Bitmap, crop: Rect): ClassifiedRegion? {
+        val currentMask = textMaskFor(source, crop)
+        val cached = cachedNameOcr
+        if (currentMask != null && cached != null && cached.cropBounds == crop &&
+            masksAreSimilar(cached.mask, currentMask, NAME_OCR_CACHE_MAX_DIFF_RATIO)
+        ) {
+            FgoLogger.debug(tag, "Name OCR cache hit: crop=${crop.flattenToString()}")
+            return cached.region
+        }
+
+        // No padding: the OCR bitmap contains only the cyan-bounded name region.
+        val region = recognizeExactScreenRegion(
+            source = source,
+            target = OcrRegionTarget(crop, TextRegion.NAME_LABEL)
+        )
+        cachedNameOcr = if (region != null && currentMask != null) {
+            CachedNameOcr(Rect(crop), currentMask, region)
+        } else {
+            null
+        }
+        return region
     }
 
     private suspend fun recoverRedDialogueRegionIfNeeded(
@@ -4474,7 +4530,14 @@ class FgoAccessibilityService : AccessibilityService() {
         )
         return try {
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(cropped)
+                ocrEngine.recognize(
+                    cropped,
+                    contentKind = if (target.region == TextRegion.DIALOGUE_BOX) {
+                        OcrContentKind.DIALOGUE
+                    } else {
+                        OcrContentKind.GENERAL
+                    }
+                )
             }
             val regionLines = ocrResult.lines
                 .toScreenCoordinates(cropBounds)
@@ -4545,7 +4608,14 @@ class FgoAccessibilityService : AccessibilityService() {
         )
         return try {
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(cropped)
+                ocrEngine.recognize(
+                    cropped,
+                    contentKind = if (target.region == TextRegion.DIALOGUE_BOX) {
+                        OcrContentKind.DIALOGUE
+                    } else {
+                        OcrContentKind.GENERAL
+                    }
+                )
             }
             val regionLines = ocrResult.lines
                 .toScreenCoordinates(cropBounds)
@@ -4738,7 +4808,11 @@ class FgoAccessibilityService : AccessibilityService() {
                 false
             )
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(scaled!!, inputScale = OcrInputScale.X2)
+                ocrEngine.recognize(
+                    scaled!!,
+                    inputScale = OcrInputScale.X2,
+                    contentKind = OcrContentKind.DIALOGUE
+                )
             }
             val regionLines = ocrResult.lines
                 .map { line ->
@@ -4992,10 +5066,14 @@ class FgoAccessibilityService : AccessibilityService() {
         return whiteText || redText || cyanText || yellowGreenText
     }
 
-    private fun masksAreSimilar(expected: VisualTextMask, current: VisualTextMask): Boolean {
+    private fun masksAreSimilar(
+        expected: VisualTextMask,
+        current: VisualTextMask,
+        maxDiffRatio: Float = VISUAL_FINGERPRINT_MAX_DIFF_RATIO
+    ): Boolean {
         if (expected.sampleCount != current.sampleCount) return false
         val textPixelDiff = kotlin.math.abs(expected.textPixels - current.textPixels)
-        val textPixelTolerance = maxOf(8, (expected.sampleCount * VISUAL_FINGERPRINT_MAX_DIFF_RATIO).toInt())
+        val textPixelTolerance = maxOf(8, (expected.sampleCount * maxDiffRatio).toInt())
         if (textPixelDiff > textPixelTolerance) return false
 
         var bitDiff = 0

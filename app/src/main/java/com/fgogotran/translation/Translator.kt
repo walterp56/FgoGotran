@@ -902,6 +902,7 @@ class Translator @Inject constructor(
         val attemptLimit = maxApiAttempts.coerceIn(1, MAX_TRANSLATION_API_ATTEMPTS)
         val normalizedSourceText = if (!cropMode && !translateAsChoices && !translateAsName) {
             FgoDialogueSymbols.normalizeLeadingOcrDash(rawNormalizedText)
+                .let(FgoDialogueSymbols::normalizePauseDots)
         } else {
             rawNormalizedText
         }
@@ -1680,6 +1681,7 @@ class Translator @Inject constructor(
         val rawNormalizedDialogue = input.dialogue
             ?.let(TextNormalizer::normalizeForTranslation)
             ?.let(FgoDialogueSymbols::normalizeLeadingOcrDash)
+            ?.let(FgoDialogueSymbols::normalizePauseDots)
             ?.takeIf { it.isNotBlank() }
         val rawNormalizedChoices = input.choices
             .map(TextNormalizer::normalizeForTranslation)

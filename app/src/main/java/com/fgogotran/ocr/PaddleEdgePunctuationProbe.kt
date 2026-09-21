@@ -7,11 +7,9 @@ import kotlin.math.roundToInt
  * Cheap visual gate for Paddle's wider punctuation-recognition pass.
  *
  * [pixels] contains the axis-aligned bounds of the wider crop. The text bounds
- * identify the original detector box inside that window. Only bright,
- * punctuation-sized components immediately beside the original box and on the
- * same visual row are treated as evidence. This intentionally prefers an
- * occasional missed edge mark over running a second ONNX recognition for every
- * ordinary FGO text line.
+ * identify the original detector box inside that window. Only pixels outside
+ * the detector box can justify another recognition pass; pixels already inside
+ * were included in the normal pass and retrying them adds work without context.
  */
 internal object PaddleEdgePunctuationProbe {
     fun hasEvidence(
@@ -166,14 +164,7 @@ internal object PaddleEdgePunctuationProbe {
             componentHeight <= lineHeight * MAX_HORIZONTAL_HEIGHT_RATIO
         if (!compactMark && !horizontalMark) return false
 
-        val verticalOverlap = (
-            minOf(bottom, textBottom) - maxOf(top, textTop)
-            ).coerceAtLeast(0)
-        val componentCenterY = (top + bottom) / 2f
-        val textCenterY = (textTop + textBottom) / 2f
-        val sharesTextRow = verticalOverlap >= minOf(componentHeight, lineHeight) * MIN_VERTICAL_OVERLAP_RATIO ||
-            kotlin.math.abs(componentCenterY - textCenterY) <= lineHeight * MAX_CENTER_DIFFERENCE_RATIO
-        if (!sharesTextRow) return false
+        if (!sharesTextRow(top, bottom, textTop, textBottom, lineHeight)) return false
 
         val horizontalGap = when {
             right <= textLeft -> textLeft - right
@@ -182,6 +173,21 @@ internal object PaddleEdgePunctuationProbe {
         }
         val maximumGap = max(MIN_HORIZONTAL_GAP, (lineHeight * MAX_HORIZONTAL_GAP_RATIO).roundToInt())
         return horizontalGap <= maximumGap
+    }
+
+    private fun sharesTextRow(
+        top: Int,
+        bottom: Int,
+        textTop: Int,
+        textBottom: Int,
+        lineHeight: Int
+    ): Boolean {
+        val componentHeight = bottom - top
+        val verticalOverlap = (minOf(bottom, textBottom) - maxOf(top, textTop)).coerceAtLeast(0)
+        val componentCenterY = (top + bottom) / 2f
+        val textCenterY = (textTop + textBottom) / 2f
+        return verticalOverlap >= minOf(componentHeight, lineHeight) * MIN_VERTICAL_OVERLAP_RATIO ||
+            kotlin.math.abs(componentCenterY - textCenterY) <= lineHeight * MAX_CENTER_DIFFERENCE_RATIO
     }
 
     private fun luminance(pixel: Int): Int {
