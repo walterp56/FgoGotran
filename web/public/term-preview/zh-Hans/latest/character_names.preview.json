@@ -3061,7 +3061,7 @@
   },
   {
     "jp_name": "シオン・エルトナム・ソカリス",
-    "cn_name": "希翁·艾尔特纳姆·索卡里斯",
+    "cn_name": "紫苑·艾尔特纳姆·索卡里斯",
     "category": "character",
     "aliases": "シオンエルトナムソカリス,シオン·エルトナム·ソカリス"
   },
@@ -3962,6 +3962,18 @@
   {
     "jp_name": "超絶神託ちゃん",
     "cn_name": "超绝神谕酱",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ナウクラテー2号機",
+    "cn_name": "瑙克拉特二号机",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "脳内マシュ",
+    "cn_name": "腦內瑪修",
     "category": "character",
     "aliases": ""
   }

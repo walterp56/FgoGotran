@@ -82,4 +82,17 @@ app/src/test/**
 !app/src/test/java/com/fgogotran/translation/
 !app/src/test/java/com/fgogotran/translation/SessionHistoryRetentionTest.kt
 app/src/test/
+# Keep the focused choice-punctuation regression test with the implementation.
+!app/src/test/
+app/src/test/*
+!app/src/test/java/
+app/src/test/java/*
+!app/src/test/java/com/
+app/src/test/java/com/*
+!app/src/test/java/com/fgogotran/
+app/src/test/java/com/fgogotran/*
+!app/src/test/java/com/fgogotran/ocr/
+app/src/test/java/com/fgogotran/ocr/*
+!app/src/test/java/com/fgogotran/ocr/ChoicePunctuationRecoveryTest.kt
 local-ai-studio/
+app/src/test/

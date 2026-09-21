@@ -34,6 +34,7 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.game.FgoPackages
 import com.fgogotran.game.ForegroundTestOverride
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.ocr.ChoicePunctuationRecovery
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrEngineId
 import com.fgogotran.ocr.OcrContentKind
@@ -253,8 +254,6 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NAME_PLATE_CLIP_WARNING_MARGIN_PX = 8
 
         /** PaddleOCR's name box can include scenery; only text-coloured strokes size the cover. */
-        private const val NAME_INK_MIN_BRIGHTNESS = 170
-        private const val NAME_INK_MAX_SPREAD = 80
         private const val NAME_INK_NEIGHBOUR_DROP = 60
         private const val NAME_INK_MIN_GLYPH_PIXELS = 24
 
@@ -3143,8 +3142,6 @@ class FgoAccessibilityService : AccessibilityService() {
         val glyphPixels: Int
     )
 
-    private enum class NameInkColor { NEUTRAL, RED, YELLOW_GREEN }
-
     /** Follow only the colour of the first name characters, not colourful artwork farther right. */
     private fun measureNameGlyphBounds(source: Bitmap, box: Rect, text: String): NameInkBounds? {
         val bounds = Rect(box).apply { intersect(0, 0, source.width, source.height) }
@@ -3231,14 +3228,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val g = (pixel shr 8) and 0xFF
         val b = pixel and 0xFF
         val brightest = maxOf(r, g, b)
-        val darkest = minOf(r, g, b)
-        val color = when {
-            r >= NAME_INK_MIN_BRIGHTNESS && r - maxOf(g, b) >= 40 -> NameInkColor.RED
-            g >= NAME_INK_MIN_BRIGHTNESS && g - maxOf(r, b) >= 15 -> NameInkColor.YELLOW_GREEN
-            brightest >= NAME_INK_MIN_BRIGHTNESS && brightest - darkest <= NAME_INK_MAX_SPREAD ->
-                NameInkColor.NEUTRAL
-            else -> return null
-        }
+        val color = classifyNameInkColor(r, g, b) ?: return null
 
         val dropThreshold = brightest - NAME_INK_NEIGHBOUR_DROP
         var darkerNeighbours = 0
@@ -4475,9 +4465,73 @@ class FgoAccessibilityService : AccessibilityService() {
             val ocrResult = withContext(Dispatchers.Default) {
                 ocrEngine.recognize(cropped)
             }
-            val lines = ocrResult.lines
-                .toScreenCoordinates(cropBounds)
+            val rawLocalLines = ocrResult.lines
                 .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
+            val localLines = if (clippedTargets.all { it.region == TextRegion.CHOICE_BUTTON }) {
+                val recovery = withContext(Dispatchers.Default) {
+                    val pixels = IntArray(cropped.width * cropped.height)
+                    cropped.getPixels(
+                        pixels,
+                        0,
+                        cropped.width,
+                        0,
+                        0,
+                        cropped.width,
+                        cropped.height
+                    )
+                    ChoicePunctuationRecovery.recover(
+                        pixels = pixels,
+                        width = cropped.width,
+                        height = cropped.height,
+                        buttons = clippedTargets.map { target ->
+                            ChoicePunctuationRecovery.Bounds(
+                                left = target.bounds.left - cropBounds.left,
+                                top = target.bounds.top - cropBounds.top,
+                                right = target.bounds.right - cropBounds.left,
+                                bottom = target.bounds.bottom - cropBounds.top
+                            )
+                        },
+                        lines = rawLocalLines.mapIndexed { index, line ->
+                            ChoicePunctuationRecovery.Line(
+                                sourceIndex = index,
+                                text = line.text,
+                                bounds = ChoicePunctuationRecovery.Bounds(
+                                    line.boundingBox.left,
+                                    line.boundingBox.top,
+                                    line.boundingBox.right,
+                                    line.boundingBox.bottom
+                                ),
+                                confidence = line.confidence
+                            )
+                        }
+                    )
+                }
+                if (recovery.recoveredCount > 0) {
+                    FgoLogger.debug(
+                        tag,
+                        "Choice punctuation recovered from shared pixels: " +
+                            "count=${recovery.recoveredCount}, " +
+                            "before=${rawLocalLines.joinToString(" | ") { it.text }}, " +
+                            "after=${recovery.lines.joinToString(" | ") { it.text }}"
+                    )
+                }
+                recovery.lines.map { line ->
+                    OcrTextLine(
+                        text = line.text,
+                        boundingBox = Rect(
+                            line.bounds.left,
+                            line.bounds.top,
+                            line.bounds.right,
+                            line.bounds.bottom
+                        ),
+                        confidence = line.confidence
+                    )
+                }
+            } else {
+                rawLocalLines
+            }
+            val lines = localLines
+                .toScreenCoordinates(cropBounds)
 
             val regionsByTarget = clippedTargets.mapNotNull { target ->
                 val regionLines = lines.filter { lineBelongsToRegion(it.boundingBox, target.bounds) }
@@ -5059,7 +5113,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val spread = max - min
         val whiteText = r >= 170 && g >= 170 && b >= 170 && spread <= 95
         val redText = r >= 165 && r - maxOf(g, b) >= 40
-        val cyanText = g >= 140 && b >= 140 && minOf(g, b) - r >= 35
+        val cyanText = isFgoCyanTextColor(r, g, b)
         // Some speakers use the yellow-green palette colour. Without this branch those glyphs never
         // reached the colour vote (and the visual mask ignored them completely).
         val yellowGreenText = g >= 150 && g - maxOf(r, b) >= 15
