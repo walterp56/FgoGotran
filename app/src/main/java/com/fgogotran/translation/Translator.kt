@@ -2594,12 +2594,22 @@ class Translator @Inject constructor(
     ): SceneTranslateResult {
         return SceneTranslateResult(
             name = name?.forTargetLocale(config),
-            dialogue = dialogue?.forTargetLocale(config, input.dialogue.orEmpty()),
+            dialogue = dialogue
+                ?.forTargetLocale(config, input.dialogue.orEmpty())
+                ?.withFinalChineseQuoteStyle(),
             choices = choices.mapIndexed { index, result ->
-                result.forTargetLocale(config, input.choices.getOrNull(index).orEmpty())
+                result
+                    .forTargetLocale(config, input.choices.getOrNull(index).orEmpty())
+                    .withFinalChineseQuoteStyle()
             },
             voiceHint = voiceHint
         )
+    }
+
+    private fun TranslateResult.withFinalChineseQuoteStyle(): TranslateResult {
+        val normalizedText = FgoDialogueSymbols.normalizeFinalChineseQuotes(translatedText)
+        if (normalizedText == translatedText) return this
+        return copy(translatedText = normalizedText)
     }
 
     private fun TranslateResult.withFinalizedContentPunctuation(sourceText: String): TranslateResult {

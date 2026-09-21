@@ -29,6 +29,26 @@ object FgoDialogueSymbols {
     }
 
     /**
+     * Uses one quote style for final Chinese story dialogue and choices.
+     * This runs after source-punctuation reconciliation so restored Japanese
+     * corner quotes cannot leak into the final Chinese result.
+     */
+    fun normalizeFinalChineseQuotes(text: String): String {
+        if ('「' !in text && '」' !in text) return text
+        return buildString(text.length) {
+            text.forEach { char ->
+                append(
+                    when (char) {
+                        '「' -> '『'
+                        '」' -> '』'
+                        else -> char
+                    }
+                )
+            }
+        }
+    }
+
+    /**
      * Converts common OCR/model pause substitutes without changing the length
      * of a genuine Unicode ellipsis run. FGO uses intentional odd as well as
      * even `…` counts, so those runs must remain exact.

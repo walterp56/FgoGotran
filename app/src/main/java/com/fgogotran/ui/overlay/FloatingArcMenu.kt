@@ -90,23 +90,22 @@ fun FloatingArcMenu(
 
         val fan = computeFan(centerX, centerY, screenW, screenH, viewportScale, density)
 
-        var page by remember { mutableStateOf(ArcPage.MODES) }
+        var page by remember { mutableStateOf(ArcPage.FEATURES) }
 
         val contentSlots = when (page) {
-            ArcPage.MODES -> primarySlots(
-                translationMode = translationMode,
-                battleModeActive = battleModeActive,
-                isJapaneseServer = isJapaneseServer,
-                onModeChange = onTranslationModeChange,
-                onHistory = onHistoryClick
-            )
-            ArcPage.ACTIONS -> secondarySlots(
+            ArcPage.FEATURES -> featureSlots(
                 battleModeActive = battleModeActive,
                 isJapaneseServer = isJapaneseServer,
                 liveVoiceTranslationEnabled = liveVoiceTranslationEnabled,
-                onBattleSelect = onBattleModeSelect,
+                onHistory = onHistoryClick,
                 onCrop = onCropTranslateClick,
-                onLiveVoiceToggle = onLiveVoiceTranslationToggle,
+                onBattleSelect = onBattleModeSelect,
+                onLiveVoiceToggle = onLiveVoiceTranslationToggle
+            )
+            ArcPage.MODES -> modeSlots(
+                translationMode = translationMode,
+                battleModeActive = battleModeActive,
+                onModeChange = onTranslationModeChange,
                 onClose = onCloseClick
             )
         }
@@ -127,10 +126,10 @@ fun FloatingArcMenu(
 
         val navCenter = slotCenter(fan, fan.anglesDeg.last())
         NavButton(
-            label = if (page == ArcPage.MODES) "›" else "‹",
+            label = if (page == ArcPage.FEATURES) "›" else "‹",
             viewportScale = viewportScale,
             onClick = {
-                page = if (page == ArcPage.MODES) ArcPage.ACTIONS else ArcPage.MODES
+                page = if (page == ArcPage.FEATURES) ArcPage.MODES else ArcPage.FEATURES
             },
             modifier = Modifier
                 .offset(
@@ -142,7 +141,7 @@ fun FloatingArcMenu(
     }
 }
 
-private enum class ArcPage { MODES, ACTIONS }
+private enum class ArcPage { FEATURES, MODES }
 
 private data class ArcSlot(
     val icon: FloatingActionIcon?,
@@ -155,54 +154,20 @@ private data class ArcSlot(
     val onClick: () -> Unit
 )
 
-private fun primarySlots(
-    translationMode: TranslationMode,
+private fun featureSlots(
     battleModeActive: Boolean,
     isJapaneseServer: Boolean,
-    onModeChange: (TranslationMode) -> Unit,
-    onHistory: () -> Unit
+    liveVoiceTranslationEnabled: Boolean,
+    onHistory: () -> Unit,
+    onCrop: () -> Unit,
+    onBattleSelect: () -> Unit,
+    onLiveVoiceToggle: (Boolean) -> Unit
 ): List<ArcSlot> = listOf(
-    ArcSlot(
-        icon = FloatingActionIcon.AUTO,
-        label = "全自动",
-        selected = !battleModeActive && translationMode == TranslationMode.AUTO,
-        onClick = { onModeChange(TranslationMode.AUTO) }
-    ),
-    ArcSlot(
-        icon = FloatingActionIcon.SEMI,
-        label = "半自动",
-        selected = !battleModeActive && translationMode == TranslationMode.SEMI_AUTO,
-        onClick = { onModeChange(TranslationMode.SEMI_AUTO) }
-    ),
-    ArcSlot(
-        icon = FloatingActionIcon.GO,
-        label = "手动",
-        selected = !battleModeActive && translationMode == TranslationMode.MANUAL,
-        onClick = { onModeChange(TranslationMode.MANUAL) }
-    ),
     ArcSlot(
         icon = FloatingActionIcon.HISTORY_LIST,
         label = "翻译LOG",
         enabled = isJapaneseServer,
         onClick = onHistory
-    )
-)
-
-private fun secondarySlots(
-    battleModeActive: Boolean,
-    isJapaneseServer: Boolean,
-    liveVoiceTranslationEnabled: Boolean,
-    onBattleSelect: () -> Unit,
-    onCrop: () -> Unit,
-    onLiveVoiceToggle: (Boolean) -> Unit,
-    onClose: () -> Unit
-): List<ArcSlot> = listOf(
-    ArcSlot(
-        icon = FloatingActionIcon.BATTLE,
-        label = "BATTLE",
-        selected = battleModeActive,
-        enabled = isJapaneseServer,
-        onClick = onBattleSelect
     ),
     ArcSlot(
         icon = FloatingActionIcon.CROP,
@@ -211,11 +176,44 @@ private fun secondarySlots(
         onClick = onCrop
     ),
     ArcSlot(
+        icon = FloatingActionIcon.BATTLE,
+        label = "BATTLE",
+        selected = battleModeActive,
+        enabled = isJapaneseServer,
+        onClick = onBattleSelect
+    ),
+    ArcSlot(
         icon = null,
         label = "实时字幕",
         toggle = true,
         toggleOn = liveVoiceTranslationEnabled,
         onClick = { onLiveVoiceToggle(!liveVoiceTranslationEnabled) }
+    )
+)
+
+private fun modeSlots(
+    translationMode: TranslationMode,
+    battleModeActive: Boolean,
+    onModeChange: (TranslationMode) -> Unit,
+    onClose: () -> Unit
+): List<ArcSlot> = listOf(
+    ArcSlot(
+        icon = FloatingActionIcon.GO,
+        label = "手动",
+        selected = !battleModeActive && translationMode == TranslationMode.MANUAL,
+        onClick = { onModeChange(TranslationMode.MANUAL) }
+    ),
+    ArcSlot(
+        icon = FloatingActionIcon.SEMI,
+        label = "半自动",
+        selected = !battleModeActive && translationMode == TranslationMode.SEMI_AUTO,
+        onClick = { onModeChange(TranslationMode.SEMI_AUTO) }
+    ),
+    ArcSlot(
+        icon = FloatingActionIcon.AUTO,
+        label = "全自动",
+        selected = !battleModeActive && translationMode == TranslationMode.AUTO,
+        onClick = { onModeChange(TranslationMode.AUTO) }
     ),
     ArcSlot(
         icon = FloatingActionIcon.CLOSE_CIRCLE,

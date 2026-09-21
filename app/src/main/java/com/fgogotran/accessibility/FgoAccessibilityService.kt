@@ -44,6 +44,7 @@ import com.fgogotran.ocr.OcrTextLine
 import com.fgogotran.overlay.BackgroundDetector
 import com.fgogotran.overlay.DialogueMarkerReport
 import com.fgogotran.overlay.ClassifiedRegion
+import com.fgogotran.overlay.DialogueRenderTextPolicy
 import com.fgogotran.overlay.FgoScreenRegions
 import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.overlay.OverlayRenderer
@@ -2892,6 +2893,22 @@ class FgoAccessibilityService : AccessibilityService() {
                 ?: return@mapNotNull null
             val translatedText = translatedResult.translatedText
                 .trim()
+                .let { text ->
+                    if (regionAndText.region.region == TextRegion.DIALOGUE_BOX) {
+                        DialogueRenderTextPolicy.prepare(
+                            sourceText = regionAndText.text,
+                            translatedText = text,
+                            sourceLineBounds = regionAndText.region.lines.map { line ->
+                                DialogueRenderTextPolicy.LineBounds(
+                                    top = line.boundingBox.top,
+                                    bottom = line.boundingBox.bottom
+                                )
+                            }
+                        )
+                    } else {
+                        text
+                    }
+                }
                 .takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
             val showOriginalForRegion = showOriginalGameText &&

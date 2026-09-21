@@ -329,7 +329,7 @@ private fun historySpeakerDialogueView(
     color: Int,
     viewportScale: Float
 ): LinearLayout {
-    val quotedDialogue = quoteSpeakerDialogueBody(text)
+    val quotedDialogue = HistorySpeakerDialogueFormatter.prepare(text)
     val quoteWidth = historyQuoteIndentPx(
         context,
         typeface,
@@ -500,31 +500,6 @@ private fun List<String>.withClosingQuoteOnLastLine(
     }
 }
 
-private fun quoteSpeakerDialogueBody(text: String): HistoryQuotedDialogue {
-    val trimmed = text.trim()
-    if (trimmed.length < 2) {
-        return HistoryQuotedDialogue.default(text)
-    }
-
-    val closingQuote = HISTORY_QUOTE_PAIRS[trimmed.first()]
-        ?: return HistoryQuotedDialogue.default(text)
-    var closingIndex = trimmed.lastIndex
-    while (closingIndex > 0 && trimmed[closingIndex] in HISTORY_TRAILING_PUNCTUATION) {
-        closingIndex--
-    }
-    if (closingIndex <= 0 || trimmed[closingIndex] != closingQuote) {
-        return HistoryQuotedDialogue.default(text)
-    }
-
-    val trailing = trimmed.substring(closingIndex + 1)
-    return HistoryQuotedDialogue(
-        body = trimmed.substring(1, closingIndex),
-        openingQuote = trimmed.first().toString(),
-        closingQuote = closingQuote.toString(),
-        trailingPunctuation = trailing
-    )
-}
-
 private fun quoteSpeakerDialogueClosing(
     text: String,
     closingQuote: String = "」",
@@ -541,39 +516,6 @@ private fun quoteSpeakerDialogueClosing(
         )
     }
 }
-
-private data class HistoryQuotedDialogue(
-    val body: String,
-    val openingQuote: String,
-    val closingQuote: String,
-    val trailingPunctuation: String
-) {
-    companion object {
-        fun default(text: String): HistoryQuotedDialogue {
-            return HistoryQuotedDialogue(
-                body = text,
-                openingQuote = "「",
-                closingQuote = "」",
-                trailingPunctuation = ""
-            )
-        }
-    }
-}
-
-private val HISTORY_QUOTE_PAIRS = mapOf(
-    '「' to '」',
-    '『' to '』',
-    '“' to '”',
-    '‘' to '’',
-    '"' to '"',
-    '\'' to '\''
-)
-
-private val HISTORY_TRAILING_PUNCTUATION = setOf(
-    '。', '．', '.', '、', '，', ',', '！', '!', '？', '?',
-    '…', '‥', '⋯', '—', '―', '─', '━', '－', '-',
-    '〜', '～', '~', '：', ':', '；', ';', '♪', '♡', '♥', '☆', '★'
-)
 
 private fun historyQuoteIndentPx(
     context: Context,

@@ -42,7 +42,7 @@ jp_term	cn_term	category	aliases
 霊核	灵核	game_term	
 霊脈	灵脉	game_term	
 霊子	灵子	game_term	
-レイシフト	灵子转移	game_term	霊子転移
+レイシフト	灵子转移	game_term	
 霊衣	灵衣	game_term	
 聖杯探索	圣杯探索	game_term	
 グランドオーダー	冠位指定	game_term	
@@ -61,26 +61,26 @@ jp_term	cn_term	category	aliases
 英霊召喚	英灵召唤	game_term	
 召喚	召唤	game_term	
 強化	强化	game_term	
-再臨	再临	game_term	再臨
-セイバー	Saber	class	剑士
-アーチャー	Archer	class	弓兵
-ランサー	Lancer	class	枪兵
-ライダー	Rider	class	骑兵
-キャスター	Caster	class	术士
-アサシン	Assassin	class	暗匿者
-バーサーカー	Berserker	class	狂战士
-シールダー	Shielder	class	盾兵
-ルーラー	Ruler	class	裁定者
-アヴェンジャー	Avenger	class	复仇者
-ムーンキャンサー	MoonCancer	class	月之癌
-アルターエゴ	Alterego	class	Alter Ego,他人格
-フォーリナー	Foreigner	class	降临者
-プリテンダー	Pretender	class	身披角色者
+再臨	再临	game_term	
+セイバー	Saber	class	
+アーチャー	Archer	class	
+ランサー	Lancer	class	
+ライダー	Rider	class	
+キャスター	Caster	class	
+アサシン	Assassin	class	
+バーサーカー	Berserker	class	
+シールダー	Shielder	class	
+ルーラー	Ruler	class	
+アヴェンジャー	Avenger	class	
+ムーンキャンサー	MoonCancer	class	
+アルターエゴ	Alterego	class	
+フォーリナー	Foreigner	class	
+プリテンダー	Pretender	class	
 ストーム・ボーダー	Storm Border	place	ストームボーダー,ストーム・ボーダ一,ストームボーダ一,ストーム・ホーダー,ストームホーダー,ストーム・ポーダー,ストームポーダー,Storm Border,StormBorder
 ボーダー	Border	place	ボーダ一,ホーダー,ポーダー,Border
-アンビースト	UnBeast	class	越兽
+アンビースト	UnBeast	class	
 シャドウ・ボーダー	Shadow Border	place	シャドウボーダー,シャドウ・ボーダ一,シャドウボーダ一,シャドウ・ホーダー,シャドウホーダー,シャドウ・ポーダー,シャドウポーダー,Shadow Border,ShadowBorder
-汎人類史	泛人类史	game_term	Proper Human History
+汎人類史	泛人类史	game_term	
 人理定礎	人理奠基	game_term	
 剪定事象	剪定事象	game_term	
 残存詩篇	残存诗篇	game_term	Remnant Order
@@ -99,7 +99,7 @@ jp_term	cn_term	category	aliases
 空想具現化	空想具现化	game_term	
 アヴァロン	阿瓦隆	place	
 ロンゴミニアド	伦戈米尼亚德	noble_phantasm	
-ブラックバレル	Black Barrel	game_term	ブラック・バレル,Black Barrel
+ブラックバレル	Black Barrel	game_term	ブラック・バレル
 ヤガ	雅嘎	game_term	
 虚数観測機・ペーパームーン	虛數觀測機·平面之月	game_term	虚数観測機ペーパームーン
 近未来観測レンズ・シバ	近未来观测透镜·示巴	game_term	
@@ -118,8 +118,8 @@ jp_term	cn_term	category	aliases
 タマモナイン	Tamamo Nine	game_term	
 カルデニア	迦勒迪尼亚	place	カルデ二ア
 アルスィア	Althea	game_term
-パラディーン	Paladin	class	圣骑士
-シールダー・パラディーン	Shielder・Paladin	class	圣骑士盾兵
+パラディーン	Paladin	class	
+シールダー・パラディーン	Shielder・Paladin	class	
 シリウスライト	Sirius Light	game_term
 トリスメギストスI	特里斯墨吉斯忒斯II	game_term	
 マジムンアイランド	魔物岛	place	
