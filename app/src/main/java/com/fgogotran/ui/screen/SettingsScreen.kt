@@ -367,8 +367,8 @@ fun SettingsScreen(
                     }
                 )
                 PreferenceSwitchRow(
-                    title = "翻译时包含注音《ruby》",
-                    subtitle = "默认关闭：送翻译前会移除《…》注音，注音有时会干扰翻译质量；需要读音提示时可打开",
+                    title = "翻译时包含注音〈ruby〉",
+                    subtitle = "默认关闭：送翻译前会移除〈…〉注音，注音有时会干扰翻译质量；需要读音提示时可打开",
                     checked = translationIncludeRuby,
                     onCheckedChange = { enabled ->
                         translationIncludeRuby = enabled

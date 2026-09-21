@@ -728,7 +728,7 @@ class Translator @Inject constructor(
             RegexOption.IGNORE_CASE
         )
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
-        private val returnedRubyAnglePattern = Regex("""([^《》\s]{1,24})《([^》]{1,32})》""")
+        private val returnedRubyAnglePattern = Regex("""([^〈〉\s]{1,24})〈([^〉]{1,32})〉""")
         private val maskedSourceIgnoredChars = setOf(
             '、', '。', '，', '．', '.', ',', '・', '･', '·', '：', ':',
             '；', ';', '！', '!', '？', '?', '…', '‥', '—', '―', '–',
@@ -990,7 +990,7 @@ class Translator @Inject constructor(
             isBattleSubtitle -> PromptBuilder.BATTLE_PROMPT_VERSION
             cropMode -> "crop-screen-v2"
             translateAsName -> "name-only-v1"
-            preserveRubyMeaning -> "ruby-angle-v3"
+            preserveRubyMeaning -> "ruby-angle-v4"
             else -> ""
         }
         // The matched terms are part of the cache identity, so they are resolved before the
@@ -3480,7 +3480,7 @@ class Translator @Inject constructor(
             '!', '！', '?', '？', ':', '：', ';', '；',
             '(', ')', '（', '）', '[', ']', '［', '］',
             '{', '}', '｛', '｝', '「', '」', '『', '』',
-            '<', '>', '＜', '＞', '《', '》'
+            '<', '>', '＜', '＞', '《', '》', '〈', '〉'
         )
     }
 
@@ -4428,7 +4428,7 @@ class Translator @Inject constructor(
         return this in setOf(
             '\n', '\r', '。', '，', '、', '；', '：', '！', '？', '!', '?',
             '「', '」', '『', '』', '（', '）', '(', ')', '[', ']', '【', '】',
-            '《', '》', '<', '>'
+            '〈', '〉', '《', '》', '<', '>'
         )
     }
 

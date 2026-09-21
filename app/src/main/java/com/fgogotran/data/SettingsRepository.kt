@@ -665,7 +665,7 @@ class SettingsRepository @Inject constructor(
     }
 
     /**
-     * Whether 《…》 ruby readings are kept in the text sent to the translator. They help some engines
+     * Whether 〈…〉 ruby readings are kept in the text sent to the translator. They help some engines
      * and disturb others, so they are dropped by default.
      */
     val translationIncludeRuby: Flow<Boolean> = context.dataStore.data.map { prefs ->

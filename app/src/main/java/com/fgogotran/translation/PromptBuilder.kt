@@ -304,8 +304,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val RUBY_PROMPT = """
-            - base《ruby》 -> Chinese base《ruby》; translate both naturally and never omit ruby.
-            - English-style ruby may stay English; use 《》 only.
+            - base〈ruby〉 -> Chinese base〈ruby〉; translate both naturally and never omit ruby.
+            - English-style ruby may stay English; use 〈〉 only.
             """.trimIndent()
 
         private val PAUSE_PROMPT = """
@@ -696,7 +696,7 @@ class PromptBuilder @Inject constructor() {
     }
 
     private fun containsRuby(text: String): Boolean {
-        return '《' in text && '》' in text
+        return '〈' in text && '〉' in text
     }
 
     private fun containsPlaceholder(text: String): Boolean {

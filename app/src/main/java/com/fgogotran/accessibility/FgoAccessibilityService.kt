@@ -296,8 +296,8 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val ACCESSIBILITY_SCREENSHOT_RETRY_DELAY_MS = 400L
         private const val ACCESSIBILITY_SCREENSHOT_MAX_RETRIES = 2
         private const val SCREENSHOT_TIMEOUT_MS = 3_000L
-        /** 《…》 (and its half-width variant) is the ruby reading markup our formatter writes. */
-        private val RUBY_MARKUP_PATTERN = Regex("《[^》]*》|〈[^〉]*〉")
+        /** 〈…〉 is the ruby reading markup our formatter writes. */
+        private val RUBY_MARKUP_PATTERN = Regex("〈[^〉]*〉")
 
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
@@ -3031,8 +3031,8 @@ class FgoAccessibilityService : AccessibilityService() {
      *
      * Choices use the same ruby formatting as dialogue: a choice has at most two lines, an optional
      * small ruby line above the normal choice line, both read left to right. The formatter removes
-     * ruby noise, matches the small line to the line below it and writes it back as 《...》 markup, so
-     * the translator receives 南瓜狼《ブキンウルフ》 instead of a stray reading line. Two equally sized
+     * ruby noise, matches the small line to the line below it and writes it back as 〈...〉 markup, so
+     * the translator receives 南瓜狼〈ブキンウルフ〉 instead of a stray reading line. Two equally sized
      * lines are not ruby and are passed through unchanged.
      */
     private fun sourceTextFor(region: ClassifiedRegion): String {
@@ -3063,7 +3063,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Removes 《…》 ruby readings from the text that goes to the translator unless the user enabled
+     * Removes 〈…〉 ruby readings from the text that goes to the translator unless the user enabled
      * them. A line that was nothing but a reading keeps its original text.
      */
     private fun dropRubyMarkupForTranslation(text: String): String {
@@ -3632,7 +3632,7 @@ class FgoAccessibilityService : AccessibilityService() {
         if (mainText.isBlank()) return null
         val rubyText = ruby.text.trim()
         if (rubyText.isBlank() ||
-            mainText.contains("《$rubyText》") ||
+            mainText.contains("〈$rubyText〉") ||
             mainText.contains("($rubyText)") ||
             mainText.contains(rubyText)
         ) {
@@ -3652,7 +3652,7 @@ class FgoAccessibilityService : AccessibilityService() {
             .coerceIn(1, mainText.length)
         val insertIndex = refineRubyInsertIndex(mainText, rawStartIndex, rawEndIndex)
         val annotation = if (useJapaneseRubyMarkup) {
-            "《$rubyText》"
+            "〈$rubyText〉"
         } else {
             "($rubyText)"
         }

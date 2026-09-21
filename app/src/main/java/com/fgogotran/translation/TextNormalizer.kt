@@ -7,7 +7,7 @@ package com.fgogotran.translation
  * prevents repeated API calls for the same visible dialogue.
  */
 object TextNormalizer {
-    private val rubyAnnotationPattern = Regex("(?<=.)《[^》]{1,24}》")
+    private val rubyAnnotationPattern = Regex("(?<=.)〈[^〉]{1,24}〉")
     private val caldeaOcrPattern = Regex("""力ル(?=[\s　…・･、。,.!?！？ー─—―]*デア)""")
 
     fun normalizeForTranslation(text: String): String {
