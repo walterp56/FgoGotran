@@ -37,10 +37,7 @@ class BackgroundDetector @Inject constructor() {
         private const val COMPLETE_MARKER_MIN_ASPECT = 0.42f
         private const val COMPLETE_MARKER_MAX_ASPECT = 0.95f
         private const val COMPLETE_MARKER_EDGE_GUARD_PX = 2
-        private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 100
-        private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.05f
-        private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 900
-        private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.35f
+
         private const val MIN_MARKER_COMPONENT_PIXELS = 8
         private const val COMPONENT_EVIDENCE_MIN_ASPECT = 0.38f
         private const val COMPONENT_EVIDENCE_MAX_ASPECT = 1.05f
@@ -49,11 +46,6 @@ class BackgroundDetector @Inject constructor() {
     }
 
     private val tag = "BackgroundDetector"
-
-    private data class WhiteScore(
-        val whitePixels: Int,
-        val ratio: Float
-    )
 
     private data class MarkerColorProfile(
         val r: Int,
@@ -231,38 +223,26 @@ class BackgroundDetector @Inject constructor() {
     }
 
     /**
-     * One-shot report for the continue diamond: strict shape, component evidence and the legacy
-     * white-score diagnostic. Computing all three from one pass keeps the per-frame cost identical
-     * to the old strict-only check.
+     * One-shot report for the continue diamond: strict shape and component evidence.
+     * Both verdicts are computed from the same component pass.
      */
     fun dialogueCompleteMarkerReport(bitmap: Bitmap, markerRegion: Rect): DialogueMarkerReport {
         val baseBounds = clampMarkerBounds(bitmap, markerRegion)
         if (baseBounds.width() <= 0 || baseBounds.height() <= 0) {
             return DialogueMarkerReport(
-                whitePixels = 0,
-                ratio = 0f,
                 shapeVisible = false,
                 evidence = false
             )
         }
 
         val markerProfile = completeMarkerColorProfile(bitmap, baseBounds)
-        val baseScore = completeMarkerWhiteScore(bitmap, baseBounds, markerProfile)
         val components = markerComponents(bitmap, baseBounds, markerProfile)
         val regionWidth = baseBounds.width()
         val regionHeight = baseBounds.height()
         val shapeVisible = components.any { it.matchesStrictShape(regionWidth, regionHeight) }
-        val evidenceComponent = components.firstOrNull { component ->
+        val evidence = components.any { component ->
             component.matchesDiamondEvidence(regionWidth, regionHeight)
         }
-        val componentEvidence = evidenceComponent != null
-        // Diagnostic only for one validation run. Component evidence is now the sole
-        // fallback signal; strict shape remains the primary completion signal.
-        val whiteScoreEvidence = baseScore.whitePixels in
-            MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS..MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
-            baseScore.ratio in
-            MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO..MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO
-        val evidence = componentEvidence
         val componentSummary = components
             .joinToString("; ") { component ->
                 "px=${component.pixels},size=${component.width}x${component.height}," +
@@ -274,14 +254,10 @@ class BackgroundDetector @Inject constructor() {
 
         FgoLogger.debug(
             tag,
-            "Dialogue complete marker visible=$shapeVisible markerRatio=${baseScore.ratio} " +
-                "whitePixels=${baseScore.whitePixels} markerShape=$shapeVisible bounds=$baseBounds " +
-                "componentEvidence=$componentEvidence whiteScoreEvidence=$whiteScoreEvidence " +
-                "evidence=$evidence components=[$componentSummary]"
+            "Dialogue complete marker visible=$shapeVisible markerShape=$shapeVisible bounds=$baseBounds " +
+                "componentEvidence=$evidence evidence=$evidence components=[$componentSummary]"
         )
         return DialogueMarkerReport(
-            whitePixels = baseScore.whitePixels,
-            ratio = baseScore.ratio,
             shapeVisible = shapeVisible,
             evidence = evidence
         )
@@ -474,26 +450,6 @@ class BackgroundDetector @Inject constructor() {
         )
     }
 
-    private fun completeMarkerWhiteScore(
-        bitmap: Bitmap,
-        bounds: Rect,
-        markerProfile: MarkerColorProfile?
-    ): WhiteScore {
-        var whitePixels = 0
-        var totalPixels = 0
-        for (y in bounds.top until bounds.bottom step 2) {
-            for (x in bounds.left until bounds.right step 2) {
-                if (isCompleteMarkerPixel(bitmap.getPixel(x, y), markerProfile)) {
-                    whitePixels++
-                }
-                totalPixels++
-            }
-        }
-        return WhiteScore(
-            whitePixels = whitePixels,
-            ratio = if (totalPixels == 0) 0f else whitePixels.toFloat() / totalPixels
-        )
-    }
 
     private fun isCompleteMarkerPixel(pixel: Int, markerProfile: MarkerColorProfile? = null): Boolean {
         val r = (pixel shr 16) and 0xFF
@@ -832,14 +788,10 @@ class BackgroundDetector @Inject constructor() {
 /**
  * Result of one continue-diamond check.
  *
- * @property whitePixels sampled white marker pixels inside the fixed marker region
- * @property ratio sampled white ratio; menu panels and other bright UI push it far higher
  * @property shapeVisible the strict diamond shape used as the primary completion signal
  * @property evidence component-based evidence used by the three-frame completion fallback
  */
 data class DialogueMarkerReport(
-    val whitePixels: Int,
-    val ratio: Float,
     val shapeVisible: Boolean,
     val evidence: Boolean
 )

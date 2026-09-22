@@ -9,19 +9,19 @@
     "jp_term": "妖精國",
     "cn_term": "妖精国",
     "category": "place",
-    "aliases": "妖精国"
+    "aliases": ""
   },
   {
     "jp_term": "カルデア",
     "cn_term": "迦勒底",
     "category": "place",
-    "aliases": "Chaldea"
+    "aliases": ""
   },
   {
     "jp_term": "カルデアス",
     "cn_term": "迦勒底亚斯",
     "category": "game_term",
-    "aliases": "CHALDEAS"
+    "aliases": ""
   },
   {
     "jp_term": "ノウム・カルデア",
@@ -75,13 +75,13 @@
     "jp_term": "異聞帯",
     "cn_term": "异闻带",
     "category": "game_term",
-    "aliases": "Lostbelt"
+    "aliases": ""
   },
   {
     "jp_term": "ロストベルト",
     "cn_term": "异闻带",
     "category": "game_term",
-    "aliases": "Lostbelt"
+    "aliases": ""
   },
   {
     "jp_term": "空想樹",
@@ -93,7 +93,7 @@
     "jp_term": "クリプター",
     "cn_term": "隐匿者",
     "category": "game_term",
-    "aliases": "Crypter"
+    "aliases": ""
   },
   {
     "jp_term": "異星の神",
@@ -111,19 +111,19 @@
     "jp_term": "グランド",
     "cn_term": "冠位",
     "category": "game_term",
-    "aliases": "Grand"
+    "aliases": ""
   },
   {
     "jp_term": "グランドサーヴァント",
     "cn_term": "冠位从者",
     "category": "game_term",
-    "aliases": "Grand Servant"
+    "aliases": ""
   },
   {
     "jp_term": "サーヴァント",
     "cn_term": "从者",
     "category": "game_term",
-    "aliases": "Servant"
+    "aliases": ""
   },
   {
     "jp_term": "マスター",
@@ -153,31 +153,31 @@
     "jp_term": "デミ・サーヴァント",
     "cn_term": "亚从者",
     "category": "game_term",
-    "aliases": "Demi-Servant"
+    "aliases": ""
   },
   {
     "jp_term": "シャドウサーヴァント",
     "cn_term": "影从者",
     "category": "game_term",
-    "aliases": "Shadow Servant"
+    "aliases": ""
   },
   {
     "jp_term": "宝具",
     "cn_term": "宝具",
     "category": "game_term",
-    "aliases": "Noble Phantasm"
+    "aliases": ""
   },
   {
     "jp_term": "スキル",
     "cn_term": "技能",
     "category": "game_term",
-    "aliases": "Skill"
+    "aliases": ""
   },
   {
     "jp_term": "概念礼装",
     "cn_term": "概念礼装",
     "category": "game_term",
-    "aliases": "Craft Essence"
+    "aliases": ""
   },
   {
     "jp_term": "聖晶石",
@@ -201,7 +201,7 @@
     "jp_term": "令呪",
     "cn_term": "令咒",
     "category": "game_term",
-    "aliases": "Command Spell"
+    "aliases": ""
   },
   {
     "jp_term": "魔術",
@@ -261,7 +261,7 @@
     "jp_term": "レイシフト",
     "cn_term": "灵子转移",
     "category": "game_term",
-    "aliases": "Rayshift,霊子転移"
+    "aliases": ""
   },
   {
     "jp_term": "霊衣",
@@ -279,13 +279,13 @@
     "jp_term": "グランドオーダー",
     "cn_term": "冠位指定",
     "category": "game_term",
-    "aliases": "Grand Order"
+    "aliases": ""
   },
   {
     "jp_term": "冠位指定",
     "cn_term": "冠位指定",
     "category": "game_term",
-    "aliases": "Grand Order"
+    "aliases": ""
   },
   {
     "jp_term": "抑止力",
@@ -315,7 +315,7 @@
     "jp_term": "ムーンセル",
     "cn_term": "月之圣杯",
     "category": "game_term",
-    "aliases": "Moon Cell"
+    "aliases": "Mooncell"
   },
   {
     "jp_term": "聖剣",
@@ -375,91 +375,91 @@
     "jp_term": "再臨",
     "cn_term": "再临",
     "category": "game_term",
-    "aliases": "再臨"
+    "aliases": ""
   },
   {
     "jp_term": "セイバー",
     "cn_term": "Saber",
     "category": "class",
-    "aliases": "剑士"
+    "aliases": ""
   },
   {
     "jp_term": "アーチャー",
     "cn_term": "Archer",
     "category": "class",
-    "aliases": "弓兵"
+    "aliases": ""
   },
   {
     "jp_term": "ランサー",
     "cn_term": "Lancer",
     "category": "class",
-    "aliases": "枪兵"
+    "aliases": ""
   },
   {
     "jp_term": "ライダー",
     "cn_term": "Rider",
     "category": "class",
-    "aliases": "骑兵"
+    "aliases": ""
   },
   {
     "jp_term": "キャスター",
     "cn_term": "Caster",
     "category": "class",
-    "aliases": "术士"
+    "aliases": ""
   },
   {
     "jp_term": "アサシン",
     "cn_term": "Assassin",
     "category": "class",
-    "aliases": "暗匿者"
+    "aliases": ""
   },
   {
     "jp_term": "バーサーカー",
     "cn_term": "Berserker",
     "category": "class",
-    "aliases": "狂战士"
+    "aliases": ""
   },
   {
     "jp_term": "シールダー",
     "cn_term": "Shielder",
     "category": "class",
-    "aliases": "盾兵"
+    "aliases": ""
   },
   {
     "jp_term": "ルーラー",
     "cn_term": "Ruler",
     "category": "class",
-    "aliases": "裁定者"
+    "aliases": ""
   },
   {
     "jp_term": "アヴェンジャー",
     "cn_term": "Avenger",
     "category": "class",
-    "aliases": "复仇者"
+    "aliases": ""
   },
   {
     "jp_term": "ムーンキャンサー",
     "cn_term": "MoonCancer",
     "category": "class",
-    "aliases": "月之癌"
+    "aliases": ""
   },
   {
     "jp_term": "アルターエゴ",
     "cn_term": "Alterego",
     "category": "class",
-    "aliases": "Alter Ego,他人格"
+    "aliases": ""
   },
   {
     "jp_term": "フォーリナー",
     "cn_term": "Foreigner",
     "category": "class",
-    "aliases": "降临者"
+    "aliases": ""
   },
   {
     "jp_term": "プリテンダー",
     "cn_term": "Pretender",
     "category": "class",
-    "aliases": "身披角色者"
+    "aliases": ""
   },
   {
     "jp_term": "ストーム・ボーダー",
@@ -477,7 +477,7 @@
     "jp_term": "アンビースト",
     "cn_term": "UnBeast",
     "category": "class",
-    "aliases": "越兽"
+    "aliases": ""
   },
   {
     "jp_term": "シャドウ・ボーダー",
@@ -489,7 +489,7 @@
     "jp_term": "汎人類史",
     "cn_term": "泛人类史",
     "category": "game_term",
-    "aliases": "Proper Human History"
+    "aliases": ""
   },
   {
     "jp_term": "人理定礎",
@@ -573,7 +573,7 @@
     "jp_term": "固有結界",
     "cn_term": "固有结界",
     "category": "game_term",
-    "aliases": "Reality Marble"
+    "aliases": ""
   },
   {
     "jp_term": "投影魔術",
@@ -588,52 +588,22 @@
     "aliases": ""
   },
   {
-    "jp_term": "無限の剣製",
-    "cn_term": "无限剑制",
-    "category": "noble_phantasm",
-    "aliases": "アンリミテッドブレイドワークス,Unlimited Blade Works"
-  },
-  {
-    "jp_term": "エクスカリバー",
-    "cn_term": "誓约胜利之剑",
-    "category": "noble_phantasm",
-    "aliases": "約束された勝利の剣"
-  },
-  {
     "jp_term": "アヴァロン",
     "cn_term": "阿瓦隆",
     "category": "place",
     "aliases": ""
   },
   {
-    "jp_term": "ロー・アイアス",
-    "cn_term": "覆盖炽天之七圆环",
-    "category": "noble_phantasm",
-    "aliases": ""
-  },
-  {
-    "jp_term": "ルールブレイカー",
-    "cn_term": "万符必应破戒",
-    "category": "noble_phantasm",
-    "aliases": "破戒すべき全ての符"
-  },
-  {
     "jp_term": "ロンゴミニアド",
     "cn_term": "伦戈米尼亚德",
     "category": "noble_phantasm",
-    "aliases": "Rhongomyniad"
-  },
-  {
-    "jp_term": "ゲイ・ボルク",
-    "cn_term": "穿刺死棘之枪",
-    "category": "noble_phantasm",
-    "aliases": "刺し穿つ死棘の槍"
+    "aliases": ""
   },
   {
     "jp_term": "ブラックバレル",
     "cn_term": "Black Barrel",
     "category": "game_term",
-    "aliases": "ブラック・バレル,Black Barrel"
+    "aliases": "ブラック・バレル"
   },
   {
     "jp_term": "ヤガ",
@@ -747,13 +717,13 @@
     "jp_term": "パラディーン",
     "cn_term": "Paladin",
     "category": "class",
-    "aliases": "圣骑士"
+    "aliases": ""
   },
   {
     "jp_term": "シールダー・パラディーン",
     "cn_term": "Shielder・Paladin",
     "category": "class",
-    "aliases": "圣骑士盾兵"
+    "aliases": ""
   },
   {
     "jp_term": "シリウスライト",

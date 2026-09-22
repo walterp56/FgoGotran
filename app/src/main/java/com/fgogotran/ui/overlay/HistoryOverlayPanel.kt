@@ -41,7 +41,6 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
-import com.fgogotran.overlay.OverlayRenderer
 import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory

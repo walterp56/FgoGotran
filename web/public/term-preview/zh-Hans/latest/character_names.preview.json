@@ -3453,7 +3453,7 @@
     "jp_name": "先輩",
     "cn_name": "前辈",
     "category": "character",
-    "aliases": ""
+    "aliases": "センパイ,せんぱい"
   },
   {
     "jp_name": "オーディン",
@@ -3972,9 +3972,21 @@
     "aliases": ""
   },
   {
-    "jp_name": "脳内マシュ",
-    "cn_name": "腦內瑪修",
+    "jp_name": "フシアナ",
+    "cn_name": "伏西亞娜",
     "category": "character",
     "aliases": ""
+  },
+  {
+    "jp_name": "ヤン・ジシュカ",
+    "cn_name": "扬·杰式卡",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "マスター",
+    "cn_name": "御主",
+    "category": "character",
+    "aliases": "ますたー"
   }
 ]

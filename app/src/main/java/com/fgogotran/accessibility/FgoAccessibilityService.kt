@@ -88,7 +88,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /**
  * Realtime FGO capture -> OCR -> translation -> overlay pipeline.
@@ -1287,8 +1286,8 @@ class FgoAccessibilityService : AccessibilityService() {
     /**
      * Strict diamond shape is the primary completion signal. When the shape is
      * not visible on an animated frame, accept completion only if the fixed
-     * dialogue region is visually stable across three consecutive frames and the
-     * marker region keeps showing white marker evidence on all three frames.
+     * dialogue region is visually stable across three consecutive frames and a
+     * diamond-like marker component is present on all three frames.
      */
     private fun dialogueCompleteWithFallback(
         source: Bitmap,
@@ -1298,8 +1297,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val markerEvidence = markerReport.evidence
         FgoLogger.debug(
             tag,
-            "Dialogue complete marker evidence=$markerEvidence markerRatio=${markerReport.ratio} " +
-                "whitePixels=${markerReport.whitePixels}"
+            "Dialogue complete marker evidence=$markerEvidence shape=${markerReport.shapeVisible}"
         )
         val dialogueMask = textMaskFor(source, screenRegions.dialogue)
         val previousMask = dialogueFallbackMaskPrev1

@@ -9,7 +9,6 @@ import android.os.Bundle
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.fgogotran.runner.FgoRunnerService
-import com.fgogotran.util.FgoLogger
 
 /**
  * Transparent host used to request MediaProjection consent for live voice playback capture.
