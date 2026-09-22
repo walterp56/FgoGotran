@@ -83,7 +83,7 @@ class OverlayRenderer @Inject constructor(
         private const val BILINGUAL_DIALOGUE_TEXT_TOP_INSET = 24f
         private const val BILINGUAL_DIALOGUE_TEXT_BOTTOM_INSET = 0f
         private const val DYNAMIC_DIALOGUE_HORIZONTAL_PADDING = 34f
-        private const val DYNAMIC_DIALOGUE_LEFT_PADDING = 14f
+        private const val DYNAMIC_DIALOGUE_LEFT_PADDING = 30f
         private const val DYNAMIC_DIALOGUE_VERTICAL_PADDING = 18f
         private const val DYNAMIC_DIALOGUE_TEXT_HORIZONTAL_INSET = 24f
         private const val DYNAMIC_DIALOGUE_TEXT_LEFT_INSET = 14f

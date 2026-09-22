@@ -265,7 +265,8 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NAME_INK_GROUP_GAP_HEIGHT_RATIO = 1.35f
         private const val NAME_OCR_CACHE_MAX_DIFF_RATIO = 0.01f
 
-        private const val RUBY_MAX_CHARS = 14
+        /** Safety cap only: FGO readings can be long katakana names such as クルーシブル・オブ・サイクロプス. */
+        private const val RUBY_MAX_CHARS = 28
         private const val RUBY_MAX_BASE_CHARS = 12
         /**
          * Upper bound for "this box is a reading" relative to the main-line height reference.
@@ -279,6 +280,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val RUBY_HEIGHT_RATIO = 0.72f
         /** Measured pairing geometry: ruby bottom ~0.10 x line height above the line top. */
         private const val RUBY_PAIR_GAP_MAX_RATIO = 0.5f
+        private const val RUBY_PAIR_GAP_MAX_RATIO_RELAXED = 0.9f
         private const val RUBY_PAIR_OVERLAP_TOLERANCE_RATIO = 0.2f
         private const val LOG_TEXT_CHUNK_SIZE = 900
         private const val MIN_PALETTE_TEXT_PIXELS = 8
@@ -1780,7 +1782,7 @@ class FgoAccessibilityService : AccessibilityService() {
         } else {
             emptyList()
         }
-        return sceneSourceFor(mergeManualSceneRegions(choiceRegions, dialogueRegions))
+        return sceneSourceFor(mergeManualSceneRegions(choiceRegions, dialogueRegions), source)
             ?.takeIf { scene ->
                 scene.hasDialogue || scene.input.choices.any { it.isNotBlank() }
             }
@@ -1923,7 +1925,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         FgoLogger.debug(tag, "Manual path uses fixed dialogue/choice regions without story guard")
-        val sceneSource = sceneSourceFor(scan.regions)
+        val sceneSource = sceneSourceFor(scan.regions, source)
         if (sceneSource == null) {
             runnerOverlay.showTranslationFailureFeedback()
             translationOverlay.hide()
@@ -2009,7 +2011,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         FgoLogger.debug(tag, "Semi-auto tap uses choice-only OCR path")
-        val sceneSource = sceneSourceFor(choiceRegions)
+        val sceneSource = sceneSourceFor(choiceRegions, source)
         if (sceneSource == null) {
             runnerOverlay.showTranslationFailureFeedback()
             translationOverlay.hide()
@@ -2053,7 +2055,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         val dialogueRegions = recognizeDialogueRegions(source, screenRegions)
-        val dialogueScene = sceneSourceFor(dialogueRegions)
+        val dialogueScene = sceneSourceFor(dialogueRegions, source)
         if (dialogueScene?.hasDialogue == true) {
             if (choiceRecognition.bounds.isEmpty()) {
                 FgoLogger.debug(tag, "Manual dialogue OCR hit; no choice panels detected")
@@ -2088,7 +2090,7 @@ class FgoAccessibilityService : AccessibilityService() {
             dialogueCompleteByFallback
         )) {
             is AutoScanResult.Ready -> {
-                val sceneSource = sceneSourceFor(scan.regions)
+                val sceneSource = sceneSourceFor(scan.regions, source)
                 if (sceneSource == null) {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
@@ -2174,7 +2176,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
             throw error
         }
-        val dialogueScene = sceneSourceFor(dialogueRegions)
+        val dialogueScene = sceneSourceFor(dialogueRegions, source)
 
         if (dialogueScene?.hasDialogue == true) {
             if (dialogueCompleteByFallback &&
@@ -2226,7 +2228,7 @@ class FgoAccessibilityService : AccessibilityService() {
             dialogueCompleteByFallback
         )) {
             is AutoScanResult.Ready -> {
-                val sceneSource = sceneSourceFor(scan.regions)
+                val sceneSource = sceneSourceFor(scan.regions, source)
                 if (sceneSource == null) {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
@@ -2367,7 +2369,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
             throw error
         }
-        val dialogueScene = sceneSourceFor(dialogueRegions)
+        val dialogueScene = sceneSourceFor(dialogueRegions, source)
         if (dialogueScene?.hasDialogue == true) {
             if (dialogueCompleteByFallback &&
                 isSuspiciousFallbackOcr(dialogueRegions, currentScreenWidth, currentScreenHeight)
@@ -2756,8 +2758,8 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun sceneSourceFor(regions: List<ClassifiedRegion>): SceneSource? {
-        val translatableRegions = regions.mapNotNull(::regionSourceTextFor)
+    private fun sceneSourceFor(regions: List<ClassifiedRegion>, source: Bitmap? = null): SceneSource? {
+        val translatableRegions = regions.mapNotNull { region -> regionSourceTextFor(region, source) }
         if (translatableRegions.isEmpty()) return null
 
         val nameRegion = translatableRegions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
@@ -3047,16 +3049,17 @@ class FgoAccessibilityService : AccessibilityService() {
      * the translator receives 南瓜狼〈ブキンウルフ〉 instead of a stray reading line. Two equally sized
      * lines are not ruby and are passed through unchanged.
      */
-    private fun sourceTextFor(region: ClassifiedRegion): String =
-        regionSourceTextFor(region)?.text.orEmpty()
+    private fun sourceTextFor(region: ClassifiedRegion, source: Bitmap? = null): String =
+        regionSourceTextFor(region, source)?.text.orEmpty()
 
-    private fun regionSourceTextFor(region: ClassifiedRegion): RegionSourceText? {
+    private fun regionSourceTextFor(region: ClassifiedRegion, source: Bitmap? = null): RegionSourceText? {
         val dialogueSource = when (region.region) {
             TextRegion.DIALOGUE_BOX,
             TextRegion.CHOICE_BUTTON -> dialogueSourceTextFor(
                 lines = region.lines,
                 rubyDetectionMode = RubyDetectionMode.STRICT,
-                needVoiceText = false
+                needVoiceText = false,
+                sourceBitmap = source
             )
             TextRegion.NAME_LABEL -> null
         }
@@ -3352,7 +3355,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun dialogueSourceTextFor(
         lines: List<OcrTextLine>,
         rubyDetectionMode: RubyDetectionMode,
-        needVoiceText: Boolean = true
+        needVoiceText: Boolean = true,
+        sourceBitmap: Bitmap? = null
     ): DialogueSourceText {
         // Dialogue OCR already runs in its own crop. A punctuation-only row such as `……。`
         // is therefore real dialogue, not name ruby, and must survive the ruby-noise filter.
@@ -3379,10 +3383,22 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         val heightReference = rubyHeightReference(sorted)
-        val rubyCandidates = sorted.filter { line ->
-            isLikelyRubyLine(line, heightReference, rubyDetectionMode)
-        }.toSet()
-        val mainCandidates = sorted.filterNot { it in rubyCandidates }.toMutableList()
+        val rubySizedLines = sorted.filter { line -> isRubySizedLine(line, heightReference) }
+        val potentialMainCandidates = sorted.filterNot { it in rubySizedLines }
+        if (potentialMainCandidates.isEmpty()) {
+            val text = sorted.joinToString("\n") { it.text }.trim()
+            return DialogueSourceText(
+                translationText = text,
+                voiceText = text,
+                mainLineBounds = sorted.toDialogueRenderLineBounds()
+            )
+        }
+        val rubyCandidates = rubySizedLines.filter { line ->
+            isLikelyRubyContent(line, rubyDetectionMode) &&
+                potentialMainCandidates.any { main -> isPlausibleRubyAboveMain(line, main, heightReference) }
+        }
+        val rubyCandidateSet = rubyCandidates.toSet()
+        val mainCandidates = sorted.filterNot { it in rubyCandidateSet }.toMutableList()
         if (mainCandidates.isEmpty()) {
             val text = sorted.joinToString("\n") { it.text }.trim()
             return DialogueSourceText(
@@ -3391,39 +3407,32 @@ class FgoAccessibilityService : AccessibilityService() {
                 mainLineBounds = sorted.toDialogueRenderLineBounds()
             )
         }
+        val mergedRubyCandidates = mergeRubyFragments(rubyCandidates, heightReference)
+        if (mergedRubyCandidates.size != rubyCandidates.size) {
+            FgoLogger.debug(
+                tag,
+                "Ruby fragments merged: ${rubyCandidates.size} -> ${mergedRubyCandidates.size}"
+            )
+        }
+        FgoLogger.debug(
+            tag,
+            "Ruby candidates: sized=${rubySizedLines.size}, accepted=${rubyCandidates.size}, mains=${mainCandidates.size}"
+        )
 
         val rubyByMain = mutableMapOf<OcrTextLine, MutableList<OcrTextLine>>()
-        for (ruby in rubyCandidates) {
-            val main = mainCandidates
-                .filter {
-                    it.boundingBox.top >= ruby.boundingBox.bottom -
-                        (heightReference * RUBY_PAIR_OVERLAP_TOLERANCE_RATIO).toInt()
-                }
-                .filter {
-                    it.boundingBox.top - ruby.boundingBox.bottom <=
-                        (heightReference * RUBY_PAIR_GAP_MAX_RATIO).toInt()
-                }
-                .filter {
-                    horizontalOverlap(ruby.boundingBox, it.boundingBox) >= ruby.boundingBox.width() / 4 ||
-                            ruby.boundingBox.centerX() in it.boundingBox.left..it.boundingBox.right
-                }
-                .minWithOrNull(
-                    compareByDescending<OcrTextLine> { horizontalOverlap(ruby.boundingBox, it.boundingBox) }
-                        .thenBy { kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }
-                        .thenBy { it.boundingBox.top - ruby.boundingBox.bottom }
-                )
+        for (ruby in mergedRubyCandidates) {
+            val main = findMainForRuby(ruby, mainCandidates, heightReference)
             if (main != null) {
                 rubyByMain.getOrPut(main) { mutableListOf() }.add(ruby)
             }
         }
-        // Only readings that actually attached to a dialogue line count as ruby. A candidate that
-        // found no line underneath stays in the text instead of being dropped, so dialogue can never
-        // be lost to a false positive.
+        // Ruby is never dropped: after strict matching, a relaxed nearest-main match keeps every
+        // merged reading in the output even when OCR boxes are slightly offset.
         val rubyLines = rubyByMain.values.flatten().toSet()
         FgoLogger.debug(
             tag,
             "Ruby detection (${rubyDetectionMode.name.lowercase()}): ref=${heightReference}px, " +
-                "ruby=${rubyLines.size}/${rubyCandidates.size}, lines=${sorted.size}, " +
+                "ruby=${rubyLines.size}/${mergedRubyCandidates.size} (raw=${rubyCandidates.size}), lines=${sorted.size}, " +
                 "boxes=${sorted.joinToString(",") { "${it.boundingBox.height()}@${it.boundingBox.top}" }}"
         )
 
@@ -3431,7 +3440,7 @@ class FgoAccessibilityService : AccessibilityService() {
         // it; the fallbacks below replace a blank value with the main text.
         val voiceText = if (needVoiceText) {
             voiceDialogueLines(
-                sorted = sorted,
+                sorted = mainCandidates + mergedRubyCandidates,
                 rubyLines = rubyLines,
                 heightReference = heightReference
             ).joinToString("\n") { it.text.trim() }.trim()
@@ -3447,7 +3456,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         }
 
-        val mainLines = sorted.filterNot { it in rubyLines }.toMutableList()
+        val mainLines = mainCandidates
         if (mainLines.isEmpty()) {
             val text = sorted.joinToString("\n") { it.text }.trim()
             return DialogueSourceText(
@@ -3466,13 +3475,17 @@ class FgoAccessibilityService : AccessibilityService() {
                 if (rubies.isEmpty()) {
                     main.text
                 } else {
-                    insertRubyAnnotations(main.text, main.boundingBox, rubies, useJapaneseRubyMarkup = true)
+                    insertRubyAnnotations(
+                        mainText = main.text,
+                        mainBounds = main.boundingBox,
+                        rubies = rubies,
+                        useJapaneseRubyMarkup = true,
+                        sourceBitmap = sourceBitmap
+                    )
                 }
             }
             .trim()
-        val rawText = sorted.filterNot { it in rubyLines }
-            .joinToString("\n") { it.text.trim() }
-            .trim()
+        val rawText = mainCandidates.joinToString("\n") { it.text.trim() }.trim()
         if (formatted.isNotBlank() && formatted != rawText) {
             FgoLogger.debug(tag, "Ruby formatted source (${rubyDetectionMode.name.lowercase()}): $formatted")
         }
@@ -3582,6 +3595,29 @@ class FgoAccessibilityService : AccessibilityService() {
         return height <= heightReference * RUBY_HEIGHT_RATIO
     }
 
+    private fun isPlausibleRubyAboveMain(
+        ruby: OcrTextLine,
+        main: OcrTextLine,
+        heightReference: Int
+    ): Boolean {
+        if (main.boundingBox.top < ruby.boundingBox.bottom -
+            (heightReference * RUBY_PAIR_OVERLAP_TOLERANCE_RATIO).toInt()
+        ) {
+            return false
+        }
+        if (main.boundingBox.top - ruby.boundingBox.bottom >
+            (heightReference * RUBY_PAIR_GAP_MAX_RATIO_RELAXED).toInt()
+        ) {
+            return false
+        }
+        val minWidth = minOf(
+            ruby.boundingBox.width(),
+            main.boundingBox.width()
+        ).coerceAtLeast(1)
+        return horizontalOverlap(ruby.boundingBox, main.boundingBox) >= minWidth / 5 ||
+            ruby.boundingBox.centerX() in main.boundingBox.left..main.boundingBox.right
+    }
+
     private fun isLikelyRubyAboveMain(
         ruby: OcrTextLine,
         main: OcrTextLine,
@@ -3609,29 +3645,244 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun isLikelyRubyLine(
+    private data class BaseSpan(
+        val insertionIndex: Int,
+        val bounds: Rect
+    )
+
+    private fun findMainForRuby(
+        ruby: OcrTextLine,
+        mainCandidates: List<OcrTextLine>,
+        heightReference: Int
+    ): OcrTextLine? {
+        if (mainCandidates.isEmpty()) return null
+        val strict = mainCandidates
+            .filter { isLikelyRubyAboveMain(ruby, it, heightReference) }
+            .minWithOrNull(
+                compareByDescending<OcrTextLine> {
+                    horizontalOverlap(ruby.boundingBox, it.boundingBox)
+                }
+                    .thenBy {
+                        kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX())
+                    }
+                    .thenBy {
+                        kotlin.math.abs(it.boundingBox.top - ruby.boundingBox.bottom)
+                    }
+            )
+        if (strict != null) return strict
+
+        val overlapTolerance = (heightReference * RUBY_PAIR_OVERLAP_TOLERANCE_RATIO).toInt()
+        return mainCandidates.minWithOrNull(
+            compareBy<OcrTextLine> {
+                if (it.boundingBox.top >= ruby.boundingBox.bottom - overlapTolerance) 0 else 1
+            }
+                .thenBy {
+                    kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX())
+                }
+                .thenBy {
+                    kotlin.math.abs(it.boundingBox.top - ruby.boundingBox.bottom)
+                }
+        )
+    }
+
+    private fun mergeRubyFragments(
+        rubies: List<OcrTextLine>,
+        heightReference: Int
+    ): List<OcrTextLine> {
+        if (rubies.size < 2) return rubies
+        val sorted = rubies.sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+        val merged = mutableListOf<OcrTextLine>()
+        for (ruby in sorted) {
+            val previous = merged.lastOrNull()
+            if (previous != null && canMergeRubyFragments(previous, ruby, heightReference)) {
+                merged[merged.lastIndex] = mergeRubyLines(previous, ruby)
+            } else {
+                merged += ruby
+            }
+        }
+        return merged
+    }
+
+    private fun canMergeRubyFragments(
+        first: OcrTextLine,
+        second: OcrTextLine,
+        heightReference: Int
+    ): Boolean {
+        val mergedText = compactRubyText(first.text) + compactRubyText(second.text)
+        if (mergedText.length !in 1..RUBY_MAX_CHARS) return false
+        val verticalDelta = kotlin.math.abs(first.boundingBox.centerY() - second.boundingBox.centerY())
+        val maxVerticalDelta = maxOf(4, (heightReference * 0.35f).toInt())
+        if (verticalDelta > maxVerticalDelta) return false
+        val gap = second.boundingBox.left - first.boundingBox.right
+        val maxGap = maxOf(
+            8,
+            (heightReference * 0.75f).toInt(),
+            (minOf(first.boundingBox.height(), second.boundingBox.height()) * 1.5f).toInt()
+        )
+        return gap in -maxGap..maxGap
+    }
+
+    private fun mergeRubyLines(first: OcrTextLine, second: OcrTextLine): OcrTextLine {
+        val bounds = Rect(first.boundingBox).apply { union(second.boundingBox) }
+        return OcrTextLine(
+            text = compactRubyText(first.text) + compactRubyText(second.text),
+            boundingBox = bounds,
+            confidence = minOf(first.confidence, second.confidence)
+        )
+    }
+
+    private fun compactRubyText(text: String): String = text.filterNot { it.isWhitespace() }
+
+    private fun buildBaseSpans(
+        source: Bitmap,
+        mainText: String,
+        mainBounds: Rect
+    ): List<BaseSpan> {
+        if (mainText.isBlank() || mainBounds.width() <= 1 || mainBounds.height() <= 1) return emptyList()
+        val bounds = Rect(mainBounds).apply { intersect(0, 0, source.width, source.height) }
+        if (bounds.width() <= 1 || bounds.height() <= 1) return emptyList()
+
+        val columnCounts = IntArray(bounds.width())
+        for (x in 0 until bounds.width()) {
+            val sourceX = bounds.left + x
+            var count = 0
+            for (y in bounds.top until bounds.bottom) {
+                if (isLikelyTextPixel(source.getPixel(sourceX, y))) count++
+            }
+            columnCounts[x] = count
+        }
+        val maxCount = columnCounts.maxOrNull() ?: 0
+        if (maxCount <= 0) return emptyList()
+
+        val threshold = maxOf(1, (maxCount * 0.15f).toInt())
+        val rawRuns = mutableListOf<IntRange>()
+        var runStart = -1
+        for (x in columnCounts.indices) {
+            if (columnCounts[x] >= threshold) {
+                if (runStart < 0) runStart = x
+            } else if (runStart >= 0) {
+                rawRuns += runStart until x
+                runStart = -1
+            }
+        }
+        if (runStart >= 0) rawRuns += runStart until columnCounts.size
+        if (rawRuns.isEmpty()) return emptyList()
+
+        val maxGap = maxOf(2, (bounds.height() * 0.08f).toInt())
+        val mergedRuns = mutableListOf<IntRange>()
+        rawRuns.forEach { run ->
+            val previous = mergedRuns.lastOrNull()
+            if (previous != null && run.first - previous.last - 1 <= maxGap) {
+                mergedRuns[mergedRuns.lastIndex] = previous.first..run.last
+            } else {
+                mergedRuns += run
+            }
+        }
+
+        val charCenters = characterCenterFractions(mainText)
+        if (charCenters.isEmpty()) return emptyList()
+        val contentIndices = charCenters.indices.filter { mainText[it].isRubyBaseChar() }
+        if (contentIndices.isEmpty()) return emptyList()
+
+        var previousInsertionIndex = 1
+        return mergedRuns.mapNotNull { run ->
+            val startFraction = run.first.toFloat() / bounds.width()
+            val endFraction = (run.last + 1).toFloat() / bounds.width()
+            val centerFraction = (startFraction + endFraction) / 2f
+            val contained = contentIndices.filter { charCenters[it] in startFraction..endFraction }
+            val anchorIndex = contained.lastOrNull()
+                ?: contentIndices.minByOrNull { kotlin.math.abs(charCenters[it] - centerFraction) }
+                ?: return@mapNotNull null
+            val insertionIndex = maxOf(previousInsertionIndex, (anchorIndex + 1).coerceIn(1, mainText.length))
+            previousInsertionIndex = insertionIndex
+            BaseSpan(
+                insertionIndex = insertionIndex,
+                bounds = Rect(bounds.left + run.first, bounds.top, bounds.left + run.last + 1, bounds.bottom)
+            )
+        }
+    }
+
+    private fun characterCenterFractions(text: String): FloatArray {
+        if (text.isEmpty()) return FloatArray(0)
+        val weights = FloatArray(text.length) { index ->
+            val char = text[index]
+            when {
+                char.isWhitespace() -> 0.25f
+                char.isRubyBaseChar() -> 1f
+                else -> 0.5f
+            }
+        }
+        val total = weights.sum().coerceAtLeast(0.001f)
+        var cumulative = 0f
+        return FloatArray(text.length) { index ->
+            val center = (cumulative + weights[index] / 2f) / total
+            cumulative += weights[index]
+            center
+        }
+    }
+
+    private fun Char.isRubyBaseChar(): Boolean =
+        isJapaneseTextChar() || isLetterOrDigit()
+
+    private fun bestBaseSpanForRuby(
+        ruby: OcrTextLine,
+        baseSpans: List<BaseSpan>
+    ): BaseSpan? {
+        if (baseSpans.isEmpty()) return null
+
+        // A wide ruby can cover several base glyphs (for example 鍛冶神のるつぼ).
+        // Anchor it after the rightmost glyph that is substantially covered by the ruby.
+        val strongOverlaps = baseSpans.filter { span ->
+            val overlap = horizontalOverlap(ruby.boundingBox, span.bounds)
+            val threshold = maxOf(
+                2,
+                (minOf(ruby.boundingBox.width(), span.bounds.width()) * 0.6f).toInt()
+            )
+            overlap >= threshold
+        }
+        if (strongOverlaps.isNotEmpty()) {
+            return strongOverlaps.maxByOrNull { span -> span.bounds.right }
+        }
+
+        return baseSpans.maxByOrNull { span ->
+            val overlap = horizontalOverlap(ruby.boundingBox, span.bounds).toFloat()
+            val minWidth = minOf(ruby.boundingBox.width(), span.bounds.width()).coerceAtLeast(1).toFloat()
+            val overlapScore = (overlap / minWidth).coerceIn(0f, 1f)
+            val centerDelta = kotlin.math.abs(ruby.boundingBox.centerX() - span.bounds.centerX()).toFloat()
+            val tolerance = maxOf(ruby.boundingBox.height(), span.bounds.height()).coerceAtLeast(1).toFloat()
+            val centerScore = (1f - centerDelta / (tolerance * 2f)).coerceIn(0f, 1f)
+            overlapScore * 3f + centerScore
+        }
+    }
+
+    private fun isRubySizedLine(
         line: OcrTextLine,
-        heightReference: Int,
+        heightReference: Int
+    ): Boolean {
+        val height = line.boundingBox.height().coerceAtLeast(1)
+        return height <= heightReference * RUBY_HEIGHT_RATIO
+    }
+
+    private fun isLikelyRubyContent(
+        line: OcrTextLine,
         rubyDetectionMode: RubyDetectionMode
     ): Boolean {
-        val text = line.text.trim()
-        if (text.length !in 1..RUBY_MAX_CHARS) return false
-        val height = line.boundingBox.height().coerceAtLeast(1)
-        if (height > heightReference * RUBY_HEIGHT_RATIO) return false
-        val rubyChars = text.count {
+        val compact = compactRubyText(line.text)
+        if (compact.length !in 1..RUBY_MAX_CHARS) return false
+        val rubyChars = compact.count {
             it in '\u3040'..'\u30ff' ||
                     it in '\u4e00'..'\u9fff' ||
                     it.isLetterOrDigit() ||
                     it in setOf('ー', '・', '･', '＝', '=', '-', '－')
         }
-        val hasJapanese = text.any { it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff' }
+        val hasJapanese = compact.any { it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff' }
         val hasReadable = when (rubyDetectionMode) {
             RubyDetectionMode.STRICT -> hasJapanese
-            RubyDetectionMode.PERMISSIVE -> text.any {
+            RubyDetectionMode.PERMISSIVE -> compact.any {
                 it.isLetterOrDigit() || it in '\u3040'..'\u30ff' || it in '\u4e00'..'\u9fff'
             }
         }
-        return rubyChars >= (text.length * 0.7f).toInt().coerceAtLeast(1) && hasReadable
+        return rubyChars >= (compact.length * 0.7f).toInt().coerceAtLeast(1) && hasReadable
     }
 
     private fun horizontalOverlap(a: Rect, b: Rect): Int {
@@ -3648,13 +3899,23 @@ class FgoAccessibilityService : AccessibilityService() {
         mainText: String,
         mainBounds: Rect,
         rubies: List<OcrTextLine>,
-        useJapaneseRubyMarkup: Boolean
+        useJapaneseRubyMarkup: Boolean,
+        sourceBitmap: Bitmap? = null
     ): String {
+        val baseSpans = sourceBitmap
+            ?.let { bitmap -> buildBaseSpans(bitmap, mainText, mainBounds) }
+            .orEmpty()
         val insertions = rubies
-            .mapNotNull { ruby -> rubyInsertion(mainText, mainBounds, ruby, useJapaneseRubyMarkup) }
-            .distinctBy { it.index to it.rubyText }
+            .mapNotNull { ruby ->
+                rubyInsertion(mainText, mainBounds, ruby, useJapaneseRubyMarkup, baseSpans)
+            }
             .sortedByDescending { it.index }
         if (insertions.isEmpty()) return mainText
+        FgoLogger.debug(
+            tag,
+            "Ruby insertions: main=${debugQuote(mainText)}, baseSpans=${baseSpans.size}, " +
+                "indices=${insertions.joinToString(",") { it.index.toString() }}"
+        )
 
         var result = mainText
         for (insertion in insertions) {
@@ -3668,18 +3929,33 @@ class FgoAccessibilityService : AccessibilityService() {
         mainText: String,
         mainBounds: Rect,
         ruby: OcrTextLine,
-        useJapaneseRubyMarkup: Boolean
+        useJapaneseRubyMarkup: Boolean,
+        baseSpans: List<BaseSpan>
     ): RubyInsertion? {
         if (mainText.isBlank()) return null
-        val rubyText = ruby.text.trim()
+        val rubyText = compactRubyText(ruby.text)
         if (rubyText.isBlank() ||
             mainText.contains("〈$rubyText〉") ||
-            mainText.contains("($rubyText)") ||
-            mainText.contains(rubyText)
+            mainText.contains("($rubyText)")
         ) {
             return null
         }
 
+        val insertIndex = bestBaseSpanForRuby(ruby, baseSpans)?.insertionIndex
+            ?: approximateRubyInsertIndex(mainText, mainBounds, ruby)
+        val annotation = if (useJapaneseRubyMarkup) {
+            "〈$rubyText〉"
+        } else {
+            "($rubyText)"
+        }
+        return RubyInsertion(insertIndex, annotation, rubyText)
+    }
+
+    private fun approximateRubyInsertIndex(
+        mainText: String,
+        mainBounds: Rect,
+        ruby: OcrTextLine
+    ): Int {
         val approximateCharWidth = mainBounds.width().toFloat() / mainText.length.coerceAtLeast(1)
         val rawStartIndex = kotlin.math.floor(
             (ruby.boundingBox.left - mainBounds.left) / approximateCharWidth
@@ -3691,13 +3967,7 @@ class FgoAccessibilityService : AccessibilityService() {
         )
             .toInt()
             .coerceIn(1, mainText.length)
-        val insertIndex = refineRubyInsertIndex(mainText, rawStartIndex, rawEndIndex)
-        val annotation = if (useJapaneseRubyMarkup) {
-            "〈$rubyText〉"
-        } else {
-            "($rubyText)"
-        }
-        return RubyInsertion(insertIndex, annotation, rubyText)
+        return refineRubyInsertIndex(mainText, rawStartIndex, rawEndIndex)
     }
 
     private fun refineRubyInsertIndex(
@@ -4449,7 +4719,7 @@ class FgoAccessibilityService : AccessibilityService() {
         regions: List<ClassifiedRegion>
     ): List<ClassifiedRegion> {
         val normalDialogue = regions.firstOrNull { it.region == TextRegion.DIALOGUE_BOX }
-        val normalText = normalDialogue?.let(::sourceTextFor).orEmpty()
+        val normalText = normalDialogue?.let { sourceTextFor(it, source) }.orEmpty()
         val normalQuality = dialogueOcrQuality(normalText)
 
         val redPixelRatio = redDialogueTextPixelRatio(source, dialogueBounds)
@@ -4481,7 +4751,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
         }
 
-        val enhancedText = sourceTextFor(enhancedDialogue)
+        val enhancedText = sourceTextFor(enhancedDialogue, source)
         val enhancedQuality = dialogueOcrQuality(enhancedText)
         if (!enhancedQuality.isBetterThan(normalQuality)) {
             FgoLogger.debug(
