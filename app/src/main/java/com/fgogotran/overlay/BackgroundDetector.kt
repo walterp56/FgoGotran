@@ -39,9 +39,13 @@ class BackgroundDetector @Inject constructor() {
         private const val COMPLETE_MARKER_EDGE_GUARD_PX = 2
         private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 100
         private const val MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.05f
-        private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 600
+        private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS = 900
         private const val MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO = 0.35f
         private const val MIN_MARKER_COMPONENT_PIXELS = 8
+        private const val COMPONENT_EVIDENCE_MIN_ASPECT = 0.38f
+        private const val COMPONENT_EVIDENCE_MAX_ASPECT = 1.05f
+        private const val COMPONENT_EVIDENCE_MIN_COMPACTNESS = 0.28f
+        private const val COMPONENT_EVIDENCE_MAX_COMPACTNESS = 0.85f
     }
 
     private val tag = "BackgroundDetector"
@@ -227,9 +231,9 @@ class BackgroundDetector @Inject constructor() {
     }
 
     /**
-     * One-shot report for the continue diamond: white-pixel evidence, the strict shape verdict and
-     * the loose "diamond is still fading in" evidence used to start OCR early. Computing all three
-     * from one pass keeps the per-frame cost identical to the old strict-only check.
+     * One-shot report for the continue diamond: strict shape, component evidence and the legacy
+     * white-score diagnostic. Computing all three from one pass keeps the per-frame cost identical
+     * to the old strict-only check.
      */
     fun dialogueCompleteMarkerReport(bitmap: Bitmap, markerRegion: Rect): DialogueMarkerReport {
         val baseBounds = clampMarkerBounds(bitmap, markerRegion)
@@ -248,15 +252,32 @@ class BackgroundDetector @Inject constructor() {
         val regionWidth = baseBounds.width()
         val regionHeight = baseBounds.height()
         val shapeVisible = components.any { it.matchesStrictShape(regionWidth, regionHeight) }
-        val evidence = baseScore.whitePixels in
+        val evidenceComponent = components.firstOrNull { component ->
+            component.matchesDiamondEvidence(regionWidth, regionHeight)
+        }
+        val componentEvidence = evidenceComponent != null
+        // Diagnostic only for one validation run. Component evidence is now the sole
+        // fallback signal; strict shape remains the primary completion signal.
+        val whiteScoreEvidence = baseScore.whitePixels in
             MIN_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS..MAX_DIALOGUE_COMPLETE_EVIDENCE_WHITE_PIXELS &&
             baseScore.ratio in
             MIN_DIALOGUE_COMPLETE_EVIDENCE_RATIO..MAX_DIALOGUE_COMPLETE_EVIDENCE_RATIO
+        val evidence = componentEvidence
+        val componentSummary = components
+            .joinToString("; ") { component ->
+                "px=${component.pixels},size=${component.width}x${component.height}," +
+                    "aspect=${component.aspect},fill=${component.compactness}," +
+                    "center=${component.centerX.toInt()},${component.centerY.toInt()}," +
+                    "edge=${component.touchesRegionEdge(regionWidth, regionHeight)}"
+            }
+            .ifBlank { "none" }
 
         FgoLogger.debug(
             tag,
             "Dialogue complete marker visible=$shapeVisible markerRatio=${baseScore.ratio} " +
-                "whitePixels=${baseScore.whitePixels} markerShape=$shapeVisible bounds=$baseBounds"
+                "whitePixels=${baseScore.whitePixels} markerShape=$shapeVisible bounds=$baseBounds " +
+                "componentEvidence=$componentEvidence whiteScoreEvidence=$whiteScoreEvidence " +
+                "evidence=$evidence components=[$componentSummary]"
         )
         return DialogueMarkerReport(
             whitePixels = baseScore.whitePixels,
@@ -291,6 +312,10 @@ class BackgroundDetector @Inject constructor() {
         val width: Int get() = maxX - minX + 1
         val height: Int get() = maxY - minY + 1
         val aspect: Float get() = width.toFloat() / height.coerceAtLeast(1)
+        val compactness: Float
+            get() = pixels.toFloat() / (width * height).coerceAtLeast(1).toFloat()
+        val centerX: Float get() = (minX + maxX) / 2f
+        val centerY: Float get() = (minY + maxY) / 2f
 
         fun touchesRegionEdge(regionWidth: Int, regionHeight: Int): Boolean =
             minX <= COMPLETE_MARKER_EDGE_GUARD_PX ||
@@ -309,6 +334,29 @@ class BackgroundDetector @Inject constructor() {
                 width in minWidth..maxWidth &&
                 height in minHeight..maxHeight &&
                 aspect in COMPLETE_MARKER_MIN_ASPECT..COMPLETE_MARKER_MAX_ASPECT &&
+                !touchesRegionEdge(regionWidth, regionHeight)
+        }
+
+        /**
+         * Loose, position-independent evidence for the known jumping diamond graphic.
+         * The component may move inside the marker rectangle; only its area, proportions,
+         * fill density and edge distance are used here.
+         */
+        fun matchesDiamondEvidence(regionWidth: Int, regionHeight: Int): Boolean {
+            val regionArea = (regionWidth * regionHeight).coerceAtLeast(1)
+            val minPixels = maxOf(35, (regionArea * 0.015f).toInt())
+            val maxPixels = maxOf(minPixels, (regionArea * 0.55f).toInt())
+            val minWidth = maxOf(8, (regionWidth * 0.12f).toInt())
+            val maxWidth = maxOf(minWidth, (regionWidth * 0.85f).toInt())
+            val minHeight = maxOf(12, (regionHeight * 0.24f).toInt())
+            val maxHeight = maxOf(minHeight, (regionHeight * 0.98f).toInt())
+            return pixels in minPixels..maxPixels &&
+                width in minWidth..maxWidth &&
+                height in minHeight..maxHeight &&
+                aspect >= COMPONENT_EVIDENCE_MIN_ASPECT &&
+                aspect <= COMPONENT_EVIDENCE_MAX_ASPECT &&
+                compactness >= COMPONENT_EVIDENCE_MIN_COMPACTNESS &&
+                compactness <= COMPONENT_EVIDENCE_MAX_COMPACTNESS &&
                 !touchesRegionEdge(regionWidth, regionHeight)
         }
 
@@ -787,7 +835,7 @@ class BackgroundDetector @Inject constructor() {
  * @property whitePixels sampled white marker pixels inside the fixed marker region
  * @property ratio sampled white ratio; menu panels and other bright UI push it far higher
  * @property shapeVisible the strict diamond shape used as the primary completion signal
- * @property evidence bounded white evidence used by the three-frame completion fallback
+ * @property evidence component-based evidence used by the three-frame completion fallback
  */
 data class DialogueMarkerReport(
     val whitePixels: Int,

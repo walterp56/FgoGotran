@@ -393,6 +393,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private data class RegionSourceText(
         val region: ClassifiedRegion,
         val text: String,
+        val voiceText: String = "",
         /** Main dialogue boxes only; paired ruby boxes must not create a render row. */
         val dialogueRenderLineBounds: List<DialogueRenderTextPolicy.LineBounds> = emptyList()
     )
@@ -425,7 +426,8 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private data class ManualScanResult(
         val regions: List<ClassifiedRegion>,
-        val dialogueComplete: Boolean
+        val dialogueComplete: Boolean,
+        val sceneSource: SceneSource? = null
     )
 
     private enum class RubyDetectionMode {
@@ -441,7 +443,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private sealed class AutoScanResult {
         data class Ready(
-            val regions: List<ClassifiedRegion>,
+            val sceneSource: SceneSource?,
             val storyVisualRecognitionToken: Long? = null
         ) : AutoScanResult()
 
@@ -1925,7 +1927,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         FgoLogger.debug(tag, "Manual path uses fixed dialogue/choice regions without story guard")
-        val sceneSource = sceneSourceFor(scan.regions, source)
+        val sceneSource = scan.sceneSource
         if (sceneSource == null) {
             runnerOverlay.showTranslationFailureFeedback()
             translationOverlay.hide()
@@ -2048,27 +2050,37 @@ class FgoAccessibilityService : AccessibilityService() {
         if (choiceRegions.isNotEmpty()) {
             FgoLogger.debug(tag, "Manual choice text detected; reading dialogue for context")
             val dialogueRegions = recognizeDialogueRegions(source, screenRegions)
+            val mergedRegions = mergeManualSceneRegions(choiceRegions, dialogueRegions)
             return ManualScanResult(
-                regions = mergeManualSceneRegions(choiceRegions, dialogueRegions),
-                dialogueComplete = false
+                regions = mergedRegions,
+                dialogueComplete = false,
+                sceneSource = sceneSourceFor(mergedRegions, source)
             )
         }
 
         val dialogueRegions = recognizeDialogueRegions(source, screenRegions)
         val dialogueScene = sceneSourceFor(dialogueRegions, source)
-        if (dialogueScene?.hasDialogue == true) {
+        if (dialogueScene != null && dialogueScene.hasDialogue) {
             if (choiceRecognition.bounds.isEmpty()) {
                 FgoLogger.debug(tag, "Manual dialogue OCR hit; no choice panels detected")
             } else {
                 FgoLogger.debug(tag, "Manual dialogue OCR hit; choice panels had no readable text")
             }
-            return ManualScanResult(regions = dialogueRegions, dialogueComplete = false)
+            return ManualScanResult(
+                regions = dialogueRegions,
+                dialogueComplete = false,
+                sceneSource = dialogueScene
+            )
         }
 
         if (choiceRecognition.bounds.isNotEmpty()) {
             FgoLogger.debug(tag, "Manual choice panels detected but OCR returned no text")
         }
-        return ManualScanResult(regions = emptyList(), dialogueComplete = dialogueComplete)
+        return ManualScanResult(
+            regions = emptyList(),
+            dialogueComplete = dialogueComplete,
+            sceneSource = null
+        )
     }
 
     private suspend fun processSemiAutoDialogueScreen(
@@ -2090,7 +2102,7 @@ class FgoAccessibilityService : AccessibilityService() {
             dialogueCompleteByFallback
         )) {
             is AutoScanResult.Ready -> {
-                val sceneSource = sceneSourceFor(scan.regions, source)
+                val sceneSource = scan.sceneSource
                 if (sceneSource == null) {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
@@ -2178,7 +2190,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         val dialogueScene = sceneSourceFor(dialogueRegions, source)
 
-        if (dialogueScene?.hasDialogue == true) {
+        if (dialogueScene != null && dialogueScene.hasDialogue) {
             if (dialogueCompleteByFallback &&
                 isSuspiciousFallbackOcr(dialogueRegions, currentScreenWidth, currentScreenHeight)
             ) {
@@ -2198,7 +2210,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 currentScreenHeight
             )
             return AutoScanResult.Ready(
-                regions = dialogueRegions,
+                sceneSource = dialogueScene,
                 storyVisualRecognitionToken = visualDecision.recognitionToken
             )
         }
@@ -2228,7 +2240,7 @@ class FgoAccessibilityService : AccessibilityService() {
             dialogueCompleteByFallback
         )) {
             is AutoScanResult.Ready -> {
-                val sceneSource = sceneSourceFor(scan.regions, source)
+                val sceneSource = scan.sceneSource
                 if (sceneSource == null) {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
@@ -2256,7 +2268,6 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
                 if (shouldHoldAutoTapHandoffScene(
                         sceneSource = sceneSource,
-                        regions = scan.regions,
                         currentScreenWidth = currentScreenWidth,
                         currentScreenHeight = currentScreenHeight
                     )
@@ -2333,7 +2344,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
                 val sceneRegions = mergeManualSceneRegions(choiceRegions, dialogueRegions)
                 logAutoStoryDetection("Choice", sceneRegions, currentScreenWidth, currentScreenHeight)
-                return AutoScanResult.Ready(regions = sceneRegions)
+                return AutoScanResult.Ready(sceneSource = sceneSourceFor(sceneRegions, source))
             }
 
             FgoLogger.debug(tag, "Choice panels detected by pixels but OCR returned no text")
@@ -2370,7 +2381,7 @@ class FgoAccessibilityService : AccessibilityService() {
             throw error
         }
         val dialogueScene = sceneSourceFor(dialogueRegions, source)
-        if (dialogueScene?.hasDialogue == true) {
+        if (dialogueScene != null && dialogueScene.hasDialogue) {
             if (dialogueCompleteByFallback &&
                 isSuspiciousFallbackOcr(dialogueRegions, currentScreenWidth, currentScreenHeight)
             ) {
@@ -2389,7 +2400,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             logAutoStoryDetection(label, dialogueRegions, currentScreenWidth, currentScreenHeight)
             return AutoScanResult.Ready(
-                regions = dialogueRegions,
+                sceneSource = dialogueScene,
                 storyVisualRecognitionToken = visualDecision.recognitionToken
             )
         }
@@ -2440,7 +2451,6 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun shouldHoldAutoTapHandoffScene(
         sceneSource: SceneSource,
-        regions: List<ClassifiedRegion>,
         currentScreenWidth: Int,
         currentScreenHeight: Int
     ): Boolean {
@@ -2456,7 +2466,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
 
         val storyResult = storyDetector.detect(
-            lines = regions.flatMap { it.lines },
+            lines = sceneSource.regions.flatMap { it.region.lines },
             screenWidth = currentScreenWidth,
             screenHeight = currentScreenHeight,
             viewport = FgoViewportLayout.viewportForScreen(currentScreenWidth, currentScreenHeight)
@@ -2759,19 +2769,17 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun sceneSourceFor(regions: List<ClassifiedRegion>, source: Bitmap? = null): SceneSource? {
-        val translatableRegions = regions.mapNotNull { region -> regionSourceTextFor(region, source) }
+        val translatableRegions = regions.mapNotNull { region ->
+            regionSourceTextFor(region, source, needVoiceText = aiVoiceEnabled)
+        }
         if (translatableRegions.isEmpty()) return null
 
         val nameRegion = translatableRegions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
         val dialogueRegion = translatableRegions.firstOrNull { it.region.region == TextRegion.DIALOGUE_BOX }
         val choiceRegions = translatableRegions.filter { it.region.region == TextRegion.CHOICE_BUTTON }
-        // Only computed while the AI voice feature is on: it is a second ruby pass whose result is
-        // unused otherwise.
+        // Voice-only text is produced in the same ruby-formatting pass as the translation text.
         val voiceDialogue = if (aiVoiceEnabled) {
-            dialogueRegion
-                ?.region
-                ?.let(::voiceTextForDialogueRegion)
-                ?.takeIf { it.isNotBlank() }
+            dialogueRegion?.voiceText?.takeIf { it.isNotBlank() }
         } else {
             null
         }
@@ -3052,13 +3060,17 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun sourceTextFor(region: ClassifiedRegion, source: Bitmap? = null): String =
         regionSourceTextFor(region, source)?.text.orEmpty()
 
-    private fun regionSourceTextFor(region: ClassifiedRegion, source: Bitmap? = null): RegionSourceText? {
+    private fun regionSourceTextFor(
+        region: ClassifiedRegion,
+        source: Bitmap? = null,
+        needVoiceText: Boolean = false
+    ): RegionSourceText? {
         val dialogueSource = when (region.region) {
             TextRegion.DIALOGUE_BOX,
             TextRegion.CHOICE_BUTTON -> dialogueSourceTextFor(
                 lines = region.lines,
                 rubyDetectionMode = RubyDetectionMode.STRICT,
-                needVoiceText = false,
+                needVoiceText = needVoiceText,
                 sourceBitmap = source
             )
             TextRegion.NAME_LABEL -> null
@@ -3085,9 +3097,19 @@ class FgoAccessibilityService : AccessibilityService() {
             TextRegion.CHOICE_BUTTON -> dropRubyMarkupForTranslation(corrected)
         }
         if (sourceText.isBlank()) return null
+        val voiceText = if (needVoiceText && region.region == TextRegion.DIALOGUE_BOX) {
+            correctMlKitOcrSourceText(
+                sourceText = dialogueSource?.voiceText.orEmpty(),
+                label = "${region.region.name}_VOICE",
+                ocrEngine = region.ocrEngine
+            )
+        } else {
+            ""
+        }
         return RegionSourceText(
             region = region,
             text = sourceText,
+            voiceText = voiceText,
             dialogueRenderLineBounds = if (region.region == TextRegion.DIALOGUE_BOX) {
                 dialogueSource?.mainLineBounds.orEmpty()
             } else {
@@ -3305,16 +3327,6 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun voiceTextForDialogueRegion(region: ClassifiedRegion): String {
-        if (region.region != TextRegion.DIALOGUE_BOX) return ""
-        val rawText = formatDialogueForVoice(region.lines, RubyDetectionMode.STRICT)
-        return correctMlKitOcrSourceText(
-            sourceText = rawText,
-            label = "${region.region.name}_VOICE",
-            ocrEngine = region.ocrEngine
-        )
-    }
-
     private fun correctMlKitOcrSourceText(
         sourceText: String,
         label: String,
@@ -3327,13 +3339,6 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "ML Kit OCR correction ($label): $sourceText -> $corrected")
         }
         return corrected
-    }
-
-    private fun formatDialogueForVoice(
-        lines: List<OcrTextLine>,
-        rubyDetectionMode: RubyDetectionMode
-    ): String {
-        return dialogueSourceTextFor(lines, rubyDetectionMode).voiceText
     }
 
     /**
@@ -3742,12 +3747,17 @@ class FgoAccessibilityService : AccessibilityService() {
         val bounds = Rect(mainBounds).apply { intersect(0, 0, source.width, source.height) }
         if (bounds.width() <= 1 || bounds.height() <= 1) return emptyList()
 
-        val columnCounts = IntArray(bounds.width())
-        for (x in 0 until bounds.width()) {
-            val sourceX = bounds.left + x
+        val width = bounds.width()
+        val height = bounds.height()
+        val pixels = IntArray(width * height)
+        source.getPixels(pixels, 0, width, bounds.left, bounds.top, width, height)
+        val columnCounts = IntArray(width)
+        for (x in 0 until width) {
             var count = 0
-            for (y in bounds.top until bounds.bottom) {
-                if (isLikelyTextPixel(source.getPixel(sourceX, y))) count++
+            var index = x
+            while (index < pixels.size) {
+                if (isLikelyTextPixel(pixels[index])) count++
+                index += width
             }
             columnCounts[x] = count
         }
@@ -4718,12 +4728,12 @@ class FgoAccessibilityService : AccessibilityService() {
         dialogueRenderBounds: Rect,
         regions: List<ClassifiedRegion>
     ): List<ClassifiedRegion> {
+        val redPixelRatio = redDialogueTextPixelRatio(source, dialogueBounds)
+        if (redPixelRatio <= 0f) return regions
+
         val normalDialogue = regions.firstOrNull { it.region == TextRegion.DIALOGUE_BOX }
         val normalText = normalDialogue?.let { sourceTextFor(it, source) }.orEmpty()
         val normalQuality = dialogueOcrQuality(normalText)
-
-        val redPixelRatio = redDialogueTextPixelRatio(source, dialogueBounds)
-        if (redPixelRatio <= 0f) return regions
 
         val shouldTryEnhanced = normalQuality.suspicious ||
                 redPixelRatio >= RED_DIALOGUE_FORCE_FALLBACK_RATIO

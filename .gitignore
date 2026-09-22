@@ -96,3 +96,4 @@ app/src/test/java/com/fgogotran/ocr/*
 !app/src/test/java/com/fgogotran/ocr/ChoicePunctuationRecoveryTest.kt
 local-ai-studio/
 app/src/test/
+.video_inspect/

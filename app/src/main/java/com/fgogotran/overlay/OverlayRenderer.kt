@@ -5,7 +5,6 @@ import android.graphics.*
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ocr.OcrTextLine
 import com.fgogotran.translation.FgoDialogueSymbols
-import com.fgogotran.translation.TextNormalizer
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -626,13 +625,16 @@ class OverlayRenderer @Inject constructor(
 
         // The cyan border bounds OCR, but the original glyphs alone determine the painted width.
         // A loose OCR box or a long translation must never enlarge the cover into the scene.
-        val maskOnlyName = TextNormalizer.isQuestionMaskOnly(instruction.sourceText) ||
-            TextNormalizer.isQuestionMaskOnly(instruction.translatedText)
+        // If glyph measurement fails, keep the fixed left edge and use the raw OCR bounds for the
+        // right edge; the translated text is still fitted inside that measured name box.
         val originalNameBounds = instruction.region.sourceNameTextBounds
-            ?: originalTextBounds(instruction).takeIf { maskOnlyName }
+            ?: originalTextBounds(instruction)
             ?: return
-        if (instruction.region.sourceNameTextBounds == null && maskOnlyName) {
-            FgoLogger.debug(tag, "Name mask fallback using OCR bounds for ${instruction.sourceText}")
+        if (instruction.region.sourceNameTextBounds == null) {
+            FgoLogger.debug(
+                tag,
+                "Name plate fallback using OCR bounds for ${instruction.sourceText}: $originalNameBounds"
+            )
         }
         val detectedPlate = instruction.region.sourcePlateBounds ?: return
         val textLeft = box.left + NAME_TEXT_LEFT_INSET * scale

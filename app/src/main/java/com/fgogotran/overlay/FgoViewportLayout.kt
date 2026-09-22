@@ -55,7 +55,13 @@ object FgoViewportLayout {
         DialogueReferenceGeometry.RENDER_RIGHT,
         1055f
     )
-    private val dialogueCompleteRegion = RectF(1810f, 945f, 1888f, 1078f)
+    /**
+     * FGO's story-complete diamond is a fixed 40x68 reference-space graphic that
+     * oscillates vertically by about 34px. This rectangle covers the full measured
+     * envelope with roughly 10px of margin on every side, so the moving diamond
+     * stays away from the marker-region edges.
+     */
+    private val dialogueCompleteRegion = RectF(1804f, 951f, 1868f, 1072f)
 
     fun regionsForScreen(screenWidth: Int, screenHeight: Int): FgoScreenRegions {
         val viewport = calculateViewport(screenWidth, screenHeight)
