@@ -97,3 +97,4 @@ app/src/test/java/com/fgogotran/ocr/*
 local-ai-studio/
 app/src/test/
 .video_inspect/
+.font_inspect/
