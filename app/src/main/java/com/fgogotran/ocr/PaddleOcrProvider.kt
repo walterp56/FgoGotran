@@ -120,13 +120,43 @@ private class PaddleOcrRuntime(
         val startedAt = System.currentTimeMillis()
         FgoLogger.debug(tag, "PaddleOCR starting on ${bitmap.width}x${bitmap.height}")
 
-        val detection = detectText(bitmap)
+        // Dialogue annotations must be separated before detection. If emphasis dots reach Paddle's
+        // detector, it can split one horizontal main row into dot/glyph fragments and the recognizer
+        // never receives the clean Japanese line. Only verified upper dot components are masked;
+        // readable ruby and main-band punctuation remain in the image.
+        val originalDialoguePixels = if (contentKind == OcrContentKind.DIALOGUE) {
+            IntArray(bitmap.width * bitmap.height).also { pixels ->
+                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            }
+        } else {
+            null
+        }
+        val annotationCleanup = originalDialoguePixels?.let { pixels ->
+            DialogueAnnotationCleaner.clean(pixels, bitmap.width, bitmap.height)
+        }
+        val dialoguePixels = annotationCleanup?.pixels
+        val recognitionBitmap = annotationCleanup
+            ?.takeIf(DialogueAnnotationCleaner.Result::changed)
+            ?.let { cleanup ->
+                Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888).apply {
+                    setPixels(cleanup.pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                }.also {
+                    FgoLogger.debug(
+                        tag,
+                        "PaddleOCR dialogue annotations cleaned before recognition: " +
+                            "dots=${cleanup.maskedComponents}, rows=${cleanup.maskedRows}"
+                    )
+                }
+            } ?: bitmap
+
+        return try {
+        val detection = detectText(recognitionBitmap)
         val boxes = detection.boxes
             .sortedWith(compareBy({ boxMinY(it) }, { boxMinX(it) }))
 
         val recognitionTargets = boxes.mapIndexed { index, box ->
-            val bounds = boxToRect(box, bitmap.width, bitmap.height)
-            val crop = cropTextLine(bitmap, box)
+            val bounds = boxToRect(box, recognitionBitmap.width, recognitionBitmap.height)
+            val crop = cropTextLine(recognitionBitmap, box)
             val prepared = if (crop == null) {
                 null
             } else {
@@ -142,13 +172,6 @@ private class PaddleOcrRuntime(
                 bounds = bounds,
                 prepared = prepared
             )
-        }
-        val dialoguePixels = if (contentKind == OcrContentKind.DIALOGUE) {
-            IntArray(bitmap.width * bitmap.height).also { pixels ->
-                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-            }
-        } else {
-            null
         }
         val visualDashTargetIndexes = if (dialoguePixels == null) {
             emptySet()
@@ -197,7 +220,7 @@ private class PaddleOcrRuntime(
                 edgeRecoveryAttempts < DIALOGUE_EDGE_RECOVERY_MAX_PASSES
             ) {
                 recoverEdgePunctuation(
-                    source = bitmap,
+                    source = recognitionBitmap,
                     box = target.box,
                     tightRecognition = tightRecognition,
                     contentKind = contentKind
@@ -253,7 +276,7 @@ private class PaddleOcrRuntime(
 
         val quoteRecoveredTextBoxes = recoverNoisyLeadingQuoteCandidates(detectedTextBoxes)
         val recoveredLines = recoverSplitSolidMaskRows(
-            source = bitmap,
+            source = recognitionBitmap,
             detectedTextBoxes = quoteRecoveredTextBoxes,
             maskRows = detection.solidMaskRows
         )
@@ -295,11 +318,16 @@ private class PaddleOcrRuntime(
                 "PaddleOCR complete: ${lines.size} lines, ${fullText.length} chars, ${elapsed}ms"
             )
         }
-        return OcrResult(
+        OcrResult(
             lines = lines,
             fullText = fullText,
             engine = OcrEngineId.PADDLE_OCR
         )
+        } finally {
+            if (recognitionBitmap !== bitmap && !recognitionBitmap.isRecycled) {
+                recognitionBitmap.recycle()
+            }
+        }
     }
 
     private fun readAsset(path: String): ByteArray {

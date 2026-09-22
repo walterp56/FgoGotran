@@ -389,7 +389,9 @@ class FgoAccessibilityService : AccessibilityService() {
     private val tag = "Accessibility"
     private data class RegionSourceText(
         val region: ClassifiedRegion,
-        val text: String
+        val text: String,
+        /** Main dialogue boxes only; paired ruby boxes must not create a render row. */
+        val dialogueRenderLineBounds: List<DialogueRenderTextPolicy.LineBounds> = emptyList()
     )
 
     private data class SceneSource(
@@ -430,7 +432,8 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private data class DialogueSourceText(
         val translationText: String,
-        val voiceText: String
+        val voiceText: String,
+        val mainLineBounds: List<DialogueRenderTextPolicy.LineBounds>
     )
 
     private sealed class AutoScanResult {
@@ -2753,10 +2756,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun sceneSourceFor(regions: List<ClassifiedRegion>): SceneSource? {
-        val translatableRegions = regions.mapNotNull { region ->
-            val sourceText = sourceTextFor(region)
-            if (sourceText.isBlank()) null else RegionSourceText(region, sourceText)
-        }
+        val translatableRegions = regions.mapNotNull(::regionSourceTextFor)
         if (translatableRegions.isEmpty()) return null
 
         val nameRegion = translatableRegions.firstOrNull { it.region.region == TextRegion.NAME_LABEL }
@@ -2898,12 +2898,7 @@ class FgoAccessibilityService : AccessibilityService() {
                         DialogueRenderTextPolicy.prepare(
                             sourceText = regionAndText.text,
                             translatedText = text,
-                            sourceLineBounds = regionAndText.region.lines.map { line ->
-                                DialogueRenderTextPolicy.LineBounds(
-                                    top = line.boundingBox.top,
-                                    bottom = line.boundingBox.bottom
-                                )
-                            }
+                            sourceLineBounds = regionAndText.dialogueRenderLineBounds
                         )
                     } else {
                         text
@@ -3051,13 +3046,22 @@ class FgoAccessibilityService : AccessibilityService() {
      * the translator receives 南瓜狼〈ブキンウルフ〉 instead of a stray reading line. Two equally sized
      * lines are not ruby and are passed through unchanged.
      */
-    private fun sourceTextFor(region: ClassifiedRegion): String {
+    private fun sourceTextFor(region: ClassifiedRegion): String =
+        regionSourceTextFor(region)?.text.orEmpty()
+
+    private fun regionSourceTextFor(region: ClassifiedRegion): RegionSourceText? {
+        val dialogueSource = when (region.region) {
+            TextRegion.DIALOGUE_BOX,
+            TextRegion.CHOICE_BUTTON -> dialogueSourceTextFor(
+                lines = region.lines,
+                rubyDetectionMode = RubyDetectionMode.STRICT,
+                needVoiceText = false
+            )
+            TextRegion.NAME_LABEL -> null
+        }
         val rawText = when (region.region) {
             TextRegion.DIALOGUE_BOX,
-            TextRegion.CHOICE_BUTTON -> formatDialogueForTranslation(
-                lines = region.lines,
-                rubyDetectionMode = RubyDetectionMode.STRICT
-            )
+            TextRegion.CHOICE_BUTTON -> dialogueSource?.translationText.orEmpty()
             TextRegion.NAME_LABEL -> nameLabelSourceText(region.lines)
         }
         val corrected = when (region.region) {
@@ -3071,11 +3075,21 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         // Only the text handed to the translator loses the ruby readings: they help some models and
         // disturb others, so the user can decide in the translation preferences.
-        return when (region.region) {
+        val sourceText = when (region.region) {
             TextRegion.NAME_LABEL -> corrected
             TextRegion.DIALOGUE_BOX,
             TextRegion.CHOICE_BUTTON -> dropRubyMarkupForTranslation(corrected)
         }
+        if (sourceText.isBlank()) return null
+        return RegionSourceText(
+            region = region,
+            text = sourceText,
+            dialogueRenderLineBounds = if (region.region == TextRegion.DIALOGUE_BOX) {
+                dialogueSource?.mainLineBounds.orEmpty()
+            } else {
+                emptyList()
+            }
+        )
     }
 
     /**
@@ -3309,18 +3323,6 @@ class FgoAccessibilityService : AccessibilityService() {
         return corrected
     }
 
-    private fun formatDialogueForTranslation(
-        lines: List<OcrTextLine>,
-        rubyDetectionMode: RubyDetectionMode
-    ): String {
-        // Translation never needs the voice reading text, so it is not built here.
-        return dialogueSourceTextFor(
-            lines = lines,
-            rubyDetectionMode = rubyDetectionMode,
-            needVoiceText = false
-        ).translationText
-    }
-
     private fun formatDialogueForVoice(
         lines: List<OcrTextLine>,
         rubyDetectionMode: RubyDetectionMode
@@ -3354,7 +3356,11 @@ class FgoAccessibilityService : AccessibilityService() {
         val cleanedLines = cleanRubyNoiseLines(lines, preserveLongPauses = true)
         if (cleanedLines.size < 2) {
             val text = cleanedLines.joinToString("\n") { it.text }.trim()
-            return DialogueSourceText(translationText = text, voiceText = text)
+            return DialogueSourceText(
+                translationText = text,
+                voiceText = text,
+                mainLineBounds = cleanedLines.toDialogueRenderLineBounds()
+            )
         }
 
         val sorted = cleanedLines
@@ -3362,7 +3368,11 @@ class FgoAccessibilityService : AccessibilityService() {
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
         if (sorted.size < 2) {
             val text = sorted.joinToString("\n") { it.text }.trim()
-            return DialogueSourceText(translationText = text, voiceText = text)
+            return DialogueSourceText(
+                translationText = text,
+                voiceText = text,
+                mainLineBounds = sorted.toDialogueRenderLineBounds()
+            )
         }
 
         val heightReference = rubyHeightReference(sorted)
@@ -3372,7 +3382,11 @@ class FgoAccessibilityService : AccessibilityService() {
         val mainCandidates = sorted.filterNot { it in rubyCandidates }.toMutableList()
         if (mainCandidates.isEmpty()) {
             val text = sorted.joinToString("\n") { it.text }.trim()
-            return DialogueSourceText(translationText = text, voiceText = text)
+            return DialogueSourceText(
+                translationText = text,
+                voiceText = text,
+                mainLineBounds = sorted.toDialogueRenderLineBounds()
+            )
         }
 
         val rubyByMain = mutableMapOf<OcrTextLine, MutableList<OcrTextLine>>()
@@ -3423,13 +3437,21 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         if (rubyLines.isEmpty()) {
             val text = sorted.joinToString("\n") { it.text }.trim()
-            return DialogueSourceText(translationText = text, voiceText = voiceText.ifBlank { text })
+            return DialogueSourceText(
+                translationText = text,
+                voiceText = voiceText.ifBlank { text },
+                mainLineBounds = sorted.toDialogueRenderLineBounds()
+            )
         }
 
         val mainLines = sorted.filterNot { it in rubyLines }.toMutableList()
         if (mainLines.isEmpty()) {
             val text = sorted.joinToString("\n") { it.text }.trim()
-            return DialogueSourceText(translationText = text, voiceText = voiceText.ifBlank { text })
+            return DialogueSourceText(
+                translationText = text,
+                voiceText = voiceText.ifBlank { text },
+                mainLineBounds = sorted.toDialogueRenderLineBounds()
+            )
         }
 
         val formatted = mainLines
@@ -3453,9 +3475,18 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         return DialogueSourceText(
             translationText = formatted,
-            voiceText = voiceText.ifBlank { rawText.ifBlank { formatted } }
+            voiceText = voiceText.ifBlank { rawText.ifBlank { formatted } },
+            mainLineBounds = mainLines.toDialogueRenderLineBounds()
         )
     }
+
+    private fun List<OcrTextLine>.toDialogueRenderLineBounds(): List<DialogueRenderTextPolicy.LineBounds> =
+        map { line ->
+            DialogueRenderTextPolicy.LineBounds(
+                top = line.boundingBox.top,
+                bottom = line.boundingBox.bottom
+            )
+        }
 
     private fun voiceDialogueLines(
         sorted: List<OcrTextLine>,

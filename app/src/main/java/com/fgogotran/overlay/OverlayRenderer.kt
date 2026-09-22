@@ -75,9 +75,9 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
         private const val DIALOGUE_MAX_LINES = 2
-        private const val DIALOGUE_TEXT_LEFT_INSET = 100f
+        private const val DIALOGUE_TEXT_LEFT_INSET = DialogueReferenceGeometry.TEXT_LEFT_INSET
         private const val DIALOGUE_TEXT_TOP_INSET = 48f
-        private const val DIALOGUE_TEXT_RIGHT_INSET = 46f
+        private const val DIALOGUE_TEXT_RIGHT_INSET = DialogueReferenceGeometry.TEXT_RIGHT_INSET
         private const val DIALOGUE_TEXT_BOTTOM_INSET = 12f
         private const val BILINGUAL_DIALOGUE_TEXT_TOP_INSET = 24f
         private const val BILINGUAL_DIALOGUE_TEXT_BOTTOM_INSET = 0f
@@ -103,6 +103,7 @@ class OverlayRenderer @Inject constructor(
         private const val BILINGUAL_ORIGINAL_MIN_TEXT_SIZE = 14f
         private const val DIALOGUE_MIN_TEXT_SIZE = 28f
         private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
+        private const val DIALOGUE_TEXT_SIZE_SEARCH_PRECISION = 0.25f
         private const val NAME_TEXT_SIZE = 56f
         private const val NAME_TEXT_MIN_SIZE = 31f
         private const val NAME_TEXT_LEFT_INSET = 52f
@@ -254,7 +255,7 @@ class OverlayRenderer @Inject constructor(
             tag,
             "Dialogue render lines: count=${layout.lines.size}, " +
                 "widths=${layout.lines.map { paint.measureText(it).toInt() }}, " +
-                "maxWidth=${layout.textArea.width().toInt()}, textSize=${paint.textSize.toInt()}"
+                "maxWidth=${layout.textArea.width().toInt()}, textSize=${paint.textSize}"
         )
         val clearBox = layout.clearBox
 
@@ -451,6 +452,7 @@ class OverlayRenderer @Inject constructor(
             initialTextSize = preferredTextSize,
             preferredMinimumTextSize = DIALOGUE_MIN_TEXT_SIZE * scale,
             emergencyMinimumTextSize = DIALOGUE_EMERGENCY_MIN_TEXT_SIZE * scale,
+            precision = DIALOGUE_TEXT_SIZE_SEARCH_PRECISION * scale,
             maxWidth = textArea.width(),
             maxHeight = textArea.height(),
             maxLines = DIALOGUE_MAX_LINES,
@@ -986,6 +988,7 @@ class OverlayRenderer @Inject constructor(
         initialTextSize: Float,
         preferredMinimumTextSize: Float,
         emergencyMinimumTextSize: Float,
+        precision: Float,
         maxWidth: Float,
         maxHeight: Float,
         maxLines: Int,
@@ -993,22 +996,31 @@ class OverlayRenderer @Inject constructor(
         fallbackText: String
     ): Pair<List<String>, Float> {
         val distinctCandidates = distinctDialogueCandidates(candidates)
-
-        listOf(preferredMinimumTextSize, emergencyMinimumTextSize).forEach { minimumTextSize ->
-            var textSize = initialTextSize
-            while (true) {
-                fitDialogueTextAtSizeOrNull(
-                    candidates = distinctCandidates,
-                    paint = paint,
-                    textSize = textSize,
-                    maxWidth = maxWidth,
-                    maxHeight = maxHeight,
-                    maxLines = maxLines
-                )?.let { return it }
-
-                if (textSize <= minimumTextSize) break
-                textSize = (textSize - 2f).coerceAtLeast(minimumTextSize)
-            }
+        val evaluateSize = { textSize: Float ->
+            fitDialogueTextAtSizeOrNull(
+                candidates = distinctCandidates,
+                paint = paint,
+                textSize = textSize,
+                maxWidth = maxWidth,
+                maxHeight = maxHeight,
+                maxLines = maxLines
+            )
+        }
+        val preferredFit = PreciseTextSizeSearch.largestFitting(
+            minimumTextSize = preferredMinimumTextSize,
+            maximumTextSize = initialTextSize,
+            precision = precision,
+            evaluate = evaluateSize
+        )
+        val emergencyFit = preferredFit ?: PreciseTextSizeSearch.largestFitting(
+            minimumTextSize = emergencyMinimumTextSize,
+            maximumTextSize = preferredMinimumTextSize,
+            precision = precision,
+            evaluate = evaluateSize
+        )
+        emergencyFit?.let { fit ->
+            paint.textSize = fit.textSize
+            return fit.value
         }
 
         val safeFallbackText = fallbackText
@@ -1066,47 +1078,25 @@ class OverlayRenderer @Inject constructor(
         val originalCandidates = distinctOriginalCandidates(originalRenderCandidates.all)
         val minimumTranslationSize = BILINGUAL_TRANSLATION_MIN_TEXT_SIZE * scale
         val pairGap = BILINGUAL_PAIR_GAP * scale
-        var translationTextSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale
-
-        while (true) {
-            val originalTextSize = originalTextSizeFor(translationTextSize, scale)
-            val translationLineHeight = translationTextSize * BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER
-            val originalLineHeight = originalTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
-
-            for (translationCandidate in translationCandidates) {
-                paint.textSize = translationTextSize
-                val translationLines = wrapText(translationCandidate, paint, maxWidth)
-                if (translationLines.size > DIALOGUE_MAX_LINES) continue
-
-                for (originalCandidate in originalCandidates) {
-                    paint.textSize = originalTextSize
-                    val originalLines = wrapText(originalCandidate, paint, maxWidth)
-                    if (originalLines.size > DIALOGUE_MAX_LINES) continue
-
-                    val totalHeight = bilingualLinePairsHeight(
-                        translationLines = translationLines,
-                        originalLines = originalLines,
-                        translationLineHeight = translationLineHeight,
-                        originalLineHeight = originalLineHeight,
-                        pairGap = pairGap
-                    )
-                    if (totalHeight <= maxHeight) {
-                        paint.textSize = originalTextSize
-                        return BilingualLinePairFit(
-                            translationLines = translationLines,
-                            originalLines = originalLines,
-                            translationLineHeight = translationLineHeight,
-                            originalLineHeight = originalLineHeight,
-                            pairGap = pairGap,
-                            translationTextSize = translationTextSize,
-                            originalTextSize = originalTextSize
-                        )
-                    }
-                }
-            }
-
-            if (translationTextSize <= minimumTranslationSize) break
-            translationTextSize = (translationTextSize - 2f).coerceAtLeast(minimumTranslationSize)
+        val preciseFit = PreciseTextSizeSearch.largestFitting(
+            minimumTextSize = minimumTranslationSize,
+            maximumTextSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale,
+            precision = DIALOGUE_TEXT_SIZE_SEARCH_PRECISION * scale
+        ) { translationTextSize ->
+            fitBilingualLinePairsAtSizeOrNull(
+                translationCandidates = translationCandidates,
+                originalCandidates = originalCandidates,
+                paint = paint,
+                scale = scale,
+                maxWidth = maxWidth,
+                maxHeight = maxHeight,
+                pairGap = pairGap,
+                translationTextSize = translationTextSize
+            )
+        }
+        preciseFit?.value?.let { fit ->
+            paint.textSize = fit.translationTextSize
+            return fit
         }
 
         val fallbackTranslationSize = minimumTranslationSize
@@ -1136,6 +1126,53 @@ class OverlayRenderer @Inject constructor(
             translationTextSize = fallbackTranslationSize,
             originalTextSize = fallbackOriginalSize
         )
+    }
+
+    private fun fitBilingualLinePairsAtSizeOrNull(
+        translationCandidates: List<String>,
+        originalCandidates: List<String>,
+        paint: Paint,
+        scale: Float,
+        maxWidth: Float,
+        maxHeight: Float,
+        pairGap: Float,
+        translationTextSize: Float
+    ): BilingualLinePairFit? {
+        val originalTextSize = originalTextSizeFor(translationTextSize, scale)
+        val translationLineHeight = translationTextSize * BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER
+        val originalLineHeight = originalTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
+
+        for (translationCandidate in translationCandidates) {
+            paint.textSize = translationTextSize
+            val translationLines = wrapText(translationCandidate, paint, maxWidth)
+            if (translationLines.size > DIALOGUE_MAX_LINES) continue
+
+            for (originalCandidate in originalCandidates) {
+                paint.textSize = originalTextSize
+                val originalLines = wrapText(originalCandidate, paint, maxWidth)
+                if (originalLines.size > DIALOGUE_MAX_LINES) continue
+
+                val totalHeight = bilingualLinePairsHeight(
+                    translationLines = translationLines,
+                    originalLines = originalLines,
+                    translationLineHeight = translationLineHeight,
+                    originalLineHeight = originalLineHeight,
+                    pairGap = pairGap
+                )
+                if (totalHeight <= maxHeight) {
+                    return BilingualLinePairFit(
+                        translationLines = translationLines,
+                        originalLines = originalLines,
+                        translationLineHeight = translationLineHeight,
+                        originalLineHeight = originalLineHeight,
+                        pairGap = pairGap,
+                        translationTextSize = translationTextSize,
+                        originalTextSize = originalTextSize
+                    )
+                }
+            }
+        }
+        return null
     }
 
     private fun fitBilingualSingleLine(

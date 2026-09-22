@@ -32,8 +32,18 @@ object FgoViewportLayout {
      */
     private val nameOcrRegion = RectF(42f, 739f, 1172f, 821f)
     private val nameRenderRegion = RectF(0f, 735f, 1085f, 828f)
-    private val dialogueRegion = RectF(106f, 833f, 1805f, 1052f)
-    private val dialogueRenderRegion = RectF(35f, 830f, 1810f, 1055f)
+    private val dialogueRegion = RectF(
+        DialogueReferenceGeometry.OCR_LEFT,
+        833f,
+        DialogueReferenceGeometry.OCR_RIGHT,
+        1052f
+    )
+    private val dialogueRenderRegion = RectF(
+        DialogueReferenceGeometry.RENDER_LEFT,
+        830f,
+        DialogueReferenceGeometry.RENDER_RIGHT,
+        1055f
+    )
     private val dialogueCompleteRegion = RectF(1810f, 945f, 1888f, 1078f)
 
     fun regionsForScreen(screenWidth: Int, screenHeight: Int): FgoScreenRegions {
