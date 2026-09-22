@@ -229,6 +229,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val CROP_TRANSLATION_MAX_TOKENS = 512
         private const val CROP_OCR_SCALE = 2
         private const val CHOICE_OCR_SCALE = 2
+        private const val RARE_SIX_CHOICE_COUNT = 6
         private const val MIN_FIXED_SLOT_CONFIDENCE = 0.55f
         private const val EMPTY_CHOICE_OCR_BASE_COOLDOWN = 600L
         private const val EMPTY_CHOICE_OCR_MAX_COOLDOWN = 1_200L
@@ -3201,11 +3202,13 @@ class FgoAccessibilityService : AccessibilityService() {
         var bottom = -1
         var glyphPixels = 0
         // Ordinary names remain strict so similarly coloured artwork cannot enlarge the cover.
-        // A parenthesized or explicitly spaced suffix is still part of the same speaker label,
-        // though FGO leaves a much wider blank before it. Allow that blank without falling back
-        // to the full cyan width; the scan must still find matching glyph-colour pixels.
+        // Middle-dot and parenthesized names contain deliberate visual gaps between name groups.
+        // Allow those gaps without falling back to the full cyan width; the scan must still find
+        // matching glyph-colour pixels.
         val hasSeparatedGroup = text.any { char ->
-            char.isWhitespace() || char in "()（）[]［］{}｛｝【】〈〉《》「」『』"
+            char.isWhitespace() ||
+                char in "・･·•" ||
+                char in "()（）[]［］{}｛｝【】〈〉《》「」『』"
         }
         val maxCharacterGap = maxOf(
             32,
@@ -4080,7 +4083,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val primaryChoiceBounds = withContext(Dispatchers.Default) {
             backgroundDetector.detectChoiceButtons(source, screenRegions.choiceSearch)
         }
-        val rawChoiceBounds = if (shouldExpandChoiceSearch(primaryChoiceBounds, screenRegions.choiceSearch)) {
+        val detectedChoiceBounds = if (shouldExpandChoiceSearch(primaryChoiceBounds, screenRegions.choiceSearch)) {
             val expandedSearch = Rect(
                 screenRegions.choiceSearch.left,
                 screenRegions.viewport.top,
@@ -4097,6 +4100,11 @@ class FgoAccessibilityService : AccessibilityService() {
         } else {
             primaryChoiceBounds
         }
+        val rawChoiceBounds = appendRareSixthChoiceCandidate(
+            source = source,
+            detectedBounds = detectedChoiceBounds,
+            fixedSlotLayouts = screenRegions.choiceSlotLayouts
+        )
         val filteredChoiceBounds = filterChoiceBounds(rawChoiceBounds, screenRegions.choiceSearch)
         return withContext(Dispatchers.Default) {
             backgroundDetector.snapChoiceButtonsToFixedSlots(
@@ -4105,6 +4113,33 @@ class FgoAccessibilityService : AccessibilityService() {
                 fixedSlotLayouts = screenRegions.choiceSlotLayouts
             )
         }
+    }
+
+    /**
+     * Six-choice screens are the only FGO choice layout that reaches below the normal search zone.
+     * Probe only its known final slot, and only after the normal detector found the preceding five
+     * panels. The complete six-slot signature is still verified by BackgroundDetector afterwards.
+     */
+    private suspend fun appendRareSixthChoiceCandidate(
+        source: Bitmap,
+        detectedBounds: List<Rect>,
+        fixedSlotLayouts: List<List<Rect>>
+    ): List<Rect> {
+        if (detectedBounds.size != RARE_SIX_CHOICE_COUNT - 1) return detectedBounds
+        val sixthSlot = fixedSlotLayouts
+            .firstOrNull { layout -> layout.size == RARE_SIX_CHOICE_COUNT }
+            ?.lastOrNull()
+            ?: return detectedBounds
+
+        val candidates = withContext(Dispatchers.Default) {
+            backgroundDetector.detectChoiceButtons(source, sixthSlot)
+        }
+        val sixthCandidate = candidates.singleOrNull() ?: return detectedBounds
+        FgoLogger.debug(
+            tag,
+            "Rare six-choice lower panel detected: ${sixthCandidate.flattenToString()}"
+        )
+        return (detectedBounds + sixthCandidate).sortedBy { bounds -> bounds.top }
     }
 
     private suspend fun recognizeChoiceRegions(

@@ -17,13 +17,24 @@ object FgoViewportLayout {
 
     // Reference-space bounds taken from marked 2340x1080 FGO story screenshots.
     // Common 1-2 choice screens start in the middle; rare tall lists expand upward on demand.
+    // Six-choice screens reuse the five-choice positions and add one panel below the normal search
+    // boundary. The fixed-layout validator samples that sixth slot directly, so dialogue-area
+    // scanning does not need to be widened for ordinary scenes.
     private val choiceSearchRegion = RectF(220f, 220f, 1690f, 730f)
     private val choiceSlotLayouts = listOf(
         listOf(choiceSlot(343f, 478f)),
         listOf(choiceSlot(250f, 385f), choiceSlot(437f, 572f)),
         listOf(choiceSlot(156f, 291f), choiceSlot(343f, 478f), choiceSlot(531f, 666f)),
         listOf(choiceSlot(36f, 171f), choiceSlot(214f, 349f), choiceSlot(392f, 527f), choiceSlot(571f, 706f)),
-        listOf(choiceSlot(14f, 149f), choiceSlot(158f, 293f), choiceSlot(302f, 437f), choiceSlot(447f, 582f), choiceSlot(591f, 726f))
+        listOf(choiceSlot(14f, 149f), choiceSlot(158f, 293f), choiceSlot(302f, 437f), choiceSlot(447f, 582f), choiceSlot(591f, 726f)),
+        listOf(
+            choiceSlot(14f, 149f),
+            choiceSlot(158f, 293f),
+            choiceSlot(302f, 437f),
+            choiceSlot(447f, 582f),
+            choiceSlot(591f, 726f),
+            choiceSlot(735f, 870f)
+        )
     )
     /**
      * Name text and name plate share the same left edge: the OCR region starts at the same reference
