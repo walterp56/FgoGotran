@@ -34,4 +34,12 @@ object TextNormalizer {
     fun hasTranslatableContent(text: String): Boolean {
         return normalizeForTranslation(text).any { it.isLetterOrDigit() }
     }
+
+    /** FGO's standard masked speaker name is exactly three full-width question marks. */
+    fun canonicalQuestionMask(text: String): String? {
+        val compact = normalizeForTranslation(text)
+        return if (compact.length == 3 && compact.all { it == '?' || it == '？' }) "？？？" else null
+    }
+
+    fun isQuestionMaskOnly(text: String): Boolean = canonicalQuestionMask(text) != null
 }

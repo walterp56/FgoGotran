@@ -3380,6 +3380,9 @@ class Translator @Inject constructor(
         result: TranslateResult,
         playerName: String
     ): TranslateResult {
+        TextNormalizer.canonicalQuestionMask(normalizedName)?.let { mask ->
+            return TranslateResult(mask, MASKED_TEXT_BACKEND, true)
+        }
         val simplifiedName = sanitizeSceneNameTranslation(normalizedName, result.translatedText)
         val maskedSafeName = enforceMaskedTranslationPolicy(normalizedName, simplifiedName)
         return if (isMaskedSourcePreserved(normalizedName, maskedSafeName)) {
@@ -3399,6 +3402,7 @@ class Translator @Inject constructor(
     }
 
     private fun sanitizeSceneNameTranslation(sourceText: String, translatedText: String): String {
+        TextNormalizer.canonicalQuestionMask(sourceText)?.let { return it }
         return if (shouldPreserveFullNameBoxText(sourceText)) {
             sanitizeTranslation(sourceText, translatedText)
                 .lineSequence()
@@ -3411,6 +3415,7 @@ class Translator @Inject constructor(
     }
 
     private fun sanitizeNameTranslation(sourceText: String, translatedText: String): String {
+        TextNormalizer.canonicalQuestionMask(sourceText)?.let { return it }
         return sanitizeTranslation(sourceText, translatedText)
             .lineSequence()
             .firstOrNull()
@@ -3424,6 +3429,7 @@ class Translator @Inject constructor(
         translatedText: String,
         playerName: String
     ): Boolean {
+        if (TextNormalizer.isQuestionMaskOnly(sourceText)) return false
         val translated = translatedText.trim()
         if (translated.isBlank()) return true
         if (translated.length > 32) return true
@@ -3851,12 +3857,17 @@ class Translator @Inject constructor(
     }
 
     private fun maskedSourceFallback(sourceText: String): TranslateResult? {
+        TextNormalizer.canonicalQuestionMask(sourceText)?.let { mask ->
+            FgoLogger.info(tag, "Question mask normalized: ${sourceText.trim()} -> $mask")
+            return TranslateResult(mask, MASKED_TEXT_BACKEND, true)
+        }
         if (!shouldReturnMaskedSource(sourceText)) return null
         FgoLogger.info(tag, "Masked source has too little readable text; preserving source")
         return TranslateResult(sourceText, MASKED_TEXT_BACKEND, true)
     }
 
     private fun enforceMaskedTranslationPolicy(sourceText: String, translatedText: String): String {
+        TextNormalizer.canonicalQuestionMask(sourceText)?.let { return it }
         if (!containsMaskPlaceholders(sourceText)) return translatedText
         if (shouldReturnMaskedSource(sourceText)) return sourceText
 
@@ -3876,6 +3887,9 @@ class Translator @Inject constructor(
     }
 
     private fun isMaskedSourcePreserved(sourceText: String, translatedText: String): Boolean {
+        TextNormalizer.canonicalQuestionMask(sourceText)?.let { mask ->
+            return TextNormalizer.canonicalQuestionMask(translatedText) == mask
+        }
         return containsMaskPlaceholders(sourceText) &&
             TextNormalizer.normalizeForTranslation(sourceText) ==
             TextNormalizer.normalizeForTranslation(translatedText)
@@ -3888,7 +3902,7 @@ class Translator @Inject constructor(
     }
 
     private fun containsMaskPlaceholders(text: String): Boolean {
-        return text.any { it.isMaskPlaceholderChar() }
+        return TextNormalizer.isQuestionMaskOnly(text) || text.any { it.isMaskPlaceholderChar() }
     }
 
     private fun Char.isMaskPlaceholderChar(): Boolean {

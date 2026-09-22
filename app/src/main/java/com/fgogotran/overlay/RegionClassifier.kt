@@ -27,6 +27,6 @@ data class ClassifiedRegion(
     val ocrEngine: OcrEngineId,
     /** The cyan top border bounds name OCR; it is not the width of the rendered cover. */
     val sourcePlateBounds: Rect? = null,
-    /** Trusted extent of the original name glyphs. Null means the name cover must not be drawn. */
+    /** Trusted extent of the original name glyphs; question-mark mask names may use OCR lines as fallback. */
     val sourceNameTextBounds: Rect? = null
 )
