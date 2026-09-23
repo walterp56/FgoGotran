@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import com.fgogotran.localization.AppLanguageManager
+import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
@@ -40,6 +43,7 @@ import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.runner.FgoRunnerService
+import com.fgogotran.ui.component.LanguagePickerDialog
 import com.fgogotran.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -110,6 +114,8 @@ fun HomeScreen(
         mutableStateOf(pm.isIgnoringBatteryOptimizations(context.packageName))
     }
     var showServerDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var appLanguage by remember { mutableStateOf(AppLanguageManager.getLanguage(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var homeResumed by remember {
@@ -231,11 +237,24 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "FgoGotran",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "FgoGotran",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { showLanguageDialog = true }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_language_globe),
+                        contentDescription = AppLanguageManager.localizeUiText(context, "语言"),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
 
             ServerPreference(
                 selectedLabel = SettingsRepository.gameServerDisplayName(gameServer),
@@ -336,6 +355,19 @@ fun HomeScreen(
                     Text("使用指南")
                 }
             }
+        }
+
+        if (showLanguageDialog) {
+            LanguagePickerDialog(
+                selectedLanguage = appLanguage,
+                onDismiss = { showLanguageDialog = false },
+                onSelect = { language ->
+                    showLanguageDialog = false
+                    appLanguage = language
+                    AppLanguageManager.setLanguage(context, language)
+                    AppLanguageManager.recreateActivity(context)
+                }
+            )
         }
 
         if (showServerDialog) {
@@ -674,11 +706,20 @@ private fun ensureAccessibilityConnected(
     }
 }
 
+private fun AlertDialog.Builder.setLocalizedTitle(
+    context: Context,
+    text: String
+): AlertDialog.Builder = setTitle(AppLanguageManager.localizeUiText(context, text))
+
+private fun AlertDialog.Builder.setLocalizedMessage(
+    context: Context,
+    text: String
+): AlertDialog.Builder = setMessage(AppLanguageManager.localizeUiText(context, text))
+
 private fun showAccessibilityDisclosure(context: Context) {
     AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-        .setTitle("无障碍服务用途说明")
-        .setMessage(
-            """
+        .setLocalizedTitle(context, "无障碍服务用途说明")
+        .setLocalizedMessage(context, """
             FgoGotran 不是无障碍辅助工具。开启后，它只用于 FGO 翻译功能：
 
             • 检测 FGO 窗口变化和点击，用于判断何时刷新剧情翻译
@@ -693,10 +734,10 @@ private fun showAccessibilityDisclosure(context: Context) {
             继续表示您理解并同意上述用途。
             """.trimIndent()
         )
-        .setPositiveButton("我同意并前往设置") { _, _ ->
+        .setPositiveButton(AppLanguageManager.localizeUiText(context, "我同意并前往设置")) { _, _ ->
             context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        .setNegativeButton("取消", null)
+        .setNegativeButton(AppLanguageManager.localizeUiText(context, "取消"), null)
         .show()
 }
 
@@ -705,9 +746,8 @@ private fun showAccessibilityDisclosure(context: Context) {
  */
 private fun showAccessibilityNotConnectedDialog(context: Context) {
     AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-        .setTitle("无障碍服务未连接")
-        .setMessage(
-            """
+        .setLocalizedTitle(context, "无障碍服务未连接")
+        .setLocalizedMessage(context, """
             即使系统设置显示"已启用"，FgoGotran 仍可能没有收到服务连接。
 
             目前无法启动翻译。请在系统设置中检查 FgoGotran 无障碍服务：
@@ -719,18 +759,17 @@ private fun showAccessibilityNotConnectedDialog(context: Context) {
             如果仍无法连接，请完整重启模拟器后重试。
             """.trimIndent()
         )
-        .setPositiveButton("去设置") { _, _ ->
+        .setPositiveButton(AppLanguageManager.localizeUiText(context, "去设置")) { _, _ ->
             context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        .setNegativeButton("关闭", null)
+        .setNegativeButton(AppLanguageManager.localizeUiText(context, "关闭"), null)
         .show()
 }
 
 private fun showOverlayPermissionDisclosure(context: Context) {
     AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-        .setTitle("悬浮窗权限用途说明")
-        .setMessage(
-            """
+        .setLocalizedTitle(context, "悬浮窗权限用途说明")
+        .setLocalizedMessage(context, """
             FgoGotran 需要“显示在其他应用上层”权限，才能在 FGO 上显示翻译按钮、菜单和翻译结果。
 
             该权限只用于 FGO 翻译覆盖层。您可以随时在系统设置中关闭此权限；关闭后翻译按钮和覆盖层将无法显示。
@@ -738,13 +777,13 @@ private fun showOverlayPermissionDisclosure(context: Context) {
             继续表示您理解并同意上述用途。
             """.trimIndent()
         )
-        .setPositiveButton("我同意并前往设置") { _, _ ->
+        .setPositiveButton(AppLanguageManager.localizeUiText(context, "我同意并前往设置")) { _, _ ->
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:${context.packageName}")
             )
             context.startActivity(intent)
         }
-        .setNegativeButton("取消", null)
+        .setNegativeButton(AppLanguageManager.localizeUiText(context, "取消"), null)
         .show()
 }

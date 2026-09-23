@@ -1,5 +1,6 @@
 package com.fgogotran
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -11,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AutoAppUpdateDialog
 import com.fgogotran.ui.component.openAppDownloadPage
@@ -52,6 +54,10 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var appAnalytics: AppAnalytics
     @Inject lateinit var diagnosticEventStore: DiagnosticEventStore
     @Inject lateinit var aiVoiceService: AiVoiceService
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguageManager.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

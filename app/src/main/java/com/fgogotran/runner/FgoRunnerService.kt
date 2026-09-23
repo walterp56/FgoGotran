@@ -27,6 +27,7 @@ import com.fgogotran.accessibility.AccessibilityConnectionState
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.speech.RealtimeVoiceTranslationController
 import com.fgogotran.speech.RealtimeVoiceTranslationState
 import com.fgogotran.terminology.GlossaryUpdateManager
@@ -495,7 +496,7 @@ class FgoRunnerService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("FgoGotran")
-            .setContentText("翻译悬浮窗正在运行")
+            .setContentText(AppLanguageManager.localizeUiText(this, "翻译悬浮窗正在运行"))
             .setSmallIcon(R.drawable.ic_translate)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

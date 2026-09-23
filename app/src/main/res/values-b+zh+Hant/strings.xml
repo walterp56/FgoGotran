@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FgoGotran</string>
+    <string name="accessibility_summary">在用戶啟動服務後識別 FGO 劇情文字並顯示翻譯覆蓋層。</string>
+    <string name="accessibility_description">FgoGotran 不是無障礙輔助工具。它使用無障礙服務在用戶啟動服務後檢測 FGO 視窗和點擊、截取當前 FGO 畫面進行 OCR，並可將用戶對翻譯覆蓋層的點擊轉發給 FGO。</string>
+</resources>
