@@ -45,6 +45,11 @@ fun LanguagePickerDialog(
             description = AppLanguageManager.localizeUiText(context, "跟随系统设置")
         ),
         AppLanguageDialogOption(
+            language = AppLanguageManager.LANGUAGE_ENGLISH,
+            label = "English",
+            description = ""
+        ),
+        AppLanguageDialogOption(
             language = AppLanguageManager.LANGUAGE_TRADITIONAL,
             label = "繁體中文",
             description = ""

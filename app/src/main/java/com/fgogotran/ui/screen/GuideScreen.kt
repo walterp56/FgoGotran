@@ -112,7 +112,8 @@ fun GuideScreen(
             ) {
                 GuideBadgeRow(label = "GO", text = "点击按钮翻译当前画面。")
                 GuideBadgeRow(label = "半", text = "半自动阅读，点击按钮翻译选项。")
-                GuideBadgeRow(label = "AUTO", text = "全自动运行；此模式下点击按钮不会手动翻译。")
+                GuideBadgeRow(label = "全", text = "全自动运行；此模式下点击按钮不会手动翻译。")
+                GuideBadgeRow(label = "战", text = "BATTLE 字幕模式：仅翻译战斗字幕区域；长按悬浮按钮打开菜单后选择。")
                 GuideBadgeRow(label = "红色外圈", text = "手动或半自动点击后，本次识别/翻译未成功，可再点一次。")
                 GuideBadgeRow(label = "LOG", text = "查看本次识别和翻译历史。")
             }
@@ -344,3 +345,5 @@ private fun openFgoGotranWebsite(context: Context) {
 }
 
 private const val FGOGOTRAN_WEBSITE_URL = "https://fgogotran.com/"
+
+

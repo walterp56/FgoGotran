@@ -1,0 +1,1922 @@
+[
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 549,
+    "Literal": "\"；语气增强 API 失败\"",
+    "SourceLine": "apiHintError != null -> \"；语气增强 API 失败\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 550,
+    "Literal": "\"（语气增强已开启）\"",
+    "SourceLine": "else -> \"（语气增强已开启）\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 37,
+    "Literal": "\"${tenths / 10}.${tenths % 10} 秒\"",
+    "SourceLine": "return \"${tenths / 10}.${tenths % 10} 秒\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 903,
+    "Literal": "\"$safeCount 幕\"",
+    "SourceLine": "\"$safeCount 幕\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 629,
+    "Literal": "\"大\"",
+    "SourceLine": "\"大\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 469,
+    "Literal": "\"大小\"",
+    "SourceLine": "label = \"大小\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 910,
+    "Literal": "\"女\"",
+    "SourceLine": "SettingsRepository.PLAYER_GENDER_FEMALE -> \"女\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 488,
+    "Literal": "\"小\"",
+    "SourceLine": "\"小\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 104,
+    "Literal": "\"已开启，未连接\"",
+    "SourceLine": "AccessibilityConnectionState.ENABLED_NOT_CONNECTED -> \"已开启，未连接\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 435,
+    "Literal": "\"已开启\"",
+    "SourceLine": "value = if (aiVoiceEnabled) \"已开启\" else \"未开启\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 110,
+    "Literal": "\"已生成 TXT\"",
+    "SourceLine": "exportMessage = \"已生成 TXT\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 330,
+    "Literal": "\"已关闭优化\"",
+    "SourceLine": "val batteryText = if (isIgnoringBatteryOptimizations) \"已关闭优化\" else \"优化中\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 364,
+    "Literal": "\"已关闭实时语音屏幕捕获\"",
+    "SourceLine": "message = \"已关闭实时语音屏幕捕获\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 751,
+    "Literal": "\"已启用\"",
+    "SourceLine": "即使系统设置显示\"已启用\"，FgoGotran 仍可能没有收到服务连接。"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 757,
+    "Literal": "\"已连接\"",
+    "SourceLine": "• 返回 FgoGotran，确认状态变为\"已连接\"后启动悬浮服务。"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 148,
+    "Literal": "\"已保存；中国 Azure 实时翻译还需填写资源端点\"",
+    "SourceLine": "\"已保存；中国 Azure 实时翻译还需填写资源端点\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 150,
+    "Literal": "\"已保存\"",
+    "SourceLine": "\"已保存\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 268,
+    "Literal": "\"已恢复默认位置\"",
+    "SourceLine": "subtitlePositionResetMessage = \"已恢复默认位置\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 313,
+    "Literal": "\"已授权\"",
+    "SourceLine": "statusText = if (canDrawOverlays) \"已授权\" else \"未授权\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 124,
+    "Literal": "\"已清空\"",
+    "SourceLine": "exportMessage = \"已清空\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 181,
+    "Literal": "\"已清除 $count 条缓存\"",
+    "SourceLine": "cacheClearMessage = \"已清除 $count 条缓存\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 151,
+    "Literal": "\"不支持\"",
+    "SourceLine": "GuideInfoRow(label = \"不支持\", text = \"图片、截图、录屏、视频源，或其他应用里的 FGO 素材翻译。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 88,
+    "Literal": "\"不用一直换模式，先按自己的阅读习惯选一个。\"",
+    "SourceLine": "body = \"不用一直换模式，先按自己的阅读习惯选一个。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 126,
+    "Literal": "\"不会上传\"",
+    "SourceLine": "label = \"不会上传\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 337,
+    "Literal": "\"中文\"",
+    "SourceLine": "title = \"中文\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 429,
+    "Literal": "\"中国 Azure Speech 资源端点\"",
+    "SourceLine": "label = { Text(\"中国 Azure Speech 资源端点\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 520,
+    "Literal": "\"中国 Azure\"",
+    "SourceLine": "title = \"中国 Azure\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 498,
+    "Literal": "\"中国站\"",
+    "SourceLine": "label = { Text(\"中国站\") }"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 639,
+    "Literal": "\"云端接口一次只启用一个参数；开启另一项会自动关闭当前项。\"",
+    "SourceLine": "\"云端接口一次只启用一个参数；开启另一项会自动关闭当前项。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 452,
+    "Literal": "\"仅保存在本机，用于 AI 语音朗读和已启用的实时语音翻译。\"",
+    "SourceLine": "Text(\"仅保存在本机，用于 AI 语音朗读和已启用的实时语音翻译。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 108,
+    "Literal": "\"分享错误纪录\"",
+    "SourceLine": "context.startActivity(Intent.createChooser(shareIntent, \"分享错误纪录\"))"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingArcMenu.kt",
+    "Line": 174,
+    "Literal": "\"区域翻译\"",
+    "SourceLine": "label = \"区域翻译\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 370,
+    "Literal": "\"开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。\"",
+    "SourceLine": "\"开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 446,
+    "Literal": "\"开启\"",
+    "SourceLine": "aiVoiceApiHintsEnabled -> \"开启\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 410,
+    "Literal": "\"手动\"",
+    "SourceLine": "TranslationMode.MANUAL -> \"手动\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 116,
+    "Literal": "\"手动或半自动点击后，本次识别/翻译未成功，可再点一次。\"",
+    "SourceLine": "GuideBadgeRow(label = \"红色外圈\", text = \"手动或半自动点击后，本次识别/翻译未成功，可再点一次。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 603,
+    "Literal": "\"手动检查新版本\"",
+    "SourceLine": "value = appVersionStatus.message.ifBlank { \"手动检查新版本\" },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingButton.kt",
+    "Line": 117,
+    "Literal": "\"手動翻譯\"",
+    "SourceLine": "FloatingButtonMode.MANUAL -> \"手動翻譯\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 150,
+    "Literal": "\"支持\"",
+    "SourceLine": "GuideInfoRow(label = \"支持\", text = \"FGO 游戏内实时画面、剧情、选项，以及裁剪模式框选的画面区域。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 72,
+    "Literal": "\"文字送り / 表示速度\"",
+    "SourceLine": "GuideSettingRow(label = \"文字送り / 表示速度\", value = \"MAX\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 104,
+    "Literal": "\"无法连接服务器，请检查电脑 IP、端口、防火墙和 VPN 的局域网放行设置\"",
+    "SourceLine": "\"无法连接服务器，请检查电脑 IP、端口、防火墙和 VPN 的局域网放行设置\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 296,
+    "Literal": "\"无障碍服务\"",
+    "SourceLine": "label = \"无障碍服务\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 686,
+    "Literal": "\"无障碍服务未启用\"",
+    "SourceLine": "title = \"无障碍服务未启用\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 699,
+    "Literal": "\"无障碍服务未连接\"",
+    "SourceLine": "title = \"无障碍服务未连接\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 721,
+    "Literal": "\"无障碍服务用途说明\"",
+    "SourceLine": ".setLocalizedTitle(context, \"无障碍服务用途说明\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 413,
+    "Literal": "\"日文原文\"",
+    "SourceLine": "title = \"日文原文\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 389,
+    "Literal": "\"日服\"",
+    "SourceLine": "SettingsRepository.GAME_SERVER_JP to \"日服\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 673,
+    "Literal": "\"日服译文语言\"",
+    "SourceLine": "\"日服译文语言\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 114,
+    "Literal": "\"半\"",
+    "SourceLine": "GuideBadgeRow(label = \"半\", text = \"半自动阅读，点击按钮翻译选项。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 95,
+    "Literal": "\"半自动\"",
+    "SourceLine": "mode = \"半自动\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 114,
+    "Literal": "\"半自动阅读，点击按钮翻译选项。\"",
+    "SourceLine": "GuideBadgeRow(label = \"半\", text = \"半自动阅读，点击按钮翻译选项。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingButton.kt",
+    "Line": 118,
+    "Literal": "\"半自動翻譯\"",
+    "SourceLine": "FloatingButtonMode.SEMI_AUTO -> \"半自動翻譯\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 762,
+    "Literal": "\"去设置\"",
+    "SourceLine": ".setPositiveButton(AppLanguageManager.localizeUiText(context, \"去设置\")) { _, _ ->"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 316,
+    "Literal": "\"去授权 →\"",
+    "SourceLine": "actionText = \"去授权 →\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 336,
+    "Literal": "\"去管理 →\"",
+    "SourceLine": "actionText = \"去管理 →\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 119,
+    "Literal": "\"发布日期：${releaseDate.substringBefore('T')}\"",
+    "SourceLine": "Text(\"发布日期：${releaseDate.substringBefore('T')}\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 74,
+    "Literal": "\"发现新版本\"",
+    "SourceLine": "title = { Text(\"发现新版本\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 74,
+    "Literal": "\"句読点待ち時間 / 标点等待时间\"",
+    "SourceLine": "GuideSettingRow(label = \"句読点待ち時間 / 标点等待时间\", value = \"0\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 393,
+    "Literal": "\"可用于 FgoGotran 翻译；接口不接受 $ignoredLabels，已自动忽略\"",
+    "SourceLine": "\"可用于 FgoGotran 翻译；接口不接受 $ignoredLabels，已自动忽略\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 395,
+    "Literal": "\"可用于 FgoGotran 翻译\"",
+    "SourceLine": "\"可用于 FgoGotran 翻译\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 321,
+    "Literal": "\"可选稳定性（非必要）\"",
+    "SourceLine": "text = \"可选稳定性（非必要）\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 411,
+    "Literal": "\"失败\"",
+    "SourceLine": "status = \"失败\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 180,
+    "Literal": "\"打开 FgoGotran 网站\"",
+    "SourceLine": "Text(\"打开 FgoGotran 网站\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 459,
+    "Literal": "\"打开语音设置\"",
+    "SourceLine": "Text(\"打开语音设置\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 582,
+    "Literal": "\"打开错误纪录\"",
+    "SourceLine": "Text(\"打开错误纪录\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 435,
+    "Literal": "\"未开启\"",
+    "SourceLine": "value = if (aiVoiceEnabled) \"已开启\" else \"未开启\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 105,
+    "Literal": "\"未启用\"",
+    "SourceLine": "AccessibilityConnectionState.DISABLED -> \"未启用\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 363,
+    "Literal": "\"未授予屏幕捕获授权\"",
+    "SourceLine": "title = \"未授予屏幕捕获授权\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 313,
+    "Literal": "\"未授权\"",
+    "SourceLine": "statusText = if (canDrawOverlays) \"已授权\" else \"未授权\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 539,
+    "Literal": "\"本地 HTTP 不加密，仅应在可信 Wi-Fi 中使用；请保留 API Key 认证。\"",
+    "SourceLine": "\"本地 HTTP 不加密，仅应在可信 Wi-Fi 中使用；请保留 API Key 认证。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 637,
+    "Literal": "\"本地／自定义接口可单独启用，也可同时发送两个参数。\"",
+    "SourceLine": "\"本地／自定义接口可单独启用，也可同时发送两个参数。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 161,
+    "Literal": "\"正在生成测试语音...\"",
+    "SourceLine": "azureSpeechTestMessage = \"正在生成测试语音...\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 574,
+    "Literal": "\"用于调试和排查问题。\"",
+    "SourceLine": "body = \"用于调试和排查问题。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 930,
+    "Literal": "\"由“设置 → 御主性别”决定\"",
+    "SourceLine": "\"由“设置 → 御主性别”决定\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 332,
+    "Literal": "\"电池优化\"",
+    "SourceLine": "label = \"电池优化\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 187,
+    "Literal": "\"电池优化可能限制后台服务\"",
+    "SourceLine": "title = \"电池优化可能限制后台服务\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 158,
+    "Literal": "\"目前没有错误纪录。\"",
+    "SourceLine": "\"目前没有错误纪录。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 55,
+    "Literal": "\"立即更新\"",
+    "SourceLine": "Text(\"立即更新\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 287,
+    "Literal": "\"记录\"",
+    "SourceLine": "else -> \"记录\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 330,
+    "Literal": "\"优化中\"",
+    "SourceLine": "val batteryText = if (isIgnoringBatteryOptimizations) \"已关闭优化\" else \"优化中\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 69,
+    "Literal": "\"先调 FGO 文字速度\"",
+    "SourceLine": "title = \"先调 FGO 文字速度\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingButton.kt",
+    "Line": 67,
+    "Literal": "\"全\"",
+    "SourceLine": "FloatingActionIcon.AUTO -> \"全\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 412,
+    "Literal": "\"全自动\"",
+    "SourceLine": "TranslationMode.AUTO -> \"全自动\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 115,
+    "Literal": "\"全自动运行；此模式下点击按钮不会手动翻译。\"",
+    "SourceLine": "GuideBadgeRow(label = \"AUTO\", text = \"全自动运行；此模式下点击按钮不会手动翻译。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingButton.kt",
+    "Line": 119,
+    "Literal": "\"全自動翻譯\"",
+    "SourceLine": "FloatingButtonMode.AUTO -> \"全自動翻譯\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 515,
+    "Literal": "\"全球 Azure\"",
+    "SourceLine": "title = \"全球 Azure\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 701,
+    "Literal": "\"关闭 FgoGotran 无障碍服务 → 等 2–3 秒 → 重新开启；若仍失败请重启模拟器\"",
+    "SourceLine": "detail = \"关闭 FgoGotran 无障碍服务 → 等 2–3 秒 → 重新开启；若仍失败请重启模拟器\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 447,
+    "Literal": "\"关闭\"",
+    "SourceLine": "else -> \"关闭\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingArcMenu.kt",
+    "Line": 220,
+    "Literal": "\"关闭服务\"",
+    "SourceLine": "label = \"关闭服务\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 414,
+    "Literal": "\"同时显示游戏原文\"",
+    "SourceLine": "subtitle = \"同时显示游戏原文\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 592,
+    "Literal": "\"字幕大小\"",
+    "SourceLine": "\"字幕大小\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 118,
+    "Literal": "\"导出 TXT\"",
+    "SourceLine": "Text(\"导出 TXT\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 112,
+    "Literal": "\"导出失败\"",
+    "SourceLine": "exportMessage = \"导出失败\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 433,
+    "Literal": "\"当前\"",
+    "SourceLine": "label = \"当前\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 575,
+    "Literal": "\"当前服务商需要 API Key\"",
+    "SourceLine": "Text(\"当前服务商需要 API Key\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 116,
+    "Literal": "\"当前版本：$currentVersionName\"",
+    "SourceLine": "Text(\"当前版本：$currentVersionName\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 593,
+    "Literal": "\"当前版本\"",
+    "SourceLine": "label = \"当前版本\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 925,
+    "Literal": "\"当前御主性别\"",
+    "SourceLine": "\"当前御主性别\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 372,
+    "Literal": "\"当前模型 Sakura 不支持 AI 语气增强，将自动使用本机语气规则。切换到其他模型后会恢复已保存的选择。\"",
+    "SourceLine": "\"当前模型 Sakura 不支持 AI 语气增强，将自动使用本机语气规则。切换到其他模型后会恢复已保存的选择。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 654,
+    "Literal": "\"当前模型不支持\"",
+    "SourceLine": "\"当前模型不支持\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 382,
+    "Literal": "\"成功\"",
+    "SourceLine": "status = \"成功\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 584,
+    "Literal": "\"收起高级自定义\"",
+    "SourceLine": "Text(if (advancedSamplingExpanded) \"收起高级自定义\" else \"高级自定义\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 297,
+    "Literal": "\"有角色名对话\"",
+    "SourceLine": "title = \"有角色名对话\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 87,
+    "Literal": "\"此版本不再提醒\"",
+    "SourceLine": "Text(\"此版本不再提醒\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 116,
+    "Literal": "\"红色外圈\"",
+    "SourceLine": "GuideBadgeRow(label = \"红色外圈\", text = \"手动或半自动点击后，本次识别/翻译未成功，可再点一次。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 51,
+    "Literal": "\"自动：关闭随机采样；翻译输出更稳定。\"",
+    "SourceLine": "\"自动：关闭随机采样；翻译输出更稳定。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 59,
+    "Literal": "\"自动：当前 GPT 模型不发送采样参数，避免请求被拒绝。\"",
+    "SourceLine": "\"自动：当前 GPT 模型不发送采样参数，避免请求被拒绝。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 57,
+    "Literal": "\"自动：当前 GPT 模型使用 Temperature 0.3。\"",
+    "SourceLine": "\"自动：当前 GPT 模型使用 Temperature 0.3。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 66,
+    "Literal": "\"自动：使用本地模型或兼容接口的默认采样参数。\"",
+    "SourceLine": "\"自动：使用本地模型或兼容接口的默认采样参数。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 53,
+    "Literal": "\"自动：使用当前 Qwen 模型的默认采样参数。\"",
+    "SourceLine": "\"自动：使用当前 Qwen 模型的默认采样参数。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 64,
+    "Literal": "\"自动：Claude 使用模型默认值，不发送采样参数。\"",
+    "SourceLine": "\"自动：Claude 使用模型默认值，不发送采样参数。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 62,
+    "Literal": "\"自动：Gemini 使用模型默认值，不发送采样参数。\"",
+    "SourceLine": "\"自动：Gemini 使用模型默认值，不发送采样参数。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 49,
+    "Literal": "\"自动：Temperature ${SettingsRepository.DEFAULT_DEEPSEEK_TEMPERATURE}；不发送 Top-p。\"",
+    "SourceLine": "\"自动：Temperature ${SettingsRepository.DEFAULT_DEEPSEEK_TEMPERATURE}；不发送 Top-p。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 604,
+    "Literal": "\"自动（推荐）\"",
+    "SourceLine": "label = { Text(\"自动（推荐）\") }"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 82,
+    "Literal": "\"自动显示全部最近问题：错误、权限阻塞、资料更新失败、缺少语音档案、临时语音 API 建立结果。\"",
+    "SourceLine": "\"自动显示全部最近问题：错误、权限阻塞、资料更新失败、缺少语音档案、临时语音 API 建立结果。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 625,
+    "Literal": "\"自定义\"",
+    "SourceLine": "label = { Text(\"自定义\") }"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 300,
+    "Literal": "\"设置 →\"",
+    "SourceLine": "actionText = \"设置 →\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 348,
+    "Literal": "\"设置\"",
+    "SourceLine": "Text(\"设置\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 80,
+    "Literal": "\"设置位置\"",
+    "SourceLine": "label = \"设置位置\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 227,
+    "Literal": "\"启用实时语音字幕\"",
+    "SourceLine": "title = \"启用实时语音字幕\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 282,
+    "Literal": "\"启用语音\"",
+    "SourceLine": "title = \"启用语音\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 529,
+    "Literal": "\"启用缓存\"",
+    "SourceLine": "\"启用缓存\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 55,
+    "Literal": "\"启动服务\"",
+    "SourceLine": "* 1. Tap \"启动服务\" FAB"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 700,
+    "Literal": "\"启动服务被阻止：FgoGotran 没有收到无障碍服务连接\"",
+    "SourceLine": "message = \"启动服务被阻止：FgoGotran 没有收到无障碍服务连接\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 687,
+    "Literal": "\"启动服务被阻止\"",
+    "SourceLine": "message = \"启动服务被阻止\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 78,
+    "Literal": "\"应用未允许本地 HTTP，请安装支持本地 AI 的新版 APK\"",
+    "SourceLine": "\"应用未允许本地 HTTP，请安装支持本地 AI 的新版 APK\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 776,
+    "Literal": "\"应用API设置\"",
+    "SourceLine": "Text(\"应用API设置\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 719,
+    "Literal": "\"快\"",
+    "SourceLine": "\"快\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 737,
+    "Literal": "\"我同意并前往设置\"",
+    "SourceLine": ".setPositiveButton(AppLanguageManager.localizeUiText(context, \"我同意并前往设置\")) { _, _ ->"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 569,
+    "Literal": "\"找不到瑪修语音档，请先更新语音资料\"",
+    "SourceLine": "\"找不到瑪修语音档，请先更新语音资料\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 123,
+    "Literal": "\"更新内容\"",
+    "SourceLine": "text = \"更新内容\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 41,
+    "Literal": "\"状态：$status\\n用时：${formatApiResponseTime(durationMs)}\\n结果：$result\"",
+    "SourceLine": "return \"状态：$status\\n用时：${formatApiResponseTime(durationMs)}\\n结果：$result\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 602,
+    "Literal": "\"状态\"",
+    "SourceLine": "label = \"状态\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 106,
+    "Literal": "\"状态无法确认\"",
+    "SourceLine": "AccessibilityConnectionState.UNKNOWN -> \"状态无法确认\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 537,
+    "Literal": "\"玛修·基列莱特，在此。御主……战斗准备完成，请下达指示。\"",
+    "SourceLine": "dialogue = \"玛修·基列莱特，在此。御主……战斗准备完成，请下达指示。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 536,
+    "Literal": "\"玛修\"",
+    "SourceLine": "speakerName = \"玛修\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 911,
+    "Literal": "\"男\"",
+    "SourceLine": "else -> \"男\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\LanguagePickerDialog.kt",
+    "Line": 44,
+    "Literal": "\"系统默认\"",
+    "SourceLine": "label = AppLanguageManager.localizeUiText(context, \"系统默认\"),"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 318,
+    "Literal": "\"使用与御主性别对应的语音。\"",
+    "SourceLine": "body = \"使用与御主性别对应的语音。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 348,
+    "Literal": "\"使用双语剧情上下文\"",
+    "SourceLine": "title = \"使用双语剧情上下文\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 298,
+    "Literal": "\"使用对应角色语音。\"",
+    "SourceLine": "body = \"使用对应角色语音。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 46,
+    "Literal": "\"使用指南\"",
+    "SourceLine": "title = { Text(\"使用指南\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 144,
+    "Literal": "\"使用范围\"",
+    "SourceLine": "Text(\"使用范围\", style = MaterialTheme.typography.titleMedium)"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 308,
+    "Literal": "\"使用旁白语音。\"",
+    "SourceLine": "body = \"使用旁白语音。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 385,
+    "Literal": "\"例：藤丸立香\"",
+    "SourceLine": "placeholder = { Text(\"例：藤丸立香\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 898,
+    "Literal": "\"参考场景数\"",
+    "SourceLine": "\"参考场景数\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 787,
+    "Literal": "\"取消\"",
+    "SourceLine": ".setNegativeButton(AppLanguageManager.localizeUiText(context, \"取消\"), null)"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 505,
+    "Literal": "\"国际站\"",
+    "SourceLine": "label = { Text(\"国际站\") }"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 151,
+    "Literal": "\"图片、截图、录屏、视频源，或其他应用里的 FGO 素材翻译。\"",
+    "SourceLine": "GuideInfoRow(label = \"不支持\", text = \"图片、截图、录屏、视频源，或其他应用里的 FGO 素材翻译。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 182,
+    "Literal": "\"实时字幕\"",
+    "SourceLine": "text = \"实时字幕\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 354,
+    "Literal": "\"实时字幕屏幕捕获已启动\"",
+    "SourceLine": "message = \"实时字幕屏幕捕获已启动\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 343,
+    "Literal": "\"实时字幕屏幕捕获未能启动\"",
+    "SourceLine": "message = \"实时字幕屏幕捕获未能启动\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 648,
+    "Literal": "\"实时字幕预览\"",
+    "SourceLine": "text = \"实时字幕预览\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 375,
+    "Literal": "\"实时语音已停止，OCR 翻译继续使用无障碍截图\"",
+    "SourceLine": "message = \"实时语音已停止，OCR 翻译继续使用无障碍截图\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 429,
+    "Literal": "\"实时语音字幕\"",
+    "SourceLine": "label = \"实时语音字幕\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 365,
+    "Literal": "\"实时语音需要屏幕捕获授权；OCR 翻译不受影响\"",
+    "SourceLine": "detail = \"实时语音需要屏幕捕获授权；OCR 翻译不受影响\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 223,
+    "Literal": "\"实时语音翻译\"",
+    "SourceLine": "title = \"实时语音翻译\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 434,
+    "Literal": "\"实时翻译使用 Azure 门户中该 Speech 资源的根端点；仅接受 HTTPS 的 *.cognitiveservices.azure.cn。\"",
+    "SourceLine": "Text(\"实时翻译使用 Azure 门户中该 Speech 资源的根端点；仅接受 HTTPS 的 *.cognitiveservices.azure.cn。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 188,
+    "Literal": "\"服务仍会尝试启动，但部分手机或模拟器可能会中断悬浮窗\"",
+    "SourceLine": "message = \"服务仍会尝试启动，但部分手机或模拟器可能会中断悬浮窗\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 285,
+    "Literal": "\"服务商\"",
+    "SourceLine": "label = \"服务商\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 106,
+    "Literal": "\"服务商返回错误：${message.take(160)}\"",
+    "SourceLine": "\"服务商返回错误：${message.take(160)}\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 286,
+    "Literal": "\"注意\"",
+    "SourceLine": "DiagnosticEventStore.LEVEL_WARNING -> \"注意\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 343,
+    "Literal": "\"表现调节\"",
+    "SourceLine": "title = \"表现调节\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 630,
+    "Literal": "\"该服务商或模型为保证请求兼容性，仅使用自动模式。\"",
+    "SourceLine": "\"该服务商或模型为保证请求兼容性，仅使用自动模式。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 428,
+    "Literal": "\"返回\"",
+    "SourceLine": "Text(\"返回\", color = MaterialTheme.colorScheme.primary)"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 325,
+    "Literal": "\"进阶引擎。准确度高，识别范围广。依赖 CPU 算力。\"",
+    "SourceLine": "body = \"进阶引擎。准确度高，识别范围广。依赖 CPU 算力。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 100,
+    "Literal": "\"连接模型超时，请确认电脑端模型已加载完成\"",
+    "SourceLine": "\"连接模型超时，请确认电脑端模型已加载完成\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 389,
+    "Literal": "\"采样开关\"",
+    "SourceLine": "\"do_sample\" -> \"采样开关\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 493,
+    "Literal": "\"保存 Azure 设置\"",
+    "SourceLine": "Text(\"保存 Azure 设置\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 409,
+    "Literal": "\"保存\"",
+    "SourceLine": "Text(\"保存\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 345,
+    "Literal": "\"保存失败\"",
+    "SourceLine": "saveMessage = e.message?.takeIf { it.isNotBlank() } ?: \"保存失败\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 232,
+    "Literal": "\"前台测试已开启\"",
+    "SourceLine": "\"前台测试已开启\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 234,
+    "Literal": "\"前台检测已恢复正常\"",
+    "SourceLine": "\"前台检测已恢复正常\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 374,
+    "Literal": "\"屏幕捕获已被系统停止\"",
+    "SourceLine": "title = \"屏幕捕获已被系统停止\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 772,
+    "Literal": "\"恢复默认\"",
+    "SourceLine": "Text(\"恢复默认\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 279,
+    "Literal": "\"按角色朗读剧情台词。\"",
+    "SourceLine": "body = \"按角色朗读剧情台词。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 111,
+    "Literal": "\"按钮文字会显示当前模式，长按可打开翻译菜单。\"",
+    "SourceLine": "body = \"按钮文字会显示当前模式，长按可打开翻译菜单。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 312,
+    "Literal": "\"显示在其他应用上层\"",
+    "SourceLine": "label = \"显示在其他应用上层\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 172,
+    "Literal": "\"显示在其他应用上层权限未开启\"",
+    "SourceLine": "detail = \"显示在其他应用上层权限未开启\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 117,
+    "Literal": "\"查看本次识别和翻译历史。\"",
+    "SourceLine": "GuideBadgeRow(label = \"LOG\", text = \"查看本次识别和翻译历史。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 172,
+    "Literal": "\"查看完整教程、下载页面和最新信息。\"",
+    "SourceLine": "\"查看完整教程、下载页面和最新信息。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 875,
+    "Literal": "\"标准\"",
+    "SourceLine": "safeSize == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> \"标准\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 761,
+    "Literal": "\"测试 API\"",
+    "SourceLine": "Text(if (testingApi) \"测试中\" else \"测试 API\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 489,
+    "Literal": "\"测试中...\"",
+    "SourceLine": "Text(if (azureSpeechTesting) \"测试中...\" else \"测试语音\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 761,
+    "Literal": "\"测试中\"",
+    "SourceLine": "Text(if (testingApi) \"测试中\" else \"测试 API\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 108,
+    "Literal": "\"测试失败，请检查模型和网络连接\"",
+    "SourceLine": "\"测试失败，请检查模型和网络连接\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 572,
+    "Literal": "\"测试失败：${error::class.java.simpleName}\"",
+    "SourceLine": "else -> \"测试失败：${error::class.java.simpleName}\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 571,
+    "Literal": "\"测试失败：${message.take(96)}\"",
+    "SourceLine": "message.isNotBlank() -> \"测试失败：${message.take(96)}\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 457,
+    "Literal": "\"测试例句：玛修・基列莱特，在此。御主……战斗准备完成，请下达指示。\"",
+    "SourceLine": "\"测试例句：玛修・基列莱特，在此。御主……战斗准备完成，请下达指示。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 489,
+    "Literal": "\"测试语音\"",
+    "SourceLine": "Text(if (azureSpeechTesting) \"测试中...\" else \"测试语音\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 552,
+    "Literal": "\"测试语音已播放$apiStatus\"",
+    "SourceLine": "return \"测试语音已播放$apiStatus\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 113,
+    "Literal": "\"点击按钮翻译当前画面。\"",
+    "SourceLine": "GuideBadgeRow(label = \"GO\", text = \"点击按钮翻译当前画面。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 521,
+    "Literal": "\"相同原文可直接使用上次翻译，速度更快；\\n遇到旧译文时可以清除缓存。\"",
+    "SourceLine": "body = \"相同原文可直接使用上次翻译，速度更快；\\n遇到旧译文时可以清除缓存。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 110,
+    "Literal": "\"看懂悬浮按钮\"",
+    "SourceLine": "title = \"看懂悬浮按钮\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 688,
+    "Literal": "\"若 Android 已显示开启，请关闭 FgoGotran 无障碍服务后重新开启\"",
+    "SourceLine": "detail = \"若 Android 已显示开启，请关闭 FgoGotran 无障碍服务后重新开启\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 682,
+    "Literal": "\"范围 0.00–1.00；数值越低越稳定\"",
+    "SourceLine": "supportingText = { Text(\"范围 0.00–1.00；数值越低越稳定\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 726,
+    "Literal": "\"范围 0.01–1.00；数值越低候选范围越小\"",
+    "SourceLine": "supportingText = { Text(\"范围 0.01–1.00；数值越低候选范围越小\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 443,
+    "Literal": "\"语气增强\"",
+    "SourceLine": "label = \"语气增强\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\LanguagePickerDialog.kt",
+    "Line": 62,
+    "Literal": "\"语言\"",
+    "SourceLine": "Text(AppLanguageManager.localizeUiText(context, \"语言\"))"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 205,
+    "Literal": "\"语音设置\"",
+    "SourceLine": "title = { Text(\"语音设置\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 434,
+    "Literal": "\"语音朗读\"",
+    "SourceLine": "label = \"语音朗读\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 680,
+    "Literal": "\"语速\"",
+    "SourceLine": "\"语速\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 376,
+    "Literal": "\"重新开启实时语音时会重新申请屏幕捕获授权\"",
+    "SourceLine": "detail = \"重新开启实时语音时会重新申请屏幕捕获授权\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 272,
+    "Literal": "\"重置字幕位置\"",
+    "SourceLine": "Text(\"重置字幕位置\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 697,
+    "Literal": "\"限制候选词范围\"",
+    "SourceLine": "\"限制候选词范围\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 758,
+    "Literal": "\"音量\"",
+    "SourceLine": "\"音量\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 132,
+    "Literal": "\"兼容 OpenAI Chat Completions；支持可信局域网内的本地模型\"",
+    "SourceLine": "\"兼容 OpenAI Chat Completions；支持可信局域网内的本地模型\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 70,
+    "Literal": "\"剧情文字完整显示后，OCR 和自动翻译会更稳定。\"",
+    "SourceLine": "body = \"剧情文字完整显示后，OCR 和自动翻译会更稳定。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 224,
+    "Literal": "\"捕获播放的日语语音，直接通过 Azure 显示中文流式字幕。\"",
+    "SourceLine": "body = \"捕获播放的日语语音，直接通过 Azure 显示中文流式字幕。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 307,
+    "Literal": "\"旁白／无名对白\"",
+    "SourceLine": "title = \"旁白／无名对白\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 460,
+    "Literal": "\"朗读\"",
+    "SourceLine": "\"朗读\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 333,
+    "Literal": "\"朗读文本\"",
+    "SourceLine": "title = \"朗读文本\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 293,
+    "Literal": "\"朗读范围\"",
+    "SourceLine": "title = \"朗读范围\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 421,
+    "Literal": "\"朗读模式\"",
+    "SourceLine": "aiVoiceEnabled -> \"朗读模式\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 422,
+    "Literal": "\"朗读模式（未开启）\"",
+    "SourceLine": "else -> \"朗读模式（未开启）\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 490,
+    "Literal": "\"站点\"",
+    "SourceLine": "Text(\"站点\", style = MaterialTheme.typography.bodyMedium)"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 487,
+    "Literal": "\"请求设置\"",
+    "SourceLine": "Text(\"请求设置\", style = MaterialTheme.typography.titleMedium)"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 509,
+    "Literal": "\"请使用对应站点的 API Key。\"",
+    "SourceLine": "\"请使用对应站点的 API Key。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 130,
+    "Literal": "\"请前往下载页面查看更新内容。\"",
+    "SourceLine": "Text(\"请前往下载页面查看更新内容。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 82,
+    "Literal": "\"请检查 API Key\"",
+    "SourceLine": "\"请检查 API Key\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 207,
+    "Literal": "\"调试日志已开启\"",
+    "SourceLine": "debugLogMessage = if (enabled) \"调试日志已开启\" else \"调试日志已关闭\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 207,
+    "Literal": "\"调试日志已关闭\"",
+    "SourceLine": "debugLogMessage = if (enabled) \"调试日志已开启\" else \"调试日志已关闭\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 876,
+    "Literal": "\"较大\"",
+    "SourceLine": "safeSize < SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -> \"较大\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 874,
+    "Literal": "\"较小\"",
+    "SourceLine": "safeSize < SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> \"较小\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 96,
+    "Literal": "\"适合剧情阅读。对话自动刷新；遇到选项时，再点悬浮按钮翻译选项。\"",
+    "SourceLine": "text = \"适合剧情阅读。对话自动刷新；遇到选项时，再点悬浮按钮翻译选项。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 104,
+    "Literal": "\"适合菜单、公告、漏识别画面。框选区域会重新翻译。\"",
+    "SourceLine": "text = \"适合菜单、公告、漏识别画面。框选区域会重新翻译。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 92,
+    "Literal": "\"适合想完全掌控节奏的你。点 GO 后翻译当前画面。\"",
+    "SourceLine": "text = \"适合想完全掌控节奏的你。点 GO 后翻译当前画面。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 100,
+    "Literal": "\"适合想轻松阅读的你。应用会尽量自动刷新对话和选项。\"",
+    "SourceLine": "text = \"适合想轻松阅读的你。应用会尽量自动刷新对话和选项。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 310,
+    "Literal": "\"选择适合的 OCR（光学字元识别）引擎\"",
+    "SourceLine": "body = \"选择适合的 OCR（光学字元识别）引擎\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 87,
+    "Literal": "\"选择阅读方式\"",
+    "SourceLine": "title = \"选择阅读方式\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 584,
+    "Literal": "\"高级自定义\"",
+    "SourceLine": "Text(if (advancedSamplingExpanded) \"收起高级自定义\" else \"高级自定义\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 60,
+    "Literal": "\"停止服务\"",
+    "SourceLine": "* Tap \"停止服务\" → stop service → floating button disappears"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 383,
+    "Literal": "\"御主名称\"",
+    "SourceLine": "label = { Text(\"御主名称\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 750,
+    "Literal": "\"御主性别\"",
+    "SourceLine": "\"御主性别\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 317,
+    "Literal": "\"御主选项\"",
+    "SourceLine": "title = \"御主选项\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 465,
+    "Literal": "\"悬浮按钮\"",
+    "SourceLine": "title = \"悬浮按钮\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 170,
+    "Literal": "\"悬浮窗权限未授权\"",
+    "SourceLine": "title = \"悬浮窗权限未授权\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 771,
+    "Literal": "\"悬浮窗权限用途说明\"",
+    "SourceLine": ".setLocalizedTitle(context, \"悬浮窗权限用途说明\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 652,
+    "Literal": "\"控制随机程度\"",
+    "SourceLine": "\"控制随机程度\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 622,
+    "Literal": "\"检查中\"",
+    "SourceLine": "Text(if (appVersionStatus.isChecking) \"检查中\" else \"检查版本\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 622,
+    "Literal": "\"检查版本\"",
+    "SourceLine": "Text(if (appVersionStatus.isChecking) \"检查中\" else \"检查版本\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 128,
+    "Literal": "\"清空\"",
+    "SourceLine": "Text(\"清空\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 566,
+    "Literal": "\"清除中\"",
+    "SourceLine": "Text(if (clearingCache) \"清除中\" else \"清除缓存\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 566,
+    "Literal": "\"清除缓存\"",
+    "SourceLine": "Text(if (clearingCache) \"清除中\" else \"清除缓存\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 184,
+    "Literal": "\"清除缓存失败\"",
+    "SourceLine": "cacheClearMessage = \"清除缓存失败\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 589,
+    "Literal": "\"维护\"",
+    "SourceLine": "title = \"维护\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 877,
+    "Literal": "\"最大\"",
+    "SourceLine": "else -> \"最大\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 117,
+    "Literal": "\"最新版本：${update.versionName}\"",
+    "SourceLine": "Text(\"最新版本：${update.versionName}\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 416,
+    "Literal": "\"提示：可选全球 Azure；中国 Azure 需要组织/工作/学校账号，个人 Microsoft 账号不能登录使用。\"",
+    "SourceLine": "\"提示：可选全球 Azure；中国 Azure 需要组织/工作/学校账号，个人 Microsoft 账号不能登录使用。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 349,
+    "Literal": "\"提供最近场景的日文与中文对照；模型误译前文时可关闭；会增加Token消耗(云端API)\"",
+    "SourceLine": "subtitle = \"提供最近场景的日文与中文对照；模型误译前文时可关闭；会增加Token消耗(云端API)\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\AppUpdateDialog.kt",
+    "Line": 52,
+    "Literal": "\"暂不更新\"",
+    "SourceLine": "Text(\"暂不更新\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\HistoryOverlayPanel.kt",
+    "Line": 134,
+    "Literal": "\"暂无翻译LOG。\"",
+    "SourceLine": "addView(historyTextView(context, AppLanguageManager.localizeUiText(context, \"暂无翻译LOG。\"), historyTypeface(context)).apply {"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingButton.kt",
+    "Line": 121,
+    "Literal": "\"裁切翻譯\"",
+    "SourceLine": "FloatingButtonMode.CROP -> \"裁切翻譯\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 103,
+    "Literal": "\"裁剪\"",
+    "SourceLine": "mode = \"裁剪\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 122,
+    "Literal": "\"隐私与统计\"",
+    "SourceLine": "title = \"隐私与统计\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 390,
+    "Literal": "\"简中服\"",
+    "SourceLine": "SettingsRepository.GAME_SERVER_CN to \"简中服\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 632,
+    "Literal": "\"简体中文\"",
+    "SourceLine": "label = \"简体中文\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\component\\LanguagePickerDialog.kt",
+    "Line": 45,
+    "Literal": "\"跟随系统设置\"",
+    "SourceLine": "description = AppLanguageManager.localizeUiText(context, \"跟随系统设置\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 285,
+    "Literal": "\"错误\"",
+    "SourceLine": "DiagnosticEventStore.LEVEL_ERROR -> \"错误\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 64,
+    "Literal": "\"错误纪录\"",
+    "SourceLine": "title = { Text(\"错误纪录\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 700,
+    "Literal": "\"慢\"",
+    "SourceLine": "\"慢\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 127,
+    "Literal": "\"截图、游戏文本、译文、API Key、玩家名、账号信息或设备识别码。\"",
+    "SourceLine": "text = \"截图、游戏文本、译文、API Key、玩家名、账号信息或设备识别码。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 532,
+    "Literal": "\"瑪修・基列萊特，在此。御主……戰鬥準備完成，請下達指示。\"",
+    "SourceLine": "dialogue = \"瑪修・基列萊特，在此。御主……戰鬥準備完成，請下達指示。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 531,
+    "Literal": "\"瑪修\"",
+    "SourceLine": "speakerName = \"瑪修\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 303,
+    "Literal": "\"管理接口\"",
+    "SourceLine": "Text(\"管理接口\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 80,
+    "Literal": "\"播放声音捕获权限未授权\"",
+    "SourceLine": "title = \"播放声音捕获权限未授权\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 444,
+    "Literal": "\"模式\"",
+    "SourceLine": "label = \"模式\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 559,
+    "Literal": "\"模型\"",
+    "SourceLine": "label = { Text(\"模型\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 80,
+    "Literal": "\"模型不兼容 FgoGotran 翻译格式\"",
+    "SourceLine": "\"模型不兼容 FgoGotran 翻译格式\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 75,
+    "Literal": "\"模型名称\"",
+    "SourceLine": "message.startsWith(\"模型名称\") ->"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 97,
+    "Literal": "\"模型没有按 FgoGotran 翻译格式返回中文\"",
+    "SourceLine": "\"模型没有按 FgoGotran 翻译格式返回中文\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 87,
+    "Literal": "\"模型或请求参数不被服务商接受：${message.take(160)}\"",
+    "SourceLine": "\"模型或请求参数不被服务商接受：${message.take(160)}\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 95,
+    "Literal": "\"模型返回为空\"",
+    "SourceLine": "\"模型返回为空\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 93,
+    "Literal": "\"额度或频率限制异常：${message.take(160)}\"",
+    "SourceLine": "\"额度或频率限制异常：${message.take(160)}\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingButton.kt",
+    "Line": 68,
+    "Literal": "\"戰\"",
+    "SourceLine": "FloatingActionIcon.BATTLE -> \"戰\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 315,
+    "Literal": "\"默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。\"",
+    "SourceLine": "body = \"默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 370,
+    "Literal": "\"默认关闭：送翻译前会移除〈…〉注音，注音有时会干扰翻译质量；需要读音提示时可打开\"",
+    "SourceLine": "subtitle = \"默认关闭：送翻译前会移除〈…〉注音，注音有时会干扰翻译质量；需要读音提示时可打开\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 391,
+    "Literal": "\"繁中服\"",
+    "SourceLine": "SettingsRepository.GAME_SERVER_TW to \"繁中服\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 636,
+    "Literal": "\"繁體中文\"",
+    "SourceLine": "label = \"繁體中文\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 458,
+    "Literal": "\"翻译 + 朗读\"",
+    "SourceLine": "\"翻译 + 朗读\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 419,
+    "Literal": "\"翻译 + 朗读模式\"",
+    "SourceLine": "isJapaneseServer && aiVoiceEnabled -> \"翻译 + 朗读模式\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 369,
+    "Literal": "\"翻译时包含注音〈ruby〉\"",
+    "SourceLine": "title = \"翻译时包含注音〈ruby〉\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 336,
+    "Literal": "\"翻译偏好\"",
+    "SourceLine": "title = \"翻译偏好\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 499,
+    "Literal": "\"翻译悬浮窗正在运行\"",
+    "SourceLine": ".setContentText(AppLanguageManager.localizeUiText(this, \"翻译悬浮窗正在运行\"))"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 520,
+    "Literal": "\"翻译缓存\"",
+    "SourceLine": "title = \"翻译缓存\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 420,
+    "Literal": "\"翻译模式\"",
+    "SourceLine": "isJapaneseServer -> \"翻译模式\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 223,
+    "Literal": "\"翻译LOG\"",
+    "SourceLine": "label = \"翻译LOG\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 368,
+    "Literal": "\"AI 语气增强\"",
+    "SourceLine": "title = \"AI 语气增强\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 278,
+    "Literal": "\"AI 语音朗读\"",
+    "SourceLine": "title = \"AI 语音朗读\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 82,
+    "Literal": "\"Android 使用 RECORD_AUDIO 权限保护其他应用的播放声音捕获\"",
+    "SourceLine": "detail = \"Android 使用 RECORD_AUDIO 权限保护其他应用的播放声音捕获\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 73,
+    "Literal": "\"API 地址\"",
+    "SourceLine": "message.startsWith(\"API 地址\") ||"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 425,
+    "Literal": "\"API接口\"",
+    "SourceLine": "title = { Text(\"API接口\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 389,
+    "Literal": "\"Azure 区域\"",
+    "SourceLine": "\"Azure 区域\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 566,
+    "Literal": "\"Azure 语音请求失败：${message.take(96)}\"",
+    "SourceLine": "\"Azure 语音请求失败：${message.take(96)}\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 563,
+    "Literal": "\"Azure Key 无效，或当前区域不可用\"",
+    "SourceLine": "\"Azure Key 无效，或当前区域不可用\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 559,
+    "Literal": "\"Azure Speech Key 为空\"",
+    "SourceLine": "\"Azure Speech Key 为空\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingMenu.kt",
+    "Line": 357,
+    "Literal": "\"BATTLE字幕\"",
+    "SourceLine": "label = \"BATTLE字幕\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\overlay\\FloatingButton.kt",
+    "Line": 120,
+    "Literal": "\"BATTLE字幕模式，长按切换模式\"",
+    "SourceLine": "FloatingButtonMode.BATTLE -> \"BATTLE字幕模式，长按切换模式\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 265,
+    "Literal": "\"FGO 日文故事 → 中文即时翻译\"",
+    "SourceLine": "//                text = \"FGO 日文故事 → 中文即时翻译\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 416,
+    "Literal": "\"FGO 服务器\"",
+    "SourceLine": "\"FGO 服务器\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 150,
+    "Literal": "\"FGO 游戏内实时画面、剧情、选项，以及裁剪模式框选的画面区域。\"",
+    "SourceLine": "GuideInfoRow(label = \"支持\", text = \"FGO 游戏内实时画面、剧情、选项，以及裁剪模式框选的画面区域。\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 123,
+    "Literal": "\"FgoGotran 只收集匿名使用统计，用来了解版本、模式和 API 类型的使用情况。\"",
+    "SourceLine": "body = \"FgoGotran 只收集匿名使用统计，用来了解版本、模式和 API 类型的使用情况。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 167,
+    "Literal": "\"FgoGotran 网站\"",
+    "SourceLine": "\"FgoGotran 网站\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 287,
+    "Literal": "\"FgoGotran 服务中\"",
+    "SourceLine": "//                            \"FgoGotran 服务中\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 146,
+    "Literal": "\"FgoGotran 的翻译只在正在运行的 FGO 画面上生效。\"",
+    "SourceLine": "\"FgoGotran 的翻译只在正在运行的 FGO 画面上生效。\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\DiagnosticLogScreen.kt",
+    "Line": 105,
+    "Literal": "\"FgoGotran 错误纪录\"",
+    "SourceLine": "putExtra(Intent.EXTRA_SUBJECT, \"FgoGotran 错误纪录\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 74,
+    "Literal": "\"HTTP 仅允许\"",
+    "SourceLine": "message.startsWith(\"HTTP 仅允许\") ||"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 541,
+    "Literal": "\"HTTP 地址必须使用私有局域网数字 IP，并指向 /chat/completions。\"",
+    "SourceLine": "\"HTTP 地址必须使用私有局域网数字 IP，并指向 /chat/completions。\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 527,
+    "Literal": "\"HTTPS 可连接任意服务；HTTP 仅允许数字形式的私有局域网 IP\"",
+    "SourceLine": "Text(\"HTTPS 可连接任意服务；HTTP 仅允许数字形式的私有局域网 IP\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\VoiceSettingsScreen.kt",
+    "Line": 430,
+    "Literal": "\"https://资源名.cognitiveservices.azure.cn\"",
+    "SourceLine": "placeholder = { Text(\"https://资源名.cognitiveservices.azure.cn\") },"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 353,
+    "Literal": "\"MediaProjection 已启动\"",
+    "SourceLine": "title = \"MediaProjection 已启动\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 342,
+    "Literal": "\"MediaProjection 启动失败\"",
+    "SourceLine": "title = \"MediaProjection 启动失败\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 309,
+    "Literal": "\"OCR 引擎\"",
+    "SourceLine": "title = \"OCR 引擎\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\runner\\FgoRunnerService.kt",
+    "Line": 344,
+    "Literal": "\"OCR 翻译不受影响；请重新开启实时语音并允许屏幕捕获授权\"",
+    "SourceLine": "detail = \"OCR 翻译不受影响；请重新开启实时语音并允许屏幕捕获授权\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\HomeScreen.kt",
+    "Line": 81,
+    "Literal": "\"OCR 翻译仍会启动，实时语音翻译不会启动\"",
+    "SourceLine": "message = \"OCR 翻译仍会启动，实时语音翻译不会启动\","
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\SettingsScreen.kt",
+    "Line": 445,
+    "Literal": "\"Sakura：本机规则\"",
+    "SourceLine": "!apiVoiceHintsSupported -> \"Sakura：本机规则\""
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 212,
+    "Literal": "\"Temperature 必须在 0.00 到 1.00 之间\"",
+    "SourceLine": ") { \"Temperature 必须在 0.00 到 1.00 之间\" }"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\ApiSettingsScreen.kt",
+    "Line": 218,
+    "Literal": "\"Top-p 必须在 0.01 到 1.00 之间\"",
+    "SourceLine": ") { \"Top-p 必须在 0.01 到 1.00 之间\" }"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 73,
+    "Literal": "\"ページ送り / 表示速度\"",
+    "SourceLine": "GuideSettingRow(label = \"ページ送り / 表示速度\", value = \"MAX\")"
+  },
+  {
+    "File": "app\\src\\main\\java\\com\\fgogotran\\ui\\screen\\GuideScreen.kt",
+    "Line": 81,
+    "Literal": "\"マイルーム → ゲームオプション → テキスト表示速度\\n我的房间 → 游戏选项 → 文本显示速度\"",
+    "SourceLine": "text = \"マイルーム → ゲームオプション → テキスト表示速度\\n我的房间 → 游戏选项 → 文本显示速度\""
+  }
+]

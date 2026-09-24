@@ -1,5 +1,6 @@
 package com.fgogotran.ui.screen
 
+import android.content.Context
 import android.os.SystemClock
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -9,10 +10,13 @@ import androidx.compose.material3.*
 import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.fgogotran.R
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
@@ -31,82 +35,106 @@ private data class BackendOption(
     val note: String? = null
 )
 
-private fun formatApiResponseTime(durationMs: Long): String {
+private fun formatApiResponseTime(context: Context, durationMs: Long): String {
     val safeDuration = durationMs.coerceAtLeast(0L)
     val tenths = (safeDuration + 50L) / 100L
-    return "${tenths / 10}.${tenths % 10} 秒"
+    return context.getString(R.string.api_response_seconds, "${tenths / 10}.${tenths % 10}")
 }
 
-private fun apiTestMessage(status: String, durationMs: Long, result: String): String {
-    return "状态：$status\n用时：${formatApiResponseTime(durationMs)}\n结果：$result"
-}
+private fun apiTestMessage(context: Context, status: String, durationMs: Long, result: String): String =
+    context.getString(
+        R.string.api_test_message,
+        status,
+        formatApiResponseTime(context, durationMs),
+        result
+    )
 
 private fun formatSamplingValue(value: Double): String = value.toString()
 
-private fun samplingRecommendation(backend: String, apiModel: String): String {
-    return when (SettingsRepository.normalizeBackend(backend)) {
-        SettingsRepository.BACKEND_DEEPSEEK ->
-            "自动：Temperature ${SettingsRepository.DEFAULT_DEEPSEEK_TEMPERATURE}；不发送 Top-p。"
-        SettingsRepository.BACKEND_ZHIPU ->
-            "自动：关闭随机采样；翻译输出更稳定。"
-        SettingsRepository.BACKEND_QWEN ->
-            "自动：使用当前 Qwen 模型的默认采样参数。"
+private fun apiBackendDisplayName(context: Context, backend: String): String =
+    when (SettingsRepository.normalizeBackend(backend)) {
+        SettingsRepository.BACKEND_ZHIPU -> context.getString(R.string.api_backend_zhipu)
+        SettingsRepository.BACKEND_QWEN -> context.getString(R.string.api_backend_qwen)
+        SettingsRepository.BACKEND_CUSTOM_OPENAI -> context.getString(R.string.api_backend_custom)
+        else -> SettingsRepository.backendDisplayName(backend)
+    }
+
+private fun samplingRecommendation(context: Context, backend: String, apiModel: String): String =
+    when (SettingsRepository.normalizeBackend(backend)) {
+        SettingsRepository.BACKEND_DEEPSEEK -> context.getString(
+            R.string.api_sampling_deepseek,
+            SettingsRepository.DEFAULT_DEEPSEEK_TEMPERATURE.toString()
+        )
+        SettingsRepository.BACKEND_ZHIPU -> context.getString(R.string.api_sampling_zhipu)
+        SettingsRepository.BACKEND_QWEN -> context.getString(R.string.api_sampling_qwen)
         SettingsRepository.BACKEND_GPT -> if (
             SettingsRepository.supportsApiSamplingCustomization(backend, apiModel)
         ) {
-            "自动：当前 GPT 模型使用 Temperature 0.3。"
+            context.getString(R.string.api_sampling_gpt_custom)
         } else {
-            "自动：当前 GPT 模型不发送采样参数，避免请求被拒绝。"
+            context.getString(R.string.api_sampling_gpt_default)
         }
-        SettingsRepository.BACKEND_GEMINI ->
-            "自动：Gemini 使用模型默认值，不发送采样参数。"
-        SettingsRepository.BACKEND_CLAUDE ->
-            "自动：Claude 使用模型默认值，不发送采样参数。"
-        else ->
-            "自动：使用本地模型或兼容接口的默认采样参数。"
+        SettingsRepository.BACKEND_GEMINI -> context.getString(R.string.api_sampling_gemini)
+        SettingsRepository.BACKEND_CLAUDE -> context.getString(R.string.api_sampling_claude)
+        else -> context.getString(R.string.api_sampling_local)
     }
-}
 
-private fun apiTestFailureResult(error: Throwable): String {
+private fun apiTestFailureResult(context: Context, error: Throwable): String {
     val message = error.message.orEmpty()
     return when {
         message.startsWith("API 地址") ||
             message.startsWith("HTTP 仅允许") ||
             message.startsWith("模型名称") ->
-            message
+            localizedApiError(context, message)
         message.contains("Cleartext HTTP traffic", ignoreCase = true) ->
-            "应用未允许本地 HTTP，请安装支持本地 AI 的新版 APK"
+            context.getString(R.string.api_error_local_http_disabled)
         message.contains("Role must be in [user, assistant]", ignoreCase = true) ->
-            "模型不兼容 FgoGotran 翻译格式"
+            context.getString(R.string.api_error_model_format)
         message.contains("API Key", ignoreCase = true) || message.contains("401") ->
-            "请检查 API Key"
+            context.getString(R.string.api_error_check_key)
         message.contains("model", ignoreCase = true) ||
             message.contains("not found", ignoreCase = true) ||
             message.contains("invalid_request", ignoreCase = true) ||
             message.contains("400") ->
-            "模型或请求参数不被服务商接受：${message.take(160)}"
+            context.getString(R.string.api_error_provider_rejected, message.take(160))
         message.contains("quota", ignoreCase = true) ||
             message.contains("insufficient", ignoreCase = true) ||
             message.contains("balance", ignoreCase = true) ||
             message.contains("402") ||
             message.contains("429") ->
-            "额度或频率限制异常：${message.take(160)}"
+            context.getString(R.string.api_error_quota, message.take(160))
         message.contains("empty", ignoreCase = true) ->
-            "模型返回为空"
+            context.getString(R.string.api_error_empty_response)
         message.contains("untranslated", ignoreCase = true) ->
-            "模型没有按 FgoGotran 翻译格式返回中文"
+            context.getString(R.string.api_error_untranslated)
         message.contains("timeout", ignoreCase = true) ||
             message.contains("timed out", ignoreCase = true) ->
-            "连接模型超时，请确认电脑端模型已加载完成"
+            context.getString(R.string.api_error_timeout)
         message.contains("connect", ignoreCase = true) ||
             message.contains("unreachable", ignoreCase = true) ||
             message.contains("refused", ignoreCase = true) ->
-            "无法连接服务器，请检查电脑 IP、端口、防火墙和 VPN 的局域网放行设置"
+            context.getString(R.string.api_error_connect)
         message.isNotBlank() ->
-            "服务商返回错误：${message.take(160)}"
+            context.getString(R.string.api_error_provider, message.take(160))
         else ->
-            "测试失败，请检查模型和网络连接"
+            context.getString(R.string.api_error_test_failed)
     }
+}
+
+private fun localizedApiError(context: Context, message: String): String = when (message) {
+    "API 地址不能为空" -> context.getString(R.string.api_error_url_empty)
+    "API 地址格式无效" -> context.getString(R.string.api_error_url_invalid)
+    "API 地址必须使用 https:// 或 http://" -> context.getString(R.string.api_error_url_scheme)
+    "API 地址必须包含有效的服务器地址" -> context.getString(R.string.api_error_url_host)
+    "API 地址不能包含用户名或密码" -> context.getString(R.string.api_error_url_userinfo)
+    "API 地址不能包含 # 片段" -> context.getString(R.string.api_error_url_fragment)
+    "API 地址端口无效" -> context.getString(R.string.api_error_url_port)
+    "API 地址必须指向 Chat Completions 接口，例如 /v1/chat/completions" ->
+        context.getString(R.string.api_error_url_path)
+    "HTTP 仅允许数字形式的电脑私有局域网地址；公网或主机名请使用 HTTPS" ->
+        context.getString(R.string.api_error_http_private)
+    "模型名称不能为空" -> context.getString(R.string.api_error_model_empty)
+    else -> message
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,8 +146,10 @@ fun ApiSettingsScreen(
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
-    val backendOptions = remember {
+    val customBackendNote = context.getString(R.string.api_compat_note)
+    val backendOptions = remember(customBackendNote) {
         listOf(
             BackendOption(SettingsRepository.BACKEND_DEEPSEEK),
             BackendOption(SettingsRepository.BACKEND_ZHIPU),
@@ -129,7 +159,7 @@ fun ApiSettingsScreen(
             BackendOption(SettingsRepository.BACKEND_CLAUDE),
             BackendOption(
                 SettingsRepository.BACKEND_CUSTOM_OPENAI,
-                "兼容 OpenAI Chat Completions；支持可信局域网内的本地模型"
+                customBackendNote
             )
         )
     }
@@ -209,13 +239,13 @@ fun ApiSettingsScreen(
                 temperature != null &&
                     temperature in SettingsRepository.MIN_API_TEMPERATURE..
                     SettingsRepository.MAX_API_TEMPERATURE
-            ) { "Temperature 必须在 0.00 到 1.00 之间" }
+            ) { context.getString(R.string.api_error_temperature_range) }
         }
         if (effectiveTopPEnabled) {
             require(
                 topP != null &&
                     topP in SettingsRepository.MIN_API_TOP_P..SettingsRepository.MAX_API_TOP_P
-            ) { "Top-p 必须在 0.01 到 1.00 之间" }
+            ) { context.getString(R.string.api_error_top_p_range) }
         }
         return ApiSamplingSettings(
             mode = effectiveMode,
@@ -333,7 +363,7 @@ fun ApiSettingsScreen(
                     qwenSite = qwenSite,
                     samplingSettings = currentSamplingSettings()
                 )
-                saveMessage = "已保存"
+                saveMessage = context.getString(R.string.api_saved)
                 saveMessageIsError = false
                 val savedBackend = selectedBackend
                 scope.launch {
@@ -342,7 +372,7 @@ fun ApiSettingsScreen(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                saveMessage = e.message?.takeIf { it.isNotBlank() } ?: "保存失败"
+                saveMessage = e.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.api_save_failed)
                 saveMessageIsError = true
             }
         }
@@ -379,20 +409,21 @@ fun ApiSettingsScreen(
                     "API test succeeded: backend=$requestBackend, model=$requestModel, elapsedMs=$elapsedMs"
                 )
                 saveMessage = apiTestMessage(
-                    status = "成功",
+                    context = context,
+                    status = context.getString(R.string.api_success),
                     durationMs = elapsedMs,
                     result = if (testResult.ignoredSamplingParameters.isNotEmpty()) {
                         val ignoredLabels = testResult.ignoredSamplingParameters.joinToString("、") {
                             when (it) {
                                 "temperature" -> "Temperature"
                                 "top_p" -> "Top-p"
-                                "do_sample" -> "采样开关"
+                                "do_sample" -> context.getString(R.string.api_sampling_switches)
                                 else -> it
                             }
                         }
-                        "可用于 FgoGotran 翻译；接口不接受 $ignoredLabels，已自动忽略"
+                        context.getString(R.string.api_ignored_params, ignoredLabels)
                     } else {
-                        "可用于 FgoGotran 翻译"
+                        context.getString(R.string.api_ready)
                     }
                 )
                 saveMessageIsError = false
@@ -408,9 +439,10 @@ fun ApiSettingsScreen(
                     e
                 )
                 saveMessage = apiTestMessage(
-                    status = "失败",
+                    context = context,
+                    status = context.getString(R.string.api_failed),
                     durationMs = elapsedMs,
-                    result = apiTestFailureResult(e)
+                    result = apiTestFailureResult(context, e)
                 )
                 saveMessageIsError = true
             } finally {
@@ -422,10 +454,10 @@ fun ApiSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("API接口") },
+                title = { Text(stringResource(R.string.api_title)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
-                        Text("返回", color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.api_back), color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -447,7 +479,7 @@ fun ApiSettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("服务商", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.api_provider), style = MaterialTheme.typography.titleMedium)
                     backendOptions.forEach { option ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -460,7 +492,7 @@ fun ApiSettingsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 BackendProviderLabel(
                                     backend = option.value,
-                                    label = SettingsRepository.backendDisplayName(option.value),
+                                    label = apiBackendDisplayName(context, option.value),
                                     textStyle = MaterialTheme.typography.bodyLarge
                                 )
                                 option.note?.let { note ->
@@ -484,10 +516,10 @@ fun ApiSettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("请求设置", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.api_request_settings), style = MaterialTheme.typography.titleMedium)
                     if (isQwenBackend) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("站点", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.api_site), style = MaterialTheme.typography.bodyMedium)
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -495,18 +527,18 @@ fun ApiSettingsScreen(
                                 FilterChip(
                                     selected = qwenSite == SettingsRepository.QWEN_SITE_CHINA,
                                     onClick = { selectQwenSite(SettingsRepository.QWEN_SITE_CHINA) },
-                                    label = { Text("中国站") }
+                                    label = { Text(stringResource(R.string.api_site_china)) }
                                 )
                                 FilterChip(
                                     selected = qwenSite == SettingsRepository.QWEN_SITE_INTERNATIONAL,
                                     onClick = {
                                         selectQwenSite(SettingsRepository.QWEN_SITE_INTERNATIONAL)
                                     },
-                                    label = { Text("国际站") }
+                                    label = { Text(stringResource(R.string.api_site_international)) }
                                 )
                             }
                             Text(
-                                "请使用对应站点的 API Key。",
+                                stringResource(R.string.api_site_key_note),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -520,11 +552,11 @@ fun ApiSettingsScreen(
                                 saveMessage = ""
                                 saveMessageIsError = false
                             },
-                            label = { Text("API 地址") },
+                            label = { Text(stringResource(R.string.api_address)) },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                             supportingText = {
-                                Text("HTTPS 可连接任意服务；HTTP 仅允许数字形式的私有局域网 IP")
+                                Text(stringResource(R.string.api_address_https_note))
                             },
                             singleLine = true
                         )
@@ -536,9 +568,9 @@ fun ApiSettingsScreen(
                             }
                             Text(
                                 if (localEndpointValid) {
-                                    "本地 HTTP 不加密，仅应在可信 Wi-Fi 中使用；请保留 API Key 认证。"
+                                    stringResource(R.string.api_local_http_warning)
                                 } else {
-                                    "HTTP 地址必须使用私有局域网数字 IP，并指向 /chat/completions。"
+                                    stringResource(R.string.api_http_address_hint)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (localEndpointValid) {
@@ -556,7 +588,7 @@ fun ApiSettingsScreen(
                             saveMessage = ""
                             saveMessageIsError = false
                         },
-                        label = { Text("模型") },
+                        label = { Text(stringResource(R.string.api_model)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -572,7 +604,7 @@ fun ApiSettingsScreen(
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         supportingText = {
-                            Text("当前服务商需要 API Key")
+                            Text(stringResource(R.string.api_api_key_required))
                         },
                         singleLine = true
                     )
@@ -581,11 +613,11 @@ fun ApiSettingsScreen(
                         onClick = { advancedSamplingExpanded = !advancedSamplingExpanded },
                         modifier = Modifier.align(Alignment.Start)
                     ) {
-                        Text(if (advancedSamplingExpanded) "收起高级自定义" else "高级自定义")
+                        Text(if (advancedSamplingExpanded) stringResource(R.string.api_advanced_hide) else stringResource(R.string.api_advanced_custom))
                     }
                     if (advancedSamplingExpanded) {
                         Text(
-                            samplingRecommendation(selectedBackend, apiModel),
+                            samplingRecommendation(context, selectedBackend, apiModel),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
@@ -601,7 +633,7 @@ fun ApiSettingsScreen(
                                     saveMessage = ""
                                     saveMessageIsError = false
                                 },
-                                label = { Text("自动（推荐）") }
+                                label = { Text(stringResource(R.string.api_sampling_auto_recommended)) }
                             )
                             FilterChip(
                                 selected = supportsSamplingCustomization &&
@@ -622,21 +654,21 @@ fun ApiSettingsScreen(
                                     }
                                 },
                                 enabled = supportsSamplingCustomization,
-                                label = { Text("自定义") }
+                                label = { Text(stringResource(R.string.api_sampling_custom)) }
                             )
                         }
                         if (!supportsSamplingCustomization) {
                             Text(
-                                "该服务商或模型为保证请求兼容性，仅使用自动模式。",
+                                stringResource(R.string.api_sampling_auto_only),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         } else if (samplingMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM) {
                             Text(
                                 if (samplingCapabilities.allowsCombinedParameters) {
-                                    "本地／自定义接口可单独启用，也可同时发送两个参数。"
+                                    stringResource(R.string.api_sampling_local_note)
                                 } else {
-                                    "云端接口一次只启用一个参数；开启另一项会自动关闭当前项。"
+                                    stringResource(R.string.api_sampling_cloud_note)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -649,9 +681,9 @@ fun ApiSettingsScreen(
                                     Text("Temperature", style = MaterialTheme.typography.bodyMedium)
                                     Text(
                                         if (samplingCapabilities.supportsTemperature) {
-                                            "控制随机程度"
+                                            stringResource(R.string.api_temperature_title)
                                         } else {
-                                            "当前模型不支持"
+                                            stringResource(R.string.api_not_supported)
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -679,7 +711,7 @@ fun ApiSettingsScreen(
                                     saveMessageIsError = false
                                 },
                                 label = { Text("Temperature") },
-                                supportingText = { Text("范围 0.00–1.00；数值越低越稳定") },
+                                supportingText = { Text(stringResource(R.string.api_temperature_range)) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 enabled = temperatureEnabled &&
                                     samplingCapabilities.supportsTemperature,
@@ -694,9 +726,9 @@ fun ApiSettingsScreen(
                                     Text("Top-p", style = MaterialTheme.typography.bodyMedium)
                                     Text(
                                         if (samplingCapabilities.supportsTopP) {
-                                            "限制候选词范围"
+                                            stringResource(R.string.api_top_p_title)
                                         } else {
-                                            "当前模型不支持"
+                                            stringResource(R.string.api_not_supported)
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -723,7 +755,7 @@ fun ApiSettingsScreen(
                                     saveMessageIsError = false
                                 },
                                 label = { Text("Top-p") },
-                                supportingText = { Text("范围 0.01–1.00；数值越低候选范围越小") },
+                                supportingText = { Text(stringResource(R.string.api_top_p_range)) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 enabled = topPEnabled && samplingCapabilities.supportsTopP,
                                 modifier = Modifier.fillMaxWidth(),
@@ -758,7 +790,7 @@ fun ApiSettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                             }
-                            Text(if (testingApi) "测试中" else "测试 API")
+                            Text(if (testingApi) stringResource(R.string.api_testing) else stringResource(R.string.api_test))
                         }
                     }
                     Row(
@@ -769,11 +801,11 @@ fun ApiSettingsScreen(
                         OutlinedButton(
                             onClick = { restoreBackendDefaults() }
                         ) {
-                            Text("恢复默认")
+                            Text(stringResource(R.string.api_restore_defaults))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(onClick = { saveSettings() }) {
-                            Text("应用API设置")
+                            Text(stringResource(R.string.api_apply))
                         }
                     }
                 }
@@ -781,3 +813,5 @@ fun ApiSettingsScreen(
         }
     }
 }
+
+

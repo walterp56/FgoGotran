@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.fgogotran.diagnostic.DiagnosticEvent
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.localization.AppLanguageManager
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -102,10 +103,10 @@ fun DiagnosticLogScreen(
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_STREAM, uri)
-                                    putExtra(Intent.EXTRA_SUBJECT, "FgoGotran 错误纪录")
+                                    putExtra(Intent.EXTRA_SUBJECT, AppLanguageManager.localizeUiText(context, "FgoGotran 错误纪录"))
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                context.startActivity(Intent.createChooser(shareIntent, "分享错误纪录"))
+                                context.startActivity(Intent.createChooser(shareIntent, AppLanguageManager.localizeUiText(context, "分享错误纪录")))
                             }.onSuccess {
                                 exportMessage = "已生成 TXT"
                             }.onFailure {
@@ -165,6 +166,7 @@ private fun EmptyDiagnosticState() {
 
 @Composable
 private fun DiagnosticEventRow(event: DiagnosticEvent) {
+    val context = LocalContext.current
     val colors = eventColors(event)
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -186,21 +188,21 @@ private fun DiagnosticEventRow(event: DiagnosticEvent) {
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        event.metaLine(),
+                        event.metaLine(context),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
                     )
                 }
                 SeverityBadge(event.level, colors)
             }
-            event.bodyLine()?.let { line ->
+            event.bodyLine(context)?.let { line ->
                 Text(
                     line,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
                 )
             }
-            event.detailLine()?.let { line ->
+            event.detailLine(context)?.let { line ->
                 Text(
                     line,
                     style = MaterialTheme.typography.bodySmall,
@@ -254,18 +256,21 @@ private data class DiagnosticColors(
     val content: androidx.compose.ui.graphics.Color
 )
 
-private fun DiagnosticEvent.metaLine(): String {
+private fun DiagnosticEvent.metaLine(context: android.content.Context): String {
     return listOfNotNull(
         formatEventTime(timestampMs),
-        server.takeIf { it.isNotBlank() },
-        mode.takeIf { it.isNotBlank() },
+        server.takeIf { it.isNotBlank() }
+            ?.let { AppLanguageManager.localizeUiText(context, it) },
+        mode.takeIf { it.isNotBlank() }
+            ?.let { AppLanguageManager.localizeUiText(context, it) },
         speaker.takeIf { it.isNotBlank() }
     ).joinToString(" · ")
 }
 
-private fun DiagnosticEvent.bodyLine(): String? {
+private fun DiagnosticEvent.bodyLine(context: android.content.Context): String? {
     return listOfNotNull(
-        message.takeIf { it.isNotBlank() },
+        message.takeIf { it.isNotBlank() }
+            ?.let { AppLanguageManager.localizeUiText(context, it) },
         voiceType.takeIf { it.isNotBlank() }?.let { "type=$it" },
         voiceName.takeIf { it.isNotBlank() }?.let { "voice=$it" },
         apiBackend.takeIf { it.isNotBlank() }?.let { "api=$it" },
@@ -273,9 +278,10 @@ private fun DiagnosticEvent.bodyLine(): String? {
     ).joinToString(" · ").takeIf { it.isNotBlank() }
 }
 
-private fun DiagnosticEvent.detailLine(): String? {
+private fun DiagnosticEvent.detailLine(context: android.content.Context): String? {
     return listOfNotNull(
-        detail.takeIf { it.isNotBlank() },
+        detail.takeIf { it.isNotBlank() }
+            ?.let { AppLanguageManager.localizeUiText(context, it) },
         textPreview.takeIf { it.isNotBlank() }?.let { "text=$it" }
     ).joinToString(" · ").takeIf { it.isNotBlank() }
 }
@@ -297,3 +303,4 @@ private fun formatEventTime(timestampMs: Long): String {
 }
 
 private val TIME_FORMATTER = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
+

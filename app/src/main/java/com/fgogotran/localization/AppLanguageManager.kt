@@ -24,6 +24,7 @@ object AppLanguageManager {
     const val LANGUAGE_SYSTEM = "system"
     const val LANGUAGE_TRADITIONAL = "zh-Hant"
     const val LANGUAGE_SIMPLIFIED = "zh-Hans"
+    const val LANGUAGE_ENGLISH = "en"
 
     private const val TAG = "FGO/Language"
     private const val PREFS_NAME = "app_language"
@@ -31,7 +32,8 @@ object AppLanguageManager {
     private val supportedLanguages = setOf(
         LANGUAGE_SYSTEM,
         LANGUAGE_TRADITIONAL,
-        LANGUAGE_SIMPLIFIED
+        LANGUAGE_SIMPLIFIED,
+        LANGUAGE_ENGLISH
     )
     private val traditionalRegions = setOf("TW", "HK", "MO")
 
@@ -213,7 +215,7 @@ object AppLanguageManager {
     /** Effective language after resolving [LANGUAGE_SYSTEM] against the system locale. */
     fun effectiveLanguageTag(context: Context): String {
         return when (val language = getLanguage(context)) {
-            LANGUAGE_TRADITIONAL, LANGUAGE_SIMPLIFIED -> language
+            LANGUAGE_TRADITIONAL, LANGUAGE_SIMPLIFIED, LANGUAGE_ENGLISH -> language
             else -> resolveSystemLanguage(context)
         }
     }
@@ -230,6 +232,7 @@ object AppLanguageManager {
         val localized = when (language) {
             LANGUAGE_TRADITIONAL -> toTraditional(text)
             LANGUAGE_SIMPLIFIED -> toSimplified(text)
+            LANGUAGE_ENGLISH -> EnglishUiText.translate(text) ?: text
             else -> text
         }
         if (localizedTextCache.size > 2048) {
@@ -275,6 +278,9 @@ object AppLanguageManager {
     private fun resolveSystemLanguage(context: Context): String {
         val locales = context.resources.configuration.locales
         val locale = if (locales.size() == 0) Locale.getDefault() else locales[0]
+        if (locale.language.equals("en", ignoreCase = true)) {
+            return LANGUAGE_ENGLISH
+        }
         if (!locale.language.equals("zh", ignoreCase = true)) {
             return LANGUAGE_SIMPLIFIED
         }
@@ -293,5 +299,6 @@ object AppLanguageManager {
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 }
+
 
 

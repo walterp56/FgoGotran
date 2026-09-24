@@ -1,5 +1,6 @@
 package com.fgogotran.ui.overlay
 
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloatAsState
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -61,12 +63,15 @@ enum class FloatingActionIcon {
     CLOSE_CIRCLE
 }
 
-internal fun FloatingActionIcon.textLabel(): String = when (this) {
-    FloatingActionIcon.GO -> "GO"
-    FloatingActionIcon.SEMI -> "半"
-    FloatingActionIcon.AUTO -> "全"
-    FloatingActionIcon.BATTLE -> "戰"
-    else -> error("$this is not a text action")
+internal fun FloatingActionIcon.textLabel(context: Context): String {
+    val english = AppLanguageManager.effectiveLanguageTag(context) == AppLanguageManager.LANGUAGE_ENGLISH
+    return when (this) {
+        FloatingActionIcon.GO -> "GO"
+        FloatingActionIcon.SEMI -> if (english) "S" else "半"
+        FloatingActionIcon.AUTO -> if (english) "A" else "全"
+        FloatingActionIcon.BATTLE -> if (english) "B" else "戰"
+        else -> error("$this is not a text action")
+    }
 }
 
 /**
@@ -255,6 +260,7 @@ fun FloatingActionGlyph(
     prominent: Boolean = false,
     contentScale: Float = 1f
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     when (icon) {
         FloatingActionIcon.GO,
         FloatingActionIcon.SEMI,
@@ -264,7 +270,7 @@ fun FloatingActionGlyph(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = icon.textLabel(),
+                text = icon.textLabel(context),
                 color = color,
                 fontSize = scaledGlyphFontSize(icon, prominent, contentScale),
                 fontWeight = FontWeight.Bold,
@@ -378,3 +384,5 @@ private fun CloseCircleIcon(
         )
     }
 }
+
+

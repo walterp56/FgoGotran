@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
@@ -100,10 +101,10 @@ fun HomeScreen(
         else -> Color(0xFFFF9800)
     }
     val accessibilityRunningStatusText = when (accessibilityState) {
-        AccessibilityConnectionState.CONNECTED -> "已连接"
-        AccessibilityConnectionState.ENABLED_NOT_CONNECTED -> "已开启，未连接"
-        AccessibilityConnectionState.DISABLED -> "未启用"
-        AccessibilityConnectionState.UNKNOWN -> "状态无法确认"
+        AccessibilityConnectionState.CONNECTED -> stringResource(R.string.home_accessibility_connected)
+        AccessibilityConnectionState.ENABLED_NOT_CONNECTED -> stringResource(R.string.home_accessibility_enabled_not_connected)
+        AccessibilityConnectionState.DISABLED -> stringResource(R.string.home_accessibility_disabled)
+        AccessibilityConnectionState.UNKNOWN -> stringResource(R.string.home_accessibility_unknown)
     }
 
     // Reactive state for permissions that change via system settings
@@ -214,7 +215,7 @@ fun HomeScreen(
                 },
                 text = {
                     Text(
-                        if (serviceRunning) "停止服务" else "启动服务"
+                        if (serviceRunning) stringResource(R.string.home_stop_service) else stringResource(R.string.home_start_service)
                     )
                 },
                 containerColor = if (serviceRunning)
@@ -250,14 +251,14 @@ fun HomeScreen(
                 IconButton(onClick = { showLanguageDialog = true }) {
                     Icon(
                         painter = painterResource(R.drawable.ic_language_globe),
-                        contentDescription = AppLanguageManager.localizeUiText(context, "语言"),
+                        contentDescription = stringResource(R.string.home_language),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
 
             ServerPreference(
-                selectedLabel = SettingsRepository.gameServerDisplayName(gameServer),
+                selectedServer = gameServer,
                 onClick = { showServerDialog = true }
             )
 
@@ -293,11 +294,11 @@ fun HomeScreen(
 //            }
 
             StatusActionCard(
-                label = "无障碍服务",
+                label = stringResource(R.string.home_accessibility_label),
                 statusText = accessibilityRunningStatusText,
                 statusColor = accessibilityRunningStatusColor,
                 enabled = accessibilityState == AccessibilityConnectionState.CONNECTED,
-                actionText = "设置 →",
+                actionText = stringResource(R.string.home_action_settings),
                 onClick = {
                     when (accessibilityState) {
                         AccessibilityConnectionState.DISABLED,
@@ -309,16 +310,16 @@ fun HomeScreen(
             )
 
             StatusActionCard(
-                label = "显示在其他应用上层",
-                statusText = if (canDrawOverlays) "已授权" else "未授权",
+                label = stringResource(R.string.home_overlay_label),
+                statusText = if (canDrawOverlays) stringResource(R.string.home_granted) else stringResource(R.string.home_not_granted),
                 statusColor = if (canDrawOverlays) Color(0xFF4CAF50) else Color(0xFFFF9800),
                 enabled = canDrawOverlays,
-                actionText = "去授权 →",
+                actionText = stringResource(R.string.home_action_grant),
                 onClick = { showOverlayPermissionDisclosure(context) }
             )
 
             Text(
-                text = "可选稳定性（非必要）",
+                text = stringResource(R.string.home_optional_stability),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
                 modifier = Modifier
@@ -327,13 +328,13 @@ fun HomeScreen(
             )
 
             val batteryColor = if (isIgnoringBatteryOptimizations) Color(0xFF4CAF50) else Color(0xFFFF9800)
-            val batteryText = if (isIgnoringBatteryOptimizations) "已关闭优化" else "优化中"
+            val batteryText = if (isIgnoringBatteryOptimizations) stringResource(R.string.home_battery_optimization_off) else stringResource(R.string.home_battery_optimization_on)
             StatusActionCard(
-                label = "电池优化",
+                label = stringResource(R.string.home_battery_optimization),
                 statusText = batteryText,
                 statusColor = batteryColor,
                 enabled = isIgnoringBatteryOptimizations,
-                actionText = "去管理 →",
+                actionText = stringResource(R.string.home_action_manage),
                 onClick = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
             )
 
@@ -345,14 +346,14 @@ fun HomeScreen(
                     onClick = onSettings,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("设置")
+                    Text(stringResource(R.string.home_settings))
                 }
 
                 OutlinedButton(
                     onClick = onGuide,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("使用指南")
+                    Text(stringResource(R.string.home_guide))
                 }
             }
         }
@@ -385,18 +386,14 @@ fun HomeScreen(
     }
 }
 
-private val gameServerOptions = listOf(
-    SettingsRepository.GAME_SERVER_JP to "日服",
-    SettingsRepository.GAME_SERVER_CN to "简中服",
-    SettingsRepository.GAME_SERVER_TW to "繁中服"
-)
-
 @Composable
 private fun ServerPreference(
-    selectedLabel: String,
+    selectedServer: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val selectedLabel = gameServerLabel(context, selectedServer)
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -413,7 +410,7 @@ private fun ServerPreference(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "FGO 服务器",
+                    stringResource(R.string.home_server_title),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -430,7 +427,7 @@ private fun ServerPreference(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 LanguageDirectionChip(
-                    label = "当前",
+                    label = stringResource(R.string.home_current),
                     value = selectedLabel,
                     highlighted = false,
                     modifier = Modifier.weight(1f)
@@ -441,8 +438,8 @@ private fun ServerPreference(
                     color = MaterialTheme.colorScheme.primary
                 )
                 LanguageDirectionChip(
-                    label = "模式",
-                    value = serverFeatureLabel(selectedLabel),
+                    label = stringResource(R.string.home_mode),
+                    value = serverFeatureLabel(context, selectedServer),
                     highlighted = true,
                     modifier = Modifier.weight(1f)
                 )
@@ -451,15 +448,19 @@ private fun ServerPreference(
     }
 }
 
-private fun serverFeatureLabel(selectedLabel: String): String {
-    val server = gameServerOptions.firstOrNull { it.second == selectedLabel }?.first
-        ?: SettingsRepository.DEFAULT_GAME_SERVER
-    return if (SettingsRepository.normalizeGameServer(server) == SettingsRepository.GAME_SERVER_JP) {
-        "翻译 + 朗读"
+private fun serverFeatureLabel(context: Context, server: String): String =
+    if (SettingsRepository.normalizeGameServer(server) == SettingsRepository.GAME_SERVER_JP) {
+        context.getString(R.string.home_mode_translate_voice)
     } else {
-        "朗读"
+        context.getString(R.string.home_mode_voice)
     }
-}
+
+private fun gameServerLabel(context: Context, server: String): String =
+    when (SettingsRepository.normalizeGameServer(server)) {
+        SettingsRepository.GAME_SERVER_CN -> context.getString(R.string.home_server_cn)
+        SettingsRepository.GAME_SERVER_TW -> context.getString(R.string.home_server_tw)
+        else -> context.getString(R.string.home_server_jp)
+    }
 
 @Composable
 private fun ServerChoiceDialog(
@@ -483,7 +484,7 @@ private fun ServerChoiceDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "FGO 服务器",
+                    stringResource(R.string.home_server_title),
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
@@ -494,7 +495,12 @@ private fun ServerChoiceDialog(
                         .padding(horizontal = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    gameServerOptions.forEach { (server, label) ->
+                    val serverOptions = listOf(
+                        SettingsRepository.GAME_SERVER_JP to stringResource(R.string.home_server_jp),
+                        SettingsRepository.GAME_SERVER_CN to stringResource(R.string.home_server_cn),
+                        SettingsRepository.GAME_SERVER_TW to stringResource(R.string.home_server_tw)
+                    )
+                    serverOptions.forEach { (server, label) ->
                         LanguageDialogOption(
                             label = label,
                             selected = server == normalizedServer,
@@ -568,21 +574,46 @@ private fun StatusActionCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            StatusRow(
-                label = label,
-                statusText = statusText,
-                statusColor = statusColor,
-                enabled = enabled,
-                modifier = Modifier.weight(1f)
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatusDot(enabled)
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = statusColor,
+                    modifier = Modifier.padding(start = 18.dp)
+                )
+            }
             TextButton(
                 onClick = onClick,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text(actionText)
+                Text(actionText, maxLines = 1)
             }
         }
     }
+}
+
+@Composable
+private fun StatusDot(enabled: Boolean) {
+    Surface(
+        shape = MaterialTheme.shapes.extraSmall,
+        color = if (enabled) Color(0xFF4CAF50) else Color(0xFFFF9800),
+        modifier = Modifier.size(10.dp)
+    ) {}
 }
 
 @Composable
@@ -632,44 +663,6 @@ private fun LanguageDialogOption(
     }
 }
 
-/**
- * A row showing a permission/service status with a colored dot indicator.
- */
-@Composable
-private fun StatusRow(
-    label: String,
-    enabled: Boolean,
-    statusText: String,
-    statusColor: Color,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Status dot
-        Surface(
-            shape = MaterialTheme.shapes.extraSmall,
-            color = if (enabled) Color(0xFF4CAF50) else Color(0xFFFF9800),
-            modifier = Modifier.size(10.dp)
-        ) {}
-        // Label (Standard color)
-        Text(
-            text = "$label：",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        // Status Text (Only this part is Orange/Green)
-        Text(
-            text = statusText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = statusColor
-        )
-    }
-}
-
 /** Both start paths must check the live binding immediately before launching the runner. */
 private fun ensureAccessibilityConnected(
     context: Context,
@@ -706,38 +699,14 @@ private fun ensureAccessibilityConnected(
     }
 }
 
-private fun AlertDialog.Builder.setLocalizedTitle(
-    context: Context,
-    text: String
-): AlertDialog.Builder = setTitle(AppLanguageManager.localizeUiText(context, text))
-
-private fun AlertDialog.Builder.setLocalizedMessage(
-    context: Context,
-    text: String
-): AlertDialog.Builder = setMessage(AppLanguageManager.localizeUiText(context, text))
-
 private fun showAccessibilityDisclosure(context: Context) {
     AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-        .setLocalizedTitle(context, "无障碍服务用途说明")
-        .setLocalizedMessage(context, """
-            FgoGotran 不是无障碍辅助工具。开启后，它只用于 FGO 翻译功能：
-
-            • 检测 FGO 窗口变化和点击，用于判断何时刷新剧情翻译
-            • 在您启动服务后截取当前 FGO 画面，用 OCR 识别剧情文字
-            • 在 FGO 上方显示翻译覆盖层
-            • 当您点击翻译覆盖层时，将该点击转发给 FGO
-
-            如果使用在线翻译接口，识别出的待翻译文字会发送到您选择或配置的翻译服务。FgoGotran 不会读取联系人、短信、密码、银行应用内容，也不会在未启动服务时自动控制其他应用。
-
-            如果 Android 已显示此服务开启，但 FgoGotran 仍显示未连接，请在系统设置中先关闭该服务，再重新开启。
-
-            继续表示您理解并同意上述用途。
-            """.trimIndent()
-        )
-        .setPositiveButton(AppLanguageManager.localizeUiText(context, "我同意并前往设置")) { _, _ ->
+        .setTitle(context.getString(R.string.accessibility_disclosure_title))
+        .setMessage(context.getString(R.string.accessibility_disclosure_message))
+        .setPositiveButton(context.getString(R.string.home_agree_open_settings)) { _, _ ->
             context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        .setNegativeButton(AppLanguageManager.localizeUiText(context, "取消"), null)
+        .setNegativeButton(context.getString(R.string.home_cancel), null)
         .show()
 }
 
@@ -746,44 +715,26 @@ private fun showAccessibilityDisclosure(context: Context) {
  */
 private fun showAccessibilityNotConnectedDialog(context: Context) {
     AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-        .setLocalizedTitle(context, "无障碍服务未连接")
-        .setLocalizedMessage(context, """
-            即使系统设置显示"已启用"，FgoGotran 仍可能没有收到服务连接。
-
-            目前无法启动翻译。请在系统设置中检查 FgoGotran 无障碍服务：
-
-            • 如果开关已开启：先关闭，等待 2–3 秒，再重新开启。
-            • 如果开关已关闭：直接开启。
-            • 返回 FgoGotran，确认状态变为"已连接"后启动悬浮服务。
-
-            如果仍无法连接，请完整重启模拟器后重试。
-            """.trimIndent()
-        )
-        .setPositiveButton(AppLanguageManager.localizeUiText(context, "去设置")) { _, _ ->
+        .setTitle(context.getString(R.string.accessibility_not_connected_title))
+        .setMessage(context.getString(R.string.accessibility_not_connected_message))
+        .setPositiveButton(context.getString(R.string.home_go_settings)) { _, _ ->
             context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        .setNegativeButton(AppLanguageManager.localizeUiText(context, "关闭"), null)
+        .setNegativeButton(context.getString(R.string.home_close), null)
         .show()
 }
 
 private fun showOverlayPermissionDisclosure(context: Context) {
     AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
-        .setLocalizedTitle(context, "悬浮窗权限用途说明")
-        .setLocalizedMessage(context, """
-            FgoGotran 需要“显示在其他应用上层”权限，才能在 FGO 上显示翻译按钮、菜单和翻译结果。
-
-            该权限只用于 FGO 翻译覆盖层。您可以随时在系统设置中关闭此权限；关闭后翻译按钮和覆盖层将无法显示。
-
-            继续表示您理解并同意上述用途。
-            """.trimIndent()
-        )
-        .setPositiveButton(AppLanguageManager.localizeUiText(context, "我同意并前往设置")) { _, _ ->
+        .setTitle(context.getString(R.string.overlay_permission_title))
+        .setMessage(context.getString(R.string.overlay_permission_message))
+        .setPositiveButton(context.getString(R.string.home_agree_open_settings)) { _, _ ->
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:${context.packageName}")
             )
             context.startActivity(intent)
         }
-        .setNegativeButton(AppLanguageManager.localizeUiText(context, "取消"), null)
+        .setNegativeButton(context.getString(R.string.home_cancel), null)
         .show()
 }
