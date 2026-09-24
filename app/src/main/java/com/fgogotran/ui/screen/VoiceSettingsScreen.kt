@@ -1,6 +1,8 @@
 package com.fgogotran.ui.screen
 
+import android.content.Context
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -43,6 +45,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.translation.Translator
 import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.voice.AiVoiceService
@@ -72,6 +77,7 @@ fun VoiceSettingsScreen(
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
     val apiModel by settingsRepository.apiModel.collectAsState(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
@@ -145,9 +151,9 @@ fun VoiceSettingsScreen(
                 azureSpeechRegion == SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3 &&
                 azureSpeechEndpoint.isBlank()
             ) {
-                "已保存；中国 Azure 实时翻译还需填写资源端点"
+                AppLanguageManager.localizedString(context, R.string.voice_auto_11)
             } else {
-                "已保存"
+                AppLanguageManager.localizedString(context, R.string.voice_auto_47)
             }
         }
     }
@@ -158,7 +164,7 @@ fun VoiceSettingsScreen(
             azureSpeechTesting = true
             azureSpeechSaveMessage = ""
             azureSpeechTestIsError = false
-            azureSpeechTestMessage = "正在生成测试语音..."
+            azureSpeechTestMessage = AppLanguageManager.localizedString(context, R.string.voice_auto_19)
             try {
                 if (azureSpeechKey.trim().isBlank()) {
                     throw IllegalArgumentException("Azure Speech key is blank")
@@ -168,7 +174,7 @@ fun VoiceSettingsScreen(
                     azureSpeechRegion,
                     azureSpeechEndpoint
                 )
-                val sample = azureVoiceTestSample(settingsRepository.targetChineseLocale.first())
+                val sample = azureVoiceTestSample(context, settingsRepository.targetChineseLocale.first())
                 var voiceHint: VoiceLineHint? = null
                 var voiceHintError: Throwable? = null
                 if (effectiveApiVoiceHintsEnabled) {
@@ -186,13 +192,14 @@ fun VoiceSettingsScreen(
                     voiceHint = voiceHint
                 )
                 azureSpeechTestMessage = voiceTestSuccessMessage(
+                    context = context,
                     result = result,
                     apiHintsEnabled = effectiveApiVoiceHintsEnabled,
                     apiHintError = voiceHintError
                 )
             } catch (e: Throwable) {
                 azureSpeechTestIsError = true
-                azureSpeechTestMessage = voiceTestErrorMessage(e)
+                azureSpeechTestMessage = voiceTestErrorMessage(context, e)
             } finally {
                 azureSpeechTesting = false
             }
@@ -202,10 +209,10 @@ fun VoiceSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("语音设置") },
+                title = { Text(stringResource(R.string.voice_auto_39)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
-                        Text("返回", color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.voice_auto_48), color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -220,11 +227,11 @@ fun VoiceSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             VoiceSettingsCard(
-                title = "实时语音翻译",
-                body = "捕获播放的日语语音，直接通过 Azure 显示中文流式字幕。"
+                title = stringResource(R.string.voice_auto_33),
+                body = stringResource(R.string.voice_auto_7)
             ) {
                 VoiceSwitchRow(
-                    title = "启用实时语音字幕",
+                    title = stringResource(R.string.voice_auto_24),
                     body = "",
                     checked = liveVoiceTranslationEnabled,
                     onCheckedChange = {
@@ -265,21 +272,21 @@ fun VoiceSettingsScreen(
                             subtitlePositionResetMessage = ""
                             scope.launch {
                                 settingsRepository.resetLiveVoiceSubtitlePosition()
-                                subtitlePositionResetMessage = "已恢复默认位置"
+                                subtitlePositionResetMessage = AppLanguageManager.localizedString(context, R.string.voice_auto_28)
                             }
                         }
                     ) {
-                        Text("重置字幕位置")
+                        Text(stringResource(R.string.voice_auto_34))
                     }
                 }
             }
 
             VoiceSettingsCard(
-                title = "AI 语音朗读",
-                body = "按角色朗读剧情台词。"
+                title = stringResource(R.string.voice_auto_29),
+                body = stringResource(R.string.voice_auto_21)
             ) {
                 VoiceSwitchRow(
-                    title = "启用语音",
+                    title = stringResource(R.string.voice_auto_40),
                     body = "",
                     checked = aiVoiceEnabled,
                     onCheckedChange = {
@@ -290,12 +297,12 @@ fun VoiceSettingsScreen(
             }
 
             VoiceSettingsCard(
-                title = "朗读范围",
+                title = stringResource(R.string.voice_auto_41),
                 body = ""
             ) {
                 VoiceCheckboxRow(
-                    title = "有角色名对话",
-                    body = "使用对应角色语音。",
+                    title = stringResource(R.string.voice_auto_35),
+                    body = stringResource(R.string.voice_auto_22),
                     checked = aiVoiceNamedDialogueEnabled,
                     enabled = aiVoiceEnabled,
                     onCheckedChange = {
@@ -304,8 +311,8 @@ fun VoiceSettingsScreen(
                     }
                 )
                 VoiceCheckboxRow(
-                    title = "旁白／无名对白",
-                    body = "使用旁白语音。",
+                    title = stringResource(R.string.voice_auto_30),
+                    body = stringResource(R.string.voice_auto_31),
                     checked = aiVoiceNoSpeakerDialogueEnabled,
                     enabled = aiVoiceEnabled,
                     onCheckedChange = {
@@ -314,8 +321,8 @@ fun VoiceSettingsScreen(
                     }
                 )
                 VoiceCheckboxRow(
-                    title = "御主选项",
-                    body = "使用与御主性别对应的语音。",
+                    title = stringResource(R.string.voice_auto_42),
+                    body = stringResource(R.string.voice_auto_17),
                     checked = aiVoiceChoiceTextEnabled,
                     enabled = aiVoiceEnabled,
                     onCheckedChange = {
@@ -330,17 +337,17 @@ fun VoiceSettingsScreen(
             }
 
             VoiceSettingsCard(
-                title = "朗读文本",
+                title = stringResource(R.string.voice_auto_43),
                 body = ""
             ) {
                 VoiceReadTextOption(
-                    title = "中文",
+                    title = stringResource(R.string.voice_read_chinese),
                     selected = true
                 )
             }
 
             VoiceSettingsCard(
-                title = "表现调节",
+                title = stringResource(R.string.voice_auto_44),
                 body = ""
             ) {
                 VoiceSpeedSlider(
@@ -365,11 +372,11 @@ fun VoiceSettingsScreen(
                     }
                 )
                 VoiceSwitchRow(
-                    title = "AI 语气增强",
+                    title = stringResource(R.string.voice_auto_32),
                     body = if (apiVoiceHintsSupported) {
-                        "开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。"
+                        stringResource(R.string.voice_auto_1)
                     } else {
-                        "当前模型 Sakura 不支持 AI 语气增强，将自动使用本机语气规则。切换到其他模型后会恢复已保存的选择。"
+                        stringResource(R.string.voice_auto_4)
                     },
                     checked = effectiveApiVoiceHintsEnabled,
                     enabled = apiVoiceHintsSupported,
@@ -386,7 +393,7 @@ fun VoiceSettingsScreen(
                 iconRes = R.drawable.ic_speech_services
             ) {
                 Text(
-                    "Azure 区域",
+                    stringResource(R.string.voice_auto_25),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
                 )
@@ -413,7 +420,7 @@ fun VoiceSettingsScreen(
                     }
                 }
                 Text(
-                    "提示：可选全球 Azure；中国 Azure 需要组织/工作/学校账号，个人 Microsoft 账号不能登录使用。",
+                    stringResource(R.string.voice_auto_3),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
                 )
@@ -426,12 +433,12 @@ fun VoiceSettingsScreen(
                             azureSpeechTestMessage = ""
                             azureSpeechTestIsError = false
                         },
-                        label = { Text("中国 Azure Speech 资源端点") },
-                        placeholder = { Text("https://资源名.cognitiveservices.azure.cn") },
+                        label = { Text(stringResource(R.string.voice_auto_13)) },
+                        placeholder = { Text(stringResource(R.string.voice_auto_5)) },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                         supportingText = {
-                            Text("实时翻译使用 Azure 门户中该 Speech 资源的根端点；仅接受 HTTPS 的 *.cognitiveservices.azure.cn。")
+                            Text(stringResource(R.string.voice_auto_2))
                         },
                         singleLine = true
                     )
@@ -449,12 +456,12 @@ fun VoiceSettingsScreen(
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     supportingText = {
-                        Text("仅保存在本机，用于 AI 语音朗读和已启用的实时语音翻译。")
+                        Text(stringResource(R.string.voice_auto_8))
                     },
                     singleLine = true
                 )
                 Text(
-                    "测试例句：玛修・基列莱特，在此。御主……战斗准备完成，请下达指示。",
+                    stringResource(R.string.voice_auto_6),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
                 )
@@ -486,11 +493,11 @@ fun VoiceSettingsScreen(
                         onClick = { testAzureVoice() },
                         enabled = !azureSpeechTesting
                     ) {
-                        Text(if (azureSpeechTesting) "测试中..." else "测试语音")
+                        Text(if (azureSpeechTesting) stringResource(R.string.voice_auto_36) else stringResource(R.string.voice_auto_45))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = { saveAzureSpeechSettings() }) {
-                        Text("保存 Azure 设置")
+                        Text(stringResource(R.string.voice_auto_20))
                     }
                 }
             }
@@ -505,71 +512,72 @@ private data class AzureVoiceTestSample(
 
 private data class AzureSpeechRegionOption(
     val region: String,
-    val title: String,
+    @StringRes val titleRes: Int,
     val subtitle: String
 )
 
 private val azureSpeechRegionOptions = listOf(
     AzureSpeechRegionOption(
         region = SettingsRepository.AZURE_SPEECH_REGION_GLOBAL_SOUTHEAST_ASIA,
-        title = "全球 Azure",
+        titleRes = R.string.voice_auto_26,
         subtitle = "southeastasia"
     ),
     AzureSpeechRegionOption(
         region = SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3,
-        title = "中国 Azure",
+        titleRes = R.string.voice_auto_27,
         subtitle = "chinanorth3"
     )
 )
 
-private fun azureVoiceTestSample(targetChineseLocale: String): AzureVoiceTestSample {
+private fun azureVoiceTestSample(context: Context, targetChineseLocale: String): AzureVoiceTestSample {
     return if (
         SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
         SettingsRepository.TARGET_LOCALE_TRADITIONAL
     ) {
         AzureVoiceTestSample(
-            speakerName = "瑪修",
-            dialogue = "瑪修・基列萊特，在此。御主……戰鬥準備完成，請下達指示。"
+            speakerName = AppLanguageManager.localizedString(context, R.string.voice_auto_49),
+            dialogue = AppLanguageManager.localizedString(context, R.string.voice_auto_9)
         )
     } else {
         AzureVoiceTestSample(
-            speakerName = "玛修",
-            dialogue = "玛修·基列莱特，在此。御主……战斗准备完成，请下达指示。"
+            speakerName = AppLanguageManager.localizedString(context, R.string.voice_auto_50),
+            dialogue = AppLanguageManager.localizedString(context, R.string.voice_auto_10)
         )
     }
 }
 
 private fun voiceTestSuccessMessage(
+    context: Context,
     result: AzureVoiceTestResult,
     apiHintsEnabled: Boolean,
     apiHintError: Throwable?
 ): String {
     val apiStatus = when {
         !apiHintsEnabled -> ""
-        apiHintError != null -> "；语气增强 API 失败"
-        else -> "（语气增强已开启）"
+        apiHintError != null -> AppLanguageManager.localizedString(context, R.string.voice_auto_18)
+        else -> AppLanguageManager.localizedString(context, R.string.voice_auto_23)
     }
-    return "测试语音已播放$apiStatus"
+    return context.getString(R.string.voice_test_voice_played, apiStatus)
 }
 
-private fun voiceTestErrorMessage(error: Throwable): String {
+private fun voiceTestErrorMessage(context: Context, error: Throwable): String {
     val message = error.message.orEmpty()
     return when {
         message.contains("Azure Speech key is blank", ignoreCase = true) -> {
-            "Azure Speech Key 为空"
+            AppLanguageManager.localizedString(context, R.string.voice_auto_14)
         }
         message.contains("HTTP 401", ignoreCase = true) ||
             message.contains("HTTP 403", ignoreCase = true) -> {
-            "Azure Key 无效，或当前区域不可用"
+            AppLanguageManager.localizedString(context, R.string.voice_auto_12)
         }
         message.contains("Azure TTS failed", ignoreCase = true) -> {
-            "Azure 语音请求失败：${message.take(96)}"
+            context.getString(R.string.voice_azure_request_failed, message.take(96))
         }
         message.contains("Mash voice profile not found", ignoreCase = true) -> {
-            "找不到瑪修语音档，请先更新语音资料"
+            AppLanguageManager.localizedString(context, R.string.voice_auto_15)
         }
-        message.isNotBlank() -> "测试失败：${message.take(96)}"
-        else -> "测试失败：${error::class.java.simpleName}"
+        message.isNotBlank() -> context.getString(R.string.voice_test_failed_detail, message.take(96))
+        else -> context.getString(R.string.voice_test_failed_detail, error::class.java.simpleName)
     }
 }
 
@@ -589,7 +597,7 @@ private fun LiveVoiceSubtitleSizeSlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "字幕大小",
+                stringResource(R.string.voice_auto_46),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
             )
@@ -611,7 +619,7 @@ private fun LiveVoiceSubtitleSizeSlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "小",
+                stringResource(R.string.voice_auto_53),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -626,7 +634,7 @@ private fun LiveVoiceSubtitleSizeSlider(
                     .padding(horizontal = 12.dp)
             )
             Text(
-                "大",
+                stringResource(R.string.voice_auto_54),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -645,7 +653,7 @@ private fun LiveVoiceSubtitlePreview(fontSizeSp: Int) {
             shape = MaterialTheme.shapes.small
         ) {
             Text(
-                text = "实时字幕预览",
+                text = stringResource(R.string.voice_auto_37),
                 color = Color.White,
                 fontSize = SettingsRepository.normalizeLiveVoiceSubtitleFontSizeSp(fontSizeSp).sp,
                 textAlign = TextAlign.Center,
@@ -677,7 +685,7 @@ private fun VoiceSpeedSlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "语速",
+                stringResource(R.string.voice_auto_51),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
             )
@@ -697,7 +705,7 @@ private fun VoiceSpeedSlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "慢",
+                stringResource(R.string.voice_auto_55),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -716,7 +724,7 @@ private fun VoiceSpeedSlider(
                     .padding(horizontal = 12.dp)
             )
             Text(
-                "快",
+                stringResource(R.string.voice_auto_56),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -755,7 +763,7 @@ private fun VoiceVolumeSlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "音量",
+                stringResource(R.string.voice_auto_52),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
             )
@@ -775,7 +783,7 @@ private fun VoiceVolumeSlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "小",
+                stringResource(R.string.voice_auto_53),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.48f)
             )
@@ -793,7 +801,7 @@ private fun VoiceVolumeSlider(
                     .padding(horizontal = 12.dp)
             )
             Text(
-                "大",
+                stringResource(R.string.voice_auto_54),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.48f)
             )
@@ -840,7 +848,7 @@ private fun AzureSpeechRegionOptionRow(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    option.title,
+                    stringResource(option.titleRes),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = when {
@@ -907,8 +915,8 @@ private fun VoiceMasterGenderIndicator(
     enabled: Boolean
 ) {
     val genderLabel = when (SettingsRepository.normalizePlayerGender(playerGender)) {
-        SettingsRepository.PLAYER_GENDER_FEMALE -> "女"
-        else -> "男"
+        SettingsRepository.PLAYER_GENDER_FEMALE -> stringResource(R.string.voice_auto_57)
+        else -> stringResource(R.string.voice_auto_58)
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -922,12 +930,12 @@ private fun VoiceMasterGenderIndicator(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "当前御主性别",
+                    stringResource(R.string.voice_auto_38),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.82f else 0.48f)
                 )
                 Text(
-                    "由“设置 → 御主性别”决定",
+                    stringResource(R.string.voice_auto_16),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.6f else 0.38f)
                 )
@@ -1062,3 +1070,8 @@ private fun VoiceSwitchRow(
         )
     }
 }
+
+
+
+
+

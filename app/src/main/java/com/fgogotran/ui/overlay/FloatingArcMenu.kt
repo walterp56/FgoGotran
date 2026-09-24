@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.TranslationMode
 import kotlin.math.PI
@@ -67,6 +69,14 @@ fun FloatingArcMenu(
     val density = LocalDensity.current
     val isJapaneseServer =
         SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
+    val logLabel = stringResource(R.string.menu_log)
+    val areaLabel = stringResource(R.string.menu_area)
+    val battleLabel = stringResource(R.string.menu_battle)
+    val liveLabel = stringResource(R.string.menu_live)
+    val manualLabel = stringResource(R.string.menu_manual)
+    val semiLabel = stringResource(R.string.menu_semi)
+    val autoLabel = stringResource(R.string.menu_auto)
+    val closeLabel = stringResource(R.string.menu_close)
 
     BoxWithConstraints(
         modifier = Modifier
@@ -94,6 +104,10 @@ fun FloatingArcMenu(
 
         val contentSlots = when (page) {
             ArcPage.FEATURES -> featureSlots(
+                logLabel = logLabel,
+                areaLabel = areaLabel,
+                battleLabel = battleLabel,
+                liveLabel = liveLabel,
                 battleModeActive = battleModeActive,
                 isJapaneseServer = isJapaneseServer,
                 liveVoiceTranslationEnabled = liveVoiceTranslationEnabled,
@@ -103,6 +117,10 @@ fun FloatingArcMenu(
                 onLiveVoiceToggle = onLiveVoiceTranslationToggle
             )
             ArcPage.MODES -> modeSlots(
+                manualLabel = manualLabel,
+                semiLabel = semiLabel,
+                autoLabel = autoLabel,
+                closeLabel = closeLabel,
                 translationMode = translationMode,
                 battleModeActive = battleModeActive,
                 onModeChange = onTranslationModeChange,
@@ -155,6 +173,10 @@ private data class ArcSlot(
 )
 
 private fun featureSlots(
+    logLabel: String,
+    areaLabel: String,
+    battleLabel: String,
+    liveLabel: String,
     battleModeActive: Boolean,
     isJapaneseServer: Boolean,
     liveVoiceTranslationEnabled: Boolean,
@@ -165,26 +187,26 @@ private fun featureSlots(
 ): List<ArcSlot> = listOf(
     ArcSlot(
         icon = FloatingActionIcon.HISTORY_LIST,
-        label = "翻译LOG",
+        label = logLabel,
         enabled = isJapaneseServer,
         onClick = onHistory
     ),
     ArcSlot(
         icon = FloatingActionIcon.CROP,
-        label = "区域翻译",
+        label = areaLabel,
         enabled = isJapaneseServer,
         onClick = onCrop
     ),
     ArcSlot(
         icon = FloatingActionIcon.BATTLE,
-        label = "BATTLE",
+        label = battleLabel,
         selected = battleModeActive,
         enabled = isJapaneseServer,
         onClick = onBattleSelect
     ),
     ArcSlot(
         icon = null,
-        label = "实时字幕",
+        label = liveLabel,
         toggle = true,
         toggleOn = liveVoiceTranslationEnabled,
         onClick = { onLiveVoiceToggle(!liveVoiceTranslationEnabled) }
@@ -192,6 +214,10 @@ private fun featureSlots(
 )
 
 private fun modeSlots(
+    manualLabel: String,
+    semiLabel: String,
+    autoLabel: String,
+    closeLabel: String,
     translationMode: TranslationMode,
     battleModeActive: Boolean,
     onModeChange: (TranslationMode) -> Unit,
@@ -199,25 +225,25 @@ private fun modeSlots(
 ): List<ArcSlot> = listOf(
     ArcSlot(
         icon = FloatingActionIcon.GO,
-        label = "手动",
+        label = manualLabel,
         selected = !battleModeActive && translationMode == TranslationMode.MANUAL,
         onClick = { onModeChange(TranslationMode.MANUAL) }
     ),
     ArcSlot(
         icon = FloatingActionIcon.SEMI,
-        label = "半自动",
+        label = semiLabel,
         selected = !battleModeActive && translationMode == TranslationMode.SEMI_AUTO,
         onClick = { onModeChange(TranslationMode.SEMI_AUTO) }
     ),
     ArcSlot(
         icon = FloatingActionIcon.AUTO,
-        label = "全自动",
+        label = autoLabel,
         selected = !battleModeActive && translationMode == TranslationMode.AUTO,
         onClick = { onModeChange(TranslationMode.AUTO) }
     ),
     ArcSlot(
         icon = FloatingActionIcon.CLOSE_CIRCLE,
-        label = "关闭服务",
+        label = closeLabel,
         accentDanger = true,
         onClick = onClose
     )

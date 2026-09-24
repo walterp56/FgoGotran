@@ -1,7 +1,7 @@
 package com.fgogotran.ui.overlay
 
 import android.content.Context
-import com.fgogotran.localization.AppLanguageManager
+import com.fgogotran.R
 import android.graphics.Color as AndroidColor
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -131,7 +131,7 @@ private fun HistoryScrollView(
                     }
                 }
                 addView(list, FrameLayout.LayoutParams(-1, -1))
-                addView(historyTextView(context, AppLanguageManager.localizeUiText(context, "暂无翻译LOG。"), historyTypeface(context)).apply {
+                addView(historyTextView(context, context.getString(R.string.history_empty), historyTypeface(context)).apply {
                     gravity = Gravity.CENTER
                     setOnClickListener { onTap() }
                 }, FrameLayout.LayoutParams(-1, -1))
@@ -686,3 +686,5 @@ private fun scaledHistoryTextPx(context: Context, valueSp: Float, viewportScale:
     val targetPx = valueSp * HISTORY_REFERENCE_DENSITY * safeScale
     return maxOf(currentPx, targetPx)
 }
+
+

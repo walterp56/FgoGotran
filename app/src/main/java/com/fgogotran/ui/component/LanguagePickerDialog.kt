@@ -14,8 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fgogotran.R
 import com.fgogotran.localization.AppLanguageManager
 
 private data class AppLanguageDialogOption(
@@ -36,13 +38,12 @@ fun LanguagePickerDialog(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
-    val context = LocalContext.current
     val normalizedSelected = AppLanguageManager.normalizeLanguage(selectedLanguage)
     val options = listOf(
         AppLanguageDialogOption(
             language = AppLanguageManager.LANGUAGE_SYSTEM,
-            label = AppLanguageManager.localizeUiText(context, "系统默认"),
-            description = AppLanguageManager.localizeUiText(context, "跟随系统设置")
+            label = stringResource(R.string.ui_language_system),
+            description = stringResource(R.string.ui_language_follow_system)
         ),
         AppLanguageDialogOption(
             language = AppLanguageManager.LANGUAGE_ENGLISH,
@@ -64,7 +65,7 @@ fun LanguagePickerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(AppLanguageManager.localizeUiText(context, "语言"))
+            Text(stringResource(R.string.ui_language_title))
         },
         text = {
             Column(
@@ -82,7 +83,7 @@ fun LanguagePickerDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(AppLanguageManager.localizeUiText(context, "关闭"))
+                Text(stringResource(R.string.ui_language_close))
             }
         }
     )
@@ -126,3 +127,5 @@ private fun LanguageOptionRow(
         )
     }
 }
+
+

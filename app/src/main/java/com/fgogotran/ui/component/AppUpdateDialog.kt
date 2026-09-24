@@ -19,9 +19,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.fgogotran.R
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.update.AppVersionManager
 
@@ -36,7 +38,7 @@ fun AppUpdateDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.fillMaxWidth(),
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        title = { Text("发现新版本") },
+        title = { Text(stringResource(R.string.update_title)) },
         text = {
             AppUpdateDialogBody(
                 currentVersionName = currentVersionName,
@@ -49,10 +51,10 @@ fun AppUpdateDialog(
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
             ) {
                 TextButton(onClick = onDismiss) {
-                    Text("暂不更新")
+                    Text(stringResource(R.string.update_not_now))
                 }
                 Button(onClick = onUpdateNow) {
-                    Text("立即更新")
+                    Text(stringResource(R.string.update_now))
                 }
             }
         }
@@ -71,7 +73,7 @@ fun AutoAppUpdateDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.fillMaxWidth(),
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        title = { Text("发现新版本") },
+        title = { Text(stringResource(R.string.update_title)) },
         text = {
             AppUpdateDialogBody(
                 currentVersionName = currentVersionName,
@@ -84,13 +86,13 @@ fun AutoAppUpdateDialog(
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
             ) {
                 TextButton(onClick = onIgnoreVersion) {
-                    Text("此版本不再提醒")
+                    Text(stringResource(R.string.update_skip_version))
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("暂不更新")
+                    Text(stringResource(R.string.update_not_now))
                 }
                 Button(onClick = onUpdateNow) {
-                    Text("立即更新")
+                    Text(stringResource(R.string.update_now))
                 }
             }
         }
@@ -113,21 +115,21 @@ private fun AppUpdateDialogBody(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("当前版本：$currentVersionName")
-        Text("最新版本：${update.versionName}")
+        Text(stringResource(R.string.update_current_version, currentVersionName))
+        Text(stringResource(R.string.update_latest_version, update.versionName))
         update.releaseDate.trim().takeIf { it.isNotBlank() }?.let { releaseDate ->
-            Text("发布日期：${releaseDate.substringBefore('T')}")
+            Text(stringResource(R.string.update_release_date, releaseDate.substringBefore('T')))
         }
 
         Text(
-            text = "更新内容",
+            text = stringResource(R.string.update_whats_new),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 4.dp)
         )
 
         if (notes.isEmpty()) {
-            Text("请前往下载页面查看更新内容。")
+            Text(stringResource(R.string.update_open_download))
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 notes.forEach { item ->

@@ -1,6 +1,5 @@
 package com.fgogotran.ui.overlay
 
-import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloatAsState
@@ -11,7 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
-import com.fgogotran.localization.AppLanguageManager
+import com.fgogotran.R
 import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +29,7 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -63,15 +63,13 @@ enum class FloatingActionIcon {
     CLOSE_CIRCLE
 }
 
-internal fun FloatingActionIcon.textLabel(context: Context): String {
-    val english = AppLanguageManager.effectiveLanguageTag(context) == AppLanguageManager.LANGUAGE_ENGLISH
-    return when (this) {
-        FloatingActionIcon.GO -> "GO"
-        FloatingActionIcon.SEMI -> if (english) "S" else "半"
-        FloatingActionIcon.AUTO -> if (english) "A" else "全"
-        FloatingActionIcon.BATTLE -> if (english) "B" else "戰"
-        else -> error("$this is not a text action")
-    }
+@Composable
+private fun FloatingActionIcon.textLabel(): String = when (this) {
+    FloatingActionIcon.GO -> stringResource(R.string.mode_glyph_manual)
+    FloatingActionIcon.SEMI -> stringResource(R.string.mode_glyph_semi)
+    FloatingActionIcon.AUTO -> stringResource(R.string.mode_glyph_auto)
+    FloatingActionIcon.BATTLE -> stringResource(R.string.mode_glyph_battle)
+    else -> error("$this is not a text action")
 }
 
 /**
@@ -113,18 +111,19 @@ fun FloatingButton(
         label = "floatingButtonAlpha"
     )
     val hapticFeedback = LocalHapticFeedback.current
+    val modeDescription = stringResource(when (mode) {
+        FloatingButtonMode.MANUAL -> R.string.mode_desc_manual
+        FloatingButtonMode.SEMI_AUTO -> R.string.mode_desc_semi
+        FloatingButtonMode.AUTO -> R.string.mode_desc_auto
+        FloatingButtonMode.BATTLE -> R.string.mode_desc_battle
+        FloatingButtonMode.CROP -> R.string.mode_desc_crop
+    })
 
     Box(
         modifier = Modifier
             .size(visualButtonSize)
             .semantics {
-                contentDescription = when (mode) {
-                    FloatingButtonMode.MANUAL -> "手動翻譯"
-                    FloatingButtonMode.SEMI_AUTO -> "半自動翻譯"
-                    FloatingButtonMode.AUTO -> "全自動翻譯"
-                    FloatingButtonMode.BATTLE -> "BATTLE字幕模式，长按切换模式"
-                    FloatingButtonMode.CROP -> "裁切翻譯"
-                }
+                contentDescription = modeDescription
             }
             .pointerInput(onClick, onLongClick, onDrag) {
                 try {
@@ -260,7 +259,6 @@ fun FloatingActionGlyph(
     prominent: Boolean = false,
     contentScale: Float = 1f
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     when (icon) {
         FloatingActionIcon.GO,
         FloatingActionIcon.SEMI,
@@ -270,7 +268,7 @@ fun FloatingActionGlyph(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = icon.textLabel(context),
+                text = icon.textLabel(),
                 color = color,
                 fontSize = scaledGlyphFontSize(icon, prominent, contentScale),
                 fontWeight = FontWeight.Bold,
@@ -384,5 +382,6 @@ private fun CloseCircleIcon(
         )
     }
 }
+
 
 

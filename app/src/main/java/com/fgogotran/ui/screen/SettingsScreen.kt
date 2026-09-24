@@ -2,6 +2,7 @@ package com.fgogotran.ui.screen
 
 import android.os.SystemClock
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -47,12 +48,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AppUpdateDialog
 import com.fgogotran.ui.component.BackendProviderLabel
@@ -158,7 +161,7 @@ fun SettingsScreen(
     fun savePlayerName() {
         scope.launch {
             settingsRepository.setPlayerProfile(playerName, playerGender)
-            playerNameSaveMessage = "已保存"
+            playerNameSaveMessage = AppLanguageManager.localizedString(context, R.string.settings_auto_42)
         }
     }
 
@@ -178,10 +181,10 @@ fun SettingsScreen(
         scope.launch {
             runCatching { onClearTranslationCache() }
                 .onSuccess { count ->
-                    cacheClearMessage = "已清除 $count 条缓存"
+                    cacheClearMessage = context.getString(R.string.settings_clear_cache_result, count)
                 }
                 .onFailure {
-                    cacheClearMessage = "清除缓存失败"
+                    cacheClearMessage = AppLanguageManager.localizedString(context, R.string.settings_auto_17)
                 }
             clearingCache = false
         }
@@ -204,7 +207,7 @@ fun SettingsScreen(
             debugLoggingEnabled = enabled
             debugLogTapCount = 0
             debugLogTapWindowStartedAt = 0L
-            debugLogMessage = if (enabled) "调试日志已开启" else "调试日志已关闭"
+            debugLogMessage = if (enabled) AppLanguageManager.localizedString(context, R.string.settings_auto_13) else AppLanguageManager.localizedString(context, R.string.settings_auto_14)
             scope.launch { settingsRepository.setDebugLoggingEnabled(enabled) }
         } else {
             debugLogTapCount = nextCount
@@ -229,9 +232,9 @@ fun SettingsScreen(
             foregroundTestTapCount = 0
             foregroundTestTapWindowStartedAt = 0L
             foregroundTestMessage = if (enabled) {
-                "前台测试已开启"
+                AppLanguageManager.localizedString(context, R.string.settings_auto_15)
             } else {
-                "前台检测已恢复正常"
+                AppLanguageManager.localizedString(context, R.string.settings_auto_10)
             }
             scope.launch { settingsRepository.setForegroundTestOverrideEnabled(enabled) }
         } else {
@@ -259,10 +262,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { Text(stringResource(R.string.settings_auto_48)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
-                        Text("返回", color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.settings_auto_49), color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -278,11 +281,11 @@ fun SettingsScreen(
         ) {
             SettingsCard(
                 iconRes = R.drawable.ic_translate,
-                title = "API接口",
+                title = stringResource(R.string.settings_auto_24),
                 body = ""
             ) {
                 SettingsInfoRow(
-                    label = "服务商",
+                    label = stringResource(R.string.settings_auto_43),
                     valueContent = {
                         BackendProviderLabel(
                             backend = translationBackend,
@@ -293,26 +296,26 @@ fun SettingsScreen(
                     }
                 )
                 SettingsInfoRow(
-                    label = "模型",
+                    label = stringResource(R.string.settings_auto_50),
                     value = apiModel.ifBlank { SettingsRepository.defaultApiModel(translationBackend) }
                 )
                 Button(
                     onClick = onApiSettings,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("管理接口")
+                    Text(stringResource(R.string.settings_auto_26))
                 }
             }
 
             SettingsCard(
                 iconRes = R.drawable.ic_settings_document_scanner,
-                title = "OCR 引擎",
-                body = "选择适合的 OCR（光学字元识别）引擎"
+                title = stringResource(R.string.settings_auto_18),
+                body = stringResource(R.string.settings_auto_6)
             ) {
                 OcrEngineOption(
                     iconRes = R.drawable.ic_mlkit_japanese_mark,
                     title = "ML Kit OCR",
-                    body = "默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。",
+                    body = stringResource(R.string.settings_auto_3),
                     selected = ocrEngine == SettingsRepository.OCR_ENGINE_MLKIT,
                     onClick = {
                         ocrEngine = SettingsRepository.OCR_ENGINE_MLKIT
@@ -322,7 +325,7 @@ fun SettingsScreen(
                 OcrEngineOption(
                     iconRes = R.drawable.ic_paddleocr_mark,
                     title = "PaddleOCR",
-                    body = "进阶引擎。准确度高，识别范围广。依赖 CPU 算力。",
+                    body = stringResource(R.string.settings_auto_5),
                     selected = ocrEngine == SettingsRepository.OCR_ENGINE_PADDLE,
                     onClick = {
                         ocrEngine = SettingsRepository.OCR_ENGINE_PADDLE
@@ -333,7 +336,7 @@ fun SettingsScreen(
 
             SettingsCard(
                 iconRes = R.drawable.ic_settings_tune,
-                title = "翻译偏好",
+                title = stringResource(R.string.settings_auto_27),
                 body = ""
             ) {
                 TranslationLanguageSelector(
@@ -345,8 +348,8 @@ fun SettingsScreen(
                     }
                 )
                 PreferenceSwitchRow(
-                    title = "使用双语剧情上下文",
-                    subtitle = "提供最近场景的日文与中文对照；模型误译前文时可关闭；会增加Token消耗(云端API)",
+                    title = stringResource(R.string.settings_auto_11),
+                    subtitle = stringResource(R.string.settings_auto_1),
                     checked = translationContextEnabled,
                     onCheckedChange = { enabled ->
                         translationContextEnabled = enabled
@@ -366,8 +369,8 @@ fun SettingsScreen(
                     }
                 )
                 PreferenceSwitchRow(
-                    title = "翻译时包含注音〈ruby〉",
-                    subtitle = "默认关闭：送翻译前会移除〈…〉注音，注音有时会干扰翻译质量；需要读音提示时可打开",
+                    title = stringResource(R.string.settings_auto_7),
+                    subtitle = stringResource(R.string.settings_auto_2),
                     checked = translationIncludeRuby,
                     onCheckedChange = { enabled ->
                         translationIncludeRuby = enabled
@@ -380,9 +383,9 @@ fun SettingsScreen(
                         playerName = it
                         playerNameSaveMessage = ""
                     },
-                    label = { Text("御主名称") },
+                    label = { Text(stringResource(R.string.settings_auto_28)) },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("例：藤丸立香") },
+                    placeholder = { Text(stringResource(R.string.settings_auto_19)) },
                     singleLine = true
                 )
                 PlayerGenderSelector(
@@ -406,12 +409,12 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                     }
                     Button(onClick = { savePlayerName() }) {
-                        Text("保存")
+                        Text(stringResource(R.string.settings_auto_51))
                     }
                 }
                 PreferenceSwitchRow(
-                    title = "日文原文",
-                    subtitle = "同时显示游戏原文",
+                    title = stringResource(R.string.settings_auto_29),
+                    subtitle = stringResource(R.string.settings_auto_12),
                     checked = showOriginalGameText,
                     onCheckedChange = {
                         showOriginalGameText = it
@@ -422,29 +425,29 @@ fun SettingsScreen(
 
             SettingsCard(
                 iconRes = R.drawable.ic_settings_voice,
-                title = "语音设置",
+                title = stringResource(R.string.settings_auto_30),
                 body = ""
             ) {
                 SettingsInfoRow(
-                    label = "实时语音字幕",
-                    value = if (liveVoiceTranslationEnabled) "已开启" else "未开启",
+                    label = stringResource(R.string.settings_auto_20),
+                    value = if (liveVoiceTranslationEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45),
                     valueColor = if (liveVoiceTranslationEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
                 )
                 SettingsInfoRow(
-                    label = "语音朗读",
-                    value = if (aiVoiceEnabled) "已开启" else "未开启",
+                    label = stringResource(R.string.settings_auto_31),
+                    value = if (aiVoiceEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45),
                     valueColor = if (aiVoiceEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
                 )
                 SettingsInfoRow(
-                    label = "朗读文本",
-                    value = "中文"
+                    label = stringResource(R.string.settings_auto_32),
+                    value = stringResource(R.string.settings_auto_52)
                 )
                 SettingsInfoRow(
-                    label = "语气增强",
+                    label = stringResource(R.string.settings_auto_33),
                     value = when {
-                        !apiVoiceHintsSupported -> "Sakura：本机规则"
-                        aiVoiceApiHintsEnabled -> "开启"
-                        else -> "关闭"
+                        !apiVoiceHintsSupported -> stringResource(R.string.settings_auto_8)
+                        aiVoiceApiHintsEnabled -> stringResource(R.string.settings_auto_53)
+                        else -> stringResource(R.string.settings_auto_54)
                     },
                     valueColor = if (apiVoiceHintsSupported && aiVoiceApiHintsEnabled) {
                         Color(0xFF4CAF50)
@@ -456,17 +459,17 @@ fun SettingsScreen(
                     onClick = onVoiceSettings,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("打开语音设置")
+                    Text(stringResource(R.string.settings_auto_21))
                 }
             }
 
             SettingsCard(
                 iconRes = R.drawable.ic_settings_touch_app,
-                title = "悬浮按钮",
+                title = stringResource(R.string.settings_auto_34),
                 body = ""
             ) {
                 SettingsInfoRow(
-                    label = "大小",
+                    label = stringResource(R.string.settings_auto_55),
                     valueContent = {
                         Text(
                             text = floatingButtonSizeLabel(floatingButtonSizeDp),
@@ -485,7 +488,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "小",
+                        stringResource(R.string.settings_auto_62),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -508,7 +511,7 @@ fun SettingsScreen(
                             .padding(horizontal = 12.dp)
                     )
                     Text(
-                        "大",
+                        stringResource(R.string.settings_auto_63),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -517,8 +520,8 @@ fun SettingsScreen(
 
             SettingsCard(
                 iconRes = R.drawable.ic_settings_cached,
-                title = "翻译缓存",
-                body = "相同原文可直接使用上次翻译，速度更快；\n遇到旧译文时可以清除缓存。"
+                title = stringResource(R.string.settings_auto_35),
+                body = stringResource(R.string.settings_auto_4)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -526,7 +529,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "启用缓存",
+                        stringResource(R.string.settings_auto_36),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
                     )
@@ -563,15 +566,15 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text(if (clearingCache) "清除中" else "清除缓存")
+                        Text(if (clearingCache) stringResource(R.string.settings_auto_46) else stringResource(R.string.settings_auto_37))
                     }
                 }
             }
 
             SettingsCard(
                 iconRes = R.drawable.ic_settings_error_log,
-                title = "错误纪录",
-                body = "用于调试和排查问题。"
+                title = stringResource(R.string.settings_auto_38),
+                body = stringResource(R.string.settings_auto_9)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -579,18 +582,18 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(onClick = onDiagnosticLog) {
-                        Text("打开错误纪录")
+                        Text(stringResource(R.string.settings_auto_22))
                     }
                 }
             }
 
             SettingsCard(
                 iconRes = R.drawable.ic_settings_build,
-                title = "维护",
+                title = stringResource(R.string.settings_auto_56),
                 body = ""
             ) {
                 SettingsInfoRow(
-                    label = "当前版本",
+                    label = stringResource(R.string.settings_auto_39),
                     value = currentVersionName,
                     modifier = Modifier.clickable { handleVersionRowTap() }
                 )
@@ -599,8 +602,8 @@ fun SettingsScreen(
                     enabled = debugLoggingEnabled
                 )
                 SettingsInfoRow(
-                    label = "状态",
-                    value = appVersionStatus.message.ifBlank { "手动检查新版本" },
+                    label = stringResource(R.string.settings_auto_57),
+                    value = appVersionStatus.message.ifBlank { stringResource(R.string.settings_auto_16) },
                     modifier = Modifier.clickable { handleStatusRowTap() }
                 )
                 HiddenToggleNotice(
@@ -619,7 +622,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Text(if (appVersionStatus.isChecking) "检查中" else "检查版本")
+                    Text(if (appVersionStatus.isChecking) stringResource(R.string.settings_auto_47) else stringResource(R.string.settings_auto_40))
                 }
             }
         }
@@ -629,33 +632,33 @@ fun SettingsScreen(
 private val targetChineseLocaleOptions = listOf(
     TargetChineseLocaleOption(
         locale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
-        label = "简体中文"
+        labelRes = R.string.settings_target_simplified
     ),
     TargetChineseLocaleOption(
         locale = SettingsRepository.TARGET_LOCALE_TRADITIONAL,
-        label = "繁體中文"
+        labelRes = R.string.settings_target_traditional
     )
 )
 
 private data class TargetChineseLocaleOption(
     val locale: String,
-    val label: String
+    @StringRes val labelRes: Int
 )
 
 private val playerGenderOptions = listOf(
     PlayerGenderOption(
         gender = SettingsRepository.PLAYER_GENDER_MALE,
-        label = "男"
+        labelRes = R.string.settings_gender_male
     ),
     PlayerGenderOption(
         gender = SettingsRepository.PLAYER_GENDER_FEMALE,
-        label = "女"
+        labelRes = R.string.settings_gender_female
     )
 )
 
 private data class PlayerGenderOption(
     val gender: String,
-    val label: String
+    @StringRes val labelRes: Int
 )
 
 @Composable
@@ -670,7 +673,7 @@ private fun TranslationLanguageSelector(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            "日服译文语言",
+            stringResource(R.string.settings_auto_23),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
             fontWeight = FontWeight.SemiBold
@@ -721,7 +724,7 @@ private fun TranslationLanguageOption(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                option.label,
+                stringResource(option.labelRes),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = if (selected) {
@@ -747,7 +750,7 @@ private fun PlayerGenderSelector(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            "御主性别",
+            stringResource(R.string.settings_auto_41),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
             fontWeight = FontWeight.SemiBold
@@ -790,7 +793,7 @@ private fun PlayerGenderOption(
         )
     ) {
         Text(
-            text = option.label,
+            text = stringResource(option.labelRes),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 12.dp),
@@ -868,13 +871,14 @@ private fun floatingButtonSizeSteps(): Int {
     return (intervals - 1).coerceAtLeast(0)
 }
 
+@Composable
 private fun floatingButtonSizeLabel(sizeDp: Int): String {
     val safeSize = SettingsRepository.normalizeFloatingButtonSizeDp(sizeDp)
     return when {
-        safeSize < SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> "较小"
-        safeSize == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> "标准"
-        safeSize < SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -> "较大"
-        else -> "最大"
+        safeSize < SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> stringResource(R.string.settings_auto_58)
+        safeSize == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> stringResource(R.string.settings_auto_59)
+        safeSize < SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -> stringResource(R.string.settings_auto_60)
+        else -> stringResource(R.string.settings_auto_61)
     }
 }
 
@@ -895,12 +899,12 @@ private fun TranslationContextSceneCountSelector(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "参考场景数",
+                stringResource(R.string.settings_auto_25),
                 style = MaterialTheme.typography.bodyMedium,
                 color = contentColor
             )
             Text(
-                "$safeCount 幕",
+                stringResource(R.string.settings_context_scenes, safeCount),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (enabled) MaterialTheme.colorScheme.primary else contentColor
             )
@@ -1096,4 +1100,5 @@ private fun SettingsInfoRow(
         }
     }
 }
+
 

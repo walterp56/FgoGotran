@@ -22,10 +22,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import com.fgogotran.R
 import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,10 +45,10 @@ fun GuideScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("使用指南") },
+                title = { Text(stringResource(R.string.guide_auto_30)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
-                        Text("返回", color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.guide_auto_38), color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -66,66 +68,66 @@ fun GuideScreen(
 
             GuideSectionCard(
                 number = "1",
-                title = "先调 FGO 文字速度",
-                body = "剧情文字完整显示后，OCR 和自动翻译会更稳定。"
+                title = stringResource(R.string.guide_auto_24),
+                body = stringResource(R.string.guide_auto_12)
             ) {
-                GuideSettingRow(label = "文字送り / 表示速度", value = "MAX")
-                GuideSettingRow(label = "ページ送り / 表示速度", value = "MAX")
-                GuideSettingRow(label = "句読点待ち時間 / 标点等待时间", value = "0")
+                GuideSettingRow(label = stringResource(R.string.guide_auto_25), value = "MAX")
+                GuideSettingRow(label = stringResource(R.string.guide_auto_21), value = "MAX")
+                GuideSettingRow(label = stringResource(R.string.guide_auto_18), value = "0")
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
                 )
                 GuideInfoRow(
-                    label = "设置位置",
-                    text = "マイルーム → ゲームオプション → テキスト表示速度\n我的房间 → 游戏选项 → 文本显示速度"
+                    label = stringResource(R.string.guide_auto_31),
+                    text = stringResource(R.string.guide_auto_1)
                 )
             }
 
             GuideSectionCard(
                 number = "2",
-                title = "选择阅读方式",
-                body = "不用一直换模式，先按自己的阅读习惯选一个。"
+                title = stringResource(R.string.guide_auto_27),
+                body = stringResource(R.string.guide_auto_15)
             ) {
                 GuideModeRow(
-                    mode = "手动",
-                    text = "适合想完全掌控节奏的你。点 GO 后翻译当前画面。"
+                    mode = stringResource(R.string.guide_auto_39),
+                    text = stringResource(R.string.guide_auto_10)
                 )
                 GuideModeRow(
-                    mode = "半自动",
-                    text = "适合剧情阅读。对话自动刷新；遇到选项时，再点悬浮按钮翻译选项。"
+                    mode = stringResource(R.string.guide_auto_35),
+                    text = stringResource(R.string.guide_auto_6)
                 )
                 GuideModeRow(
-                    mode = "全自动",
-                    text = "适合想轻松阅读的你。应用会尽量自动刷新对话和选项。"
+                    mode = stringResource(R.string.guide_auto_36),
+                    text = stringResource(R.string.guide_auto_11)
                 )
                 GuideModeRow(
-                    mode = "裁剪",
-                    text = "适合菜单、公告、漏识别画面。框选区域会重新翻译。"
+                    mode = stringResource(R.string.guide_auto_40),
+                    text = stringResource(R.string.guide_auto_13)
                 )
             }
 
             GuideSectionCard(
                 number = "3",
-                title = "看懂悬浮按钮",
-                body = "按钮文字会显示当前模式，长按可打开翻译菜单。"
+                title = stringResource(R.string.guide_auto_28),
+                body = stringResource(R.string.guide_auto_14)
             ) {
-                GuideBadgeRow(label = "GO", text = "点击按钮翻译当前画面。")
-                GuideBadgeRow(label = "半", text = "半自动阅读，点击按钮翻译选项。")
-                GuideBadgeRow(label = "全", text = "全自动运行；此模式下点击按钮不会手动翻译。")
-                GuideBadgeRow(label = "战", text = "BATTLE 字幕模式：仅翻译战斗字幕区域；长按悬浮按钮打开菜单后选择。")
-                GuideBadgeRow(label = "红色外圈", text = "手动或半自动点击后，本次识别/翻译未成功，可再点一次。")
-                GuideBadgeRow(label = "LOG", text = "查看本次识别和翻译历史。")
+                GuideBadgeRow(label = "GO", text = stringResource(R.string.guide_auto_26))
+                GuideBadgeRow(label = stringResource(R.string.guide_auto_42), text = stringResource(R.string.guide_auto_19))
+                GuideBadgeRow(label = stringResource(R.string.guide_auto_43), text = stringResource(R.string.guide_auto_16))
+                GuideBadgeRow(label = stringResource(R.string.guide_auto_44), text = stringResource(R.string.guide_auto_3))
+                GuideBadgeRow(label = stringResource(R.string.guide_auto_32), text = stringResource(R.string.guide_auto_9))
+                GuideBadgeRow(label = "LOG", text = stringResource(R.string.guide_auto_22))
             }
 
             GuideSectionCard(
                 number = "4",
-                title = "隐私与统计",
-                body = "FgoGotran 只收集匿名使用统计，用来了解版本、模式和 API 类型的使用情况。"
+                title = stringResource(R.string.guide_auto_29),
+                body = stringResource(R.string.guide_auto_2)
             ) {
                 GuideInfoRow(
-                    label = "不会上传",
-                    text = "截图、游戏文本、译文、API Key、玩家名、账号信息或设备识别码。"
+                    label = stringResource(R.string.guide_auto_33),
+                    text = stringResource(R.string.guide_auto_4)
                 )
             }
         }
@@ -142,14 +144,14 @@ private fun GuideScopeCard() {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("使用范围", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.guide_auto_34), style = MaterialTheme.typography.titleMedium)
             Text(
-                "FgoGotran 的翻译只在正在运行的 FGO 画面上生效。",
+                stringResource(R.string.guide_auto_7),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             )
-            GuideInfoRow(label = "支持", text = "FGO 游戏内实时画面、剧情、选项，以及裁剪模式框选的画面区域。")
-            GuideInfoRow(label = "不支持", text = "图片、截图、录屏、视频源，或其他应用里的 FGO 素材翻译。")
+            GuideInfoRow(label = stringResource(R.string.guide_auto_41), text = stringResource(R.string.guide_auto_5))
+            GuideInfoRow(label = stringResource(R.string.guide_auto_37), text = stringResource(R.string.guide_auto_8))
         }
     }
 }
@@ -165,12 +167,12 @@ private fun GuideWebsiteCard(onOpenWebsite: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "FgoGotran 网站",
+                stringResource(R.string.guide_auto_23),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Text(
-                "查看完整教程、下载页面和最新信息。",
+                stringResource(R.string.guide_auto_17),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
             )
@@ -178,7 +180,7 @@ private fun GuideWebsiteCard(onOpenWebsite: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onOpenWebsite
             ) {
-                Text("打开 FgoGotran 网站")
+                Text(stringResource(R.string.guide_auto_20))
             }
         }
     }
@@ -345,5 +347,6 @@ private fun openFgoGotranWebsite(context: Context) {
 }
 
 private const val FGOGOTRAN_WEBSITE_URL = "https://fgogotran.com/"
+
 
 

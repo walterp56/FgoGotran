@@ -242,6 +242,9 @@ object AppLanguageManager {
         return localized
     }
 
+    fun localizedString(context: Context, resId: Int, vararg formatArgs: Any): String =
+        localizeUiText(context, context.getString(resId, *formatArgs))
+
     fun recreateActivity(context: Context) {
         var current: Context? = context
         while (current is ContextWrapper) {

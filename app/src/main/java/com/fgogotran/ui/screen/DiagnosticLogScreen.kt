@@ -31,10 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.fgogotran.diagnostic.DiagnosticEvent
+import com.fgogotran.R
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.localization.AppLanguageManager
 import kotlinx.coroutines.launch
@@ -62,10 +64,10 @@ fun DiagnosticLogScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("错误纪录") },
+                title = { Text(stringResource(R.string.diagnostic_title)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
-                        Text("返回", color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.diagnostic_back), color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -80,7 +82,7 @@ fun DiagnosticLogScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "自动显示全部最近问题：错误、权限阻塞、资料更新失败、缺少语音档案、临时语音 API 建立结果。",
+                stringResource(R.string.diagnostic_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f)
             )
@@ -103,30 +105,30 @@ fun DiagnosticLogScreen(
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_STREAM, uri)
-                                    putExtra(Intent.EXTRA_SUBJECT, AppLanguageManager.localizeUiText(context, "FgoGotran 错误纪录"))
+                                    putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.diagnostic_subject))
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                context.startActivity(Intent.createChooser(shareIntent, AppLanguageManager.localizeUiText(context, "分享错误纪录")))
+                                context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.diagnostic_share_title)))
                             }.onSuccess {
-                                exportMessage = "已生成 TXT"
+                                exportMessage = context.getString(R.string.diagnostic_txt_generated)
                             }.onFailure {
-                                exportMessage = "导出失败"
+                                exportMessage = context.getString(R.string.diagnostic_export_failed)
                             }
                         }
                     },
                     enabled = visibleEvents.isNotEmpty()
                 ) {
-                    Text("导出 TXT")
+                    Text(stringResource(R.string.diagnostic_export_txt))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedButton(
                     onClick = {
                         diagnosticEventStore.clear()
-                        exportMessage = "已清空"
+                        exportMessage = context.getString(R.string.diagnostic_cleared)
                     },
                     enabled = events.isNotEmpty()
                 ) {
-                    Text("清空")
+                    Text(stringResource(R.string.diagnostic_clear))
                 }
             }
 
@@ -156,7 +158,7 @@ private fun EmptyDiagnosticState() {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Text(
-            "目前没有错误纪录。",
+            stringResource(R.string.diagnostic_empty),
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
@@ -286,11 +288,12 @@ private fun DiagnosticEvent.detailLine(context: android.content.Context): String
     ).joinToString(" · ").takeIf { it.isNotBlank() }
 }
 
+@Composable
 private fun levelLabel(level: String): String {
     return when (level) {
-        DiagnosticEventStore.LEVEL_ERROR -> "错误"
-        DiagnosticEventStore.LEVEL_WARNING -> "注意"
-        else -> "记录"
+        DiagnosticEventStore.LEVEL_ERROR -> stringResource(R.string.diagnostic_error)
+        DiagnosticEventStore.LEVEL_WARNING -> stringResource(R.string.diagnostic_note)
+        else -> stringResource(R.string.diagnostic_record)
     }
 }
 
