@@ -66,7 +66,7 @@ class GlossaryUpdateManager @Inject constructor(
 
     companion object {
         private const val MANIFEST_URL = "https://cdn.fgogotran.com/db/zh-Hans/latest/manifest.json"
-        private const val SUPPORTED_SCHEMA_VERSION = 2
+        private const val SUPPORTED_SCHEMA_VERSION = 3
         private const val TEMP_DB_NAME = "fgo_terms.db.download"
         private const val CONNECT_TIMEOUT_MS = 10_000L
         private const val REQUEST_TIMEOUT_MS = 30_000L
@@ -470,6 +470,12 @@ class GlossaryUpdateManager @Inject constructor(
             require(columnExists(db, "terms", "gender")) {
                 "DB terms table missing gender column"
             }
+            require(columnExists(db, "character_names", "en_name")) {
+                "DB character_names table missing en_name column"
+            }
+            require(columnExists(db, "terms", "en_term")) {
+                "DB terms table missing en_term column"
+            }
 
             val characterNameCount = countRows(db, "character_names")
             val termCount = countRows(db, "terms")
@@ -499,6 +505,8 @@ class GlossaryUpdateManager @Inject constructor(
                     tableExists(db, "terms") &&
                     columnExists(db, "character_names", "gender") &&
                     columnExists(db, "terms", "gender") &&
+                    columnExists(db, "character_names", "en_name") &&
+                    columnExists(db, "terms", "en_term") &&
                     countRows(db, "character_names") == manifest.characterNameCount &&
                     countRows(db, "terms") == manifest.termCount
             }
@@ -610,6 +618,7 @@ class GlossaryUpdateManager @Inject constructor(
         val locale: String,
         val generatedAt: String,
         val minimumAppVersion: String,
+        val capabilities: List<String> = emptyList(),
         val releaseNotes: String,
         val dbUrl: String,
         val dbSha256: String,

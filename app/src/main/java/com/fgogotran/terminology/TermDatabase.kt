@@ -18,7 +18,7 @@ import java.io.File
  */
 @Database(
     entities = [TermEntity::class, CharacterNameEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class TermDatabase : RoomDatabase() {
@@ -35,6 +35,13 @@ abstract class TermDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE terms ADD COLUMN gender TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE character_names ADD COLUMN gender TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE terms ADD COLUMN en_term TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE character_names ADD COLUMN en_name TEXT NOT NULL DEFAULT ''")
             }
         }
 
@@ -91,7 +98,7 @@ abstract class TermDatabase : RoomDatabase() {
             removeUnmarkedLegacyDb(dbFile)
             return try {
                 Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also {
                         it.openHelper.readableDatabase
@@ -101,7 +108,7 @@ abstract class TermDatabase : RoomDatabase() {
                 FgoLogger.warn(TAG, "Term DB open failed; recreating empty online-only DB.", e)
                 deleteDatabaseFiles(dbFile)
                 Room.databaseBuilder(context, TermDatabase::class.java, DB_NAME)
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also {
                         it.openHelper.readableDatabase

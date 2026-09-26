@@ -10,7 +10,9 @@ import android.media.AudioRecord
 import android.media.projection.MediaProjection
 import android.os.Process
 import androidx.core.content.ContextCompat
+import com.fgogotran.R
 import com.fgogotran.game.FgoPackages
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,6 +24,10 @@ import javax.inject.Singleton
 class FgoPlaybackAudioCapture @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    /** Capture errors surface in the UI, so resolve them with the app UI language. */
+    private fun localizedCaptureText(resId: Int, vararg args: Any): String =
+        AppLanguageManager.wrap(context).getString(resId, *args)
+
     private val stateLock = Any()
     private var sessionId = 0L
     private var audioRecord: AudioRecord? = null
@@ -46,7 +52,7 @@ class FgoPlaybackAudioCapture @Inject constructor(
         return try {
             record.startRecording()
             check(record.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                "Android 无法开始捕获游戏播放声音"
+                localizedCaptureText(R.string.voice_capture_start_failed)
             }
             val thread = Thread(
                 {
@@ -102,7 +108,7 @@ class FgoPlaybackAudioCapture @Inject constructor(
                 when {
                     read > 0 -> onPcmFrame(buffer.copyOf(read))
                     read == 0 -> Unit
-                    else -> throw IllegalStateException("播放声音捕获失败：AudioRecord error $read")
+                    else -> throw IllegalStateException(localizedCaptureText(R.string.voice_capture_record_error, read))
                 }
             }
         } catch (t: Throwable) {
@@ -120,10 +126,10 @@ class FgoPlaybackAudioCapture @Inject constructor(
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) !=
             PackageManager.PERMISSION_GRANTED
         ) {
-            throw SecurityException("未授予播放声音捕获权限")
+            throw SecurityException(localizedCaptureText(R.string.voice_status_audio_permission_missing))
         }
         val fgoUids = installedFgoUids()
-        check(fgoUids.isNotEmpty()) { "未找到受支持的 FGO 应用，无法限定播放声音来源" }
+        check(fgoUids.isNotEmpty()) { localizedCaptureText(R.string.voice_capture_no_fgo_app) }
         val captureConfigBuilder = AudioPlaybackCaptureConfiguration.Builder(projection)
             .addMatchingUsage(AudioAttributes.USAGE_GAME)
             .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
@@ -140,7 +146,7 @@ class FgoPlaybackAudioCapture @Inject constructor(
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
-        check(minimumBuffer > 0) { "设备不支持 16 kHz 单声道播放声音捕获" }
+        check(minimumBuffer > 0) { localizedCaptureText(R.string.voice_capture_unsupported_format) }
 
         val record = AudioRecord.Builder()
             .setAudioFormat(format)
@@ -149,7 +155,7 @@ class FgoPlaybackAudioCapture @Inject constructor(
             .build()
         if (record.state != AudioRecord.STATE_INITIALIZED) {
             record.release()
-            throw IllegalStateException("播放声音捕获初始化失败")
+            throw IllegalStateException(localizedCaptureText(R.string.voice_capture_init_failed))
         }
         return record
     }

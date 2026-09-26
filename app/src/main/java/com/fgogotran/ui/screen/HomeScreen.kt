@@ -367,6 +367,7 @@ fun HomeScreen(
                     appLanguage = language
                     AppLanguageManager.setLanguage(context, language)
                     AppLanguageManager.recreateActivity(context)
+                    FgoRunnerService.refreshOverlayLanguage()
                 }
             )
         }

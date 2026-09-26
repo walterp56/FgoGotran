@@ -27,6 +27,7 @@ import com.fgogotran.accessibility.AccessibilityConnectionState
 import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.speech.RealtimeVoiceTranslationController
 import com.fgogotran.speech.RealtimeVoiceTranslationState
 import com.fgogotran.terminology.GlossaryUpdateManager
@@ -113,6 +114,11 @@ class FgoRunnerService : Service() {
         fun stopService(context: Context): Boolean {
             val intent = Intent(context, FgoRunnerService::class.java)
             return context.stopService(intent)
+        }
+
+        /** Rebuilds the floating overlay so it picks up a changed UI language. */
+        fun refreshOverlayLanguage() {
+            instance?.refreshOverlayLanguage()
         }
 
         /** Delivers the consent result collected by [ProjectionConsentActivity]. */
@@ -421,6 +427,11 @@ class FgoRunnerService : Service() {
         super.onDestroy()
     }
 
+    /** Rebuilds the floating overlay views so they pick up a changed UI language. */
+    fun refreshOverlayLanguage() {
+        overlay.refreshUiLanguage()
+    }
+
     private fun stopFromOverlay() {
         FgoLogger.info(tag, "Stop requested from floating menu")
         stopSelf()
@@ -495,7 +506,7 @@ class FgoRunnerService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("FgoGotran")
-            .setContentText(getString(R.string.notification_running))
+            .setContentText(AppLanguageManager.wrap(this).getString(R.string.notification_running))
             .setSmallIcon(R.drawable.ic_translate)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

@@ -26,6 +26,8 @@ import androidx.compose.runtime.mutableStateOf
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.battle.BattleModeState
 import com.fgogotran.battle.BattleSubtitleController
+import com.fgogotran.R
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.crop.CropSelectionOverlay
@@ -1524,7 +1526,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
             screenshot = takeScreenshotCompat()
             if (screenshot == null) {
-                showCropStatus(requestedBounds, "截图失败")
+                showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_screenshot_failed))
                 return
             }
 
@@ -1532,7 +1534,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
             val cropBounds = clippedCropBounds(requestedBounds, screenshot.width, screenshot.height)
             if (cropBounds == null) {
-                showCropStatus(requestedBounds, "区域太小")
+                showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_area_too_small))
                 return
             }
 
@@ -1577,7 +1579,7 @@ class FgoAccessibilityService : AccessibilityService() {
             logTranslationDebugText("Crop source text", sourceText)
 
             if (sourceText.isBlank()) {
-                showCropStatus(cropBounds, "未识别到文字")
+                showCropStatus(cropBounds, cropStatusText(R.string.crop_status_no_text))
                 FgoLogger.info(tag, "Crop OCR found no text in ${ocrDuration}ms")
                 return
             }
@@ -1640,7 +1642,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 mode = "CROP"
             )
             FgoLogger.error(tag, "Crop translation failed", e)
-            showCropStatus(requestedBounds, "翻译失败")
+            showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_translate_failed))
         } finally {
             scaledForOcr?.recycle()
             cropped?.recycle()
@@ -1655,6 +1657,10 @@ class FgoAccessibilityService : AccessibilityService() {
             appAnalytics.reportGameServerUsed(normalizedServer)
         }
     }
+
+    /** Crop status text is drawn into a bitmap, so resolve it with the app UI language. */
+    private fun cropStatusText(resId: Int): String =
+        AppLanguageManager.wrap(this).getString(resId)
 
     private fun showCropStatus(bounds: Rect, message: String) {
         val safeWidth = bounds.width().coerceAtLeast(180)

@@ -19,6 +19,9 @@ data class TermEntity(
     @ColumnInfo(name = "cn_term")
     val cnTerm: String,
 
+    @ColumnInfo(name = "en_term")
+    val enTerm: String = "",
+
     @ColumnInfo(name = "category")
     val category: String,
 
@@ -42,6 +45,9 @@ data class CharacterNameEntity(
 
     @ColumnInfo(name = "cn_name")
     val cnName: String,
+
+    @ColumnInfo(name = "en_name")
+    val enName: String = "",
 
     @ColumnInfo(name = "gender")
     val gender: String = "",

@@ -11,6 +11,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -21,6 +22,7 @@ import com.fgogotran.crop.CropModeState
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
@@ -96,10 +98,12 @@ class FgoRunnerOverlay @Inject constructor(
     private var battleModeJob: Job? = null
     private var showRequestVersion = 0
     private var callbacksRegistered = false
+    private var appliedLanguageTag: String? = null
 
     private val componentCallbacks = object : ComponentCallbacks {
         override fun onConfigurationChanged(newConfig: Configuration) {
             handleScreenBoundsChanged()
+            refreshHostsForLanguageChange()
         }
 
         override fun onLowMemory() = Unit
@@ -217,19 +221,9 @@ class FgoRunnerOverlay @Inject constructor(
                 }
 
                 refreshButtonMode()
+                appliedLanguageTag = AppLanguageManager.effectiveLanguageTag(context)
                 composeHost = FakeComposeHost(context) {
-                    FloatingButton(
-                        mode = buttonMode,
-                        buttonSize = buttonSizeDp.dp,
-                        showFailureRing = showButtonFailureRing &&
-                            buttonMode != FloatingButtonMode.AUTO &&
-                            buttonMode != FloatingButtonMode.BATTLE,
-                        onClick = {
-                            onButtonClick()
-                        },
-                        onLongClick = { onButtonLongClick() },
-                        onDrag = { dx, dy -> onDrag(dx, dy) }
-                    )
+                    FloatingButtonContent()
                 }
 
                 clampButtonPositionToScreen()
@@ -315,6 +309,72 @@ class FgoRunnerOverlay @Inject constructor(
 
     /** Whether the floating button is currently visible. */
     fun isShowing(): Boolean = shown
+
+    /**
+     * Rebuilds the floating overlay after the UI language changed.
+     *
+     * Compose resolves string resources with the locale captured when the ComposeView was
+     * created, so the button and arc menu keep the previous language until their host view is
+     * recreated. [FgoRunnerService] calls this from the in-app language picker;
+     * [refreshHostsForLanguageChange] covers configuration-driven locale changes.
+     */
+    fun refreshUiLanguage() {
+        val languageTag = AppLanguageManager.effectiveLanguageTag(context)
+        val previous = appliedLanguageTag
+        appliedLanguageTag = languageTag
+        if (previous == languageTag) return
+        FgoLogger.info(tag, "UI language set to $languageTag")
+        if (!shown) return
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            rebuildHostsForLanguage()
+        } else {
+            mainHandler.post { rebuildHostsForLanguage() }
+        }
+    }
+
+    /** Locale change delivered as a configuration change; older releases go through [refreshUiLanguage]. */
+    private fun refreshHostsForLanguageChange() {
+        val languageTag = AppLanguageManager.effectiveLanguageTag(context)
+        val previous = appliedLanguageTag
+        appliedLanguageTag = languageTag
+        if (previous == null || previous == languageTag || !shown) return
+        FgoLogger.info(tag, "UI language changed $previous -> $languageTag, rebuilding overlay")
+        mainHandler.post { rebuildHostsForLanguage() }
+    }
+
+    private fun rebuildHostsForLanguage() {
+        val wm = windowManager ?: return
+        if (!shown) return
+        if (floatingMenuHost != null) dismissMenu()
+        dismissHistoryPanel()
+        val previousHost = composeHost ?: return
+        composeHost = null
+        runCatching { wm.removeView(previousHost.view) }
+        previousHost.close()
+        val host = FakeComposeHost(context) { FloatingButtonContent() }
+        try {
+            wm.addView(host.view, btnLayoutParams)
+            composeHost = host
+            FgoLogger.info(tag, "Floating button rebuilt for UI language")
+        } catch (e: Exception) {
+            host.close()
+            FgoLogger.warn(tag, "Failed to rebuild floating button for UI language", e)
+        }
+    }
+
+    @Composable
+    private fun FloatingButtonContent() {
+        FloatingButton(
+            mode = buttonMode,
+            buttonSize = buttonSizeDp.dp,
+            showFailureRing = showButtonFailureRing &&
+                buttonMode != FloatingButtonMode.AUTO &&
+                buttonMode != FloatingButtonMode.BATTLE,
+            onClick = { onButtonClick() },
+            onLongClick = { onButtonLongClick() },
+            onDrag = { dx, dy -> onDrag(dx, dy) }
+        )
+    }
 
     fun refreshButtonMode() {
         if (Looper.myLooper() == Looper.getMainLooper()) {

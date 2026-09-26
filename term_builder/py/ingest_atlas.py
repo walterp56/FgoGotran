@@ -94,6 +94,8 @@ def add_term(
     source: str = "atlas",
     allow_same_text: bool = False,
     gender: str | None = None,
+    en_name: str | None = None,
+    en_components: str | None = None,
 ) -> None:
     jp = clean_text(jp_name)
     cn = clean_text(cn_name)
@@ -110,6 +112,8 @@ def add_term(
         {
             "jp_name": jp,
             "cn_name": cn,
+            "en_name": clean_text(en_name),
+            "en_components": clean_text(en_components),
             "category": category,
             "aliases": json.dumps(clean_aliases, ensure_ascii=False),
             "source": source,
@@ -163,30 +167,45 @@ def ingest_common_terms(terms: list[dict[str, Any]]) -> None:
 def ingest_servants(terms: list[dict[str, Any]]) -> None:
     jp_servants = fetch_json("/export/JP/servant/all.json")
     cn_servants = by_key(fetch_json("/export/CN/servant/all.json"), "collectionNo")
+    na_servants = by_key(fetch_json("/export/NA/servant/all.json"), "collectionNo")
     if not isinstance(jp_servants, list):
         return
 
     for servant in jp_servants:
         collection_no = servant.get("collectionNo")
         cn_servant = cn_servants.get(collection_no, {})
+        na_servant = na_servants.get(collection_no, {})
         aliases = [servant.get("ruby"), servant.get("battleName")]
-        add_term(terms, servant.get("name"), cn_servant.get("name"), "servant", aliases)
+        add_term(
+            terms,
+            servant.get("name"),
+            cn_servant.get("name"),
+            "servant",
+            aliases,
+            en_name=na_servant.get("name"),
+        )
 
         jp_nps = servant.get("noblePhantasms") or []
         cn_nps = by_key(cn_servant.get("noblePhantasms") or [], "id")
+        na_nps = by_key(na_servant.get("noblePhantasms") or [], "id")
         for jp_np in jp_nps:
             cn_np = cn_nps.get(jp_np.get("id"), {})
+            na_np = na_nps.get(jp_np.get("id"), {})
             jp_name = jp_np.get("originalName") or jp_np.get("name")
             cn_name = cn_np.get("name")
-            add_term(terms, jp_name, cn_name, "noble_phantasm")
+            en_name = na_np.get("name") or na_np.get("originalName")
+            add_term(terms, jp_name, cn_name, "noble_phantasm", en_name=en_name)
 
         jp_skills = servant.get("skills") or []
         cn_skills = by_key(cn_servant.get("skills") or [], "id")
+        na_skills = by_key(na_servant.get("skills") or [], "id")
         for jp_skill in jp_skills:
             cn_skill = cn_skills.get(jp_skill.get("id"), {})
+            na_skill = na_skills.get(jp_skill.get("id"), {})
             jp_name = jp_skill.get("originalName") or jp_skill.get("name")
             cn_name = cn_skill.get("name")
-            add_term(terms, jp_name, cn_name, "skill")
+            en_name = na_skill.get("name") or na_skill.get("originalName")
+            add_term(terms, jp_name, cn_name, "skill", en_name=en_name)
 
 
 def ingest_pair_export(
@@ -197,14 +216,17 @@ def ingest_pair_export(
 ) -> None:
     jp_rows = fetch_json(f"/export/JP/{endpoint_name}.json")
     cn_rows = by_key(fetch_json(f"/export/CN/{endpoint_name}.json"), key_name)
+    na_rows = by_key(fetch_json(f"/export/NA/{endpoint_name}.json"), key_name)
     if not isinstance(jp_rows, list):
         return
 
     for jp_row in jp_rows:
         cn_row = cn_rows.get(jp_row.get(key_name), {})
+        na_row = na_rows.get(jp_row.get(key_name), {})
         jp_name = jp_row.get("originalName") or jp_row.get("name")
         cn_name = cn_row.get("name")
-        add_term(terms, jp_name, cn_name, category)
+        en_name = na_row.get("name") or na_row.get("originalName")
+        add_term(terms, jp_name, cn_name, category, en_name=en_name)
 
 
 def ingest_mooncell_tsv(terms: list[dict[str, Any]], path: Path) -> None:
@@ -268,6 +290,8 @@ def ingest_character_names_tsv(terms: list[dict[str, Any]], path: Path) -> None:
                 row.get("source") or "mooncell",
                 allow_same_text=True,
                 gender=gender,
+                en_name=row.get("en_name"),
+                en_components=row.get("en_components"),
             )
 
 
@@ -294,6 +318,8 @@ def ingest_terms_tsv(terms: list[dict[str, Any]], path: Path) -> None:
                 aliases,
                 row.get("source") or "mooncell",
                 allow_same_text=True,
+                en_name=row.get("en_term"),
+                en_components=row.get("en_components"),
             )
 
 
@@ -337,6 +363,10 @@ def dedupe_terms(terms: list[dict[str, Any]]) -> list[dict[str, Any]]:
             )
         if not old_gender:
             merged[key]["gender"] = new_gender
+        if not clean_text(merged[key].get("en_name")):
+            merged[key]["en_name"] = clean_text(term.get("en_name"))
+        if not clean_text(merged[key].get("en_components")):
+            merged[key]["en_components"] = clean_text(term.get("en_components"))
     return sorted(merged.values(), key=lambda item: (item["category"], item["jp_name"]))
 
 

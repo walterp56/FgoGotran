@@ -339,6 +339,29 @@
     <string name="mode_desc_crop">裁切翻譯</string>
     <string name="guide_mode_battle_label">戰鬥字幕</string>
     <string name="guide_mode_battle_text">適合不想錯過戰鬥內對話的你。只鎖定戰鬥字幕區域</string>
+    <string name="crop_status_screenshot_failed">截圖失敗</string>
+    <string name="crop_status_area_too_small">區域太小</string>
+    <string name="crop_status_no_text">未辨識到文字</string>
+    <string name="crop_status_translate_failed">翻譯失敗</string>
+    <string name="voice_status_projection_missing">螢幕擷取未就緒：請回到 FGO 橫向畫面後，重新啟動懸浮服務並允許螢幕擷取授權</string>
+    <string name="voice_status_audio_permission_missing">未授予播放聲音擷取權限</string>
+    <string name="voice_status_abi_unsupported">目前裝置架構不受 Azure Speech SDK 支援</string>
+    <string name="voice_status_azure_key_missing">Azure Speech Key 為空</string>
+    <string name="voice_status_endpoint_invalid">中國 Azure 資源端點無效</string>
+    <string name="voice_status_connecting">即時語音翻譯正在連線…</string>
+    <string name="voice_capture_start_failed">Android 無法開始擷取遊戲播放聲音</string>
+    <string name="voice_capture_record_error">播放聲音擷取失敗：AudioRecord error %1$d</string>
+    <string name="voice_capture_no_fgo_app">未找到受支援的 FGO 應用程式，無法限定播放聲音來源</string>
+    <string name="voice_capture_unsupported_format">裝置不支援 16 kHz 單聲道播放聲音擷取</string>
+    <string name="voice_capture_init_failed">播放聲音擷取初始化失敗</string>
+    <string name="translation_failed_empty_output">[翻譯失敗：API 未回傳可顯示內容]</string>
+    <string name="translation_no_api_key">[未設定 API Key]\n請開啟設定並輸入 API Key。</string>
+    <string name="azure_endpoint_required">中國 Azure 即時翻譯需要填寫資源端點</string>
+    <string name="azure_endpoint_invalid_format">中國 Azure 資源端點格式無效</string>
+    <string name="azure_endpoint_https_required">中國 Azure 資源端點必須使用 HTTPS</string>
+    <string name="azure_endpoint_host_required">中國 Azure 資源端點必須是 *.cognitiveservices.azure.cn</string>
+    <string name="azure_endpoint_components_forbidden">中國 Azure 資源端點不能包含帳號、連接埠、查詢參數或片段</string>
+    <string name="azure_endpoint_root_hint">請填寫 Azure 入口網站顯示的資源根端點</string>
 </resources>
 
 

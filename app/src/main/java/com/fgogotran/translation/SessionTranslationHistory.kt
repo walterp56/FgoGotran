@@ -289,8 +289,10 @@ object SessionTranslationHistory {
     private fun String.isHistoryErrorText(): Boolean {
         val text = trim()
         return text.startsWith("[未配置 API Key]") ||
+            text.startsWith("[No API key]") ||
             text.startsWith("[翻译失败") ||
             text.startsWith("[翻譯失敗") ||
+            text.startsWith("[Translation failed") ||
             text == "翻译失败" ||
             text == "翻譯失敗"
     }

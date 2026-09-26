@@ -153,7 +153,7 @@ class CropResultRenderer @Inject constructor(
         maxSizeLimit: Float? = null,
         wordWrap: Boolean = false
     ): FittedLines {
-        val source = text.ifBlank { "未识别到文字" }
+        val source = text
         val safeMinSize = minSize.coerceAtLeast(6f)
         val maxSize = maxOf(
             safeMinSize,

@@ -2,7 +2,11 @@ package com.fgogotran.translation
 
 import android.icu.text.Transliterator
 import com.fgogotran.data.ApiSamplingSettings
+import android.content.Context
+import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.localization.AppLanguageManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.network.ApiEndpointPolicy
@@ -152,8 +156,13 @@ class Translator @Inject constructor(
     private val characterContextRepository: CharacterContextRepository,
     private val cacheDb: TranslationCacheDb,
     private val translationMemory: TranslationMemory,
-    private val diagnosticEventStore: DiagnosticEventStore
+    private val diagnosticEventStore: DiagnosticEventStore,
+    @ApplicationContext private val context: Context
 ) {
+    /** Placeholder text is drawn into the overlay bitmap, so resolve it with the app UI language. */
+    private fun localizedTranslationText(resId: Int, vararg args: Any): String =
+        AppLanguageManager.wrap(context).getString(resId, *args)
+
     private val httpClient = HttpClient {
         followRedirects = false
         install(HttpTimeout) {
@@ -183,7 +192,9 @@ class Translator @Inject constructor(
     private var cachedTerms: List<TermEntity>? = null
     private var cachedCharacterNames: List<CharacterNameEntity>? = null
     private var cachedTermLookup: Map<String, String>? = null
+    private var cachedTermLookupEn: Map<String, String>? = null
     private var cachedCharacterNameLookup: Map<String, String>? = null
+    private var cachedCharacterNameLookupEn: Map<String, String>? = null
     private var cachedCharacterNameVariants: List<NormalizedCharacterNameVariant>? = null
     private val memoryCacheLock = Any()
     private val memoryTranslationCache = object : LinkedHashMap<String, String>(256, 0.75f, true) {
@@ -197,6 +208,7 @@ class Translator @Inject constructor(
         cachedRuntimeConfigAt = 0L
         cachedTermRows = null
         cachedTermLookup = null
+        cachedTermLookupEn = null
         clearCharacterNameCaches()
         FgoLogger.info(tag, "Glossary and memory translation cache cleared")
     }
@@ -468,6 +480,7 @@ class Translator @Inject constructor(
         cachedTerms = null
         cachedCharacterNames = null
         cachedCharacterNameLookup = null
+        cachedCharacterNameLookupEn = null
         cachedCharacterNameVariants = null
         synchronized(memoryCacheLock) {
             memoryTranslationCache.clear()
@@ -524,14 +537,17 @@ class Translator @Inject constructor(
 
     private data class CharacterNameVariant(
         val jpName: String,
-        val cnName: String
+        val cnName: String,
+        val enName: String = ""
     )
 
     private data class NormalizedCharacterNameVariant(
         val jpName: String,
         val cnName: String,
+        val enName: String,
         val lookupKey: String,
-        val cnLookupKey: String
+        val cnLookupKey: String,
+        val enLookupKey: String
     )
 
     private data class CharacterNameState(
@@ -606,8 +622,7 @@ class Translator @Inject constructor(
         private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val MAX_TRANSLATION_API_ATTEMPTS = 3
         private const val UNTRANSLATED_FALLBACK = ""
-        private const val EMPTY_API_OUTPUT_FALLBACK = "[翻译失败：API 未返回可显示内容]"
-        private const val MASKED_TEXT_BACKEND = "masked-source"
+                private const val MASKED_TEXT_BACKEND = "masked-source"
         private const val MASKED_TEXT_MIN_TRANSLATABLE_CHARS = 4
         private const val LOG_SAMPLE_MAX_CHARS = 120
         private const val API_RESPONSE_LOG_SAMPLE_MAX_CHARS = 500
@@ -933,7 +948,11 @@ class Translator @Inject constructor(
                 .forTargetLocale(config, punctuationSourceText)
         }
 
-        findCharacterNameTranslation(normalizedText, allowAmbiguousDialogueName = false)?.let {
+        findCharacterNameTranslation(
+            normalizedText,
+            allowAmbiguousDialogueName = false,
+            targetLanguage = config.targetLanguage
+        )?.let {
             if (!TextNormalizer.hasRubyAnnotations(normalizedText)) {
                 FgoLogger.info(tag, "Character exact HIT")
                 return TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
@@ -942,7 +961,7 @@ class Translator @Inject constructor(
         }
 
         if (!TextNormalizer.hasRubyAnnotations(normalizedText)) {
-            findTermTranslation(normalizedText)?.let {
+            findTermTranslation(normalizedText, targetLanguage = config.targetLanguage)?.let {
                 FgoLogger.info(tag, "Glossary exact HIT")
                 return TranslateResult(sanitizeTranslation(normalizedText, it), "glossary", true)
                     .forTargetLocale(config, punctuationSourceText)
@@ -1042,7 +1061,7 @@ class Translator @Inject constructor(
         if (config.requiresApiKey && apiKey.isBlank()) {
             FgoLogger.warn(tag, "No API key configured; returning placeholder")
             return TranslateResult(
-                "[未配置 API Key]\n请打开设置并输入 API Key。",
+                localizedTranslationText(R.string.translation_no_api_key),
                 "none",
                 false,
                 trustedForContext = false,
@@ -1294,7 +1313,7 @@ class Translator @Inject constructor(
                 if (simplifiedResult.isBlank()) {
                     FgoLogger.warn(tag, "Translation attempt limit reached with no renderable API output")
                     return TranslateResult(
-                        EMPTY_API_OUTPUT_FALLBACK,
+                        localizedTranslationText(R.string.translation_failed_empty_output),
                         backend,
                         false,
                         trustedForContext = false,
@@ -1418,7 +1437,8 @@ class Translator @Inject constructor(
 
             val characterTranslation = findCharacterNameTranslation(
                 normalizedText,
-                allowAmbiguousDialogueName = false
+                allowAmbiguousDialogueName = false,
+                targetLanguage = config.targetLanguage
             )
             if (characterTranslation != null) {
                 FgoLogger.info(tag, "Batch character exact HIT[$index]")
@@ -1426,7 +1446,10 @@ class Translator @Inject constructor(
                 continue
             }
 
-            val termTranslation = findTermTranslation(normalizedText)
+            val termTranslation = findTermTranslation(
+                normalizedText,
+                targetLanguage = config.targetLanguage
+            )
             if (termTranslation != null) {
                 FgoLogger.info(tag, "Batch term exact HIT[$index]")
                 results[index] = TranslateResult(sanitizeTranslation(normalizedText, termTranslation), "glossary", true)
@@ -1456,7 +1479,7 @@ class Translator @Inject constructor(
 
         if (config.requiresApiKey && apiKey.isBlank()) {
             FgoLogger.warn(tag, "No API key configured; returning placeholders for batch")
-            val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
+            val placeholder = localizedTranslationText(R.string.translation_no_api_key)
             uncachedIndices.forEach { index ->
                 results[index] = TranslateResult(
                     placeholder,
@@ -1651,7 +1674,7 @@ class Translator @Inject constructor(
                 }
                 val forcedText = maskedSafe.takeUnless(::looksLikePromptEcho)
                     .orEmpty()
-                    .ifBlank { EMPTY_API_OUTPUT_FALLBACK }
+                    .ifBlank { localizedTranslationText(R.string.translation_failed_empty_output) }
                 results[originalIndex] = forceRenderedApiResult(
                     text = forcedText,
                     backend = backend,
@@ -1716,7 +1739,10 @@ class Translator @Inject constructor(
             if (nameResult != null) return@let
             if (shouldPreserveFullNameBoxText(normalized)) {
                 if (!TextNormalizer.hasRubyAnnotations(normalized)) {
-                    findExactVisibleCharacterNameTranslation(normalized)?.let {
+                    findExactVisibleCharacterNameTranslation(
+                        normalized,
+                        targetLanguage = config.targetLanguage
+                    )?.let {
                         FgoLogger.info(tag, "Character TSV HIT exact visible name")
                         nameResult = TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
                     }
@@ -1729,7 +1755,10 @@ class Translator @Inject constructor(
                     }
                 }
             } else {
-                resolveCharacterNameWithState(normalized)?.let {
+                resolveCharacterNameWithState(
+                    normalized,
+                    targetLanguage = config.targetLanguage
+                )?.let {
                     FgoLogger.info(tag, "Character TSV HIT name state")
                     nameResult = it
                 }
@@ -1739,7 +1768,11 @@ class Translator @Inject constructor(
                     nameResult = it
                 }
                 if (nameResult != null) return@let
-                findCharacterNameTranslation(normalized, allowOcrWrappedMatch = true)?.let {
+                findCharacterNameTranslation(
+                    normalized,
+                    allowOcrWrappedMatch = true,
+                    targetLanguage = config.targetLanguage
+                )?.let {
                     FgoLogger.info(tag, "Character TSV HIT name")
                     nameResult = TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
                 } ?: run {
@@ -1766,7 +1799,7 @@ class Translator @Inject constructor(
                 dialogueResult = TranslateResult(sanitizeTranslation(normalized, it), "official-cn", true)
             }
             if (dialogueResult == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
-                findTermTranslation(normalized)?.let {
+                findTermTranslation(normalized, targetLanguage = config.targetLanguage)?.let {
                     FgoLogger.info(tag, "Term exact HIT dialogue")
                     dialogueResult = TranslateResult(sanitizeTranslation(normalized, it), "glossary", true)
                 }
@@ -1788,13 +1821,17 @@ class Translator @Inject constructor(
                 choiceResults[index] = TranslateResult(sanitizeTranslation(normalized, it), "official-cn", true)
             }
             if (choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
-                findTermTranslation(normalized)?.let {
+                findTermTranslation(normalized, targetLanguage = config.targetLanguage)?.let {
                     FgoLogger.info(tag, "Term exact HIT choice[$index]")
                     choiceResults[index] = TranslateResult(sanitizeTranslation(normalized, it), "glossary", true)
                 }
             }
             if (choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
-                findCharacterNameTranslation(normalized, allowAmbiguousDialogueName = false)?.let {
+                findCharacterNameTranslation(
+                    normalized,
+                    allowAmbiguousDialogueName = false,
+                    targetLanguage = config.targetLanguage
+                )?.let {
                     FgoLogger.info(tag, "Character exact HIT choice[$index]")
                     choiceResults[index] = TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
                 }
@@ -2001,7 +2038,7 @@ class Translator @Inject constructor(
             } else {
                 FgoLogger.warn(tag, "No API key configured; returning placeholders for scene")
             }
-            val placeholder = "[未配置 API Key]\n请打开设置并输入 API Key。"
+            val placeholder = localizedTranslationText(R.string.translation_no_api_key)
             if (needsName) {
                 nameResult = TranslateResult(
                     "",
@@ -2655,7 +2692,7 @@ class Translator @Inject constructor(
         config: RuntimeConfig,
         reason: String
     ): TranslateResult {
-        val renderText = text.trim().ifBlank { EMPTY_API_OUTPUT_FALLBACK }
+        val renderText = text.trim().ifBlank { localizedTranslationText(R.string.translation_failed_empty_output) }
         FgoLogger.warn(tag, "$reason; force-rendering without cache")
         return modelTranslateResult(
             translatedText = renderText,
@@ -2727,51 +2764,69 @@ class Translator @Inject constructor(
         return loaded
     }
 
-    private suspend fun getCachedTermLookup(): Map<String, String> {
-        cachedTermLookup?.let { return it }
+    private suspend fun getCachedTermLookup(
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    ): Map<String, String> {
+        val english = isEnglishTarget(targetLanguage)
+        val cached = if (english) cachedTermLookupEn else cachedTermLookup
+        cached?.let { return it }
         val loaded = LinkedHashMap<String, String>()
         getCachedTermRows().forEach { term ->
+            val target = if (english) term.enTerm else term.cnTerm
+            if (target.isBlank()) return@forEach
             val keys = listOf(term.jpTerm) + aliases(term.aliases)
             keys.forEach { key ->
                 val normalizedKey = TextNormalizer.normalizeForTranslation(key)
                 if (normalizedKey.isNotBlank()) {
-                    loaded.putIfAbsent(normalizedKey, term.cnTerm)
+                    loaded.putIfAbsent(normalizedKey, target)
                 }
             }
         }
-        cachedTermLookup = loaded
-        FgoLogger.debug(tag, "Term lookup cached: ${loaded.size}")
+        if (english) cachedTermLookupEn = loaded else cachedTermLookup = loaded
+        FgoLogger.debug(tag, "Term lookup cached (${if (english) "en" else "zh"}): ${loaded.size}")
         return loaded
     }
 
-    private suspend fun getCachedCharacterNameLookup(): Map<String, String> {
-        cachedCharacterNameLookup?.let { return it }
+    private suspend fun getCachedCharacterNameLookup(
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    ): Map<String, String> {
+        val english = isEnglishTarget(targetLanguage)
+        val cached = if (english) cachedCharacterNameLookupEn else cachedCharacterNameLookup
+        cached?.let { return it }
         val loaded = LinkedHashMap<String, String>()
         getCachedCharacterNameVariants().forEach { variant ->
-            if (variant.lookupKey.isNotBlank()) {
-                loaded.putIfAbsent(variant.lookupKey, variant.cnName)
+            val target = if (english) variant.enName else variant.cnName
+            if (variant.lookupKey.isNotBlank() && target.isNotBlank()) {
+                loaded.putIfAbsent(variant.lookupKey, target)
             }
         }
-        cachedCharacterNameLookup = loaded
-        FgoLogger.debug(tag, "Character name lookup cached: ${loaded.size}")
+        if (english) cachedCharacterNameLookupEn = loaded else cachedCharacterNameLookup = loaded
+        FgoLogger.debug(tag, "Character name lookup cached (${if (english) "en" else "zh"}): ${loaded.size}")
         return loaded
     }
 
     private suspend fun getCachedCharacterNameVariants(): List<NormalizedCharacterNameVariant> {
         cachedCharacterNameVariants?.let { return it }
+        // Component rows generated by the glossary build (no separator in the JP name)
+        // must win over parts synthesised from a longer row, because a longer row can
+        // reorder its EN words (e.g. ヴァン・ホーエンハイム・パラケルスス -> Paracelsus von Hohenheim).
         val loaded = getCachedCharacterNames()
+            .sortedBy { splitNameComponents(it.jpName).size }
             .flatMap(::characterNameVariants)
             .mapNotNull { variant ->
                 val lookupKey = normalizeNameLookup(variant.jpName)
                 val cnLookupKey = normalizeNameLookup(variant.cnName)
-                if (lookupKey.isBlank() || variant.cnName.isBlank()) {
+                val enLookupKey = normalizeNameLookup(variant.enName)
+                if (lookupKey.isBlank() || (variant.cnName.isBlank() && variant.enName.isBlank())) {
                     null
                 } else {
                     NormalizedCharacterNameVariant(
                         jpName = variant.jpName,
                         cnName = variant.cnName,
+                        enName = variant.enName,
                         lookupKey = lookupKey,
-                        cnLookupKey = cnLookupKey
+                        cnLookupKey = cnLookupKey,
+                        enLookupKey = enLookupKey
                     )
                 }
             }
@@ -2781,16 +2836,21 @@ class Translator @Inject constructor(
         return loaded
     }
 
-    private suspend fun findExactVisibleCharacterNameTranslation(normalizedText: String): String? {
+    private suspend fun findExactVisibleCharacterNameTranslation(
+        normalizedText: String,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    ): String? {
         val lookupKey = visibleNameBoxLookupKey(normalizedText)
         if (lookupKey.isBlank()) return null
+        val english = isEnglishTarget(targetLanguage)
         return getCachedCharacterNames()
             .asSequence()
             .flatMap { characterNameVariants(it).asSequence() }
             .firstOrNull { variant ->
-                variant.cnName.isNotBlank() && visibleNameBoxLookupKey(variant.jpName) == lookupKey
+                val target = if (english) variant.enName else variant.cnName
+                target.isNotBlank() && visibleNameBoxLookupKey(variant.jpName) == lookupKey
             }
-            ?.cnName
+            ?.let { if (english) it.enName else it.cnName }
     }
 
     /**
@@ -2853,7 +2913,8 @@ class Translator @Inject constructor(
     private suspend fun findCharacterNameTranslation(
         normalizedText: String,
         allowOcrWrappedMatch: Boolean = false,
-        allowAmbiguousDialogueName: Boolean = true
+        allowAmbiguousDialogueName: Boolean = true,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): String? {
         val lookupCandidates = exactLookupCandidates(normalizedText)
             .map { normalizeNameLookup(TextNormalizer.stripRubyAnnotations(it)) }
@@ -2863,7 +2924,8 @@ class Translator @Inject constructor(
             FgoLogger.info(tag, "Character exact skipped for ambiguous dialogue name: $normalizedText")
             return null
         }
-        val nameLookup = getCachedCharacterNameLookup()
+        val english = isEnglishTarget(targetLanguage)
+        val nameLookup = getCachedCharacterNameLookup(targetLanguage)
         for (candidate in lookupCandidates) {
             nameLookup[candidate]?.let { return it }
         }
@@ -2872,10 +2934,10 @@ class Translator @Inject constructor(
         val variants = getCachedCharacterNameVariants()
 
         if (allowOcrWrappedMatch) {
-            findOcrWrappedCharacterNameTranslation(lookupText, variants)?.let { return it }
+            findOcrWrappedCharacterNameTranslation(lookupText, variants, targetLanguage)?.let { return it }
         }
 
-        translateCharacterNameComponents(normalizedText, variants)?.let { return it }
+        translateCharacterNameComponents(normalizedText, variants, targetLanguage)?.let { return it }
 
         if (isShortKanaOnlyName(lookupText)) {
             FgoLogger.info(tag, "Character fuzzy skipped for short kana name: $normalizedText")
@@ -2893,18 +2955,25 @@ class Translator @Inject constructor(
             isLikelyOcrNameMatch(lookupText, variant.lookupKey)
         }
             ?.let {
-                FgoLogger.info(tag, "Character fuzzy HIT: $normalizedText -> ${it.jpName}")
-                return it.cnName
+                val target = if (english) it.enName else it.cnName
+                if (target.isNotBlank()) {
+                    FgoLogger.info(tag, "Character fuzzy HIT: $normalizedText -> ${it.jpName}")
+                    return target
+                }
             }
 
         return null
     }
 
-    private suspend fun resolveCharacterNameWithState(normalizedName: String): TranslateResult? {
+    private suspend fun resolveCharacterNameWithState(
+        normalizedName: String,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    ): TranslateResult? {
         val stateName = parseCharacterNameState(normalizedName) ?: return null
         val baseTranslation = findCharacterNameTranslation(
             stateName.baseName,
-            allowOcrWrappedMatch = true
+            allowOcrWrappedMatch = true,
+            targetLanguage = targetLanguage
         ) ?: return null
         val baseName = sanitizeCharacterNameResult(baseTranslation).takeIf { it.isNotBlank() } ?: return null
 
@@ -3090,15 +3159,18 @@ class Translator @Inject constructor(
 
     private fun findOcrWrappedCharacterNameTranslation(
         lookupText: String,
-        variants: List<NormalizedCharacterNameVariant>
+        variants: List<NormalizedCharacterNameVariant>,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): String? {
+        val english = isEnglishTarget(targetLanguage)
         return variants.asSequence()
             .filter { variant -> isLikelyOcrWrappedName(lookupText, variant.lookupKey) }
             .maxByOrNull { variant -> variant.lookupKey.length }
             ?.also { variant ->
                 FgoLogger.info(tag, "Character OCR-wrapped HIT: $lookupText -> ${variant.jpName}")
             }
-            ?.cnName
+            ?.let { if (english) it.enName else it.cnName }
+            ?.takeIf(String::isNotBlank)
     }
 
     private fun isLikelyOcrWrappedName(input: String, candidate: String): Boolean {
@@ -3117,26 +3189,32 @@ class Translator @Inject constructor(
 
     private fun translateCharacterNameComponents(
         normalizedText: String,
-        variants: List<NormalizedCharacterNameVariant>
+        variants: List<NormalizedCharacterNameVariant>,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): String? {
         val parts = splitNameComponents(TextNormalizer.stripRubyAnnotations(normalizedText))
         if (parts.size < 2) return null
+        val english = isEnglishTarget(targetLanguage)
 
         val translatedParts = parts.map { part ->
             val lookupPart = normalizeNameLookup(part)
-            variants.firstOrNull { variant -> lookupPart == variant.lookupKey }
-                ?.cnName
-                ?: return null
+            val target = variants.firstOrNull { variant -> lookupPart == variant.lookupKey }
+                ?.let { if (english) it.enName else it.cnName }
+                .orEmpty()
+            target.ifBlank { return null }
         }
-        return translatedParts.joinToString("\u00B7")
+        return translatedParts.joinToString(if (english) " " else "\u00B7")
     }
 
-    private suspend fun findTermTranslation(normalizedText: String): String? {
+    private suspend fun findTermTranslation(
+        normalizedText: String,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    ): String? {
         val lookupCandidates = exactLookupCandidates(normalizedText)
             .map(TextNormalizer::normalizeForTranslation)
             .filter { it.isNotBlank() }
             .distinct()
-        val termLookup = getCachedTermLookup()
+        val termLookup = getCachedTermLookup(targetLanguage)
         return lookupCandidates.firstNotNullOfOrNull { termLookup[it] }
     }
 
@@ -3163,16 +3241,18 @@ class Translator @Inject constructor(
                 TermEntity(
                     jpTerm = character.jpName,
                     cnTerm = character.cnName,
+                    enTerm = character.enName,
                     category = "character",
                     gender = character.gender,
                     aliases = character.aliases
                 )
             )
-            characterNameComponents(character.jpName, character.cnName).forEach { variant ->
+            characterNameComponents(character.jpName, character.cnName, character.enName).forEach { variant ->
                 add(
                     TermEntity(
                         jpTerm = variant.jpName,
                         cnTerm = variant.cnName,
+                        enTerm = variant.enName,
                         category = "character_part",
                         aliases = "[]"
                     )
@@ -3183,31 +3263,46 @@ class Translator @Inject constructor(
 
     private fun characterNameVariants(character: CharacterNameEntity): List<CharacterNameVariant> {
         return buildList {
-            add(CharacterNameVariant(character.jpName, character.cnName))
-            addAll(characterNameComponents(character.jpName, character.cnName))
+            add(CharacterNameVariant(character.jpName, character.cnName, character.enName))
+            addAll(characterNameComponents(character.jpName, character.cnName, character.enName))
             aliases(character.aliases).forEach { alias ->
-                add(CharacterNameVariant(alias, character.cnName))
+                add(CharacterNameVariant(alias, character.cnName, character.enName))
             }
         }
-            .filter { it.jpName.isNotBlank() && it.cnName.isNotBlank() }
+            .filter { it.jpName.isNotBlank() && (it.cnName.isNotBlank() || it.enName.isNotBlank()) }
             .distinctBy { normalizeNameLookup(it.jpName) }
     }
 
-    private fun characterNameComponents(jpName: String, cnName: String): List<CharacterNameVariant> {
+    private fun characterNameComponents(
+        jpName: String,
+        cnName: String,
+        enName: String
+    ): List<CharacterNameVariant> {
         val jpParts = splitNameComponents(jpName)
         val cnParts = splitNameComponents(cnName)
-        if (jpParts.size < 2 || jpParts.size != cnParts.size) return emptyList()
-        return jpParts.zip(cnParts)
-            .mapNotNull { (jpPart, cnPart) ->
+        val enParts = splitNameComponents(enName)
+        val byKey = LinkedHashMap<String, CharacterNameVariant>()
+
+        if (jpParts.size >= 2 && jpParts.size == cnParts.size) {
+            jpParts.zip(cnParts).forEach { (jpPart, cnPart) ->
                 val jpKey = normalizeNameLookup(jpPart)
-                when {
-                    jpKey.length < 2 -> null
-                    !containsJapaneseScript(jpPart) -> null
-                    cnPart.isBlank() -> null
-                    else -> CharacterNameVariant(jpPart, cnPart)
+                if (jpKey.length < 2 || !containsJapaneseScript(jpPart) || cnPart.isBlank()) return@forEach
+                byKey.putIfAbsent(jpKey, CharacterNameVariant(jpPart, cnPart))
+            }
+        }
+        if (jpParts.size >= 2 && jpParts.size == enParts.size) {
+            jpParts.zip(enParts).forEach { (jpPart, enPart) ->
+                val jpKey = normalizeNameLookup(jpPart)
+                if (jpKey.length < 2 || !containsJapaneseScript(jpPart) || enPart.isBlank()) return@forEach
+                val existing = byKey[jpKey]
+                byKey[jpKey] = if (existing == null) {
+                    CharacterNameVariant(jpPart, "", enPart)
+                } else {
+                    existing.copy(enName = enPart)
                 }
             }
-            .distinctBy { normalizeNameLookup(it.jpName) }
+        }
+        return byKey.values.toList()
     }
 
     private fun splitNameComponents(text: String): List<String> {
@@ -3456,13 +3551,18 @@ class Translator @Inject constructor(
 
     private suspend fun isKnownCharacterTranslationForDifferentName(
         sourceText: String,
-        translatedText: String
+        translatedText: String,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Boolean {
         val translatedKey = normalizeNameLookup(translatedText)
         if (translatedKey.isBlank()) return false
         val sourceKey = normalizeNameLookup(sourceText)
+        val english = isEnglishTarget(targetLanguage)
         val matchingTranslatedNames = getCachedCharacterNameVariants()
-            .filter { variant -> variant.cnLookupKey == translatedKey }
+            .filter { variant ->
+                val lookup = if (english) variant.enLookupKey else variant.cnLookupKey
+                lookup == translatedKey
+            }
         return matchingTranslatedNames.isNotEmpty() &&
             matchingTranslatedNames.none { variant -> variant.lookupKey == sourceKey }
     }
@@ -4529,7 +4629,7 @@ class Translator @Inject constructor(
     ): List<TranslationGlossaryEntry> {
         val entries = buildList {
             matchedTerms.forEach { term ->
-                if (term.cnTerm.isBlank()) return@forEach
+                if (term.cnTerm.isBlank() && term.enTerm.isBlank()) return@forEach
                 val matchedForms = termProtectionCandidates(term)
                     .filter { candidate -> sourceContainsTermCandidate(sourceText, candidate) }
                     .ifEmpty { listOf(term.jpTerm) }
@@ -4537,10 +4637,7 @@ class Translator @Inject constructor(
                     add(
                         TranslationGlossaryEntry(
                             source = sourceForm,
-                            target = targetOfficialChinese(
-                                term.cnTerm,
-                                targetLanguage
-                            ),
+                            target = targetTermText(term, targetLanguage),
                             note = normalizeCharacterGender(term.gender)
                         )
                     )
@@ -4865,6 +4962,11 @@ class Translator @Inject constructor(
             SettingsRepository.TARGET_LANGUAGE_ENGLISH -> "English"
             else -> "Simplified Chinese"
         }
+    }
+
+    private fun targetTermText(term: TermEntity, targetLanguage: String): String {
+        if (isEnglishTarget(targetLanguage)) return term.enTerm.trim()
+        return targetOfficialChinese(term.cnTerm, targetLanguage)
     }
 
     private fun targetOfficialChinese(text: String, targetLanguage: String): String {
@@ -6415,7 +6517,7 @@ class Translator @Inject constructor(
         matchedTerms
             .sortedBy { it.jpTerm }
             .joinToString("\u001F") {
-                "${it.jpTerm}→${it.cnTerm}#${it.category}|${it.gender}|${it.aliases.orEmpty()}"
+                "${it.jpTerm}→${it.cnTerm}→${it.enTerm}#${it.category}|${it.gender}|${it.aliases.orEmpty()}"
             }
 
     /** Matched-term fingerprint for one text (used by the paths that look up the cache per field). */

@@ -6,7 +6,9 @@ import android.content.pm.PackageManager
 import android.media.projection.MediaProjection
 import android.os.Build
 import androidx.core.content.ContextCompat
+import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.util.FgoLogger
 import dagger.Lazy
@@ -43,6 +45,27 @@ class RealtimeVoiceTranslationController @Inject constructor(
     private val subtitleOverlay: VoiceSubtitleOverlay,
     private val diagnosticEventStore: DiagnosticEventStore
 ) {
+    /** Overlay/status text is drawn outside Compose, so resolve it with the app UI language. */
+    private fun localizedVoiceText(resId: Int, vararg args: Any): String =
+        AppLanguageManager.wrap(context).getString(resId, *args)
+
+    /** Endpoint policy messages are Chinese literals; map them to localized resources. */
+    private fun localizedEndpointMessage(message: String?): String = when (message) {
+        "中国 Azure 实时翻译需要填写资源端点" ->
+            localizedVoiceText(R.string.azure_endpoint_required)
+        "中国 Azure 资源端点格式无效" ->
+            localizedVoiceText(R.string.azure_endpoint_invalid_format)
+        "中国 Azure 资源端点必须使用 HTTPS" ->
+            localizedVoiceText(R.string.azure_endpoint_https_required)
+        "中国 Azure 资源端点必须是 *.cognitiveservices.azure.cn" ->
+            localizedVoiceText(R.string.azure_endpoint_host_required)
+        "中国 Azure 资源端点不能包含账号、端口、查询参数或片段" ->
+            localizedVoiceText(R.string.azure_endpoint_components_forbidden)
+        "请填写 Azure 门户显示的资源根端点" ->
+            localizedVoiceText(R.string.azure_endpoint_root_hint)
+        else -> message ?: localizedVoiceText(R.string.voice_status_endpoint_invalid)
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val generation = AtomicLong(0L)
     private val stateLock = Any()
@@ -63,7 +86,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
         if (activeProjection == null) {
             failConfigurationIfCurrent(
                 startRequestId,
-                "屏幕捕获未就绪：请回到 FGO 横屏画面后，重新启动悬浮服务并允许屏幕捕获授权",
+                localizedVoiceText(R.string.voice_status_projection_missing),
                 "media_projection_missing"
             )
             return
@@ -71,7 +94,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             failConfigurationIfCurrent(
                 startRequestId,
-                "未授予播放声音捕获权限",
+                localizedVoiceText(R.string.voice_status_audio_permission_missing),
                 "record_audio_permission_missing"
             )
             return
@@ -79,7 +102,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
         if (Build.SUPPORTED_ABIS.none(AZURE_SPEECH_SUPPORTED_ABIS::contains)) {
             failConfigurationIfCurrent(
                 startRequestId,
-                "当前设备架构不受 Azure Speech SDK 支持",
+                localizedVoiceText(R.string.voice_status_abi_unsupported),
                 "azure_speech_abi_unsupported"
             )
             return
@@ -93,7 +116,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
         )
         if (!isCurrent(startRequestId)) return
         if (config.key.isBlank()) {
-            failConfigurationIfCurrent(startRequestId, "Azure Speech Key 为空", "azure_speech_key_missing")
+            failConfigurationIfCurrent(startRequestId, localizedVoiceText(R.string.voice_status_azure_key_missing), "azure_speech_key_missing")
             return
         }
         if (config.region == SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3) {
@@ -103,7 +126,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
             if (endpointError != null) {
                 failConfigurationIfCurrent(
                     startRequestId,
-                    endpointError.message ?: "中国 Azure 资源端点无效",
+                    localizedEndpointMessage(endpointError.message),
                     "azure_china_endpoint_invalid"
                 )
                 return
@@ -205,7 +228,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
             pcmFrames.close()
             return AttemptTerminal.Stopped
         }
-        subtitleOverlay.showStatus("实时语音翻译正在连接…")
+        subtitleOverlay.showStatus(localizedVoiceText(R.string.voice_status_connecting))
 
         return try {
             azureTranslator.get().start(config) eventHandler@{ event ->

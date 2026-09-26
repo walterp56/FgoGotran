@@ -23,8 +23,8 @@ DEFAULT_DB = ROOT / "fgo_terms.db"
 DEFAULT_OUTPUT = REPO_ROOT / "release" / "cdn"
 DEFAULT_BASE_URL = "https://cdn.fgogotran.com"
 DEFAULT_LOCALE = "zh-Hans"
-DEFAULT_MIN_APP_VERSION = "2.5.0"
-EXPECTED_SCHEMA_VERSION = 2
+DEFAULT_MIN_APP_VERSION = "4.0.0"
+EXPECTED_SCHEMA_VERSION = 3
 ALLOWED_GENDERS = {"", "女性", "男性", "性別不明"}
 HK_TIMEZONE = timezone(timedelta(hours=8))
 
@@ -68,6 +68,14 @@ def read_db_stats(db_path: Path) -> dict[str, Any]:
             }
             if "gender" not in columns:
                 raise RuntimeError(f"DB table {table_name} is missing gender column")
+        expected_en_columns = {"character_names": "en_name", "terms": "en_term"}
+        for table_name, column_name in expected_en_columns.items():
+            columns = {
+                row[1]
+                for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+            }
+            if column_name not in columns:
+                raise RuntimeError(f"DB table {table_name} is missing {column_name} column")
 
         invalid_genders = {
             row[0]
@@ -149,6 +157,7 @@ def package_release(args: argparse.Namespace) -> dict[str, Any]:
         "locale": locale,
         "generatedAt": generated_at,
         "minimumAppVersion": args.minimum_app_version,
+        "capabilities": ["en_term", "en_name"],
         "releaseNotes": args.release_notes,
         "dbUrl": cdn_url(args.base_url, f"{release_prefix}/fgo_terms.db"),
         "dbSha256": db_hash,

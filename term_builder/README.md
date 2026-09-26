@@ -20,13 +20,13 @@ Used for deterministic speaker-name translation. Exact Japanese names and aliase
 Columns:
 
 ```tsv
-jp_name	cn_name	gender	aliases
-FULL_JP_NAME	OFFICIAL_CN_NAME	女性	ALIAS_1,ALIAS_2
+jp_name	cn_name	en_name	en_components	gender	aliases
+FULL_JP_NAME	OFFICIAL_CN_NAME	OFFICIAL_EN_NAME	JP_PART=EN_PART;JP_PART=EN_PART	女性	ALIAS_1,ALIAS_2
 ```
 
 `gender` accepts `女性`, `男性`, `性別不明`, or an empty value. It is translation
 metadata used by the Sakura glossary and is never appended to the displayed name.
-`aliases` is optional and comma-separated.
+`aliases` is optional and comma-separated. `en_name` is the target used for English translations. `en_components` is optional and only needed when English name parts cannot be aligned automatically.
 
 Keep full character names here. `build_db.py` automatically adds component records for separator-based names, so a full official row can also become searchable through its name parts. Curated TSV rows still win over generated component rows.
 
@@ -89,8 +89,8 @@ Used for terminology RAG and exact term matches in dialogue or choice text.
 Columns:
 
 ```tsv
-jp_term	cn_term	category	aliases
-JP_TERM	CN_TERM	place	ALIAS_1,ALIAS_2
+jp_term	cn_term	en_term	en_components	category	aliases
+JP_TERM	CN_TERM	OFFICIAL_EN_TERM	JP_PART=EN_PART;JP_PART=EN_PART	place	ALIAS_1,ALIAS_2
 ```
 
 `category` examples:
@@ -206,8 +206,10 @@ then verifies the live manifest content version.
 
 `build_db.py` creates one SQLite DB with two tables:
 
-- `character_names`: `jp_name`, `cn_name`, `aliases`
-- `terms`: `jp_term`, `cn_term`, `category`, `aliases`
+- `character_names`: `jp_name`, `cn_name`, `en_name`, `gender`, `aliases`
+- `terms`: `jp_term`, `cn_term`, `en_term`, `category`, `gender`, `aliases`
+
+Schema 3 requires app version 4.0.0 or newer. Older apps reject this manifest and keep any already installed database.
 
 The APK does not include this DB. The app downloads the latest verified package from:
 

@@ -17,6 +17,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.fgogotran.localization.AppLanguageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -52,7 +53,9 @@ private class FakeLifecycleOwner : SavedStateRegistryOwner {
  *
  * Provides a fake [LifecycleOwner], [ViewModelStoreOwner], and [SavedStateRegistryOwner]
  * so that Compose components (which depend on these) can render correctly from a
- * [android.app.Service] context.
+ * [android.app.Service] context. The Compose view is created with the language-selected
+ * context from [AppLanguageManager] so string resources follow the in-app UI language
+ * instead of the system locale.
  *
  * Call [close] to clean up the lifecycle and coroutine scope.
  */
@@ -73,7 +76,7 @@ class FakeComposeHost(
 
     /** The [ComposeView] ready to be added to a WindowManager. */
     val view: ComposeView by lazy {
-        ComposeView(context).also { composeView ->
+        ComposeView(AppLanguageManager.wrap(context)).also { composeView ->
             lifecycleOwner.performRestore(null)
             lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
             composeView.setViewTreeLifecycleOwner(lifecycleOwner)

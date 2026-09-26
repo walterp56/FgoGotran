@@ -339,6 +339,29 @@
     <string name="mode_desc_crop">Crop translation</string>
     <string name="guide_mode_battle_label">Battle</string>
     <string name="guide_mode_battle_text">For players who don\'t want to miss in-battle dialogue. Locks onto the battle subtitle area.</string>
+    <string name="crop_status_screenshot_failed">Screenshot failed</string>
+    <string name="crop_status_area_too_small">Selected area is too small</string>
+    <string name="crop_status_no_text">No text recognized</string>
+    <string name="crop_status_translate_failed">Translation failed</string>
+    <string name="voice_status_projection_missing">Screen capture is not ready: return to the FGO landscape screen, restart the floating service, and allow screen capture</string>
+    <string name="voice_status_audio_permission_missing">Playback audio capture permission is not granted</string>
+    <string name="voice_status_abi_unsupported">This device architecture is not supported by the Azure Speech SDK</string>
+    <string name="voice_status_azure_key_missing">Azure Speech Key is empty</string>
+    <string name="voice_status_endpoint_invalid">China Azure resource endpoint is invalid</string>
+    <string name="voice_status_connecting">Live voice translation is connecting…</string>
+    <string name="voice_capture_start_failed">Android cannot start capturing game playback audio</string>
+    <string name="voice_capture_record_error">Playback audio capture failed: AudioRecord error %1$d</string>
+    <string name="voice_capture_no_fgo_app">No supported FGO app found; playback audio source cannot be narrowed</string>
+    <string name="voice_capture_unsupported_format">This device does not support 16 kHz mono playback capture</string>
+    <string name="voice_capture_init_failed">Playback audio capture failed to initialize</string>
+    <string name="translation_failed_empty_output">[Translation failed: API returned no displayable content]</string>
+    <string name="translation_no_api_key">[No API key]\nOpen Settings and enter your API key.</string>
+    <string name="azure_endpoint_required">China Azure live translation requires a resource endpoint</string>
+    <string name="azure_endpoint_invalid_format">China Azure resource endpoint format is invalid</string>
+    <string name="azure_endpoint_https_required">China Azure resource endpoint must use HTTPS</string>
+    <string name="azure_endpoint_host_required">China Azure resource endpoint must be *.cognitiveservices.azure.cn</string>
+    <string name="azure_endpoint_components_forbidden">China Azure resource endpoint cannot contain credentials, port, query, or fragment</string>
+    <string name="azure_endpoint_root_hint">Enter the resource root endpoint shown in the Azure portal</string>
 </resources>
 
 
