@@ -660,7 +660,7 @@ private class HistoryTapDismissTouchListener(
 
 private fun historyTypeface(
     context: Context,
-    targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
 ): Typeface {
     return FgoTypefaceProvider.storyTypeface(context, targetLocale)
 }

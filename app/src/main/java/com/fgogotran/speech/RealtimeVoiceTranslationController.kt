@@ -89,7 +89,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
             key = settingsRepository.azureSpeechKey.first(),
             region = settingsRepository.azureSpeechRegion.first(),
             chinaEndpoint = settingsRepository.azureSpeechEndpoint.first(),
-            targetLanguage = settingsRepository.targetChineseLocale.first()
+            targetLanguage = settingsRepository.targetLanguage.first()
         )
         if (!isCurrent(startRequestId)) return
         if (config.key.isBlank()) {

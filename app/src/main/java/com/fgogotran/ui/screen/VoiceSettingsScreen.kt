@@ -174,7 +174,7 @@ fun VoiceSettingsScreen(
                     azureSpeechRegion,
                     azureSpeechEndpoint
                 )
-                val sample = azureVoiceTestSample(context, settingsRepository.targetChineseLocale.first())
+                val sample = azureVoiceTestSample(context, settingsRepository.targetLanguage.first())
                 var voiceHint: VoiceLineHint? = null
                 var voiceHintError: Throwable? = null
                 if (effectiveApiVoiceHintsEnabled) {
@@ -529,10 +529,10 @@ private val azureSpeechRegionOptions = listOf(
     )
 )
 
-private fun azureVoiceTestSample(context: Context, targetChineseLocale: String): AzureVoiceTestSample {
+private fun azureVoiceTestSample(context: Context, targetLanguage: String): AzureVoiceTestSample {
     return if (
-        SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
-        SettingsRepository.TARGET_LOCALE_TRADITIONAL
+        SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+        SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
     ) {
         AzureVoiceTestSample(
             speakerName = AppLanguageManager.localizedString(context, R.string.voice_auto_49),

@@ -169,7 +169,7 @@ class AppAnalytics @Inject constructor(
             eventType = eventType,
             appVersion = currentVersionName(),
             appVersionCode = currentVersionCode(),
-            locale = settingsRepository.targetChineseLocale.first(),
+            locale = settingsRepository.targetLanguage.first(),
             androidVersion = currentAndroidVersion(),
             mode = mode,
             backendType = backendType,

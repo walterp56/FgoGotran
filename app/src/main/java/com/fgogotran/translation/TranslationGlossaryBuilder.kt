@@ -83,7 +83,7 @@ internal object TranslationGlossaryBuilder {
                 }
             }
             if (context.hasMasterWord) {
-                val genderNote = context.playerGender.toGenderNote(context.targetChineseLocale)
+                val genderNote = context.playerGender.toGenderNote(context.targetLanguage)
                 add(
                     "マスター",
                     "御主",
@@ -113,7 +113,7 @@ internal object TranslationGlossaryBuilder {
                 currentSpeaker = currentSpeaker,
                 currentSpeakerGender = context.currentSpeakerGender,
                 characterContextPrompt = context.characterContextPrompt,
-                targetChineseLocale = context.targetChineseLocale
+                targetLanguage = context.targetLanguage
             )
         }
         return entriesBySource.values.toList()
@@ -137,7 +137,7 @@ internal object TranslationGlossaryBuilder {
         currentSpeaker: String,
         currentSpeakerGender: String,
         characterContextPrompt: String,
-        targetChineseLocale: String
+        targetLanguage: String
     ) {
         val cleanSpeaker = currentSpeaker.trim()
         if (cleanSpeaker.isBlank()) return
@@ -145,11 +145,11 @@ internal object TranslationGlossaryBuilder {
         val source = (match?.groupValues?.get(2) ?: cleanSpeaker).asGlossaryField()
         val target = (match?.groupValues?.get(1) ?: source).asGlossaryField()
         if (source.isBlank() || target.isBlank()) return
-        val traditional = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+        val traditional = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         val note = buildList {
             currentSpeakerGender
-                .toGenderNote(targetChineseLocale)
+                .toGenderNote(targetLanguage)
                 .takeIf(String::isNotBlank)
                 ?.let(::add)
             add(if (traditional) "當前說話人" else "当前说话人")
@@ -167,8 +167,8 @@ internal object TranslationGlossaryBuilder {
     }
 
     private fun PromptContext.localized(simplified: String, traditional: String): String {
-        return if (SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+        return if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         ) {
             traditional
         } else {
@@ -176,9 +176,9 @@ internal object TranslationGlossaryBuilder {
         }
     }
 
-    private fun String.toGenderNote(targetChineseLocale: String): String {
-        val traditional = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+    private fun String.toGenderNote(targetLanguage: String): String {
+        val traditional = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         return when (trim()) {
             "女性", "female" -> "女性"
             "男性", "male" -> "男性"

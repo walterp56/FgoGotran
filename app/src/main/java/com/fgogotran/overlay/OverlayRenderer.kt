@@ -20,7 +20,7 @@ data class RenderInstruction(
     val sourceText: String = "",
     val textColor: Int? = null,
     val wideTextSpacing: Boolean = false,
-    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+    val targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
     val showOriginalText: Boolean = false
 )
 
@@ -77,6 +77,7 @@ class OverlayRenderer @Inject constructor(
         private const val DIALOGUE_MAX_LINES = 2
         private const val DIALOGUE_TEXT_LEFT_INSET = DialogueReferenceGeometry.TEXT_LEFT_INSET
         private const val DIALOGUE_TEXT_TOP_INSET = 48f
+        private const val DIALOGUE_TEXT_TOP_NUDGE_PX = 10f
         private const val DIALOGUE_TEXT_RIGHT_INSET = DialogueReferenceGeometry.TEXT_RIGHT_INSET
         private const val DIALOGUE_TEXT_BOTTOM_INSET = 12f
         private const val BILINGUAL_DIALOGUE_TEXT_TOP_INSET = 24f
@@ -256,6 +257,12 @@ class OverlayRenderer @Inject constructor(
             "Dialogue render lines: count=${layout.lines.size}, " +
                 "widths=${layout.lines.map { paint.measureText(it).toInt() }}, " +
                 "maxWidth=${layout.textArea.width().toInt()}, textSize=${paint.textSize}"
+        )
+        FgoLogger.debug(
+            tag,
+            "Dialogue render anchor: left=${layout.clearBox.left.toInt()}, top=${layout.clearBox.top.toInt()}, " +
+                "right=${layout.clearBox.right.toInt()}, bottom=${layout.clearBox.bottom.toInt()}, " +
+                "textLeft=${layout.textArea.left.toInt()}, textTop=${layout.textArea.top.toInt()}"
         )
         val clearBox = layout.clearBox
 
@@ -441,7 +448,8 @@ class OverlayRenderer @Inject constructor(
                     textSize = preferredTextSize,
                     maxWidth = textArea.width(),
                     maxHeight = textArea.height(),
-                    maxLines = DIALOGUE_MAX_LINES
+                    maxLines = DIALOGUE_MAX_LINES,
+                    wordWrap = instruction.isEnglishTarget()
                 )
             }
             .firstOrNull()
@@ -457,7 +465,8 @@ class OverlayRenderer @Inject constructor(
             maxHeight = textArea.height(),
             maxLines = DIALOGUE_MAX_LINES,
             preserveExplicitLineBreaks = candidates.preserveExplicitLineBreaks,
-            fallbackText = candidates.finalFallback
+            fallbackText = candidates.finalFallback,
+            wordWrap = instruction.isEnglishTarget()
         )
         val clearBox = dialogueClearBoxForLayout(
             instruction = instruction,
@@ -485,24 +494,23 @@ class OverlayRenderer @Inject constructor(
         val clearLeftInsetX = DYNAMIC_DIALOGUE_TEXT_LEFT_INSET * scale
         val clearInsetY = DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET * scale
         val sourcePaddingX = DYNAMIC_DIALOGUE_HORIZONTAL_PADDING * scale
-        val sourceLeftPaddingX = DYNAMIC_DIALOGUE_LEFT_PADDING * scale
         val sourcePaddingY = DYNAMIC_DIALOGUE_VERTICAL_PADDING * scale
 
         val textWidth = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
         val textBottom = textArea.top + textBlockHeight(paint, lineHeight, lines.size.coerceAtLeast(1))
-        val sourceLeft = originalBounds?.left?.minus(sourceLeftPaddingX) ?: textArea.left
-        val sourceTop = originalBounds?.top?.minus(sourcePaddingY) ?: textArea.top
-        val sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: textArea.left
-        val sourceBottom = originalBounds?.bottom?.plus(sourcePaddingY) ?: textArea.top
+        val anchorLeft = textArea.left - clearLeftInsetX
+        val anchorTop = textArea.top - clearInsetY - 12f * scale
+        val sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: anchorLeft
+        val sourceBottom = originalBounds?.bottom?.plus(sourcePaddingY) ?: anchorTop
         val clearRightForRiskyTail = if (instruction.hasRiskyTrailingDialogueText()) {
             textArea.right
         } else {
-            textArea.left
+            anchorLeft
         }
 
         return boundedRect(
-            left = minOf(sourceLeft, textArea.left - clearLeftInsetX),
-            top = minOf(sourceTop, textArea.top - clearInsetY) - 12f * scale,
+            left = anchorLeft,
+            top = anchorTop,
             right = maxOf(sourceRight, textArea.left + textWidth + clearInsetX, clearRightForRiskyTail),
             bottom = maxOf(sourceBottom, textBottom + clearInsetY),
             bounds = panelBox
@@ -591,7 +599,7 @@ class OverlayRenderer @Inject constructor(
     private fun fixedDialogueTextArea(panelBox: RectF, scale: Float): RectF {
         return RectF(
             panelBox.left + DIALOGUE_TEXT_LEFT_INSET * scale,
-            panelBox.top + DIALOGUE_TEXT_TOP_INSET * scale,
+            panelBox.top + DIALOGUE_TEXT_TOP_INSET * scale - DIALOGUE_TEXT_TOP_NUDGE_PX,
             panelBox.right - DIALOGUE_TEXT_RIGHT_INSET * scale,
             panelBox.bottom - DIALOGUE_TEXT_BOTTOM_INSET * scale
         )
@@ -979,17 +987,56 @@ class OverlayRenderer @Inject constructor(
         return overlap.toFloat() / minOf(firstEnd - firstStart, secondEnd - secondStart).coerceAtLeast(1)
     }
 
-    private fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
+    private fun wrapText(
+        text: String,
+        paint: Paint,
+        maxWidth: Float,
+        wordWrap: Boolean = false
+    ): List<String> {
         val wrapped = mutableListOf<String>()
         text.lines().filter { it.isNotBlank() }.forEach { paragraph ->
-            var remaining = paragraph.trim()
-            while (remaining.isNotEmpty()) {
-                val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
-                wrapped.add(remaining.take(count))
-                remaining = remaining.drop(count).trimStart()
+            if (wordWrap) {
+                wrapped += wrapEnglishParagraph(paragraph.trim(), paint, maxWidth)
+            } else {
+                var remaining = paragraph.trim()
+                while (remaining.isNotEmpty()) {
+                    val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                    wrapped.add(remaining.take(count))
+                    remaining = remaining.drop(count).trimStart()
+                }
             }
         }
         return wrapped
+    }
+
+    private fun wrapEnglishParagraph(paragraph: String, paint: Paint, maxWidth: Float): List<String> {
+        if (paragraph.isBlank()) return emptyList()
+        val lines = mutableListOf<String>()
+        val words = paragraph.split(Regex("\\s+")).filter { it.isNotBlank() }
+        var current = ""
+        words.forEach { word ->
+            val candidate = if (current.isBlank()) word else "$current $word"
+            if (paint.measureText(candidate) <= maxWidth || (current.isBlank() && paint.measureText(word) <= maxWidth)) {
+                current = candidate
+            } else {
+                if (current.isNotBlank()) {
+                    lines += current
+                    current = ""
+                }
+                if (paint.measureText(word) <= maxWidth) {
+                    current = word
+                } else {
+                    var remaining = word
+                    while (remaining.isNotEmpty()) {
+                        val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                        lines += remaining.take(count)
+                        remaining = remaining.drop(count)
+                    }
+                }
+            }
+        }
+        if (current.isNotBlank()) lines += current
+        return lines
     }
 
     private fun fitDialogueText(
@@ -1003,7 +1050,8 @@ class OverlayRenderer @Inject constructor(
         maxHeight: Float,
         maxLines: Int,
         preserveExplicitLineBreaks: Boolean,
-        fallbackText: String
+        fallbackText: String,
+        wordWrap: Boolean = false
     ): Pair<List<String>, Float> {
         val distinctCandidates = distinctDialogueCandidates(candidates)
         val evaluateSize = { textSize: Float ->
@@ -1013,7 +1061,8 @@ class OverlayRenderer @Inject constructor(
                 textSize = textSize,
                 maxWidth = maxWidth,
                 maxHeight = maxHeight,
-                maxLines = maxLines
+                maxLines = maxLines,
+                wordWrap = wordWrap
             )
         }
         val preferredFit = PreciseTextSizeSearch.largestFitting(
@@ -1068,7 +1117,7 @@ class OverlayRenderer @Inject constructor(
                     }
                 }
         } else {
-            limitLines(wrapText(safeFallbackText, paint, maxWidth), maximumLines, paint, maxWidth)
+            limitLines(wrapText(safeFallbackText, paint, maxWidth, wordWrap), maximumLines, paint, maxWidth)
         }
         return fallbackLines to lineHeight
     }
@@ -1101,7 +1150,8 @@ class OverlayRenderer @Inject constructor(
                 maxWidth = maxWidth,
                 maxHeight = maxHeight,
                 pairGap = pairGap,
-                translationTextSize = translationTextSize
+                translationTextSize = translationTextSize,
+                translationWordWrap = instruction.isEnglishTarget()
             )
         }
         preciseFit?.value?.let { fit ->
@@ -1115,14 +1165,14 @@ class OverlayRenderer @Inject constructor(
         val originalLineHeight = fallbackOriginalSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
         paint.textSize = fallbackTranslationSize
         val translationLines = limitLines(
-            wrapText(dialogueRenderCandidates.finalFallback, paint, maxWidth),
+            wrapText(dialogueRenderCandidates.finalFallback, paint, maxWidth, instruction.isEnglishTarget()),
             DIALOGUE_MAX_LINES,
             paint,
             maxWidth
         )
         paint.textSize = fallbackOriginalSize
         val originalLines = limitLines(
-            wrapText(originalRenderCandidates.finalFallback, paint, maxWidth),
+            wrapText(originalRenderCandidates.finalFallback, paint, maxWidth, false),
             DIALOGUE_MAX_LINES,
             paint,
             maxWidth
@@ -1146,7 +1196,8 @@ class OverlayRenderer @Inject constructor(
         maxWidth: Float,
         maxHeight: Float,
         pairGap: Float,
-        translationTextSize: Float
+        translationTextSize: Float,
+        translationWordWrap: Boolean
     ): BilingualLinePairFit? {
         val originalTextSize = originalTextSizeFor(translationTextSize, scale)
         val translationLineHeight = translationTextSize * BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER
@@ -1154,12 +1205,12 @@ class OverlayRenderer @Inject constructor(
 
         for (translationCandidate in translationCandidates) {
             paint.textSize = translationTextSize
-            val translationLines = wrapText(translationCandidate, paint, maxWidth)
+            val translationLines = wrapText(translationCandidate, paint, maxWidth, translationWordWrap)
             if (translationLines.size > DIALOGUE_MAX_LINES) continue
 
             for (originalCandidate in originalCandidates) {
                 paint.textSize = originalTextSize
-                val originalLines = wrapText(originalCandidate, paint, maxWidth)
+                val originalLines = wrapText(originalCandidate, paint, maxWidth, false)
                 if (originalLines.size > DIALOGUE_MAX_LINES) continue
 
                 val totalHeight = bilingualLinePairsHeight(
@@ -1246,13 +1297,14 @@ class OverlayRenderer @Inject constructor(
         textSize: Float,
         maxWidth: Float,
         maxHeight: Float,
-        maxLines: Int
+        maxLines: Int,
+        wordWrap: Boolean = false
     ): Pair<List<String>, Float>? {
         val distinctCandidates = distinctDialogueCandidates(candidates)
         paint.textSize = textSize
         val lineHeight = textSize * DIALOGUE_LINE_HEIGHT_MULTIPLIER
         distinctCandidates.forEach { candidate ->
-            val lines = wrapText(candidate, paint, maxWidth)
+            val lines = wrapText(candidate, paint, maxWidth, wordWrap)
             if (lines.size <= maxLines.coerceAtLeast(1) &&
                 textBlockHeight(paint, lineHeight, lines.size) <= maxHeight + 0.5f
             ) {
@@ -1330,6 +1382,11 @@ class OverlayRenderer @Inject constructor(
         return height
     }
 
+    private fun RenderInstruction.isEnglishTarget(): Boolean {
+        return SettingsRepository.normalizeTargetLanguage(targetLocale) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
+    }
+
     private fun RenderInstruction.dialogueRenderCandidates(
         paint: Paint,
         maxWidth: Float
@@ -1341,7 +1398,7 @@ class OverlayRenderer @Inject constructor(
         // and closed on the next has to pair up, otherwise the per-line bracket-noise repair deletes
         // the closing quote and the drawn text silently loses its last character.
         val normalizedLines = canonicalText
-            .normalizeDialogueSymbolsAndSpacing()
+            .normalizeDialogueSymbolsAndSpacing(targetLocale)
             .lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
@@ -1349,7 +1406,8 @@ class OverlayRenderer @Inject constructor(
         val planned = DialogueLinePlanner.plan(
             lines = normalizedLines,
             maxWidth = maxWidth,
-            measureText = paint::measureText
+            measureText = paint::measureText,
+            wordBoundaryMode = isEnglishTarget()
         )
         if (normalizedLines.size > DIALOGUE_MAX_LINES) {
             FgoLogger.debug(
@@ -1359,13 +1417,19 @@ class OverlayRenderer @Inject constructor(
             )
         }
 
+        val englishTarget = isEnglishTarget()
         val linePreserved = planned.firstOrNull().orEmpty().trim()
-        val flattened = normalizedLines.joinToString(WIDE_RENDER_SPACE) { it.trim() }
+        val lineSeparator = if (englishTarget) " " else WIDE_RENDER_SPACE
+        val flattened = normalizedLines.joinToString(lineSeparator) { it.trim() }
             .replace(Regex("[ \\t]+"), " ")
             .trim()
-        val compact = flattened
-            .replace(Regex("[\\s$WIDE_RENDER_SPACE]+"), "")
-            .trim()
+        val compact = if (englishTarget) {
+            flattened
+        } else {
+            flattened
+                .replace(Regex("[\\s$WIDE_RENDER_SPACE]+"), "")
+                .trim()
+        }
 
         val preferred = buildList {
             planned.forEach { candidate ->
@@ -1442,12 +1506,15 @@ class OverlayRenderer @Inject constructor(
 
     private fun RenderInstruction.toChoiceRenderText(): String {
         val normalized = translatedText.trim()
-            .normalizeDialogueSymbolsAndSpacing()
+            .normalizeDialogueSymbolsAndSpacing(targetLocale)
             .replace(Regex("[ \\t]+"), " ")
         return if (wideTextSpacing) normalized.toFgoWideRenderText() else normalized
     }
 
-    private fun String.normalizeDialogueSymbolsAndSpacing(): String {
+    private fun String.normalizeDialogueSymbolsAndSpacing(targetLocale: String): String {
+        if (SettingsRepository.normalizeTargetLanguage(targetLocale) == SettingsRepository.TARGET_LANGUAGE_ENGLISH) {
+            return replace("\r\n", "\n").replace('\r', '\n').trim()
+        }
         return FgoDialogueSymbols.normalizeForRender(this)
     }
 
@@ -1670,3 +1737,6 @@ class OverlayRenderer @Inject constructor(
         return FgoViewportLayout.viewportScaleForScreen(screenWidth, screenHeight)
     }
 }
+
+
+

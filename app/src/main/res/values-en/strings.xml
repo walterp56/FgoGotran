@@ -192,8 +192,8 @@
     <string name="guide_auto_39">Manual</string>
     <string name="guide_auto_40">Crop</string>
     <string name="guide_auto_41">Supported</string>
-    <string name="guide_auto_42">Semi</string>
-    <string name="guide_auto_43">Auto</string>
+    <string name="guide_auto_42">S</string>
+    <string name="guide_auto_43">A</string>
     <string name="guide_auto_44">B</string>
     <string name="settings_auto_1">Provides recent scene context in Japanese and Chinese; disable if the model misreads earlier text; increases token usage on cloud APIs.</string>
     <string name="settings_auto_2">Off by default: ruby annotations are removed before translation because they can hurt quality. Enable if you need reading hints.</string>
@@ -320,8 +320,10 @@
     <string name="voice_azure_request_failed">Azure voice request failed: %1$s</string>
     <string name="voice_test_failed_detail">Test failed: %1$s</string>
     <string name="settings_clear_cache_result">Cleared %1$d cache entries</string>
-    <string name="settings_target_simplified">Simplified Chinese</string>
-    <string name="settings_target_traditional">Traditional Chinese</string>
+    <string name="settings_source_japanese">Japanese</string>
+    <string name="settings_target_simplified">简体中文</string>
+    <string name="settings_target_traditional">繁體中文</string>
+    <string name="settings_target_english">English</string>
     <string name="settings_gender_male">Male</string>
     <string name="settings_gender_female">Female</string>
     <string name="settings_context_scenes">%1$d scenes</string>
@@ -335,6 +337,11 @@
     <string name="mode_desc_auto">Full-auto translation</string>
     <string name="mode_desc_battle">BATTLE subtitle mode. Long-press to switch modes.</string>
     <string name="mode_desc_crop">Crop translation</string>
+    <string name="guide_mode_battle_label">Battle</string>
+    <string name="guide_mode_battle_text">For players who don\'t want to miss in-battle dialogue. Locks onto the battle subtitle area.</string>
 </resources>
+
+
+
 
 

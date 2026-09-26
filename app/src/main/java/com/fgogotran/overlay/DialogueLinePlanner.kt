@@ -49,11 +49,13 @@ internal object DialogueLinePlanner {
     private val prohibitedLineEndCharacters = setOf(
         '（', '(', '【', '[', '「', '『', '《', '〈'
     )
+    private val englishBreakAfterCharacters = setOf('.', ',', '!', '?', ';', ':', '…')
 
     fun plan(
         lines: List<String>,
         maxWidth: Float,
-        measureText: (String) -> Float
+        measureText: (String) -> Float,
+        wordBoundaryMode: Boolean = false
     ): List<String> {
         val normalizedLines = lines
             .map { it.trim() }
@@ -89,7 +91,7 @@ internal object DialogueLinePlanner {
         }
 
         val flattened = joinFragments(mergedLines)
-        softBreakIndices(flattened).forEach { splitIndex ->
+        softBreakIndices(flattened, wordBoundaryMode).forEach { splitIndex ->
             val left = flattened.substring(0, splitIndex).trimEnd()
             val right = flattened.substring(splitIndex).trimStart()
             if (left.isNotBlank() && right.isNotBlank()) {
@@ -227,11 +229,19 @@ internal object DialogueLinePlanner {
             (right.isLetterOrDigit() || right in setOf('_', '(', '[', '"', '\''))
     }
 
-    private fun softBreakIndices(text: String): Sequence<Int> = sequence {
+    private fun softBreakIndices(text: String, wordBoundaryMode: Boolean): Sequence<Int> = sequence {
         for (index in 1 until text.length) {
             val left = text[index - 1]
             val right = text[index]
             if (right.isLowSurrogate()) continue
+            if (wordBoundaryMode) {
+                if (left.isWhitespace() || right.isWhitespace()) {
+                    yield(index)
+                } else if (left in englishBreakAfterCharacters && right.isLetterOrDigit()) {
+                    yield(index)
+                }
+                continue
+            }
             if (left.isAsciiWordCharacter() && right.isAsciiWordCharacter()) continue
             yield(index)
         }

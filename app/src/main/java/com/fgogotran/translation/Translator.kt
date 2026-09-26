@@ -72,7 +72,7 @@ data class TranslateResult(
     val translatedText: String,
     val backend: String,
     val cached: Boolean,
-    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+    val targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
     val trustedForContext: Boolean = true,
     val isFailure: Boolean = false
 )
@@ -235,7 +235,7 @@ class Translator @Inject constructor(
             playerName = "",
             playerGender = SettingsRepository.DEFAULT_PLAYER_GENDER,
             cacheEnabled = false,
-            targetChineseLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+            targetLanguage = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
             glossaryCacheKey = "api-test",
             samplingSettings = SettingsRepository.normalizeApiSamplingSettings(
                 backend = normalizedBackend,
@@ -271,12 +271,12 @@ class Translator @Inject constructor(
             matchedTerms = matchedTerms,
             playerName = config.playerName,
             playerGender = config.playerGender,
-            targetChineseLocale = promptTargetChineseLocale(config)
+            targetLanguage = promptTargetLanguage(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.PLAIN_TEXT,
             sourceText = protectedInput.text,
-            targetChineseLocale = promptTargetChineseLocale(config),
+            targetLanguage = promptTargetLanguage(config),
             playerName = config.playerName,
             playerGender = config.playerGender,
             playerReferenceText = normalizedText
@@ -482,7 +482,7 @@ class Translator @Inject constructor(
         val playerName: String,
         val playerGender: String,
         val cacheEnabled: Boolean,
-        val targetChineseLocale: String,
+        val targetLanguage: String,
         val glossaryCacheKey: String,
         val samplingSettings: ApiSamplingSettings
     ) {
@@ -953,7 +953,7 @@ class Translator @Inject constructor(
         val activePreviousDialogueContexts = if (cropMode || isBattleSubtitle || translateAsName) {
             emptyList()
         } else {
-            sceneDialogueContextsForPrompt(previousDialogueContexts, promptTargetChineseLocale(config))
+            sceneDialogueContextsForPrompt(previousDialogueContexts, promptTargetLanguage(config))
         }
         val activeCurrentSpeaker = if (cropMode || isBattleSubtitle || translateAsName) {
             ""
@@ -1030,7 +1030,7 @@ class Translator @Inject constructor(
         logSceneContext("single", activePreviousDialogueContexts)
 
         if (cacheEnabled) {
-            lookupCachedTranslation(hash, normalizedText, playerName, "Cache", cacheKeyInfo.parts)?.let { cached ->
+            lookupCachedTranslation(hash, normalizedText, playerName, "Cache", cacheKeyInfo.parts, targetLanguage = config.targetLanguage)?.let { cached ->
                 return TranslateResult(cached, "cache", true)
                     .forTargetLocale(config, punctuationSourceText)
             }
@@ -1059,13 +1059,13 @@ class Translator @Inject constructor(
             matchedTerms = matchedTerms,
             playerName = playerName,
             playerGender = config.playerGender,
-            targetChineseLocale = promptTargetChineseLocale(config)
+            targetLanguage = promptTargetLanguage(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = if (cropMode) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
             sourceText = protectedInput.text,
             choiceTexts = protectedChoiceTexts,
-            targetChineseLocale = promptTargetChineseLocale(config),
+            targetLanguage = promptTargetLanguage(config),
             hasName = translateAsName,
             nameText = protectedInput.text.takeIf { translateAsName },
             forceRuby = preserveRubyMeaning,
@@ -1322,7 +1322,8 @@ class Translator @Inject constructor(
                 simplifiedResult,
                 backend,
                 playerName,
-                promptVersion = translationPromptVersion(config)
+                promptVersion = translationPromptVersion(config),
+                targetLanguage = config.targetLanguage
             )
         }
 
@@ -1362,7 +1363,7 @@ class Translator @Inject constructor(
         val useSakuraPrompt = usesSakuraPrompt(config)
         val activePreviousDialogueContexts = sceneDialogueContextsForPrompt(
             previousDialogueContexts,
-            promptTargetChineseLocale(config)
+            promptTargetLanguage(config)
         )
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val glossaryFingerprints = normalizedTexts.map { text -> glossaryFingerprintFor(text) }
@@ -1438,7 +1439,8 @@ class Translator @Inject constructor(
                     normalizedText,
                     playerName,
                     "Batch",
-                    cacheKeys[index].parts
+                    cacheKeys[index].parts,
+                    targetLanguage = config.targetLanguage
                 )
                 if (cached != null) {
                     results[index] = TranslateResult(cached, "cache", true)
@@ -1490,12 +1492,12 @@ class Translator @Inject constructor(
             matchedTerms = matchedTerms,
             playerName = playerName,
             playerGender = config.playerGender,
-            targetChineseLocale = promptTargetChineseLocale(config)
+            targetLanguage = promptTargetLanguage(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_ARRAY,
             sourceText = protectedTexts.joinToString("\n") { it.text },
-            targetChineseLocale = promptTargetChineseLocale(config),
+            targetLanguage = promptTargetLanguage(config),
             playerName = playerName,
             playerGender = config.playerGender,
             playerReferenceText = ragSourceText,
@@ -1667,7 +1669,8 @@ class Translator @Inject constructor(
                     maskedSafe,
                     backend,
                     playerName,
-                    promptVersion = translationPromptVersion(config)
+                    promptVersion = translationPromptVersion(config),
+                    targetLanguage = config.targetLanguage
                 )
             }
         }
@@ -1805,7 +1808,7 @@ class Translator @Inject constructor(
         val activePreviousDialogueContexts = if (
             hasDialogueNeedingApiBeforeCache || hasChoiceNeedingApiBeforeCache
         ) {
-            sceneDialogueContextsForPrompt(input.previousDialogueContexts, promptTargetChineseLocale(config))
+            sceneDialogueContextsForPrompt(input.previousDialogueContexts, promptTargetLanguage(config))
         } else {
             emptyList()
         }
@@ -1821,7 +1824,7 @@ class Translator @Inject constructor(
         val nameHash = nameKey?.hash
 
         if (cacheEnabled && nameForLlm != null && nameHash != null && nameResult == null) {
-            lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name", nameKey?.parts.orEmpty())?.let { cached ->
+            lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name", nameKey?.parts.orEmpty(), targetLanguage = config.targetLanguage)?.let { cached ->
                 val cachedName = sanitizeSceneNameTranslation(nameForLlm, cached)
                 if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName)) {
                     FgoLogger.warn(tag, "Dropping unsafe cached name translation, hash=${nameHash.take(8)}...")
@@ -1836,7 +1839,7 @@ class Translator @Inject constructor(
         val currentSpeaker = buildCurrentSpeakerContext(
             sourceName = normalizedName,
             resolvedName = nameResult?.translatedText,
-            targetChineseLocale = promptTargetChineseLocale(config)
+            targetLanguage = promptTargetLanguage(config)
         )
         val currentSpeakerSourceName = normalizeCurrentSpeakerContext(normalizedName.orEmpty())
         val currentSpeakerGender = if (normalizedDialogue != null) {
@@ -1891,7 +1894,8 @@ class Translator @Inject constructor(
                     normalizedDialogue,
                     playerName,
                     "Scene dialogue",
-                    dialogueKey?.parts.orEmpty()
+                    dialogueKey?.parts.orEmpty(),
+                    targetLanguage = config.targetLanguage
                 )?.let { cached ->
                     dialogueResult = TranslateResult(cached, "cache", true)
                 }
@@ -1905,7 +1909,8 @@ class Translator @Inject constructor(
                     source,
                     playerName,
                     "Scene choice[$index]",
-                    choiceKeys[index]?.parts.orEmpty()
+                    choiceKeys[index]?.parts.orEmpty(),
+                    targetLanguage = config.targetLanguage
                 )?.let { cached ->
                     choiceResults[index] = TranslateResult(cached, "cache", true)
                 }
@@ -2049,7 +2054,7 @@ class Translator @Inject constructor(
             val sakuraCurrentSpeaker = buildCurrentSpeakerContext(
                 sourceName = normalizedName,
                 resolvedName = nameResult?.translatedText,
-                targetChineseLocale = promptTargetChineseLocale(config)
+                targetLanguage = promptTargetLanguage(config)
             )
             if (needsDialogue) {
                 dialogueResult = translate(
@@ -2151,13 +2156,13 @@ class Translator @Inject constructor(
             matchedTerms = matchedTerms,
             playerName = playerName,
             playerGender = config.playerGender,
-            targetChineseLocale = promptTargetChineseLocale(config)
+            targetLanguage = promptTargetLanguage(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_OBJECT,
             sourceText = protectedDialogue?.text.orEmpty(),
             choiceTexts = protectedChoices.map { it.text },
-            targetChineseLocale = config.targetChineseLocale,
+            targetLanguage = config.targetLanguage,
             hasName = needsName,
             nameText = protectedName?.text,
             isDialogue = sceneDialogueForApi != null,
@@ -2362,7 +2367,8 @@ class Translator @Inject constructor(
                             sourceName,
                             maskedSafeName,
                             backend,
-                            playerName
+                            playerName,
+                            targetLanguage = config.targetLanguage
                         )
                     }
                 }
@@ -2423,14 +2429,15 @@ class Translator @Inject constructor(
                                 normalizedDialogue,
                                 renderResult.translatedText,
                                 renderResult.backend,
-                                playerName
+                                playerName,
+                                targetLanguage = config.targetLanguage
                             )
                         }
                     }
                 } else {
                     dialogueResult = modelTranslateResult(maskedSafeDialogue, backend, false, config)
                     if (cacheEnabled) {
-                        cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue, maskedSafeDialogue, backend, playerName)
+                        cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue, maskedSafeDialogue, backend, playerName, targetLanguage = config.targetLanguage)
                     }
                 }
             }
@@ -2481,7 +2488,7 @@ class Translator @Inject constructor(
             }
             choiceResults[originalIndex] = modelTranslateResult(maskedSafeChoice, backend, false, config)
             if (cacheEnabled) {
-                cacheTranslatedText(hash, input.choices[originalIndex], normalizedChoice, maskedSafeChoice, backend, playerName)
+                cacheTranslatedText(hash, input.choices[originalIndex], normalizedChoice, maskedSafeChoice, backend, playerName, targetLanguage = config.targetLanguage)
             }
         }
 
@@ -2517,7 +2524,7 @@ class Translator @Inject constructor(
             playerName = playerName,
             playerGender = playerProfile.gender,
             cacheEnabled = settingsRepository.cacheEnabled.first(),
-            targetChineseLocale = settingsRepository.targetChineseLocale.first(),
+            targetLanguage = settingsRepository.targetLanguage.first(),
             glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "online-db-pending" },
             samplingSettings = settingsRepository.getApiSamplingSettingsForBackend(
                 backend,
@@ -2555,21 +2562,20 @@ class Translator @Inject constructor(
         config: RuntimeConfig,
         punctuationSourceText: String? = null
     ): TranslateResult {
-        val normalizedTargetLocale = SettingsRepository.normalizeTargetChineseLocale(config.targetChineseLocale)
-        val localized = if (isTraditionalTarget(normalizedTargetLocale)) {
-            copy(
+        val normalizedTargetLocale = SettingsRepository.normalizeTargetLanguage(config.targetLanguage)
+        val localized = when {
+            isEnglishTarget(normalizedTargetLocale) -> copy(targetLocale = normalizedTargetLocale)
+            isTraditionalTarget(normalizedTargetLocale) -> copy(
                 translatedText = toTraditionalChinese(translatedText),
                 targetLocale = normalizedTargetLocale
             )
-        } else if (targetLocale == normalizedTargetLocale) {
-            copy(targetLocale = normalizedTargetLocale)
-        } else {
-            copy(
+            targetLocale == normalizedTargetLocale -> copy(targetLocale = normalizedTargetLocale)
+            else -> copy(
                 translatedText = toTargetChinese(translatedText, normalizedTargetLocale),
                 targetLocale = normalizedTargetLocale
             )
         }
-        return if (punctuationSourceText != null) {
+        return if (punctuationSourceText != null && !isEnglishTarget(normalizedTargetLocale)) {
             localized.withFinalizedContentPunctuation(punctuationSourceText)
         } else {
             localized
@@ -2592,15 +2598,16 @@ class Translator @Inject constructor(
         config: RuntimeConfig,
         input: SceneTranslateInput
     ): SceneTranslateResult {
+        val applyChineseQuoteStyle = !isEnglishTarget(config.targetLanguage)
         return SceneTranslateResult(
             name = name?.forTargetLocale(config),
             dialogue = dialogue
                 ?.forTargetLocale(config, input.dialogue.orEmpty())
-                ?.withFinalChineseQuoteStyle(),
+                ?.let { if (applyChineseQuoteStyle) it.withFinalChineseQuoteStyle() else it },
             choices = choices.mapIndexed { index, result ->
                 result
                     .forTargetLocale(config, input.choices.getOrNull(index).orEmpty())
-                    .withFinalChineseQuoteStyle()
+                    .let { if (applyChineseQuoteStyle) it.withFinalChineseQuoteStyle() else it }
             },
             voiceHint = voiceHint
         )
@@ -2632,11 +2639,7 @@ class Translator @Inject constructor(
         config: RuntimeConfig,
         trustedForContext: Boolean = true
     ): TranslateResult {
-        val outputLocale = if (isTraditionalTarget(config.targetChineseLocale)) {
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
-        } else {
-            SettingsRepository.TARGET_LOCALE_SIMPLIFIED
-        }
+        val outputLocale = SettingsRepository.normalizeTargetLanguage(config.targetLanguage)
         return TranslateResult(
             translatedText = translatedText,
             backend = backend,
@@ -3395,7 +3398,7 @@ class Translator @Inject constructor(
                 translatedText = maskedSafeName,
                 backend = result.backend,
                 cached = result.cached,
-                targetLocale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+                targetLocale = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
                 trustedForContext = result.trustedForContext
             )
         }
@@ -3558,11 +3561,12 @@ class Translator @Inject constructor(
         sourceText: String,
         playerName: String,
         label: String,
-        keyParts: String = ""
+        keyParts: String = "",
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): String? {
         var rejectedFromMemory = false
         getMemoryCachedTranslation(hash)?.let { cached ->
-            validateCachedTranslation(hash, sourceText, cached, playerName)?.let { validCached ->
+            validateCachedTranslation(hash, sourceText, cached, playerName, targetLanguage)?.let { validCached ->
                 FgoLogger.info(tag, "$label memory HIT, hash=${hash.take(8)}...")
                 return validCached
             }
@@ -3583,7 +3587,7 @@ class Translator @Inject constructor(
             logCacheMiss(label, CACHE_MISS_CACHED_EMPTY, hash, keyParts)
             return null
         }
-        val validCached = validateCachedTranslation(hash, sourceText, cached, playerName)
+        val validCached = validateCachedTranslation(hash, sourceText, cached, playerName, targetLanguage)
         if (validCached == null) {
             logCacheMiss(label, CACHE_MISS_CACHED_UNSAFE, hash, keyParts)
             return null
@@ -3625,9 +3629,10 @@ class Translator @Inject constructor(
         hash: String,
         sourceText: String,
         cachedText: String,
-        playerName: String
+        playerName: String,
+        targetLanguage: String
     ): String? {
-        val simplified = sanitizeTranslation(sourceText, cachedText)
+        val simplified = sanitizeCacheTranslation(sourceText, cachedText, targetLanguage)
         val maskedSafe = enforceMaskedTranslationPolicy(sourceText, simplified)
         if (isMaskedSourcePreserved(sourceText, maskedSafe)) {
             FgoLogger.warn(tag, "Dropping unsafe masked cache entry, hash=${hash.take(8)}...")
@@ -3951,15 +3956,39 @@ class Translator @Inject constructor(
         return preserveSourcePunctuation(sourceText, firstPersonAdjusted)
     }
 
+    private fun sanitizeCacheTranslation(
+        sourceText: String,
+        translatedText: String,
+        targetLanguage: String
+    ): String {
+        return if (isEnglishTarget(targetLanguage)) {
+            sanitizeEnglishModelTranslation(sourceText, translatedText)
+        } else {
+            sanitizeTranslation(sourceText, translatedText)
+        }
+    }
+
+    private fun sanitizeEnglishModelTranslation(sourceText: String, translatedText: String): String {
+        val lineBreakNormalized = normalizeEscapedTranslationLineBreaks(sourceText, translatedText)
+        if (lineBreakNormalized != translatedText) {
+            FgoLogger.debug(tag, "Normalized escaped English translation line break(s)")
+        }
+        return restoreMalformedProtectedTokens(lineBreakNormalized, emptyList())
+            .let(::cleanReturnedRubyMarkup)
+            .trim()
+    }
+
     private fun sanitizeModelTranslation(
         sourceText: String,
         translatedText: String,
         config: RuntimeConfig
     ): String {
-        return if (isTraditionalTarget(config.targetChineseLocale)) {
-            sanitizeTraditionalModelTranslation(sourceText, translatedText)
-        } else {
-            sanitizeTranslation(sourceText, translatedText)
+        return when (SettingsRepository.normalizeTargetLanguage(config.targetLanguage)) {
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL ->
+                sanitizeTraditionalModelTranslation(sourceText, translatedText)
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH ->
+                sanitizeEnglishModelTranslation(sourceText, translatedText)
+            else -> sanitizeTranslation(sourceText, translatedText)
         }
     }
 
@@ -4049,7 +4078,7 @@ class Translator @Inject constructor(
         val firstPersonAdjusted = applyStylizedFirstPersonPronounPolicy(
             sourceText,
             masterAdjusted,
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         )
         return toTraditionalChinese(preserveSourcePunctuation(sourceText, firstPersonAdjusted))
     }
@@ -4291,9 +4320,9 @@ class Translator @Inject constructor(
     private fun applyStylizedFirstPersonPronounPolicy(
         sourceText: String,
         translatedText: String,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): String {
-        val repairs = SpecialFirstPersonPronouns.repairs(sourceText, targetChineseLocale)
+        val repairs = SpecialFirstPersonPronouns.repairs(sourceText, targetLanguage)
         if (repairs.isEmpty()) return translatedText
 
         var adjusted = translatedText
@@ -4496,7 +4525,7 @@ class Translator @Inject constructor(
         matchedTerms: List<TermEntity>,
         playerName: String,
         playerGender: String,
-        targetChineseLocale: String
+        targetLanguage: String
     ): List<TranslationGlossaryEntry> {
         val entries = buildList {
             matchedTerms.forEach { term ->
@@ -4510,7 +4539,7 @@ class Translator @Inject constructor(
                             source = sourceForm,
                             target = targetOfficialChinese(
                                 term.cnTerm,
-                                targetChineseLocale
+                                targetLanguage
                             ),
                             note = normalizeCharacterGender(term.gender)
                         )
@@ -4821,21 +4850,27 @@ class Translator @Inject constructor(
     }
 
     private fun isTraditionalTarget(targetLocale: String): Boolean {
-        return SettingsRepository.normalizeTargetChineseLocale(targetLocale) ==
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+        return SettingsRepository.normalizeTargetLanguage(targetLocale) ==
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
     }
 
-    private fun targetChinesePromptLabel(targetChineseLocale: String): String {
-        return if (isTraditionalTarget(targetChineseLocale)) {
-            "Traditional Chinese"
-        } else {
-            "Simplified Chinese"
+    private fun isEnglishTarget(targetLocale: String): Boolean {
+        return SettingsRepository.normalizeTargetLanguage(targetLocale) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
+    }
+
+    private fun targetLanguagePromptLabel(targetLanguage: String): String {
+        return when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> "Traditional Chinese"
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> "English"
+            else -> "Simplified Chinese"
         }
     }
 
-    private fun targetOfficialChinese(text: String, targetChineseLocale: String): String {
+    private fun targetOfficialChinese(text: String, targetLanguage: String): String {
+        if (isEnglishTarget(targetLanguage)) return text.trim()
         val simplified = toSimplifiedChinese(text.trim())
-        return toTargetChinese(simplified, targetChineseLocale)
+        return toTargetChinese(simplified, targetLanguage)
     }
 
     private fun toTraditionalChinese(text: String): String {
@@ -5038,9 +5073,10 @@ class Translator @Inject constructor(
         translatedText: String,
         backend: String,
         playerName: String,
-        promptVersion: String = PromptBuilder.PROMPT_VERSION
+        promptVersion: String = PromptBuilder.PROMPT_VERSION,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ) {
-        val simplified = sanitizeTranslation(normalizedText, translatedText)
+        val simplified = sanitizeCacheTranslation(normalizedText, translatedText, targetLanguage)
         val safety = classifyTranslationSafety(normalizedText, simplified, playerName)
         if (safety.status != TranslationSafetyStatus.OK) {
             logUnsafeTranslationSafety("Not caching unsafe result, hash=${hash.take(8)}", safety)
@@ -5590,7 +5626,7 @@ class Translator @Inject constructor(
                 outputFormat = if (cropMode) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
                 sourceText = protectedInput.text,
                 choiceTexts = normalizedChoices.takeIf { translateAsChoices }.orEmpty(),
-                targetChineseLocale = promptTargetChineseLocale(config),
+                targetLanguage = promptTargetLanguage(config),
                 hasName = translateAsName,
                 nameText = protectedInput.text.takeIf { translateAsName },
                 isCropMode = cropMode,
@@ -5630,7 +5666,7 @@ class Translator @Inject constructor(
                 outputFormat = if (cropMode) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
                 sourceText = protectedInput.text,
                 choiceTexts = normalizedChoices.takeIf { translateAsChoices }.orEmpty(),
-                targetChineseLocale = promptTargetChineseLocale(config),
+                targetLanguage = promptTargetLanguage(config),
                 hasName = translateAsName,
                 nameText = protectedInput.text.takeIf { translateAsName },
                 isCropMode = cropMode,
@@ -5656,7 +5692,7 @@ class Translator @Inject constructor(
                     "system",
                     buildStrictRetrySystemPrompt(
                         playerName,
-                        config.targetChineseLocale,
+                        config.targetLanguage,
                         cropMode,
                         specialFirstPersonMappings,
                         namePluralUsage,
@@ -5723,13 +5759,13 @@ class Translator @Inject constructor(
 
     private fun buildStrictRetrySystemPrompt(
         playerName: String,
-        targetChineseLocale: String,
+        targetLanguage: String,
         cropMode: Boolean,
         specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>,
         namePluralUsage: NamePluralPromptUsage,
         characterContextPrompt: String
     ): String {
-        val targetChinese = targetChinesePromptLabel(targetChineseLocale)
+        val targetChinese = targetLanguagePromptLabel(targetLanguage)
         val activeRules = buildString {
             appendLine(promptBuilder.buildPronounFidelityPrompt())
             appendLine("Keep masks (???, ？？？, ■, □, ▇, █) exact; never guess them.")
@@ -5739,7 +5775,7 @@ class Translator @Inject constructor(
             }
             if (!cropMode && namePluralUsage.isPresent) {
                 appendLine(
-                    promptBuilder.buildNamePluralPrompt(namePluralUsage, targetChineseLocale)
+                    promptBuilder.buildNamePluralPrompt(namePluralUsage, targetLanguage)
                 )
             }
             if (!cropMode && characterContextPrompt.isNotBlank()) {
@@ -6419,29 +6455,40 @@ class Translator @Inject constructor(
         val speakerIdentity = normalizeCurrentSpeakerContext(currentSpeaker)
         val playerIdentity = TextNormalizer.normalizeForTranslation(config.playerName)
         val genderIdentity = SettingsRepository.normalizePlayerGender(config.playerGender)
-        val hash = hashText(
-            listOf(
-                promptVersion,
-                backend,
-                config.apiBaseUrl,
-                config.apiModel,
-                sampling,
-                promptPolicyKey,
-                sceneContextPolicyKey,
-                speakerIdentity,
-                characterContextCacheIdentity,
-                if (choiceBatch) "choice-batch-v1" else "",
-                glossaryFingerprint,
-                playerIdentity,
-                genderIdentity,
-                normalizedText,
-                choiceTexts.joinToString("\n")
-            ).joinToString("\u001F")
-        )
+        val normalizedTargetLanguage = SettingsRepository.normalizeTargetLanguage(config.targetLanguage)
+        val cacheLanguageNamespace = if (
+            normalizedTargetLanguage == SettingsRepository.TARGET_LANGUAGE_ENGLISH
+        ) {
+            "target=$normalizedTargetLanguage"
+        } else {
+            ""
+        }
+        val hashMaterial = listOf(
+            promptVersion,
+            backend,
+            config.apiBaseUrl,
+            config.apiModel,
+            sampling,
+            promptPolicyKey,
+            sceneContextPolicyKey,
+            speakerIdentity,
+            characterContextCacheIdentity,
+            if (choiceBatch) "choice-batch-v1" else "",
+            glossaryFingerprint,
+            playerIdentity,
+            genderIdentity,
+            normalizedText,
+            choiceTexts.joinToString("\n")
+        ).toMutableList()
+        if (cacheLanguageNamespace.isNotBlank()) {
+            hashMaterial += cacheLanguageNamespace
+        }
+        val hash = hashText(hashMaterial.joinToString("\u001F"))
         // Diagnostic only: two miss lines for the same text can be diffed on "parts" to see which
         // key field changed (prompt / model / speaker / glossary / ...).
         val parts = listOf(
             "prompt=$promptVersion",
+            "lang=$normalizedTargetLanguage",
             "backend=$backend",
             "model=${config.apiModel}",
             "base=${shortKeyDigest(config.apiBaseUrl)}",
@@ -6466,11 +6513,11 @@ class Translator @Inject constructor(
         return SakuraPromptBuilder.matchesModel(config.apiModel)
     }
 
-    private fun promptTargetChineseLocale(config: RuntimeConfig): String {
+    private fun promptTargetLanguage(config: RuntimeConfig): String {
         return if (usesSakuraPrompt(config)) {
-            SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+            SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
         } else {
-            config.targetChineseLocale
+            config.targetLanguage
         }
     }
 
@@ -6485,14 +6532,14 @@ class Translator @Inject constructor(
     private fun buildCurrentSpeakerContext(
         sourceName: String?,
         resolvedName: String?,
-        targetChineseLocale: String
+        targetLanguage: String
     ): String {
         val source = normalizeCurrentSpeakerContext(sourceName.orEmpty())
         if (source.isBlank()) return ""
 
         val resolved = resolvedName
             ?.takeIf { it.isNotBlank() && !it.isSceneContextErrorText() }
-            ?.let { targetOfficialChinese(it, targetChineseLocale) }
+            ?.let { targetOfficialChinese(it, targetLanguage) }
             ?.let(::normalizeCurrentSpeakerContext)
             .orEmpty()
         if (resolved.isBlank() || resolved == source) return source
@@ -6520,7 +6567,7 @@ class Translator @Inject constructor(
 
     private fun sceneDialogueContextsForPrompt(
         contexts: List<SceneDialogueContext>,
-        targetChineseLocale: String
+        targetLanguage: String
     ): List<SceneDialogueContext> {
         if (contexts.isEmpty()) return emptyList()
         return contexts
@@ -6533,11 +6580,11 @@ class Translator @Inject constructor(
                     FgoDialogueSymbols.normalizeLeadingOcrDash(context.sourceDialogue)
                 )
                 val translatedDialogue = context.translatedDialogue
-                    ?.let { targetOfficialChinese(it, targetChineseLocale) }
+                    ?.let { targetOfficialChinese(it, targetLanguage) }
                     ?.let(::normalizeSceneDialogueContext)
                     ?.takeIf(String::isNotBlank)
                 val translatedSpeakerName = context.translatedSpeakerName
-                    ?.let { targetOfficialChinese(it, targetChineseLocale) }
+                    ?.let { targetOfficialChinese(it, targetLanguage) }
                     ?.let(::normalizeCurrentSpeakerContext)
                     ?.takeIf(String::isNotBlank)
                 if (
@@ -6552,7 +6599,7 @@ class Translator @Inject constructor(
                         translatedSpeakerName = translatedSpeakerName,
                         sourceDialogue = sourceDialogue,
                         translatedDialogue = translatedDialogue,
-                        targetLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
+                        targetLocale = SettingsRepository.normalizeTargetLanguage(targetLanguage)
                     )
                 }
             }
@@ -6698,3 +6745,4 @@ class Translator @Inject constructor(
         )
     }
 }
+

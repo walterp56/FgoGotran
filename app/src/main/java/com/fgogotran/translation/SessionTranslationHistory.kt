@@ -19,7 +19,7 @@ data class SessionTranslationEntry(
     val speakerNameColor: Int? = null,
     val dialogueTextColor: Int? = null,
     val choiceColors: List<Int?> = emptyList(),
-    val targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+    val targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
     val sourceKey: String = "",
     val dialogueSourceKey: String = "",
     val contextDialogueTranslationTrusted: Boolean = true,
@@ -185,7 +185,7 @@ object SessionTranslationHistory {
                     translatedSpeakerName = translatedSpeakerName,
                     sourceDialogue = entry.contextSourceDialogue!!.trim(),
                     translatedDialogue = translatedDialogue,
-                    targetLocale = SettingsRepository.normalizeTargetChineseLocale(entry.targetLocale),
+                    targetLocale = SettingsRepository.normalizeTargetLanguage(entry.targetLocale),
                     dialogueSourceKey = entry.normalizedDialogueSourceKey()
                 )
             }

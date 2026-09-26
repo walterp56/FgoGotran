@@ -41,7 +41,7 @@ class CropResultRenderer @Inject constructor(
         height: Int,
         text: String,
         textColor: Int = FGO_TEXT_COLOR,
-        targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+        targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Bitmap {
         val bitmapWidth = width.coerceAtLeast(1)
         val bitmapHeight = height.coerceAtLeast(1)
@@ -54,9 +54,10 @@ class CropResultRenderer @Inject constructor(
         val maxWidth = (bitmapWidth - padding * 2f).coerceAtLeast(1f)
         val maxHeight = (bitmapHeight - padding * 2f).coerceAtLeast(1f)
         val fitted = fitLines(
-            FgoDialogueSymbols.normalizeForRender(text.trim()),
+            normalizeForRender(text.trim(), targetLocale),
             maxWidth,
-            maxHeight
+            maxHeight,
+            wordWrap = isEnglishTarget(targetLocale)
         )
 
         textPaint.textSize = fitted.textSize
@@ -77,7 +78,7 @@ class CropResultRenderer @Inject constructor(
         text: String,
         sourceLines: List<CropTextLine>,
         textColor: Int = FGO_TEXT_COLOR,
-        targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+        targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Bitmap {
         val bitmapWidth = width.coerceAtLeast(1)
         val bitmapHeight = height.coerceAtLeast(1)
@@ -92,7 +93,7 @@ class CropResultRenderer @Inject constructor(
         textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, targetLocale)
 
         val layouts = fitTranslatedRows(
-            text = FgoDialogueSymbols.normalizeForRender(text.trim()),
+            text = normalizeForRender(text.trim(), targetLocale),
             sourceBounds = lineBounds,
             bitmapWidth = bitmapWidth,
             bitmapHeight = bitmapHeight
@@ -149,7 +150,8 @@ class CropResultRenderer @Inject constructor(
         maxWidth: Float,
         maxHeight: Float,
         minSize: Float = 12f,
-        maxSizeLimit: Float? = null
+        maxSizeLimit: Float? = null,
+        wordWrap: Boolean = false
     ): FittedLines {
         val source = text.ifBlank { "未识别到文字" }
         val safeMinSize = minSize.coerceAtLeast(6f)
@@ -165,7 +167,7 @@ class CropResultRenderer @Inject constructor(
             val size = (low + high) / 2f
             textPaint.textSize = size
             val lineHeight = textPaint.fontSpacing
-            val lines = wrapText(source, maxWidth)
+            val lines = wrapText(source, maxWidth, wordWrap)
             val fits = lines.isNotEmpty() &&
                     lines.size * lineHeight <= maxHeight &&
                     lines.all { textPaint.measureText(it) <= maxWidth + 1f }
@@ -182,7 +184,7 @@ class CropResultRenderer @Inject constructor(
         textPaint.textSize = safeMinSize
         val lineHeight = textPaint.fontSpacing
         val maxLines = (maxHeight / lineHeight).toInt().coerceAtLeast(1)
-        val wrappedLines = wrapText(source, maxWidth)
+        val wrappedLines = wrapText(source, maxWidth, wordWrap)
         val lines = wrappedLines.take(maxLines).toMutableList()
         if (lines.isNotEmpty() && wrappedLines.size > maxLines) {
             lines[lines.lastIndex] = ellipsize(
@@ -462,12 +464,14 @@ class CropResultRenderer @Inject constructor(
         return RectF(safeLeft, safeTop, safeRight, safeBottom)
     }
 
-    private fun wrapText(text: String, maxWidth: Float): List<String> {
+    private fun wrapText(text: String, maxWidth: Float, wordWrap: Boolean = false): List<String> {
         return text
             .lines()
             .flatMap { paragraph ->
                 if (paragraph.isBlank()) {
                     listOf("")
+                } else if (wordWrap) {
+                    wrapEnglishParagraph(paragraph.trim(), maxWidth)
                 } else {
                     wrapParagraph(paragraph, maxWidth)
                 }
@@ -485,6 +489,48 @@ class CropResultRenderer @Inject constructor(
             remaining = remaining.drop(count).trimStart()
         }
         return lines
+    }
+
+    private fun wrapEnglishParagraph(paragraph: String, maxWidth: Float): List<String> {
+        if (paragraph.isBlank()) return emptyList()
+        val lines = mutableListOf<String>()
+        val words = paragraph.split(Regex("\\s+")).filter { it.isNotBlank() }
+        var current = ""
+        words.forEach { word ->
+            val candidate = if (current.isBlank()) word else "$current $word"
+            if (textPaint.measureText(candidate) <= maxWidth) {
+                current = candidate
+            } else {
+                if (current.isNotBlank()) {
+                    lines += current
+                    current = ""
+                }
+                if (textPaint.measureText(word) <= maxWidth) {
+                    current = word
+                } else {
+                    var remaining = word
+                    while (remaining.isNotEmpty()) {
+                        val count = textPaint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                        lines += remaining.take(count)
+                        remaining = remaining.drop(count)
+                    }
+                }
+            }
+        }
+        if (current.isNotBlank()) lines += current
+        return lines
+    }
+
+    private fun normalizeForRender(text: String, targetLocale: String): String {
+        if (isEnglishTarget(targetLocale)) {
+            return text.replace("\r\n", "\n").replace('\r', '\n').trim()
+        }
+        return FgoDialogueSymbols.normalizeForRender(text)
+    }
+
+    private fun isEnglishTarget(targetLocale: String): Boolean {
+        return SettingsRepository.normalizeTargetLanguage(targetLocale) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
     }
 
     private fun ellipsize(

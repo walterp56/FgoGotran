@@ -10,6 +10,7 @@ object FgoTypefaceProvider {
 
     private const val STORY_FONT_SIMPLIFIED = "fonts/FgoStory.ttf"
     private const val STORY_FONT_TRADITIONAL = "fonts/FgoStory_td.otf"
+    private const val STORY_FONT_ENGLISH = "fonts/FgoStory_en.ttf"
 
     @Volatile
     private var cachedSimplifiedTypeface: Typeface? = null
@@ -17,26 +18,32 @@ object FgoTypefaceProvider {
     @Volatile
     private var cachedTraditionalTypeface: Typeface? = null
 
+    @Volatile
+    private var cachedEnglishTypeface: Typeface? = null
+
     fun storyTypeface(
         context: Context,
-        targetLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+        targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Typeface {
-        val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(targetLocale)
+        val normalizedLocale = SettingsRepository.normalizeTargetLanguage(targetLocale)
         val cached = when (normalizedLocale) {
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL -> cachedTraditionalTypeface
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> cachedTraditionalTypeface
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> cachedEnglishTypeface
             else -> cachedSimplifiedTypeface
         }
         cached?.let { return it }
 
         synchronized(this) {
             val lockedCached = when (normalizedLocale) {
-                SettingsRepository.TARGET_LOCALE_TRADITIONAL -> cachedTraditionalTypeface
+                SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> cachedTraditionalTypeface
+                SettingsRepository.TARGET_LANGUAGE_ENGLISH -> cachedEnglishTypeface
                 else -> cachedSimplifiedTypeface
             }
             lockedCached?.let { return it }
 
             val fontAsset = when (normalizedLocale) {
-                SettingsRepository.TARGET_LOCALE_TRADITIONAL -> STORY_FONT_TRADITIONAL
+                SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> STORY_FONT_TRADITIONAL
+                SettingsRepository.TARGET_LANGUAGE_ENGLISH -> STORY_FONT_ENGLISH
                 else -> STORY_FONT_SIMPLIFIED
             }
 
@@ -56,7 +63,8 @@ object FgoTypefaceProvider {
 
     private fun cacheTypeface(targetLocale: String, typeface: Typeface) {
         when (targetLocale) {
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL -> cachedTraditionalTypeface = typeface
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> cachedTraditionalTypeface = typeface
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> cachedEnglishTypeface = typeface
             else -> cachedSimplifiedTypeface = typeface
         }
     }

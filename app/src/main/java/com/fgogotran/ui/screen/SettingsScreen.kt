@@ -23,6 +23,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -109,8 +111,8 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED
     )
     val apiVoiceHintsSupported = Translator.supportsApiVoiceHintsForModel(apiModel)
-    val targetChineseLocale by settingsRepository.targetChineseLocale.collectAsState(
-        initial = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+    val targetLanguage by settingsRepository.targetLanguage.collectAsState(
+        initial = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     )
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
@@ -340,10 +342,10 @@ fun SettingsScreen(
                 body = ""
             ) {
                 TranslationLanguageSelector(
-                    selectedLocale = targetChineseLocale,
+                    selectedLocale = targetLanguage,
                     onSelect = { locale ->
                         scope.launch {
-                            settingsRepository.setTargetChineseLocale(locale)
+                            settingsRepository.setTargetLanguage(locale)
                         }
                     }
                 )
@@ -629,18 +631,22 @@ fun SettingsScreen(
     }
 }
 
-private val targetChineseLocaleOptions = listOf(
-    TargetChineseLocaleOption(
-        locale = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+private val targetLanguageOptions = listOf(
+    TargetLanguageOption(
+        locale = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
         labelRes = R.string.settings_target_simplified
     ),
-    TargetChineseLocaleOption(
-        locale = SettingsRepository.TARGET_LOCALE_TRADITIONAL,
+    TargetLanguageOption(
+        locale = SettingsRepository.TARGET_LANGUAGE_TRADITIONAL,
         labelRes = R.string.settings_target_traditional
+    ),
+    TargetLanguageOption(
+        locale = SettingsRepository.TARGET_LANGUAGE_ENGLISH,
+        labelRes = R.string.settings_target_english
     )
 )
 
-private data class TargetChineseLocaleOption(
+private data class TargetLanguageOption(
     val locale: String,
     @StringRes val labelRes: Int
 )
@@ -666,7 +672,10 @@ private fun TranslationLanguageSelector(
     selectedLocale: String,
     onSelect: (String) -> Unit
 ) {
-    val normalizedLocale = SettingsRepository.normalizeTargetChineseLocale(selectedLocale)
+    val normalizedLocale = SettingsRepository.normalizeTargetLanguage(selectedLocale)
+    val selectedOption = targetLanguageOptions.firstOrNull { it.locale == normalizedLocale }
+        ?: targetLanguageOptions.first()
+    var expanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -680,60 +689,98 @@ private fun TranslationLanguageSelector(
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            targetChineseLocaleOptions.forEach { option ->
-                TranslationLanguageOption(
-                    option = option,
-                    selected = option.locale == normalizedLocale,
-                    onClick = { onSelect(option.locale) },
-                    modifier = Modifier.weight(1f)
+            Surface(
+                modifier = Modifier.weight(0.34f),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
                 )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stringResource(R.string.settings_source_japanese),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun TranslationLanguageOption(
-    option: TargetChineseLocaleOption,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier
-            .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.small,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-        },
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
             Text(
-                stringResource(option.labelRes),
+                text = "→",
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                textAlign = TextAlign.Center
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Box(modifier = Modifier.weight(0.66f)) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = true },
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(selectedOption.labelRes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "▾",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    targetLanguageOptions.forEach { option ->
+                        val selected = option.locale == normalizedLocale
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(option.labelRes),
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
+                                )
+                            },
+                            onClick = {
+                                expanded = false
+                                onSelect(option.locale)
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }

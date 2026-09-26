@@ -102,6 +102,10 @@ fun GuideScreen(
                     text = stringResource(R.string.guide_auto_11)
                 )
                 GuideModeRow(
+                    mode = stringResource(R.string.guide_mode_battle_label),
+                    text = stringResource(R.string.guide_mode_battle_text)
+                )
+                GuideModeRow(
                     mode = stringResource(R.string.guide_auto_40),
                     text = stringResource(R.string.guide_auto_13)
                 )

@@ -112,7 +112,7 @@ data class NamePluralPromptUsage(
 
 data class PromptContext(
     val outputFormat: PromptOutputFormat = PromptOutputFormat.PLAIN_TEXT,
-    val targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+    val targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
     val promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL,
     val isCropMode: Boolean = false,
     val isDialogue: Boolean = true,
@@ -354,7 +354,7 @@ class PromptBuilder @Inject constructor() {
         outputFormat: PromptOutputFormat,
         sourceText: String,
         choiceTexts: List<String> = emptyList(),
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
         hasName: Boolean = false,
         nameText: String? = null,
         forceRuby: Boolean = false,
@@ -381,7 +381,7 @@ class PromptBuilder @Inject constructor() {
         val combinedText = (listOf(primarySourceText) + relevantChoiceTexts).joinToString("\n")
         val playerRuleText = playerReferenceText.trim().ifBlank { combinedText }
         val cleanPlayerName = playerName.trim()
-        val normalizedTargetLocale = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)
+        val normalizedTargetLocale = SettingsRepository.normalizeTargetLanguage(targetLanguage)
         val hasMasterWord = containsMasterWord(playerRuleText)
         val needsPlayerNameRule = cleanPlayerName.isNotBlank() &&
             playerRuleText.contains(cleanPlayerName)
@@ -393,7 +393,7 @@ class PromptBuilder @Inject constructor() {
             ?: SettingsRepository.DEFAULT_PLAYER_GENDER
         return PromptContext(
             outputFormat = outputFormat,
-            targetChineseLocale = normalizedTargetLocale,
+            targetLanguage = normalizedTargetLocale,
             promptProfile = promptProfile,
             isCropMode = isCropMode,
             isDialogue = isDialogue,
@@ -451,7 +451,7 @@ class PromptBuilder @Inject constructor() {
         val sb = StringBuilder()
         val rules = StringBuilder()
         val blockNames = mutableListOf<String>()
-        val targetChinese = targetChinesePromptLabel(context.targetChineseLocale)
+        val targetChinese = targetLanguagePromptLabel(context.targetLanguage)
         val isBattleSubtitle =
             context.promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
         val basePrompt = when {
@@ -556,7 +556,7 @@ class PromptBuilder @Inject constructor() {
             tag,
             "System prompt combination: profile=${context.promptProfile}, " +
                 "format=${context.outputFormat.logName}, " +
-                "target=${context.targetChineseLocale}, blocks=${blockNames.joinToString("+")}, " +
+                "target=${context.targetLanguage}, blocks=${blockNames.joinToString("+")}, " +
                 "chars=${sb.length}"
         )
         return sb.toString()
@@ -582,9 +582,10 @@ class PromptBuilder @Inject constructor() {
         return block.replace("{target_chinese}", targetChinese)
     }
 
-    private fun targetChinesePromptLabel(targetChineseLocale: String): String {
-        return when (SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale)) {
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL -> "Traditional Chinese"
+    private fun targetLanguagePromptLabel(targetLanguage: String): String {
+        return when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> "Traditional Chinese"
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> "English"
             else -> "Simplified Chinese"
         }
     }
@@ -614,7 +615,7 @@ class PromptBuilder @Inject constructor() {
                 add(
                     "name_plural" to buildNamePluralPrompt(
                         context.namePluralUsage,
-                        context.targetChineseLocale
+                        context.targetLanguage
                     )
                 )
             }
@@ -624,7 +625,7 @@ class PromptBuilder @Inject constructor() {
                 add(
                     "honorific" to buildHonorificPrompt(
                         context.honorificMatches,
-                        context.targetChineseLocale
+                        context.targetLanguage
                     )
                 )
             }
@@ -842,11 +843,11 @@ class PromptBuilder @Inject constructor() {
 
     internal fun buildNamePluralPrompt(
         usage: NamePluralPromptUsage,
-        targetChineseLocale: String
+        targetLanguage: String
     ): String {
         val plural = if (
-            SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+            SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         ) {
             "們"
         } else {
@@ -866,10 +867,10 @@ class PromptBuilder @Inject constructor() {
 
     private fun buildHonorificPrompt(
         matches: List<HonorificPromptMatch>,
-        targetChineseLocale: String
+        targetLanguage: String
     ): String {
-        val traditional = SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+        val traditional = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         val mappings = matches.joinToString("; ") { match ->
             when (match.rule) {
                 HonorificPromptRule.SAN -> "XXさん->XX桑"

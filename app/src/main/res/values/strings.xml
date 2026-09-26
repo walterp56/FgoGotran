@@ -217,7 +217,7 @@
     <string name="settings_auto_20">实时语音字幕</string>
     <string name="settings_auto_21">打开语音设置</string>
     <string name="settings_auto_22">打开错误纪录</string>
-    <string name="settings_auto_23">日服译文语言</string>
+    <string name="settings_auto_23">译文语言</string>
     <string name="settings_auto_24">API接口</string>
     <string name="settings_auto_25">参考场景数</string>
     <string name="settings_auto_26">管理接口</string>
@@ -320,8 +320,10 @@
     <string name="voice_azure_request_failed">Azure 语音请求失败：%1$s</string>
     <string name="voice_test_failed_detail">测试失败：%1$s</string>
     <string name="settings_clear_cache_result">已清除 %1$d 条缓存</string>
+    <string name="settings_source_japanese">日语</string>
     <string name="settings_target_simplified">简体中文</string>
     <string name="settings_target_traditional">繁體中文</string>
+    <string name="settings_target_english">English</string>
     <string name="settings_gender_male">男</string>
     <string name="settings_gender_female">女</string>
     <string name="settings_context_scenes">%1$d 幕</string>
@@ -335,5 +337,8 @@
     <string name="mode_desc_auto">全自動翻譯</string>
     <string name="mode_desc_battle">BATTLE字幕模式，长按切换模式</string>
     <string name="mode_desc_crop">裁切翻譯</string>
+    <string name="guide_mode_battle_label">战斗字幕</string>
+    <string name="guide_mode_battle_text">适合不想错过战斗内对话的你。只锁定战斗字幕区域</string>
 </resources>
+
 

@@ -91,7 +91,7 @@ class SettingsRepository @Inject constructor(
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
         val KEY_FOREGROUND_TEST_OVERRIDE_ENABLED = booleanPreferencesKey("foreground_test_override_enabled")
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
-        val KEY_TARGET_CHINESE_LOCALE = stringPreferencesKey("target_chinese_locale")
+        val KEY_TARGET_LANGUAGE = stringPreferencesKey("target_chinese_locale") // legacy key name kept for migration
         val KEY_GAME_SERVER = stringPreferencesKey("game_server")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
         val KEY_DB_SHA256 = stringPreferencesKey("db_sha256")
@@ -131,8 +131,10 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
         const val DEFAULT_TRANSLATION_CONTEXT_ENABLED = true
         /** Ruby readings are removed before translation unless the user opts in. */
-        const val DEFAULT_TRANSLATION_INCLUDE_RUBY = false
+        const val DEFAULT_TRANSLATION_INCLUDE_RUBY = true
+
         const val MIN_TRANSLATION_CONTEXT_SCENE_COUNT = 1
+
         const val DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT = 2
         const val MAX_TRANSLATION_CONTEXT_SCENE_COUNT = 5
         // Kept only so previously stored values can fall back cleanly to the new male default.
@@ -213,8 +215,9 @@ class SettingsRepository @Inject constructor(
         const val MIN_API_TOP_P = 0.01
         const val MAX_API_TOP_P = 1.0
         const val DEFAULT_DEEPSEEK_TEMPERATURE = 1.0
-        const val TARGET_LOCALE_SIMPLIFIED = "zh-Hans"
-        const val TARGET_LOCALE_TRADITIONAL = "zh-Hant"
+        const val TARGET_LANGUAGE_SIMPLIFIED = "zh-Hans"
+        const val TARGET_LANGUAGE_TRADITIONAL = "zh-Hant"
+        const val TARGET_LANGUAGE_ENGLISH = "en"
         const val GAME_SERVER_JP = "jp"
         const val GAME_SERVER_CN = "cn"
         const val GAME_SERVER_TW = "tw"
@@ -304,9 +307,10 @@ class SettingsRepository @Inject constructor(
                 MAX_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP
             )
 
-        fun normalizeTargetChineseLocale(locale: String): String = when (locale) {
-            TARGET_LOCALE_TRADITIONAL -> TARGET_LOCALE_TRADITIONAL
-            else -> TARGET_LOCALE_SIMPLIFIED
+        fun normalizeTargetLanguage(locale: String): String = when {
+            locale == TARGET_LANGUAGE_TRADITIONAL || locale.startsWith("zh-Hant") -> TARGET_LANGUAGE_TRADITIONAL
+            locale.startsWith("en", ignoreCase = true) -> TARGET_LANGUAGE_ENGLISH
+            else -> TARGET_LANGUAGE_SIMPLIFIED
         }
 
         fun normalizeGameServer(server: String): String =
@@ -785,9 +789,9 @@ class SettingsRepository @Inject constructor(
         return ocrEngine.first()
     }
 
-    /** Target Chinese script for translated output. */
-    val targetChineseLocale: Flow<String> = context.dataStore.data.map { prefs ->
-        normalizeTargetChineseLocale(prefs[KEY_TARGET_CHINESE_LOCALE] ?: TARGET_LOCALE_SIMPLIFIED)
+    /** Target language for translated output. */
+    val targetLanguage: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeTargetLanguage(prefs[KEY_TARGET_LANGUAGE] ?: TARGET_LANGUAGE_SIMPLIFIED)
     }
 
     /** FGO server source currently being read from the game screen. */
@@ -1220,10 +1224,10 @@ class SettingsRepository @Inject constructor(
         FgoLogger.debug(tag, "Setting updated: ocr_engine=$normalizedEngine")
     }
 
-    suspend fun setTargetChineseLocale(locale: String) {
-        val normalizedLocale = normalizeTargetChineseLocale(locale)
-        context.dataStore.edit { it[KEY_TARGET_CHINESE_LOCALE] = normalizedLocale }
-        FgoLogger.debug(tag, "Setting updated: target_chinese_locale=$normalizedLocale")
+    suspend fun setTargetLanguage(locale: String) {
+        val normalizedLocale = normalizeTargetLanguage(locale)
+        context.dataStore.edit { it[KEY_TARGET_LANGUAGE] = normalizedLocale }
+        FgoLogger.debug(tag, "Setting updated: target_language=$normalizedLocale")
     }
 
     suspend fun getGameServer(): String {
@@ -1388,3 +1392,4 @@ class SettingsRepository @Inject constructor(
         )
     }
 }
+

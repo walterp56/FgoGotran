@@ -3036,7 +3036,7 @@ class FgoAccessibilityService : AccessibilityService() {
         return sceneTranslation.name?.targetLocale
             ?: sceneTranslation.dialogue?.targetLocale
             ?: sceneTranslation.choices.firstOrNull { it.targetLocale.isNotBlank() }?.targetLocale
-            ?: SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+            ?: SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     }
 
     private fun Char.isJapaneseTextChar(): Boolean {
@@ -4275,8 +4275,8 @@ class FgoAccessibilityService : AccessibilityService() {
             dialogueInstruction?.targetLocale
         )
             .plus(choiceInstructions.map { it.targetLocale })
-            .firstOrNull { it == SettingsRepository.TARGET_LOCALE_TRADITIONAL }
-            ?: SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+            .firstOrNull { it == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL }
+            ?: SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
         val dialogueSourceKey = sceneSource.historyDialogueSourceKey()
         val entrySourceKey = sceneSource.historySourceKey(hasChoices = choiceEntries.isNotEmpty())
 

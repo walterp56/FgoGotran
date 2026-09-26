@@ -175,35 +175,35 @@ internal object SpecialFirstPersonPronouns {
 
     fun promptMappings(
         text: String,
-        targetChineseLocale: String
+        targetLanguage: String
     ): List<SpecialFirstPersonPromptMapping> {
         return detect(text)
             .distinctBy { it.sourceForm }
             .map { detection ->
                 SpecialFirstPersonPromptMapping(
                     sourceForm = detection.sourceForm,
-                    targetTranslation = detection.rule.targetFor(targetChineseLocale)
+                    targetTranslation = detection.rule.targetFor(targetLanguage)
                 )
             }
     }
 
     fun repairs(
         text: String,
-        targetChineseLocale: String = SettingsRepository.TARGET_LOCALE_SIMPLIFIED
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): List<SpecialFirstPersonRepair> {
         val matchedRules = detect(text)
             .map { it.rule }
             .distinct()
             .filter { it.wrongNameTranslations.isNotEmpty() }
         val replacementTargets = matchedRules
-            .map { it.targetFor(targetChineseLocale) }
+            .map { it.targetFor(targetLanguage) }
             .distinct()
         if (replacementTargets.size > 1) return emptyList()
 
         return matchedRules.map { rule ->
             SpecialFirstPersonRepair(
                 wrongTranslations = rule.wrongNameTranslations,
-                replacement = rule.targetFor(targetChineseLocale)
+                replacement = rule.targetFor(targetLanguage)
             )
         }
     }
@@ -255,10 +255,10 @@ internal object SpecialFirstPersonPronouns {
             this in '0'..'9'
     }
 
-    private fun Rule.targetFor(targetChineseLocale: String): String {
+    private fun Rule.targetFor(targetLanguage: String): String {
         return if (
-            SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+            SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         ) {
             traditionalTarget
         } else {

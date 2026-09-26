@@ -34,7 +34,7 @@ class AzureRealtimeSpeechTranslator @Inject constructor() {
                 throw IllegalArgumentException("Azure Speech Key 为空")
             }
             val region = SettingsRepository.normalizeAzureSpeechRegion(config.region)
-            val targetLanguage = SettingsRepository.normalizeTargetChineseLocale(config.targetLanguage)
+            val targetLanguage = SettingsRepository.normalizeTargetLanguage(config.targetLanguage)
             val translationConfig = if (region == SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3) {
                 val endpoint = AzureSpeechEndpointPolicy.normalizeChinaResourceEndpoint(config.chinaEndpoint)
                 SpeechTranslationConfig.fromEndpoint(URI(endpoint), key)

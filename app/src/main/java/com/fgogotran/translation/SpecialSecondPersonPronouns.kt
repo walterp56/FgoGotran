@@ -84,14 +84,14 @@ internal object SpecialSecondPersonPronouns {
 
     fun promptMappings(
         text: String,
-        targetChineseLocale: String
+        targetLanguage: String
     ): List<SpecialSecondPersonPromptMapping> {
         return detect(text)
             .distinctBy { it.sourceForm }
             .map { detection ->
                 SpecialSecondPersonPromptMapping(
                     sourceForm = detection.sourceForm,
-                    targetTranslation = detection.rule.targetFor(targetChineseLocale)
+                    targetTranslation = detection.rule.targetFor(targetLanguage)
                 )
             }
     }
@@ -143,10 +143,10 @@ internal object SpecialSecondPersonPronouns {
             this in '0'..'9'
     }
 
-    private fun Rule.targetFor(targetChineseLocale: String): String {
+    private fun Rule.targetFor(targetLanguage: String): String {
         return if (
-            SettingsRepository.normalizeTargetChineseLocale(targetChineseLocale) ==
-            SettingsRepository.TARGET_LOCALE_TRADITIONAL
+            SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         ) {
             traditionalTarget
         } else {
