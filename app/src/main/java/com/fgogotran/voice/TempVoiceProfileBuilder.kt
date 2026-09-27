@@ -196,7 +196,7 @@ class TempVoiceProfileBuilder @Inject constructor(
             volume = normalizedVolume,
             description = voiceType
         )
-        val normalizedStyle = ChineseVoiceEmotionStyle.resolveStyle(profileForStyle, styleOverride = null)
+        val normalizedStyle = VoiceEmotionStyle.resolveStyle(profileForStyle, styleOverride = null)
         val normalizedReason = sanitizeField(reason, MAX_REASON_CHARS).ifBlank {
             "API临时生成"
         }

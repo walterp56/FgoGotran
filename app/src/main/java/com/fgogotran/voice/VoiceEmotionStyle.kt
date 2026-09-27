@@ -2,10 +2,11 @@ package com.fgogotran.voice
 
 import com.fgogotran.translation.VoiceLineHint
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-object ChineseVoiceEmotionStyle {
+object VoiceEmotionStyle {
     fun expressionFor(
         profile: VoiceProfile,
         text: String,
@@ -133,13 +134,24 @@ object ChineseVoiceEmotionStyle {
             .orEmpty()
     }
 
+    /**
+     * Local (offline) expression detection for the text that will be read aloud.
+     *
+     * Chinese read text uses the substring tables; English read text uses word-boundary
+     * matching so English words cannot match inside longer words.
+     */
     private fun detectStyle(normalizedText: String): String? {
+        val english = normalizedText.none { char -> char.isCjkVoiceChar() }
+        fun matches(hints: Set<String>): Boolean =
+            if (english) normalizedText.matchesEnglishHints(hints)
+            else normalizedText.hasAny(hints)
+
         return when {
-            normalizedText.hasAny(SAD_HINTS) -> "sad"
-            normalizedText.hasAny(FEARFUL_HINTS) -> "fearful"
-            normalizedText.hasAny(ANGRY_HINTS) -> "angry"
-            normalizedText.hasAny(CHEERFUL_HINTS) -> "cheerful"
-            normalizedText.hasAny(DISGRUNTLED_HINTS) -> "disgruntled"
+            matches(SAD_HINTS) -> "sad"
+            matches(FEARFUL_HINTS) -> "fearful"
+            matches(ANGRY_HINTS) -> "angry"
+            matches(CHEERFUL_HINTS) -> "cheerful"
+            matches(DISGRUNTLED_HINTS) -> "disgruntled"
             normalizedText.shortExcitedLine() -> "cheerful"
             else -> null
         }
@@ -787,6 +799,90 @@ object ChineseVoiceEmotionStyle {
         "抱怨",
         "为什么"
     )
+
+    // English cues matched with word boundaries when the read text is English.
+    private val SAD_HINTS_EN = setOf(
+        "sorry",
+        "i'm sorry",
+        "sad",
+        "sorrow",
+        "tears",
+        "crying",
+        "regret",
+        "goodbye",
+        "farewell",
+        "sacrifice",
+        "painful",
+        "it hurts"
+    )
+
+    private val FEARFUL_HINTS_EN = setOf(
+        "afraid",
+        "scared",
+        "fear",
+        "terrified",
+        "terrifying",
+        "help me",
+        "help!",
+        "no!",
+        "stop it",
+        "danger",
+        "dangerous",
+        "oh no"
+    )
+
+    private val ANGRY_HINTS_EN = setOf(
+        "damn",
+        "damn it",
+        "bastard",
+        "shut up",
+        "be quiet",
+        "angry",
+        "furious",
+        "hate you",
+        "unforgivable",
+        "how dare",
+        "are you kidding"
+    )
+
+    private val CHEERFUL_HINTS_EN = setOf(
+        "haha",
+        "hehe",
+        "hooray",
+        "wonderful",
+        "thank you",
+        "thanks",
+        "no problem",
+        "yay",
+        "i'm glad",
+        "happy"
+    )
+
+    private val DISGRUNTLED_HINTS_EN = setOf(
+        "honestly",
+        "seriously",
+        "good grief",
+        "geez",
+        "ugh",
+        "tsk",
+        "what a pain",
+        "you have got to be kidding"
+    )
+
+    private val englishHintPatterns = ConcurrentHashMap<String, Regex>()
+
+    private fun String.matchesEnglishHints(hints: Set<String>): Boolean {
+        val lower = lowercase(Locale.US)
+        return hints.any { hint -> englishHintPattern(hint).containsMatchIn(lower) }
+    }
+
+    private fun englishHintPattern(hint: String): Regex = englishHintPatterns.getOrPut(hint) {
+        Regex("(?<![a-z])" + Regex.escape(hint) + "(?![a-z])")
+    }
+
+    private fun Char.isCjkVoiceChar(): Boolean =
+        this in '\u3040'..'\u30FF' || this in '\u3400'..'\u9FFF' ||
+            this in '\uFF66'..'\uFF9D'
 
     private const val SHORT_LINE_LENGTH = 28
     private const val MIN_RATE_DELTA = 0.005

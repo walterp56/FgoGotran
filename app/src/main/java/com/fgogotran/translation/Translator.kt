@@ -298,7 +298,9 @@ class Translator @Inject constructor(
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = "",
-            includeConditionalMappings = false,
+            includeConditionalMappings = true,
+            includeHonorificTemplates = false,
+            includeNamePluralTemplate = false,
             includeCurrentSpeaker = false
         )
         val response = callTranslationBackend(
@@ -365,8 +367,6 @@ class Translator @Inject constructor(
                 normalizedText = normalizedText,
                 normalizedChoices = emptyList(),
                 protectedInput = protectedInput,
-                specialFirstPersonMappings = promptContext.specialFirstPersonMappings,
-                namePluralUsage = promptContext.namePluralUsage,
                 badTranslation = translated,
                 badSafety = initialSafety,
                 maxTokens = API_TEST_MAX_TOKENS,
@@ -1122,7 +1122,9 @@ class Translator @Inject constructor(
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = activeCurrentSpeaker,
-            includeConditionalMappings = false,
+            includeConditionalMappings = true,
+            includeHonorificTemplates = false,
+            includeNamePluralTemplate = false,
             includeCurrentSpeaker = false
         )
         val systemPrompt = if (useSakuraPrompt) {
@@ -1289,8 +1291,6 @@ class Translator @Inject constructor(
                     normalizedText = normalizedText,
                     normalizedChoices = protectedChoiceTexts,
                     protectedInput = protectedInput,
-                    specialFirstPersonMappings = promptContext.specialFirstPersonMappings,
-                    namePluralUsage = promptContext.namePluralUsage,
                     badTranslation = latestCandidate.orEmpty(),
                     badSafety = latestSafety,
                     cropMode = cropMode,
@@ -1558,7 +1558,9 @@ class Translator @Inject constructor(
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = activeCurrentSpeaker,
-            includeConditionalMappings = false,
+            includeConditionalMappings = true,
+            includeHonorificTemplates = false,
+            includeNamePluralTemplate = false,
             includeCurrentSpeaker = false
         )
 
@@ -2262,7 +2264,9 @@ class Translator @Inject constructor(
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = currentSpeaker,
-            includeConditionalMappings = false,
+            includeConditionalMappings = true,
+            includeHonorificTemplates = false,
+            includeNamePluralTemplate = false,
             includeCurrentSpeaker = false
         )
         val useCompactDialogueVoiceHintPrompt =
@@ -5352,7 +5356,7 @@ class Translator @Inject constructor(
                 "required_output",
                 buildString {
                     appendLine("Return JSON only with exactly these keys: dialogue, voice_hint.")
-                    appendLine("""Neutral example: {"dialogue":"translated Chinese dialogue","voice_hint":null}""")
+                    appendLine("""Neutral example: {"dialogue":"translated dialogue","voice_hint":null}""")
                     appendLine("styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
                     appendLine(
                         "dragon_styles <=3 DragonHDFlash-only: " +
@@ -5764,8 +5768,6 @@ class Translator @Inject constructor(
         normalizedText: String,
         normalizedChoices: List<String>,
         protectedInput: ProtectedText,
-        specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>,
-        namePluralUsage: NamePluralPromptUsage,
         badTranslation: String = "",
         badSafety: TranslationSafetyResult? = null,
         cropMode: Boolean = false,
@@ -5843,34 +5845,48 @@ class Translator @Inject constructor(
                 context = retryContext,
                 matchedEntries = glossaryEntries,
                 currentSpeaker = currentSpeaker,
-                includeConditionalMappings = false,
+                includeConditionalMappings = true,
+                includeHonorificTemplates = false,
+                includeNamePluralTemplate = false,
                 includeCurrentSpeaker = false
             )
-            listOf(
-                ChatMessage(
-                    "system",
-                    buildStrictRetrySystemPrompt(
-                        playerName,
-                        config.targetLanguage,
-                        cropMode,
-                        specialFirstPersonMappings,
-                        namePluralUsage,
-                        characterContextPrompt
-                    )
-                ),
-                ChatMessage(
-                    "user",
-                    buildStrictRetryUserPrompt(
-                        japaneseText = protectedInput.text,
-                        choiceTexts = normalizedChoices,
-                        cropMode = cropMode,
-                        badTranslation = badTranslation,
-                        kanaTokens = badSafety?.kanaTokens.orEmpty(),
-                        previousDialogueContexts = previousDialogueContexts,
-                        currentSpeaker = currentSpeaker,
-                        glossaryEntries = retryGlossaryEntries
-                    )
+            val mainUserPrompt = if (cropMode) {
+                promptBuilder.buildCropUserPrompt(
+                    japaneseText = protectedInput.text,
+                    glossaryEntries = retryGlossaryEntries
                 )
+            } else {
+                buildSingleUserPrompt(
+                    japaneseText = protectedInput.text,
+                    choiceTexts = normalizedChoices,
+                    previousDialogueContexts = previousDialogueContexts,
+                    currentSpeaker = currentSpeaker,
+                    translateAsChoices = translateAsChoices,
+                    translateAsName = translateAsName,
+                    glossaryEntries = retryGlossaryEntries
+                )
+            }
+            val draftSection = buildString {
+                if (badTranslation.isNotBlank()) {
+                    appendLine(badTranslation.trim())
+                    appendLine()
+                }
+                append("Repair the previous draft. Use only ")
+                append(targetLanguagePromptLabel(config.targetLanguage))
+                append("; remove all Japanese kana; keep every meaning and the requested output format.")
+                val kanaTokens = badSafety?.kanaTokens.orEmpty()
+                if (kanaTokens.isNotEmpty()) {
+                    append(" Remove these Japanese fragments: ")
+                    append(kanaTokens.joinToString(", "))
+                }
+            }.trim()
+            val retryUserPrompt = buildString {
+                appendPromptSectionText(mainUserPrompt)
+                appendPromptSection("previous_draft", draftSection)
+            }
+            listOf(
+                ChatMessage("system", promptBuilder.buildSystemPrompt(playerName, retryContext)),
+                ChatMessage("user", retryUserPrompt)
             )
         }
 
@@ -5914,99 +5930,6 @@ class Translator @Inject constructor(
             logUnsafeTranslationSafety("Strict retry produced unsafe result", retrySafety)
         }
         return TranslationRepairResult(retrySimplified, retrySafety)
-    }
-
-    private fun buildStrictRetrySystemPrompt(
-        playerName: String,
-        targetLanguage: String,
-        cropMode: Boolean,
-        specialFirstPersonMappings: List<SpecialFirstPersonPromptMapping>,
-        namePluralUsage: NamePluralPromptUsage,
-        characterContextPrompt: String
-    ): String {
-        val targetChinese = targetLanguagePromptLabel(targetLanguage)
-        val activeRules = buildString {
-            appendLine(promptBuilder.buildPronounFidelityPrompt())
-            appendLine("Keep masks (???, ？？？, ■, □, ▇, █) exact; never guess them.")
-            appendLine("Resolve leftover kana by context: SFX -> Chinese; names -> Chinese transliteration; other text -> meaning.")
-            if (specialFirstPersonMappings.isNotEmpty()) {
-                appendLine(promptBuilder.buildSpecialFirstPersonPrompt(specialFirstPersonMappings))
-            }
-            if (!cropMode && namePluralUsage.isPresent) {
-                appendLine(
-                    promptBuilder.buildNamePluralPrompt(namePluralUsage, targetLanguage)
-                )
-            }
-            if (!cropMode && characterContextPrompt.isNotBlank()) {
-                appendLine(promptBuilder.buildCharacterContextPrompt(characterContextPrompt))
-            }
-            if (playerName.isNotBlank()) {
-                appendLine(
-                    "Player name: ${JsonPrimitive(playerName)}. Keep it exactly if it appears."
-                )
-            }
-            append(promptBuilder.buildSourceFidelityCheckPrompt())
-        }
-        return buildString {
-            append("Repair this FGO translation. Use only $targetChinese and remove all Japanese kana.")
-            appendPromptSectionText(activeRules)
-            appendPromptSectionText(
-                if (cropMode) {
-                    "Translate each OCR row independently and return a JSON array with one string per row in the same order."
-                } else {
-                    "Return only the final translated text, without source text, notes, labels, or wrappers."
-                }
-            )
-        }
-    }
-
-    private fun buildStrictRetryUserPrompt(
-        japaneseText: String,
-        choiceTexts: List<String>,
-        cropMode: Boolean = false,
-        badTranslation: String = "",
-        kanaTokens: List<String> = emptyList(),
-        previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
-        currentSpeaker: String = "",
-        glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
-    ): String {
-        return buildString {
-            val hasBadTranslation = badTranslation.isNotBlank()
-            appendTranslationGlossarySection(glossaryEntries)
-            appendCurrentSpeakerContextBlock(currentSpeaker)
-            appendSceneDialogueContextBlock(previousDialogueContexts)
-            if (hasBadTranslation) {
-                appendPromptSection(
-                    "previous_draft",
-                    buildString {
-                        appendLine(badTranslation.trim())
-                        if (kanaTokens.isNotEmpty()) {
-                            append("Remove these Japanese fragments: ")
-                            append(kanaTokens.joinToString(", "))
-                        }
-                    }.trim()
-                )
-            }
-            if (cropMode) {
-                val lines = japaneseText.lines()
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                appendPromptSection("current_japanese_rows", renderNumberedPromptItems(lines))
-                appendPromptSection(
-                    "required_output",
-                    "Return exactly ${lines.size} corrected Chinese strings in a JSON array, in the same order. " +
-                        "Keep already-correct Chinese wording where possible."
-                )
-                return@buildString
-            }
-            if (choiceTexts.isNotEmpty()) {
-                appendPromptSection(
-                    "choice_context",
-                    renderNumberedPromptItems(choiceTexts)
-                )
-            }
-            appendPromptSection("current_japanese", japaneseText)
-        }
     }
 
     private fun logUntranslatedResult(

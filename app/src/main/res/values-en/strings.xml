@@ -246,7 +246,6 @@
     <string name="settings_auto_49">Back</string>
     <string name="settings_auto_50">Model</string>
     <string name="settings_auto_51">Save</string>
-    <string name="settings_auto_52">Chinese</string>
     <string name="settings_auto_53">On</string>
     <string name="settings_auto_54">Close</string>
     <string name="settings_auto_55">Size</string>
@@ -328,6 +327,8 @@
     <string name="settings_gender_female">Female</string>
     <string name="settings_context_scenes">%1$d scenes</string>
     <string name="voice_read_chinese">Chinese</string>
+    <string name="voice_read_english">English</string>
+    <string name="voice_read_text_invalid_hint">Must match the subtitle language.</string>
     <string name="ui_language_system">System default</string>
     <string name="ui_language_follow_system">Follow system settings</string>
     <string name="ui_language_title">Language</string>
@@ -362,7 +363,6 @@
     <string name="azure_endpoint_host_required">China Azure resource endpoint must be *.cognitiveservices.azure.cn</string>
     <string name="azure_endpoint_components_forbidden">China Azure resource endpoint cannot contain credentials, port, query, or fragment</string>
     <string name="azure_endpoint_root_hint">Enter the resource root endpoint shown in the Azure portal</string>
-    <string name="voice_ai_voice_read_text_unavailable">English read-aloud is not available yet; English subtitles are not spoken.</string>
     <string name="voice_ai_expression_requires_playback">Takes effect only while AI voice playback is on.</string>
 </resources>
 

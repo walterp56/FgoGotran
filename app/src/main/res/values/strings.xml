@@ -246,7 +246,6 @@
     <string name="settings_auto_49">返回</string>
     <string name="settings_auto_50">模型</string>
     <string name="settings_auto_51">保存</string>
-    <string name="settings_auto_52">中文</string>
     <string name="settings_auto_53">开启</string>
     <string name="settings_auto_54">关闭</string>
     <string name="settings_auto_55">大小</string>
@@ -328,6 +327,8 @@
     <string name="settings_gender_female">女</string>
     <string name="settings_context_scenes">%1$d 幕</string>
     <string name="voice_read_chinese">中文</string>
+    <string name="voice_read_english">英文</string>
+    <string name="voice_read_text_invalid_hint">需与字幕语言一致</string>
     <string name="ui_language_system">系统默认</string>
     <string name="ui_language_follow_system">跟随系统设置</string>
     <string name="ui_language_title">语言</string>
@@ -362,7 +363,6 @@
     <string name="azure_endpoint_host_required">中国 Azure 资源端点必须是 *.cognitiveservices.azure.cn</string>
     <string name="azure_endpoint_components_forbidden">中国 Azure 资源端点不能包含账号、端口、查询参数或片段</string>
     <string name="azure_endpoint_root_hint">请填写 Azure 门户显示的资源根端点</string>
-    <string name="voice_ai_voice_read_text_unavailable">英文朗读暂未支持，英文字幕不会朗读。</string>
     <string name="voice_ai_expression_requires_playback">需要开启 AI 语音播放后才会生效。</string>
 </resources>
 

@@ -90,7 +90,7 @@ class AzureTtsClient @Inject constructor() {
         val voiceName = profile.voiceName.ifBlank { "ja-JP-NanamiNeural" }
         val pitch = pitchOverride?.takeIf { it.isNotBlank() } ?: profile.pitch.ifBlank { "0%" }
         val rate = normalizeRate(rateOverride?.takeIf { it.isNotBlank() } ?: profile.rate)
-        val style = ChineseVoiceEmotionStyle.resolveStyle(
+        val style = VoiceEmotionStyle.resolveStyle(
             profile = profile,
             styleOverride = styleOverride
         )

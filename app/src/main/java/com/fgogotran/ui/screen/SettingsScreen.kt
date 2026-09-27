@@ -101,6 +101,9 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_DEEPSEEK_MODEL
     )
     val aiVoiceEnabled by settingsRepository.aiVoiceEnabled.collectAsState(initial = false)
+    val aiVoiceLanguage by settingsRepository.aiVoiceLanguage.collectAsState(
+        initial = SettingsRepository.DEFAULT_AI_VOICE_LANGUAGE
+    )
     val foregroundTestOverrideEnabled by settingsRepository.foregroundTestOverrideEnabled.collectAsState(
         initial = false
     )
@@ -442,7 +445,16 @@ fun SettingsScreen(
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_32),
-                    value = stringResource(R.string.settings_auto_52)
+                    value = when (
+                        SettingsRepository.resolveReadTextLanguage(
+                            targetLanguage,
+                            aiVoiceLanguage
+                        )
+                    ) {
+                        SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION ->
+                            stringResource(R.string.voice_read_english)
+                        else -> stringResource(R.string.voice_read_chinese)
+                    }
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_33),

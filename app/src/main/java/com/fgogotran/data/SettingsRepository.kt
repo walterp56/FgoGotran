@@ -148,8 +148,8 @@ class SettingsRepository @Inject constructor(
         const val MIN_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP = 14
         const val DEFAULT_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP = 20
         const val MAX_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP = 32
-        const val AI_VOICE_LANGUAGE_JP_ORIGINAL = "jp_original"
         const val AI_VOICE_LANGUAGE_CN_TRANSLATION = "cn_translation"
+        const val AI_VOICE_LANGUAGE_EN_TRANSLATION = "en_translation"
         const val DEFAULT_AI_VOICE_LANGUAGE = AI_VOICE_LANGUAGE_CN_TRANSLATION
         const val DEFAULT_AI_VOICE_API_HINTS_ENABLED = false
         const val MIN_AI_VOICE_VOLUME_PERCENT = 0
@@ -308,15 +308,42 @@ class SettingsRepository @Inject constructor(
             )
 
         /**
-     * Whether a read-aloud text/voice exists for [targetLanguage].
-     *
-     * Only the Chinese read text ships today; Japanese and English read text are planned.
-     * English subtitles therefore have no read-aloud and the voice settings show a note.
-     */
-    fun readTextAvailableFor(targetLanguage: String): Boolean =
-        when (normalizeTargetLanguage(targetLanguage)) {
-            TARGET_LANGUAGE_SIMPLIFIED, TARGET_LANGUAGE_TRADITIONAL -> true
-            else -> false
+         * Whether a read-aloud text exists for [targetLanguage].
+         *
+         * Chinese read text covers the 简中/繁中 subtitles; English read text covers English
+         * subtitles. Japanese original read text is not offered.
+         */
+        fun readTextAvailableFor(targetLanguage: String): Boolean =
+            when (normalizeTargetLanguage(targetLanguage)) {
+                TARGET_LANGUAGE_SIMPLIFIED,
+                TARGET_LANGUAGE_TRADITIONAL,
+                TARGET_LANGUAGE_ENGLISH -> true
+                else -> false
+            }
+
+        /**
+         * The read text a target language requires: Chinese subtitles read the Chinese
+         * translation, English subtitles read the English translation.
+         */
+        fun readTextLanguageFor(targetLanguage: String): String =
+            when (normalizeTargetLanguage(targetLanguage)) {
+                TARGET_LANGUAGE_ENGLISH -> AI_VOICE_LANGUAGE_EN_TRANSLATION
+                else -> AI_VOICE_LANGUAGE_CN_TRANSLATION
+            }
+
+        fun normalizeAiVoiceLanguage(language: String?): String =
+            when (language) {
+                AI_VOICE_LANGUAGE_EN_TRANSLATION -> AI_VOICE_LANGUAGE_EN_TRANSLATION
+                else -> AI_VOICE_LANGUAGE_CN_TRANSLATION
+            }
+
+        fun isReadTextCompatible(targetLanguage: String, aiVoiceLanguage: String?): Boolean =
+            normalizeAiVoiceLanguage(aiVoiceLanguage) == readTextLanguageFor(targetLanguage)
+
+        /** Keeps the remembered read text when it matches the target, otherwise uses the required one. */
+        fun resolveReadTextLanguage(targetLanguage: String, aiVoiceLanguage: String?): String {
+            val required = readTextLanguageFor(targetLanguage)
+            return normalizeAiVoiceLanguage(aiVoiceLanguage).takeIf { it == required } ?: required
         }
 
     fun normalizeTargetLanguage(locale: String): String = when {
@@ -703,9 +730,9 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_AI_VOICE_ENABLED] ?: false
     }
 
-    /** Voice source for AI voice: OCR game text or translated Chinese. */
-    val aiVoiceLanguage: Flow<String> = context.dataStore.data.map {
-        DEFAULT_AI_VOICE_LANGUAGE
+    /** Remembered read-text preference. It is applied only when it matches the target language. */
+    val aiVoiceLanguage: Flow<String> = context.dataStore.data.map { prefs ->
+        normalizeAiVoiceLanguage(prefs[KEY_AI_VOICE_LANGUAGE])
     }
 
     /** Whether translation API scene responses may include optional voice emotion hints. */
@@ -1131,6 +1158,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setAiVoiceEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AI_VOICE_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: ai_voice_enabled=$enabled")
+    }
+
+    suspend fun setAiVoiceLanguage(language: String) {
+        val normalized = normalizeAiVoiceLanguage(language)
+        context.dataStore.edit { it[KEY_AI_VOICE_LANGUAGE] = normalized }
+        FgoLogger.debug(tag, "Setting updated: ai_voice_language=$normalized")
     }
 
     suspend fun setAiVoiceApiHintsEnabled(enabled: Boolean) {

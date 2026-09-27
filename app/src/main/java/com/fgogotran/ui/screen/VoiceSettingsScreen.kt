@@ -88,6 +88,9 @@ fun VoiceSettingsScreen(
     val apiVoiceHintsSupported = Translator.supportsApiVoiceHintsForModel(apiModel)
 
     var aiVoiceEnabled by remember { mutableStateOf(false) }
+    var aiVoiceLanguage by remember {
+        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_LANGUAGE)
+    }
     var aiVoiceApiHintsEnabled by remember {
         mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED)
     }
@@ -123,8 +126,9 @@ fun VoiceSettingsScreen(
     var azureSpeechTestMessage by remember { mutableStateOf("") }
     var azureSpeechTestIsError by remember { mutableStateOf(false) }
     var azureSpeechTesting by remember { mutableStateOf(false) }
-    // Read-aloud only exists for the Chinese target today; English subtitles intentionally
-    // have no read text, so the AI voice and its AI-expression hints stay off (no API tokens).
+    // 简中/繁中 subtitles read the Chinese translation; English subtitles read the English
+    // translation. Both use the same Azure voice profiles; AI-expression hints still require
+    // the AI voice playback to be on, so no API tokens are spent while it is off.
     val aiVoiceReadTextAvailable = SettingsRepository.readTextAvailableFor(targetLanguage)
     val aiVoiceActive = aiVoiceEnabled && aiVoiceReadTextAvailable
     val effectiveApiVoiceHintsEnabled =
@@ -132,6 +136,7 @@ fun VoiceSettingsScreen(
 
     LaunchedEffect(Unit) {
         aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
+        aiVoiceLanguage = settingsRepository.aiVoiceLanguage.first()
         aiVoiceApiHintsEnabled = settingsRepository.aiVoiceApiHintsEnabled.first()
         aiVoiceSpeedPercent = settingsRepository.aiVoiceSpeedPercent.first()
         aiVoiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
@@ -143,6 +148,9 @@ fun VoiceSettingsScreen(
         azureSpeechEndpoint = settingsRepository.azureSpeechEndpoint.first()
         liveVoiceSubtitleFontSizeSp = settingsRepository.liveVoiceSubtitleFontSizeSp.first()
         targetLanguage = settingsRepository.targetLanguage.first()
+        launch {
+            settingsRepository.targetLanguage.collect { targetLanguage = it }
+        }
         settingsRepository.liveVoiceTranslationEnabled.collect { enabled ->
             liveVoiceTranslationEnabled = enabled
         }
@@ -296,11 +304,7 @@ fun VoiceSettingsScreen(
             ) {
                 VoiceSwitchRow(
                     title = stringResource(R.string.voice_auto_40),
-                    body = if (aiVoiceReadTextAvailable) {
-                        ""
-                    } else {
-                        stringResource(R.string.voice_ai_voice_read_text_unavailable)
-                    },
+                    body = "",
                     checked = aiVoiceActive,
                     enabled = aiVoiceReadTextAvailable,
                     onCheckedChange = {
@@ -354,9 +358,48 @@ fun VoiceSettingsScreen(
                 title = stringResource(R.string.voice_auto_43),
                 body = ""
             ) {
+                val selectedReadTextLanguage = SettingsRepository.resolveReadTextLanguage(
+                    targetLanguage,
+                    aiVoiceLanguage
+                )
+                val readTextHint = stringResource(R.string.voice_read_text_invalid_hint)
+                val chineseReadTextCompatible = SettingsRepository.isReadTextCompatible(
+                    targetLanguage,
+                    SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
+                )
+                val englishReadTextCompatible = SettingsRepository.isReadTextCompatible(
+                    targetLanguage,
+                    SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION
+                )
                 VoiceReadTextOption(
                     title = stringResource(R.string.voice_read_chinese),
-                    selected = true
+                    selected = selectedReadTextLanguage ==
+                        SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION,
+                    enabled = aiVoiceActive && chineseReadTextCompatible,
+                    hint = if (chineseReadTextCompatible) "" else readTextHint,
+                    onSelect = {
+                        aiVoiceLanguage = SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
+                        scope.launch {
+                            settingsRepository.setAiVoiceLanguage(
+                                SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
+                            )
+                        }
+                    }
+                )
+                VoiceReadTextOption(
+                    title = stringResource(R.string.voice_read_english),
+                    selected = selectedReadTextLanguage ==
+                        SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION,
+                    enabled = aiVoiceActive && englishReadTextCompatible,
+                    hint = if (englishReadTextCompatible) "" else readTextHint,
+                    onSelect = {
+                        aiVoiceLanguage = SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION
+                        scope.launch {
+                            settingsRepository.setAiVoiceLanguage(
+                                SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION
+                            )
+                        }
+                    }
                 )
             }
 
@@ -968,7 +1011,10 @@ private fun VoiceMasterGenderIndicator(
 @Composable
 private fun VoiceReadTextOption(
     title: String,
-    selected: Boolean
+    selected: Boolean,
+    enabled: Boolean,
+    hint: String,
+    onSelect: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -980,20 +1026,33 @@ private fun VoiceReadTextOption(
         }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .clickable(enabled = enabled, onClick = onSelect)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             RadioButton(
                 selected = selected,
                 onClick = null,
-                enabled = false
+                enabled = enabled
             )
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (selected) 0.82f else 0.48f)
-            )
+            Column {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(
+                        alpha = if (enabled || selected) 0.82f else 0.48f
+                    )
+                )
+                if (!enabled && hint.isNotBlank()) {
+                    Text(
+                        hint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
         }
     }
 }

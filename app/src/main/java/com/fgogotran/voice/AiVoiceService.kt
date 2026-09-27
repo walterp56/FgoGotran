@@ -73,6 +73,18 @@ class AiVoiceService @Inject constructor(
             FgoLogger.info(tag, "AI voice skipped: no read text for target=$targetLanguage")
             return
         }
+        val readTextLanguage = SettingsRepository.resolveReadTextLanguage(
+            targetLanguage,
+            settingsRepository.aiVoiceLanguage.first()
+        )
+        val readTextSource = when (readTextLanguage) {
+            SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION -> "translated_en"
+            else -> "translated_cn"
+        }
+        FgoLogger.debug(
+            tag,
+            "AI voice read text: source=$readTextSource target=$targetLanguage"
+        )
 
         val speaker = speakerName
             ?.let(::normalizeVisibleSpeakerName)
@@ -112,7 +124,8 @@ class AiVoiceService @Inject constructor(
             dialogue = dialogue,
             voiceHint = voiceHint,
             azureSpeechRegion = speechRegion,
-            aiVoiceSpeedPercent = voiceSpeedPercent
+            aiVoiceSpeedPercent = voiceSpeedPercent,
+            readTextSource = readTextSource
         )
         if (preparedLines.isEmpty()) {
             FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
@@ -311,7 +324,8 @@ class AiVoiceService @Inject constructor(
         dialogue: String,
         voiceHint: VoiceLineHint?,
         azureSpeechRegion: String,
-        aiVoiceSpeedPercent: Int
+        aiVoiceSpeedPercent: Int,
+        readTextSource: String
     ): List<PreparedVoiceLine> {
         return speakers.mapNotNull { speaker ->
             val profile = resolveVoiceProfile(
@@ -325,7 +339,7 @@ class AiVoiceService @Inject constructor(
             FgoLogger.debug(
                 tag,
                 "AI voice profile speaker=$speaker profile=${profile.profileId} " +
-                    "voice=${profile.voiceName} source=translated_chinese"
+                    "voice=${profile.voiceName} source=$readTextSource"
             )
             val expression = voiceExpressionFor(
                 profile = profile,
@@ -578,7 +592,7 @@ class AiVoiceService @Inject constructor(
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) {
             return null
         }
-        return ChineseVoiceEmotionStyle.expressionFor(
+        return VoiceEmotionStyle.expressionFor(
             profile = profile,
             text = dialogue,
             voiceHint = voiceHint,
