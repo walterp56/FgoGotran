@@ -68,6 +68,11 @@ class AiVoiceService @Inject constructor(
         voiceHint: VoiceLineHint? = null
     ) {
         if (!settingsRepository.aiVoiceEnabled.first()) return
+        val targetLanguage = settingsRepository.targetLanguage.first()
+        if (!SettingsRepository.readTextAvailableFor(targetLanguage)) {
+            FgoLogger.info(tag, "AI voice skipped: no read text for target=$targetLanguage")
+            return
+        }
 
         val speaker = speakerName
             ?.let(::normalizeVisibleSpeakerName)

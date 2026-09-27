@@ -81,6 +81,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -1859,6 +1860,9 @@ class FgoAccessibilityService : AccessibilityService() {
         dialogue: String
     ): VoiceLineHint? {
         if (isJapaneseServer() || !aiVoiceEnabled || !aiVoiceApiHintsEnabled) return null
+        if (!SettingsRepository.readTextAvailableFor(settingsRepository.targetLanguage.first())) {
+            return null
+        }
         if (!TextNormalizer.hasTranslatableContent(dialogue)) return null
 
         var completed = false
@@ -2869,8 +2873,11 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun shouldRequestVoiceHint(sceneSource: SceneSource): Boolean {
+    private suspend fun shouldRequestVoiceHint(sceneSource: SceneSource): Boolean {
         if (!aiVoiceEnabled || !aiVoiceApiHintsEnabled) return false
+        if (!SettingsRepository.readTextAvailableFor(settingsRepository.targetLanguage.first())) {
+            return false
+        }
         val dialogue = sceneSource.input.dialogue
             ?.trim()
             ?.takeIf { TextNormalizer.hasTranslatableContent(it) }

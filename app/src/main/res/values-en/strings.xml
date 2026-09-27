@@ -362,6 +362,8 @@
     <string name="azure_endpoint_host_required">China Azure resource endpoint must be *.cognitiveservices.azure.cn</string>
     <string name="azure_endpoint_components_forbidden">China Azure resource endpoint cannot contain credentials, port, query, or fragment</string>
     <string name="azure_endpoint_root_hint">Enter the resource root endpoint shown in the Azure portal</string>
+    <string name="voice_ai_voice_read_text_unavailable">English read-aloud is not available yet; English subtitles are not spoken.</string>
+    <string name="voice_ai_expression_requires_playback">Takes effect only while AI voice playback is on.</string>
 </resources>
 
 

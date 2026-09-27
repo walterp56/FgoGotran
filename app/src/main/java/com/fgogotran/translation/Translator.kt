@@ -408,6 +408,13 @@ class Translator @Inject constructor(
         dialogue: String
     ): VoiceLineHint? {
         val config = getRuntimeConfig()
+        if (!SettingsRepository.readTextAvailableFor(config.targetLanguage)) {
+            FgoLogger.debug(
+                tag,
+                "Voice hint skipped: no read text for target=${config.targetLanguage}"
+            )
+            return null
+        }
         if (!supportsApiVoiceHintsForModel(config.apiModel)) {
             FgoLogger.debug(
                 tag,
@@ -4674,7 +4681,10 @@ class Translator @Inject constructor(
                         TranslationGlossaryEntry(
                             source = sourceForm,
                             target = targetTermText(term, targetLanguage),
-                            note = normalizeCharacterGender(term.gender)
+                            note = TranslationGlossaryBuilder.genderNoteFor(
+                                term.gender,
+                                targetLanguage
+                            )
                         )
                     )
                 }
@@ -4688,16 +4698,27 @@ class Translator @Inject constructor(
                     TranslationGlossaryEntry(
                         source = normalizedPlayerName,
                         target = normalizedPlayerName,
-                        note = listOf(
-                            playerGenderToCharacterGender(playerGender),
-                            "玩家名"
-                        ).filter(String::isNotBlank).joinToString("；")
+                        note = run {
+                            val english = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+                                SettingsRepository.TARGET_LANGUAGE_ENGLISH
+                            listOf(
+                                TranslationGlossaryBuilder.genderNoteFor(
+                                    playerGenderToCharacterGender(playerGender),
+                                    targetLanguage
+                                ),
+                                if (english) "player name" else "玩家名"
+                            ).filter(String::isNotBlank)
+                                .joinToString(if (english) "; " else "；")
+                        }
                     )
                 )
             }
         }.distinctBy { normalizeForTermProtection(it.source) }
 
-        FgoLogger.debug(tag, "Prompt glossary: ${entries.size} matched JP->CN entry(s)")
+        FgoLogger.debug(
+            tag,
+            "Prompt glossary: ${entries.size} matched JP->${if (isEnglishTarget(targetLanguage)) "EN" else "CN"} entry(s)"
+        )
         return entries
     }
 

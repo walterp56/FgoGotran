@@ -97,11 +97,8 @@ class OverlayRenderer @Inject constructor(
         private const val BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER = 1.08f
         private const val BILINGUAL_CHOICE_LINE_HEIGHT_MULTIPLIER = 1.08f
         private const val BILINGUAL_TRANSLATION_TEXT_SIZE = 53f
-        /** FGO NA dialogue/choice text is slightly larger than the CJK build (61 px vs 53 px). */
-        private const val BILINGUAL_TRANSLATION_TEXT_SIZE_EN = 61f
         private const val BILINGUAL_TRANSLATION_MIN_TEXT_SIZE = 24f
         private const val BILINGUAL_CHOICE_TEXT_SIZE = 53f
-        private const val BILINGUAL_CHOICE_TEXT_SIZE_EN = 61f
         private const val BILINGUAL_CHOICE_MIN_TEXT_SIZE = 24f
         private const val BILINGUAL_ORIGINAL_MAX_TEXT_SIZE = 31f
         private const val BILINGUAL_ORIGINAL_MIN_TEXT_SIZE = 14f
@@ -852,7 +849,7 @@ class OverlayRenderer @Inject constructor(
             originalText = instruction.originalSingleLineText(),
             paint = paint,
             scale = scale,
-            initialTranslationTextSize = bilingualChoiceTextSize(instruction) * scale,
+            initialTranslationTextSize = BILINGUAL_CHOICE_TEXT_SIZE * scale,
             minimumTranslationTextSize = BILINGUAL_CHOICE_MIN_TEXT_SIZE * scale,
             translationLineHeightMultiplier = BILINGUAL_CHOICE_LINE_HEIGHT_MULTIPLIER,
             maxWidth = textArea.width(),
@@ -1210,18 +1207,17 @@ class OverlayRenderer @Inject constructor(
         maxWidth: Float,
         maxHeight: Float
     ): BilingualLinePairFit {
-        val translationTextSize = bilingualTranslationTextSize(instruction)
-        paint.textSize = translationTextSize * scale
+        paint.textSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale
         val dialogueRenderCandidates = instruction.dialogueRenderCandidates(paint, maxWidth)
         val translationCandidates = distinctDialogueCandidates(dialogueRenderCandidates.all)
-        paint.textSize = originalTextSizeFor(translationTextSize * scale, scale)
+        paint.textSize = originalTextSizeFor(BILINGUAL_TRANSLATION_TEXT_SIZE * scale, scale)
         val originalRenderCandidates = instruction.originalRenderCandidates(paint, maxWidth)
         val originalCandidates = distinctOriginalCandidates(originalRenderCandidates.all)
         val minimumTranslationSize = BILINGUAL_TRANSLATION_MIN_TEXT_SIZE * scale
         val pairGap = BILINGUAL_PAIR_GAP * scale
         val preciseFit = PreciseTextSizeSearch.largestFitting(
             minimumTextSize = minimumTranslationSize,
-            maximumTextSize = translationTextSize * scale,
+            maximumTextSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale,
             precision = DIALOGUE_TEXT_SIZE_SEARCH_PRECISION * scale
         ) { translationTextSize ->
             fitBilingualLinePairsAtSizeOrNull(
@@ -1467,20 +1463,6 @@ class OverlayRenderer @Inject constructor(
 
     private fun choiceTextSize(instruction: RenderInstruction): Float =
         if (instruction.isEnglishTarget()) CHOICE_TEXT_SIZE_EN else CHOICE_TEXT_SIZE
-
-    private fun bilingualTranslationTextSize(instruction: RenderInstruction): Float =
-        if (instruction.isEnglishTarget()) {
-            BILINGUAL_TRANSLATION_TEXT_SIZE_EN
-        } else {
-            BILINGUAL_TRANSLATION_TEXT_SIZE
-        }
-
-    private fun bilingualChoiceTextSize(instruction: RenderInstruction): Float =
-        if (instruction.isEnglishTarget()) {
-            BILINGUAL_CHOICE_TEXT_SIZE_EN
-        } else {
-            BILINGUAL_CHOICE_TEXT_SIZE
-        }
 
     private fun dialogueLineHeightMultiplier(targetLanguage: String): Float =
         if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==

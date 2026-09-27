@@ -362,6 +362,8 @@
     <string name="azure_endpoint_host_required">中國 Azure 資源端點必須是 *.cognitiveservices.azure.cn</string>
     <string name="azure_endpoint_components_forbidden">中國 Azure 資源端點不能包含帳號、連接埠、查詢參數或片段</string>
     <string name="azure_endpoint_root_hint">請填寫 Azure 入口網站顯示的資源根端點</string>
+    <string name="voice_ai_voice_read_text_unavailable">英文朗讀暫未支援，英文字幕不會朗讀。</string>
+    <string name="voice_ai_expression_requires_playback">需要開啟 AI 語音播放後才會生效。</string>
 </resources>
 
 

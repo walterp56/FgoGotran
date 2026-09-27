@@ -112,6 +112,9 @@ fun VoiceSettingsScreen(
     }
     var azureSpeechEndpoint by remember { mutableStateOf("") }
     var liveVoiceTranslationEnabled by remember { mutableStateOf(false) }
+    var targetLanguage by remember {
+        mutableStateOf(SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED)
+    }
     var liveVoiceSubtitleFontSizeSp by remember {
         mutableIntStateOf(SettingsRepository.DEFAULT_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP)
     }
@@ -120,7 +123,12 @@ fun VoiceSettingsScreen(
     var azureSpeechTestMessage by remember { mutableStateOf("") }
     var azureSpeechTestIsError by remember { mutableStateOf(false) }
     var azureSpeechTesting by remember { mutableStateOf(false) }
-    val effectiveApiVoiceHintsEnabled = aiVoiceApiHintsEnabled && apiVoiceHintsSupported
+    // Read-aloud only exists for the Chinese target today; English subtitles intentionally
+    // have no read text, so the AI voice and its AI-expression hints stay off (no API tokens).
+    val aiVoiceReadTextAvailable = SettingsRepository.readTextAvailableFor(targetLanguage)
+    val aiVoiceActive = aiVoiceEnabled && aiVoiceReadTextAvailable
+    val effectiveApiVoiceHintsEnabled =
+        aiVoiceApiHintsEnabled && apiVoiceHintsSupported && aiVoiceActive
 
     LaunchedEffect(Unit) {
         aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
@@ -134,6 +142,7 @@ fun VoiceSettingsScreen(
         azureSpeechRegion = settingsRepository.azureSpeechRegion.first()
         azureSpeechEndpoint = settingsRepository.azureSpeechEndpoint.first()
         liveVoiceSubtitleFontSizeSp = settingsRepository.liveVoiceSubtitleFontSizeSp.first()
+        targetLanguage = settingsRepository.targetLanguage.first()
         settingsRepository.liveVoiceTranslationEnabled.collect { enabled ->
             liveVoiceTranslationEnabled = enabled
         }
@@ -287,8 +296,13 @@ fun VoiceSettingsScreen(
             ) {
                 VoiceSwitchRow(
                     title = stringResource(R.string.voice_auto_40),
-                    body = "",
-                    checked = aiVoiceEnabled,
+                    body = if (aiVoiceReadTextAvailable) {
+                        ""
+                    } else {
+                        stringResource(R.string.voice_ai_voice_read_text_unavailable)
+                    },
+                    checked = aiVoiceActive,
+                    enabled = aiVoiceReadTextAvailable,
                     onCheckedChange = {
                         aiVoiceEnabled = it
                         scope.launch { settingsRepository.setAiVoiceEnabled(it) }
@@ -304,7 +318,7 @@ fun VoiceSettingsScreen(
                     title = stringResource(R.string.voice_auto_35),
                     body = stringResource(R.string.voice_auto_22),
                     checked = aiVoiceNamedDialogueEnabled,
-                    enabled = aiVoiceEnabled,
+                    enabled = aiVoiceActive,
                     onCheckedChange = {
                         aiVoiceNamedDialogueEnabled = it
                         scope.launch { settingsRepository.setAiVoiceNamedDialogueEnabled(it) }
@@ -314,7 +328,7 @@ fun VoiceSettingsScreen(
                     title = stringResource(R.string.voice_auto_30),
                     body = stringResource(R.string.voice_auto_31),
                     checked = aiVoiceNoSpeakerDialogueEnabled,
-                    enabled = aiVoiceEnabled,
+                    enabled = aiVoiceActive,
                     onCheckedChange = {
                         aiVoiceNoSpeakerDialogueEnabled = it
                         scope.launch { settingsRepository.setAiVoiceNoSpeakerDialogueEnabled(it) }
@@ -324,7 +338,7 @@ fun VoiceSettingsScreen(
                     title = stringResource(R.string.voice_auto_42),
                     body = stringResource(R.string.voice_auto_17),
                     checked = aiVoiceChoiceTextEnabled,
-                    enabled = aiVoiceEnabled,
+                    enabled = aiVoiceActive,
                     onCheckedChange = {
                         aiVoiceChoiceTextEnabled = it
                         scope.launch { settingsRepository.setAiVoiceChoiceTextEnabled(it) }
@@ -362,7 +376,7 @@ fun VoiceSettingsScreen(
                 )
                 VoiceVolumeSlider(
                     volumePercent = aiVoiceVolumePercent,
-                    enabled = aiVoiceEnabled,
+                    enabled = aiVoiceActive,
                     onVolumeChange = { volumePercent ->
                         val normalizedVolume = SettingsRepository.normalizeAiVoiceVolumePercent(volumePercent)
                         if (normalizedVolume != aiVoiceVolumePercent) {
@@ -373,13 +387,13 @@ fun VoiceSettingsScreen(
                 )
                 VoiceSwitchRow(
                     title = stringResource(R.string.voice_auto_32),
-                    body = if (apiVoiceHintsSupported) {
-                        stringResource(R.string.voice_auto_1)
-                    } else {
-                        stringResource(R.string.voice_auto_4)
+                    body = when {
+                        !apiVoiceHintsSupported -> stringResource(R.string.voice_auto_4)
+                        !aiVoiceActive -> stringResource(R.string.voice_ai_expression_requires_playback)
+                        else -> stringResource(R.string.voice_auto_1)
                     },
                     checked = effectiveApiVoiceHintsEnabled,
-                    enabled = apiVoiceHintsSupported,
+                    enabled = apiVoiceHintsSupported && aiVoiceActive,
                     onCheckedChange = {
                         aiVoiceApiHintsEnabled = it
                         scope.launch { settingsRepository.setAiVoiceApiHintsEnabled(it) }

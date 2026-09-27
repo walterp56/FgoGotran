@@ -106,20 +106,15 @@ internal object TranslationGlossaryBuilder {
                 }
             }
             if (context.hasMasterWord) {
-                val genderNote = if (englishTarget) {
-                    when (context.playerGender.trim()) {
-                        SettingsRepository.PLAYER_GENDER_MALE, "男性", "male" -> "male"
-                        SettingsRepository.PLAYER_GENDER_FEMALE, "女性", "female" -> "female"
-                        else -> ""
-                    }
-                } else {
-                    context.playerGender.toGenderNote(context.targetLanguage)
-                }
+                val genderNote = context.playerGender.toGenderNote(context.targetLanguage)
                 add(
                     "マスター",
                     if (englishTarget) "Master" else "御主",
                     genderNote.takeIf(String::isNotBlank)
-                        ?.let { "$it；${context.localized("玩家称谓", "玩家稱謂")}" }
+                        ?.let {
+                            if (englishTarget) "$it; player title"
+                            else "$it；${context.localized("玩家称谓", "玩家稱謂")}"
+                        }
                         .orEmpty()
                 )
             }
@@ -135,7 +130,12 @@ internal object TranslationGlossaryBuilder {
                 maskTokens
                     .filter(sourceText::contains)
                     .forEach { mask ->
-                        add(mask, mask, context.localized("遮蔽符号，保持不变", "遮蔽符號，保持不變"))
+                        add(
+                            mask,
+                            mask,
+                            if (englishTarget) "mask token, keep unchanged"
+                            else context.localized("遮蔽符号，保持不变", "遮蔽符號，保持不變")
+                        )
                     }
             }
         }
@@ -177,19 +177,26 @@ internal object TranslationGlossaryBuilder {
         val source = (match?.groupValues?.get(2) ?: cleanSpeaker).asGlossaryField()
         val target = (match?.groupValues?.get(1) ?: source).asGlossaryField()
         if (source.isBlank() || target.isBlank()) return
-        val traditional = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
-            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
+        val normalizedTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage)
+        val traditional = normalizedTarget == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
+        val english = normalizedTarget == SettingsRepository.TARGET_LANGUAGE_ENGLISH
         val note = buildList {
             currentSpeakerGender
                 .toGenderNote(targetLanguage)
                 .takeIf(String::isNotBlank)
                 ?.let(::add)
-            add(if (traditional) "當前說話人" else "当前说话人")
+            add(
+                when {
+                    english -> "current speaker"
+                    traditional -> "當前說話人"
+                    else -> "当前说话人"
+                }
+            )
             characterContextPrompt
                 .asGlossaryField()
                 .takeIf(String::isNotBlank)
                 ?.let(::add)
-        }.joinToString("；")
+        }.joinToString(if (english) "; " else "；")
         val existing = entriesBySource[source]
         entriesBySource[source] = if (existing == null) {
             TranslationGlossaryEntry(source, target, note)
@@ -208,13 +215,22 @@ internal object TranslationGlossaryBuilder {
         }
     }
 
+    /** Gender note for prompt glossary entries; English targets get English note words. */
+    internal fun genderNoteFor(gender: String, targetLanguage: String): String =
+        gender.toGenderNote(targetLanguage)
+
     private fun String.toGenderNote(targetLanguage: String): String {
-        val traditional = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
-            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
+        val normalizedTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage)
+        val english = normalizedTarget == SettingsRepository.TARGET_LANGUAGE_ENGLISH
+        val traditional = normalizedTarget == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         return when (trim()) {
-            "女性", "female" -> "女性"
-            "男性", "male" -> "男性"
-            "性別不明", "性别不明" -> if (traditional) "性別不明" else "性别不明"
+            "女性", "female" -> if (english) "female" else "女性"
+            "男性", "male" -> if (english) "male" else "男性"
+            "性別不明", "性别不明", "unspecified" -> when {
+                english -> "unspecified"
+                traditional -> "性別不明"
+                else -> "性别不明"
+            }
             else -> ""
         }
     }

@@ -307,7 +307,19 @@ class SettingsRepository @Inject constructor(
                 MAX_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP
             )
 
-        fun normalizeTargetLanguage(locale: String): String = when {
+        /**
+     * Whether a read-aloud text/voice exists for [targetLanguage].
+     *
+     * Only the Chinese read text ships today; Japanese and English read text are planned.
+     * English subtitles therefore have no read-aloud and the voice settings show a note.
+     */
+    fun readTextAvailableFor(targetLanguage: String): Boolean =
+        when (normalizeTargetLanguage(targetLanguage)) {
+            TARGET_LANGUAGE_SIMPLIFIED, TARGET_LANGUAGE_TRADITIONAL -> true
+            else -> false
+        }
+
+    fun normalizeTargetLanguage(locale: String): String = when {
             locale == TARGET_LANGUAGE_TRADITIONAL || locale.startsWith("zh-Hant") -> TARGET_LANGUAGE_TRADITIONAL
             locale.startsWith("en", ignoreCase = true) -> TARGET_LANGUAGE_ENGLISH
             else -> TARGET_LANGUAGE_SIMPLIFIED
