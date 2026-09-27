@@ -97,8 +97,11 @@ class OverlayRenderer @Inject constructor(
         private const val BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER = 1.08f
         private const val BILINGUAL_CHOICE_LINE_HEIGHT_MULTIPLIER = 1.08f
         private const val BILINGUAL_TRANSLATION_TEXT_SIZE = 53f
+        /** FGO NA dialogue/choice text is slightly larger than the CJK build (61 px vs 53 px). */
+        private const val BILINGUAL_TRANSLATION_TEXT_SIZE_EN = 61f
         private const val BILINGUAL_TRANSLATION_MIN_TEXT_SIZE = 24f
         private const val BILINGUAL_CHOICE_TEXT_SIZE = 53f
+        private const val BILINGUAL_CHOICE_TEXT_SIZE_EN = 61f
         private const val BILINGUAL_CHOICE_MIN_TEXT_SIZE = 24f
         private const val BILINGUAL_ORIGINAL_MAX_TEXT_SIZE = 31f
         private const val BILINGUAL_ORIGINAL_MIN_TEXT_SIZE = 14f
@@ -109,8 +112,8 @@ class OverlayRenderer @Inject constructor(
         /** FGO NA name plate text is larger than the JP/CJK one (measured 33 px vs 29 px ink). */
         private const val NAME_TEXT_SIZE_EN = 64f
         private const val NAME_TEXT_MIN_SIZE = 31f
-        /** FGO NA row pitch is 88 px at 1080p (53 px x 1.66); the CJK build uses 1.57. */
-        private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER_EN = 1.66f
+        /** FGO NA row pitch is ~88 px at 1080p (61 px x 1.44); the CJK build uses 53 px x 1.57 = 83 px. */
+        private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER_EN = 1.44f
         private const val NAME_TEXT_LEFT_INSET = 52f
         private const val NAME_PLATE_LEFT_INSET = 42f
         private const val NAME_TEXT_TOP_INSET = 8f
@@ -118,7 +121,10 @@ class OverlayRenderer @Inject constructor(
         private const val NAME_TEXT_BASELINE_OFFSET = 12f
         private const val NAME_TEXT_RIGHT_INSET = 10f
         private const val NAME_SOURCE_COVER_PAD = 6f
+        private const val DIALOGUE_TEXT_SIZE = 53f
+        private const val DIALOGUE_TEXT_SIZE_EN = 61f
         private const val CHOICE_TEXT_SIZE = 53f
+        private const val CHOICE_TEXT_SIZE_EN = 61f
         private const val CHOICE_TEXT_MIN_SIZE = 29f
         private const val WIDE_RENDER_SPACE = "\u3000"
         private val TRAILING_DASH_CLEAR_RISK = Regex("""[-ー‐‑‒–—―−─━－一]{2,}\s*$""")
@@ -443,7 +449,7 @@ class OverlayRenderer @Inject constructor(
     ): DialogueTextLayout {
         val panelBox = RectF(instruction.region.boundingBox)
         val textArea = fixedDialogueTextArea(panelBox, scale)
-        val preferredTextSize = 53f * scale
+        val preferredTextSize = dialogueTextSize(instruction) * scale
         paint.textSize = preferredTextSize
         val candidates = instruction.dialogueRenderCandidates(
             paint = paint,
@@ -846,7 +852,7 @@ class OverlayRenderer @Inject constructor(
             originalText = instruction.originalSingleLineText(),
             paint = paint,
             scale = scale,
-            initialTranslationTextSize = BILINGUAL_CHOICE_TEXT_SIZE * scale,
+            initialTranslationTextSize = bilingualChoiceTextSize(instruction) * scale,
             minimumTranslationTextSize = BILINGUAL_CHOICE_MIN_TEXT_SIZE * scale,
             translationLineHeightMultiplier = BILINGUAL_CHOICE_LINE_HEIGHT_MULTIPLIER,
             maxWidth = textArea.width(),
@@ -937,7 +943,7 @@ class OverlayRenderer @Inject constructor(
         val text = fitSingleLine(
             text = instruction.toChoiceRenderText(),
             paint = paint,
-            initialTextSize = CHOICE_TEXT_SIZE * scale,
+            initialTextSize = choiceTextSize(instruction) * scale,
             minimumTextSize = CHOICE_TEXT_MIN_SIZE * scale,
             maxWidth = textArea.width()
         )
@@ -1204,17 +1210,18 @@ class OverlayRenderer @Inject constructor(
         maxWidth: Float,
         maxHeight: Float
     ): BilingualLinePairFit {
-        paint.textSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale
+        val translationTextSize = bilingualTranslationTextSize(instruction)
+        paint.textSize = translationTextSize * scale
         val dialogueRenderCandidates = instruction.dialogueRenderCandidates(paint, maxWidth)
         val translationCandidates = distinctDialogueCandidates(dialogueRenderCandidates.all)
-        paint.textSize = originalTextSizeFor(BILINGUAL_TRANSLATION_TEXT_SIZE * scale, scale)
+        paint.textSize = originalTextSizeFor(translationTextSize * scale, scale)
         val originalRenderCandidates = instruction.originalRenderCandidates(paint, maxWidth)
         val originalCandidates = distinctOriginalCandidates(originalRenderCandidates.all)
         val minimumTranslationSize = BILINGUAL_TRANSLATION_MIN_TEXT_SIZE * scale
         val pairGap = BILINGUAL_PAIR_GAP * scale
         val preciseFit = PreciseTextSizeSearch.largestFitting(
             minimumTextSize = minimumTranslationSize,
-            maximumTextSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale,
+            maximumTextSize = translationTextSize * scale,
             precision = DIALOGUE_TEXT_SIZE_SEARCH_PRECISION * scale
         ) { translationTextSize ->
             fitBilingualLinePairsAtSizeOrNull(
@@ -1454,6 +1461,26 @@ class OverlayRenderer @Inject constructor(
         }
         return height
     }
+
+    private fun dialogueTextSize(instruction: RenderInstruction): Float =
+        if (instruction.isEnglishTarget()) DIALOGUE_TEXT_SIZE_EN else DIALOGUE_TEXT_SIZE
+
+    private fun choiceTextSize(instruction: RenderInstruction): Float =
+        if (instruction.isEnglishTarget()) CHOICE_TEXT_SIZE_EN else CHOICE_TEXT_SIZE
+
+    private fun bilingualTranslationTextSize(instruction: RenderInstruction): Float =
+        if (instruction.isEnglishTarget()) {
+            BILINGUAL_TRANSLATION_TEXT_SIZE_EN
+        } else {
+            BILINGUAL_TRANSLATION_TEXT_SIZE
+        }
+
+    private fun bilingualChoiceTextSize(instruction: RenderInstruction): Float =
+        if (instruction.isEnglishTarget()) {
+            BILINGUAL_CHOICE_TEXT_SIZE_EN
+        } else {
+            BILINGUAL_CHOICE_TEXT_SIZE
+        }
 
     private fun dialogueLineHeightMultiplier(targetLanguage: String): Float =
         if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
