@@ -1,0 +1,1414 @@
+{
+  "meta": {
+    "defaultTitle": "FgoGotran",
+    "titleTemplate": "%s | FgoGotran",
+    "description": "Fate/Grand Order 日服剧情 OCR + AI 中文翻译工具。"
+  },
+  "nav": {
+    "guide": "使用指南",
+    "troubleshooting": "故障排查",
+    "apiGuide": "API 指南",
+    "localGuide": "本地 AI",
+    "speechGuide": "语音指南",
+    "terms": "术语表",
+    "media": "媒体",
+    "changelog": "更新记录"
+  },
+  "common": {
+    "github": "GitHub",
+    "downloadApk": "下载 APK",
+    "onThisPage": "本页内容",
+    "recommended": "推荐",
+    "viewDocs": "查看文档",
+    "recommendedModel": "推荐模型：",
+    "more": "更多",
+    "menu": "菜单",
+    "language": "语言"
+  },
+  "home": {
+    "eyebrow": "Fate/Grand Order JP story translator",
+    "title": "FgoGotran",
+    "lede": "面向 FGO 日服剧情的 Android 悬浮翻译工具。通过 OCR 读取画面，结合在线术语库和 AI 翻译，让角色名、专有名词和剧情语气更稳定。",
+    "downloadApk": "下载 APK",
+    "guide": "使用指南",
+    "miniStatus": "Android 11+ · 简体/繁體中文, English · Bring Your Own API Key",
+    "featuresEyebrow": "What it does",
+    "featuresTitle": "为 FGO 剧情阅读而做",
+    "featuresBody": "覆盖剧情对话、选项、角色名和常见专有名词，让日服剧情阅读更顺手。",
+    "modesEyebrow": "Modes",
+    "modesTitle": "选择适合你的翻译节奏",
+    "modesBody": "从完全手动到全自动，也可以在识别不准时用裁剪模式处理特殊画面。",
+    "features": {
+      "story": {
+        "title": "FGO 剧情翻译",
+        "body": "面向 Fate/Grand Order 日服剧情设计，结合 OCR、术语库和 AI 翻译，尽量保留角色名、专有名词与原作语气。"
+      },
+      "overlay": {
+        "title": "贴近游戏的浮层",
+        "body": "译文直接覆盖在 FGO 对话框附近，减少来回切换，让阅读节奏更接近原游戏体验。"
+      },
+      "auto-detect": {
+        "title": "自动识别画面",
+        "body": "应用会读取当前画面中的角色名、对话和选项，再交给翻译接口处理。"
+      },
+      "modes": {
+        "title": "多种翻译模式",
+        "body": "手动、半自动、全自动和裁剪模式，适合不同阅读习惯和不同游戏场景。"
+      },
+      "terms": {
+        "title": "在线术语库",
+        "body": "角色名与 FGO 专有名词由在线数据库更新，减少本地旧数据带来的错误。"
+      },
+      "api": {
+        "title": "自带 API 适配",
+        "body": "可接入 DeepSeek、GLM、Qwen、OpenAI、Gemini、Claude 或兼容 OpenAI 格式的服务。"
+      }
+    }
+  },
+  "guide": {
+    "title": "使用指南",
+    "description": "FgoGotran 初次设置、FGO 游戏设置、API 配置与悬浮按钮模式说明。",
+    "sidebarTitle": "FgoGotran 指南",
+    "sidebar": {
+      "setup": "初次设置",
+      "usageScope": "使用范围",
+      "floatingButton": "悬浮按钮与模式"
+    },
+    "eyebrow": "Guide",
+    "h1": "FgoGotran 使用指南",
+    "scope": {
+      "title": "使用范围",
+      "body": "FgoGotran 是给正在运行的 FGO 日文画面使用的悬浮翻译工具。",
+      "supported": {
+        "title": "支持",
+        "body": "FGO 游戏内实时画面、剧情、选项，以及裁剪模式框选的游戏画面区域。"
+      },
+      "unsupported": {
+        "title": "不支持",
+        "body": "图片、截图、录屏、视频源，或其他应用里的 FGO 素材翻译。"
+      }
+    },
+    "setupSection": "一、初次设置",
+    "floatingSection": "二、悬浮按钮与翻译模式",
+    "floatingIntro": "悬浮按钮是 FgoGotran 在游戏内的主要入口。不同模式适合不同阅读节奏。",
+    "callout": "红色外圈只表示本次点击失败，不代表服务永久停止。手动或半自动模式下可以再次点击重试。",
+    "setupSteps": {
+      "install": {
+        "title": "安装并打开 FgoGotran",
+        "body": "选择简体中文或繁体中文翻译。按提示开启无障碍服务权限、悬浮窗权限，并尽量关闭电池优化。",
+        "note": "不同手机品牌可能没有关闭电池优化的选项；没有这个选项也可以继续使用。",
+        "images": [
+          "FgoGotran 初次设置页面",
+          "Android 权限设置页面"
+        ]
+      },
+      "fgo-text-speed": {
+        "title": "设置 FGO 剧情文字速度",
+        "body": "前往 FGO 游戏设置，把剧情文字显示相关选项调成推荐值，让 OCR 和自动模式更稳定。",
+        "note": "推荐：文字送り MAX，ページ送り MAX，句読点待ち時間 0。",
+        "images": [
+          "FGO 游戏设置路径",
+          "FGO 剧情文字速度推荐设置"
+        ]
+      },
+      "api": {
+        "title": "配置 API 接口",
+        "body": "前往设置页选择 API 服务商，输入 API Key。模型名可以使用默认值，也可以按服务商文档自行选择模型填写。",
+        "note": "按“测试API”确认成功后，记得按“应用API设置”。",
+        "images": [
+          "FgoGotran 设置入口",
+          "API 服务商选择",
+          "API Key 和模型设置"
+        ]
+      },
+      "master-name": {
+        "title": "保存御主名称",
+        "body": "输入你的御主名称并保存。请确保这里的名称和 FGO 内的御主名称一致。",
+        "images": [
+          "御主名称设置"
+        ]
+      },
+      "start-service": {
+        "title": "启动服务并打开 FGO",
+        "body": "回到首页，点击“启动服务”。然后打开 FGO，就可以使用 FgoGotran 的悬浮按钮进行翻译。",
+        "images": [
+          "启动 FgoGotran 服务"
+        ]
+      }
+    },
+    "buttonGuides": {
+      "floating-menu": {
+        "title": "打开翻译菜单",
+        "body": "长按悬浮按钮可以打开翻译菜单。菜单里可以切换模式、查看翻译 LOG，或关闭服务。",
+        "images": [
+          "长按悬浮按钮打开菜单",
+          "长按悬浮按钮打开菜单"
+        ]
+      },
+      "mode-indicator": {
+        "title": "查看当前翻译模式",
+        "body": "悬浮按钮会显示当前模式，方便你确认现在是手动、半自动、全自动、裁剪模式还是战斗字幕。",
+        "images": [
+          "手动模式悬浮按钮",
+          "半自动模式悬浮按钮",
+          "全自动模式悬浮按钮",
+          "裁剪模式悬浮按钮",
+          "裁剪模式悬浮按钮"
+        ]
+      },
+      "failure-ring": {
+        "title": "红色外圈",
+        "body": "红色外圈只会在手动和半自动模式出现，表示这次点击识别或翻译没有成功。你可以再次点击重试。",
+        "images": [
+          "手动模式翻译失败红色外圈",
+          "半自动模式翻译失败红色外圈"
+        ]
+      },
+      "crop-mode": {
+        "title": "裁剪模式",
+        "body": "裁剪模式用于手动框选画面区域再翻译，适合剧情外画面，或自动/手动识别不准时使用。",
+        "images": [
+          "裁剪模式框选历史文本",
+          "裁剪模式示例"
+        ]
+      },
+      "battle-subtitles": {
+        "title": "战斗字幕",
+        "body": "战斗字幕模式只锁定战斗字幕区域。",
+        "images": [
+          "战斗字幕模式示例"
+        ]
+      },
+      "translation-log": {
+        "title": "翻译 LOG",
+        "body": "翻译 LOG 可以查看本次识别和翻译过的角色名、对话与选项，方便回看。",
+        "images": [
+          "翻译 LOG 示例"
+        ]
+      }
+    },
+    "toc": {
+      "usageScope": "使用范围",
+      "setup": "初次设置",
+      "install": "安装与权限",
+      "fgoTextSpeed": "FGO 文字速度",
+      "api": "API 接口",
+      "masterName": "御主名称",
+      "startService": "启动服务",
+      "floatingButton": "悬浮按钮",
+      "modeIndicator": "模式显示",
+      "failureRing": "红色外圈",
+      "cropMode": "裁剪模式",
+      "battleSubtitles": "战斗字幕",
+      "translationLog": "翻译 LOG"
+    },
+    "sidebarAria": "指南分类"
+  },
+  "troubleshooting": {
+    "title": "故障排查",
+    "description": "帮助 FgoGotran 用户导出错误纪录，并按手机、模拟器、投屏场景排查常见问题。",
+    "sidebarTitle": "故障排查",
+    "sidebarErrorLog": "错误纪录",
+    "eyebrow": "Troubleshooting",
+    "h1": "FgoGotran 故障排查",
+    "intro": "先找到你看到的现象，再按顺序检查。手机用户通常只需要检查权限、API 和语音设置；模拟器问题更多，请优先导出错误纪录 TXT。",
+    "jumpPrimary": "先导出纪录",
+    "actionGuide": "使用指南",
+    "actionApiGuide": "API 指南",
+    "actionSpeechGuide": "语音指南",
+    "errorLog": {
+      "title": "先导出错误纪录",
+      "body": "路径：设置页 → 错误纪录 → 导出 TXT。模拟器用户尤其建议先发这个文件。",
+      "callout": "先让问题出现一次，再导出 TXT。否则错误纪录可能是空的，或者没有记录到真正的问题。"
+    },
+    "logSteps": {
+      "appear": {
+        "title": "先让问题出现一次",
+        "body": "例如启动服务失败、点 GO 不翻译、没有语音、测试 API 失败，或模拟器没有截图。"
+      },
+      "open-log": {
+        "title": "打开错误纪录",
+        "body": "回到 FgoGotran，进入设置页，点击错误纪录。"
+      },
+      "top": {
+        "title": "看最上面的记录",
+        "body": "最新问题会在上方。重点看标题、code、detail、server、mode、speaker。"
+      },
+      "export": {
+        "title": "导出 TXT",
+        "body": "点击导出 TXT，然后把这个文件发给作者。不要只发一张截图。"
+      },
+      "context": {
+        "title": "一起说明使用环境",
+        "body": "告诉作者你用的是手机还是模拟器、FGO 服务器、翻译模式，以及 FgoGotran 版本。"
+      }
+    },
+    "groups": {
+      "phone": {
+        "label": "手机用户",
+        "intro": "真机问题通常比较少，优先检查权限、API、语音和 OCR 时机。",
+        "items": {
+          "permission-check": {
+            "title": "启动服务前要检查什么？",
+            "cause": "大多数真机问题来自悬浮窗、无障碍、API Key 或语音 Key。",
+            "steps": [
+              "确认悬浮窗权限已开启。",
+              "确认 FgoGotran 无障碍服务已开启。",
+              "按钮不出现时，先在系统里关闭再重新开启无障碍服务，这通常是最关键的修复。",
+              "首页如果显示未启用，先处理对应权限再启动服务。"
+            ]
+          },
+          "go-no-translate": {
+            "title": "点了 GO 但不翻译",
+            "cause": "日服才需要翻译 API；简中服、繁中服主要是读取中文文本并朗读。",
+            "steps": [
+              "先到 API 设置页点“测试 API”。",
+              "确认 API Key、模型名和接口地址正确。",
+              "简中服、繁中服改检查语音设置，而不是翻译 API。"
+            ],
+            "verify": "“测试 API”成功，回到游戏点 GO 能出现译文。"
+          },
+          "no-voice": {
+            "title": "没有语音",
+            "cause": "AI 语音未开启、Speech Key 未填写或区域不正确。",
+            "steps": [
+              "进入语音设置，确认 AI 语音开启。",
+              "确认 Speech Key 已填写、区域正确。",
+              "点“测试语音”确认能返回音频。"
+            ],
+            "verify": "测试语音成功，游戏内朗读正常。"
+          },
+          "ocr": {
+            "title": "OCR 不准或漏翻",
+            "cause": "文字未完全显示，或裁剪范围包含了太多无关 UI。",
+            "steps": [
+              "等文字完全显示后再点 GO。",
+              "裁剪模式请框住完整文字区域。",
+              "避免把太多无关 UI 放进去。"
+            ],
+            "verify": "重新点 GO 后译文覆盖在正确文字附近。"
+          }
+        }
+      },
+      "emulator": {
+        "label": "模拟器用户",
+        "intro": "模拟器更容易出问题，重点看 64 位实例、Android 版本、截图、图形渲染、悬浮窗和包名。",
+        "items": {
+          "which": {
+            "title": "用哪个模拟器或实例？",
+            "cause": "旧版、32 位或测试版内核更容易遇到截图、OCR、原生库和无障碍兼容问题。",
+            "steps": [
+              "优先新建 64 位实例。",
+              "确认 Android 版本是 11 或以上。",
+              "MuMu、雷电、BlueStacks 都优先使用 64 位实例。"
+            ]
+          },
+          "go-no-translate": {
+            "title": "点了 GO 但不翻译",
+            "cause": "要先区分是 API/OCR 问题，还是模拟器画面事件问题。",
+            "steps": [
+              "先用手动 GO 测一次。",
+              "手动 GO 能用，再测试半自动和全自动。",
+              "手动 GO 也不能用，就先看截图、OCR、API 或语音设置。"
+            ],
+            "verify": "手动 GO 能翻译，说明 API 和 OCR 基本可用。"
+          },
+          "no-screenshot": {
+            "title": "没有返回截图 / 当前显示器无效 / bitmap_null",
+            "cause": "多半是模拟器图形层问题，Android 没有给应用可用的游戏截图。",
+            "steps": [
+              "优先切换 OpenGL、DirectX、Vulkan 渲染器。",
+              "重启模拟器。",
+              "重新重现一次问题，再查看错误纪录。"
+            ],
+            "verify": "切换渲染器并重启后，手动 GO 能返回截图。"
+          },
+          "button": {
+            "title": "按钮不显示或不能点",
+            "cause": "模拟器可能显示权限已允许，但实际拦截悬浮窗或无障碍。",
+            "steps": [
+              "重新开启悬浮窗权限。",
+              "在系统无障碍设置里关闭 FgoGotran，再重新开启——这通常是最关键的一步。",
+              "启动服务，确认 GO / 半 / 全 是否出现。"
+            ],
+            "verify": "启动服务后 GO / 半 / 全 按钮正常显示。"
+          },
+          "semi-auto": {
+            "title": "半自动 / 全自动不动",
+            "cause": "手动 GO 正常但自动模式不动，通常不是 API 问题，而是模拟器画面事件、截图刷新或游戏窗口状态不稳定。",
+            "steps": [
+              "确认手动 GO 正常。",
+              "检查游戏窗口是否稳定、未被遮挡。",
+              "观察画面变化检测是否触发。"
+            ]
+          },
+          "channel": {
+            "title": "渠道服或特殊包名",
+            "cause": "B 服、台服、渠道服或模拟器改包名可能不在支持列表里。",
+            "steps": [
+              "导出错误纪录 TXT。",
+              "确认 TXT 里包含 package、class、app label。"
+            ],
+            "verify": "把 TXT 发给作者，方便加入支持。"
+          }
+        }
+      },
+      "projection": {
+        "label": "投屏到电脑",
+        "intro": "电脑能看到游戏画面，不代表 FgoGotran 一定能读取画面；关键是手机本机画面是否仍然真实显示。",
+        "items": {
+          "pc-but-no-translate": {
+            "title": "为什么电脑有画面但 App 不能翻译？",
+            "cause": "投屏软件只是把手机画面显示到电脑。FgoGotran 仍然运行在手机里，只能通过 Android 截图读取手机当前显示内容。",
+            "steps": [
+              "确认手机屏幕仍然真实亮起显示游戏。",
+              "不要使用会让手机屏幕黑屏的投屏模式。"
+            ]
+          },
+          "black-screen": {
+            "title": "为什么手机黑屏会失败？",
+            "cause": "手机屏幕关闭、变黑或进入省电投屏模式时，Android 可能不给应用真实游戏截图，所以 OCR 没文字。",
+            "steps": [
+              "保持手机屏幕亮起。",
+              "关闭息屏、黑屏或省电投屏模式。"
+            ]
+          },
+          "recommend": {
+            "title": "推荐用什么方式投屏？",
+            "cause": "有线投屏比无线更稳定，也能保持屏幕常亮。",
+            "steps": [
+              "优先 USB 有线投屏。",
+              "保持手机屏幕亮起。",
+              "scrcpy 可以使用 stay-awake / keep-active 选项。"
+            ]
+          },
+          "brightness": {
+            "title": "亮度影响大吗？",
+            "cause": "普通屏幕亮度通常不影响 Android 截图像素。",
+            "steps": [
+              "真正影响的是息屏、黑屏、隐私屏或特殊显示层，优先排查这些。"
+            ]
+          }
+        }
+      },
+      "error-meaning": {
+        "label": "常见错误含义",
+        "intro": "错误纪录里看到这些标题时，可以先按对应方法处理。",
+        "items": {
+          "overlay": {
+            "title": "悬浮窗权限未授权",
+            "cause": "App 没有显示在其他应用上层的权限，所以按钮无法显示在 FGO 上。",
+            "steps": [
+              "去系统设置允许 FgoGotran 显示在其他应用上层。",
+              "回到首页启动服务。"
+            ]
+          },
+          "accessibility": {
+            "title": "无障碍服务未启用",
+            "cause": "Android 没有把游戏画面事件交给 FgoGotran。",
+            "steps": [
+              "进入系统无障碍设置。",
+              "即使显示已开启，也先关闭 FgoGotran 再重新开启一次。"
+            ]
+          },
+          "no-screenshot": {
+            "title": "没有返回截图 / 当前显示器无效 / bitmap_null",
+            "cause": "Android 或模拟器没有给 App 可用的游戏截图。",
+            "steps": [
+              "手机保持亮屏。",
+              "模拟器切换图形渲染模式。",
+              "投屏时不要使用黑屏模式。"
+            ]
+          },
+          "api": {
+            "title": "API 请求失败",
+            "cause": "翻译接口没有正常返回。",
+            "steps": [
+              "在 API 设置页重新测试。",
+              "确认 Key、模型名、接口地址、余额和网络。"
+            ]
+          },
+          "tts": {
+            "title": "Azure TTS 请求失败",
+            "cause": "语音服务没有正常返回音频。",
+            "steps": [
+              "在语音设置页测试语音。",
+              "确认 Speech Key 与区域匹配。"
+            ]
+          },
+          "package": {
+            "title": "未支持的 FGO 包名",
+            "cause": "App 看到一个疑似 FGO 的包名，但还没有加入支持列表。",
+            "steps": [
+              "导出错误纪录 TXT，里面会包含 package、class 和 app label。"
+            ]
+          }
+        }
+      }
+    },
+    "verifyPrefix": "确认恢复：",
+    "escalate": "仍失败？先导出错误纪录 TXT，并说明 FgoGotran 版本、设备、FGO 服务器和使用模式，一起发给作者。",
+    "toc": {
+      "errorLog": "先导出错误纪录",
+      "phone": "手机用户",
+      "emulator": "模拟器用户",
+      "projection": "投屏到电脑",
+      "errorMeaning": "错误含义"
+    }
+  },
+  "apiGuide": {
+    "title": "API 指南",
+    "description": "FgoGotran 可用翻译 API 服务商、模型名和接口设置说明。",
+    "eyebrow": "API Guide",
+    "h1": "API 接入文档",
+    "localKicker": "电脑本地模型",
+    "localTitle": "使用 FgoGotran Local 运行 llama.cpp 与 GGUF",
+    "providersEyebrow": "Providers",
+    "providersTitle": "服务商文档",
+    "providerFallbackNote": "查看详情后再填写 API 设置。",
+    "detail": {
+      "back": "返回 API 文档",
+      "eyebrow": "API Provider",
+      "topRecommendText": "首选模型：deepseek-v4-flash",
+      "apiKeyLabel": "API Key",
+      "apiKeyHeading": "打开 Key / 控制台页面",
+      "open": "打开",
+      "networkLabel": "Network",
+      "networkHeading": "网络提示",
+      "freeTrialLabel": "Free / Trial",
+      "freeTrialHeading": "免费层与试用额度",
+      "endpointLabel": "Endpoint",
+      "endpointHeading": "已内建App中",
+      "setupLabel": "Setup",
+      "setupHeading": "在 FgoGotran 中怎么填",
+      "setupCommon": [
+        "不要把 API Key 发给别人，也不要公开截图完整 Key。",
+        "测试成功后，记得点击“应用API设置”，否则新设置不会生效。",
+        "模型名优先使用服务商文档或控制台显示的完整名称。"
+      ],
+      "sourcesLabel": "Sources",
+      "sourcesHeading": "官方来源",
+      "sourcesNote": "免费额度和可用地区可能变化，正式使用前建议再打开官方页面确认一次。",
+      "apiDocTitle": "{name} API 文档"
+    },
+    "providers": {
+      "deepseek": {
+        "title": "DeepSeek API",
+        "shortTitle": "DeepSeek",
+        "summary": "低成本、响应快，质量稳定，剧情翻译首选。",
+        "listNote": "低成本、响应快，质量稳定，剧情翻译首选。",
+        "vpnSummary": "一般网络下通常可以直接测试；如果偶发超时，可以先换网络或稍后重试。",
+        "freeQuotaSummary": "没有固定公开免费层或试用额度；是否有赠送余额以平台账户页为准。",
+        "recommendedModels": [
+          "deepseek-v4-flash",
+          "deepseek-v4-pro"
+        ],
+        "setupNotes": [
+          "API Key 在 DeepSeek 平台创建后填入 FgoGotran。",
+          "测试失败时，先确认账户余额、模型名和 API Key 是否仍可用。",
+          "如果 flash 偶尔没有按 FgoGotran 格式返回中文，可以尝试 pro 或备用服务商。"
+        ],
+        "sourceLinks": {
+          "docs": "DeepSeek 文档",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://api.deepseek.com/v1/chat/completions"
+      },
+      "zhipu": {
+        "title": "智谱 GLM API",
+        "shortTitle": "智谱 GLM",
+        "summary": "中文表达稳定，适合作为 DeepSeek 之外的备用服务商。",
+        "listNote": "中文表达稳定，适合作为备用服务商。",
+        "vpnSummary": "一般不需要额外网络工具即可访问智谱开放平台接口；实际可用性仍取决于当前网络环境。",
+        "freeQuotaSummary": "智谱模型概览中标注了部分免费 Flash 模型；新人额度、活动额度和赠送资源以开放平台控制台显示为准。",
+        "recommendedModels": [
+          "glm-4.5-air",
+          "glm-4.5-flash"
+        ],
+        "setupNotes": [
+          "API Key 在智谱开放平台创建后填入 FgoGotran。",
+          "模型名优先使用控制台或文档中的完整名称。",
+          "如果需要低成本测试，先用 Flash；如果格式和翻译稳定性不够，再换 Air。"
+        ],
+        "sourceLinks": {
+          "platform": "智谱开放平台",
+          "models": "模型概览",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+      },
+      "qwen-cn": {
+        "title": "阿里云百炼 Qwen（中国站）",
+        "shortTitle": "Qwen 中国站",
+        "summary": "使用阿里云百炼中国站账号和 API Key，适合使用中国站控制台的用户。",
+        "listNote": "使用阿里云百炼中国站账号、Key 和额度。",
+        "vpnSummary": "面向中国站控制台和中国站接口时，通常不需要 VPN；如果使用国际站 Key，请改选国际站。",
+        "freeQuotaSummary": "百炼文档和控制台会列出部分模型的免费额度。qwen-flash/qwen-plus 等模型常见为输入和输出各 100 万 tokens，通常有效期 90 天；以控制台领取页面为准。",
+        "recommendedModels": [
+          "qwen-flash",
+          "qwen-plus"
+        ],
+        "setupNotes": [
+          "FgoGotran 中选择“阿里云百炼 中国站”。",
+          "API Key 必须来自中国站百炼控制台。",
+          "不要把国际站 API Key 填到中国站配置里；两边的接口地址不同。"
+        ],
+        "sourceLinks": {
+          "docs": "百炼文档",
+          "console": "百炼控制台"
+        },
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+      },
+      "qwen-intl": {
+        "title": "Alibaba Cloud Model Studio Qwen（国际站）",
+        "shortTitle": "Qwen 国际站",
+        "summary": "使用 Alibaba Cloud 国际站账号和 Model Studio API Key，适合使用国际站控制台的用户。",
+        "listNote": "使用 Alibaba Cloud Model Studio 国际站账号。",
+        "vpnSummary": "国际站接口是否可直连取决于用户所在地和网络环境；无法连接时可换网络，或改用中国站配置。",
+        "freeQuotaSummary": "国际站文档显示新用户可领取免费 token 额度，常见有效期为 90 天；具体额度、模型和地域以国际站控制台为准。",
+        "recommendedModels": [
+          "qwen-flash",
+          "qwen-plus"
+        ],
+        "setupNotes": [
+          "FgoGotran 中选择“阿里云百炼 国际站”。",
+          "API Key 必须来自 Alibaba Cloud Model Studio 国际站。",
+          "如果国际站连接不稳定，优先尝试中国站、DeepSeek 或智谱。"
+        ],
+        "sourceLinks": {
+          "docs": "Model Studio 文档",
+          "console": "Model Studio 控制台"
+        },
+        "endpoint": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+      },
+      "openai": {
+        "title": "OpenAI API",
+        "shortTitle": "OpenAI",
+        "summary": "翻译质量强，但账号、地区和网络要求需要用户自己确认。",
+        "listNote": "质量强，使用前确认账号、地区和余额。",
+        "vpnSummary": "是否需要额外网络工具取决于用户所在地和网络环境；请确认自己能访问 OpenAI API。",
+        "freeQuotaSummary": "OpenAI API 未提供稳定公开免费层；试用额度或赠送额度以平台账户页显示为准。",
+        "recommendedModels": [
+          "gpt-4o",
+          "gpt-4o-mini"
+        ],
+        "setupNotes": [
+          "需要在 OpenAI 平台创建 API Key 并确认账户有可用额度。",
+          "模型名可以按 OpenAI 文档填写；应用内测试成功后再保存。",
+          "如果网络或账号地区不可用，建议先使用 DeepSeek、智谱或 Qwen。"
+        ],
+        "sourceLinks": {
+          "countries": "支持国家/地区",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://api.openai.com/v1/chat/completions"
+      },
+      "gemini": {
+        "title": "Google Gemini API",
+        "shortTitle": "Gemini",
+        "summary": "有免费层，适合测试 Google Gemini API；实际网络可用性需要用户自己确认。",
+        "listNote": "有免费层，适合测试 Gemini API 可用性。",
+        "vpnSummary": "Google AI Studio/Gemini API 的访问地区有限；无法连接时请换网络或使用其他服务商。",
+        "freeQuotaSummary": "Gemini API 官方文档列出免费层和付费层。免费层请求可能用于改进 Google 产品；付费层规则不同。",
+        "recommendedModels": [
+          "gemini-3.1-flash-lite",
+          "gemini-3.1-flash"
+        ],
+        "setupNotes": [
+          "需要先在 Google AI Studio 创建 API Key。",
+          "免费层适合测试，但不要只看免费层决定长期使用成本。",
+          "如果在本地网络无法访问，请换其他可直连的服务商。"
+        ],
+        "sourceLinks": {
+          "regions": "可用地区",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+      },
+      "claude": {
+        "title": "Anthropic Claude API",
+        "shortTitle": "Claude",
+        "summary": "长文本和语气处理强，但成本和接入要求通常更高。",
+        "listNote": "语气和长文本处理强，需要 Claude 接口类型。",
+        "vpnSummary": "Anthropic API 支持地区有限；是否可直连取决于用户所在地和网络环境。",
+        "freeQuotaSummary": "Anthropic 官方文档未列出稳定公开免费层；试用额度或赠送额度以 Console 账户页为准。",
+        "recommendedModels": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "setupNotes": [
+          "应用内必须选择 Claude 接口类型。",
+          "Claude API 格式不是 OpenAI Chat Completions；不要填到自定义 OpenAI 兼容接口里。",
+          "如果只想低成本日常翻译，优先测试 Haiku。"
+        ],
+        "sourceLinks": {
+          "countries": "支持国家/地区",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://api.anthropic.com/v1/messages"
+      },
+      "custom": {
+        "title": "自定义兼容接口",
+        "shortTitle": "自定义",
+        "summary": "适合第三方网关、自建接口、公司代理或其他兼容 OpenAI Chat Completions 的服务。",
+        "listNote": "适合第三方网关、自建接口或兼容接口。",
+        "vpnSummary": "是否需要 VPN 或代理取决于第三方服务商和用户网络环境。",
+        "freeQuotaSummary": "免费额度、试用额度和免费模型完全取决于第三方服务商。",
+        "recommendedModels": [
+          "按服务商文档填写"
+        ],
+        "setupNotes": [
+          "只推荐给熟悉 API 设置的用户。",
+          "接口地址需要兼容 OpenAI Chat Completions。",
+          "如果测试失败，请先确认模型名、Base URL、Key 和服务商返回格式。"
+        ],
+        "sourceLinks": {
+          "reference": "OpenAI Chat Completions 参考"
+        },
+        "endpoint": "兼容 OpenAI Chat Completions 的接口地址"
+      }
+    }
+  },
+  "localGuide": {
+    "title": "FgoGotran Local 使用指南",
+    "description": "在 Windows 上配置 llama.cpp 与 GGUF，并让 FgoGotran Android 应用通过可信局域网使用本地翻译模型。",
+    "sidebarTitle": "FgoGotran Local",
+    "sidebar": {
+      "quickStart": "快速开始",
+      "controlPanel": "控制面板",
+      "phone": "连接手机",
+      "troubleshooting": "故障排查"
+    },
+    "eyebrow": "Local AI Guide",
+    "h1": "FgoGotran Local 使用指南",
+    "intro": "在 Windows 电脑运行自己的 GGUF 模型，让手机上的 FgoGotran 通过可信局域网调用本地翻译服务。",
+    "meta": [
+      "Windows",
+      "llama.cpp",
+      "GGUF",
+      "简体中文指南"
+    ],
+    "heroStart": "开始设置",
+    "heroCloudGuide": "云端 API 指南",
+    "scope": {
+      "title": "用途与边界",
+      "body": "FgoGotran Local 是本地运行控制工具，可在首次确认后自动准备 Python 和 llama.cpp；GGUF 始终由用户管理。",
+      "supported": {
+        "title": "本地完成翻译推理",
+        "body": "模型准备完成后，FGO 对白由电脑上的 llama-server 和 GGUF 处理，不需要云端翻译 API Key。"
+      },
+      "unsupported": {
+        "title": "大型运行文件不进入 Git",
+        "body": "Python 和 llama.cpp 的可选下载只写入已忽略的 user_data；也可完全手动配置。工具不会自动修改驱动、防火墙、路由器，或下载 GGUF/TTS 资源。"
+      },
+      "callout": "首次自动准备需要联网并会先显示确认；Python 发布者签名以及 llama.cpp 的大小和 SHA-256 必须验证通过。GGUF 请自行从可信发布者取得，本地接口仍使用独立 API Key。"
+    },
+    "architecture": {
+      "title": "连接方式",
+      "body": "管理页面和手机使用的翻译接口是两个不同入口。",
+      "phone": "Android 手机",
+      "phoneApp": "FgoGotran",
+      "trustedLan": "可信局域网",
+      "translationEndpoint": "翻译接口",
+      "llamaServer": "llama-server",
+      "ggufModel": "GGUF 模型",
+      "controlAddress": "电脑管理页面：",
+      "controlAddressBody": "它固定只监听本机。手机不能使用或打开这个地址。",
+      "translationEndpointValue": "电脑 IP:18080"
+    },
+    "quickStart": {
+      "title": "快速开始",
+      "body": "第一次使用按顺序完成，不要跳过“已就绪”和连接测试。",
+      "pythonLink": "Python Windows 下载",
+      "llamaLink": "llama.cpp 官方 Releases",
+      "steps": {
+        "python": {
+          "title": "启动并检查 Python",
+          "body": "双击 Start-FgoGotranLocal.cmd。程序会复用 64 位 Python 3.11–3.13；没有兼容版本时，可确认下载经签名和 SHA-256 校验的私有 Python 3.13.15。",
+          "note": "私有 Python 位于 user_data，不修改系统 PATH 或文件关联。"
+        },
+        "llama": {
+          "title": "准备完整的 llama.cpp",
+          "body": "没有已有配置时，可确认自动下载经过大小和 SHA-256 校验的官方 Windows x64 构建；NVIDIA 会按驱动选择 CUDA 包，否则使用 CPU 构建。",
+          "note": "也可按 n 跳过并手动选择；已有非空路径不会被覆盖。"
+        },
+        "gguf": {
+          "title": "准备 GGUF 翻译模型",
+          "body": "从可信发布者自行下载能够理解日文、稳定输出中文的 Instruction 或 Chat GGUF，再在管理页面选择模型目录和文件。",
+          "note": "启动器不会下载、更新、替换或删除 GGUF 模型。"
+        },
+        "panel": {
+          "title": "启动管理页面",
+          "body": "环境准备完成后，管理页面会在浏览器打开；使用期间保留命令窗口。完整的当前 Profile 会自动启动模型。",
+          "note": "管理页面默认地址是 http://127.0.0.1:18081，只能由当前电脑访问。"
+        },
+        "model": {
+          "title": "填写模型设置",
+          "body": "自动设置成功时会写入 llama-server.exe 路径；GGUF 始终由用户设置模型文件夹，再扫描并选择模型。"
+        },
+        "save": {
+          "title": "保存并启动服务",
+          "body": "确认“可信局域网 + 本机”和 Model ID。自动启动失败或被关闭时，在总览手动启动服务并等待状态变成“已就绪”。",
+          "note": "运行参数保存后不会热更新；模型已经运行时，需要重新启动服务才能应用新设置。"
+        },
+        "test": {
+          "title": "确认连接测试",
+          "body": "启动时会自动检查 OpenAI Chat Completions 兼容性。也可以在“连接测试”中点击“开始测试”复测。",
+          "note": "通过只代表连接、认证、格式和非空输出正常，不代表所有 FGO 对白的翻译质量。"
+        },
+        "connect": {
+          "title": "连接 Android 应用",
+          "body": "在总览分别点击“显示 Endpoint”和“显示 API Key”，把两项完整值及可见的 Model ID 填入 FgoGotran 的“自定义 / 本地 AI”，再点击“测试 API”和“应用API设置”。"
+        }
+      }
+    },
+    "chooseFiles": {
+      "title": "选择 llama.cpp 与 GGUF",
+      "body": "运行时、显卡驱动、模型架构和 Chat Template 必须彼此兼容。",
+      "llamaTitle": "llama.cpp 运行包",
+      "llamaItems": [
+        "自动设置按 nvidia-smi 的兼容版本选择官方 Windows x64 CUDA build。",
+        "没有匹配 NVIDIA/CUDA 组合时，自动使用官方 CPU x64 build。",
+        "同一 Release 的主包与 CUDA DLL 包会一起校验并解压。",
+        "更新时解压到新目录，测试通过前保留旧版本。"
+      ],
+      "ggufTitle": "GGUF 模型",
+      "ggufItems": [
+        "选择 Instruction 或 Chat 模型，不使用未经对齐的 Base 模型。",
+        "确认能够理解日文，并稳定输出所选中文。",
+        "确认 llama.cpp 支持模型架构和 Chat Template。",
+        "从可信发布者下载，并在提供校验值时完成核对。"
+      ],
+      "tableCaption": "显存导向的初始选择，不代表翻译质量排名",
+      "tableVram": "可用显存",
+      "tableStart": "建议起点",
+      "tableNoteCol": "说明",
+      "startingPoints": {
+        "small": {
+          "memory": "6–8 GB 显存",
+          "model": "7B/8B Q4",
+          "note": "适合作为首次加载与速度测试"
+        },
+        "medium": {
+          "memory": "10–12 GB 显存",
+          "model": "8B–14B Q4",
+          "note": "实际占用仍受架构和上下文影响"
+        },
+        "large": {
+          "memory": "16 GB 显存",
+          "model": "约 14B Q4",
+          "note": "也可尝试较小模型的更高量化"
+        }
+      },
+      "tableNote": "模型架构、Context Size、Batch Size 和其他 GPU 程序都会影响真实显存占用。"
+    },
+    "controlPanel": {
+      "title": "控制面板",
+      "body": "页面默认在 <code>127.0.0.1:18081</code> 打开，并分成四个标签页。",
+      "subheading": "首次测试保留这些默认值",
+      "tableParam": "参数",
+      "tableDefault": "默认值",
+      "tableGuidance": "使用建议",
+      "tabs": {
+        "overview": {
+          "title": "总览",
+          "body": "启动、重新启动或停止 llama-server；查看运行状态和当前 Profile 摘要。Endpoint 与 API Key 默认隐藏，需要时可分别临时显示。"
+        },
+        "model": {
+          "title": "模型设置",
+          "body": "管理最多 12 个 Profile，选择 llama.cpp 与 GGUF，并设置端口、网络范围和推理参数。"
+        },
+        "test": {
+          "title": "连接测试",
+          "body": "复测 API Key、Model ID、请求格式和非空中文输出。启动服务时也会自动执行一次兼容性测试。"
+        },
+        "system": {
+          "title": "系统",
+          "body": "查看 Python、端口、GPU、内存诊断和运行日志；局域网地址与本机路径默认隐藏，可按需临时显示。"
+        }
+      },
+      "parameters": {
+        "context": {
+          "name": "Context Size",
+          "defaultValue": "8192",
+          "guidance": "显存不足时优先减小；过小可能限制较长提示词。"
+        },
+        "gpu-layers": {
+          "name": "GPU Layers",
+          "defaultValue": "999",
+          "guidance": "请求尽可能多地卸载到 GPU；无可用 GPU 时可设为 0。"
+        },
+        "batch": {
+          "name": "Batch Size",
+          "defaultValue": "512",
+          "guidance": "内存或显存压力仍然过高时再逐步减小。"
+        },
+        "ubatch": {
+          "name": "UBatch Size",
+          "defaultValue": "256",
+          "guidance": "必须小于或等于 Batch Size。"
+        },
+        "cpu-threads": {
+          "name": "CPU Threads",
+          "defaultValue": "0（自动）",
+          "guidance": "首次使用让 llama.cpp 自动选择。"
+        },
+        "flash-attention": {
+          "name": "Flash Attention",
+          "defaultValue": "开启",
+          "guidance": "通常更节省资源；遇到不兼容或启动错误时尝试 Auto 或关闭。"
+        },
+        "force-no-think": {
+          "name": "强制关闭模型思考",
+          "defaultValue": "关闭",
+          "guidance": "默认跟随模型。只有模型文档明确支持且测试需要时才启用。"
+        },
+        "prompt-cache": {
+          "name": "Prompt Cache / Metrics / Slots",
+          "defaultValue": "开启",
+          "guidance": "首次测试保持默认值，便于缓存、性能观察和请求状态检查。"
+        }
+      }
+    },
+    "phone": {
+      "title": "连接 Android 手机",
+      "body": "请点击总览的“显示 Endpoint”并复制当前地址，不要凭记忆手动组合 IP 和端口。",
+      "callout": "手机不能填写 <code>localhost</code>、<code>127.0.0.1</code>、<code>0.0.0.0</code>、电脑主机名或路由器地址。",
+      "steps": [
+        "让手机和电脑连接同一个可信 Wi-Fi 或局域网。",
+        "把 Windows 当前网络配置为“专用网络”。",
+        "在当前 Profile 选择“可信局域网 + 本机”，保存并重新启动服务。",
+        "等待状态变成“已就绪”，点击总览的“显示 Endpoint”，再用其中相同的电脑 IP 与端口打开 /health 地址。",
+        "在 FgoGotran 的 API 设置中选择“自定义 / 本地 AI”。",
+        "分别点击总览的“显示 Endpoint”和“显示 API Key”，填写两项完整值及模型名称，然后测试并应用设置。"
+      ],
+      "apiAddress": "API 地址",
+      "apiAddressValue": "http://<ip>电脑局域网IP</ip>:18080/v1/chat/completions",
+      "browserTest": "手机浏览器测试",
+      "healthValue": "http://<ip>电脑局域网IP</ip>:18080/health",
+      "fieldComputer": "电脑总览",
+      "fieldShowEndpoint": "显示 Endpoint",
+      "fieldApiAddress": "手机“API 地址”",
+      "fieldModelId": "Model ID",
+      "fieldModel": "手机“模型”",
+      "fieldShowApiKey": "显示 API Key",
+      "fieldApiKey": "手机“API Key”"
+    },
+    "status": {
+      "title": "运行状态说明",
+      "body": "只有“已就绪”表示手机现在可以稳定发起翻译请求。",
+      "items": {
+        "STOPPED": {
+          "label": "已停止",
+          "meaning": "服务尚未启动，或者已经正常停止。"
+        },
+        "STARTING": {
+          "label": "正在启动",
+          "meaning": "正在检查配置并建立 llama-server 进程。"
+        },
+        "LOADING": {
+          "label": "正在加载模型",
+          "meaning": "llama-server 已运行，正在把 GGUF 和运行缓冲区载入内存或显存。"
+        },
+        "VERIFYING": {
+          "label": "正在检查兼容性",
+          "meaning": "健康检查已通过，正在验证 Chat Completions 能否返回可用文本。"
+        },
+        "RECOVERING": {
+          "label": "正在应用兼容回退",
+          "meaning": "强制关闭思考与当前模型不兼容，正在改用模型默认行为重新启动一次。"
+        },
+        "READY": {
+          "label": "已就绪",
+          "meaning": "模型已经通过健康与兼容性检查，可以让手机连接。"
+        },
+        "BUSY": {
+          "label": "正在翻译",
+          "meaning": "llama-server 正在处理请求，短时间排队属于正常情况。"
+        },
+        "ERROR": {
+          "label": "错误",
+          "meaning": "服务启动、模型加载或兼容性检查失败；请查看状态详情和运行日志。"
+        }
+      }
+    },
+    "performance": {
+      "title": "性能调节顺序",
+      "body": "每次只调整一类设置，保存并重新启动后再判断效果。",
+      "callout": "判断翻译质量时要连续测试多段 FGO 对白，包括人名、术语、省略主语和较长句子；不要只看内置兼容性测试。",
+      "steps": {
+        "close-gpu": {
+          "title": "先关闭其他 GPU 程序",
+          "body": "浏览器、游戏录制和其他 AI 工具可能占用显存。释放资源后重新启动模型。"
+        },
+        "context": {
+          "title": "先减小 Context Size",
+          "body": "这是显存不足或加载失败时的第一项调整。每次只改一项，并重新启动后观察。"
+        },
+        "smaller": {
+          "title": "改用更小的模型或量化",
+          "body": "如果仍无法加载，选择参数更小或量化更低的 GGUF，通常比盲目修改多个底层参数更可靠。"
+        },
+        "batch": {
+          "title": "再减小 Batch 与 UBatch",
+          "body": "逐步减小 Batch Size 和 UBatch Size，同时确保 UBatch 不大于 Batch。"
+        },
+        "compat": {
+          "title": "最后检查运行时兼容性",
+          "body": "检查 llama.cpp 构建、显卡驱动、DLL、模型架构、Chat Template 和 Flash Attention 是否兼容。"
+        }
+      }
+    },
+    "troubleshooting": {
+      "title": "故障排查",
+      "body": "先按问题现象检查，再查看“系统 → 运行日志”中的最后几行。",
+      "items": {
+        "python": {
+          "title": "找不到 Python",
+          "body": "安装 64 位 Python 3.11–3.13。存在多个 Python 时，可用 FGO_LOCAL_PYTHON 指向需要的 python.exe。"
+        },
+        "panel": {
+          "title": "管理页面打不开",
+          "body": "确认启动命令窗口仍在运行，并打开 http://127.0.0.1:18081。端口冲突时再使用 FGO_LOCAL_CONTROL_PORT 更换管理端口。"
+        },
+        "llama-path": {
+          "title": "llama-server 路径无效",
+          "body": "选择名为 llama-server.exe 的实际文件，使用绝对路径，并保留同一发行包中的全部 DLL。"
+        },
+        "gguf": {
+          "title": "扫描不到 GGUF",
+          "body": "确认文件扩展名为 .gguf、模型目录是绝对路径，并且模型位于该目录或它的子目录内，然后重新扫描。"
+        },
+        "load": {
+          "title": "加载时退出或一直加载",
+          "body": "查看“系统 → 运行日志”。常见原因是显存或内存不足、DLL 缺失、运行时与驱动不匹配，或模型架构不受支持。"
+        },
+        "compat": {
+          "title": "兼容性测试失败",
+          "body": "确认 Model ID 与 llama-server 别名一致，并查看认证、Chat Template、只有思考内容或空输出等错误。测试超时为 45 秒。"
+        },
+        "phone": {
+          "title": "手机无法连接",
+          "body": "确认手机和电脑位于同一可信网络、Profile 使用“可信局域网 + 本机”、服务已经就绪，并检查 Windows 专用网络防火墙与 VPN。"
+        },
+        "save": {
+          "title": "设置保存后没有变化",
+          "body": "模型、Model ID、端口、网络和推理参数属于运行时设置。保存后需要重新启动 llama-server。"
+        }
+      }
+    },
+    "security": {
+      "title": "安全、备份与更新",
+      "body": "局域网 HTTP 没有传输加密，只适合可信家庭网络或可信专用网络。",
+      "network": {
+        "title": "网络安全",
+        "body": "防火墙只允许专用网络。不要使用公共 Wi-Fi，不要关闭整个防火墙，也不要把 18080 或 18081 映射到公网。"
+      },
+      "apiKey": {
+        "title": "API Key",
+        "body": "不要分享完整 Key。怀疑泄露时先停止服务，再更换 Key，并更新所有手机；旧 Key 会立即失效。"
+      },
+      "backup": {
+        "title": "配置备份",
+        "body": "更新或重置前备份 user_data。这个目录含 API Key，不能上传、公开或随故障截图一起发送。"
+      },
+      "update": {
+        "title": "安全更新",
+        "body": "先停止服务，再把新版 llama.cpp 解压到新目录。更新路径并通过加载与翻译测试后，才移除旧版本。"
+      }
+    },
+    "checklist": {
+      "title": "最终检查清单",
+      "body": "全部确认后，再开始长时间运行 FGO 翻译。",
+      "items": [
+        "使用 64 位 Python 3.11、3.12 或 3.13",
+        "llama.cpp 来自可信来源并已完整解压；自动下载已通过大小和 SHA-256 校验",
+        "llama-server.exe 同目录保留所需 DLL",
+        "GGUF 是从可信发布者自行取得、支持日文输入和中文输出的 Instruction 或 Chat 模型",
+        "手机连接时选择“可信局域网 + 本机”",
+        "Windows 防火墙只允许专用网络",
+        "运行状态已经变为“已就绪”",
+        "启动兼容性测试或手动连接测试已经通过",
+        "手机 API 地址来自总览，并包含 /v1/chat/completions",
+        "手机中的模型名称与电脑 Model ID 完全一致",
+        "手机使用完整的新 API Key",
+        "没有把 18080 或 18081 转发到公网"
+      ]
+    },
+    "toc": {
+      "scope": "用途与边界",
+      "architecture": "连接方式",
+      "quickStart": "快速开始",
+      "chooseFiles": "选择运行文件",
+      "controlPanel": "控制面板",
+      "phone": "连接手机",
+      "status": "状态说明",
+      "performance": "性能调节",
+      "troubleshooting": "故障排查",
+      "security": "安全与维护",
+      "checklist": "最终检查"
+    }
+  },
+  "speechGuide": {
+    "title": "Azure 语音服务申请指南",
+    "description": "教用户申请 Azure Speech 语音服务，取得 Speech Key 和区域，并填入 FgoGotran 使用 AI 语音。",
+    "sidebarTitle": "Azure 语音",
+    "sidebar": {
+      "chooseCloud": "选择 Azure",
+      "applyKey": "申请 Key",
+      "chinaAzure": "中国 Azure"
+    },
+    "eyebrow": "Azure Speech Guide",
+    "h1": "Azure 语音服务申请指南",
+    "openGlobalAzure": "打开全球 Azure",
+    "backToGuide": "返回使用指南",
+    "globalStepsCard": "全球 Azure 步骤",
+    "globalSetup": "全球 Azure",
+    "steps": {
+      "azure-account": {
+        "title": "创建或登录 Azure 账户",
+        "body": "打开Azure Global，选择免费账户或即用即付账户。新用户通常需要完成手机和支付方式验证。",
+        "note": "https://azure.microsoft.com/zh-cn"
+      },
+      "create-speech": {
+        "title": "创建 Speech 资源",
+        "body": "进入 Azure Portal，搜索 Speech service 或 语音服务，创建一个语音资源。"
+      },
+      "select-region": {
+        "title": "填写资源清单",
+        "body": "使用 Southeast Asia。",
+        "note": "Free FO层每月包含50万字符的神经语音额度。",
+        "value": "southeastasia"
+      },
+      "copy-key": {
+        "title": "复制 Key",
+        "body": "资源创建完成后，进入资源页面的 Keys and Endpoint，复制 KEY 1 或 KEY 2。"
+      },
+      "app-settings": {
+        "title": "填入 FgoGotran",
+        "body": "打开 FgoGotran 设置页，进入语音设置，区域选择全球 Azure，粘贴 Azure Speech Key。",
+        "value": "全球 Azure / southeastasia"
+      },
+      "test-voice": {
+        "title": "测试语音",
+        "body": "点击测试语音。正常情况下会播放玛修测试台词，代表 Key、区域和 Azure TTS 都可用。",
+        "value": "瑪修・基列萊特，在此。御主……戰鬥準備完成，請下達指示。"
+      }
+    },
+    "chinaAzure": {
+      "title": "中国 Azure 说明",
+      "body": "Azure China 和全球 Azure 不是同一个入口，Key、区域和接口域名也不同。",
+      "callout": "如果页面提示不能用个人账号登录，请改用组织、工作或学校账号，或回到 FgoGotran 使用全球 Azure 的 southeastasia。",
+      "portalTitle": "入口",
+      "portalBody": "Azure China 使用独立门户。",
+      "portalValue": "https://portal.azure.cn/",
+      "regionTitle": "App 区域",
+      "regionBody": "如果你的 Speech 资源建在 China North 3，FgoGotran 中选择中国 Azure。",
+      "regionValue": "chinanorth3"
+    },
+    "troubleshooting": {
+      "title": "常见问题",
+      "body": "测试语音失败时，可以先按这里排查。",
+      "items": {
+        "empty": {
+          "title": "测试提示 Key 为空",
+          "body": "还没有填写 Azure Speech Key，或填写后没有保存。"
+        },
+        "auth": {
+          "title": "401 / 403 / authentication failed",
+          "body": "通常是 Key 和区域不匹配，或把全球 Azure 的 Key 用到了 Azure China 区域。"
+        },
+        "slow": {
+          "title": "中国大陆用户连接慢",
+          "body": "先测试全球 Azure 的 southeastasia。如果账号属于 Azure China，再测试 chinanorth3。"
+        },
+        "quota": {
+          "title": "免费额度用完",
+          "body": "等下个月额度刷新，或按 Azure 价格页和自己的预算决定是否继续使用付费层。"
+        }
+      }
+    },
+    "sources": {
+      "title": "官方来源",
+      "body": "Azure 的免费额度、入口和支持区域可能变化，发布前建议再打开官方页面确认。",
+      "links": {
+        "account": "Azure 免费账户",
+        "pricing": "Azure Speech 价格",
+        "quickstart": "Text to Speech 快速开始",
+        "regions": "Speech 支持区域",
+        "china": "Azure China / 21Vianet 说明"
+      }
+    },
+    "toc": {
+      "chooseCloud": "选择 Azure",
+      "globalSetup": "全球 Azure 步骤",
+      "chinaAzure": "中国 Azure",
+      "troubleshooting": "常见问题",
+      "sources": "官方来源"
+    }
+  },
+  "terms": {
+    "title": "术语表",
+    "eyebrow": "Terminology",
+    "h1": "术语表预览",
+    "body": "可查看和校对固定翻译，帮助发现漏词、错译和不一致翻译，持续完善 FGO 中文与英文术语库。",
+    "searchPlaceholder": "搜索日文、中文、英文、分类或别名",
+    "allCategories": "全部分类",
+    "loadingPreview": "正在加载术语预览",
+    "loaded": "已加载最新预览 JSON",
+    "loadFailed": "术语预览加载失败",
+    "loading": "加载中",
+    "count": "{shown} / {total} 条",
+    "refresh": "刷新",
+    "refreshAria": "刷新术语预览",
+    "tableJapanese": "日文",
+    "tableChinese": "中文",
+    "tableCategory": "分类",
+    "tableAliases": "别名",
+    "loadingRows": "正在加载术语预览...",
+    "errorRows": "术语预览加载失败，请确认本地预览 JSON 已生成。",
+    "noMatch": "没有找到匹配的术语。",
+    "dbNote": "此预览来自应用当前使用的日文 → 中文与英文术语库。",
+    "tableEnglish": "英文"
+  },
+  "media": {
+    "title": "媒体",
+    "description": "FgoGotran 的演示视频、使用效果与更新动态。",
+    "eyebrow": "Media",
+    "h1": "媒体",
+    "body": "FgoGotran 的演示视频、使用效果与更新动态。",
+    "openVideo": "打开原视频",
+    "items": {
+      "bili3": "B站演示视频3",
+      "yt3": "YouTube 演示视频3",
+      "bili2": "B站演示视频2",
+      "yt2": "YouTube 演示视频2",
+      "bili1": "B站演示视频1",
+      "yt1": "YouTube 演示视频1"
+    }
+  },
+  "changelog": {
+    "title": "更新记录",
+    "eyebrow": "Changelog",
+    "h1": "更新记录",
+    "body": "记录 FgoGotran Android App 的主要更新。",
+    "recent": "最近更新",
+    "entries": {
+      "v3_1_2": {
+        "items": [
+          "新增支持六个选项的稀有剧情选项界面，可识别并翻译最下方的第六个选项。",
+          "改进注音（ruby）OCR：合并拆分的注音、支持较长的片假名注音，并更准确地对齐到原文字符。",
+          "改进剧情自动完成判定：更可靠地识别 FGO 的动画菱形按钮，减少自动模式下漏判或误判。",
+          "改进角色名显示：在字形测量不可用时回退到 OCR 边界，避免名牌缺失或错误隐藏。",
+          "更新角色名和术语别名，包括 マスター、先輩 等读音，提高识别与翻译一致性。"
+        ]
+      },
+      "v3_1_1": {
+        "items": [
+          "改进对白与选项 OCR：恢复省略号、破折号和边缘标点，并减少强调点、注音残留和干扰符号。",
+          "优化对白排版：规范换行、中文引号和翻译 LOG 中带说话人的格式，修复结尾引号丢失。",
+          "改进角色名与对白显示：支持多种名字颜色和青色名牌边界，精确按原文字形绘制，并优化定位与字号自适应。",
+          "修复“？？？”遮罩角色名：统一为全角问号、跳过 AI 翻译并正确保留名牌显示。",
+          "新增“翻译时包含注音〈ruby〉”开关；默认移除注音后再翻译，并将注音格式统一为〈…〉。",
+          "OCR 截图改用无障碍服务，启动翻译时不再申请屏幕录制权限；实时字幕仅在开启时申请屏幕捕获授权，并补充更明确的失败提示。",
+          "提升前台服务与无障碍截图稳定性：增加截图限速重试，并提示“已开启但未连接”、全黑截图和截屏权限失效。",
+          "更新角色名、职阶、宝具、地名等术语数据并优化术语匹配，提高译名一致性。",
+          "调整悬浮菜单分页，常用功能优先显示，并将手动、半自动和全自动模式集中到第二页。"
+        ]
+      },
+      "v3_1_0": {
+        "items": [
+          "悬浮菜单改为两页弧形菜单，围绕悬浮球展开，所有功能一屏可见、无需滚动",
+          "BATTLE 模式下单击悬浮球不再退出战斗模式（改为长按切换模式）",
+          "减少剧情翻译的等待时间，对白推进后能更快开始翻译",
+          "减少投屏授权弹窗：仅在游戏内真正 180° 旋转后才重新请求授权",
+          "提升 MediaProjection 稳定性：连续失败时自动改用无障碍截图，不再卡住",
+          "修复人名框被无关文字拉长的问题"
+        ]
+      },
+      "v3_0_0": {
+        "items": [
+          "新增 BATTLE字幕 模式，支持翻译战斗中的短对白",
+          "新增 Azure 实时日语语音识别与中文字幕功能",
+          "新增 FgoGotran Local，提供 Windows x64 本地 AI 快速配置及 llama.cpp 管理界面",
+          "支持通过可信局域网安全连接带 API Key 验证的本地 AI",
+          "提升 ML Kit 与 PaddleOCR 的速度和准确率，并支持 ■ 遮挡字符及边缘标点恢复",
+          "改进 FGO 风格翻译、角色语气、说话人性别、术语及日语省略主语处理",
+          "新增 Sakura 专用提示词，并精简通用 AI 模型提示词",
+          "新增可配置的双语剧情上下文，可使用最近 1–5 个场景",
+          "新增 Temperature 与 Top-p 高级设置，并根据不同 API 自动处理兼容性",
+          "翻译失败最多重试三次，避免长时间等待",
+          "改进对白换行、显示格式及中文标点规范化",
+          "APK 目前仅保留 arm64-v8a 与 x86_64 架构"
+        ]
+      },
+      "v2_4_0": {
+        "items": [
+          "新增本地 AI，支持可信局域网 HTTP 接口，并加强地址安全检查",
+          "ML Kit OCR 使用 2 倍放大，提高小字识别率",
+          "优化对白换行，修复带 \n 的两行对白渲染失败",
+          "改进第一人称、称呼后缀等 FGO 风格翻译",
+          "当前及最近两个场景提供完整的说话人和对白 JP+CN 上下文",
+          "优化提示词、角色语气一致性及翻译后处理",
+          "更新本地 AI、网络安全及下载页面说明"
+        ]
+      },
+      "v2_3_1": {
+        "items": [
+          "修正装置旋转后的屏幕截图问题",
+          "修正进入 FGO 横向画面后，OCR 与翻译覆盖层可能失效或使用错误画面尺寸的问题",
+          "提升浮动翻译覆盖层在屏幕旋转时的稳定性",
+          "测试语音前会先更新语音设置资料",
+          "新增更多 Azure 中文 Neural 语音的调校支持",
+          "简化启用语气增强时的测试语音提示信息"
+        ]
+      },
+      "v2_3_0": {
+        "items": [
+          "改用 MediaProjection 屏幕捕获",
+          "提升模拟器与真机截图兼容性",
+          "优化半自动模式选项点击逻辑",
+          "减少选项翻译红圈误报",
+          "选项 OCR 自动重试并使用固定位置",
+          "选项区域 2x 放大，提高识别率",
+          "修复 MediaProjection 回调与截图回退",
+          "优化渲染 UI"
+        ]
+      },
+      "v2_2_0": {
+        "items": [
+          "优化 AI 翻译提示词结构，降低 API 用量与响应时间",
+          "修复小写假名导致的翻译失败",
+          "改进裁剪模式逻辑",
+          "更新悬浮菜单 UI",
+          "翻译上下文新增最近 2 条场景对话，提升代词与语气判断",
+          "修复 API 请求中术语与角色名锁定问题",
+          "修复模拟器悬浮窗崩溃问题",
+          "截图增加超时保护，避免模拟器卡死",
+          "更新 UI"
+        ]
+      },
+      "v2_1_0": {
+        "items": [
+          "优化 AI 翻译提示词结构，提升响应速度",
+          "改进裁剪模式：翻译选中范围内所有可见文字，不再漏行",
+          "改进裁剪模式显示效果，更贴近原本 OCR 文字大小和位置",
+          "优化简中服 / 繁中服的 OCR 与语音流程",
+          "修复简中服 / 繁中服语气增强请求处理问题",
+          "移除可能导致模拟器崩溃的无障碍状态小圆点",
+          "改善模拟器兼容性与运行稳定性",
+          "改进角色名显示与语音档案匹配逻辑",
+          "更新 UI 与网页说明内容"
+        ]
+      },
+      "v2_0_0": {
+        "items": [
+          "新增 AI 语音功能",
+          "支持简中服、繁中服",
+          "简中 / 繁中服可直接读取游戏中文文本并朗读",
+          "新增角色语音档案与 CDN 在线更新",
+          "新增语音设置页：Azure、语速、音量、测试语音",
+          "新增最近错误页面，方便排查问题",
+          "新增 ML Kit 中文 OCR",
+          "优化模拟器兼容性、语音播放、防重复播放",
+          "优化 AI 翻译提示词结构",
+          "更新 UI"
+        ]
+      },
+      "v1_1_0": {
+        "items": [
+          "新增 PaddleOCR，提升文字识别",
+          "新增 x86_64 ABI 支持，改善模拟器兼容性",
+          "修复裁剪模式翻译显示",
+          "优化 AI 翻译提示词结构",
+          "更新 UI"
+        ]
+      },
+      "v1_0_2": {
+        "items": [
+          "修复译文偶尔显示 JSON 格式的问题",
+          "增加显示日文原文",
+          "增加更新弹窗显示APP更新内容",
+          "适配所有屏幕尺寸",
+          "改进区域翻译模式的文本区域适配",
+          "优化历史面板、悬浮按钮交互",
+          "优化 AI 翻译提示词结构",
+          "更新 UI"
+        ]
+      },
+      "v1_0_1": {
+        "items": [
+          "优化 AI 翻译提示词结构"
+        ]
+      },
+      "v1_0_0": {
+        "items": [
+          "支持手动、半自动、全自动和裁剪模式",
+          "支持自定义翻译 API"
+        ]
+      }
+    }
+  },
+  "download": {
+    "title": "下载",
+    "eyebrow": "Download",
+    "h1": "下载",
+    "body": "感谢下载 FgoGotran Android App。",
+    "introBefore": "具体的更新内容请查看",
+    "changelogLink": "更新记录",
+    "introAfter": "。",
+    "facts": {
+      "version": "当前版本：{version}",
+      "android": "支持 Android 11+",
+      "size": "APK 大小：153.12 MB",
+      "apiKey": "需要自备翻译 API Key"
+    },
+    "installReminderTitle": "安装提醒：",
+    "installReminderBefore": "若手机提示因为Google Play Protect而无法安装，或下载包需要分包安装，可先安装",
+    "installer": "APKMirror Installer",
+    "installReminderAfter": "后再安装 FgoGotran。",
+    "localReminderTitle": "电脑本地模型：",
+    "localReminderBefore": "想让手机调用 Windows 电脑上的 llama.cpp 与 GGUF，可查看",
+    "localGuide": "FgoGotran Local 使用指南",
+    "localReminderAfter": "。",
+    "options": {
+      "onedrive": {
+        "title": "OneDrive",
+        "subtitle": "APK 下载"
+      },
+      "github": {
+        "title": "GitHub Releases",
+        "subtitle": "APK 下载"
+      },
+      "baidu": {
+        "title": "百度网盘",
+        "subtitle": "APK 下载 (提取码: y978)"
+      }
+    }
+  },
+  "modes": {
+    "manual": {
+      "title": "手动模式",
+      "body": "适合想完全掌控节奏的你。点击悬浮按钮后，翻译当前画面。"
+    },
+    "semi-auto": {
+      "title": "半自动模式",
+      "body": "适合想轻松看剧情、遇到选项再自己确认的你。对话自动翻译，选项出现时手动点击翻译。"
+    },
+    "auto": {
+      "title": "全自动模式",
+      "body": "适合想放松阅读的你。应用会观察画面变化，并自动刷新译文。"
+    },
+    "crop": {
+      "title": "裁剪模式",
+      "body": "适合剧情外画面，或识别不准、漏翻时，手动框选区域再翻译。"
+    },
+    "translation-log": {
+      "title": "翻译 LOG",
+      "body": "查看本次识别和翻译过的角色名、对话与选项，方便回看。"
+    },
+    "battle-subtitles": {
+      "title": "战斗字幕",
+      "body": "适合不想错过战斗内对话的你。只锁定战斗字幕区域。"
+    }
+  }
+}

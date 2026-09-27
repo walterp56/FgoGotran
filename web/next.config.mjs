@@ -1,5 +1,7 @@
-/** @type {import('next').NextConfig} */
+import createNextIntlPlugin from "next-intl/plugin";
+
 const isDev = process.env.NODE_ENV === "development";
+const withNextIntl = createNextIntlPlugin();
 
 const nextConfig = {
   ...(isDev ? {} : { output: "export" }),
@@ -9,4 +11,4 @@ const nextConfig = {
   trailingSlash: true
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

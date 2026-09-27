@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { apiProviderGuides } from "@/data/apiProviderGuides";
+import { routing } from "@/i18n/routing";
 
 export const dynamic = "force-static";
 
@@ -18,8 +19,10 @@ const routes = [
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return routes.map((route) => ({
-    url: `https://fgogotran.com${route}`,
-    lastModified: new Date()
-  }));
+  return routing.locales.flatMap((locale) =>
+    routes.map((route) => ({
+      url: `https://fgogotran.com/${locale}${route}/`,
+      lastModified: new Date()
+    }))
+  );
 }

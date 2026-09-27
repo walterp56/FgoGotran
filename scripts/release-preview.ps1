@@ -168,9 +168,10 @@ try {
         "--locale", $Locale
     )
 
-    Write-Host "Preview sources include:"
-    Write-Host "  term_builder\character_names.tsv"
-    Write-Host "  term_builder\term.tsv"
+    Write-Host "Preview source:"
+    Write-Host "  term_builder\fgo_terms.db (schema 3 values; build it with term_builder\py\build_db.py)"
+    Write-Host "  curated row set + order: term_builder\character_names.tsv, term_builder\term.tsv"
+    Write-Host "  Generated component rows in the DB are skipped; curated rows missing from the DB are reported."
 
     & $PythonExe @PreviewArgs
 

@@ -10,7 +10,7 @@ export function FeatureGrid({ items }: FeatureGridProps) {
       {items.map((item) => {
         const Icon = item.icon;
         return (
-          <article className="feature-card" key={item.title}>
+          <article className="feature-card" key={item.id}>
             <div className="feature-icon">
               <Icon size={22} aria-hidden="true" />
             </div>

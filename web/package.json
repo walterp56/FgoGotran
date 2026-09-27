@@ -7,11 +7,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "check:messages": "node scripts/check-messages.mjs",
+    "gen:zh-tw": "node scripts/gen-zh-tw.mjs",
+    "prebuild": "npm run check:messages"
   },
   "dependencies": {
     "lucide-react": "latest",
     "next": "latest",
+    "next-intl": "^4.14.7",
     "react": "latest",
     "react-dom": "latest"
   },
@@ -19,6 +23,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "opencc-js": "^1.4.2",
     "typescript": "latest"
   }
 }

@@ -2,3991 +2,4656 @@
   {
     "jp_name": "マシュ・キリエライト",
     "cn_name": "玛修·基列莱特",
+    "en_name": "Mash Kyrielight",
     "category": "character",
     "aliases": "マシュキリエライト"
   },
   {
     "jp_name": "アルトリア・ペンドラゴン",
     "cn_name": "阿尔托莉雅·潘德拉贡",
+    "en_name": "Altria Pendragon",
     "category": "character",
     "aliases": "アルトリアペンドラゴン"
   },
   {
     "jp_name": "アルトリア・オルタ",
     "cn_name": "阿尔托莉雅·Alter",
+    "en_name": "Altria Alter",
     "category": "character",
     "aliases": "アルトリアオルタ"
   },
   {
     "jp_name": "サンタオルタ",
     "cn_name": "圣诞Alter",
+    "en_name": "Santa Alter",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ネロ・クラウディウス",
     "cn_name": "尼禄·克劳狄乌斯",
+    "en_name": "Nero Claudius",
     "category": "character",
     "aliases": "ネロクラウディウス"
   },
   {
     "jp_name": "ジークフリート",
     "cn_name": "齐格飞",
+    "en_name": "Siegfried",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ガイウス・ユリウス・カエサル",
     "cn_name": "盖乌斯·尤利乌斯·恺撒",
+    "en_name": "Gaius Julius Caesar",
     "category": "character",
     "aliases": "ガイウスユリウスカエサル"
   },
   {
     "jp_name": "アルテラ",
     "cn_name": "阿蒂拉",
+    "en_name": "Altera",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アルテラサンタ",
     "cn_name": "阿蒂拉圣诞",
+    "en_name": "Attila the San(ta)",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジル・ド・レェ",
     "cn_name": "吉尔·德·雷",
+    "en_name": "Gilles de Rais",
     "category": "character",
     "aliases": "ジルドレェ"
   },
   {
     "jp_name": "シュヴァリエ・デオン",
     "cn_name": "骑士迪昂",
+    "en_name": "Chevalier d'Eon",
     "category": "character",
     "aliases": "シュヴァリエデオン"
   },
   {
     "jp_name": "エミヤ",
     "cn_name": "卫宫",
+    "en_name": "Emiya",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ギルガメッシュ",
     "cn_name": "吉尔伽美什",
+    "en_name": "Gilgamesh",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ロビンフッド",
     "cn_name": "罗宾汉",
+    "en_name": "Robin Hood",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アタランテ",
     "cn_name": "阿塔兰忒",
+    "en_name": "Atalante",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エウリュアレ",
     "cn_name": "尤瑞艾莉",
+    "en_name": "Euryale",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アーラシュ",
     "cn_name": "阿拉什",
+    "en_name": "Arash",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "クー・フーリン",
     "cn_name": "库·丘林",
+    "en_name": "Cú Chulainn",
     "category": "character",
     "aliases": "クーフーリン"
   },
   {
     "jp_name": "エリザベート・バートリー",
     "cn_name": "伊丽莎白·巴托里",
+    "en_name": "Elisabeth Báthory",
     "category": "character",
     "aliases": "エリザベートバートリー"
   },
   {
     "jp_name": "武蔵坊弁慶",
     "cn_name": "武藏坊弁庆",
+    "en_name": "Musashibou Benkei",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "レオニダス一世",
     "cn_name": "列奥尼达一世",
+    "en_name": "Leonidas I",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ロムルス",
     "cn_name": "罗穆路斯",
+    "en_name": "Romulus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メドゥーサ",
     "cn_name": "美杜莎",
+    "en_name": "Medusa",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ゲオルギウス",
     "cn_name": "乔尔乔斯",
+    "en_name": "Georgios",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エドワード・ティーチ",
     "cn_name": "爱德华·蒂奇",
+    "en_name": "Edward Teach",
     "category": "character",
     "aliases": "エドワードティーチ"
   },
   {
     "jp_name": "ブーディカ",
     "cn_name": "布狄卡",
+    "en_name": "Boudica",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "牛若丸",
     "cn_name": "牛若丸",
+    "en_name": "Ushiwakamaru",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アレキサンダー",
     "cn_name": "亚历山大",
+    "en_name": "Alexander",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マリー・アントワネット",
     "cn_name": "玛丽·安托瓦内特",
+    "en_name": "Marie Antoinette",
     "category": "character",
     "aliases": "マリーアントワネット"
   },
   {
     "jp_name": "マルタ",
     "cn_name": "玛尔达",
+    "en_name": "Martha",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "サンタマルタ",
     "cn_name": "圣诞玛尔达",
+    "en_name": "Martha Santa",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メディア",
     "cn_name": "美狄亚",
+    "en_name": "Medea",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ハンス・クリスチャン・アンデルセン",
     "cn_name": "汉斯·克里斯蒂安·安徒生",
+    "en_name": "Hans Christian Andersen",
     "category": "character",
     "aliases": "ハンスクリスチャンアンデルセン"
   },
   {
     "jp_name": "ウィリアム・シェイクスピア",
     "cn_name": "威廉·莎士比亚",
+    "en_name": "William Shakespeare",
     "category": "character",
     "aliases": "ウィリアムシェイクスピア"
   },
   {
     "jp_name": "メフィストフェレス",
     "cn_name": "梅菲斯托费勒斯",
+    "en_name": "Mephistopheles",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヴォルフガング・アマデウス・モーツァルト",
     "cn_name": "沃尔夫冈·阿马德乌斯·莫扎特",
+    "en_name": "Wolfgang Amadeus Mozart",
     "category": "character",
     "aliases": "ヴォルフガングアマデウスモーツァルト"
   },
   {
     "jp_name": "諸葛孔明",
     "cn_name": "诸葛孔明",
+    "en_name": "Zhuge Liang",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エルメロイⅡ世",
     "cn_name": "埃尔梅罗Ⅱ世",
+    "en_name": "Lord El-Melloi II",
     "category": "character",
-    "aliases": "エルメロイ1世,エルメロイII世,エルメロイI世,エルメロイ11世"
+    "aliases": "エルメロイ11世, エルメロイ1世, エルメロイII世, エルメロイI世"
   },
   {
     "jp_name": "佐々木小次郎",
     "cn_name": "佐佐木小次郎",
+    "en_name": "Sasaki Kojirou",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "呪腕のハサン",
     "cn_name": "咒腕哈桑",
+    "en_name": "Hassan of the Cursed Arm",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ステンノ",
     "cn_name": "斯忒诺",
+    "en_name": "Stheno",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "荊軻",
     "cn_name": "荆轲",
+    "en_name": "Jing Ke",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シャルル＝アンリ・サンソン",
     "cn_name": "夏尔·亨利·桑松",
+    "en_name": "Charles-Henri Sanson",
     "category": "character",
-    "aliases": "シャルル=アンリ・サンソン,シャルル＝アンリサンソン"
+    "aliases": "シャルル=アンリ・サンソン, シャルル＝アンリサンソン"
   },
   {
     "jp_name": "ファントム・オブ・ジ・オペラ",
     "cn_name": "剧院魅影",
+    "en_name": "Phantom of the Opera",
     "category": "character",
     "aliases": "ファントムオブジオペラ"
   },
   {
     "jp_name": "マタ・ハリ",
     "cn_name": "玛塔·哈丽",
+    "en_name": "Mata Hari",
     "category": "character",
     "aliases": "マタハリ"
   },
   {
     "jp_name": "カーミラ",
     "cn_name": "卡米拉",
+    "en_name": "Carmilla",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヘラクレス",
     "cn_name": "赫拉克勒斯",
+    "en_name": "Heracles",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ランスロット",
     "cn_name": "兰斯洛特",
+    "en_name": "Lancelot",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "呂布奉先",
     "cn_name": "吕布奉先",
+    "en_name": "Lu Bu Fengxian",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スパルタクス",
     "cn_name": "斯巴达克斯",
+    "en_name": "Spartacus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "坂田金時",
     "cn_name": "坂田金时",
+    "en_name": "Sakata Kintoki",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヴラド三世",
     "cn_name": "弗拉德三世",
+    "en_name": "Vlad III",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アステリオス",
     "cn_name": "阿斯忒里俄斯",
+    "en_name": "Asterios",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カリギュラ",
     "cn_name": "卡利古拉",
+    "en_name": "Caligula",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ダレイオス三世",
     "cn_name": "大流士三世",
+    "en_name": "Darius III",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "清姫",
     "cn_name": "清姬",
+    "en_name": "Kiyohime",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エイリーク・ブラッドアクス",
     "cn_name": "血斧埃里克",
+    "en_name": "Eric Bloodaxe",
     "category": "character",
     "aliases": "エイリークブラッドアクス"
   },
   {
     "jp_name": "タマモキャット",
     "cn_name": "玉藻猫",
+    "en_name": "Tamamo Cat",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジャンヌ・ダルク",
     "cn_name": "贞德",
+    "en_name": "Jeanne d'Arc",
     "category": "character",
     "aliases": "ジャンヌダルク"
   },
   {
     "jp_name": "オリオン",
     "cn_name": "俄里翁",
+    "en_name": "Orion",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "玉藻の前",
     "cn_name": "玉藻前",
+    "en_name": "Tamamo-no-Mae",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ダビデ",
     "cn_name": "大卫",
+    "en_name": "David",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヘクトール",
     "cn_name": "赫克托耳",
+    "en_name": "Hektor",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フランシス・ドレイク",
     "cn_name": "弗朗西斯·德雷克",
+    "en_name": "Francis Drake",
     "category": "character",
     "aliases": "フランシスドレイク"
   },
   {
     "jp_name": "アン・ボニー",
     "cn_name": "安妮·伯妮",
+    "en_name": "Anne Bonny",
     "category": "character",
     "aliases": "アンボニー"
   },
   {
     "jp_name": "メアリー・リード",
     "cn_name": "玛莉·瑞德",
+    "en_name": "Mary Read",
     "category": "character",
     "aliases": "メアリーリード"
   },
   {
     "jp_name": "沖田総司",
     "cn_name": "冲田总司",
+    "en_name": "Okita Souji",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "織田信長",
     "cn_name": "织田信长",
+    "en_name": "Oda Nobunaga",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スカサハ",
     "cn_name": "斯卡哈",
+    "en_name": "Scáthach",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ディルムッド・オディナ",
     "cn_name": "迪尔姆德·奥迪那",
+    "en_name": "Diarmuid Ua Duibhne",
     "category": "character",
     "aliases": "ディルムッドオディナ"
   },
   {
     "jp_name": "フェルグス・マック・ロイ",
     "cn_name": "弗格斯·马克·罗伊",
+    "en_name": "Fergus mac Róich",
     "category": "character",
     "aliases": "フェルグスマックロイ"
   },
   {
     "jp_name": "ナーサリー・ライム",
     "cn_name": "童谣",
+    "en_name": "Nursery Rhyme",
     "category": "character",
     "aliases": "ナーサリーライム"
   },
   {
     "jp_name": "ジャック・ザ・リッパー",
     "cn_name": "开膛手杰克",
+    "en_name": "Jack the Ripper",
     "category": "character",
     "aliases": "ジャックザリッパー"
   },
   {
     "jp_name": "モードレッド",
     "cn_name": "莫德雷德",
+    "en_name": "Mordred",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ニコラ・テスラ",
     "cn_name": "尼古拉·特斯拉",
+    "en_name": "Nikola Tesla",
     "category": "character",
     "aliases": "ニコラテスラ"
   },
   {
     "jp_name": "ヴァン・ホーエンハイム・パラケルスス",
     "cn_name": "冯·霍恩海姆·帕拉塞尔苏斯",
+    "en_name": "Paracelsus von Hohenheim",
     "category": "character",
     "aliases": "ヴァンホーエンハイムパラケルスス"
   },
   {
     "jp_name": "チャールズ・バベッジ",
     "cn_name": "查尔斯·巴贝奇",
+    "en_name": "Charles Babbage",
     "category": "character",
     "aliases": "チャールズバベッジ"
   },
   {
     "jp_name": "ヘンリー・ジキル",
     "cn_name": "亨利·杰基尔",
+    "en_name": "Henry Jekyll",
     "category": "character",
     "aliases": "ヘンリージキル"
   },
   {
     "jp_name": "ハイド",
     "cn_name": "海德",
+    "en_name": "Hyde",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フランケンシュタイン",
     "cn_name": "弗兰肯斯坦",
+    "en_name": "Frankenstein",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ソロモン",
     "cn_name": "所罗门",
+    "en_name": "Solomon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アルジュナ",
     "cn_name": "阿周那",
+    "en_name": "Arjuna",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カルナ",
     "cn_name": "迦尔纳",
+    "en_name": "Karna",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "サンタカルナ",
     "cn_name": "圣诞迦尔纳",
+    "en_name": "Santa Karna",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "謎のヒロインX",
     "cn_name": "谜之女主角X",
+    "en_name": "Mysterious Heroine X",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フィン・マックール",
     "cn_name": "芬恩·麦克库尔",
+    "en_name": "Fionn mac Cumhaill",
     "category": "character",
     "aliases": "フィンマックール"
   },
   {
     "jp_name": "ブリュンヒルデ",
     "cn_name": "布伦希尔德",
+    "en_name": "Brynhild",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ベオウルフ",
     "cn_name": "贝奥武夫",
+    "en_name": "Beowulf",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "両儀式",
     "cn_name": "两仪式",
+    "en_name": "Ryougi Shiki",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "天草四郎",
     "cn_name": "天草四郎",
+    "en_name": "Amakusa Shirou",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アストルフォ",
     "cn_name": "阿斯托尔福",
+    "en_name": "Astolfo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "子ギル",
     "cn_name": "幼吉尔",
+    "en_name": "Gilgamesh (Child)",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "巌窟王",
     "cn_name": "岩窟王",
+    "en_name": "Edmond Dantès",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ナイチンゲール",
     "cn_name": "南丁格尔",
+    "en_name": "Florence Nightingale",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ナイチンゲール・サンタ",
     "cn_name": "南丁格尔·圣诞",
+    "en_name": "Florence Nightingale Santa",
     "category": "character",
     "aliases": "ナイチンゲールサンタ"
   },
   {
     "jp_name": "クー・フーリン・オルタ",
     "cn_name": "库·丘林·Alter",
+    "en_name": "Cú Chulainn Alter",
     "category": "character",
     "aliases": "クーフーリンオルタ"
   },
   {
     "jp_name": "女王メイヴ",
     "cn_name": "女王梅芙",
+    "en_name": "Queen Medb",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エレナ・ブラヴァツキー",
     "cn_name": "海伦娜·布拉瓦茨基",
+    "en_name": "Helena Blavatsky",
     "category": "character",
     "aliases": "エレナブラヴァツキー"
   },
   {
     "jp_name": "ラーマ",
     "cn_name": "罗摩",
+    "en_name": "Rama",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "李書文",
     "cn_name": "李书文",
+    "en_name": "Li Shuwen",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "トーマス・エジソン",
     "cn_name": "托马斯·爱迪生",
+    "en_name": "Thomas Edison",
     "category": "character",
     "aliases": "トーマスエジソン"
   },
   {
     "jp_name": "ジェロニモ",
     "cn_name": "杰罗尼莫",
+    "en_name": "Geronimo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ビリー・ザ・キッド",
     "cn_name": "比利小子",
+    "en_name": "Billy the Kid",
     "category": "character",
     "aliases": "ビリーザキッド"
   },
   {
     "jp_name": "ジャンヌ・オルタ",
     "cn_name": "贞德·Alter",
+    "en_name": "Jeanne Alter",
     "category": "character",
     "aliases": "ジャンヌオルタ"
   },
   {
     "jp_name": "アンリマユ",
     "cn_name": "安哥拉曼纽",
+    "en_name": "Aŋra Mainiiu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "イスカンダル",
     "cn_name": "伊斯坎达尔",
+    "en_name": "Iskandar",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "百貌のハサン",
     "cn_name": "百貌哈桑",
+    "en_name": "Hassan of the Hundred Personas",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アイリスフィール",
     "cn_name": "爱丽丝菲尔",
+    "en_name": "Irisviel",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "天の衣",
     "cn_name": "天之衣",
+    "en_name": "Dress of Heaven",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "酒呑童子",
     "cn_name": "酒吞童子",
+    "en_name": "Shuten-Douji",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "玄奘三蔵",
     "cn_name": "玄奘三藏",
+    "en_name": "Xuanzang Sanzang",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "源頼光",
     "cn_name": "源赖光",
+    "en_name": "Minamoto-no-Raikou",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "茨木童子",
     "cn_name": "茨木童子",
+    "en_name": "Ibaraki-Douji",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "風魔小太郎",
     "cn_name": "风魔小太郎",
+    "en_name": "Fuuma Kotarou",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オジマンディアス",
     "cn_name": "奥斯曼狄斯",
+    "en_name": "Ozymandias",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ニトクリス",
     "cn_name": "尼托克丽丝",
+    "en_name": "Nitocris",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "トリスタン",
     "cn_name": "崔斯坦",
+    "en_name": "Tristan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ガウェイン",
     "cn_name": "高文",
+    "en_name": "Gawain",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "静謐のハサン",
     "cn_name": "静谧哈桑",
+    "en_name": "Hassan of the Serenity",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "俵藤太",
     "cn_name": "俵藤太",
+    "en_name": "Tawara Touta",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ベディヴィエール",
     "cn_name": "贝德维尔",
+    "en_name": "Bedivere",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "レオナルド・ダ・ヴィンチ",
     "cn_name": "莱昂纳多·达·芬奇",
+    "en_name": "Leonardo da Vinci",
     "category": "character",
     "aliases": "レオナルドダヴィンチ"
   },
   {
     "jp_name": "イリヤスフィール・フォン・アインツベルン",
     "cn_name": "伊莉雅丝菲尔·冯·爱因兹贝伦",
+    "en_name": "Illyasviel von Einzbern",
     "category": "character",
     "aliases": "イリヤスフィールフォンアインツベルン"
   },
   {
     "jp_name": "クロエ・フォン・アインツベルン",
     "cn_name": "克洛伊·冯·爱因兹贝伦",
+    "en_name": "Chloe von Einzbern",
     "category": "character",
     "aliases": "クロエフォンアインツベルン"
   },
   {
     "jp_name": "クレオパトラ",
     "cn_name": "克娄巴特拉",
+    "en_name": "Cleopatra",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジャンヌ・オルタ・サンタ・リリィ",
     "cn_name": "贞德·Alter·圣诞·Lily",
+    "en_name": "Jeanne d'Arc Alter Santa Lily",
     "category": "character",
     "aliases": "ジャンヌオルタサンタリリィ"
   },
   {
     "jp_name": "イシュタル",
     "cn_name": "伊什塔尔",
+    "en_name": "Ishtar",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エルキドゥ",
     "cn_name": "恩奇都",
+    "en_name": "Enkidu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ケツァル・コアトル",
     "cn_name": "魁札尔·科亚特尔",
+    "en_name": "Quetzalcoatl",
     "category": "character",
     "aliases": "ケツァルコアトル"
   },
   {
     "jp_name": "ケツァル・コアトル・サンバ・サンタ",
     "cn_name": "魁札尔·科亚特尔·桑巴·圣诞",
+    "en_name": "Quetzalcoatl (Samba/Santa)",
     "category": "character",
     "aliases": "ケツァルコアトルサンバサンタ"
   },
   {
     "jp_name": "ゴルゴーン",
     "cn_name": "戈耳工",
+    "en_name": "Gorgon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジャガーマン",
     "cn_name": "豹人",
+    "en_name": "Jaguar Warrior",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ティアマト",
     "cn_name": "提亚马特",
+    "en_name": "Tiamat",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マーリン",
     "cn_name": "梅林",
+    "en_name": "Merlin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ゲーティア",
     "cn_name": "盖提亚",
+    "en_name": "Goetia",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "宮本武蔵",
     "cn_name": "宫本武藏",
+    "en_name": "Miyamoto Musashi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "“山の翁”",
     "cn_name": "“山中老人”",
+    "en_name": "First Hassan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "謎のヒロインＸ・オルタ",
     "cn_name": "谜之女主角X·Alter",
+    "en_name": "Mysterious Heroine X (Alter)",
     "category": "character",
     "aliases": "謎のヒロインXオルタ"
   },
   {
     "jp_name": "新宿",
     "cn_name": "新宿",
+    "en_name": "Shinjuku",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エミヤ・オルタ",
     "cn_name": "卫宫·Alter",
+    "en_name": "Emiya Alter",
     "category": "character",
     "aliases": "エミヤオルタ"
   },
   {
     "jp_name": "アーサー・ペンドラゴン",
     "cn_name": "亚瑟·潘德拉贡",
+    "en_name": "Arthur Pendragon",
     "category": "character",
     "aliases": "アーサーペンドラゴン"
   },
   {
     "jp_name": "土方歳三",
     "cn_name": "土方岁三",
+    "en_name": "Hijikata Toshizo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "茶々",
     "cn_name": "茶茶",
+    "en_name": "Chacha",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メルトリリス",
     "cn_name": "Meltryllis",
+    "en_name": "Meltryllis",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メルト",
     "cn_name": "Melt",
+    "en_name": "Melt",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "パッションリップ",
     "cn_name": "Passionlip",
+    "en_name": "Passionlip",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "鈴鹿御前",
     "cn_name": "铃鹿御前",
+    "en_name": "Suzuka Gozen",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ＢＢ",
     "cn_name": "BB",
+    "en_name": "BB",
     "category": "character",
     "aliases": "BB"
   },
   {
     "jp_name": "殺生院キアラ",
     "cn_name": "杀生院祈荒",
+    "en_name": "Sessyoin Kiara",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ビーストⅢ／R",
     "cn_name": "BeastⅢ/R",
+    "en_name": "Beast III/R",
     "category": "character",
     "aliases": "ビーストIII/R"
   },
   {
     "jp_name": "不夜城",
     "cn_name": "不夜城",
+    "en_name": "Nightless City",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エルドラド",
     "cn_name": "黄金国",
+    "en_name": "El Dorado",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "レジスタンス",
     "cn_name": "反抗军",
+    "en_name": "Resistance",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シャーロック・ホームズ",
     "cn_name": "夏洛克·福尔摩斯",
+    "en_name": "Sherlock Holmes",
     "category": "character",
     "aliases": "シャーロックホームズ"
   },
   {
     "jp_name": "ポール・バニヤン",
     "cn_name": "保罗·班扬",
+    "en_name": "Paul Bunyan",
     "category": "character",
     "aliases": "ポールバニヤン"
   },
   {
     "jp_name": "パールヴァティー",
     "cn_name": "帕尔瓦蒂",
+    "en_name": "Pārvatī",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "インフェルノ",
     "cn_name": "Inferno",
+    "en_name": "Inferno",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "パライソ",
     "cn_name": "Paraiso",
+    "en_name": "Paraiso",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "宝蔵院胤舜",
     "cn_name": "宝藏院胤舜",
+    "en_name": "Houzouin Inshun",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "柳生但馬守宗矩",
     "cn_name": "柳生但马守宗矩",
+    "en_name": "Yagyu Tajima-no-kami Munenori",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "加藤段蔵",
     "cn_name": "加藤段藏",
+    "en_name": "Katou Danzo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "刑部姫",
     "cn_name": "刑部姬",
+    "en_name": "Osakabehime",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メカエリチャン",
     "cn_name": "机械伊丽亲",
+    "en_name": "Mecha Eli-chan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メカエリチャンⅡ号機",
     "cn_name": "机械伊丽亲Ⅱ号机",
+    "en_name": "Mecha Eli-chan Mk.II",
     "category": "character",
-    "aliases": "メカエリチャンII号機,メカエリチャンI号機,メカエリチャン11号機,メカエリチャン1号機"
+    "aliases": "メカエリチャン11号機, メカエリチャン1号機, メカエリチャンII号機, メカエリチャンI号機"
   },
   {
     "jp_name": "オケアノス",
     "cn_name": "俄刻阿诺斯",
+    "en_name": "Okeanos",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "哪吒",
     "cn_name": "哪吒",
+    "en_name": "Nezha",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ミドラーシュ",
     "cn_name": "米德拉什",
+    "en_name": "Midrash",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アビゲイル・ウィリアムズ",
     "cn_name": "阿比盖尔·威廉姆斯",
+    "en_name": "Abigail Williams",
     "category": "character",
     "aliases": "アビゲイルウィリアムズ"
   },
   {
     "jp_name": "アビゲイル・サンタ",
     "cn_name": "阿比盖尔·圣诞",
+    "en_name": "Abigail Williams (Santa)",
     "category": "character",
     "aliases": "アビゲイルサンタ"
   },
   {
     "jp_name": "エレシュキガル",
     "cn_name": "埃列什基伽勒",
+    "en_name": "Ereshkigal",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エレシュキガル・オルタ",
     "cn_name": "埃列什基伽勒·Alter",
+    "en_name": "Ereshkigal Alter",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ニンキガル",
     "cn_name": "宁基伽勒",
+    "en_name": "Ninkigal",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "葛飾北斎",
     "cn_name": "葛饰北斋",
+    "en_name": "Katsushika Hokusai",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "セミラミス",
     "cn_name": "塞弥拉弥斯",
+    "en_name": "Semiramis",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "浅上藤乃",
     "cn_name": "浅上藤乃",
+    "en_name": "Asagami Fujino",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アナスタシア・ニコラエヴナ・ロマノヴァ",
     "cn_name": "阿纳斯塔西娅·尼古拉耶芙娜·罗曼诺娃",
+    "en_name": "Anastasia Nikolaevna Romanova",
     "category": "character",
     "aliases": "アナスタシアニコラエヴナロマノヴァ"
   },
   {
     "jp_name": "アタランテ・オルタ",
     "cn_name": "阿塔兰忒·Alter",
+    "en_name": "Atalante Alter",
     "category": "character",
     "aliases": "アタランテオルタ"
   },
   {
     "jp_name": "アヴィケブロン",
     "cn_name": "阿维斯布隆",
+    "en_name": "Avicebron",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アントニオ・サリエリ",
     "cn_name": "安东尼奥·萨列里",
+    "en_name": "Antonio Salieri",
     "category": "character",
     "aliases": "アントニオサリエリ"
   },
   {
     "jp_name": "イヴァン雷帝",
     "cn_name": "伊凡雷帝",
+    "en_name": "Ivan the Terrible",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アキレウス",
     "cn_name": "阿喀琉斯",
+    "en_name": "Achilles",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ケイローン",
     "cn_name": "喀戎",
+    "en_name": "Chiron",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジーク",
     "cn_name": "齐格",
+    "en_name": "Sieg",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "沖田総司・オルタ",
     "cn_name": "冲田总司·Alter",
+    "en_name": "Okita Souji (Alter)",
     "category": "character",
     "aliases": "沖田総司オルタ"
   },
   {
     "jp_name": "岡田以蔵",
     "cn_name": "冈田以藏",
+    "en_name": "Okada Izo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "坂本龍馬",
     "cn_name": "坂本龙马",
+    "en_name": "Sakamoto Ryouma",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ナポレオン",
     "cn_name": "拿破仑",
+    "en_name": "Napoleon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シグルド",
     "cn_name": "齐格鲁德",
+    "en_name": "Sigurd",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ワルキューレ",
     "cn_name": "瓦尔基里",
+    "en_name": "Valkyrie",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スカサハ＝スカディ",
     "cn_name": "斯卡哈＝斯卡蒂",
+    "en_name": "Scáthach-Skadi",
     "category": "character",
     "aliases": "スカサハ=スカディ"
   },
   {
     "jp_name": "謎のヒロインXX",
     "cn_name": "谜之女主角XX",
+    "en_name": "Mysterious Heroine XX",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シトナイ",
     "cn_name": "志度内",
+    "en_name": "Sitonai",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "項羽",
     "cn_name": "项羽",
+    "en_name": "Xiang Yu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "蘭陵王",
     "cn_name": "兰陵王",
+    "en_name": "Prince of Lan Ling",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "秦良玉",
     "cn_name": "秦良玉",
+    "en_name": "Qin Liangyu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "始皇帝",
     "cn_name": "始皇帝",
+    "en_name": "Qin Shi Huang",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "虞美人",
     "cn_name": "虞美人",
+    "en_name": "Yu Mei-ren",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "赤兎馬",
     "cn_name": "赤兔马",
+    "en_name": "Red Hare",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ブラダマンテ",
     "cn_name": "布拉达曼特",
+    "en_name": "Bradamante",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "紅閻魔",
     "cn_name": "红阎魔",
+    "en_name": "Beni-Enma",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "紅閻魔・オルタ",
     "cn_name": "红阎魔·Alter",
+    "en_name": "Beni-Enma Alter",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "美遊・エーデルフェルト",
     "cn_name": "美游·艾德费尔特",
+    "en_name": "Miyu Edelfelt",
     "category": "character",
     "aliases": "美遊エーデルフェルト"
   },
   {
     "jp_name": "紫式部",
     "cn_name": "紫式部",
+    "en_name": "Murasaki Shikibu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "キングプロテア",
     "cn_name": "Kingprotea",
+    "en_name": "Kingprotea",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "プロテア",
     "cn_name": "Protea",
+    "en_name": "Protea",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "キングプロテア・オルタ",
     "cn_name": "Kingprotea·Alter",
+    "en_name": "Kingprotea Alter",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "プロテア・オルタ",
     "cn_name": "Protea·Alter",
+    "en_name": "Protea Alter",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カーマ",
     "cn_name": "迦摩",
+    "en_name": "Kama",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ビーストⅢ／L",
     "cn_name": "BeastⅢ/L",
+    "en_name": "Beast III/L",
     "category": "character",
     "aliases": "ビーストIII/L"
   },
   {
     "jp_name": "司馬懿",
     "cn_name": "司马懿",
+    "en_name": "Sima Yi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ライネス",
     "cn_name": "莱妮丝",
+    "en_name": "Reines",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アストライア",
     "cn_name": "阿斯特赖亚",
+    "en_name": "Astraea",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "グレイ",
     "cn_name": "格蕾",
+    "en_name": "Gray",
     "category": "character",
     "aliases": "クレイ"
   },
   {
     "jp_name": "大いなる石像神",
     "cn_name": "伟大的石像神",
+    "en_name": "Great Stone Statue God",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ラクシュミー・バーイー",
     "cn_name": "拉克什米·芭伊",
+    "en_name": "Lakshmi Bai",
     "category": "character",
     "aliases": "ラクシュミーバーイー"
   },
   {
     "jp_name": "ウィリアム・テル",
     "cn_name": "威廉·退尔",
+    "en_name": "William Tell",
     "category": "character",
     "aliases": "ウィリアムテル"
   },
   {
     "jp_name": "アルジュナ・オルタ",
     "cn_name": "阿周那·Alter",
+    "en_name": "Arjuna (Alter)",
     "category": "character",
     "aliases": "アルジュナオルタ"
   },
   {
     "jp_name": "アシュヴァッターマン",
     "cn_name": "马嘶",
+    "en_name": "Aśvatthāman",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アスクレピオス",
     "cn_name": "阿斯克勒庇俄斯",
+    "en_name": "Asclepius",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "森長可",
     "cn_name": "森长可",
+    "en_name": "Mori Nagayoshi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "長尾景虎",
     "cn_name": "长尾景虎",
+    "en_name": "Nagao Kagetora",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "イアソン",
     "cn_name": "伊阿宋",
+    "en_name": "Jason",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "パリス",
     "cn_name": "帕里斯",
+    "en_name": "Paris",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ガレス",
     "cn_name": "加雷斯",
+    "en_name": "Gareth",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "バーソロミュー・ロバーツ",
     "cn_name": "巴沙洛缪·罗伯茨",
+    "en_name": "Bartholomew Roberts",
     "category": "character",
     "aliases": "バーソロミューロバーツ"
   },
   {
     "jp_name": "陳宮",
     "cn_name": "陈宫",
+    "en_name": "Chen Gong",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シャルロット・コルデー",
     "cn_name": "夏洛特·科黛",
+    "en_name": "Charlotte Corday",
     "category": "character",
     "aliases": "シャルロットコルデー"
   },
   {
     "jp_name": "サロメ",
     "cn_name": "莎乐美",
+    "en_name": "Salome",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "謎のアルターエゴ・Λ",
     "cn_name": "谜之Alterego·Λ",
+    "en_name": "Mysterious Alter Ego Λ",
     "category": "character",
     "aliases": "謎のアルターエゴΛ"
   },
   {
     "jp_name": "オキタ・Ｊ・ソウジ",
     "cn_name": "冲田·J·总司",
+    "en_name": "Okita J. Souji",
     "category": "character",
-    "aliases": "オキタ・J・ソウジ,オキタＪソウジ"
+    "aliases": "オキタ・J・ソウジ, オキタＪソウジ"
   },
   {
     "jp_name": "スペース・イシュタル",
     "cn_name": "太空伊什塔尔",
+    "en_name": "Space Ishtar",
     "category": "character",
     "aliases": "スペースイシュタル"
   },
   {
     "jp_name": "カラミティ・ジェーン",
     "cn_name": "灾星简",
+    "en_name": "Calamity Jane",
     "category": "character",
     "aliases": "カラミティジェーン"
   },
   {
     "jp_name": "超人オリオン",
     "cn_name": "超人俄里翁",
+    "en_name": "Super Orion",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マンドリカルド",
     "cn_name": "曼迪卡尔多",
+    "en_name": "Mandricardo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エウロペ",
     "cn_name": "欧罗巴",
+    "en_name": "Europa",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "楊貴妃",
     "cn_name": "杨贵妃",
+    "en_name": "Yang Guifei",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "清少納言",
     "cn_name": "清少纳言",
+    "en_name": "Sei Shounagon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オデュッセウス",
     "cn_name": "奥德修斯",
+    "en_name": "Odysseus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ディオスクロイ",
     "cn_name": "狄俄斯库里",
+    "en_name": "Dioscuri",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カイニス",
     "cn_name": "凯妮斯",
+    "en_name": "Caenis",
     "category": "character",
     "aliases": "力イニス"
   },
   {
     "jp_name": "ロムルス＝クィリヌス",
     "cn_name": "罗穆路斯·奎里努斯",
+    "en_name": "Romulus=Quirinus",
     "category": "character",
     "aliases": "ロムルス=クィリヌス"
   },
   {
     "jp_name": "ボイジャー",
     "cn_name": "旅行者",
+    "en_name": "Voyager",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "鬼女紅葉",
     "cn_name": "鬼女红叶",
+    "en_name": "Kijyo Koyo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "宇津見エリセ",
     "cn_name": "宇津见绘里濑",
+    "en_name": "Utsumi Erice",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "巴御前",
     "cn_name": "巴御前",
+    "en_name": "Tomoe Gozen",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "卑弥呼",
     "cn_name": "卑弥呼",
+    "en_name": "Himiko",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "斎藤一",
     "cn_name": "斋藤一",
+    "en_name": "Saito Hajime",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "織田信勝",
     "cn_name": "织田信胜",
+    "en_name": "Oda Nobukatsu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヴィンセント・ヴァン・ゴッホ",
     "cn_name": "文森特·梵高",
+    "en_name": "Vincent van Gogh",
     "category": "character",
     "aliases": "ヴィンセントヴァンゴッホ"
   },
   {
     "jp_name": "蘆屋道満",
     "cn_name": "芦屋道满",
+    "en_name": "Ashiya Douman",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "渡辺綱",
     "cn_name": "渡边纲",
+    "en_name": "Watanabe-no-Tsuna",
     "category": "character",
     "aliases": "ワタナベノツナ"
   },
   {
     "jp_name": "綱",
     "cn_name": "纲",
+    "en_name": "Tsuna",
     "category": "character",
     "aliases": "ツナ"
   },
   {
     "jp_name": "伊吹童子",
     "cn_name": "伊吹童子",
+    "en_name": "Ibuki-Douji",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヴリトラ",
     "cn_name": "弗栗多",
+    "en_name": "Vritra",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "千子村正",
     "cn_name": "千子村正",
+    "en_name": "Senji Muramasa",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "平景清",
     "cn_name": "平景清",
+    "en_name": "Taira-no-Kagekiyo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "鬼一法眼",
     "cn_name": "鬼一法眼",
+    "en_name": "Kiichi Hogen",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アムール",
     "cn_name": "阿摩耳",
+    "en_name": "Amor",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カレン",
     "cn_name": "卡莲",
+    "en_name": "Caren",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ガラテア",
     "cn_name": "伽拉忒亚",
+    "en_name": "Galatea",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ミス・クレーン",
     "cn_name": "Miss・克莱恩",
+    "en_name": "Miss Crane",
     "category": "character",
     "aliases": "ミスクレーン"
   },
   {
     "jp_name": "謎のアイドルX・オルタ",
     "cn_name": "谜之偶像X·Alter",
+    "en_name": "Mysterious Idol X (Alter)",
     "category": "character",
     "aliases": "謎のアイドルXオルタ"
   },
   {
     "jp_name": "モルガン",
     "cn_name": "摩根",
+    "en_name": "Morgan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "妖精騎士ガウェイン",
     "cn_name": "妖精骑士高文",
+    "en_name": "Tam Lin Gawain",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "バーヴァン・シー",
     "cn_name": "芭万·希",
+    "en_name": "Baobhan Sith",
     "category": "character",
-    "aliases": "バーヴァンシー,バーヴァンシ,バーヴァン・シ"
+    "aliases": "バーヴァンシ, バーヴァンシー, バーヴァン・シ"
   },
   {
     "jp_name": "妖精騎士トリスタン",
     "cn_name": "妖精骑士崔斯坦",
+    "en_name": "Tam Lin Tristan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "バーゲスト",
     "cn_name": "巴格斯特",
+    "en_name": "Barghest",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "妖精騎士ランスロット",
     "cn_name": "妖精骑士兰斯洛特",
+    "en_name": "Tam Lin Lancelot",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "パーシヴァル",
     "cn_name": "珀西瓦尔",
+    "en_name": "Percival",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "光のコヤンスカヤ",
     "cn_name": "光之高扬斯卡娅",
+    "en_name": "Koyanskaya of Light",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ハベトロット",
     "cn_name": "哈贝特洛特",
+    "en_name": "Habetrot",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オベロン·ヴォーティガーン",
     "cn_name": "奥伯龙·伏提庚",
+    "en_name": "Oberon Vortigern",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヴィイ",
     "cn_name": "维",
+    "en_name": "Viy",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジャック・ド・モレー",
     "cn_name": "雅克·德·莫莱",
+    "en_name": "Jacques de Molay",
     "category": "character",
     "aliases": "ジャックドモレー"
   },
   {
     "jp_name": "ゼノビア",
     "cn_name": "芝诺比阿",
+    "en_name": "Zenobia",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "出雲阿国",
     "cn_name": "出云阿国",
+    "en_name": "Izumo-no-Okuni",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "謎の蘭丸X",
     "cn_name": "谜之兰丸X",
+    "en_name": "Mysterious Ranmaru X",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "太公望",
     "cn_name": "太公望",
+    "en_name": "Taigong Wang",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ドブルイニャ・ニキチッチ",
     "cn_name": "多布雷尼亚·尼基季奇",
+    "en_name": "Dobrynya Nikitich",
     "category": "character",
     "aliases": "ドブルイニャニキチッチ"
   },
   {
     "jp_name": "ビーストⅣ",
     "cn_name": "BeastⅣ",
+    "en_name": "Beast IV",
     "category": "character",
     "aliases": "ビーストIV"
   },
   {
     "jp_name": "闇のコヤンスカヤ",
     "cn_name": "暗之高扬斯卡娅",
+    "en_name": "Koyanskaya of Dark",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヘファイスティオン",
     "cn_name": "赫费斯提翁",
+    "en_name": "Hephaistíon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マナナン・マク・リール",
     "cn_name": "马纳南·麦克·利尔",
+    "en_name": "Manannán mac Lir",
     "category": "character",
     "aliases": "マナナンマクリール"
   },
   {
     "jp_name": "バゼット",
     "cn_name": "巴泽特",
+    "en_name": "Bazett",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "徴姉妹",
     "cn_name": "征氏姐妹",
+    "en_name": "Hai Bà Trưng",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "太歳星君",
     "cn_name": "太岁星君",
+    "en_name": "Taisui Xingjun",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スーパーバニヤン",
     "cn_name": "超级班扬",
+    "en_name": "Super Bunyan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "大黒天",
     "cn_name": "大黑天",
+    "en_name": "Daikokuten",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メアリー・アニング",
     "cn_name": "玛丽·安宁",
+    "en_name": "Mary Anning",
     "category": "character",
     "aliases": "メアリーアニング"
   },
   {
     "jp_name": "コンスタンティノス11世",
     "cn_name": "君士坦丁十一世",
+    "en_name": "Kōnstantînos XI",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シャルルマーニュ",
     "cn_name": "查理曼",
+    "en_name": "Charlemagne",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ローラン",
     "cn_name": "罗兰",
+    "en_name": "Roland",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "クリームヒルト",
     "cn_name": "克里姆希尔德",
+    "en_name": "Kriemhild",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジェームズ・モリアーティ",
     "cn_name": "詹姆斯·莫里亚蒂",
+    "en_name": "James Moriarty",
     "category": "character",
     "aliases": "ジェームズモリアーティ"
   },
   {
     "jp_name": "ドン・キホーテ",
     "cn_name": "堂·吉诃德",
+    "en_name": "Don Quixote",
     "category": "character",
     "aliases": "ドンキホーテ"
   },
   {
     "jp_name": "張角",
     "cn_name": "张角",
+    "en_name": "Zhang Jue",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "曲亭馬琴",
     "cn_name": "曲亭马琴",
+    "en_name": "Kyokutei Bakin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "源為朝",
     "cn_name": "源为朝",
+    "en_name": "Minamoto-no-Tametomo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アーキタイプ：アース",
     "cn_name": "Archetype：Earth",
+    "en_name": "Archetype: Earth",
     "category": "character",
     "aliases": "アーキタイプ:アース"
   },
   {
     "jp_name": "徐福",
     "cn_name": "徐福",
+    "en_name": "Xu Fu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "レディ・アヴァロン",
     "cn_name": "Lady・阿瓦隆",
+    "en_name": "Lady Avalon",
     "category": "character",
     "aliases": "レディアヴァロン"
   },
   {
     "jp_name": "武則天",
     "cn_name": "武则天",
+    "en_name": "Wu Zetian",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スルーズ",
     "cn_name": "斯露德",
+    "en_name": "Thrúd",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヒルド",
     "cn_name": "希露德",
+    "en_name": "Hildr",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オルトリンデ",
     "cn_name": "奥特琳德",
+    "en_name": "Ortlinde",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "千利休",
     "cn_name": "千利休",
+    "en_name": "Sen-no-Rikyu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "山南敬助",
     "cn_name": "山南敬助",
+    "en_name": "Yamanami Keisuke",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "壱与",
     "cn_name": "壹与",
+    "en_name": "Iyo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "呼延灼",
     "cn_name": "呼延灼",
+    "en_name": "Huyan Zhuo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "黄飛虎",
     "cn_name": "黄飞虎",
+    "en_name": "Huang Feihu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "九紋竜エリザ",
     "cn_name": "九纹龙伊丽莎",
+    "en_name": "Nine-Tattoo Dragon Elisa",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ブリトマート",
     "cn_name": "布里托玛特",
+    "en_name": "Britomart",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "グレゴリー・ラスプーチン",
     "cn_name": "格里戈里·拉斯普京",
+    "en_name": "Grigori Rasputin",
     "category": "character",
     "aliases": "グレゴリーラスプーチン"
   },
   {
     "jp_name": "ニトクリス・オルタ",
     "cn_name": "尼托克丽丝·Alter",
+    "en_name": "Nitocris Alter",
     "category": "character",
     "aliases": "ニトクリスオルタ"
   },
   {
     "jp_name": "テスカトリポカ",
     "cn_name": "特斯卡特利波卡",
+    "en_name": "Tezcatlipoca",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "トラロック",
     "cn_name": "特拉洛克",
+    "en_name": "Tlaloc",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ククルカン",
     "cn_name": "库库尔坎",
+    "en_name": "Kukulcan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "女教皇ヨハンナ",
     "cn_name": "女教皇若安",
+    "en_name": "Pope Johanna",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "高杉晋作",
     "cn_name": "高杉晋作",
+    "en_name": "Takasugi Shinsaku",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ラーヴァ",
     "cn_name": "幼体",
+    "en_name": "Larva",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ソドムズビースト",
     "cn_name": "所多玛之兽",
+    "en_name": "Sodom's Beast",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ドラコー",
     "cn_name": "德拉科",
+    "en_name": "Draco",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ロクスタ",
     "cn_name": "洛库斯塔",
+    "en_name": "Locusta",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "セタンタ",
     "cn_name": "瑟坦特",
+    "en_name": "Setanta",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "果心居士",
     "cn_name": "果心居士",
+    "en_name": "Kashin Koji",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ビーマ",
     "cn_name": "怖军",
+    "en_name": "Bhima",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ドゥリーヨダナ",
     "cn_name": "难敌",
+    "en_name": "Duryodhana",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ドゥルガー",
     "cn_name": "杜尔伽",
+    "en_name": "Durga",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "雨の魔女トネリコ",
     "cn_name": "雨之魔女梣",
+    "en_name": "Aesc the Rain Witch",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ノクナレア・ヤラアーンドゥ",
     "cn_name": "诺克娜蕾·雅兰杜",
+    "en_name": "Cnoc na Riabh Yaraan-doo",
     "category": "character",
     "aliases": "ノクナレアヤラアーンドゥ"
   },
   {
     "jp_name": "メリュジーヌ",
     "cn_name": "梅柳齐娜",
+    "en_name": "Mélusine",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メリュジーヌ・オンディーヌ",
     "cn_name": "梅柳齐娜·翁蒂娜",
+    "en_name": "Mélusine Undine",
     "category": "character",
     "aliases": "メリュジーヌオンディーヌ"
   },
   {
     "jp_name": "ＵＤＫ－バーゲスト",
     "cn_name": "UDK－巴格斯特",
+    "en_name": "UDK-Barghest",
     "category": "character",
-    "aliases": "UDK-バーゲスト,UDK巴格斯特"
+    "aliases": "UDK-バーゲスト, UDK巴格斯特"
   },
   {
     "jp_name": "ケット・クー・ミコケル",
     "cn_name": "凯特·库·米可科尔",
+    "en_name": "Cait Cú Cerpriestess",
     "category": "character",
     "aliases": "ケットクーミコケル"
   },
   {
     "jp_name": "ワンジナ",
     "cn_name": "旺吉娜",
+    "en_name": "Wandjina",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "プトレマイオス",
     "cn_name": "托勒密",
+    "en_name": "Ptolemaîos",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "杉谷善住坊",
     "cn_name": "杉谷善住坊",
+    "en_name": "Sugitani Zenjubou",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "テセウス",
     "cn_name": "忒修斯",
+    "en_name": "Theseus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "武田晴信",
     "cn_name": "武田晴信",
+    "en_name": "Takeda Harunobu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "永倉新八",
     "cn_name": "永仓新八",
+    "en_name": "Nagakura Shinpachi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "雑賀孫一",
     "cn_name": "杂贺孙一",
+    "en_name": "Saika Magoichi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "上杉謙信",
     "cn_name": "上杉谦信",
+    "en_name": "Uesugi Kenshin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヤマトタケル",
     "cn_name": "大和武尊",
+    "en_name": "Yamato Takeru",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "タケル",
     "cn_name": "武尊",
+    "en_name": "Takeru",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "丑御前",
     "cn_name": "丑御前",
+    "en_name": "Ushi Gozen",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "由井正雪",
     "cn_name": "由井正雪",
+    "en_name": "Yui Shousetsu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "宮本伊織",
     "cn_name": "宫本伊织",
+    "en_name": "Miyamoto Iori",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アンドロメダ",
     "cn_name": "安德洛墨达",
+    "en_name": "Andromeda",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マリー・オルタ",
     "cn_name": "玛丽·Alter",
+    "en_name": "Marie Antoinette Alter",
     "category": "character",
     "aliases": "マリーオルタ"
   },
   {
     "jp_name": "耀星のハサン",
     "cn_name": "耀星哈桑",
+    "en_name": "Hassan of the Shining Star",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "巌窟王 モンテ・クリスト",
     "cn_name": "岩窟王 基督山",
+    "en_name": "The Count of Monte Cristo",
     "category": "character",
-    "aliases": "巌窟王 モンテクリスト,巌窟王モンテ・クリスト"
+    "aliases": "巌窟王 モンテクリスト, 巌窟王モンテ・クリスト"
   },
   {
     "jp_name": "アレッサンドロ・ディ・カリオストロ",
     "cn_name": "亚历山德罗·迪·卡利奥斯特罗",
+    "en_name": "Alessandro di Cagliostro",
     "category": "character",
     "aliases": "アレッサンドロディカリオストロ"
   },
   {
     "jp_name": "Ｅ－フレアマリー",
     "cn_name": "E－火玛丽",
+    "en_name": "E-Flare Marie",
     "category": "character",
     "aliases": "E-フレアマリー"
   },
   {
     "jp_name": "Ｅ－アクアマリー",
     "cn_name": "E－水玛丽",
+    "en_name": "E-Aqua Marie",
     "category": "character",
     "aliases": "E-アクアマリー"
   },
   {
     "jp_name": "蒼崎青子",
     "cn_name": "苍崎青子",
+    "en_name": "Aozaki Aoko",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "静希草十郎",
     "cn_name": "静希草十郎",
+    "en_name": "Shizuki Soujuurou",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "久遠寺有珠",
     "cn_name": "久远寺有珠",
+    "en_name": "Kuonji Alice",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ひびき",
     "cn_name": "响",
+    "en_name": "Hibiki",
     "category": "character",
-    "aliases": "ひびき"
+    "aliases": ""
   },
   {
     "jp_name": "千鍵",
     "cn_name": "千键",
+    "en_name": "Chikagi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アンキ・エレシュキガル",
     "cn_name": "安基埃列什基伽勒",
+    "en_name": "Anki Ereshkigal",
     "category": "character",
     "aliases": "アンキエレシュキガル"
   },
   {
     "jp_name": "スペース・エレシュキガル",
     "cn_name": "太空埃列什基伽勒",
+    "en_name": "Space Ereshkigal",
     "category": "character",
     "aliases": "スペースエレシュキガル"
   },
   {
     "jp_name": "謎の代行者C.I.E.L",
     "cn_name": "谜之代行者C.I.E.L",
+    "en_name": "Mysterious Executor C.I.E.L",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ＢＢドバイ",
     "cn_name": "BB迪拜",
+    "en_name": "BB Dubai",
     "category": "character",
     "aliases": "BBドバイ"
   },
   {
     "jp_name": "ＢＢコスモ",
     "cn_name": "BB宇宙",
+    "en_name": "BB Cosmos",
     "category": "character",
     "aliases": "BBコスモ"
   },
   {
     "jp_name": "ゴールデンＢＢ",
     "cn_name": "黄金BB",
+    "en_name": "Golden BB",
     "category": "character",
     "aliases": "ゴールデンBB"
   },
   {
     "jp_name": "テノチティトラン",
     "cn_name": "特诺奇蒂特兰",
+    "en_name": "Tenochtitlan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "謎のヒロインXX・オルタ",
     "cn_name": "谜之女主角XX·Alter",
+    "en_name": "Mysterious Heroine XX (Alter)",
     "category": "character",
     "aliases": "謎のヒロインXXオルタ"
   },
   {
     "jp_name": "カズラドロップ",
     "cn_name": "Kazuradrop",
+    "en_name": "Kazuradrop",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ツタンカーメン",
     "cn_name": "图坦卡蒙",
+    "en_name": "Tutankhamun",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ロウヒ",
     "cn_name": "娄希",
+    "en_name": "Louhi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ファンタズムーン",
     "cn_name": "Phantasmoon",
+    "en_name": "Phantasmoon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スペース・ファンタズムーンＶ",
     "cn_name": "Space PhantasmoonⅤ",
+    "en_name": "Space Phantasmoon V",
     "category": "character",
     "aliases": "スペースファンタズムーンV"
   },
   {
     "jp_name": "サンタズムーン",
     "cn_name": "Santasmoon",
+    "en_name": "Santa's Moon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "リチャードⅠ世",
     "cn_name": "理查一世",
+    "en_name": "Richard I",
     "category": "character",
     "aliases": "リチャードI世"
   },
   {
     "jp_name": "ビショーネ",
     "cn_name": "比肖内",
+    "en_name": "Biscione",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "黒姫",
     "cn_name": "黑姬",
+    "en_name": "Kurohime",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "小野小町",
     "cn_name": "小野小町",
+    "en_name": "Ono-no-Komachi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "Ｅ－グランマリー",
     "cn_name": "E－宏玛丽",
+    "en_name": "E-Grand Marie",
     "category": "character",
     "aliases": "E-グランマリー"
   },
   {
     "jp_name": "ダンテ・アリギエーリ",
     "cn_name": "但丁·阿利吉耶里",
+    "en_name": "Dante Alighieri",
     "category": "character",
     "aliases": "ダンテアリギエーリ"
   },
   {
     "jp_name": "メタトロン・ジャンヌ",
     "cn_name": "梅塔特隆·贞德",
+    "en_name": "Metatron Jeanne",
     "category": "character",
     "aliases": "メタトロンジャンヌ"
   },
   {
     "jp_name": "アショカ王",
     "cn_name": "阿育王",
+    "en_name": "King Ashoka",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "リリス",
     "cn_name": "莉莉丝",
+    "en_name": "Lilith",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "テュフォン・エフェメロス",
     "cn_name": "堤丰·厄斐墨洛斯",
+    "en_name": "Typhon Ephemeros",
     "category": "character",
     "aliases": "テュフォンエフェメロス"
   },
   {
     "jp_name": "イプシロン",
     "cn_name": "伊普西龙",
+    "en_name": "Epsilon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "インドラ",
     "cn_name": "因陀罗",
+    "en_name": "Indra",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "Ｅ－ステラマリー",
     "cn_name": "E－星玛丽",
+    "en_name": "E-Stellar Marie",
     "category": "character",
     "aliases": "E-ステラマリー"
   },
   {
     "jp_name": "Ｕ－オルガマリー",
     "cn_name": "U－奥尔加玛丽",
+    "en_name": "U-Olga Marie",
     "category": "character",
     "aliases": "U-オルガマリー"
   },
   {
     "jp_name": "玉兎",
     "cn_name": "玉兔",
+    "en_name": "Jade Rabbit",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジュネス・クレーン",
     "cn_name": "热内斯·克莱恩",
+    "en_name": "Jeunesse Crane",
     "category": "character",
     "aliases": "ジュネスクレーン"
   },
   {
     "jp_name": "ノア",
     "cn_name": "诺亚",
+    "en_name": "Noah",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "河上彦斎",
     "cn_name": "河上彦斋",
+    "en_name": "Kawakami Gensai",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "藤堂平助",
     "cn_name": "藤堂平助",
+    "en_name": "Tōdō Heisuke",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "原田左之助",
     "cn_name": "原田左之助",
+    "en_name": "Harada Sanosuke",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "近藤勇",
     "cn_name": "近藤勇",
+    "en_name": "Kondo Isami",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "終わりのエリザベート",
     "cn_name": "终结之伊丽莎白",
+    "en_name": "Elisabeth of the End",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マリス・カルデアス",
     "cn_name": "马里斯·迦勒底亚斯",
+    "en_name": "Maris Chaldeas",
     "category": "character",
     "aliases": "マリスカルデアス"
   },
   {
     "jp_name": "ロード・ログレス",
     "cn_name": "领主洛格雷斯",
+    "en_name": "Lord Logres",
     "category": "character",
     "aliases": "ロードログレス"
   },
   {
     "jp_name": "ログレス",
     "cn_name": "洛格雷斯",
+    "en_name": "Logres",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "花咲翁",
     "cn_name": "花咲翁",
+    "en_name": "Hanasaka-no-Okina",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "蛇女房",
     "cn_name": "蛇女房",
+    "en_name": "Hebi Nyōbō",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フローラ",
     "cn_name": "芙萝拉",
+    "en_name": "Flora",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "デメテル・エリニュス",
     "cn_name": "得墨忒耳·厄里倪厄斯",
+    "en_name": "Demeter Erinyes",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フランソワ・プレラーティ",
     "cn_name": "弗朗索瓦·普勒拉蒂",
+    "en_name": "François Prélati",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フランチェスカ・プレラーティ",
     "cn_name": "弗兰切斯卡·普勒拉蒂",
+    "en_name": "Francesca Prelati",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヒッポリュテ",
     "cn_name": "希波吕忒",
+    "en_name": "Hippolyta",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジョン・ラックランド",
     "cn_name": "无地王约翰",
+    "en_name": "John Lackland",
     "category": "character",
     "aliases": "ジョンラックランド"
   },
   {
     "jp_name": "ウルズ",
     "cn_name": "乌尔德",
+    "en_name": "Urðr",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カマソッソ",
     "cn_name": "卡玛佐茨",
+    "en_name": "Camazotz",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "朱瑞鳥・紅閻魔",
     "cn_name": "朱瑞鸟·红阎魔",
+    "en_name": "Vermillion Bird, Beni-Enma",
     "category": "character",
-    "aliases": "朱瑞鳥紅閻魔,朱瑞鳥·紅閻魔"
+    "aliases": "朱瑞鳥·紅閻魔, 朱瑞鳥紅閻魔"
   },
   {
     "jp_name": "恐竜王",
     "cn_name": "恐龙王",
+    "en_name": "Dinosaur King",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "イスカリ",
     "cn_name": "伊斯卡利",
+    "en_name": "Izcalli",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ORT",
     "cn_name": "ORT",
+    "en_name": "ORT",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スカンジナビア・ペペロンチーノ",
     "cn_name": "斯堪的纳维亚·佩佩隆奇诺",
+    "en_name": "Scandinavia Peperoncino",
     "category": "character",
-    "aliases": "スカンジナビアペペロンチーノ,スカンジナビア·ペペロンチーノ"
+    "aliases": "スカンジナビア·ペペロンチーノ, スカンジナビアペペロンチーノ"
   },
   {
     "jp_name": "妙漣寺鴉郎",
     "cn_name": "妙漣寺鴉郎",
+    "en_name": "Myōrenji Arō",
     "category": "character",
     "aliases": "みょうれんじあろう"
   },
   {
     "jp_name": "コヤンスカヤ",
     "cn_name": "高扬斯卡娅",
+    "en_name": "Koyanskaya",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ブランカ",
     "cn_name": "布兰卡",
+    "en_name": "Blanca",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ウェールズ",
     "cn_name": "威尔士",
+    "en_name": "Wales",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オーロラ",
     "cn_name": "欧若拉",
+    "en_name": "Aurora",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "コーラル",
     "cn_name": "科拉尔",
+    "en_name": "Coral",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スプリガン",
     "cn_name": "斯普里根",
+    "en_name": "Spriggan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "亜鈴百種・排熱大公",
     "cn_name": "亚铃百种·散热大公",
+    "en_name": "A-ray: Grand Duke of Heat Waste",
     "category": "character",
-    "aliases": "亜鈴百種排熱大公,亜鈴百種·排熱大公"
+    "aliases": "亜鈴百種·排熱大公, 亜鈴百種排熱大公"
   },
   {
     "jp_name": "ボガード",
     "cn_name": "博格特",
+    "en_name": "Boggart",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エインセル",
     "cn_name": "艾因塞尔",
+    "en_name": "Ainsel",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ノクナレア",
     "cn_name": "诺克娜蕾",
+    "en_name": "Cnoc na Riabh",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ウィンキー",
     "cn_name": "温基",
+    "en_name": "Winky",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ワグ",
     "cn_name": "瓦格",
+    "en_name": "Wag",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ロブ",
     "cn_name": "罗布",
+    "en_name": "Rob",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ホープ",
     "cn_name": "霍普",
+    "en_name": "Hope",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "白狼",
     "cn_name": "白狼",
+    "en_name": "White Wolf",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エクター",
     "cn_name": "埃克特",
+    "en_name": "Ector",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "モース",
     "cn_name": "摩耳斯",
+    "en_name": "Mors",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ケルヌンノス",
     "cn_name": "科尔努诺斯",
+    "en_name": "Cernunnos",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "祭神ケルヌンノス",
     "cn_name": "祭神科尔努诺斯",
+    "en_name": "Deity Cernunnos",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "セファール",
     "cn_name": "赛法卢",
+    "en_name": "Sefar",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アルビオン",
     "cn_name": "阿尔比恩",
+    "en_name": "Albion",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "魔竜ヴォーティガーン",
     "cn_name": "魔龙伏提庚",
+    "en_name": "Demonic Dragon Vortigern",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アグラヴェイン",
     "cn_name": "阿格规文",
+    "en_name": "Agravain",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アトラス",
     "cn_name": "阿特拉斯",
+    "en_name": "Atlas",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "豹尾神",
     "cn_name": "豹尾神",
+    "en_name": "Hyobishin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "柴田勝家",
     "cn_name": "柴田胜家",
+    "en_name": "Shibata Katsuie",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ダユー",
     "cn_name": "达尤",
+    "en_name": "Dahut",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ドゥムジ",
     "cn_name": "杜木兹",
+    "en_name": "Dumuzid",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ファースト・レディ",
     "cn_name": "First Lady",
+    "en_name": "First Lady",
     "category": "character",
-    "aliases": "ファーストレディ,ファースト·レディ"
+    "aliases": "ファースト·レディ, ファーストレディ"
   },
   {
     "jp_name": "複合神性ゴルゴーン",
     "cn_name": "复合神性戈耳工",
+    "en_name": "Composite Divinity Gorgon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "韓信",
     "cn_name": "韩信",
+    "en_name": "Han Xin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "キングゥ",
     "cn_name": "金固",
+    "en_name": "Kingu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "玖賀耳之御笠",
     "cn_name": "玖贺耳之御笠",
+    "en_name": "Kugamimi-no-Mikasa",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ギャラハッド",
     "cn_name": "加拉哈德",
+    "en_name": "Galahad",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "巨英雄",
     "cn_name": "巨英雄",
+    "en_name": "Giant Hero",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "プルガトリオ",
     "cn_name": "Purgatorio",
+    "en_name": "Purgatorio",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マックスウェルの悪魔",
     "cn_name": "麦克斯韦妖",
+    "en_name": "Maxwell's Demon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ミノタウロス",
     "cn_name": "弥诺陶洛斯",
+    "en_name": "Minotaur",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "明智光秀",
     "cn_name": "明智光秀",
+    "en_name": "Akechi Mitsuhide",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ロンゴミニアド",
     "cn_name": "伦戈米尼亚德",
+    "en_name": "Rhongomyniad",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "芹沢鴨",
     "cn_name": "芹泽鸭",
+    "en_name": "Serizawa Kamo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "歳殺神",
     "cn_name": "岁杀神",
+    "en_name": "Saisatsushin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "四元素アイリ",
     "cn_name": "四元素之爱丽",
+    "en_name": "Elemental Irisviel",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シータ",
     "cn_name": "悉多",
+    "en_name": "Sita",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "煙酔のハサン",
     "cn_name": "烟醉哈桑",
+    "en_name": "Hassan of the Intoxicating Smoke",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "春日局",
     "cn_name": "春日局",
+    "en_name": "Lady Kasuga",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "長尾晴景",
     "cn_name": "长尾晴景",
+    "en_name": "Nagao Harukage",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ダーニック・プレストーン・ユグドミレニア",
     "cn_name": "达尼克·普雷斯通·尤格多米雷尼亚",
+    "en_name": "Darnic Prestone Yggdmillennia",
     "category": "character",
-    "aliases": "ダーニックプレストーンユグドミレニア,ダーニック·プレストーン·ユグドミレニア"
+    "aliases": "ダーニック·プレストーン·ユグドミレニア, ダーニックプレストーンユグドミレニア"
   },
   {
     "jp_name": "ハーゲン",
     "cn_name": "哈根",
+    "en_name": "Hagen",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "キャプテン・キッド",
     "cn_name": "基德船长",
+    "en_name": "Captain Kidd",
     "category": "character",
-    "aliases": "キャプテンキッド,キャプテン·キッド"
+    "aliases": "キャプテン·キッド, キャプテンキッド"
   },
   {
     "jp_name": "間桐雁夜",
     "cn_name": "间桐雁夜",
+    "en_name": "Matou Kariya",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "間桐臓硯",
     "cn_name": "间桐脏砚",
+    "en_name": "Matou Zouken",
     "category": "character",
     "aliases": "マキリ・ゾォルケン"
   },
   {
     "jp_name": "クリスティーヌ",
     "cn_name": "克里斯蒂娜",
+    "en_name": "Christine",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ケイネス・エルメロイ・アーチボルト",
     "cn_name": "肯尼斯·埃尔梅罗·阿奇博尔德",
+    "en_name": "Kayneth El-Melloi Archibald",
     "category": "character",
-    "aliases": "ケイネスエルメロイアーチボルト,ケイネス·エルメロイ·アーチボルト"
+    "aliases": "ケイネス·エルメロイ·アーチボルト, ケイネスエルメロイアーチボルト"
   },
   {
     "jp_name": "綾",
     "cn_name": "绫",
+    "en_name": "Aya",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ランドルフ・カーター",
     "cn_name": "伦道夫·卡特",
+    "en_name": "Randolph Carter",
     "category": "character",
-    "aliases": "ランドルフカーター,ランドルフ·カーター"
+    "aliases": "ランドルフ·カーター, ランドルフカーター"
   },
   {
     "jp_name": "リア王",
     "cn_name": "李尔王",
+    "en_name": "King Lear",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ロミオとジュリエット",
     "cn_name": "罗密欧与朱丽叶",
+    "en_name": "Romeo and Juliet",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ラヴィニア・ウェイトリー",
     "cn_name": "拉维尼娅·维特利",
+    "en_name": "Lavinia Whateley",
     "category": "character",
-    "aliases": "ラヴィニアウェイトリー,ラヴィニア·ウェイトリー"
+    "aliases": "ラヴィニア·ウェイトリー, ラヴィニアウェイトリー"
   },
   {
     "jp_name": "摩玖主大僧正",
     "cn_name": "摩玖主大僧正",
+    "en_name": "High Priest Makuzu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マクベス",
     "cn_name": "麦克白",
+    "en_name": "Macbeth",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マックスウェル",
     "cn_name": "麦克斯韦",
+    "en_name": "Maxwell",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ムネーモシュネー",
     "cn_name": "谟涅摩叙涅",
+    "en_name": "Mnemosyne",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "松平信綱",
     "cn_name": "松平信纲",
+    "en_name": "Matsudaira Nobutsuna",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "土田御前",
     "cn_name": "土田御前",
+    "en_name": "Lady Tsuchida",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "藤原道長",
     "cn_name": "藤原道长",
+    "en_name": "Fujiwara no Michinaga",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "田中新兵衛",
     "cn_name": "田中新兵卫",
+    "en_name": "Tanaka Shinbei",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ウェイバー・ベルベット",
     "cn_name": "韦伯·维尔维特",
+    "en_name": "Waver Velvet",
     "category": "character",
-    "aliases": "ウェイバーベルベット,ウェイバー·ベルベット"
+    "aliases": "ウェイバー·ベルベット, ウェイバーベルベット"
   },
   {
     "jp_name": "武市瑞山",
     "cn_name": "武市瑞山",
+    "en_name": "Takechi Zuizan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シドゥリ",
     "cn_name": "西杜丽",
+    "en_name": "Siduri",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "鵺",
     "cn_name": "鵺",
+    "en_name": "Nue",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スペース遠坂時臣",
     "cn_name": "宇宙远坂时臣",
+    "en_name": "Space Tohsaka Tokiomi",
     "category": "character",
-    "aliases": "スペース遠坂時臣"
+    "aliases": ""
   },
   {
     "jp_name": "アポロン",
     "cn_name": "阿波罗",
+    "en_name": "Apollo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アルテミス",
     "cn_name": "阿耳忒弥斯",
+    "en_name": "Artemis",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アフロディーテ",
     "cn_name": "阿佛洛狄忒",
+    "en_name": "Aphrodite",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アレス",
     "cn_name": "阿瑞斯",
+    "en_name": "Ares",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ポセイドン",
     "cn_name": "波塞冬",
+    "en_name": "Poseidon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヘファイストス",
     "cn_name": "赫淮斯托斯",
+    "en_name": "Hephaestus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヘラ",
     "cn_name": "赫拉",
+    "en_name": "Hera",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヘスティア",
     "cn_name": "赫斯提亚",
+    "en_name": "Hestia",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アテナ",
     "cn_name": "雅典娜",
+    "en_name": "Athena",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ゼウス",
     "cn_name": "宙斯",
+    "en_name": "Zeus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シャンシャン",
     "cn_name": "香香",
+    "en_name": "Shan Shan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オフェリア・ファムルソローネ",
     "cn_name": "奥菲莉娅·法姆索罗涅",
+    "en_name": "Ophelia Phamrsolone",
     "category": "character",
-    "aliases": "オフェリアファムルソローネ,オフェリア·ファムルソローネ"
+    "aliases": "オフェリア·ファムルソローネ, オフェリアファムルソローネ"
   },
   {
     "jp_name": "ベリル・ガット",
     "cn_name": "贝里尔·伽特",
+    "en_name": "Beryl Gut",
     "category": "character",
-    "aliases": "ベリルガット,ベリル·ガット"
+    "aliases": "ベリル·ガット, ベリルガット"
   },
   {
     "jp_name": "百貌ハサン・ちびハサン",
     "cn_name": "百貌哈桑·小哈桑",
+    "en_name": "Hundred Personas Hassan / Little Hassan",
     "category": "character",
-    "aliases": "百貌ハサンちびハサン,百貌ハサン·ちびハサン"
+    "aliases": "百貌ハサン·ちびハサン, 百貌ハサンちびハサン"
   },
   {
     "jp_name": "デイビット・ゼム・ヴォイド",
     "cn_name": "戴比特·泽姆·沃伊德",
+    "en_name": "Daybit Sem Void",
     "category": "character",
-    "aliases": "デイビットゼムヴォイド,デイビット·ゼム·ヴォイド"
+    "aliases": "デイビット·ゼム·ヴォイド, デイビットゼムヴォイド"
   },
   {
     "jp_name": "エキドナ",
     "cn_name": "厄喀德那",
+    "en_name": "Echidna",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ゴルドルフ・ムジーク",
     "cn_name": "戈尔德鲁夫·穆吉克",
+    "en_name": "Goredolf Musik",
     "category": "character",
-    "aliases": "ゴルドルフムジーク,ゴルドルフ·ムジーク"
+    "aliases": "ゴルドルフ·ムジーク, ゴルドルフムジーク"
   },
   {
     "jp_name": "芥ヒナコ",
     "cn_name": "芥雏子",
+    "en_name": "Hinako Akuta",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "キリシュタリア・ヴォーダイム",
     "cn_name": "基尔什塔利亚·沃戴姆",
+    "en_name": "Kirschtaria Wodime",
     "category": "character",
-    "aliases": "キリシュタリアヴォーダイム,キリシュタリア·ヴォーダイム"
+    "aliases": "キリシュタリア·ヴォーダイム, キリシュタリアヴォーダイム"
   },
   {
     "jp_name": "カドック・ゼムルプス",
     "cn_name": "卡多克·泽姆露普斯",
+    "en_name": "Kadoc Zemlupus",
     "category": "character",
-    "aliases": "カドックゼムルプス,カドック·ゼムルプス"
+    "aliases": "カドック·ゼムルプス, カドックゼムルプス"
   },
   {
     "jp_name": "ロマニ・アーキマン",
     "cn_name": "罗玛尼·阿其曼",
+    "en_name": "Romani Archaman",
     "category": "character",
-    "aliases": "ロマニアーキマン,ロマニ·アーキマン"
+    "aliases": "ロマニ·アーキマン, ロマニアーキマン"
   },
   {
     "jp_name": "マーブル・マッキントッシュ",
     "cn_name": "玛布尔·玛金托修",
+    "en_name": "Marble Macintosh",
     "category": "character",
-    "aliases": "マーブルマッキントッシュ,マーブル·マッキントッシュ"
+    "aliases": "マーブル·マッキントッシュ, マーブルマッキントッシュ"
   },
   {
     "jp_name": "スルト",
     "cn_name": "苏鲁特",
+    "en_name": "Surtr",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マリスビリー・アニムスフィア",
     "cn_name": "马里斯比利·阿尼姆斯菲亚",
+    "en_name": "Marisbury Animusphere",
     "category": "character",
-    "aliases": "マリスビリーアニムスフィア,マリスビリー·アニムスフィア"
+    "aliases": "マリスビリー·アニムスフィア, マリスビリーアニムスフィア"
   },
   {
     "jp_name": "シオン・エルトナム・ソカリス",
     "cn_name": "紫苑·艾尔特纳姆·索卡里斯",
+    "en_name": "Sion Eltnam Sokaris",
     "category": "character",
-    "aliases": "シオンエルトナムソカリス,シオン·エルトナム·ソカリス"
+    "aliases": "シオン·エルトナム·ソカリス, シオンエルトナムソカリス"
   },
   {
     "jp_name": "異星の巫女",
     "cn_name": "异星巫女",
+    "en_name": "Priestess of the Alien God",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "セレシェイラ・エルロン",
     "cn_name": "塞蕾雪拉·艾尔隆",
+    "en_name": "Cerejeira Elron",
     "category": "character",
-    "aliases": "セレシェイラエルロン,セレシェイラ·エルロン,セレシェイラ"
+    "aliases": "セレシェイラ, セレシェイラ·エルロン, セレシェイラエルロン"
   },
   {
     "jp_name": "フォウ",
     "cn_name": "芙芙",
+    "en_name": "Fou",
     "category": "character",
     "aliases": "Fou"
   },
   {
     "jp_name": "キャスパリーグ",
     "cn_name": "凯茜·帕鲁格",
+    "en_name": "Cath Palug",
     "category": "character",
-    "aliases": "Cath Palug,キャス・パリーグ"
+    "aliases": "Cath Palug, キャス・パリーグ"
   },
   {
     "jp_name": "ムニエル",
     "cn_name": "穆尼尔",
+    "en_name": "Meuniere",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジングル・アベル・ムニエル",
     "cn_name": "金格尔·阿贝尔·穆尼尔",
+    "en_name": "Jingle Abel Meuniere",
     "category": "character",
     "aliases": "ジングルアベルムニエル"
   },
   {
     "jp_name": "ホームズ",
     "cn_name": "福尔摩斯",
+    "en_name": "Holmes",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ダ・ヴィンチ",
     "cn_name": "达·芬奇",
+    "en_name": "Da Vinci",
     "category": "character",
     "aliases": "ダヴィンチ"
   },
   {
     "jp_name": "ゴルドルフ",
     "cn_name": "戈尔德鲁夫",
+    "en_name": "Goredolf",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カドック",
     "cn_name": "卡多克",
+    "en_name": "Kadoc",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "キャプテン・ネモ",
     "cn_name": "船长·尼莫",
+    "en_name": "Captain Nemo",
     "category": "character",
     "aliases": "キャプテンネモ"
   },
   {
     "jp_name": "ネモ・マリーン",
     "cn_name": "尼莫·水兵",
+    "en_name": "Nemo Marine",
     "category": "character",
     "aliases": "ネモマリーン"
   },
   {
     "jp_name": "ネモ・プロフェッサー",
     "cn_name": "尼莫·教授",
+    "en_name": "Nemo Professor",
     "category": "character",
     "aliases": "ネモプロフェッサー"
   },
   {
     "jp_name": "ネモ・エンジン",
     "cn_name": "尼莫·引擎",
+    "en_name": "Nemo Engine",
     "category": "character",
     "aliases": "ネモエンジン"
   },
   {
     "jp_name": "ネモ・ナース",
     "cn_name": "尼莫·护士",
+    "en_name": "Nemo Nurse",
     "category": "character",
     "aliases": "ネモナース"
   },
   {
     "jp_name": "ネモ・ベーカリー",
     "cn_name": "尼莫·烘焙坊",
+    "en_name": "Nemo Bakery",
     "category": "character",
     "aliases": "ネモベーカリー"
   },
   {
     "jp_name": "オルガマリー・アニムスフィア",
     "cn_name": "奥尔加玛丽·阿尼姆斯菲亚",
+    "en_name": "Olga Marie Animusphere",
     "category": "character",
     "aliases": "オルガマリーアニムスフィア"
   },
   {
     "jp_name": "オルガマリー",
     "cn_name": "奥尔加玛丽",
+    "en_name": "Olga Marie",
     "category": "character",
-    "aliases": "オルガマリ,オルガマリ一"
+    "aliases": "オルガマリ, オルガマリ一"
   },
   {
     "jp_name": "レフ・ライノール・フラウロス",
     "cn_name": "雷夫·莱诺尔·佛劳洛斯",
+    "en_name": "Lev Lainur Flauros",
     "category": "character",
     "aliases": "レフライノールフラウロス"
   },
   {
     "jp_name": "バアル",
     "cn_name": "巴力",
+    "en_name": "Baal",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ゼパル",
     "cn_name": "桀派",
+    "en_name": "Zepar",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フェニクス",
     "cn_name": "菲尼克斯",
+    "en_name": "Phenex",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ラウム",
     "cn_name": "劳姆",
+    "en_name": "Raum",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アンドラス",
     "cn_name": "安托士",
+    "en_name": "Andras",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ナベリウス",
     "cn_name": "纳贝流士",
+    "en_name": "Naberius",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フラウロス",
     "cn_name": "佛劳洛斯",
+    "en_name": "Flauros",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フォルネウス",
     "cn_name": "佛钮司",
+    "en_name": "Forneus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "バルバトス",
     "cn_name": "巴巴妥司",
+    "en_name": "Barbatos",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ハルファス",
     "cn_name": "哈帕斯",
+    "en_name": "Halphas",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アモン",
     "cn_name": "亚蒙",
+    "en_name": "Amon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "サブナック",
     "cn_name": "斯伯纳克",
+    "en_name": "Sabnock",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アンドロマリウス",
     "cn_name": "安杜马利乌士",
+    "en_name": "Andromalius",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ラフム",
     "cn_name": "拉赫穆",
+    "en_name": "Lahmu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "パツシィ",
     "cn_name": "帕茨希",
+    "en_name": "Patxi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ゲルダ",
     "cn_name": "格尔达",
+    "en_name": "Gerda",
     "category": "character",
     "aliases": "グルダ"
   },
   {
     "jp_name": "デイヴィット・ブルーブック",
     "cn_name": "大卫·布鲁布克",
+    "en_name": "David Bluebook",
     "category": "character",
-    "aliases": "デイヴィットブルーブック,デイヴィット,ブルーブック"
+    "aliases": "デイヴィット, デイヴィットブルーブック, ブルーブック"
   },
   {
     "jp_name": "オセロトル",
     "cn_name": "奥塞洛特尔",
+    "en_name": "Ocelotl",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "クワウテモク",
     "cn_name": "夸乌特莫克",
+    "en_name": "Cuauhtémoc",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オロチ",
     "cn_name": "大蛇",
+    "en_name": "Orochi",
     "category": "character",
     "aliases": "大蛇"
   },
   {
     "jp_name": "ソンブレロ",
     "cn_name": "阔边帽",
+    "en_name": "Sombrero",
     "category": "character",
     "aliases": "阔边帽"
   },
   {
     "jp_name": "メイオール",
     "cn_name": "马亚尔",
+    "en_name": "Mayall",
     "category": "character",
     "aliases": "马亚尔"
   },
   {
     "jp_name": "スパイラル",
     "cn_name": "漩涡",
+    "en_name": "Spiral",
     "category": "character",
     "aliases": "漩涡"
   },
   {
     "jp_name": "マゼラン",
     "cn_name": "麦哲伦",
+    "en_name": "Magellan",
     "category": "character",
     "aliases": "麦哲伦"
   },
   {
     "jp_name": "曼荼羅",
     "cn_name": "曼荼罗",
+    "en_name": "Mandala",
     "category": "character",
-    "aliases": "曼荼羅"
+    "aliases": ""
   },
   {
     "jp_name": "セイファート",
     "cn_name": "赛弗特",
+    "en_name": "Seyfert",
     "category": "character",
     "aliases": "赛弗特"
   },
   {
     "jp_name": "クエーサー",
     "cn_name": "类星体",
+    "en_name": "Quasar",
     "category": "character",
     "aliases": "类星体"
   },
   {
     "jp_name": "盈月",
     "cn_name": "盈月",
+    "en_name": "Waxing Moon",
     "category": "character",
-    "aliases": "盈月"
+    "aliases": ""
   },
   {
     "jp_name": "オルガ",
     "cn_name": "奥尔加",
+    "en_name": "Olga",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ペペ",
     "cn_name": "佩佩",
+    "en_name": "Pepe",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヒナコ",
     "cn_name": "雏子",
+    "en_name": "Hinako",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アズライール",
     "cn_name": "亚兹拉尔",
+    "en_name": "Azrael",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "検体:E",
     "cn_name": "检体:E",
+    "en_name": "Specimen E",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アナウンス",
     "cn_name": "广播",
+    "en_name": "Announcement",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ラニ=Ⅻ",
     "cn_name": "拉妮-Ⅻ",
+    "en_name": "Rani XII",
     "category": "character",
     "aliases": "ラニXII"
   },
   {
     "jp_name": "アーユス",
     "cn_name": "阿愈丝",
+    "en_name": "Ayus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "神王ラックランド",
     "cn_name": "神王拉克兰",
+    "en_name": "God-King Lackland",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジョン",
     "cn_name": "约翰",
+    "en_name": "John",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カヴァスⅡ世",
     "cn_name": "卡瓦斯Ⅱ世",
+    "en_name": "Cavall II",
     "category": "character",
-    "aliases": "カヴァスII世,カヴァスI世,カヴァス11世,カヴァス1世"
+    "aliases": "カヴァス11世, カヴァス1世, カヴァスII世, カヴァスI世"
   },
   {
     "jp_name": "ラニ=B",
     "cn_name": "拉妮-B",
+    "en_name": "Rani=B",
     "category": "character",
     "aliases": "ラニB"
   },
   {
     "jp_name": "Dr.ロマン",
     "cn_name": "Dr.罗曼",
+    "en_name": "Dr. Roman",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "藤丸立香",
     "cn_name": "藤丸立香",
+    "en_name": "Ritsuka Fujimaru",
     "category": "character",
     "aliases": "ふじまるりつか"
   },
   {
     "jp_name": "カレイドスコープ",
     "cn_name": "宝石翁",
+    "en_name": "Kaleidoscope",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "キシュア・ゼルレッチ・シュバインオーグ",
     "cn_name": "基修亚·泽尔里奇·修拜因奥古",
+    "en_name": "Kischur Zelretch Schweinorg",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ドクター",
     "cn_name": "医生",
+    "en_name": "Doctor",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "先輩",
     "cn_name": "前辈",
+    "en_name": "Senpai",
     "category": "character",
-    "aliases": "センパイ,せんぱい"
+    "aliases": "せんぱい, センパイ"
   },
   {
     "jp_name": "オーディン",
     "cn_name": "奥丁",
+    "en_name": "Odin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ムリアン",
     "cn_name": "缪瑞恩",
+    "en_name": "Muryan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "レッドラ・ビット",
     "cn_name": "瑞德拉·比特",
+    "en_name": "Redra Bit",
     "category": "character",
     "aliases": "レッドラビット"
   },
   {
     "jp_name": "アイン",
     "cn_name": "Eins",
+    "en_name": "Eins",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ツヴァイ",
     "cn_name": "Zwei",
+    "en_name": "Zwei",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ドライ",
     "cn_name": "Drei",
+    "en_name": "Drei",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "安倍晴明",
     "cn_name": "安倍晴明",
+    "en_name": "Abe-no-Seimei",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "言峰綺礼",
     "cn_name": "言峰绮礼",
+    "en_name": "Kotomine Kirei",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シバの女王",
     "cn_name": "示巴女王",
+    "en_name": "Queen of Sheba",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カール大帝",
     "cn_name": "卡尔大帝",
+    "en_name": "Karl der Große",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "クリストファー・コロンブス",
     "cn_name": "克里斯托弗·哥伦布",
+    "en_name": "Christopher Columbus",
     "category": "character",
     "aliases": "クリストファーコロンブス"
   },
   {
     "jp_name": "ヤン・ユーファン",
     "cn_name": "杨玉环",
+    "en_name": "Yang Yuhuan",
     "category": "character",
-    "aliases": "ヤンユーファン,楊玉環"
+    "aliases": "ヤンユーファン, 楊玉環"
   },
   {
     "jp_name": "岸波白野",
     "cn_name": "岸波白野",
+    "en_name": "Kishinami Hakuno",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ウッドワス",
     "cn_name": "伍德沃斯",
+    "en_name": "Woodwose",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヴクブ",
     "cn_name": "乌库伯",
+    "en_name": "Vucub",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オクタヴィア",
     "cn_name": "奥克塔维娅",
+    "en_name": "Octavia",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "トマリン",
     "cn_name": "托玛琳",
+    "en_name": "Tomalin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カワタ",
     "cn_name": "川田",
+    "en_name": "Kawata",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "カヤン",
     "cn_name": "卡扬",
+    "en_name": "Kayan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ダストン",
     "cn_name": "达斯顿",
+    "en_name": "Duston",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マーカス",
     "cn_name": "马库斯",
+    "en_name": "Marcus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "チン",
     "cn_name": "陈",
+    "en_name": "Chin",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "茅 昂昂",
     "cn_name": "茅 昂昂",
+    "en_name": "Mao Mao Mao",
     "category": "character",
     "aliases": "マオマオマオ"
   },
   {
     "jp_name": "シルビア",
     "cn_name": "西尔维亚",
+    "en_name": "Sylvia",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ソリア・ナイワー",
     "cn_name": "索里亚·奈瓦",
+    "en_name": "Soria Naiwa",
     "category": "character",
     "aliases": "ソリアナイワー"
   },
   {
     "jp_name": "ハリー・茜沢・アンダーソン",
     "cn_name": "哈利·茜泽·安德森",
+    "en_name": "Harry Akanezawa Anderson",
     "category": "character",
     "aliases": "ハリー茜沢アンダーソン"
   },
   {
     "jp_name": "ファヴニール",
     "cn_name": "法納夫",
+    "en_name": "Fafnir",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "スタッフ",
     "cn_name": "职员",
+    "en_name": "Staff",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オトタチバナ",
     "cn_name": "弟橘",
+    "en_name": "Ototachibana",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "サクラ",
     "cn_name": "樱",
+    "en_name": "Sakura",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フラット",
     "cn_name": "弗拉特",
+    "en_name": "Flat",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マリーンズ",
     "cn_name": "水兵们",
+    "en_name": "Marines",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "テペウ",
     "cn_name": "特佩乌",
+    "en_name": "Tepeu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "イシュキック",
     "cn_name": "希基克",
+    "en_name": "Ixquic",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "グレイ・リリィ",
     "cn_name": "格蕾·Lily",
+    "en_name": "Gray Lily",
     "category": "character",
-    "aliases": "クレイリリィ,グレイ・リリィ"
+    "aliases": "クレイリリィ"
   },
   {
     "jp_name": "アス",
     "cn_name": "阿斯",
+    "en_name": "As",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アスカラポス",
     "cn_name": "阿斯卡拉福斯",
+    "en_name": "Ascalaphus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アッド",
     "cn_name": "亚德",
+    "en_name": "Add",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "トリムマウ",
     "cn_name": "特里姆玛乌",
+    "en_name": "Trimmau",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ガベージ",
     "cn_name": "垃圾",
+    "en_name": "Garbage",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ハデス",
     "cn_name": "哈迪斯",
+    "en_name": "Hades",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ペルセポネ",
     "cn_name": "珀耳塞福涅",
+    "en_name": "Persephone",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "オルガ·カルデアス",
     "cn_name": "奥尔加·迦勒底亚斯",
+    "en_name": "Olga Chaldeas",
     "category": "character",
     "aliases": "オルガカルデアス"
   },
   {
     "jp_name": "グリム",
     "cn_name": "格里姆",
+    "en_name": "Grimr",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "賢人グリム",
     "cn_name": "贤人格里姆",
+    "en_name": "Sage Grimr",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ゴフ",
     "cn_name": "戈夫",
+    "en_name": "Goredolf",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "アーシャ",
     "cn_name": "阿夏",
+    "en_name": "Asha",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ハサン・サッバーハ",
     "cn_name": "哈桑·萨巴赫",
+    "en_name": "Hassan-i Sabbah",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シドラ・アズライール",
     "cn_name": "惜德拉·亚兹拉尔",
+    "en_name": "Sidra Azrael",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "蒼きアズライール",
     "cn_name": "苍之亚兹拉尔",
+    "en_name": "Azrael the Pale",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シサロット",
     "cn_name": "狮萨洛特",
+    "en_name": "Shisarotto",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "シーサー",
     "cn_name": "狮萨",
+    "en_name": "Shisa",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ドゥリー左衛門",
     "cn_name": "杜里左卫门",
+    "en_name": "Duryzaemon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "キジムナー",
     "cn_name": "木基姆纳",
+    "en_name": "Kijimuna",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ナッちゃん",
     "cn_name": "纳酱",
+    "en_name": "Nacchan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "レディ・ロングアーム",
     "cn_name": "Lady・Long Arm",
+    "en_name": "Lady Long Arm",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ミス・トールフット",
     "cn_name": "Miss・Tall Foot",
+    "en_name": "Miss Tall Foot",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "プタ",
     "cn_name": "Prota",
+    "en_name": "Prota",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "おみいさん",
     "cn_name": "阿咪姐",
+    "en_name": "Omii san",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ミストレスＣ",
     "cn_name": "Mistress C",
+    "en_name": "Mistress C",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ぐっ様",
     "cn_name": "虞大人",
+    "en_name": "Lady Yu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "メジェド様",
     "cn_name": "梅杰德大人",
+    "en_name": "Great Medjed",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ミ二小町",
     "cn_name": "迷你小町",
+    "en_name": "Mini Komachi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ぬらりひょん",
     "cn_name": "滑头鬼",
+    "en_name": "Nurarihyon",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヴェルザンディ",
     "cn_name": "薇尔丹蒂",
+    "en_name": "Verdandi",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "まーちゃん",
     "cn_name": "御酱",
+    "en_name": "Masu-chan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "小野篁",
     "cn_name": "小野篁",
+    "en_name": "Ono no Takamura",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "リンド",
     "cn_name": "琳德",
+    "en_name": "Rindr",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エルン",
     "cn_name": "奥露恩",
+    "en_name": "Örun",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "イルス",
     "cn_name": "洁尔诗",
+    "en_name": "Ers",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エリセ",
     "cn_name": "绘里濑",
+    "en_name": "Erice",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ちゃんマス",
     "cn_name": "酱御",
+    "en_name": "Chan-masu",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "辈先",
     "cn_name": "辈前",
+    "en_name": "Paisen",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "サンチョ",
     "cn_name": "桑丘",
+    "en_name": "Sancho",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "リンボ",
     "cn_name": "Limbo",
+    "en_name": "Limbo",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ダイダロス",
     "cn_name": "代达罗斯",
+    "en_name": "Daedalus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ナウクラテー",
     "cn_name": "瑙克拉特",
+    "en_name": "Naucrate",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ナウ子",
     "cn_name": "瑙子",
+    "en_name": "Nauko",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "イカロス",
     "cn_name": "伊卡洛斯",
+    "en_name": "Icarus",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ときこ",
     "cn_name": "時子",
+    "en_name": "Tokiko",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ジャック",
     "cn_name": "杰克",
+    "en_name": "Jack",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "エリザ",
     "cn_name": "伊莉莎",
+    "en_name": "Elisa",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "テノチティトラン・バニー",
     "cn_name": "特诺奇蒂特兰·兔女郎",
+    "en_name": "Tenochtitlan Bunny",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ゴッホ",
     "cn_name": "梵高",
+    "en_name": "Gogh",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "超絶神託ちゃん",
     "cn_name": "超绝神谕酱",
+    "en_name": "Super Oracle-chan",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ナウクラテー2号機",
     "cn_name": "瑙克拉特二号机",
+    "en_name": "Naucrate Mk.II",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "フシアナ",
     "cn_name": "伏西亞娜",
+    "en_name": "Hussianna",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "ヤン・ジシュカ",
     "cn_name": "扬·杰式卡",
+    "en_name": "Jan Žižka",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "マスター",
     "cn_name": "御主",
+    "en_name": "Master",
     "category": "character",
-    "aliases": "ますたー"
+    "aliases": "Master, ますたー"
   }
 ]

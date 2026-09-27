@@ -2,804 +2,959 @@
   {
     "jp_term": "オリュンポス",
     "cn_term": "奥林波斯",
+    "en_term": "Olympus",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "妖精國",
     "cn_term": "妖精国",
+    "en_term": "Faerie Britain",
     "category": "place",
-    "aliases": ""
+    "aliases": "妖精国"
   },
   {
     "jp_term": "カルデア",
     "cn_term": "迦勒底",
+    "en_term": "Chaldea",
     "category": "place",
-    "aliases": ""
+    "aliases": "Chaldea"
   },
   {
     "jp_term": "カルデアス",
     "cn_term": "迦勒底亚斯",
+    "en_term": "CHALDEAS",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ノウム・カルデア",
     "cn_term": "新迦勒底",
+    "en_term": "Novum Chaldea",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "フィニス・カルデア",
     "cn_term": "菲尼斯·迦勒底",
+    "en_term": "Finis Chaldea",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "人理",
     "cn_term": "人理",
+    "en_term": "Human Order",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "人理修復",
     "cn_term": "人理修复",
+    "en_term": "Restoration of Humanity",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "人理継続保障機関",
     "cn_term": "人理续存保障机构",
+    "en_term": "Security Organization for the Preservation of Humanity",
     "category": "organization",
     "aliases": ""
   },
   {
     "jp_term": "人理保障機関カルデア",
     "cn_term": "人理保障机构迦勒底",
+    "en_term": "Security Organization for the Preservation of Humanity - Chaldea",
     "category": "organization",
     "aliases": ""
   },
   {
     "jp_term": "特異点",
     "cn_term": "特异点",
+    "en_term": "Singularity",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "亜種特異点",
     "cn_term": "亚种特异点",
+    "en_term": "Pseudo-Singularity",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "異聞帯",
     "cn_term": "异闻带",
+    "en_term": "Lostbelt",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ロストベルト",
     "cn_term": "异闻带",
+    "en_term": "Lostbelt",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "空想樹",
     "cn_term": "空想树",
+    "en_term": "Fantasy Tree",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "クリプター",
     "cn_term": "隐匿者",
+    "en_term": "Crypter",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "異星の神",
     "cn_term": "异星之神",
+    "en_term": "Alien God",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ビースト",
     "cn_term": "Beast",
+    "en_term": "Beast",
     "category": "class",
     "aliases": "兽"
   },
   {
     "jp_term": "グランド",
     "cn_term": "冠位",
+    "en_term": "Grand",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "グランドサーヴァント",
     "cn_term": "冠位从者",
+    "en_term": "Grand Servant",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "サーヴァント",
     "cn_term": "从者",
+    "en_term": "Servant",
     "category": "game_term",
-    "aliases": ""
-  },
-  {
-    "jp_term": "マスター",
-    "cn_term": "御主",
-    "category": "game_term",
-    "aliases": "Master"
+    "aliases": "Servant"
   },
   {
     "jp_term": "英霊",
     "cn_term": "英灵",
+    "en_term": "Heroic Spirit",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "守護者",
     "cn_term": "守护者",
+    "en_term": "Counter Guardian",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "疑似サーヴァント",
     "cn_term": "拟似从者",
+    "en_term": "Pseudo-Servant",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "デミ・サーヴァント",
     "cn_term": "亚从者",
+    "en_term": "Demi-Servant",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "シャドウサーヴァント",
     "cn_term": "影从者",
+    "en_term": "Shadow Servant",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "宝具",
     "cn_term": "宝具",
+    "en_term": "Noble Phantasm",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "スキル",
     "cn_term": "技能",
+    "en_term": "Skill",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "概念礼装",
     "cn_term": "概念礼装",
+    "en_term": "Craft Essence",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "聖晶石",
     "cn_term": "圣晶石",
+    "en_term": "Saint Quartz",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "聖杯",
     "cn_term": "圣杯",
+    "en_term": "Holy Grail",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "聖杯戦争",
     "cn_term": "圣杯战争",
+    "en_term": "Holy Grail War",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "令呪",
     "cn_term": "令咒",
+    "en_term": "Command Spell",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "魔術",
     "cn_term": "魔术",
+    "en_term": "Magecraft",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "魔術師",
     "cn_term": "魔术师",
+    "en_term": "Mage",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "魔力",
     "cn_term": "魔力",
+    "en_term": "Magical Energy",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "魔眼",
     "cn_term": "魔眼",
+    "en_term": "Mystic Eyes",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "魔術回路",
     "cn_term": "魔术回路",
+    "en_term": "Magic Circuit",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "霊基",
     "cn_term": "灵基",
+    "en_term": "Spirit Origin",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "霊核",
     "cn_term": "灵核",
+    "en_term": "Spiritual Core",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "霊脈",
     "cn_term": "灵脉",
+    "en_term": "Leyline",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "霊子",
     "cn_term": "灵子",
+    "en_term": "Spiritron",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "レイシフト",
     "cn_term": "灵子转移",
+    "en_term": "Rayshift",
     "category": "game_term",
-    "aliases": ""
+    "aliases": "Rayshift, 霊子転移"
   },
   {
     "jp_term": "霊衣",
     "cn_term": "灵衣",
+    "en_term": "Spiritron Dress",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "聖杯探索",
     "cn_term": "圣杯探索",
+    "en_term": "Grail Quest",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "グランドオーダー",
     "cn_term": "冠位指定",
+    "en_term": "Grand Order",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "冠位指定",
     "cn_term": "冠位指定",
+    "en_term": "Grand Order",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "抑止力",
     "cn_term": "抑止力",
+    "en_term": "Counter Force",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "根源",
     "cn_term": "根源",
+    "en_term": "Root",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "アラヤ",
     "cn_term": "阿赖耶",
+    "en_term": "Alaya",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ガイア",
     "cn_term": "盖亚",
+    "en_term": "Gaia",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ムーンセル",
     "cn_term": "月之圣杯",
+    "en_term": "Mooncell",
     "category": "game_term",
-    "aliases": "Mooncell"
+    "aliases": ""
   },
   {
     "jp_term": "聖剣",
     "cn_term": "圣剑",
+    "en_term": "Holy Sword",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "円卓",
     "cn_term": "圆桌",
+    "en_term": "Round Table",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "円卓の騎士",
     "cn_term": "圆桌骑士",
+    "en_term": "Knights of the Round Table",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "妖精",
     "cn_term": "妖精",
+    "en_term": "Fairy",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "竜種",
     "cn_term": "龙种",
+    "en_term": "Dragon Kind",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "神霊",
     "cn_term": "神灵",
+    "en_term": "Divine Spirit",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "英霊召喚",
     "cn_term": "英灵召唤",
+    "en_term": "Heroic Spirit Summoning",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "召喚",
     "cn_term": "召唤",
+    "en_term": "Summoning",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "強化",
     "cn_term": "强化",
+    "en_term": "Enhancement",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "再臨",
     "cn_term": "再临",
+    "en_term": "Ascension",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "セイバー",
     "cn_term": "Saber",
+    "en_term": "Saber",
     "category": "class",
-    "aliases": ""
+    "aliases": "Saber, 剑士"
   },
   {
     "jp_term": "アーチャー",
     "cn_term": "Archer",
+    "en_term": "Archer",
     "category": "class",
-    "aliases": ""
+    "aliases": "Archer, 弓兵"
   },
   {
     "jp_term": "ランサー",
     "cn_term": "Lancer",
+    "en_term": "Lancer",
     "category": "class",
-    "aliases": ""
+    "aliases": "Lancer, 枪兵"
   },
   {
     "jp_term": "ライダー",
     "cn_term": "Rider",
+    "en_term": "Rider",
     "category": "class",
-    "aliases": ""
+    "aliases": "Rider, 骑兵"
   },
   {
     "jp_term": "キャスター",
     "cn_term": "Caster",
+    "en_term": "Caster",
     "category": "class",
-    "aliases": ""
+    "aliases": "Caster, 术士"
   },
   {
     "jp_term": "アサシン",
     "cn_term": "Assassin",
+    "en_term": "Assassin",
     "category": "class",
-    "aliases": ""
+    "aliases": "Assassin, 暗匿者"
   },
   {
     "jp_term": "バーサーカー",
     "cn_term": "Berserker",
+    "en_term": "Berserker",
     "category": "class",
-    "aliases": ""
+    "aliases": "Berserker, 狂战士"
   },
   {
     "jp_term": "シールダー",
     "cn_term": "Shielder",
+    "en_term": "Shielder",
     "category": "class",
-    "aliases": ""
+    "aliases": "Shielder, 盾兵"
   },
   {
     "jp_term": "ルーラー",
     "cn_term": "Ruler",
+    "en_term": "Ruler",
     "category": "class",
-    "aliases": ""
+    "aliases": "Ruler, 裁定者"
   },
   {
     "jp_term": "アヴェンジャー",
     "cn_term": "Avenger",
+    "en_term": "Avenger",
     "category": "class",
-    "aliases": ""
+    "aliases": "Avenger, 复仇者"
   },
   {
     "jp_term": "ムーンキャンサー",
     "cn_term": "MoonCancer",
+    "en_term": "Moon Cancer",
     "category": "class",
-    "aliases": ""
+    "aliases": "月之癌"
   },
   {
     "jp_term": "アルターエゴ",
     "cn_term": "Alterego",
+    "en_term": "Alter Ego",
     "category": "class",
-    "aliases": ""
+    "aliases": "Alter Ego, 他人格"
   },
   {
     "jp_term": "フォーリナー",
     "cn_term": "Foreigner",
+    "en_term": "Foreigner",
     "category": "class",
-    "aliases": ""
+    "aliases": "降临者"
   },
   {
     "jp_term": "プリテンダー",
     "cn_term": "Pretender",
+    "en_term": "Pretender",
     "category": "class",
-    "aliases": ""
+    "aliases": "身披角色者"
   },
   {
     "jp_term": "ストーム・ボーダー",
     "cn_term": "Storm Border",
+    "en_term": "Storm Border",
     "category": "place",
-    "aliases": "ストームボーダー,ストーム・ボーダ一,ストームボーダ一,ストーム・ホーダー,ストームホーダー,ストーム・ポーダー,ストームポーダー,Storm Border,StormBorder"
+    "aliases": "Storm Border, StormBorder, ストームホーダー, ストームボーダー, ストームボーダ一, ストームポーダー, ストーム・ホーダー, ストーム・ボーダ一, ストーム・ポーダー"
   },
   {
     "jp_term": "ボーダー",
     "cn_term": "Border",
+    "en_term": "Border",
     "category": "place",
-    "aliases": "ボーダ一,ホーダー,ポーダー,Border"
+    "aliases": "Border, ホーダー, ボーダ一, ポーダー"
   },
   {
     "jp_term": "アンビースト",
     "cn_term": "UnBeast",
+    "en_term": "UnBeast",
     "category": "class",
-    "aliases": ""
+    "aliases": "越兽"
   },
   {
     "jp_term": "シャドウ・ボーダー",
     "cn_term": "Shadow Border",
+    "en_term": "Shadow Border",
     "category": "place",
-    "aliases": "シャドウボーダー,シャドウ・ボーダ一,シャドウボーダ一,シャドウ・ホーダー,シャドウホーダー,シャドウ・ポーダー,シャドウポーダー,Shadow Border,ShadowBorder"
+    "aliases": "Shadow Border, ShadowBorder, シャドウホーダー, シャドウボーダー, シャドウボーダ一, シャドウポーダー, シャドウ・ホーダー, シャドウ・ボーダ一, シャドウ・ポーダー"
   },
   {
     "jp_term": "汎人類史",
     "cn_term": "泛人类史",
+    "en_term": "Proper Human History",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "人理定礎",
     "cn_term": "人理奠基",
+    "en_term": "Human Order Foundation",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "剪定事象",
     "cn_term": "剪定事象",
+    "en_term": "Pruned Event",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "残存詩篇",
     "cn_term": "残存诗篇",
+    "en_term": "Remnant Order",
     "category": "game_term",
-    "aliases": "Remnant Order"
+    "aliases": ""
   },
   {
     "jp_term": "英霊召喚システム・Fate",
     "cn_term": "英灵召唤系统·Fate",
+    "en_term": "Heroic Spirit Summoning System: Fate",
     "category": "game_term",
     "aliases": "英霊召喚システム·Fate"
   },
   {
     "jp_term": "霊子演算器·トリスメギストス",
     "cn_term": "灵子演算装置·特里斯墨吉斯忒斯",
+    "en_term": "Spiritron Calculation Engine “TRISMEGISTUS”",
     "category": "game_term",
     "aliases": "霊子演算器トリスメギストス"
   },
   {
     "jp_term": "聖堂教会",
     "cn_term": "圣堂教会",
+    "en_term": "Holy Church",
     "category": "organization",
     "aliases": ""
   },
   {
     "jp_term": "魔術協会",
     "cn_term": "魔术协会",
+    "en_term": "Mage’s Association",
     "category": "organization",
     "aliases": ""
   },
   {
     "jp_term": "時計塔",
     "cn_term": "时钟塔",
+    "en_term": "Clock Tower",
     "category": "organization",
     "aliases": ""
   },
   {
     "jp_term": "アトラス院",
     "cn_term": "阿特拉斯院",
+    "en_term": "Atlas Institute",
     "category": "organization",
     "aliases": ""
   },
   {
     "jp_term": "彷徨海",
     "cn_term": "彷徨海",
+    "en_term": "Wandering Sea",
     "category": "organization",
     "aliases": ""
   },
   {
     "jp_term": "冬木市",
     "cn_term": "冬木市",
+    "en_term": "Fuyuki City",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "虚数空間",
     "cn_term": "虚数空间",
+    "en_term": "Imaginary Number Space",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "神代",
     "cn_term": "神代",
+    "en_term": "Age of Gods",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "固有結界",
     "cn_term": "固有结界",
+    "en_term": "Reality Marble",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "投影魔術",
     "cn_term": "投影魔术",
+    "en_term": "Projection Magecraft",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "空想具現化",
     "cn_term": "空想具现化",
+    "en_term": "Marble Phantasm",
     "category": "game_term",
     "aliases": ""
   },
   {
+    "jp_term": "無限の剣製",
+    "cn_term": "无限剑制",
+    "en_term": "Unlimited Blade Works",
+    "category": "noble_phantasm",
+    "aliases": "アンリミテッドブレイドワークス"
+  },
+  {
+    "jp_term": "エクスカリバー",
+    "cn_term": "誓约胜利之剑",
+    "en_term": "Excalibur",
+    "category": "noble_phantasm",
+    "aliases": "約束された勝利の剣"
+  },
+  {
     "jp_term": "アヴァロン",
     "cn_term": "阿瓦隆",
+    "en_term": "Avalon",
     "category": "place",
     "aliases": ""
   },
   {
-    "jp_term": "ロンゴミニアド",
-    "cn_term": "伦戈米尼亚德",
+    "jp_term": "ロー・アイアス",
+    "cn_term": "覆盖炽天之七圆环",
+    "en_term": "Rho Aias",
     "category": "noble_phantasm",
     "aliases": ""
   },
   {
+    "jp_term": "ルールブレイカー",
+    "cn_term": "万符必应破戒",
+    "en_term": "Rule Breaker",
+    "category": "noble_phantasm",
+    "aliases": "破戒すべき全ての符"
+  },
+  {
+    "jp_term": "ゲイ・ボルク",
+    "cn_term": "穿刺死棘之枪",
+    "en_term": "Gáe Bolg",
+    "category": "noble_phantasm",
+    "aliases": "刺し穿つ死棘の槍"
+  },
+  {
     "jp_term": "ブラックバレル",
     "cn_term": "Black Barrel",
+    "en_term": "Black Barrel",
     "category": "game_term",
     "aliases": "ブラック・バレル"
   },
   {
     "jp_term": "ヤガ",
     "cn_term": "雅嘎",
+    "en_term": "Yaga",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "虚数観測機・ペーパームーン",
     "cn_term": "虛數觀測機·平面之月",
+    "en_term": "Imaginary Number Observation Device Paper Moon",
     "category": "game_term",
     "aliases": "虚数観測機ペーパームーン"
   },
   {
     "jp_term": "近未来観測レンズ・シバ",
     "cn_term": "近未来观测透镜·示巴",
+    "en_term": "Near-Future Observation Lens “SHEBA”",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "虚数羅針",
     "cn_term": "虚数罗盘",
+    "en_term": "Imaginary Number Compass",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ポイント・ネモ",
     "cn_term": "尼莫点",
+    "en_term": "Point Nemo",
     "category": "place",
     "aliases": "ポイントネモ"
   },
   {
     "jp_term": "アーキタイプ",
     "cn_term": "Archetype",
+    "en_term": "Archetype",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ムーン・ドバイ",
     "cn_term": "月面杜拜",
+    "en_term": "Moon Dubai",
     "category": "place",
-    "aliases": "ムーン・ドバイ"
+    "aliases": ""
   },
   {
     "jp_term": "転移孔",
     "cn_term": "转移孔",
+    "en_term": "Transfer Gate",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "バルトアンデルス",
     "cn_term": "波丹德斯",
+    "en_term": "Baldanders",
     "category": "organization",
     "aliases": ""
   },
   {
     "jp_term": "マイルーム",
     "cn_term": "My room",
+    "en_term": "My Room",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "オーディール・コール",
     "cn_term": "Ordeal Call",
+    "en_term": "Ordeal Call",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ホムンクルス",
     "cn_term": "人工生命体",
+    "en_term": "Homunculus",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "戦乙女",
     "cn_term": "女武神",
+    "en_term": "Valkyrie",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "リリン",
     "cn_term": "莉莉恩",
+    "en_term": "Lilin",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "サクラファイブ",
     "cn_term": "Sakura Five",
+    "en_term": "Sakura Five",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "タマモナイン",
     "cn_term": "Tamamo Nine",
+    "en_term": "Tamamo Nine",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "カルデニア",
     "cn_term": "迦勒迪尼亚",
+    "en_term": "Chaldenia",
     "category": "place",
     "aliases": "カルデ二ア"
   },
   {
     "jp_term": "アルスィア",
     "cn_term": "Althea",
+    "en_term": "Althea",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "パラディーン",
     "cn_term": "Paladin",
+    "en_term": "Paladin",
     "category": "class",
-    "aliases": ""
+    "aliases": "圣骑士"
   },
   {
     "jp_term": "シールダー・パラディーン",
     "cn_term": "Shielder・Paladin",
+    "en_term": "Shielder Paladin",
     "category": "class",
-    "aliases": ""
+    "aliases": "圣骑士盾兵"
   },
   {
     "jp_term": "シリウスライト",
     "cn_term": "Sirius Light",
+    "en_term": "Sirius Light",
     "category": "game_term",
     "aliases": ""
   },
   {
-    "jp_term": "トリスメギストスI",
+    "jp_term": "トリスメギストスII",
     "cn_term": "特里斯墨吉斯忒斯II",
+    "en_term": "TRISMEGISTUS II",
     "category": "game_term",
-    "aliases": ""
+    "aliases": "トリスメギストスI"
   },
   {
     "jp_term": "マジムンアイランド",
     "cn_term": "魔物岛",
+    "en_term": "Majimun Island",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "マジムン",
     "cn_term": "魔物",
+    "en_term": "Majimun",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ニライカナイ",
     "cn_term": "尼来卡奈",
+    "en_term": "Nirai Kanai",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "くらくら",
     "cn_term": "头晕目眩",
+    "en_term": "Kurakura",
     "category": "place",
     "aliases": ""
   },
   {
     "jp_term": "マブイ",
     "cn_term": "魂魄",
+    "en_term": "Mabui",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "キュケオーン",
     "cn_term": "休刻翁",
+    "en_term": "Kykeon",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ベーケス",
     "cn_term": "涩涩的",
+    "en_term": "Bekes",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "ブレイブ",
     "cn_term": "勇者",
+    "en_term": "Brave",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "バンプキンウルフ",
     "cn_term": "Pumpkin Wolf",
+    "en_term": "Pumpkin Wolf",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "クラッキング",
     "cn_term": "Cracking",
+    "en_term": "Cracking",
     "category": "game_term",
     "aliases": ""
   },
   {
     "jp_term": "クラッカー",
     "cn_term": "Cracker",
+    "en_term": "Cracker",
     "category": "game_term",
     "aliases": ""
   }

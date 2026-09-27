@@ -32,8 +32,8 @@ export function cdnUrl(path: string) {
   return `${siteConfig.cdnBaseUrl.replace(/\/$/, "")}${path}`;
 }
 
-export function formatBytes(bytes?: number) {
-  if (!bytes || bytes <= 0) return "待发布";
+export function formatBytes(bytes?: number, locale = "zh-CN") {
+  if (!bytes || bytes <= 0) return locale === "en" ? "Pending" : locale === "zh-TW" ? "待發布" : "待发布";
   const units = ["B", "KB", "MB", "GB"];
   let value = bytes;
   let unitIndex = 0;
@@ -44,11 +44,11 @@ export function formatBytes(bytes?: number) {
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-export function formatDateTime(value?: string) {
-  if (!value) return "待发布";
+export function formatDateTime(value?: string, locale = "zh-CN") {
+  if (!value) return locale === "en" ? "Pending" : locale === "zh-TW" ? "待發布" : "待发布";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

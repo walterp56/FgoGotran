@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { siteConfig } from "@/data/site";
 
 type TermPreviewRow = {
   jp: string;
   cn: string;
+  en: string;
   category: string;
   aliases?: string;
   source: "character" | "term";
@@ -15,26 +17,32 @@ type TermPreviewRow = {
 type RawPreviewRow = Partial<{
   jp: string;
   cn: string;
+  en: string;
   jp_name: string;
   cn_name: string;
+  en_name: string;
   jp_term: string;
   cn_term: string;
+  en_term: string;
   category: string;
   aliases: string;
 }>;
 
 type PreviewStatus = "loading" | "ready" | "error";
 
+const COLUMN_COUNT = 5;
+
 function normalizeRows(rows: RawPreviewRow[], source: TermPreviewRow["source"]): TermPreviewRow[] {
   return rows
     .map((row) => ({
       jp: row.jp ?? row.jp_name ?? row.jp_term ?? "",
       cn: row.cn ?? row.cn_name ?? row.cn_term ?? "",
+      en: row.en ?? row.en_name ?? row.en_term ?? "",
       category: row.category ?? source,
       aliases: row.aliases,
       source
     }))
-    .filter((row) => row.jp && row.cn);
+    .filter((row) => row.jp && (row.cn || row.en));
 }
 
 function cacheBustedPreviewUrl(path: string) {
@@ -60,8 +68,9 @@ async function fetchPreviewRows() {
 }
 
 export function TermsExplorer() {
+  const t = useTranslations("terms");
   const [rows, setRows] = useState<TermPreviewRow[]>([]);
-  const [sourceLabel, setSourceLabel] = useState("正在加载术语预览");
+  const [sourceLabel, setSourceLabel] = useState("");
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("loading");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -69,16 +78,16 @@ export function TermsExplorer() {
   async function loadPreviewRows() {
     setRows([]);
     setCategory("all");
-    setSourceLabel("正在加载术语预览");
+    setSourceLabel(t("loadingPreview"));
     setPreviewStatus("loading");
     try {
       const nextRows = await fetchPreviewRows();
       setRows(nextRows);
-      setSourceLabel("已加载最新预览 JSON");
+      setSourceLabel(t("loaded"));
       setPreviewStatus("ready");
     } catch {
       setRows([]);
-      setSourceLabel("术语预览加载失败");
+      setSourceLabel(t("loadFailed"));
       setPreviewStatus("error");
     }
   }
@@ -88,18 +97,18 @@ export function TermsExplorer() {
     async function loadInitialPreviewRows() {
       setRows([]);
       setCategory("all");
-      setSourceLabel("正在加载术语预览");
+      setSourceLabel(t("loadingPreview"));
       setPreviewStatus("loading");
       try {
         const nextRows = await fetchPreviewRows();
         if (cancelled) return;
         setRows(nextRows);
-        setSourceLabel("已加载最新预览 JSON");
+        setSourceLabel(t("loaded"));
         setPreviewStatus("ready");
       } catch {
         if (!cancelled) {
           setRows([]);
-          setSourceLabel("术语预览加载失败");
+          setSourceLabel(t("loadFailed"));
           setPreviewStatus("error");
         }
       }
@@ -108,6 +117,7 @@ export function TermsExplorer() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const categories = useMemo(() => {
@@ -120,7 +130,10 @@ export function TermsExplorer() {
       const categoryMatch = category === "all" || row.category === category;
       if (!categoryMatch) return false;
       if (!needle) return true;
-      return [row.jp, row.cn, row.category, row.aliases ?? ""].join("\n").toLowerCase().includes(needle);
+      return [row.jp, row.cn, row.en, row.category, row.aliases ?? ""]
+        .join("\n")
+        .toLowerCase()
+        .includes(needle);
     });
   }, [category, query, rows]);
 
@@ -133,7 +146,7 @@ export function TermsExplorer() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             disabled={previewStatus === "loading"}
-            placeholder="搜索日文、中文、分类或别名"
+            placeholder={t("searchPlaceholder")}
           />
         </label>
         <select
@@ -143,7 +156,7 @@ export function TermsExplorer() {
         >
           {categories.map((item) => (
             <option key={item} value={item}>
-              {item === "all" ? "全部分类" : item}
+              {item === "all" ? t("allCategories") : item}
             </option>
           ))}
         </select>
@@ -151,16 +164,20 @@ export function TermsExplorer() {
       <div className="terms-meta">
         <span>{sourceLabel}</span>
         <div className="terms-meta-actions">
-          <span>{previewStatus === "loading" ? "加载中" : `${filteredRows.length} / ${rows.length} 条`}</span>
+          <span>
+            {previewStatus === "loading"
+              ? t("loading")
+              : t("count", { shown: filteredRows.length, total: rows.length })}
+          </span>
           <button
             className="terms-refresh"
             type="button"
             onClick={loadPreviewRows}
             disabled={previewStatus === "loading"}
-            aria-label="刷新术语预览"
+            aria-label={t("refreshAria")}
           >
             <RefreshCw size={14} aria-hidden="true" />
-            刷新
+            {t("refresh")}
           </button>
         </div>
       </div>
@@ -168,38 +185,40 @@ export function TermsExplorer() {
         <table className="terms-table">
           <thead>
             <tr>
-              <th>日文</th>
-              <th>中文</th>
-              <th>分类</th>
-              <th>别名</th>
+              <th>{t("tableJapanese")}</th>
+              <th>{t("tableChinese")}</th>
+              <th>{t("tableEnglish")}</th>
+              <th>{t("tableCategory")}</th>
+              <th>{t("tableAliases")}</th>
             </tr>
           </thead>
           <tbody>
             {previewStatus === "loading" ? (
               <tr>
-                <td className="terms-empty" colSpan={4}>
-                  正在加载术语预览...
+                <td className="terms-empty" colSpan={COLUMN_COUNT}>
+                  {t("loadingRows")}
                 </td>
               </tr>
             ) : previewStatus === "error" ? (
               <tr>
-                <td className="terms-empty" colSpan={4}>
-                  术语预览加载失败，请确认本地预览 JSON 已生成。
+                <td className="terms-empty" colSpan={COLUMN_COUNT}>
+                  {t("errorRows")}
                 </td>
               </tr>
             ) : filteredRows.length > 0 ? (
               filteredRows.map((row) => (
-                <tr key={`${row.source}-${row.jp}-${row.cn}`}>
+                <tr key={`${row.source}-${row.jp}-${row.cn}-${row.en}`}>
                   <td lang="ja">{row.jp}</td>
-                  <td>{row.cn}</td>
+                  <td>{row.cn || "-"}</td>
+                  <td>{row.en || "-"}</td>
                   <td>{row.category}</td>
                   <td>{row.aliases || "-"}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td className="terms-empty" colSpan={4}>
-                  没有找到匹配的术语。
+                <td className="terms-empty" colSpan={COLUMN_COUNT}>
+                  {t("noMatch")}
                 </td>
               </tr>
             )}

@@ -1,0 +1,1414 @@
+{
+  "meta": {
+    "defaultTitle": "FgoGotran",
+    "titleTemplate": "%s | FgoGotran",
+    "description": "OCR + AI Chinese translation tool for the Fate/Grand Order JP story."
+  },
+  "nav": {
+    "guide": "Guide",
+    "troubleshooting": "Troubleshooting",
+    "apiGuide": "API Guide",
+    "localGuide": "Local AI",
+    "speechGuide": "Voice Guide",
+    "terms": "Terminology",
+    "media": "Media",
+    "changelog": "Changelog"
+  },
+  "common": {
+    "github": "GitHub",
+    "downloadApk": "Download APK",
+    "onThisPage": "On this page",
+    "recommended": "Recommended",
+    "viewDocs": "View docs",
+    "recommendedModel": "Recommended model: ",
+    "more": "More",
+    "menu": "Menu",
+    "language": "Language"
+  },
+  "modes": {
+    "manual": {
+      "title": "Manual mode",
+      "body": "For players who want full control. Tap the floating button to translate the current screen."
+    },
+    "semi-auto": {
+      "title": "Semi-auto mode",
+      "body": "For relaxed reading with manual control over choices. Dialogue is translated automatically; choices are translated when you tap."
+    },
+    "auto": {
+      "title": "Auto mode",
+      "body": "For hands-off reading. The app watches for screen changes and refreshes the translation automatically."
+    },
+    "crop": {
+      "title": "Crop mode",
+      "body": "For non-story screens, or when recognition misses text. Drag to select an area and translate just that region."
+    },
+    "translation-log": {
+      "title": "Translation log",
+      "body": "Review the character names, dialogue and choices recognized and translated in this session."
+    },
+    "battle-subtitles": {
+      "title": "Battle subtitles",
+      "body": "For players who don't want to miss in-battle dialogue. Locks onto the battle subtitle area only."
+    }
+  },
+  "home": {
+    "eyebrow": "Fate/Grand Order JP story translator",
+    "title": "FgoGotran",
+    "lede": "An Android overlay translator for the FGO JP story. It reads the screen with OCR, then combines an online terminology database and AI translation to keep character names, proper nouns and story tone consistent.",
+    "downloadApk": "Download APK",
+    "guide": "Guide",
+    "miniStatus": "Android 11+ · Simplified/Traditional Chinese, English · Bring Your Own API Key",
+    "featuresEyebrow": "What it does",
+    "featuresTitle": "Built for reading the FGO story",
+    "featuresBody": "Covers story dialogue, choices, character names and common proper nouns, so the JP story reads smoothly.",
+    "modesEyebrow": "Modes",
+    "modesTitle": "Pick the translation pace that suits you",
+    "modesBody": "From fully manual to fully automatic — plus crop mode for screens that are hard to recognize.",
+    "features": {
+      "story": {
+        "title": "FGO story translation",
+        "body": "Designed for the Fate/Grand Order JP story, combining OCR, a terminology database and AI translation to preserve character names, proper nouns and the original tone."
+      },
+      "overlay": {
+        "title": "Overlay that follows the game",
+        "body": "Translations appear right next to the FGO dialogue box, so you switch back and forth less and keep the game's reading rhythm."
+      },
+      "auto-detect": {
+        "title": "Automatic screen recognition",
+        "body": "The app reads the character name, dialogue and choices on screen, then sends them to the translation endpoint."
+      },
+      "modes": {
+        "title": "Multiple translation modes",
+        "body": "Manual, semi-auto, full-auto and crop modes for different reading habits and game situations."
+      },
+      "terms": {
+        "title": "Online terminology database",
+        "body": "Character names and FGO proper nouns are updated from an online database, reducing errors from stale local data."
+      },
+      "api": {
+        "title": "Bring your own API",
+        "body": "Works with DeepSeek, GLM, Qwen, OpenAI, Gemini, Claude, or any OpenAI-compatible service."
+      }
+    }
+  },
+  "guide": {
+    "title": "Guide",
+    "description": "FgoGotran first-time setup, FGO game settings, API configuration and floating-button modes.",
+    "sidebarTitle": "FgoGotran Guide",
+    "sidebarAria": "Guide sections",
+    "sidebar": {
+      "setup": "Setup",
+      "usageScope": "Scope",
+      "floatingButton": "Floating button & modes"
+    },
+    "eyebrow": "Guide",
+    "h1": "FgoGotran Guide",
+    "scope": {
+      "title": "Scope",
+      "body": "FgoGotran is an overlay translation tool for the running FGO Japanese game screen.",
+      "supported": {
+        "title": "Supported",
+        "body": "Live in-game screens, story, choices, and the game area you select in crop mode."
+      },
+      "unsupported": {
+        "title": "Not supported",
+        "body": "Images, screenshots, screen recordings, video sources, or FGO material inside other apps."
+      }
+    },
+    "setupSection": "1. First-time setup",
+    "floatingSection": "2. Floating button and translation modes",
+    "floatingIntro": "The floating button is the main entry point inside the game. Different modes suit different reading paces.",
+    "callout": "A red ring only means that tap failed — the service has not stopped. In manual or semi-auto mode you can tap again to retry.",
+    "setupSteps": {
+      "install": {
+        "title": "Install and open FgoGotran",
+        "body": "Choose Simplified or Traditional Chinese translation. Follow the prompts to grant the accessibility service and overlay permissions, and disable battery optimization if you can.",
+        "note": "Some phone brands do not offer a battery-optimization option; you can keep using the app without it.",
+        "images": [
+          "FgoGotran first-time setup screen",
+          "Android permission screen"
+        ]
+      },
+      "fgo-text-speed": {
+        "title": "Set the FGO story text speed",
+        "body": "Open the FGO game settings and set the story-text options to the recommended values so OCR and auto mode stay stable.",
+        "note": "Recommended: 文字送り MAX, ページ送り MAX, 句読点待ち時間 0.",
+        "images": [
+          "FGO game settings path",
+          "Recommended FGO story text speed"
+        ]
+      },
+      "api": {
+        "title": "Configure the API",
+        "body": "Open the settings page, pick an API provider and enter your API key. You can keep the default model name or enter one from the provider's docs.",
+        "note": "After “Test API” succeeds, remember to tap “Apply API settings”.",
+        "images": [
+          "FgoGotran settings entry",
+          "API provider selection",
+          "API key and model settings"
+        ]
+      },
+      "master-name": {
+        "title": "Save your Master name",
+        "body": "Enter your Master name and save it. Make sure it matches your name in FGO.",
+        "images": [
+          "Master name settings"
+        ]
+      },
+      "start-service": {
+        "title": "Start the service and open FGO",
+        "body": "Go back to the home screen and tap “Start service”. Then open FGO and use the floating button to translate.",
+        "images": [
+          "Starting the FgoGotran service"
+        ]
+      }
+    },
+    "buttonGuides": {
+      "floating-menu": {
+        "title": "Open the translation menu",
+        "body": "Long-press the floating button to open the translation menu, where you can switch modes, view the translation log, or stop the service.",
+        "images": [
+          "Long-press the floating button to open the menu",
+          "Long-press the floating button to open the menu"
+        ]
+      },
+      "mode-indicator": {
+        "title": "Check the current mode",
+        "body": "The floating button shows the current mode, so you always know whether you are in manual, semi-auto, auto, crop or battle-subtitle mode.",
+        "images": [
+          "Manual-mode floating button",
+          "Semi-auto-mode floating button",
+          "Auto-mode floating button",
+          "Crop-mode floating button",
+          "Crop-mode floating button"
+        ]
+      },
+      "failure-ring": {
+        "title": "Red ring",
+        "body": "The red ring only appears in manual and semi-auto mode, and means this tap's recognition or translation failed. You can tap again to retry.",
+        "images": [
+          "Red failure ring in manual mode",
+          "Red failure ring in semi-auto mode"
+        ]
+      },
+      "crop-mode": {
+        "title": "Crop mode",
+        "body": "Crop mode lets you drag a region and translate just that area — useful for non-story screens or when automatic recognition misses text.",
+        "images": [
+          "Crop mode selecting past text",
+          "Crop mode example"
+        ]
+      },
+      "battle-subtitles": {
+        "title": "Battle subtitles",
+        "body": "Battle-subtitle mode locks onto the battle subtitle area only.",
+        "images": [
+          "Battle subtitle mode example"
+        ]
+      },
+      "translation-log": {
+        "title": "Translation log",
+        "body": "The translation log shows the character names, dialogue and choices recognized and translated in this session.",
+        "images": [
+          "Translation log example"
+        ]
+      }
+    },
+    "toc": {
+      "usageScope": "Scope",
+      "setup": "Setup",
+      "install": "Install & permissions",
+      "fgoTextSpeed": "FGO text speed",
+      "api": "API",
+      "masterName": "Master name",
+      "startService": "Start service",
+      "floatingButton": "Floating button",
+      "modeIndicator": "Mode indicator",
+      "failureRing": "Red ring",
+      "cropMode": "Crop mode",
+      "battleSubtitles": "Battle subtitles",
+      "translationLog": "Translation log"
+    }
+  },
+  "troubleshooting": {
+    "title": "Troubleshooting",
+    "description": "Export the FgoGotran error log and work through common issues on phones, emulators and screen mirroring.",
+    "sidebarTitle": "Troubleshooting",
+    "sidebarErrorLog": "Error log",
+    "eyebrow": "Troubleshooting",
+    "h1": "FgoGotran Troubleshooting",
+    "intro": "Find the symptom you are seeing, then work through the checks in order. Phone users usually only need to check permissions, API and voice settings; emulator problems are more varied, so export the error log TXT first.",
+    "jumpPrimary": "Export the log first",
+    "actionGuide": "Guide",
+    "actionApiGuide": "API Guide",
+    "actionSpeechGuide": "Voice Guide",
+    "errorLog": {
+      "title": "Export the error log first",
+      "body": "Path: Settings → Error log → Export TXT. Emulator users especially should send this file first.",
+      "callout": "Reproduce the problem once before exporting the TXT. Otherwise the error log may be empty, or may not contain the real issue."
+    },
+    "logSteps": {
+      "appear": {
+        "title": "Reproduce the problem once",
+        "body": "For example: the service fails to start, GO does not translate, there is no voice, the API test fails, or the emulator returns no screenshot."
+      },
+      "open-log": {
+        "title": "Open the error log",
+        "body": "Go back to FgoGotran, open the settings page and tap Error log."
+      },
+      "top": {
+        "title": "Read the top entries",
+        "body": "The newest problem is at the top. Check the title, code, detail, server, mode and speaker fields."
+      },
+      "export": {
+        "title": "Export TXT",
+        "body": "Tap Export TXT, then send that file to the author. Do not just send a screenshot."
+      },
+      "context": {
+        "title": "Describe your setup too",
+        "body": "Tell the author whether you are on a phone or an emulator, which FGO server you play, the translation mode, and your FgoGotran version."
+      }
+    },
+    "groups": {
+      "phone": {
+        "label": "Phone users",
+        "intro": "Real-device problems are usually few. Check permissions, API, voice and OCR timing first.",
+        "items": {
+          "permission-check": {
+            "title": "What should I check before starting the service?",
+            "cause": "Most real-device problems come from overlay permission, accessibility, the API key or the Speech key.",
+            "steps": [
+              "Make sure overlay permission is granted.",
+              "Make sure the FgoGotran accessibility service is enabled.",
+              "If the button does not appear, turn the accessibility service off and on again in system settings — this is usually the most important fix.",
+              "If the home screen shows it as disabled, fix that permission before starting the service."
+            ]
+          },
+          "go-no-translate": {
+            "title": "I tap GO but nothing is translated",
+            "cause": "Only the JP server needs a translation API; the Simplified and Traditional Chinese servers mainly read Chinese text and speak it.",
+            "steps": [
+              "Open the API settings page and tap “Test API”.",
+              "Check the API key, model name and endpoint.",
+              "For the Simplified/Traditional Chinese servers, check the voice settings instead of the translation API."
+            ],
+            "verify": "“Test API” succeeds and tapping GO in-game shows a translation."
+          },
+          "no-voice": {
+            "title": "No voice",
+            "cause": "AI voice is off, the Speech key is missing, or the region is wrong.",
+            "steps": [
+              "Open voice settings and make sure AI voice is on.",
+              "Make sure the Speech key is filled in and the region is correct.",
+              "Tap “Test voice” to confirm audio comes back."
+            ],
+            "verify": "The voice test succeeds and in-game playback works."
+          },
+          "ocr": {
+            "title": "OCR is inaccurate or misses text",
+            "cause": "The text is not fully displayed, or the crop area includes too much unrelated UI.",
+            "steps": [
+              "Wait until the text is fully displayed before tapping GO.",
+              "In crop mode, frame the complete text area.",
+              "Avoid including too much unrelated UI."
+            ],
+            "verify": "After tapping GO again, the translation covers the correct text."
+          }
+        }
+      },
+      "emulator": {
+        "label": "Emulator users",
+        "intro": "Emulators are more likely to have issues. Focus on 64-bit instances, the Android version, screenshots, graphics rendering, overlay permission and package names.",
+        "items": {
+          "which": {
+            "title": "Which emulator or instance should I use?",
+            "cause": "Older, 32-bit or beta kernels are more likely to hit screenshot, OCR, native-library and accessibility compatibility problems.",
+            "steps": [
+              "Create a 64-bit instance first.",
+              "Make sure the Android version is 11 or newer.",
+              "For MuMu, LDPlayer and BlueStacks, prefer a 64-bit instance."
+            ]
+          },
+          "go-no-translate": {
+            "title": "I tap GO but nothing is translated",
+            "cause": "First work out whether this is an API/OCR problem or an emulator screen-event problem.",
+            "steps": [
+              "Test once with manual GO.",
+              "If manual GO works, test semi-auto and auto.",
+              "If manual GO also fails, check screenshots, OCR, the API or the voice settings."
+            ],
+            "verify": "If manual GO translates, the API and OCR are basically working."
+          },
+          "no-screenshot": {
+            "title": "No screenshot returned / current display invalid / bitmap_null",
+            "cause": "This is usually an emulator graphics-layer problem: Android is not giving the app a usable game screenshot.",
+            "steps": [
+              "Try switching the renderer between OpenGL, DirectX and Vulkan.",
+              "Restart the emulator.",
+              "Reproduce the problem once, then check the error log."
+            ],
+            "verify": "After switching renderers and restarting, manual GO returns a screenshot."
+          },
+          "button": {
+            "title": "The button does not appear or cannot be tapped",
+            "cause": "The emulator may report the permission as granted while actually blocking the overlay or the accessibility service.",
+            "steps": [
+              "Grant overlay permission again.",
+              "In system accessibility settings, turn FgoGotran off and on again — this is usually the most important step.",
+              "Start the service and check whether GO / Semi / Auto appear."
+            ],
+            "verify": "After starting the service, the GO / Semi / Auto buttons appear normally."
+          },
+          "semi-auto": {
+            "title": "Semi-auto / auto does not react",
+            "cause": "If manual GO works but auto mode does not, it is usually not an API problem but unstable emulator screen events, screenshot refresh or game-window state.",
+            "steps": [
+              "Confirm manual GO works.",
+              "Check that the game window is stable and not covered.",
+              "Watch whether screen-change detection is triggered."
+            ]
+          },
+          "channel": {
+            "title": "Channel builds or unusual package names",
+            "cause": "B-server, TW-server, channel builds or emulators with modified package names may not be on the supported list.",
+            "steps": [
+              "Export the error log TXT.",
+              "Make sure the TXT includes package, class and app label."
+            ],
+            "verify": "Send the TXT to the author so support can be added."
+          }
+        }
+      },
+      "projection": {
+        "label": "Screen mirroring to PC",
+        "intro": "A PC showing the game screen does not mean FgoGotran can read it; what matters is whether the phone's own screen is still really displaying.",
+        "items": {
+          "pc-but-no-translate": {
+            "title": "Why does the PC show the screen but the app cannot translate?",
+            "cause": "Mirroring software only shows the phone screen on the PC. FgoGotran still runs on the phone and can only read what Android screenshots of the phone currently display.",
+            "steps": [
+              "Make sure the phone screen is still actually on and showing the game.",
+              "Do not use mirroring modes that turn the phone screen black."
+            ]
+          },
+          "black-screen": {
+            "title": "Why does it fail when the phone screen is off?",
+            "cause": "When the phone screen is off, black, or in a power-saving mirroring mode, Android may not give the app a real game screenshot, so OCR finds no text.",
+            "steps": [
+              "Keep the phone screen on.",
+              "Turn off screen-off, black-screen or power-saving mirroring modes."
+            ]
+          },
+          "recommend": {
+            "title": "Which mirroring method do you recommend?",
+            "cause": "Wired mirroring is more stable than wireless and can keep the screen awake.",
+            "steps": [
+              "Prefer USB wired mirroring.",
+              "Keep the phone screen on.",
+              "scrcpy can use the stay-awake / keep-active options."
+            ]
+          },
+          "brightness": {
+            "title": "Does brightness matter?",
+            "cause": "Normal screen brightness usually does not affect Android screenshot pixels.",
+            "steps": [
+              "What actually matters is screen-off, black-screen, privacy-screen or special display layers — check those first."
+            ]
+          }
+        }
+      },
+      "error-meaning": {
+        "label": "Common error meanings",
+        "intro": "When you see these titles in the error log, try the matching fix first.",
+        "items": {
+          "overlay": {
+            "title": "Overlay permission not granted",
+            "cause": "The app does not have permission to draw over other apps, so the button cannot appear over FGO.",
+            "steps": [
+              "Allow FgoGotran to display over other apps in system settings.",
+              "Go back to the home screen and start the service."
+            ]
+          },
+          "accessibility": {
+            "title": "Accessibility service not enabled",
+            "cause": "Android is not delivering game screen events to FgoGotran.",
+            "steps": [
+              "Open the system accessibility settings.",
+              "Even if it shows as enabled, turn FgoGotran off and on again."
+            ]
+          },
+          "no-screenshot": {
+            "title": "No screenshot returned / current display invalid / bitmap_null",
+            "cause": "Android or the emulator is not giving the app a usable game screenshot.",
+            "steps": [
+              "Keep the phone screen on.",
+              "Switch the emulator's graphics rendering mode.",
+              "Do not use black-screen mode while mirroring."
+            ]
+          },
+          "api": {
+            "title": "API request failed",
+            "cause": "The translation endpoint did not return normally.",
+            "steps": [
+              "Test again on the API settings page.",
+              "Check the key, model name, endpoint, balance and network."
+            ]
+          },
+          "tts": {
+            "title": "Azure TTS request failed",
+            "cause": "The voice service did not return audio normally.",
+            "steps": [
+              "Test the voice on the voice settings page.",
+              "Make sure the Speech key matches the region."
+            ]
+          },
+          "package": {
+            "title": "Unsupported FGO package name",
+            "cause": "The app saw a package name that looks like FGO, but it is not on the supported list yet.",
+            "steps": [
+              "Export the error log TXT; it includes the package, class and app label."
+            ]
+          }
+        }
+      }
+    },
+    "verifyPrefix": "Confirmed fixed: ",
+    "escalate": "Still failing? Export the error log TXT and describe your FgoGotran version, device, FGO server and mode, then send them to the author together.",
+    "toc": {
+      "errorLog": "Export the error log first",
+      "phone": "Phone users",
+      "emulator": "Emulator users",
+      "projection": "Screen mirroring",
+      "errorMeaning": "Error meanings"
+    }
+  },
+  "apiGuide": {
+    "title": "API Guide",
+    "description": "Translation API providers, model names and endpoint settings available in FgoGotran.",
+    "eyebrow": "API Guide",
+    "h1": "API setup documentation",
+    "localKicker": "Local model on your PC",
+    "localTitle": "Run llama.cpp and GGUF with FgoGotran Local",
+    "providersEyebrow": "Providers",
+    "providersTitle": "Provider documentation",
+    "providerFallbackNote": "Open the details before filling in your API settings.",
+    "detail": {
+      "apiDocTitle": "{name} API documentation",
+      "back": "Back to API docs",
+      "eyebrow": "API Provider",
+      "topRecommendText": "Top pick: deepseek-v4-flash",
+      "apiKeyLabel": "API Key",
+      "apiKeyHeading": "Open the key / console page",
+      "open": "Open",
+      "networkLabel": "Network",
+      "networkHeading": "Network notes",
+      "freeTrialLabel": "Free / Trial",
+      "freeTrialHeading": "Free tier and trial credits",
+      "endpointLabel": "Endpoint",
+      "endpointHeading": "Built into the app",
+      "setupLabel": "Setup",
+      "setupHeading": "How to fill this in FgoGotran",
+      "setupCommon": [
+        "Never share your API key, and do not post screenshots showing the full key.",
+        "After a successful test, tap “Apply API settings”, otherwise the new settings will not take effect.",
+        "Prefer the full model name shown in the provider's docs or console."
+      ],
+      "sourcesLabel": "Sources",
+      "sourcesHeading": "Official sources",
+      "sourcesNote": "Free tiers and available regions can change; open the official page again before relying on them."
+    },
+    "providers": {
+      "deepseek": {
+        "title": "DeepSeek API",
+        "shortTitle": "DeepSeek",
+        "summary": "Low cost, fast responses and consistent quality — the top pick for story translation.",
+        "listNote": "Low cost, fast responses and consistent quality — the top pick for story translation.",
+        "vpnSummary": "On a typical network you can usually test it directly; if you occasionally time out, try another network or retry later.",
+        "freeQuotaSummary": "There is no fixed public free tier or trial quota; whether you get bonus credit depends on your platform account page.",
+        "recommendedModels": [
+          "deepseek-v4-flash",
+          "deepseek-v4-pro"
+        ],
+        "setupNotes": [
+          "Create the API key on the DeepSeek platform, then paste it into FgoGotran.",
+          "If the test fails, check the account balance, model name and whether the API key is still valid.",
+          "If flash occasionally does not return Chinese in the FgoGotran format, try pro or a backup provider."
+        ],
+        "sourceLinks": {
+          "docs": "DeepSeek docs",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://api.deepseek.com/v1/chat/completions"
+      },
+      "zhipu": {
+        "title": "Zhipu GLM API",
+        "shortTitle": "Zhipu GLM",
+        "summary": "Stable Chinese output — a good backup provider alongside DeepSeek.",
+        "listNote": "Stable Chinese output — a good backup provider.",
+        "vpnSummary": "The Zhipu open-platform endpoint usually needs no extra network tools; actual availability still depends on your network.",
+        "freeQuotaSummary": "Zhipu's model overview marks some Flash models as free; new-user, campaign and gift credits depend on what the console shows.",
+        "recommendedModels": [
+          "glm-4.5-air",
+          "glm-4.5-flash"
+        ],
+        "setupNotes": [
+          "Create the API key on the Zhipu open platform, then paste it into FgoGotran.",
+          "Prefer the full model name shown in the console or docs.",
+          "For low-cost testing, start with Flash; if formatting or translation stability is not enough, switch to Air."
+        ],
+        "sourceLinks": {
+          "platform": "Zhipu open platform",
+          "models": "Model overview",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+      },
+      "qwen-cn": {
+        "title": "Alibaba Cloud Model Studio Qwen (China site)",
+        "shortTitle": "Qwen China",
+        "summary": "Uses an Alibaba Cloud Model Studio China-site account and API key — for users of the China-site console.",
+        "listNote": "Uses a China-site Model Studio account, key and quota.",
+        "vpnSummary": "For the China-site console and endpoint you usually do not need a VPN; if you use an international-site key, choose the international site instead.",
+        "freeQuotaSummary": "The Model Studio docs and console list free quotas for some models. qwen-flash/qwen-plus commonly include 1M input and 1M output tokens, usually valid for 90 days; check the claim page in the console.",
+        "recommendedModels": [
+          "qwen-flash",
+          "qwen-plus"
+        ],
+        "setupNotes": [
+          "In FgoGotran, choose “Alibaba Cloud Model Studio (China)”.",
+          "The API key must come from the China-site Model Studio console.",
+          "Do not put an international-site API key into the China-site configuration; the two endpoints are different."
+        ],
+        "sourceLinks": {
+          "docs": "Model Studio docs",
+          "console": "Model Studio console"
+        },
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+      },
+      "qwen-intl": {
+        "title": "Alibaba Cloud Model Studio Qwen (International site)",
+        "shortTitle": "Qwen International",
+        "summary": "Uses an Alibaba Cloud international-site account and Model Studio API key — for users of the international console.",
+        "listNote": "Uses an Alibaba Cloud Model Studio international-site account.",
+        "vpnSummary": "Whether the international endpoint is reachable directly depends on your location and network; if you cannot connect, try another network or switch to the China-site configuration.",
+        "freeQuotaSummary": "The international docs say new users can claim free token credits, commonly valid for 90 days; the exact quota, models and regions depend on the international console.",
+        "recommendedModels": [
+          "qwen-flash",
+          "qwen-plus"
+        ],
+        "setupNotes": [
+          "In FgoGotran, choose “Alibaba Cloud Model Studio (International)”.",
+          "The API key must come from the Alibaba Cloud Model Studio international site.",
+          "If the international endpoint is unstable, try the China site, DeepSeek or Zhipu first."
+        ],
+        "sourceLinks": {
+          "docs": "Model Studio docs",
+          "console": "Model Studio console"
+        },
+        "endpoint": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+      },
+      "openai": {
+        "title": "OpenAI API",
+        "shortTitle": "OpenAI",
+        "summary": "Strong translation quality, but you need to confirm the account, region and network requirements yourself.",
+        "listNote": "Strong quality; confirm your account, region and balance first.",
+        "vpnSummary": "Whether you need extra network tools depends on your location and network; make sure you can reach the OpenAI API.",
+        "freeQuotaSummary": "The OpenAI API has no reliable public free tier; trial or gift credits depend on what your account page shows.",
+        "recommendedModels": [
+          "gpt-4o",
+          "gpt-4o-mini"
+        ],
+        "setupNotes": [
+          "Create an API key on the OpenAI platform and make sure the account has usable credit.",
+          "You can enter a model name from the OpenAI docs; save only after the in-app test succeeds.",
+          "If your network or account region is not supported, start with DeepSeek, Zhipu or Qwen."
+        ],
+        "sourceLinks": {
+          "countries": "Supported countries/regions",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://api.openai.com/v1/chat/completions"
+      },
+      "gemini": {
+        "title": "Google Gemini API",
+        "shortTitle": "Gemini",
+        "summary": "Has a free tier — good for testing the Google Gemini API; you need to confirm network availability yourself.",
+        "listNote": "Has a free tier; good for testing Gemini API availability.",
+        "vpnSummary": "Google AI Studio / Gemini API availability is limited by region; if you cannot connect, change networks or use another provider.",
+        "freeQuotaSummary": "The Gemini API docs list free and paid tiers. Free-tier requests may be used to improve Google products; paid-tier rules differ.",
+        "recommendedModels": [
+          "gemini-3.1-flash-lite",
+          "gemini-3.1-flash"
+        ],
+        "setupNotes": [
+          "Create an API key in Google AI Studio first.",
+          "The free tier is fine for testing, but do not judge long-term cost from the free tier alone.",
+          "If your local network cannot reach it, switch to a provider you can connect to directly."
+        ],
+        "sourceLinks": {
+          "regions": "Available regions",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+      },
+      "claude": {
+        "title": "Anthropic Claude API",
+        "shortTitle": "Claude",
+        "summary": "Strong at long text and tone, but cost and access requirements are usually higher.",
+        "listNote": "Strong tone and long-text handling; requires the Claude interface type.",
+        "vpnSummary": "Anthropic API support is limited by region; direct access depends on your location and network.",
+        "freeQuotaSummary": "Anthropic's official docs list no stable public free tier; trial or gift credits depend on your Console account page.",
+        "recommendedModels": [
+          "claude-haiku-4-5-20251001"
+        ],
+        "setupNotes": [
+          "You must select the Claude interface type in the app.",
+          "The Claude API format is not OpenAI Chat Completions; do not put it in the custom OpenAI-compatible slot.",
+          "For low-cost everyday translation, test Haiku first."
+        ],
+        "sourceLinks": {
+          "countries": "Supported countries/regions",
+          "apiKey": "API Key"
+        },
+        "endpoint": "https://api.anthropic.com/v1/messages"
+      },
+      "custom": {
+        "title": "Custom compatible endpoint",
+        "shortTitle": "Custom",
+        "summary": "For third-party gateways, self-hosted endpoints, company proxies or any other OpenAI Chat Completions-compatible service.",
+        "listNote": "For third-party gateways, self-hosted or compatible endpoints.",
+        "vpnSummary": "Whether you need a VPN or proxy depends on the third-party provider and your network.",
+        "freeQuotaSummary": "Free quota, trial credits and free models depend entirely on the third-party provider.",
+        "recommendedModels": [
+          "See your provider's docs"
+        ],
+        "setupNotes": [
+          "Recommended only for users comfortable with API settings.",
+          "The endpoint must be compatible with OpenAI Chat Completions.",
+          "If the test fails, check the model name, base URL, key and the provider's response format first."
+        ],
+        "sourceLinks": {
+          "reference": "OpenAI Chat Completions reference"
+        },
+        "endpoint": "Endpoint compatible with OpenAI Chat Completions"
+      }
+    }
+  },
+  "localGuide": {
+    "title": "FgoGotran Local Guide",
+    "description": "Set up llama.cpp and GGUF on Windows, and let the FgoGotran Android app use a local translation model over your trusted LAN.",
+    "sidebarTitle": "FgoGotran Local",
+    "sidebar": {
+      "quickStart": "Quick start",
+      "controlPanel": "Control panel",
+      "phone": "Connect your phone",
+      "troubleshooting": "Troubleshooting"
+    },
+    "eyebrow": "Local AI Guide",
+    "h1": "FgoGotran Local Guide",
+    "intro": "Run your own GGUF model on a Windows PC and let FgoGotran on your phone call the local translation service over your trusted LAN.",
+    "meta": [
+      "Windows",
+      "llama.cpp",
+      "GGUF",
+      "English guide"
+    ],
+    "heroStart": "Start setup",
+    "heroCloudGuide": "Cloud API guide",
+    "scope": {
+      "title": "Purpose and limits",
+      "body": "FgoGotran Local is a local-runtime control tool. After you confirm once, it can prepare Python and llama.cpp automatically; GGUF models are always managed by you.",
+      "supported": {
+        "title": "Translation runs locally",
+        "body": "Once the model is ready, FGO dialogue is handled by llama-server and the GGUF model on your PC — no cloud translation API key needed."
+      },
+      "unsupported": {
+        "title": "Large runtime files stay out of Git",
+        "body": "The optional Python and llama.cpp downloads are written only to the ignored user_data folder; you can also configure everything manually. The tool never changes drivers, firewalls or routers, and never downloads GGUF or TTS assets."
+      },
+      "callout": "The first automatic setup needs a network connection and asks for confirmation first; the Python publisher signature and the llama.cpp size and SHA-256 checks must pass. Get GGUF models from trusted publishers yourself — the local endpoint still uses its own API key."
+    },
+    "architecture": {
+      "title": "How it connects",
+      "body": "The control panel and the phone's translation endpoint are two different addresses.",
+      "phone": "Android phone",
+      "phoneApp": "FgoGotran",
+      "trustedLan": "Trusted LAN",
+      "translationEndpoint": "Translation endpoint",
+      "translationEndpointValue": "PC IP:18080",
+      "llamaServer": "llama-server",
+      "ggufModel": "GGUF model",
+      "controlAddress": "PC control panel: ",
+      "controlAddressBody": "It only ever listens on the local machine. Your phone cannot use or open this address."
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "body": "Do these in order the first time, and do not skip “Ready” or the connection test.",
+      "pythonLink": "Python for Windows",
+      "llamaLink": "llama.cpp releases",
+      "steps": {
+        "python": {
+          "title": "Start and check Python",
+          "body": "Double-click Start-FgoGotranLocal.cmd. The launcher reuses a 64-bit Python 3.11–3.13; if none is available, you can confirm a signed, SHA-256-verified private Python 3.13.15 download.",
+          "note": "The private Python lives in user_data and does not modify your system PATH or file associations."
+        },
+        "llama": {
+          "title": "Prepare a complete llama.cpp",
+          "body": "With no existing configuration, you can confirm an automatic download of the official Windows x64 build, verified by size and SHA-256; NVIDIA uses a CUDA build matched to your driver, otherwise a CPU build is used.",
+          "note": "You can also press n to skip and choose manually; an existing non-empty path is never overwritten."
+        },
+        "gguf": {
+          "title": "Prepare a GGUF translation model",
+          "body": "Download an Instruction or Chat GGUF from a trusted publisher that understands Japanese and reliably outputs Chinese, then select the model folder and file in the control panel.",
+          "note": "The launcher never downloads, updates, replaces or deletes GGUF models."
+        },
+        "panel": {
+          "title": "Start the control panel",
+          "body": "Once the environment is ready, the control panel opens in your browser; keep the command window open while you use it. The complete current profile starts the model automatically.",
+          "note": "The control panel defaults to http://127.0.0.1:18081 and is only reachable from this PC."
+        },
+        "model": {
+          "title": "Fill in the model settings",
+          "body": "A successful automatic setup writes the llama-server.exe path; you always set the GGUF model folder yourself, then scan and choose a model."
+        },
+        "save": {
+          "title": "Save and start the service",
+          "body": "Confirm “Trusted LAN + this PC” and the Model ID. If auto-start fails or was turned off, start the service manually on the overview page and wait until the status becomes “Ready”.",
+          "note": "Runtime parameters are not hot-reloaded; if the model is already running, restart the service to apply new settings."
+        },
+        "test": {
+          "title": "Confirm the connection test",
+          "body": "Startup checks OpenAI Chat Completions compatibility automatically. You can also tap “Start test” under “Connection test” to re-check.",
+          "note": "A pass only means the connection, authentication, format and non-empty output are fine — it does not guarantee translation quality for every FGO line."
+        },
+        "connect": {
+          "title": "Connect the Android app",
+          "body": "On the overview page, tap “Show Endpoint” and “Show API Key”, then enter both full values and the visible Model ID into FgoGotran's “Custom / Local AI”, and tap “Test API” and “Apply API settings”."
+        }
+      }
+    },
+    "chooseFiles": {
+      "title": "Choose llama.cpp and GGUF",
+      "body": "The runtime, GPU driver, model architecture and chat template must be compatible with each other.",
+      "llamaTitle": "llama.cpp runtime package",
+      "llamaItems": [
+        "Automatic setup picks an official Windows x64 CUDA build matching the version reported by nvidia-smi.",
+        "If no NVIDIA/CUDA combination matches, it falls back to the official CPU x64 build.",
+        "The main package and the CUDA DLL package from the same release are verified and unpacked together.",
+        "Updates are unpacked into a new folder; the old version is kept until testing passes."
+      ],
+      "ggufTitle": "GGUF model",
+      "ggufItems": [
+        "Choose an Instruction or Chat model; do not use an unaligned Base model.",
+        "Make sure it understands Japanese and reliably outputs the Chinese you selected.",
+        "Make sure llama.cpp supports the model architecture and chat template.",
+        "Download from a trusted publisher and verify the checksum when one is provided."
+      ],
+      "tableCaption": "A VRAM-oriented starting point, not a translation-quality ranking",
+      "tableVram": "Available VRAM",
+      "tableStart": "Suggested start",
+      "tableNoteCol": "Notes",
+      "startingPoints": {
+        "small": {
+          "memory": "6–8 GB VRAM",
+          "model": "7B/8B Q4",
+          "note": "Good for a first load and speed test"
+        },
+        "medium": {
+          "memory": "10–12 GB VRAM",
+          "model": "8B–14B Q4",
+          "note": "Real usage still depends on architecture and context"
+        },
+        "large": {
+          "memory": "16 GB VRAM",
+          "model": "~14B Q4",
+          "note": "You can also try higher quantization on smaller models"
+        }
+      },
+      "tableNote": "Model architecture, context size, batch size and other GPU programs all affect real VRAM usage."
+    },
+    "controlPanel": {
+      "title": "Control panel",
+      "body": "The page opens at <code>127.0.0.1:18081</code> by default and has four tabs.",
+      "subheading": "Keep these defaults for your first test",
+      "tableParam": "Parameter",
+      "tableDefault": "Default",
+      "tableGuidance": "Guidance",
+      "tabs": {
+        "overview": {
+          "title": "Overview",
+          "body": "Start, restart or stop llama-server, and check the runtime status and current profile summary. Endpoint and API key are hidden by default and can be revealed temporarily."
+        },
+        "model": {
+          "title": "Model settings",
+          "body": "Manage up to 12 profiles, choose llama.cpp and GGUF, and set the port, network scope and inference parameters."
+        },
+        "test": {
+          "title": "Connection test",
+          "body": "Re-check the API key, Model ID, request format and non-empty Chinese output. A compatibility test also runs automatically when the service starts."
+        },
+        "system": {
+          "title": "System",
+          "body": "Check Python, ports, GPU, memory diagnostics and the runtime log; LAN addresses and local paths are hidden by default and can be revealed temporarily."
+        }
+      },
+      "parameters": {
+        "context": {
+          "name": "Context Size",
+          "defaultValue": "8192",
+          "guidance": "Reduce this first when VRAM is short; too small can limit longer prompts."
+        },
+        "gpu-layers": {
+          "name": "GPU Layers",
+          "defaultValue": "999",
+          "guidance": "Offload as many layers as possible to the GPU; set to 0 when no GPU is available."
+        },
+        "batch": {
+          "name": "Batch Size",
+          "defaultValue": "512",
+          "guidance": "Reduce gradually only if memory or VRAM pressure is still too high."
+        },
+        "ubatch": {
+          "name": "UBatch Size",
+          "defaultValue": "256",
+          "guidance": "Must be less than or equal to Batch Size."
+        },
+        "cpu-threads": {
+          "name": "CPU Threads",
+          "defaultValue": "0 (auto)",
+          "guidance": "Let llama.cpp choose automatically the first time."
+        },
+        "flash-attention": {
+          "name": "Flash Attention",
+          "defaultValue": "On",
+          "guidance": "Usually saves resources; try Auto or Off if you hit incompatibility or startup errors."
+        },
+        "force-no-think": {
+          "name": "Force-disable model thinking",
+          "defaultValue": "Off",
+          "guidance": "Follows the model by default. Enable only when the model docs explicitly support it and testing calls for it."
+        },
+        "prompt-cache": {
+          "name": "Prompt Cache / Metrics / Slots",
+          "defaultValue": "On",
+          "guidance": "Keep the defaults for your first test so caching, performance checks and request status work."
+        }
+      }
+    },
+    "phone": {
+      "title": "Connect an Android phone",
+      "body": "Tap “Show Endpoint” on the overview page and copy the current address instead of assembling the IP and port from memory.",
+      "callout": "Your phone must not use <code>localhost</code>, <code>127.0.0.1</code>, <code>0.0.0.0</code>, the PC hostname or the router address.",
+      "steps": [
+        "Put the phone and the PC on the same trusted Wi-Fi or LAN.",
+        "Set the current Windows network to “Private network”.",
+        "In the current profile choose “Trusted LAN + this PC”, save, and restart the service.",
+        "Wait until the status becomes “Ready”, tap “Show Endpoint” on the overview page, and open the /health address using the same PC IP and port.",
+        "In FgoGotran's API settings, choose “Custom / Local AI”.",
+        "Tap “Show Endpoint” and “Show API Key” on the overview page, fill in both full values plus the model name, then test and apply the settings."
+      ],
+      "apiAddress": "API address",
+      "apiAddressValue": "http://<ip>PC LAN IP</ip>:18080/v1/chat/completions",
+      "browserTest": "Phone browser test",
+      "healthValue": "http://<ip>PC LAN IP</ip>:18080/health",
+      "fieldComputer": "PC overview",
+      "fieldShowEndpoint": "Show Endpoint",
+      "fieldApiAddress": "Phone “API address”",
+      "fieldModelId": "Model ID",
+      "fieldModel": "Phone “Model”",
+      "fieldShowApiKey": "Show API Key",
+      "fieldApiKey": "Phone “API Key”"
+    },
+    "status": {
+      "title": "Runtime status reference",
+      "body": "Only “Ready” means the phone can reliably start translation requests right now.",
+      "items": {
+        "STOPPED": {
+          "label": "Stopped",
+          "meaning": "The service has not started yet, or has stopped cleanly."
+        },
+        "STARTING": {
+          "label": "Starting",
+          "meaning": "Checking the configuration and creating the llama-server process."
+        },
+        "LOADING": {
+          "label": "Loading model",
+          "meaning": "llama-server is running and loading the GGUF and runtime buffers into memory or VRAM."
+        },
+        "VERIFYING": {
+          "label": "Checking compatibility",
+          "meaning": "The health check passed; now verifying that Chat Completions returns usable text."
+        },
+        "RECOVERING": {
+          "label": "Applying compatibility fallback",
+          "meaning": "Force-disable thinking is incompatible with the current model; restarting once with the model's default behavior."
+        },
+        "READY": {
+          "label": "Ready",
+          "meaning": "The model passed the health and compatibility checks, so the phone can connect."
+        },
+        "BUSY": {
+          "label": "Translating",
+          "meaning": "llama-server is handling a request; short queues are normal."
+        },
+        "ERROR": {
+          "label": "Error",
+          "meaning": "Service startup, model loading or the compatibility check failed; check the status details and runtime log."
+        }
+      }
+    },
+    "performance": {
+      "title": "Tuning order",
+      "body": "Change one category at a time, save, restart, then judge the result.",
+      "callout": "To judge translation quality, test several FGO lines in a row — names, terminology, omitted subjects and longer sentences; do not rely on the built-in compatibility test alone.",
+      "steps": {
+        "close-gpu": {
+          "title": "Close other GPU programs first",
+          "body": "Browsers, game recorders and other AI tools may hold VRAM. Free them, then restart the model."
+        },
+        "context": {
+          "title": "Reduce Context Size first",
+          "body": "This is the first adjustment when VRAM is short or loading fails. Change one setting at a time and restart to observe."
+        },
+        "smaller": {
+          "title": "Switch to a smaller model or quantization",
+          "body": "If it still will not load, choose a smaller or lower-quantization GGUF; that is usually more reliable than blindly changing several low-level parameters."
+        },
+        "batch": {
+          "title": "Then reduce Batch and UBatch",
+          "body": "Reduce Batch Size and UBatch Size gradually, keeping UBatch no larger than Batch."
+        },
+        "compat": {
+          "title": "Finally check runtime compatibility",
+          "body": "Check whether the llama.cpp build, graphics driver, DLLs, model architecture, chat template and Flash Attention are compatible."
+        }
+      }
+    },
+    "troubleshooting": {
+      "title": "Troubleshooting",
+      "body": "Check by symptom first, then read the last few lines under “System → Runtime log”.",
+      "items": {
+        "python": {
+          "title": "Python not found",
+          "body": "Install 64-bit Python 3.11–3.13. With several Python installs, point FGO_LOCAL_PYTHON at the python.exe you want."
+        },
+        "panel": {
+          "title": "The control panel will not open",
+          "body": "Check that the launch command window is still running, then open http://127.0.0.1:18081. If the port is taken, change the control port with FGO_LOCAL_CONTROL_PORT."
+        },
+        "llama-path": {
+          "title": "llama-server path is invalid",
+          "body": "Select the actual file named llama-server.exe, use an absolute path, and keep all DLLs from the same release package."
+        },
+        "gguf": {
+          "title": "GGUF not found when scanning",
+          "body": "Check that the file ends in .gguf, the model folder is an absolute path, and the model is inside that folder or its subfolders, then scan again."
+        },
+        "load": {
+          "title": "It exits while loading, or keeps loading",
+          "body": "Check “System → Runtime log”. Common causes are insufficient VRAM or RAM, missing DLLs, a runtime/driver mismatch, or an unsupported model architecture."
+        },
+        "compat": {
+          "title": "Compatibility test failed",
+          "body": "Make sure the Model ID matches the llama-server alias, then check errors such as authentication, chat template, thinking-only output or empty output. The test times out after 45 seconds."
+        },
+        "phone": {
+          "title": "The phone cannot connect",
+          "body": "Confirm the phone and PC are on the same trusted network, the profile uses “Trusted LAN + this PC”, the service is ready, and check the Windows private-network firewall and any VPN."
+        },
+        "save": {
+          "title": "Nothing changed after saving settings",
+          "body": "The model, Model ID, port, network and inference parameters are runtime settings. Restart llama-server after saving."
+        }
+      }
+    },
+    "security": {
+      "title": "Security, backup and updates",
+      "body": "LAN HTTP is not encrypted in transit, so it is only suitable for a trusted home or private network.",
+      "network": {
+        "title": "Network security",
+        "body": "Allow only private networks in the firewall. Do not use public Wi-Fi, do not disable the whole firewall, and never map port 18080 or 18081 to the internet."
+      },
+      "apiKey": {
+        "title": "API Key",
+        "body": "Do not share the full key. If you suspect a leak, stop the service first, then replace the key and update every phone; the old key stops working immediately."
+      },
+      "backup": {
+        "title": "Configuration backup",
+        "body": "Back up user_data before updating or resetting. This folder contains the API key and must not be uploaded, published or sent along with troubleshooting screenshots."
+      },
+      "update": {
+        "title": "Safe updates",
+        "body": "Stop the service first, then unpack the new llama.cpp into a new folder. Remove the old version only after updating the path and passing load and translation tests."
+      }
+    },
+    "checklist": {
+      "title": "Final checklist",
+      "body": "Confirm everything before running FGO translation for long sessions.",
+      "items": [
+        "Using 64-bit Python 3.11, 3.12 or 3.13",
+        "llama.cpp comes from a trusted source and is fully extracted; automatic downloads passed the size and SHA-256 checks",
+        "Required DLLs remain next to llama-server.exe",
+        "The GGUF is an Instruction or Chat model you obtained from a trusted publisher that supports Japanese input and Chinese output",
+        "“Trusted LAN + this PC” is selected for the phone connection",
+        "Windows Firewall allows private networks only",
+        "The runtime status has become “Ready”",
+        "The startup compatibility test or a manual connection test has passed",
+        "The phone's API address comes from the overview page and includes /v1/chat/completions",
+        "The model name on the phone exactly matches the Model ID on the PC",
+        "The phone uses the complete new API Key",
+        "Port 18080 or 18081 is not forwarded to the internet"
+      ]
+    },
+    "toc": {
+      "scope": "Purpose and limits",
+      "architecture": "How it connects",
+      "quickStart": "Quick start",
+      "chooseFiles": "Choosing files",
+      "controlPanel": "Control panel",
+      "phone": "Connecting a phone",
+      "status": "Status reference",
+      "performance": "Tuning",
+      "troubleshooting": "Troubleshooting",
+      "security": "Security and maintenance",
+      "checklist": "Final checklist"
+    }
+  },
+  "speechGuide": {
+    "title": "Azure Voice Service Setup Guide",
+    "description": "How to sign up for Azure Speech, get a Speech key and region, and use AI voice in FgoGotran.",
+    "sidebarTitle": "Azure Voice",
+    "sidebar": {
+      "chooseCloud": "Choose Azure",
+      "applyKey": "Get a key",
+      "chinaAzure": "Azure China"
+    },
+    "eyebrow": "Azure Speech Guide",
+    "h1": "Azure Voice Service Setup Guide",
+    "openGlobalAzure": "Open global Azure",
+    "backToGuide": "Back to the guide",
+    "globalStepsCard": "Global Azure steps",
+    "globalSetup": "Global Azure",
+    "steps": {
+      "azure-account": {
+        "title": "Create or sign in to an Azure account",
+        "body": "Open Azure Global and choose a free account or a pay-as-you-go account. New users usually need to verify a phone number and a payment method.",
+        "note": "https://azure.microsoft.com/en-us"
+      },
+      "create-speech": {
+        "title": "Create a Speech resource",
+        "body": "In the Azure Portal, search for Speech service or 语音服务 and create a speech resource."
+      },
+      "select-region": {
+        "title": "Fill in the resource settings",
+        "body": "Use Southeast Asia.",
+        "note": "The Free F0 tier includes 500,000 neural-voice characters per month.",
+        "value": "southeastasia"
+      },
+      "copy-key": {
+        "title": "Copy the key",
+        "body": "Once the resource is created, open Keys and Endpoint on the resource page and copy KEY 1 or KEY 2."
+      },
+      "app-settings": {
+        "title": "Enter it in FgoGotran",
+        "body": "Open FgoGotran settings, go to voice settings, choose Global Azure as the region and paste the Azure Speech key.",
+        "value": "Global Azure / southeastasia"
+      },
+      "test-voice": {
+        "title": "Test the voice",
+        "body": "Tap Test voice. If everything works you will hear Mash's test line, which means the key, region and Azure TTS are all working.",
+        "value": "瑪修・基列萊特，在此。御主……戰鬥準備完成，請下達指示。"
+      }
+    },
+    "chinaAzure": {
+      "title": "About Azure China",
+      "body": "Azure China and global Azure are not the same entry point; the key, region and endpoint domain all differ.",
+      "callout": "If the page says you cannot sign in with a personal account, use an organization, work or school account instead, or go back to FgoGotran and use global Azure with southeastasia.",
+      "portalTitle": "Portal",
+      "portalBody": "Azure China uses a separate portal.",
+      "portalValue": "https://portal.azure.cn/",
+      "regionTitle": "App region",
+      "regionBody": "If your Speech resource is in China North 3, choose Azure China in FgoGotran.",
+      "regionValue": "chinanorth3"
+    },
+    "troubleshooting": {
+      "title": "Common problems",
+      "body": "If the voice test fails, start here.",
+      "items": {
+        "empty": {
+          "title": "The test says the key is empty",
+          "body": "The Azure Speech key has not been entered yet, or was entered but not saved."
+        },
+        "auth": {
+          "title": "401 / 403 / authentication failed",
+          "body": "Usually the key and region do not match, or a global Azure key is being used with an Azure China region."
+        },
+        "slow": {
+          "title": "Slow connections from mainland China",
+          "body": "Test global Azure's southeastasia first. If your account belongs to Azure China, test chinanorth3 instead."
+        },
+        "quota": {
+          "title": "Free quota used up",
+          "body": "Wait for the quota to reset next month, or decide whether to move to a paid tier using the Azure pricing page and your own budget."
+        }
+      }
+    },
+    "sources": {
+      "title": "Official sources",
+      "body": "Azure's free quotas, portals and supported regions can change; open the official pages again before publishing.",
+      "links": {
+        "account": "Azure free account",
+        "pricing": "Azure Speech pricing",
+        "quickstart": "Text to Speech quickstart",
+        "regions": "Speech supported regions",
+        "china": "Azure China / 21Vianet notes"
+      }
+    },
+    "toc": {
+      "chooseCloud": "Choose Azure",
+      "globalSetup": "Global Azure steps",
+      "chinaAzure": "Azure China",
+      "troubleshooting": "Common problems",
+      "sources": "Official sources"
+    }
+  },
+  "terms": {
+    "title": "Terminology",
+    "eyebrow": "Terminology",
+    "h1": "Terminology preview",
+    "body": "Review the fixed translations and help spot missing terms, mistranslations and inconsistencies, so the FGO Chinese and English terminology database keeps improving.",
+    "dbNote": "This preview comes from the Japanese → Chinese and English terminology database that the app currently uses.",
+    "searchPlaceholder": "Search Japanese, Chinese, English, category or alias",
+    "allCategories": "All categories",
+    "loadingPreview": "Loading terminology preview",
+    "loaded": "Loaded the latest preview JSON",
+    "loadFailed": "Failed to load the terminology preview",
+    "loading": "Loading",
+    "count": "{shown} / {total} entries",
+    "refresh": "Refresh",
+    "refreshAria": "Refresh terminology preview",
+    "tableJapanese": "Japanese",
+    "tableChinese": "Chinese",
+    "tableCategory": "Category",
+    "tableAliases": "Aliases",
+    "loadingRows": "Loading terminology preview...",
+    "errorRows": "Failed to load the terminology preview. Make sure the local preview JSON has been generated.",
+    "noMatch": "No matching terms found.",
+    "tableEnglish": "English"
+  },
+  "media": {
+    "title": "Media",
+    "description": "FgoGotran demo videos, usage examples and updates.",
+    "eyebrow": "Media",
+    "h1": "Media",
+    "body": "FgoGotran demo videos, usage examples and updates.",
+    "openVideo": "Open original video",
+    "items": {
+      "bili3": "Bilibili demo 3",
+      "yt3": "YouTube demo 3",
+      "bili2": "Bilibili demo 2",
+      "yt2": "YouTube demo 2",
+      "bili1": "Bilibili demo 1",
+      "yt1": "YouTube demo 1"
+    }
+  },
+  "changelog": {
+    "title": "Changelog",
+    "eyebrow": "Changelog",
+    "h1": "Changelog",
+    "body": "A record of the main FgoGotran Android app updates.",
+    "recent": "Recent updates",
+    "entries": {
+      "v3_1_2": {
+        "items": [
+          "Added support for rare six-choice story screens, including the sixth option panel below the normal choice area.",
+          "Improved ruby OCR by merging split readings, supporting longer katakana readings, and aligning annotations more accurately with their base characters.",
+          "Improved automatic story-completion detection for FGO's animated diamond, reducing missed or false completion in automatic modes.",
+          "Improved character-name rendering fallback by using OCR bounds when glyph-color measurement is unavailable.",
+          "Updated character-name and terminology aliases, including readings such as マスター and 先輩, for more consistent recognition."
+        ]
+      },
+      "v3_1_1": {
+        "items": [
+          "Improved dialogue and choice OCR to recover ellipses, dashes, and edge punctuation while filtering emphasis dots, ruby noise, and annotation fragments.",
+          "Improved dialogue formatting by normalizing line breaks and Chinese quotes, fixing speaker dialogue formatting in the translation log, and preventing lost closing quotes.",
+          "Improved character-name and dialogue overlays with support for multiple name colors and cyan name plates, exact glyph-width rendering, and better positioning and text fitting.",
+          "Fixed masked speaker names such as “???” by normalizing them to “？？？” and preserving them without AI translation or incorrect name rendering.",
+          "Added an “Include ruby readings in translation” option, disabled by default, and unified ruby markup to 〈…〉.",
+          "Switched OCR screenshots to the accessibility service, so starting translation no longer requests MediaProjection screen-capture permission; live subtitles request it only when enabled and now show clearer capture failure guidance.",
+          "Improved foreground-service and accessibility screenshot reliability with pacing and retries, plus clearer guidance for enabled-but-not-connected, blank frames, and lost screenshot access.",
+          "Updated character, class, Noble Phantasm, and location terminology and improved term matching for more consistent translations.",
+          "Updated floating-menu paging so common features appear first and manual, semi-auto, and full-auto modes are grouped on the second page."
+        ]
+      },
+      "v3_1_0": {
+        "items": [
+          "Redesigned the floating menu as a two-page arc menu around the floating button, showing all options at a glance without scrolling",
+          "In BATTLE mode, tapping the floating button no longer leaves battle mode (long-press to switch mode)",
+          "Reduced story translation wait time, so translation starts sooner after the dialogue advances",
+          "Reduced projection consent prompts — a new prompt is requested only after a real 180° rotation in-game",
+          "Improved MediaProjection stability — it now falls back to accessibility screenshots after repeated failures instead of getting stuck",
+          "Fixed menu screens being mistaken for story dialogue and showing unrelated translations"
+        ]
+      },
+      "v3_0_0": {
+        "items": [
+          "Added a dedicated BATTLE subtitle mode for translating in-battle dialogue.",
+          "Added optional Azure real-time Japanese-to-Chinese voice subtitles.",
+          "Added FgoGotran Local, providing guided Windows x64 local-AI setup and llama.cpp management.",
+          "Added secure support for authenticated local AI through trusted private-LAN endpoints.",
+          "Improved ML Kit and PaddleOCR speed and accuracy, including ■ and edge-punctuation recovery.",
+          "Improved FGO-style translation, character voice, speaker gender, terminology and omitted-subject handling.",
+          "Added Sakura-specific prompts and streamlined prompts for general AI models.",
+          "Added configurable bilingual translation context using the previous 1–5 scenes.",
+          "Added advanced Temperature and Top-p controls with provider compatibility handling.",
+          "Limited failed translation requests to three attempts to prevent endless waiting.",
+          "Improved dialogue formatting, punctuation normalization and newline handling.",
+          "APK architectures are now limited to arm64-v8a and x86_64."
+        ]
+      },
+      "v2_4_0": {
+        "items": [
+          "Added local AI support with trusted LAN HTTP endpoints and enhanced address security checks",
+          "Added 2× input scaling for ML Kit OCR to improve small-text recognition",
+          "Improved dialogue line wrapping and fixed two-line rendering for text containing \\n",
+          "Improved FGO-style translation for first-person pronouns and name suffixes",
+          "Added complete JP+CN speaker and dialogue context for the current and two previous scenes",
+          "Optimized prompts, character voice consistency, and translation post-processing",
+          "Updated documentation for local AI, network security, and downloads"
+        ]
+      },
+      "v2_3_1": {
+        "items": [
+          "Fixed screen capture issues after device rotation",
+          "Fixed OCR and translated overlays using the wrong screen size or failing after entering FGO landscape mode",
+          "Improved floating translation overlay stability during screen rotation",
+          "Voice tests now refresh voice-profile data first",
+          "Added tuning support for more Azure Chinese Neural voices",
+          "Simplified the voice-test status message when emotion enhancement is enabled"
+        ]
+      },
+      "v2_3_0": {
+        "items": [
+          "Switched to MediaProjection screen capture",
+          "Improved emulator and real-device screenshot compatibility",
+          "Optimized semi-auto choice-tap logic",
+          "Reduced false red-ring failures when translating choices",
+          "Added automatic choice OCR retry using fixed positions",
+          "Added 2x choice-region upscaling for better recognition",
+          "Fixed MediaProjection callback and screenshot fallback",
+          "Improved rendering UI"
+        ]
+      },
+      "v2_2_0": {
+        "items": [
+          "Optimized AI translation prompt structure, reducing API usage and response time",
+          "Fixed translation failures caused by small kana characters",
+          "Improved crop mode logic",
+          "Updated floating menu UI",
+          "Added the last 2 scene dialogue contexts to translation, improving pronoun and tone handling",
+          "Fixed glossary/character-name locking in API requests",
+          "Fixed emulator overlay window crash issues",
+          "Added screenshot timeout protection to prevent emulator freezes",
+          "Updated UI"
+        ]
+      },
+      "v2_1_0": {
+        "items": [
+          "Optimized AI translation prompt structure for faster responses",
+          "Improved crop mode: translate all selected visible text without dropping rows",
+          "Improved crop mode rendering to better match original OCR text size and position",
+          "Improved CN/TW server OCR and voice workflow",
+          "Fixed voice hint request handling in CN/TW server mode",
+          "Removed small accessibility status indicator that could cause emulator crashes",
+          "Improved emulator compatibility and stability",
+          "Improved name-box rendering and voice profile lookup behavior",
+          "Updated UI and web guide content"
+        ]
+      },
+      "v2_0_0": {
+        "items": [
+          "Added AI voice feature",
+          "Added support for Simplified Chinese and Traditional Chinese servers",
+          "Simplified / Traditional Chinese servers can read in-game Chinese text directly and play voice",
+          "Added character voice profiles with CDN online updates",
+          "Added voice settings page: Azure, speed, volume, test voice",
+          "Added Recent Errors page for easier troubleshooting",
+          "Added ML Kit Chinese OCR",
+          "Optimized emulator compatibility, voice playback, and duplicate playback prevention",
+          "Optimized AI translation prompt structure",
+          "Updated UI"
+        ]
+      },
+      "v1_1_0": {
+        "items": [
+          "Added PaddleOCR to improve text recognition",
+          "Added x86_64 ABI support for better emulator compatibility",
+          "Fixed translation display in crop mode",
+          "Optimized AI translation prompt structure",
+          "Updated UI"
+        ]
+      },
+      "v1_0_2": {
+        "items": [
+          "Fixed translated text occasionally appearing as JSON",
+          "Added original Japanese text display",
+          "Added update notes to the app update dialog",
+          "Improved crop mode text overlay rendering",
+          "Improved screen-size adaptation for overlays",
+          "Improved history panel and floating button interactions",
+          "Improved AI translation prompt structure",
+          "Updated UI"
+        ]
+      },
+      "v1_0_1": {
+        "items": [
+          "Optimize translation prompt by combining the core prompt with conditional prompts"
+        ]
+      },
+      "v1_0_0": {
+        "items": [
+          "Added manual, semi-auto, full-auto and crop modes",
+          "Added custom translation API support"
+        ]
+      }
+    }
+  },
+  "download": {
+    "title": "Download",
+    "eyebrow": "Download",
+    "h1": "Download",
+    "body": "Thanks for downloading the FgoGotran Android app.",
+    "introBefore": "See the",
+    "changelogLink": "changelog",
+    "introAfter": " for the full list of changes.",
+    "facts": {
+      "version": "Current version: {version}",
+      "android": "Supports Android 11+",
+      "size": "APK size: 153.12 MB",
+      "apiKey": "You provide your own translation API key"
+    },
+    "installReminderTitle": "Install note: ",
+    "installReminderBefore": "If installation is blocked by Google Play Protect, or the package requires split installation, install",
+    "installer": "APKMirror Installer",
+    "installReminderAfter": "first, then install FgoGotran.",
+    "localReminderTitle": "Local model on your PC: ",
+    "localReminderBefore": "To use llama.cpp and GGUF on a Windows PC with your phone, see the",
+    "localGuide": "FgoGotran Local Guide",
+    "localReminderAfter": ".",
+    "options": {
+      "onedrive": {
+        "title": "OneDrive",
+        "subtitle": "APK download"
+      },
+      "github": {
+        "title": "GitHub Releases",
+        "subtitle": "APK download"
+      },
+      "baidu": {
+        "title": "Baidu Netdisk",
+        "subtitle": "APK download (code: y978)"
+      }
+    }
+  }
+}
