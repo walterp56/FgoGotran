@@ -106,6 +106,7 @@
     <string name="home_server_jp">日服</string>
     <string name="home_server_cn">簡中服</string>
     <string name="home_server_tw">繁中服</string>
+    <string name="home_server_en">美服</string>
     <string name="home_current">目前</string>
     <string name="home_mode">模式</string>
     <string name="home_mode_translate_voice">翻譯 + 朗讀</string>

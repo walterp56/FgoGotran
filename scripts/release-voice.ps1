@@ -178,7 +178,7 @@ Push-Location $RepoRoot
 try {
     Write-Host "Voice data sources include:"
     Write-Host "  term_builder\voice_tune\character_voice_profiles_cn.tsv"
-    Write-Host "  term_builder\jp_cn_name_map.tsv"
+    Write-Host "  term_builder\voice_tune\jp_cn_name_map.tsv"
 
     $PackageArgs = @(
         (Join-Path $RepoRoot "term_builder\py\package_voice_release.py"),

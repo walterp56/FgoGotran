@@ -83,6 +83,7 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     // ML Kit OCR (bundled so OCR works without Google Play services/model delivery)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
 

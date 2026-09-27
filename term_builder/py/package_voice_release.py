@@ -21,7 +21,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 REPO_ROOT = ROOT.parent
 DEFAULT_PROFILES = ROOT / "voice_tune" / "character_voice_profiles_cn.tsv"
-DEFAULT_NAME_MAP = ROOT / "jp_cn_name_map.tsv"
+DEFAULT_NAME_MAP = ROOT / "voice_tune" / "jp_cn_name_map.tsv"
 DEFAULT_OUTPUT = REPO_ROOT / "release" / "cdn"
 DEFAULT_BASE_URL = "https://cdn.fgogotran.com"
 DEFAULT_LOCALE = "zh"
@@ -40,6 +40,7 @@ PROFILE_HEADER = (
     "cn_volume",
 )
 NAME_MAP_HEADER = ("jp_name", "cn_name_simp", "cn_name_trad", "count")
+NAME_MAP_HEADER_WITH_EN = ("jp_name", "cn_name_simp", "cn_name_trad", "en_name", "count")
 HK_TIMEZONE = timezone(timedelta(hours=8))
 
 
@@ -102,7 +103,7 @@ def validate_name_map(path: Path) -> int:
     if not path.exists():
         raise FileNotFoundError(f"Missing JP/CN name map TSV: {path}")
     header, rows = read_tsv(path)
-    if tuple(header) != NAME_MAP_HEADER:
+    if tuple(header) not in (NAME_MAP_HEADER, NAME_MAP_HEADER_WITH_EN):
         raise RuntimeError(f"Unexpected name map TSV header: {header}")
     if not rows:
         raise RuntimeError("JP/CN name map TSV has no rows")
@@ -117,6 +118,11 @@ def validate_name_map(path: Path) -> int:
         if contains_kana(cn_name_simp):
             raise RuntimeError(
                 f"Japanese kana in cn_name_simp for {jp_name} at {path}:{line_no}"
+            )
+        en_name = row.get("en_name") or ""
+        if en_name and contains_kana(en_name):
+            raise RuntimeError(
+                f"Japanese kana in en_name for {jp_name} at {path}:{line_no}"
             )
         seen.add(jp_name)
     return len(rows)

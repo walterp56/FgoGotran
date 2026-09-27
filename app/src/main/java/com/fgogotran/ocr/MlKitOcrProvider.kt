@@ -9,6 +9,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -22,7 +23,8 @@ internal enum class MlKitOcrScript(
     val engineId: OcrEngineId
 ) {
     JAPANESE("ML Kit Japanese OCR", "Japanese", OcrEngineId.ML_KIT),
-    CHINESE("ML Kit Chinese OCR", "Chinese", OcrEngineId.ML_KIT_CHINESE)
+    CHINESE("ML Kit Chinese OCR", "Chinese", OcrEngineId.ML_KIT_CHINESE),
+    LATIN("ML Kit Latin OCR", "Latin", OcrEngineId.ML_KIT_LATIN)
 }
 
 internal class MlKitOcrProvider(
@@ -35,6 +37,9 @@ internal class MlKitOcrProvider(
         )
         MlKitOcrScript.JAPANESE -> TextRecognition.getClient(
             JapaneseTextRecognizerOptions.Builder().build()
+        )
+        MlKitOcrScript.LATIN -> TextRecognition.getClient(
+            TextRecognizerOptions.DEFAULT_OPTIONS
         )
     }
     private val tag = "OCR"

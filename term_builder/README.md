@@ -32,6 +32,18 @@ Keep full character names here. `build_db.py` automatically adds component recor
 
 ## `jp_cn_name_map.tsv`
 
+After running the JP/CN/TW generator, append the English name-box column:
+
+```
+python term_builder\py\add_en_name_map.py            # dry-run
+python term_builder\py\add_en_name_map.py --write    # write en_name
+```
+
+The file header becomes `jp_name cn_name_simp cn_name_trad en_name count`.
+The `en_name` column is built from Atlas NA script name boxes (short in-game names
+such as Lev, Mash, Dr. Roman), with NA servant names and `character_names.tsv`
+`en_name` as fallbacks. Older app versions ignore the extra column.
+
 Optional helper map for visible FGO speaker/name-box labels. It is generated
 from Atlas Academy JP/CN/TW script speaker labels, not servant roster names.
 
@@ -166,7 +178,7 @@ Sources:
 
 ```text
 term_builder/voice_tune/character_voice_profiles_cn.tsv
-term_builder/jp_cn_name_map.tsv
+term_builder/voice_tune/jp_cn_name_map.tsv
 ```
 
 Create the files for `cdn.fgogotran.com`:

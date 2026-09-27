@@ -1,6 +1,7 @@
 package com.fgogotran.voice
 
 import android.content.Context
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -18,7 +19,8 @@ class CharacterVoiceRepository @Inject constructor(
     private var snapshot: VoiceDataSnapshot? = null
 
     fun resolveProfileOrNull(
-        speakerName: String?
+        speakerName: String?,
+        gameServer: String = SettingsRepository.GAME_SERVER_JP
     ): VoiceProfile? {
         val normalizedSpeakerName = speakerName
             ?.let(::normalizeSpeakerName)
@@ -28,7 +30,7 @@ class CharacterVoiceRepository @Inject constructor(
 
         findProfile(normalizedSpeakerName, data)?.let { return it }
 
-        val japaneseName = mappedJapaneseNameFor(normalizedSpeakerName, data) ?: return null
+        val japaneseName = mappedJapaneseNameFor(normalizedSpeakerName, data, gameServer) ?: return null
         return findProfile(normalizeSpeakerName(japaneseName), data)
     }
 
@@ -59,15 +61,30 @@ class CharacterVoiceRepository @Inject constructor(
 
     private fun mappedJapaneseNameFor(
         normalizedSpeakerName: String,
-        data: VoiceDataSnapshot
+        data: VoiceDataSnapshot,
+        gameServer: String
     ): String? {
-        data.cnNameToJapaneseName[normalizedSpeakerName]?.let { return it }
-        return data.cnNameEntriesByLength
-            .firstOrNull { (cnName, _) ->
-                cnName.length >= MIN_CHINESE_PARTIAL_ALIAS_LENGTH &&
-                    normalizedSpeakerName.contains(cnName)
-            }
-            ?.second
+        val englishFirst = SettingsRepository.normalizeGameServer(gameServer) ==
+            SettingsRepository.GAME_SERVER_EN
+        val mappings = if (englishFirst) {
+            listOf(
+                data.enNameToJapaneseName to data.enNameEntriesByLength,
+                data.cnNameToJapaneseName to data.cnNameEntriesByLength
+            )
+        } else {
+            listOf(
+                data.cnNameToJapaneseName to data.cnNameEntriesByLength,
+                data.enNameToJapaneseName to data.enNameEntriesByLength
+            )
+        }
+        mappings.forEach { (mapping, entries) ->
+            mapping[normalizedSpeakerName]?.let { return it }
+            entries.firstOrNull { (alias, _) ->
+                alias.length >= MIN_CHINESE_PARTIAL_ALIAS_LENGTH &&
+                    normalizedSpeakerName.contains(alias)
+            }?.second?.let { return it }
+        }
+        return null
     }
 
     private fun loadSnapshot(): VoiceDataSnapshot {
@@ -76,9 +93,11 @@ class CharacterVoiceRepository @Inject constructor(
             val profiles = readProfiles(rows.profileRows)
             val aliasToProfile = buildAliasMap(profiles)
             val cnNameToJapaneseName = buildChineseNameMap(rows.nameMapRows)
+            val enNameToJapaneseName = buildEnglishNameMap(rows.nameMapRows)
             FgoLogger.info(
                 tag,
-                "Loaded voice data source=${rows.source}, profiles=${profiles.size}, nameMap=${cnNameToJapaneseName.size}"
+                "Loaded voice data source=${rows.source}, profiles=${profiles.size}, " +
+                    "nameMap=${cnNameToJapaneseName.size}, enNameMap=${enNameToJapaneseName.size}"
             )
             VoiceDataSnapshot(
                 profiles = profiles,
@@ -88,6 +107,10 @@ class CharacterVoiceRepository @Inject constructor(
                     .sortedByDescending { it.first.length },
                 cnNameToJapaneseName = cnNameToJapaneseName,
                 cnNameEntriesByLength = cnNameToJapaneseName.entries
+                    .map { it.key to it.value }
+                    .sortedByDescending { it.first.length },
+                enNameToJapaneseName = enNameToJapaneseName,
+                enNameEntriesByLength = enNameToJapaneseName.entries
                     .map { it.key to it.value }
                     .sortedByDescending { it.first.length }
             )
@@ -181,6 +204,26 @@ class CharacterVoiceRepository @Inject constructor(
         }.getOrDefault(emptyMap())
     }
 
+    private fun buildEnglishNameMap(rows: List<List<String>>): Map<String, String> {
+        return runCatching {
+            buildMap {
+                rows.forEach { columns ->
+                    // New 5-column map: jp, cn_simp, cn_trad, en_name, count.
+                    if (columns.size < 5) return@forEach
+                    val japaneseName = columns[0].trim()
+                    val enName = columns[3].trim()
+                    if (japaneseName.isBlank() || enName.isBlank()) return@forEach
+                    splitNameMapAliases(enName)
+                        .map(::normalizeSpeakerName)
+                        .filter(String::isNotBlank)
+                        .forEach { englishName -> putIfAbsent(englishName, japaneseName) }
+                }
+            }
+        }.onFailure { e ->
+            FgoLogger.warn(tag, "Failed to load JP/EN voice name map TSV", e)
+        }.getOrDefault(emptyMap())
+    }
+
     private fun splitNameMapAliases(value: String): List<String> {
         return value
             .split(Regex("[|/&\\uFF06\\uFF0F]"))
@@ -224,7 +267,9 @@ private data class VoiceDataSnapshot(
     val aliasToProfile: Map<String, VoiceProfile>,
     val aliasEntriesByLength: List<Pair<String, VoiceProfile>>,
     val cnNameToJapaneseName: Map<String, String>,
-    val cnNameEntriesByLength: List<Pair<String, String>>
+    val cnNameEntriesByLength: List<Pair<String, String>>,
+    val enNameToJapaneseName: Map<String, String>,
+    val enNameEntriesByLength: List<Pair<String, String>>
 ) {
     companion object {
         val EMPTY = VoiceDataSnapshot(
@@ -232,7 +277,9 @@ private data class VoiceDataSnapshot(
             aliasToProfile = emptyMap(),
             aliasEntriesByLength = emptyList(),
             cnNameToJapaneseName = emptyMap(),
-            cnNameEntriesByLength = emptyList()
+            cnNameEntriesByLength = emptyList(),
+            enNameToJapaneseName = emptyMap(),
+            enNameEntriesByLength = emptyList()
         )
     }
 }

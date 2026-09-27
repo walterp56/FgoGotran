@@ -106,6 +106,7 @@
     <string name="home_server_jp">JP</string>
     <string name="home_server_cn">CN</string>
     <string name="home_server_tw">TW</string>
+    <string name="home_server_en">NA</string>
     <string name="home_current">Current</string>
     <string name="home_mode">Mode</string>
     <string name="home_mode_translate_voice">Translate + voice</string>

@@ -55,21 +55,21 @@ class AppAnalytics @Inject constructor(
             val installId = settingsRepository.getOrCreateAnalyticsInstallId()
 
             if (settingsRepository.shouldSendAnalyticsFirstInstall()) {
-                val firstInstallSent = sendEvent(
+                val firstInstallResult = sendEvent(
                     eventType = EVENT_FIRST_INSTALL,
                     installId = installId
                 )
-                if (firstInstallSent) {
+                if (firstInstallResult.shouldMarkHandled()) {
                     settingsRepository.markAnalyticsFirstInstallSent()
                 }
             }
 
             if (settingsRepository.shouldSendAnalyticsDailyActive(today)) {
-                val dailyActiveSent = sendEvent(
+                val dailyActiveResult = sendEvent(
                     eventType = EVENT_DAILY_ACTIVE,
                     installId = installId
                 )
-                if (dailyActiveSent) {
+                if (dailyActiveResult.shouldMarkHandled()) {
                     settingsRepository.markAnalyticsDailyActiveSent(today)
                 }
             }
@@ -87,12 +87,12 @@ class AppAnalytics @Inject constructor(
             if (!settingsRepository.shouldSendAnalyticsBackend(normalizedBackend, today)) return@withLock
 
             val installId = settingsRepository.getOrCreateAnalyticsInstallId()
-            val sent = sendEvent(
+            val result = sendEvent(
                 eventType = EVENT_API_BACKEND_TYPE,
                 installId = installId,
                 backendType = normalizedBackend
             )
-            if (sent) {
+            if (result.shouldMarkHandled()) {
                 settingsRepository.markAnalyticsBackendSent(normalizedBackend, today)
             }
         }
@@ -126,12 +126,12 @@ class AppAnalytics @Inject constructor(
             if (!settingsRepository.shouldSendAnalyticsMode(mode, today)) return@withLock
 
             val installId = settingsRepository.getOrCreateAnalyticsInstallId()
-            val sent = sendEvent(
+            val result = sendEvent(
                 eventType = EVENT_TRANSLATION_MODE_USED,
                 installId = installId,
                 mode = mode
             )
-            if (sent) {
+            if (result.shouldMarkHandled()) {
                 settingsRepository.markAnalyticsModeSent(mode, today)
             }
         }
@@ -146,12 +146,12 @@ class AppAnalytics @Inject constructor(
             }
 
             val installId = settingsRepository.getOrCreateAnalyticsInstallId()
-            val sent = sendEvent(
+            val result = sendEvent(
                 eventType = eventType,
                 installId = installId,
                 server = normalizedServer
             )
-            if (sent) {
+            if (result.shouldMarkHandled()) {
                 settingsRepository.markAnalyticsServerEventSent(eventType, normalizedServer, today)
             }
         }
@@ -163,7 +163,7 @@ class AppAnalytics @Inject constructor(
         mode: String? = null,
         backendType: String? = null,
         server: String? = null
-    ): Boolean {
+    ): AnalyticsSendResult {
         val payload = AnalyticsPayload(
             installId = installId,
             eventType = eventType,
@@ -181,15 +181,31 @@ class AppAnalytics @Inject constructor(
                 contentType(ContentType.Application.Json)
                 setBody(payload)
             }
-            val success = response.status.value in 200..299
-            if (!success) {
-                FgoLogger.debug(tag, "Analytics event rejected: $eventType HTTP ${response.status.value}")
+            val status = response.status.value
+            when {
+                status in 200..299 -> AnalyticsSendResult.SENT
+                status in 400..499 -> {
+                    // Non-retryable rejection (for example an unknown server value). Mark it as
+                    // handled so it is not resent on every dialogue, but keep the log line.
+                    FgoLogger.debug(
+                        tag,
+                        "Analytics event rejected: $eventType HTTP $status; not retrying today"
+                    )
+                    AnalyticsSendResult.REJECTED
+                }
+                else -> {
+                    FgoLogger.debug(tag, "Analytics event failed: $eventType HTTP $status")
+                    AnalyticsSendResult.FAILED
+                }
             }
-            success
         }.getOrElse { error ->
             FgoLogger.debug(tag, "Analytics event failed: $eventType (${error.message})")
-            false
+            AnalyticsSendResult.FAILED
         }
+    }
+
+    private fun AnalyticsSendResult.shouldMarkHandled(): Boolean {
+        return this == AnalyticsSendResult.SENT || this == AnalyticsSendResult.REJECTED
     }
 
     private fun currentVersionName(): String {
@@ -233,4 +249,10 @@ class AppAnalytics @Inject constructor(
         private const val EVENT_GAME_SERVER_USED = "game_server_used"
         private const val EVENT_VOICE_SERVER_USED = "voice_server_used"
     }
+}
+
+private enum class AnalyticsSendResult {
+    SENT,
+    REJECTED,
+    FAILED
 }

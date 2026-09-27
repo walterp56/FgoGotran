@@ -17,7 +17,16 @@ internal object VoiceDataFiles {
         "cn_rate",
         "cn_volume"
     )
+    // Legacy 4-column map: jp / cn_simp / cn_trad / count.
     val NAME_MAP_HEADER = listOf("jp_name", "cn_name_simp", "cn_name_trad", "count")
+
+    // 5-column map adds the English (NA) in-game name box column.
+    val NAME_MAP_HEADER_WITH_EN =
+        listOf("jp_name", "cn_name_simp", "cn_name_trad", "en_name", "count")
+
+    val NAME_MAP_HEADERS = listOf(NAME_MAP_HEADER, NAME_MAP_HEADER_WITH_EN)
+
+    const val NAME_MAP_MIN_COLUMNS = 4
 
     fun rootDir(context: Context): File = File(context.filesDir, "voice_data")
 

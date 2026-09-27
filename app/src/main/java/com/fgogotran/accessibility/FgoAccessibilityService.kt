@@ -628,6 +628,10 @@ class FgoAccessibilityService : AccessibilityService() {
         return SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_JP
     }
 
+    private fun isEnglishServer(): Boolean {
+        return SettingsRepository.normalizeGameServer(gameServer) == SettingsRepository.GAME_SERVER_EN
+    }
+
     private fun restoreLastTranslationMode() {
         TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
         serviceScope.launch {
@@ -3078,12 +3082,16 @@ class FgoAccessibilityService : AccessibilityService() {
     ): RegionSourceText? {
         val dialogueSource = when (region.region) {
             TextRegion.DIALOGUE_BOX,
-            TextRegion.CHOICE_BUTTON -> dialogueSourceTextFor(
-                lines = region.lines,
-                rubyDetectionMode = RubyDetectionMode.STRICT,
-                needVoiceText = needVoiceText,
-                sourceBitmap = source
-            )
+            TextRegion.CHOICE_BUTTON -> if (isEnglishServer()) {
+                plainDialogueSourceText(region.lines)
+            } else {
+                dialogueSourceTextFor(
+                    lines = region.lines,
+                    rubyDetectionMode = RubyDetectionMode.STRICT,
+                    needVoiceText = needVoiceText,
+                    sourceBitmap = source
+                )
+            }
             TextRegion.NAME_LABEL -> null
         }
         val rawText = when (region.region) {
@@ -3149,12 +3157,27 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     /** Speaker name text: the OCR lines of the already narrowed name region, left to right. */
-    private fun nameLabelSourceText(lines: List<OcrTextLine>): String =
-        cleanRubyNoiseLines(lines)
+    private fun nameLabelSourceText(lines: List<OcrTextLine>): String {
+        val sourceLines = if (isEnglishServer()) lines else cleanRubyNoiseLines(lines)
+        return sourceLines
             .filter { it.text.isNotBlank() }
             .sortedWith(compareBy({ it.boundingBox.left }, { it.boundingBox.top }))
             .joinToString("") { it.text.trim() }
             .trim()
+    }
+
+    /** English servers keep the OCR rows as-is: no ruby or CJK-specific cleanup. */
+    private fun plainDialogueSourceText(lines: List<OcrTextLine>): DialogueSourceText {
+        val sorted = lines
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
+        val text = sorted.joinToString("\n") { it.text.trim() }.trim()
+        return DialogueSourceText(
+            translationText = text,
+            voiceText = text,
+            mainLineBounds = sorted.toDialogueRenderLineBounds()
+        )
+    }
 
     /** Only the top cyan border determines the right edge of the fixed-height name OCR crop. */
     private fun detectNamePlate(source: Bitmap, region: Rect): Rect? {

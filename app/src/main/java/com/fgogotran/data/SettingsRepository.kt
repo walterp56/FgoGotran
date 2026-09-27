@@ -221,6 +221,7 @@ class SettingsRepository @Inject constructor(
         const val GAME_SERVER_JP = "jp"
         const val GAME_SERVER_CN = "cn"
         const val GAME_SERVER_TW = "tw"
+        const val GAME_SERVER_EN = "en"
         const val DEFAULT_GAME_SERVER = GAME_SERVER_JP
 
         private val SUPPORTED_BACKENDS = setOf(
@@ -234,7 +235,8 @@ class SettingsRepository @Inject constructor(
         )
         private val SUPPORTED_TRANSLATION_MODES = setOf("MANUAL", "SEMI_AUTO", "AUTO")
         private val SUPPORTED_OCR_ENGINES = setOf(OCR_ENGINE_MLKIT, OCR_ENGINE_PADDLE)
-        private val SUPPORTED_GAME_SERVERS = setOf(GAME_SERVER_JP, GAME_SERVER_CN, GAME_SERVER_TW)
+        private val SUPPORTED_GAME_SERVERS =
+            setOf(GAME_SERVER_JP, GAME_SERVER_CN, GAME_SERVER_TW, GAME_SERVER_EN)
         private val SUPPORTED_PLAYER_GENDERS = setOf(
             PLAYER_GENDER_MALE,
             PLAYER_GENDER_FEMALE
@@ -358,6 +360,7 @@ class SettingsRepository @Inject constructor(
         fun gameServerDisplayName(server: String): String = when (normalizeGameServer(server)) {
             GAME_SERVER_CN -> "简中服"
             GAME_SERVER_TW -> "繁中服"
+            GAME_SERVER_EN -> "美服"
             else -> "日服"
         }
 

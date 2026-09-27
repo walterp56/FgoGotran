@@ -77,9 +77,16 @@ class AiVoiceService @Inject constructor(
             targetLanguage,
             settingsRepository.aiVoiceLanguage.first()
         )
-        val readTextSource = when (readTextLanguage) {
-            SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION -> "translated_en"
-            else -> "translated_cn"
+        val readTextGameServer =
+            SettingsRepository.normalizeGameServer(settingsRepository.getGameServer())
+        val readTextSource = when (readTextGameServer) {
+            SettingsRepository.GAME_SERVER_EN -> "game_en"
+            SettingsRepository.GAME_SERVER_CN,
+            SettingsRepository.GAME_SERVER_TW -> "game_cn"
+            else -> when (readTextLanguage) {
+                SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION -> "translated_en"
+                else -> "translated_cn"
+            }
         }
         FgoLogger.debug(
             tag,
@@ -400,12 +407,11 @@ class AiVoiceService @Inject constructor(
         speaker: String,
         dialogue: String
     ): VoiceProfile? {
+        val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
         val lookupCandidates = voiceSpeakerLookupCandidates(speaker)
         lookupCandidates.firstNotNullOfOrNull { candidate ->
-            characterVoiceRepository.resolveProfileOrNull(candidate)
+            characterVoiceRepository.resolveProfileOrNull(candidate, normalizedServer)
         }?.let { return it }
-
-        val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
         lookupCandidates.firstNotNullOfOrNull { candidate ->
             tempVoiceProfileRepository.resolveProfileOrNull(normalizedServer, candidate)
         }?.let { return it }
@@ -431,7 +437,7 @@ class AiVoiceService @Inject constructor(
 
         return tempProfileMutex.withLock {
             lookupCandidates.firstNotNullOfOrNull { candidate ->
-                characterVoiceRepository.resolveProfileOrNull(candidate)
+                characterVoiceRepository.resolveProfileOrNull(candidate, normalizedServer)
             }?.let { return@withLock it }
             lookupCandidates.firstNotNullOfOrNull { candidate ->
                 tempVoiceProfileRepository.resolveProfileOrNull(normalizedServer, candidate)

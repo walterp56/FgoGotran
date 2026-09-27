@@ -460,6 +460,7 @@ private fun gameServerLabel(context: Context, server: String): String =
     when (SettingsRepository.normalizeGameServer(server)) {
         SettingsRepository.GAME_SERVER_CN -> context.getString(R.string.home_server_cn)
         SettingsRepository.GAME_SERVER_TW -> context.getString(R.string.home_server_tw)
+        SettingsRepository.GAME_SERVER_EN -> context.getString(R.string.home_server_en)
         else -> context.getString(R.string.home_server_jp)
     }
 
@@ -499,7 +500,8 @@ private fun ServerChoiceDialog(
                     val serverOptions = listOf(
                         SettingsRepository.GAME_SERVER_JP to stringResource(R.string.home_server_jp),
                         SettingsRepository.GAME_SERVER_CN to stringResource(R.string.home_server_cn),
-                        SettingsRepository.GAME_SERVER_TW to stringResource(R.string.home_server_tw)
+                        SettingsRepository.GAME_SERVER_TW to stringResource(R.string.home_server_tw),
+                        SettingsRepository.GAME_SERVER_EN to stringResource(R.string.home_server_en)
                     )
                     serverOptions.forEach { (server, label) ->
                         LanguageDialogOption(

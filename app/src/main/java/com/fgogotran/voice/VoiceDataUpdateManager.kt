@@ -330,19 +330,19 @@ class VoiceDataUpdateManager @Inject constructor(
     private fun validateVoiceFiles(dir: File, manifest: VoiceDataManifest): VoiceFileStats {
         val profileFile = File(dir, VoiceDataFiles.PROFILE_FILE)
         val nameMapFile = File(dir, VoiceDataFiles.NAME_MAP_FILE)
-        val profileCount = validateTsvFile(
+        val profileCount = VoiceDataTsvValidator.validateFile(
             file = profileFile,
-            expectedHeader = VoiceDataFiles.PROFILE_HEADER,
+            expectedHeaders = listOf(VoiceDataFiles.PROFILE_HEADER),
             expectedMinColumns = VoiceDataFiles.PROFILE_HEADER.size,
             expectedCount = manifest.profileCount,
-            validateRow = ::validateProfileRow
+            validateRow = VoiceDataTsvValidator::validateProfileRow
         )
-        val nameMapCount = validateTsvFile(
+        val nameMapCount = VoiceDataTsvValidator.validateFile(
             file = nameMapFile,
-            expectedHeader = VoiceDataFiles.NAME_MAP_HEADER,
-            expectedMinColumns = VoiceDataFiles.NAME_MAP_HEADER.size,
+            expectedHeaders = VoiceDataFiles.NAME_MAP_HEADERS,
+            expectedMinColumns = VoiceDataFiles.NAME_MAP_MIN_COLUMNS,
             expectedCount = manifest.nameMapCount,
-            validateRow = ::validateNameMapRow
+            validateRow = VoiceDataTsvValidator::validateNameMapRow
         )
         require(profileFile.length() == manifest.profileSize) {
             "Profile size mismatch: expected=${manifest.profileSize}, actual=${profileFile.length()}"
@@ -364,64 +364,6 @@ class VoiceDataUpdateManager @Inject constructor(
             profileSha256 = profileSha,
             nameMapSha256 = nameMapSha
         )
-    }
-
-    private fun validateTsvFile(
-        file: File,
-        expectedHeader: List<String>,
-        expectedMinColumns: Int,
-        expectedCount: Int,
-        validateRow: (lineNo: Int, columns: List<String>) -> Unit
-    ): Int {
-        require(file.exists() && file.length() > 0L) { "Missing TSV file: ${file.name}" }
-        val rows = file.bufferedReader(Charsets.UTF_8).useLines { lines ->
-            val iterator = lines.iterator()
-            require(iterator.hasNext()) { "Missing TSV header: ${file.name}" }
-            val header = parseTsvLine(iterator.next().removePrefix("\uFEFF"))
-            require(header == expectedHeader) {
-                "Unexpected TSV header for ${file.name}: ${header.joinToString("|")}"
-            }
-            var count = 0
-            val seenKeys = mutableSetOf<String>()
-            while (iterator.hasNext()) {
-                val line = iterator.next().trimEnd('\r', '\n')
-                if (line.isBlank() || line.startsWith("#")) continue
-                val columns = parseTsvLine(line)
-                require(columns.size >= expectedMinColumns) {
-                    "Too few TSV columns in ${file.name}:$count"
-                }
-                validateRow(count + 2, columns)
-                val key = columns.first().trim()
-                require(key !in seenKeys) { "Duplicate key $key in ${file.name}" }
-                seenKeys.add(key)
-                count += 1
-            }
-            count
-        }
-        require(rows == expectedCount) {
-            "TSV row count mismatch for ${file.name}: expected=$expectedCount, actual=$rows"
-        }
-        return rows
-    }
-
-    private fun parseTsvLine(line: String): List<String> {
-        return line.split('\t')
-    }
-
-    private fun validateProfileRow(lineNo: Int, columns: List<String>) {
-        require(columns[0].trim().isNotBlank()) { "Blank speaker_id at profile:$lineNo" }
-        require(columns[3].trim().isNotBlank()) { "Blank voice name at profile:$lineNo" }
-    }
-
-    private fun validateNameMapRow(lineNo: Int, columns: List<String>) {
-        require(columns[0].trim().isNotBlank()) { "Blank jp_name at name map:$lineNo" }
-        require(!containsKana(columns[1])) {
-            "Japanese kana in cn_name_simp at name map:$lineNo"
-        }
-    }
-
-    private fun containsKana(value: String): Boolean {
-        return value.any { char -> char in '\u3040'..'\u30ff' }
     }
 
     private fun installVoiceFiles(unpackedDir: File) {

@@ -27,6 +27,7 @@ data class OcrTextLine(
 enum class OcrEngineId {
     ML_KIT,
     ML_KIT_CHINESE,
+    ML_KIT_LATIN,
     PADDLE_OCR,
     UNKNOWN
 }
@@ -194,10 +195,10 @@ class OcrEngine @Inject constructor(
         val requestedEngine = settingsRepository.getOcrEngine()
         val mlKitScript = if (requestedEngine == SettingsRepository.OCR_ENGINE_MLKIT) {
             val gameServer = SettingsRepository.normalizeGameServer(settingsRepository.getGameServer())
-            if (gameServer == SettingsRepository.GAME_SERVER_JP) {
-                MlKitOcrScript.JAPANESE
-            } else {
-                MlKitOcrScript.CHINESE
+            when (gameServer) {
+                SettingsRepository.GAME_SERVER_JP -> MlKitOcrScript.JAPANESE
+                SettingsRepository.GAME_SERVER_EN -> MlKitOcrScript.LATIN
+                else -> MlKitOcrScript.CHINESE
             }
         } else {
             null
