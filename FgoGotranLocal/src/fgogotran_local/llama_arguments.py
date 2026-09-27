@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any, Literal
 
+from .i18n import t
+
 
 ThinkingControl = Literal["reasoning", "chat-template-kwargs"]
 
@@ -52,7 +54,7 @@ def build_llama_server_args(
         elif thinking_control == "chat-template-kwargs":
             args.extend(["--chat-template-kwargs", json.dumps({"enable_thinking": False}, separators=(",", ":"))])
         else:
-            raise ValueError("强制关闭模型思考已启用，但没有可用的 llama-server 控制参数。")
+            raise ValueError(t("llama.error.noThinkingArgument"))
     args.append("--cache-prompt" if profile.prompt_cache else "--no-cache-prompt")
     if profile.metrics:
         args.append("--metrics")

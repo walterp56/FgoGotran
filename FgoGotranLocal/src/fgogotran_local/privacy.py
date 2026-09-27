@@ -5,10 +5,14 @@ import re
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+from .i18n import DEFAULT_LOCALE, t, translate
+
 
 MASKED_VALUE = "••••••"
-MASKED_PATH = "（路径已隐藏）"
-MASKED_DEVICE = "（设备信息已隐藏）"
+# Default-locale spellings kept as module constants for API compatibility;
+# the runtime redaction helpers below resolve them for the active locale.
+MASKED_PATH = translate(DEFAULT_LOCALE, "privacy.pathHidden")
+MASKED_DEVICE = translate(DEFAULT_LOCALE, "privacy.deviceHidden")
 
 IPV4_PATTERN = re.compile(
     r"(?<![\d.])"
@@ -69,12 +73,14 @@ def mask_endpoint(value: str | None) -> str:
 
 
 def redact_sensitive_text(value: str) -> str:
+    masked_path = t("privacy.pathHidden")
+    masked_device = t("privacy.deviceHidden")
     text = str(value)
-    text = DEVICE_DETAIL_LINE_PATTERN.sub(MASKED_DEVICE, text)
-    text = QUOTED_WINDOWS_PATH_PATTERN.sub(lambda match: f"{match.group('quote')}{MASKED_PATH}{match.group('quote')}", text)
-    text = UNC_PATH_PATTERN.sub(MASKED_PATH, text)
-    text = UNQUOTED_WINDOWS_PATH_PATTERN.sub(MASKED_PATH, text)
-    text = UNIX_HOME_PATTERN.sub(MASKED_PATH, text)
+    text = DEVICE_DETAIL_LINE_PATTERN.sub(masked_device, text)
+    text = QUOTED_WINDOWS_PATH_PATTERN.sub(lambda match: f"{match.group('quote')}{masked_path}{match.group('quote')}", text)
+    text = UNC_PATH_PATTERN.sub(masked_path, text)
+    text = UNQUOTED_WINDOWS_PATH_PATTERN.sub(masked_path, text)
+    text = UNIX_HOME_PATTERN.sub(masked_path, text)
     text = IPV6_PATTERN.sub(MASKED_VALUE, text)
     return IPV4_PATTERN.sub(MASKED_VALUE, text)
 
@@ -91,7 +97,7 @@ def redact_sensitive_payload(value: Any, *, field_name: str | None = None) -> An
         return tuple(redact_sensitive_payload(item, field_name=field_name) for item in value)
     if isinstance(value, str):
         if field_name in PATH_FIELD_NAMES and _looks_like_absolute_path(value):
-            return MASKED_PATH
+            return t("privacy.pathHidden")
         return redact_sensitive_text(value)
     return copy.deepcopy(value)
 

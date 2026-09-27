@@ -14,6 +14,8 @@ from .log_store import LogStore
 from .network_monitor import NetworkMonitor
 from .privacy import redact_connection, redact_sensitive_payload
 
+from .i18n import t
+
 
 class LocalTranslationService:
     def __init__(self, data_directory: Path | str) -> None:
@@ -48,11 +50,25 @@ class LocalTranslationService:
         await asyncio.sleep(0)
         try:
             await self._manager().start()
-            self._logs().add("INFO", "已按当前 Profile 自动启动 llama-server。")
+            self._logs().add(
+            "INFO",
+            t("service.log.autoStarted"),
+            key="service.log.autoStarted",
+        )
         except (ConfigError, StudioError) as error:
-            self._logs().add("WARN", f"自动启动已跳过：{error}")
+            self._logs().add(
+                "WARN",
+                t("service.log.autoStartSkipped", error=error),
+                key="service.log.autoStartSkipped",
+                params={"error": str(error)},
+            )
         except Exception as error:  # Keep the local control interface available for recovery.
-            self._logs().add("ERROR", f"自动启动失败：{error}")
+            self._logs().add(
+                "ERROR",
+                t("service.log.autoStartFailed", error=error),
+                key="service.log.autoStartFailed",
+                params={"error": str(error)},
+            )
 
     async def status(self) -> dict[str, Any]:
         manager = self._manager()
@@ -96,14 +112,22 @@ class LocalTranslationService:
 
     async def update_config(self, candidate: dict[str, Any], revision: str | None) -> dict[str, Any]:
         config = await self.config_store.update(candidate, revision)
-        self._logs().add("INFO", "设置已保存；重新启动 llama-server 后应用更改。")
+        self._logs().add(
+            "INFO",
+            t("service.log.settingsSaved"),
+            key="service.log.settingsSaved",
+        )
         return config
 
     async def rotate_api_key(self) -> dict[str, Any]:
         if self._manager().is_running():
-            raise ConfigError("更换 API Key 前请先停止 llama-server。", 409)
+            raise ConfigError(t("service.error.stopBeforeRotate"), 409)
         api_key = await self.config_store.rotate_api_key()
-        self._logs().add("INFO", "API Key 已更换；重新连接前请在 FgoGotran 更新 Key。")
+        self._logs().add(
+            "INFO",
+            t("service.log.keyRotated"),
+            key="service.log.keyRotated",
+        )
         return {"apiKey": api_key, "config": self.config_store.public_config()}
 
     async def list_models(self, directory: str | None = None) -> list[dict[str, str]]:
@@ -154,12 +178,12 @@ class LocalTranslationService:
 
     def _manager(self) -> LlamaManager:
         if self.manager is None:
-            raise StudioError("本地翻译服务尚未初始化。", 503)
+            raise StudioError(t("service.error.notInitialized"), 503)
         return self.manager
 
     def _logs(self) -> LogStore:
         if self.logs is None:
-            raise StudioError("本地翻译服务尚未初始化。", 503)
+            raise StudioError(t("service.error.notInitialized"), 503)
         return self.logs
 
 

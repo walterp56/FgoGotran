@@ -19,6 +19,18 @@ Double-click `Start-FgoGotranLocal.cmd`. On a new PC, the launcher can:
 
 Press Enter at the setup questions to accept the default. Existing valid llama.cpp and model paths are never replaced. If a saved llama-server path no longer exists, the launcher asks before installing a replacement and updates only that stale path; model settings remain unchanged. If automatic llama.cpp setup fails, the control interface still opens when Python is ready, allowing manual configuration. The launcher never downloads, updates, replaces, or deletes a GGUF model.
 
+## UI language
+
+The control interface ships in three languages, all sharing one runtime and one configuration:
+
+- Simplified Chinese at `http://127.0.0.1:18081/`
+- Traditional Chinese (Taiwan terms) at `http://127.0.0.1:18081/zh-Hant/`
+- US English at `http://127.0.0.1:18081/en/`
+
+Switch languages with the links in the page header; there is no automatic redirect, so the Simplified Chinese page stays at the root. The REST API follows `Accept-Language` instead: `en*` returns English, Chinese tags return their script, and any other tag keeps the Simplified Chinese default.
+
+Interface labels, runtime status messages, validation errors, and runtime logs all follow the page language. `zh_hans.py` is the source of truth; the Traditional Chinese catalog is generated with OpenCC `cn -> twp` plus the website's Taiwan term list and then hand-reviewed, and the English catalog is written directly in US English using the wording already published in the website and Android resources. Adding another language only needs a new catalog file next to them, a mount in `application.py`, and an entry in `LOCALE_LINKS`.
+
 ## Managed files
 
 Automatic setup stores its files in locations already excluded by `.gitignore`:

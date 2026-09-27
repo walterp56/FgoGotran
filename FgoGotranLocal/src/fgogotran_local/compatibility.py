@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .i18n import t
+
 
 CACHE_VERSION = 1
 MAX_CACHE_ENTRIES = 32
@@ -47,7 +49,7 @@ def classify_chat_completion(
         return ChatCompatibilityResult(
             ok=False,
             kind="invalid_json",
-            message="返回内容不是 JSON 对象",
+            message=t("compat.reason.notJsonObject"),
             latency_ms=latency_ms,
         )
     choices = payload.get("choices")
@@ -55,7 +57,7 @@ def classify_chat_completion(
         return ChatCompatibilityResult(
             ok=False,
             kind="invalid_response",
-            message="缺少 choices[0]",
+            message=t("compat.reason.missingChoices"),
             latency_ms=latency_ms,
         )
     choice = choices[0]
@@ -64,7 +66,7 @@ def classify_chat_completion(
         return ChatCompatibilityResult(
             ok=False,
             kind="invalid_response",
-            message="缺少 assistant message",
+            message=t("compat.reason.missingAssistantMessage"),
             latency_ms=latency_ms,
         )
     content_value = message.get("content")
@@ -81,7 +83,7 @@ def classify_chat_completion(
         return ChatCompatibilityResult(
             ok=True,
             kind="ok",
-            message="Chat Completions 返回了文本内容",
+            message=t("compat.reason.textContent"),
             latency_ms=latency_ms,
             content=content,
             finish_reason=finish_reason,
@@ -92,7 +94,7 @@ def classify_chat_completion(
         return ChatCompatibilityResult(
             ok=False,
             kind="empty_single_token",
-            message="模型仅生成结束 token，未返回译文",
+            message=t("compat.reason.endTokenOnly"),
             latency_ms=latency_ms,
             finish_reason=finish_reason,
             completion_tokens=completion_tokens,
@@ -102,7 +104,7 @@ def classify_chat_completion(
         return ChatCompatibilityResult(
             ok=False,
             kind="reasoning_without_content",
-            message="模型只返回思考内容，没有最终译文",
+            message=t("compat.reason.thinkingOnly"),
             latency_ms=latency_ms,
             finish_reason=finish_reason,
             completion_tokens=completion_tokens,
@@ -111,7 +113,7 @@ def classify_chat_completion(
     return ChatCompatibilityResult(
         ok=False,
         kind="empty_content",
-        message="Chat Completions 没有返回文本内容",
+        message=t("compat.reason.noTextContent"),
         latency_ms=latency_ms,
         finish_reason=finish_reason,
         completion_tokens=completion_tokens,

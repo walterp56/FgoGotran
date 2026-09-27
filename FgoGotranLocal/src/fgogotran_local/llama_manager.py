@@ -24,6 +24,7 @@ from .llama_arguments import (
     runtime_profile_changed,
 )
 from .llama_metrics import empty_metrics, parse_prometheus_metrics
+from .i18n import t
 from .log_store import LogStore
 
 
@@ -32,15 +33,15 @@ HEALTH_TIMEOUT_SECONDS = 1.8
 STOP_TIMEOUT_SECONDS = 6.0
 HELP_TIMEOUT_SECONDS = 8.0
 
-STATE_LABELS = {
-    "STOPPED": "已停止",
-    "STARTING": "正在启动",
-    "LOADING": "正在加载模型",
-    "VERIFYING": "正在检查兼容性",
-    "RECOVERING": "正在应用兼容回退",
-    "READY": "已就绪",
-    "BUSY": "正在翻译",
-    "ERROR": "错误",
+STATE_KEYS = {
+    "STOPPED": "llama.status.stopped",
+    "STARTING": "llama.status.starting",
+    "LOADING": "llama.status.loading",
+    "VERIFYING": "llama.status.verifying",
+    "RECOVERING": "llama.status.recovering",
+    "READY": "llama.status.ready",
+    "BUSY": "llama.status.busy",
+    "ERROR": "llama.status.error",
 }
 
 
@@ -51,12 +52,14 @@ class LlamaManager:
         self.logs = logs
         self.process: asyncio.subprocess.Process | None = None
         self.state = "STOPPED"
-        self.message = "请先设置 llama-server 和 GGUF 模型。"
+        self.message_key = "llama.message.initial"
+        self.message_params: dict[str, Any] = {}
+        self.message = t(self.message_key)
         self.started_at: str | None = None
         self.running_profile: dict[str, Any] | None = None
         self.running_thinking_control: ThinkingControl | None = None
         self.running_thinking_fallback = False
-        self.running_thinking_fallback_reason = ""
+        self.running_thinking_fallback_reason_key = ""
         self.running_api_key: str | None = None
         self.running_runtime: dict[str, Any] | None = None
         self.last_exit: dict[str, Any] | None = None
@@ -70,16 +73,36 @@ class LlamaManager:
         self._watch_task: asyncio.Task | None = None
         self._output_tasks: list[asyncio.Task] = []
         self._compatibility_pid: int | None = None
-        self._compatibility = _compatibility_status("PENDING", "模型尚未启动。")
+        self._compatibility = _compatibility_status("PENDING", "llama.compat.notStarted")
         self._recovery_task: asyncio.Task | None = None
         self._fallback_attempted = False
         self._compatibility_cache = ThinkingCompatibilityCache(self.state_directory)
         self._client = httpx.AsyncClient(timeout=HEALTH_TIMEOUT_SECONDS)
 
+    def _set_message(self, key: str, **params: Any) -> None:
+        """Store the message as a translation key so it renders in the viewer's locale."""
+        self.message_key = key
+        self.message_params = {name: str(value) for name, value in params.items()}
+        self.message = t(key, **self.message_params)
+
+    def _log(self, level: str, key: str, **params: Any) -> None:
+        self.logs.add(
+            level,
+            t(key, **params),
+            key=key,
+            params={name: str(value) for name, value in params.items()},
+        )
+
+    def _log_current(self, level: str) -> None:
+        if self.message_key:
+            self._log(level, self.message_key, **self.message_params)
+        else:
+            self.logs.add(level, self.message)
+
     async def start_background(self) -> None:
         if self._poll_task is None or self._poll_task.done():
             self._poll_task = asyncio.create_task(self._poll_loop(), name="llama-health-poll")
-        self.logs.add("INFO", "控制台已就绪，服务器尚未启动。")
+        self._log("INFO", "llama.log.consoleReady")
 
     def snapshot(self) -> dict[str, Any]:
         config = self.config_store.get_raw_config()
@@ -87,8 +110,8 @@ class LlamaManager:
         effective_profile = self.running_profile if self.is_running() and self.running_profile else profile
         return {
             "state": self.state,
-            "stateLabel": STATE_LABELS.get(self.state, self.state),
-            "message": self.message,
+            "stateLabel": t(STATE_KEYS[self.state]) if self.state in STATE_KEYS else self.state,
+            "message": t(self.message_key, **self.message_params) if self.message_key else self.message,
             "pid": self.process.pid if self.is_running() else None,
             "startedAt": self.started_at,
             "restartRequired": bool(self.is_running() and runtime_profile_changed(self.running_profile, profile)),
@@ -102,9 +125,9 @@ class LlamaManager:
                 running=self.is_running(),
                 control=self.running_thinking_control,
                 fallback=self.running_thinking_fallback,
-                fallback_reason=self.running_thinking_fallback_reason,
+                fallback_reason_key=self.running_thinking_fallback_reason_key,
             ),
-            "compatibility": dict(self._compatibility),
+            "compatibility": _localized_compatibility(self._compatibility),
         }
 
     async def start(self) -> dict[str, Any]:
@@ -127,17 +150,17 @@ class LlamaManager:
 
     async def test_compatibility(self) -> dict[str, Any]:
         if not self.is_running() or self.state not in {"READY", "BUSY"}:
-            raise StudioError("请先启动模型并等待模型就绪。", 409)
+            raise StudioError(t("llama.error.modelNotReady"), 409)
         profile = self.running_profile
         api_key = self.running_api_key
         if not profile or not api_key:
-            raise StudioError("无法获取当前 Profile。", 409)
-        self.logs.add("INFO", "正在运行 FgoGotran Chat Completions 兼容性测试。")
+            raise StudioError(t("llama.error.noActiveProfile"), 409)
+        self._log("INFO", "llama.log.testRunning")
         result = await self._probe_chat_compatibility(profile, api_key)
         if not result.ok:
-            raise StudioError(f"兼容性测试失败：{result.message}")
+            raise StudioError(t("llama.error.testFailed", message=result.message))
         self.last_request_at = _utc_now()
-        self.logs.add("INFO", f"兼容性测试通过，耗时 {result.latency_ms} 毫秒。")
+        self._log("INFO", "llama.log.testPassed", ms=result.latency_ms)
         return {"ok": True, "latencyMs": result.latency_ms, "response": result.content[:200]}
 
     async def _probe_chat_compatibility(
@@ -152,6 +175,8 @@ class LlamaManager:
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
                     "model": profile["modelAlias"],
+                    # Functional probe prompt sent to llama-server: keep it in the
+                    # app's translation target language, independent of the UI locale.
                     "messages": [
                         {"role": "system", "content": "你是一个日中翻译模型，只返回中文译文。"},
                         {"role": "user", "content": "将下面的日文文本翻译成中文：カルデアへようこそ。"},
@@ -167,7 +192,7 @@ class LlamaManager:
             return ChatCompatibilityResult(
                 ok=False,
                 kind="request_error",
-                message=f"请求失败：{error}",
+                message=t("llama.error.requestFailed", error=error),
                 latency_ms=latency_ms,
             )
         latency_ms = round((asyncio.get_running_loop().time() - started) * 1000)
@@ -207,7 +232,7 @@ class LlamaManager:
                     return
                 if not health.is_success:
                     self.state = "LOADING"
-                    self.message = f"模型正在加载（健康状态 {health.status_code}）。"
+                    self._set_message("llama.message.loading", status=health.status_code)
                     return
                 tasks = []
                 if profile.get("metrics"):
@@ -220,10 +245,10 @@ class LlamaManager:
                     return
                 if self._compatibility_pid != process.pid:
                     self.state = "VERIFYING"
-                    self.message = "模型已加载，正在检查 Chat Completions 兼容性…"
+                    self._set_message("llama.message.loadedVerifying")
                     self._compatibility = _compatibility_status(
                         "VERIFYING",
-                        "正在发送短请求并检查响应格式。",
+                        "llama.compat.probeSending",
                     )
                     result = await self._probe_chat_compatibility(profile, api_key)
                     if not self._is_current_process(process):
@@ -239,20 +264,17 @@ class LlamaManager:
                             if not self._is_current_process(process):
                                 return
                         status = "FALLBACK" if self.running_thinking_fallback else "PASS"
-                        message = (
-                            self.running_thinking_fallback_reason
+                        message_key = (
+                            self.running_thinking_fallback_reason_key
                             if self.running_thinking_fallback
-                            else "Chat Completions 返回格式正常。"
+                            else "llama.compat.formatOk"
                         )
                         self._compatibility = _compatibility_status(
                             status,
-                            message,
+                            message_key,
                             latency_ms=result.latency_ms,
                         )
-                        self.logs.add(
-                            "INFO",
-                            f"启动兼容性检测通过，耗时 {result.latency_ms} 毫秒。",
-                        )
+                        self._log("INFO", "llama.log.startupProbePassed", ms=result.latency_ms)
                     elif (
                         result.forced_off_template_conflict
                         and self.running_thinking_control is not None
@@ -266,12 +288,12 @@ class LlamaManager:
                         )
                         if not self._is_current_process(process):
                             return
-                        reason = "强制关闭思考后模型只生成结束 token，已改用模型默认。"
-                        self._compatibility = _compatibility_status("RECOVERING", reason)
+                        reason_key = "llama.thinking.reason.endTokenOnly"
+                        self._compatibility = _compatibility_status("RECOVERING", reason_key)
                         self.state = "RECOVERING"
-                        self.message = reason
-                        self.logs.add("WARN", reason)
-                        self._schedule_thinking_fallback(reason, process)
+                        self._set_message(reason_key)
+                        self._log("WARN", reason_key)
+                        self._schedule_thinking_fallback(reason_key, process)
                         return
                     else:
                         self._compatibility = _compatibility_status(
@@ -280,7 +302,7 @@ class LlamaManager:
                             latency_ms=result.latency_ms,
                         )
                         self.state = "ERROR"
-                        self.message = f"模型已加载，但兼容性检测失败：{result.message}"
+                        self._set_message("llama.message.compatFailed", message=result.message)
                         self.logs.add("ERROR", self.message)
                         return
                 if self._compatibility.get("status") == "FAILED":
@@ -290,16 +312,16 @@ class LlamaManager:
                     return
                 self.state = "BUSY" if self.metrics["requestsProcessing"] > 0 else "READY"
                 if self.state == "BUSY":
-                    self.message = "正在处理翻译请求。"
+                    self._set_message("llama.message.busy")
                 elif self.running_thinking_fallback:
-                    self.message = "模型已加载，可供 FgoGotran 使用；思考模式已兼容回退。"
+                    self._set_message("llama.message.readyFallback")
                 else:
-                    self.message = "模型已加载，可供 FgoGotran 使用。"
+                    self._set_message("llama.message.ready")
             except httpx.HTTPError:
                 if not self._is_current_process(process):
                     return
                 self.state = "LOADING"
-                self.message = "llama-server 已启动，正在等待 Health Check…"
+                self._set_message("llama.message.waitingHealth")
 
     def is_running(self) -> bool:
         return self.process is not None and self.process.returncode is None
@@ -325,7 +347,7 @@ class LlamaManager:
 
     def _schedule_thinking_fallback(
         self,
-        reason: str,
+        reason_key: str,
         expected_process: asyncio.subprocess.Process,
     ) -> None:
         if self._recovery_task is not None and not self._recovery_task.done():
@@ -340,14 +362,14 @@ class LlamaManager:
                     await self._stop_unlocked()
                     await self._start_unlocked(
                         force_model_default=True,
-                        fallback_reason=reason,
+                        fallback_reason_key=reason_key,
                     )
             except asyncio.CancelledError:
                 raise
             except Exception as error:
                 self.state = "ERROR"
-                self.message = f"思考模式兼容回退失败：{error}"
-                self._compatibility = _compatibility_status("FAILED", self.message)
+                self._set_message("llama.message.fallbackFailed", error=error)
+                self._compatibility = _compatibility_status("FAILED", "llama.message.fallbackFailed", error=error)
                 self.logs.add("ERROR", self.message)
             finally:
                 self._recovery_task = None
@@ -358,10 +380,10 @@ class LlamaManager:
         self,
         *,
         force_model_default: bool = False,
-        fallback_reason: str = "",
+        fallback_reason_key: str = "",
     ) -> dict[str, Any]:
         if self.is_running():
-            raise StudioError("llama-server 已在运行中。", 409)
+            raise StudioError(t("llama.error.alreadyRunning"), 409)
         runtime = await self.config_store.validate_runtime_files()
         profile = runtime["profile"].model_dump(by_alias=True)
         thinking_control: ThinkingControl | None = None
@@ -371,13 +393,11 @@ class LlamaManager:
             help_text = await _llama_help_output(runtime["executable"])
             thinking_control = detect_thinking_control(help_text)
             if thinking_control is None:
-                raise StudioError(
-                    "当前 llama-server 不支持强制关闭模型思考。请更新 llama.cpp，或取消勾选“强制关闭模型思考”。"
-                )
+                raise StudioError(t("llama.error.thinkingUnsupported"))
             cached_support = await self._compatibility_cache.get(runtime, thinking_control)
             cached_incompatible = cached_support is False
             if cached_incompatible:
-                fallback_reason = "此模型与 llama-server 组合已知不兼容强制关闭思考，已使用模型默认。"
+                fallback_reason_key = "llama.thinking.reason.cachedIncompatible"
                 thinking_control = None
         apply_disable_thinking = requested_disable_thinking and thinking_control is not None and not force_model_default
         api_key = self.config_store.get_secret()
@@ -394,20 +414,20 @@ class LlamaManager:
         )
 
         self.state = "STARTING"
-        self.message = "正在启动 llama-server…"
+        self._set_message("llama.message.starting")
         self.stopping = False
         self.last_exit = None
         self.metrics = empty_metrics()
         self.last_prompt_tokens = None
         self._compatibility_pid = None
-        self._compatibility = _compatibility_status("PENDING", "等待模型加载后检查兼容性。")
-        self.logs.add("INFO", f"正在启动 {profile['displayName']}（{profile['modelAlias']}）。")
+        self._compatibility = _compatibility_status("PENDING", "llama.compat.pendingProbe")
+        self._log("INFO", "llama.log.startingProfile", name=profile["displayName"], alias=profile["modelAlias"])
         if thinking_control == "reasoning":
-            self.logs.add("INFO", "模型思考已通过 --reasoning off 关闭。")
+            self._log("INFO", "llama.log.thinkingViaReasoning")
         elif thinking_control == "chat-template-kwargs":
-            self.logs.add("WARN", "当前 llama-server 使用旧版兼容参数关闭模型思考；建议更新 llama.cpp。")
+            self._log("WARN", "llama.log.thinkingViaLegacy")
         elif requested_disable_thinking and (force_model_default or cached_incompatible):
-            self.logs.add("WARN", fallback_reason)
+            self._log("WARN", fallback_reason_key)
         try:
             process = await asyncio.create_subprocess_exec(
                 runtime["executable"],
@@ -421,7 +441,7 @@ class LlamaManager:
         except OSError as error:
             await self._delete_key_file()
             self.state = "ERROR"
-            self.message = f"无法启动 llama-server：{error}"
+            self._set_message("llama.message.startFailed", error=error)
             self.logs.add("ERROR", self.message)
             raise StudioError(self.message) from error
         self.process = process
@@ -429,7 +449,7 @@ class LlamaManager:
         self.running_profile = profile
         self.running_thinking_control = thinking_control
         self.running_thinking_fallback = requested_disable_thinking and not apply_disable_thinking
-        self.running_thinking_fallback_reason = fallback_reason if self.running_thinking_fallback else ""
+        self.running_thinking_fallback_reason_key = fallback_reason_key if self.running_thinking_fallback else ""
         self.running_api_key = api_key
         self.running_runtime = runtime
         self._output_tasks = [
@@ -438,7 +458,7 @@ class LlamaManager:
         ]
         self._watch_task = asyncio.create_task(self._watch_process(process), name="llama-process-watch")
         self.state = "LOADING"
-        self.message = "进程已启动，正在等待模型加载…"
+        self._set_message("llama.message.waitingLoad")
         await self.poll()
         return self.snapshot()
 
@@ -447,18 +467,18 @@ class LlamaManager:
         if process is None or process.returncode is not None:
             self.process = None
             self.state = "STOPPED"
-            self.message = "llama-server 已停止。"
+            self._set_message("llama.message.stopped")
             self._clear_running_state()
             return self.snapshot()
         self.stopping = True
-        self.message = "正在停止 llama-server…"
-        self.logs.add("INFO", "正在停止 llama-server。")
+        self._set_message("llama.message.stopping")
+        self._log("INFO", "llama.log.stopping")
         with suppress(ProcessLookupError):
             process.terminate()
         try:
             await asyncio.wait_for(process.wait(), timeout=STOP_TIMEOUT_SECONDS)
         except asyncio.TimeoutError:
-            self.logs.add("WARN", "正常停止超时，正在强制结束受管理进程。")
+            self._log("WARN", "llama.log.stopTimeout")
             process.kill()
             with suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(process.wait(), timeout=2.0)
@@ -480,11 +500,11 @@ class LlamaManager:
         self._clear_running_state()
         if self.stopping or code == 0:
             self.state = "STOPPED"
-            self.message = "llama-server 已停止。"
-            self.logs.add("INFO", "llama-server 已停止。")
+            self._set_message("llama.message.stopped")
+            self._log("INFO", "llama.log.stopped")
         else:
             self.state = "ERROR"
-            self.message = f"llama-server 意外退出（代码 {code}）。"
+            self._set_message("llama.message.exited", code=code)
             self.logs.add("ERROR", self.message)
         self.stopping = False
 
@@ -492,11 +512,11 @@ class LlamaManager:
         self.running_profile = None
         self.running_thinking_control = None
         self.running_thinking_fallback = False
-        self.running_thinking_fallback_reason = ""
+        self.running_thinking_fallback_reason_key = ""
         self.running_api_key = None
         self.running_runtime = None
         self._compatibility_pid = None
-        self._compatibility = _compatibility_status("PENDING", "模型尚未启动。")
+        self._compatibility = _compatibility_status("PENDING", "llama.compat.notStarted")
 
     async def _capture_output(self, stream: asyncio.StreamReader | None) -> None:
         if stream is None:
@@ -547,7 +567,7 @@ class LlamaManager:
 
     async def _exclusive(self, action: Callable[[], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
         if self._operation_lock.locked():
-            raise StudioError("另一项服务器操作仍在进行中。", 409)
+            raise StudioError(t("llama.error.operationInProgress"), 409)
         async with self._operation_lock:
             return await action()
 
@@ -597,7 +617,7 @@ async def _llama_help_output(executable: str) -> str:
             creationflags=_hidden_process_flags(),
         )
     except OSError as error:
-        raise StudioError(f"无法检查 llama-server 功能：{error}") from error
+        raise StudioError(t("llama.error.helpFailed", error=error)) from error
     try:
         output, _ = await asyncio.wait_for(process.communicate(), timeout=HELP_TIMEOUT_SECONDS)
     except asyncio.TimeoutError as error:
@@ -605,7 +625,7 @@ async def _llama_help_output(executable: str) -> str:
             process.kill()
         with suppress(Exception):
             await process.wait()
-        raise StudioError("检查 llama-server 功能超时；请确认已完整解压 llama.cpp。") from error
+        raise StudioError(t("llama.error.helpTimeout")) from error
     return output.decode("utf-8", errors="replace")
 
 
@@ -615,14 +635,14 @@ def _thinking_status(
     running: bool,
     control: ThinkingControl | None,
     fallback: bool = False,
-    fallback_reason: str = "",
+    fallback_reason_key: str = "",
 ) -> dict[str, Any]:
     if not profile.get("disableThinking"):
         return {
             "requestedDisabled": False,
             "disabled": False,
             "method": None,
-            "label": "跟随模型默认",
+            "label": t("llama.thinking.followModel"),
             "fallback": False,
             "reason": "",
         }
@@ -631,7 +651,7 @@ def _thinking_status(
             "requestedDisabled": True,
             "disabled": False,
             "method": None,
-            "label": "将在启动时尝试关闭",
+            "label": t("llama.thinking.willDisable"),
             "fallback": False,
             "reason": "",
         }
@@ -640,16 +660,16 @@ def _thinking_status(
             "requestedDisabled": True,
             "disabled": False,
             "method": None,
-            "label": "跟随模型默认（兼容回退）",
+            "label": t("llama.thinking.followModelFallback"),
             "fallback": True,
-            "reason": fallback_reason,
+            "reason": t(fallback_reason_key) if fallback_reason_key else "",
         }
     if control == "reasoning":
         return {
             "requestedDisabled": True,
             "disabled": True,
             "method": "--reasoning off",
-            "label": "已关闭",
+            "label": t("llama.thinking.disabled"),
             "fallback": False,
             "reason": "",
         }
@@ -658,7 +678,7 @@ def _thinking_status(
             "requestedDisabled": True,
             "disabled": True,
             "method": '--chat-template-kwargs {"enable_thinking":false}',
-            "label": "已关闭（旧版兼容参数）",
+            "label": t("llama.thinking.disabledLegacy"),
             "fallback": False,
             "reason": "",
         }
@@ -666,7 +686,7 @@ def _thinking_status(
         "requestedDisabled": True,
         "disabled": False,
         "method": None,
-        "label": "无法确认",
+        "label": t("llama.thinking.unknown"),
         "fallback": False,
         "reason": "",
     }
@@ -674,12 +694,25 @@ def _thinking_status(
 
 def _compatibility_status(
     status: str,
-    message: str,
+    message_key: str,
     *,
     latency_ms: int | None = None,
+    **params: Any,
 ) -> dict[str, Any]:
+    """Store probe results as a translation key so they render per viewer."""
     return {
         "status": status,
-        "message": message,
+        "message": t(message_key, **params),
+        "messageKey": message_key,
+        **({"messageParams": {name: str(value) for name, value in params.items()}} if params else {}),
         "latencyMs": latency_ms,
     }
+
+
+def _localized_compatibility(payload: dict[str, Any]) -> dict[str, Any]:
+    """Render a stored compatibility payload in the active locale."""
+    localized = dict(payload)
+    key = payload.get("messageKey")
+    if key:
+        localized["message"] = t(key, **payload.get("messageParams", {}))
+    return localized

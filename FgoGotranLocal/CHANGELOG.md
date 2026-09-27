@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Added a Simplified Chinese / Traditional Chinese language switcher to the control interface; Simplified Chinese stays at `/` and Traditional Chinese is served at `/zh-Hant/`.
+- Localized the whole control interface plus runtime, validation, and error messages through Python catalogs in `src/fgogotran_local/i18n/`.
+- Built the Traditional Chinese catalog with OpenCC `cn -> twp` plus the website's Taiwan term list, then hand-reviewed it (伺服器 / 設定 / 紀錄 / 權限 / 顯示記憶體 / 區域網路 / 檔案 / 檢視 / 參數).
+- Kept the llama-server Chat Completions compatibility probe prompt in the app's translation target language instead of the UI language.
+- Added a US English interface at `/en/`; the language switcher now offers 简体 · 繁體 · English, and every label, runtime message, validation error and log line follows the page language.
+- English uses sentence-case labels and buttons with Title Case tab names, and reuses the wording already published in the website and Android English resources (Ready, Trusted LAN + this PC, Force-disable model thinking, Rotate API Key).
+- REST responses follow `Accept-Language`: `en*` returns English, Chinese tags return their script, and other tags keep the Simplified Chinese default.
+- Replaced the concatenated action-completion message with per-action strings so English reads naturally (`Service started.` / `Service stopped.` / `Service restarted.`).
+
 ## 0.1.0
 
 - Extracted the local llama.cpp translation runtime into `FgoGotranLocal`.

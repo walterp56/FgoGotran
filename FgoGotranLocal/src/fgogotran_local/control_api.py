@@ -1,15 +1,24 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from .errors import ConfigError
+from .i18n import activate, deactivate, normalize_locale, t
 from .privacy import redact_sensitive_payload
 from .security import require_safe_mutation
 from .service import LocalTranslationService
 
 
 def create_control_router(service: LocalTranslationService) -> APIRouter:
-    router = APIRouter()
+    async def activate_request_locale(request: Request):
+        """Localize REST responses from the caller's Accept-Language header."""
+        token = activate(normalize_locale(request.headers.get("accept-language")))
+        try:
+            yield
+        finally:
+            deactivate(token)
+
+    router = APIRouter(dependencies=[Depends(activate_request_locale)])
 
     @router.get("/healthz", include_in_schema=False)
     async def healthz() -> dict:
@@ -40,7 +49,7 @@ def create_control_router(service: LocalTranslationService) -> APIRouter:
         body = await require_safe_mutation(request)
         candidate = body.get("config", body)
         if not isinstance(candidate, dict):
-            raise ConfigError("config 必须是 JSON 对象。")
+            raise ConfigError(t("api.error.configJsonObject"))
         revision = body.get("revision") or candidate.get("revision")
         return {"config": redact_sensitive_payload(await service.update_config(candidate, revision))}
 

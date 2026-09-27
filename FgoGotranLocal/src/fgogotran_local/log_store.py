@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from .i18n import t
 from .privacy import redact_sensitive_text
 
 
@@ -19,7 +20,19 @@ class LogStore:
         self.entries: deque[dict] = deque(maxlen=maximum)
         self.next_id = 1
 
-    def add(self, level: str, message: str) -> dict:
+    def add(
+        self,
+        level: str,
+        message: str,
+        *,
+        key: str | None = None,
+        params: dict | None = None,
+    ) -> dict:
+        """Append a log entry.
+
+        ``key``/``params`` keep the message translatable at display time so a
+        shared log buffer can be rendered in the viewer's language.
+        """
         clean_message = self._redact(str(message))
         entry = {
             "id": self.next_id,
@@ -27,6 +40,10 @@ class LogStore:
             "level": level,
             "message": clean_message,
         }
+        if key:
+            entry["messageKey"] = key
+            if params:
+                entry["messageParams"] = dict(params)
         self.next_id += 1
         self.entries.append(entry)
         return entry
@@ -36,7 +53,7 @@ class LogStore:
             cursor = int(after)
         except (TypeError, ValueError):
             cursor = 0
-        entries = [dict(entry) for entry in self.entries if entry["id"] > cursor]
+        entries = [self._localized(entry) for entry in self.entries if entry["id"] > cursor]
         return {
             "entries": entries,
             "cursor": self.entries[-1]["id"] if self.entries else cursor,
@@ -44,7 +61,7 @@ class LogStore:
 
     def clear_display(self) -> dict:
         self.entries.clear()
-        self.add("INFO", "日志显示已清除。")
+        self.add("INFO", t("log.displayCleared"), key="log.displayCleared")
         return self.since(0)
 
     def formatted(self, levels: set[str] | None = None) -> str:
@@ -54,8 +71,21 @@ class LogStore:
             if entry["level"] not in selected:
                 continue
             timestamp = entry["timestamp"].replace("T", " ").replace("Z", "")
-            lines.append(f"{timestamp} {entry['level']:<5} {entry['message']}")
+            lines.append(f"{timestamp} {entry['level']:<5} {self._display(entry)}")
         return "\n".join(lines)
+
+    def _display(self, entry: dict) -> str:
+        """Render an entry in the active locale (re-redacting any parameters)."""
+        key = entry.get("messageKey")
+        if not key:
+            return entry["message"]
+        return self._redact(t(key, **entry.get("messageParams", {})))
+
+    def _localized(self, entry: dict) -> dict:
+        localized = dict(entry)
+        if entry.get("messageKey"):
+            localized["message"] = self._display(entry)
+        return localized
 
     def _redact(self, message: str) -> str:
         secret = self.secret_provider()

@@ -13,6 +13,8 @@ from typing import Any
 from .config_models import LocalConfig, default_config, generate_api_key, normalize_config
 from .errors import ConfigError
 
+from .i18n import t
+
 
 MAX_MODEL_RESULTS = 250
 MAX_MODEL_SCAN_ENTRIES = 10_000
@@ -26,7 +28,7 @@ class ConfigStore:
         self.config_path = Path(config_path).resolve()
         normalized_platform_id = str(platform_id).strip().lower()
         if not PLATFORM_ID_PATTERN.fullmatch(normalized_platform_id):
-            raise ConfigError("本地平台标识无效。", 500)
+            raise ConfigError(t("store.error.platformIdInvalid"), 500)
         self.platform_id = normalized_platform_id
         self._config: LocalConfig | None = None
         self._revision = ""
@@ -38,7 +40,7 @@ class ConfigStore:
                 try:
                     raw = json.loads(await asyncio.to_thread(self.config_path.read_text, encoding="utf-8"))
                 except (OSError, json.JSONDecodeError) as error:
-                    raise ConfigError(f"无法读取设置：{error}") from error
+                    raise ConfigError(t("store.error.readFailed", error=error)) from error
                 missing_key = not str(raw.get("apiKey", "")).strip() if isinstance(raw, dict) else False
                 candidate, managed_changed = self._apply_managed_defaults(raw)
                 config = normalize_config(candidate)
@@ -75,7 +77,7 @@ class ConfigStore:
         async with self._lock:
             current = self._require_loaded()
             if not expected_revision or expected_revision != self._revision:
-                raise ConfigError("设置已在另一个窗口中更改，请重新加载后再试。", 409)
+                raise ConfigError(t("store.error.revisionMismatch"), 409)
             next_value = dict(candidate)
             next_value.update({"version": 1, "apiKey": current.api_key})
             config = normalize_config(next_value)
@@ -121,31 +123,31 @@ class ConfigStore:
 
     @staticmethod
     def _validate_runtime_files_sync(config: LocalConfig, profile: object) -> dict[str, Any]:
-        executable = ConfigStore._required_absolute_path(config.llama_server_path, "llama-server 可执行文件")
-        model_root = ConfigStore._required_absolute_path(config.models_directory, "模型文件夹")
-        model = ConfigStore._required_absolute_path(profile.model_path, "GGUF 模型")
+        executable = ConfigStore._required_absolute_path(config.llama_server_path, "store.field.executable")
+        model_root = ConfigStore._required_absolute_path(config.models_directory, "store.field.modelsDirectory")
+        model = ConfigStore._required_absolute_path(profile.model_path, "store.field.model")
         try:
             executable = executable.resolve(strict=True)
         except OSError as error:
-            raise ConfigError(f"无法访问 llama-server 可执行文件：{error}") from error
+            raise ConfigError(t("store.error.executableUnavailable", error=error)) from error
         try:
             model_root = model_root.resolve(strict=True)
         except OSError as error:
-            raise ConfigError(f"无法访问模型文件夹：{error}") from error
+            raise ConfigError(t("store.error.modelsDirectoryUnavailable", error=error)) from error
         try:
             model = model.resolve(strict=True)
         except OSError as error:
-            raise ConfigError(f"无法访问 GGUF 模型：{error}") from error
+            raise ConfigError(t("store.error.modelUnavailable", error=error)) from error
         if not executable.is_file():
-            raise ConfigError("llama-server 路径不是文件。")
+            raise ConfigError(t("store.error.executableNotFile"))
         if executable.name.lower() not in {"llama-server", "llama-server.exe"}:
-            raise ConfigError("可执行文件名称必须是 llama-server 或 llama-server.exe。")
+            raise ConfigError(t("store.error.executableNameInvalid"))
         if not model_root.is_dir():
-            raise ConfigError("模型文件夹路径不是文件夹。")
+            raise ConfigError(t("store.error.modelsDirectoryNotDirectory"))
         if not model.is_file() or model.suffix.lower() != ".gguf":
-            raise ConfigError("模型必须是现有的 .gguf 文件。")
+            raise ConfigError(t("store.error.modelNotGgufFile"))
         if not is_path_inside(model_root, model):
-            raise ConfigError("所选模型必须位于已设置的模型文件夹内。")
+            raise ConfigError(t("store.error.modelOutsideDirectory"))
         return {
             "executable": str(executable),
             "model_root": str(model_root),
@@ -194,13 +196,13 @@ class ConfigStore:
         return sorted(models, key=lambda item: item["relativePath"].casefold())
 
     @staticmethod
-    def _required_absolute_path(value: str, label: str) -> Path:
+    def _required_absolute_path(value: str, label_key: str) -> Path:
         text = str(value or "").strip()
         if not text:
-            raise ConfigError(f"请先设置{label}。")
+            raise ConfigError(t("store.error.pathRequired", field=t(label_key)))
         path = Path(text)
         if not path.is_absolute():
-            raise ConfigError(f"{label}必须使用绝对路径。")
+            raise ConfigError(t("store.error.pathNotAbsolute", field=t(label_key)))
         return path
 
     @staticmethod
@@ -214,7 +216,7 @@ class ConfigStore:
 
     def _require_loaded(self) -> LocalConfig:
         if self._config is None:
-            raise ConfigError("设置尚未加载。", 500)
+            raise ConfigError(t("store.error.notLoaded"), 500)
         return self._config
 
     def _apply_managed_defaults(self, raw: Any) -> tuple[Any, bool]:
