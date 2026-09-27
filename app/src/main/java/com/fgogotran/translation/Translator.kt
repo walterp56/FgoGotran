@@ -143,7 +143,7 @@ data class VoiceLineHint(
 )
 
 /**
- * Orchestrates Japanese-to-Chinese translation with cache, glossary injection,
+ * Orchestrates Japanese-to-Chinese/English translation with cache, glossary injection,
  * and provider-specific API calls.
  */
 @Singleton
@@ -298,9 +298,6 @@ class Translator @Inject constructor(
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = "",
-            includeConditionalMappings = true,
-            includeHonorificTemplates = false,
-            includeNamePluralTemplate = false,
             includeCurrentSpeaker = false
         )
         val response = callTranslationBackend(
@@ -311,7 +308,7 @@ class Translator @Inject constructor(
                     if (useSakuraPrompt) {
                         SakuraPromptBuilder.buildSystemPrompt()
                     } else {
-                        promptBuilder.buildSystemPrompt(config.playerName, promptContext)
+                        promptBuilder.buildSystemPrompt(promptContext)
                     }
                 ),
                 ChatMessage(
@@ -345,7 +342,13 @@ class Translator @Inject constructor(
             protectedInput
         )
         var translated = restoredResponse?.let {
-            sanitizeTranslation(normalizedText, it).trim()
+            sanitizeModelTranslationForMode(
+                sourceText = normalizedText,
+                translatedText = it,
+                config = config,
+                cropMode = false,
+                allowPlainLineResult = useSakuraPrompt
+            ).trim()
         }.orEmpty()
         FgoLogger.debug(tag, "API test sanitized content: ${apiResponseLogSample(translated)}")
         if (translated.isBlank() && restoredResponse != null) {
@@ -383,8 +386,11 @@ class Translator @Inject constructor(
                 throw IllegalStateException("API returned untranslated Japanese")
             }
         }
-        if (!containsCjkIdeograph(translated)) {
-            throw IllegalStateException("API returned no Chinese translation")
+        val promptTarget = promptTargetLanguage(config)
+        if (!hasTargetScript(translated, promptTarget)) {
+            throw IllegalStateException(
+                "API returned no ${targetLanguagePromptLabel(promptTarget)} text"
+            )
         }
         FgoLogger.info(
             tag,
@@ -1122,15 +1128,12 @@ class Translator @Inject constructor(
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = activeCurrentSpeaker,
-            includeConditionalMappings = true,
-            includeHonorificTemplates = false,
-            includeNamePluralTemplate = false,
             includeCurrentSpeaker = false
         )
         val systemPrompt = if (useSakuraPrompt) {
             SakuraPromptBuilder.buildSystemPrompt()
         } else {
-            promptBuilder.buildSystemPrompt(playerName, promptContext)
+            promptBuilder.buildSystemPrompt(promptContext)
         }
         val sakuraSingleRequest = if (useSakuraPrompt && !cropMode) {
             SakuraPromptBuilder.buildSingleRequest(
@@ -1294,6 +1297,8 @@ class Translator @Inject constructor(
                     badTranslation = latestCandidate.orEmpty(),
                     badSafety = latestSafety,
                     cropMode = cropMode,
+                    promptProfile = promptProfile,
+                    forceRuby = preserveRubyMeaning,
                     maxTokens = maxTokens,
                     previousDialogueContexts = activePreviousDialogueContexts,
                     currentSpeaker = activeCurrentSpeaker,
@@ -1558,9 +1563,6 @@ class Translator @Inject constructor(
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = activeCurrentSpeaker,
-            includeConditionalMappings = true,
-            includeHonorificTemplates = false,
-            includeNamePluralTemplate = false,
             includeCurrentSpeaker = false
         )
 
@@ -1570,7 +1572,7 @@ class Translator @Inject constructor(
                 if (useSakuraPrompt) {
                     SakuraPromptBuilder.buildSystemPrompt()
                 } else {
-                    promptBuilder.buildSystemPrompt(playerName, promptContext)
+                    promptBuilder.buildSystemPrompt(promptContext)
                 }
             ),
             ChatMessage(
@@ -1906,7 +1908,11 @@ class Translator @Inject constructor(
 
         if (cacheEnabled && nameForLlm != null && nameHash != null && nameResult == null) {
             lookupCachedTranslation(nameHash, nameForLlm, playerName, "Scene name", nameKey?.parts.orEmpty(), targetLanguage = config.targetLanguage)?.let { cached ->
-                val cachedName = sanitizeSceneNameTranslation(nameForLlm, cached)
+                val cachedName = sanitizeSceneNameTranslation(
+                    sourceText = nameForLlm,
+                    translatedText = cached,
+                    targetLanguage = config.targetLanguage
+                )
                 if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName)) {
                     FgoLogger.warn(tag, "Dropping unsafe cached name translation, hash=${nameHash.take(8)}...")
                     removeMemoryCachedTranslation(nameHash)
@@ -2130,7 +2136,12 @@ class Translator @Inject constructor(
                     restoreSourcePunctuation = false,
                     translateAsName = true
                 )
-                nameResult = validateLlmNameResult(nameForLlm!!, translatedName, playerName)
+                nameResult = validateLlmNameResult(
+                    nameForLlm!!,
+                    translatedName,
+                    playerName,
+                    config.targetLanguage
+                )
             }
             val sakuraCurrentSpeaker = buildCurrentSpeakerContext(
                 sourceName = normalizedName,
@@ -2264,9 +2275,6 @@ class Translator @Inject constructor(
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = currentSpeaker,
-            includeConditionalMappings = true,
-            includeHonorificTemplates = false,
-            includeNamePluralTemplate = false,
             includeCurrentSpeaker = false
         )
         val useCompactDialogueVoiceHintPrompt =
@@ -2298,7 +2306,7 @@ class Translator @Inject constructor(
         }
 
         val messages = listOf(
-            ChatMessage("system", promptBuilder.buildSystemPrompt(playerName, promptContext)),
+            ChatMessage("system", promptBuilder.buildSystemPrompt(promptContext)),
             ChatMessage("user", sceneUserPrompt)
         )
 
@@ -2379,7 +2387,12 @@ class Translator @Inject constructor(
                     maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1,
                     restoreSourcePunctuation = false
                 )
-                nameResult = validateLlmNameResult(nameForLlm!!, fallbackName, playerName)
+                nameResult = validateLlmNameResult(
+                    nameForLlm!!,
+                    fallbackName,
+                    playerName,
+                    config.targetLanguage
+                )
             }
             if (needsDialogue) {
                 dialogueResult = translate(
@@ -2440,7 +2453,12 @@ class Translator @Inject constructor(
                         maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1,
                         restoreSourcePunctuation = false
                     )
-                    nameResult = validateLlmNameResult(sourceName, retryResult, playerName)
+                    nameResult = validateLlmNameResult(
+                        sourceName,
+                        retryResult,
+                        playerName,
+                        config.targetLanguage
+                    )
                 } else {
                     nameResult = modelTranslateResult(maskedSafeName, backend, false, config)
                     if (cacheEnabled) {
@@ -3023,7 +3041,7 @@ class Translator @Inject constructor(
         ) ?: return null
         val baseName = sanitizeCharacterNameResult(baseTranslation).takeIf { it.isNotBlank() } ?: return null
 
-        val stateTranslation = translateCharacterNameState(stateName.stateText)
+        val stateTranslation = translateCharacterNameState(stateName.stateText, targetLanguage)
         if (stateTranslation == null) {
             FgoLogger.warn(tag, "Character name state could not be translated safely: ${stateName.stateText}")
             return TranslateResult(baseName, "character-db", true)
@@ -3113,38 +3131,51 @@ class Translator @Inject constructor(
         return CharacterNameState(baseName, stateText)
     }
 
-    private suspend fun translateCharacterNameState(stateText: String): TranslateResult? {
-        fallbackCharacterNameState(stateText)?.let { fallback ->
+    private suspend fun translateCharacterNameState(
+        stateText: String,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    ): TranslateResult? {
+        fallbackCharacterNameState(stateText, targetLanguage)?.let { fallback ->
             if (!stateText.any(::isJapaneseKana)) return fallback
         }
 
-        translationMemory.lookupNormalized(stateText)?.let {
-            val state = sanitizeNameStateTranslation(stateText, it)
-            if (isUsableNameStateTranslation(stateText, state)) {
-                return TranslateResult(state, "official-cn", true)
+        val englishTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
+        if (!englishTarget) {
+            translationMemory.lookupNormalized(stateText)?.let {
+                val state = sanitizeNameStateTranslation(stateText, it, targetLanguage)
+                if (isUsableNameStateTranslation(stateText, state)) {
+                    return TranslateResult(state, "official-cn", true)
+                }
             }
         }
-        findTermTranslation(stateText)?.let {
-            val state = sanitizeNameStateTranslation(stateText, it)
+        findTermTranslation(stateText, targetLanguage)?.let {
+            val state = sanitizeNameStateTranslation(stateText, it, targetLanguage)
             if (isUsableNameStateTranslation(stateText, state)) {
                 return TranslateResult(state, "glossary", true)
             }
         }
-
         val translated = translate(
             japaneseText = stateText,
             maxTokens = DIALOGUE_TRANSLATION_MAX_TOKENS,
             restoreSourcePunctuation = false
         )
-        val state = sanitizeNameStateTranslation(stateText, translated.translatedText)
+        val state = sanitizeNameStateTranslation(stateText, translated.translatedText, targetLanguage)
         if (isUsableNameStateTranslation(stateText, state)) {
             return translated.copy(translatedText = state)
         }
-        return fallbackCharacterNameState(stateText)
+        return fallbackCharacterNameState(stateText, targetLanguage)
     }
 
-    private fun fallbackCharacterNameState(stateText: String): TranslateResult? {
-        val state = sanitizeNameStateTranslation(stateText, toSimplifiedChinese(stateText))
+    private fun fallbackCharacterNameState(
+        stateText: String,
+        targetLanguage: String
+    ): TranslateResult? {
+        val state = sanitizeNameStateTranslation(
+            sourceText = stateText,
+            translatedText = toSimplifiedChinese(stateText),
+            targetLanguage = targetLanguage
+        )
         return if (isUsableNameStateTranslation(stateText, state)) {
             TranslateResult(state, "character-state", true)
         } else {
@@ -3160,8 +3191,35 @@ class Translator @Inject constructor(
         return composed
     }
 
-    private fun sanitizeNameStateTranslation(sourceText: String, translatedText: String): String {
-        return sanitizeTranslation(sourceText, translatedText)
+    private fun sanitizeNameTextForTarget(
+        sourceText: String,
+        translatedText: String,
+        targetLanguage: String
+    ): String = when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
+        SettingsRepository.TARGET_LANGUAGE_TRADITIONAL ->
+            sanitizeTraditionalModelTranslation(sourceText, translatedText)
+        SettingsRepository.TARGET_LANGUAGE_ENGLISH ->
+            sanitizeEnglishModelTranslation(sourceText, translatedText)
+        else -> sanitizeTranslation(sourceText, translatedText)
+    }
+
+    /** True when the result contains at least one character in the target script. */
+    private fun hasTargetScript(text: String, targetLanguage: String): Boolean {
+        return if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
+        ) {
+            text.any { it in 'a'..'z' || it in 'A'..'Z' }
+        } else {
+            containsCjkIdeograph(text)
+        }
+    }
+
+    private fun sanitizeNameStateTranslation(
+        sourceText: String,
+        translatedText: String,
+        targetLanguage: String
+    ): String {
+        return sanitizeNameTextForTarget(sourceText, translatedText, targetLanguage)
             .lineSequence()
             .firstOrNull()
             .orEmpty()
@@ -3522,12 +3580,17 @@ class Translator @Inject constructor(
     private suspend fun validateLlmNameResult(
         normalizedName: String,
         result: TranslateResult,
-        playerName: String
+        playerName: String,
+        targetLanguage: String
     ): TranslateResult {
         TextNormalizer.canonicalQuestionMask(normalizedName)?.let { mask ->
             return TranslateResult(mask, MASKED_TEXT_BACKEND, true)
         }
-        val simplifiedName = sanitizeSceneNameTranslation(normalizedName, result.translatedText)
+        val simplifiedName = sanitizeSceneNameTranslation(
+            sourceText = normalizedName,
+            translatedText = result.translatedText,
+            targetLanguage = targetLanguage
+        )
         val maskedSafeName = enforceMaskedTranslationPolicy(normalizedName, simplifiedName)
         return if (isMaskedSourcePreserved(normalizedName, maskedSafeName)) {
             TranslateResult(maskedSafeName, MASKED_TEXT_BACKEND, true)
@@ -3545,22 +3608,30 @@ class Translator @Inject constructor(
         }
     }
 
-    private fun sanitizeSceneNameTranslation(sourceText: String, translatedText: String): String {
+    private fun sanitizeSceneNameTranslation(
+        sourceText: String,
+        translatedText: String,
+        targetLanguage: String
+    ): String {
         TextNormalizer.canonicalQuestionMask(sourceText)?.let { return it }
         return if (shouldPreserveFullNameBoxText(sourceText)) {
-            sanitizeTranslation(sourceText, translatedText)
+            sanitizeNameTextForTarget(sourceText, translatedText, targetLanguage)
                 .lineSequence()
                 .firstOrNull()
                 .orEmpty()
                 .trim()
         } else {
-            sanitizeNameTranslation(sourceText, translatedText)
+            sanitizeNameTranslation(sourceText, translatedText, targetLanguage)
         }
     }
 
-    private fun sanitizeNameTranslation(sourceText: String, translatedText: String): String {
+    private fun sanitizeNameTranslation(
+        sourceText: String,
+        translatedText: String,
+        targetLanguage: String
+    ): String {
         TextNormalizer.canonicalQuestionMask(sourceText)?.let { return it }
-        return sanitizeTranslation(sourceText, translatedText)
+        return sanitizeNameTextForTarget(sourceText, translatedText, targetLanguage)
             .lineSequence()
             .firstOrNull()
             .orEmpty()
@@ -5017,14 +5088,6 @@ class Translator @Inject constructor(
             SettingsRepository.TARGET_LANGUAGE_ENGLISH
     }
 
-    private fun targetLanguagePromptLabel(targetLanguage: String): String {
-        return when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
-            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> "Traditional Chinese"
-            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> "English"
-            else -> "Simplified Chinese"
-        }
-    }
-
     private fun targetTermText(term: TermEntity, targetLanguage: String): String {
         if (isEnglishTarget(targetLanguage)) return term.enTerm.trim()
         return targetOfficialChinese(term.cnTerm, targetLanguage)
@@ -5771,6 +5834,8 @@ class Translator @Inject constructor(
         badTranslation: String = "",
         badSafety: TranslationSafetyResult? = null,
         cropMode: Boolean = false,
+        promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL,
+        forceRuby: Boolean = false,
         maxTokens: Int,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
@@ -5792,6 +5857,8 @@ class Translator @Inject constructor(
                 nameText = protectedInput.text.takeIf { translateAsName },
                 isCropMode = cropMode,
                 isDialogue = !cropMode && !translateAsName,
+                forceRuby = forceRuby,
+                promptProfile = promptProfile,
                 playerName = playerName,
                 playerGender = config.playerGender,
                 playerReferenceText = (listOf(normalizedText) + normalizedChoices).joinToString("\n"),
@@ -5832,6 +5899,8 @@ class Translator @Inject constructor(
                 nameText = protectedInput.text.takeIf { translateAsName },
                 isCropMode = cropMode,
                 isDialogue = !cropMode && !translateAsName,
+                forceRuby = forceRuby,
+                promptProfile = promptProfile,
                 playerName = playerName,
                 playerGender = config.playerGender,
                 playerReferenceText = (listOf(normalizedText) + normalizedChoices).joinToString("\n"),
@@ -5845,9 +5914,6 @@ class Translator @Inject constructor(
                 context = retryContext,
                 matchedEntries = glossaryEntries,
                 currentSpeaker = currentSpeaker,
-                includeConditionalMappings = true,
-                includeHonorificTemplates = false,
-                includeNamePluralTemplate = false,
                 includeCurrentSpeaker = false
             )
             val mainUserPrompt = if (cropMode) {
@@ -5885,7 +5951,7 @@ class Translator @Inject constructor(
                 appendPromptSection("previous_draft", draftSection)
             }
             listOf(
-                ChatMessage("system", promptBuilder.buildSystemPrompt(playerName, retryContext)),
+                ChatMessage("system", promptBuilder.buildSystemPrompt(retryContext)),
                 ChatMessage("user", retryUserPrompt)
             )
         }

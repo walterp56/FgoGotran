@@ -2,7 +2,7 @@ package com.fgogotran.translation
 
 import com.fgogotran.data.SettingsRepository
 
-/** A readable JP -> CN prompt glossary entry shared by every translation model. */
+/** A readable JP -> target prompt glossary entry shared by every translation model. */
 internal data class TranslationGlossaryEntry(
     val source: String,
     val target: String,
@@ -24,10 +24,7 @@ internal object TranslationGlossaryBuilder {
         context: PromptContext,
         matchedEntries: List<TranslationGlossaryEntry>,
         currentSpeaker: String,
-        includeConditionalMappings: Boolean = true,
-        includeCurrentSpeaker: Boolean = true,
-        includeHonorificTemplates: Boolean = true,
-        includeNamePluralTemplate: Boolean = true
+        includeCurrentSpeaker: Boolean = true
     ): List<TranslationGlossaryEntry> {
         val entriesBySource = linkedMapOf<String, TranslationGlossaryEntry>()
 
@@ -52,92 +49,40 @@ internal object TranslationGlossaryBuilder {
         matchedEntries.forEach { add(it.source, it.target, it.note) }
         val englishTarget = SettingsRepository.normalizeTargetLanguage(context.targetLanguage) ==
             SettingsRepository.TARGET_LANGUAGE_ENGLISH
-        if (includeConditionalMappings) {
-            // English uses one I/you set, so the Chinese pronoun mapping tables are skipped.
-            if (!englishTarget) {
-                context.specialFirstPersonMappings.forEach { mapping ->
-                    add(mapping.sourceForm, mapping.targetTranslation, "第一人称")
-                }
-                context.specialSecondPersonMappings.forEach { mapping ->
-                    add(mapping.sourceForm, mapping.targetTranslation, "第二人称")
-                }
+        // Literal mappings live in the glossary; pattern rules (honorifics, name plurals)
+        // stay in the system-prompt cards so each policy has a single home.
+        if (!englishTarget) {
+            context.specialFirstPersonMappings.forEach { mapping ->
+                add(mapping.sourceForm, mapping.targetTranslation, "第一人称")
             }
-            if (includeHonorificTemplates) {
-                context.honorificMatches.forEach { match ->
-                    val mapping = if (englishTarget) {
-                        when (match.rule) {
-                            HonorificPromptRule.SAN -> "XXさん" to "XX-san"
-                            HonorificPromptRule.KUN -> "XXくん" to "XX-kun"
-                            HonorificPromptRule.CHAN -> "XXちゃん" to "XX-chan"
-                            HonorificPromptRule.TONO -> "XX殿" to "Lord XX"
-                            HonorificPromptRule.TAN -> "XXたん" to "XX-tan"
-                            HonorificPromptRule.TYA -> "XXてゃ" to "XX-tya"
-                            HonorificPromptRule.SAMA -> "XX様" to "Lord XX"
-                            HonorificPromptRule.SHI -> "XX氏" to "Mr. XX"
-                            HonorificPromptRule.CCHI -> "XXっち" to "little XX"
-                        }
-                    } else {
-                        when (match.rule) {
-                            HonorificPromptRule.SAN -> "XXさん" to "XX桑"
-                            HonorificPromptRule.KUN -> "XXくん" to "XX君"
-                            HonorificPromptRule.CHAN -> "XXちゃん" to context.localized("XX酱", "XX醬")
-                            HonorificPromptRule.TONO -> "XX殿" to context.localized("XX阁下", "XX閣下")
-                            HonorificPromptRule.TAN -> "XXたん" to "XX炭"
-                            HonorificPromptRule.TYA -> "XXてゃ" to context.localized("XX宝", "XX寶")
-                            HonorificPromptRule.SAMA -> "XX様" to "XX大人"
-                            HonorificPromptRule.SHI -> "XX氏" to "XX氏"
-                            HonorificPromptRule.CCHI -> "XXっち" to "小XX"
-                        }
+            context.specialSecondPersonMappings.forEach { mapping ->
+                add(mapping.sourceForm, mapping.targetTranslation, "第二人称")
+            }
+        }
+        if (context.hasMasterWord) {
+            val genderNote = context.playerGender.toGenderNote(context.targetLanguage)
+            add(
+                "マスター",
+                if (englishTarget) "Master" else "御主",
+                genderNote.takeIf(String::isNotBlank)
+                    ?.let {
+                        if (englishTarget) "$it; player title"
+                        else "$it；${context.localized("玩家称谓", "玩家稱謂")}"
                     }
-                    val exceptions = match.presentExceptions
-                        .takeIf(List<String>::isNotEmpty)
-                        ?.joinToString(if (englishTarget) ", " else "、")
-                        ?.let {
-                            if (englishTarget) " (not for: $it)"
-                            else context.localized("；不用于$it", "；不用於$it")
-                        }
-                        .orEmpty()
+                    .orEmpty()
+            )
+        }
+        if (context.hasMasks) {
+            maskTokens
+                .filter(sourceText::contains)
+                .forEach { mask ->
                     add(
-                        mapping.first,
-                        mapping.second,
-                        if (englishTarget) "Name suffix$exceptions"
-                        else context.localized("人名后缀", "人名後綴") + exceptions
+                        mask,
+                        mask,
+                        if (englishTarget) "mask token, keep unchanged"
+                        else context.localized("遮蔽符号，保持不变", "遮蔽符號，保持不變")
                     )
                 }
-            }
-            if (context.hasMasterWord) {
-                val genderNote = context.playerGender.toGenderNote(context.targetLanguage)
-                add(
-                    "マスター",
-                    if (englishTarget) "Master" else "御主",
-                    genderNote.takeIf(String::isNotBlank)
-                        ?.let {
-                            if (englishTarget) "$it; player title"
-                            else "$it；${context.localized("玩家称谓", "玩家稱謂")}"
-                        }
-                        .orEmpty()
-                )
-            }
-            if (includeNamePluralTemplate && context.namePluralUsage.isPresent) {
-                add(
-                    "Xズ",
-                    if (englishTarget) "the Xs" else context.localized("X们", "X們"),
-                    if (englishTarget) "Name-group suffix; not for ordinary words"
-                    else context.localized("角色群体词尾；普通词除外", "角色群體詞尾；普通詞除外")
-                )
-            }
-            if (context.hasMasks) {
-                maskTokens
-                    .filter(sourceText::contains)
-                    .forEach { mask ->
-                        add(
-                            mask,
-                            mask,
-                            if (englishTarget) "mask token, keep unchanged"
-                            else context.localized("遮蔽符号，保持不变", "遮蔽符號，保持不變")
-                        )
-                    }
-            }
         }
         if (includeCurrentSpeaker) {
             addCurrentSpeaker(

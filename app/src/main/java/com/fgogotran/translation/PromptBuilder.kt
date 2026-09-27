@@ -9,6 +9,14 @@ import javax.inject.Singleton
 
 private val promptSectionNamePattern = Regex("[a-z][a-z0-9_]*")
 
+/** Human-readable target name shared by every prompt and repair instruction. */
+internal fun targetLanguagePromptLabel(targetLanguage: String): String =
+    when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
+        SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> "Traditional Chinese"
+        SettingsRepository.TARGET_LANGUAGE_ENGLISH -> "English"
+        else -> "Simplified Chinese"
+    }
+
 internal fun buildPromptSection(
     name: String,
     content: String
@@ -140,7 +148,7 @@ data class PromptContext(
  * Constructs system and user prompts for the LLM translation backends.
  *
  * ## System prompt structure
- * Plain natural-language task, request-local rules, then one output instruction.
+ * Target-specific core/task, then the output contract, then request-local rule cards.
  *
  * ## User prompt structure
  * Optional readable glossary/context followed by the unwrapped current Japanese.
@@ -489,13 +497,12 @@ class PromptBuilder @Inject constructor() {
 
     /** Builds the system prompt for the complete Japanese source text. */
     fun buildSystemPrompt(
-        playerName: String,
         context: PromptContext = PromptContext()
     ): String {
         val sb = StringBuilder()
         val rules = StringBuilder()
         val blockNames = mutableListOf<String>()
-        val targetChinese = targetLanguagePromptLabel(context.targetLanguage)
+        val targetLanguageLabel = targetLanguagePromptLabel(context.targetLanguage)
         val isEnglish = SettingsRepository.normalizeTargetLanguage(context.targetLanguage) ==
             SettingsRepository.TARGET_LANGUAGE_ENGLISH
         val isBattleSubtitle =
@@ -511,7 +518,7 @@ class PromptBuilder @Inject constructor() {
             isBattleSubtitle -> "battle_base"
             else -> "base"
         }
-        sb.append(applyTargetChinese(basePrompt, targetChinese))
+        sb.append(applyTargetLanguage(basePrompt, targetLanguageLabel))
         blockNames += baseBlockName
         if (context.hasPlaceholders) {
             appendPromptBlock(rules, blockNames, "placeholder", PLACEHOLDER_PROMPT)
@@ -555,7 +562,7 @@ class PromptBuilder @Inject constructor() {
             appendPromptBlock(rules, blockNames, "voice_hint", VOICE_HINT_PROMPT)
         }
         featurePromptBlocks(context).forEach { (name, block) ->
-            appendPromptBlock(rules, blockNames, name, applyTargetChinese(block, targetChinese))
+            appendPromptBlock(rules, blockNames, name, applyTargetLanguage(block, targetLanguageLabel))
         }
         val useBattlePlainOutput =
             isBattleSubtitle && context.outputFormat == PromptOutputFormat.PLAIN_TEXT
@@ -598,16 +605,8 @@ class PromptBuilder @Inject constructor() {
         }
     }
 
-    private fun applyTargetChinese(block: String, targetChinese: String): String {
-        return block.replace("{target_chinese}", targetChinese)
-    }
-
-    private fun targetLanguagePromptLabel(targetLanguage: String): String {
-        return when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
-            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> "Traditional Chinese"
-            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> "English"
-            else -> "Simplified Chinese"
-        }
+    private fun applyTargetLanguage(block: String, targetLanguageLabel: String): String {
+        return block.replace("{target_chinese}", targetLanguageLabel)
     }
 
     private fun appendPromptBlock(

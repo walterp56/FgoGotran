@@ -101,9 +101,7 @@ internal object SakuraPromptBuilder {
         sourceText = sourceText,
         context = context,
         matchedEntries = matchedEntries,
-        currentSpeaker = currentSpeaker,
-        includeHonorificTemplates = false,
-        includeNamePluralTemplate = false
+        currentSpeaker = currentSpeaker
     )
 
     private fun buildOfficialUserPrompt(
