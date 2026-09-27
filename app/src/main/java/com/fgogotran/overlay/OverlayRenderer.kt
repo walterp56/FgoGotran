@@ -256,7 +256,8 @@ class OverlayRenderer @Inject constructor(
             tag,
             "Dialogue render lines: count=${layout.lines.size}, " +
                 "widths=${layout.lines.map { paint.measureText(it).toInt() }}, " +
-                "maxWidth=${layout.textArea.width().toInt()}, textSize=${paint.textSize}"
+                "maxWidth=${layout.textArea.width().toInt()}, textSize=${paint.textSize}, " +
+                "lines=${layout.lines.joinToString(" ⏎ ")}"
         )
         FgoLogger.debug(
             tag,
@@ -273,7 +274,12 @@ class OverlayRenderer @Inject constructor(
         )
 
         val textArea = layout.textArea
-        val firstBaseline = textArea.top - paint.fontMetrics.ascent
+        val firstBaseline = VisualTextMetrics.baselineForTop(
+            paint = paint,
+            top = textArea.top,
+            targetLanguage = instruction.targetLocale,
+            text = layout.lines.firstOrNull().orEmpty()
+        )
 
         canvas.save()
         canvas.clipRect(textArea)
@@ -371,6 +377,7 @@ class OverlayRenderer @Inject constructor(
             paint = paint,
             translationLines = layout.translationLines,
             originalLines = layout.originalLines,
+            targetLanguage = instruction.targetLocale,
             x = layout.textArea.left,
             top = layout.textArea.top,
             translationTextSize = layout.translationTextSize,
@@ -449,7 +456,8 @@ class OverlayRenderer @Inject constructor(
                     maxWidth = textArea.width(),
                     maxHeight = textArea.height(),
                     maxLines = DIALOGUE_MAX_LINES,
-                    wordWrap = instruction.isEnglishTarget()
+                    wordWrap = instruction.isEnglishTarget(),
+                    targetLanguage = instruction.targetLocale
                 )
             }
             .firstOrNull()
@@ -466,7 +474,8 @@ class OverlayRenderer @Inject constructor(
             maxLines = DIALOGUE_MAX_LINES,
             preserveExplicitLineBreaks = candidates.preserveExplicitLineBreaks,
             fallbackText = candidates.finalFallback,
-            wordWrap = instruction.isEnglishTarget()
+            wordWrap = instruction.isEnglishTarget(),
+            targetLanguage = instruction.targetLocale
         )
         val clearBox = dialogueClearBoxForLayout(
             instruction = instruction,
@@ -497,7 +506,12 @@ class OverlayRenderer @Inject constructor(
         val sourcePaddingY = DYNAMIC_DIALOGUE_VERTICAL_PADDING * scale
 
         val textWidth = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
-        val textBottom = textArea.top + textBlockHeight(paint, lineHeight, lines.size.coerceAtLeast(1))
+        val textBottom = textArea.top + VisualTextMetrics.blockHeight(
+            paint = paint,
+            lineHeight = lineHeight,
+            lineCount = lines.size.coerceAtLeast(1),
+            targetLanguage = instruction.targetLocale
+        )
         val anchorLeft = textArea.left - clearLeftInsetX
         val anchorTop = textArea.top - clearInsetY - 12f * scale
         val sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: anchorLeft
@@ -677,13 +691,20 @@ class OverlayRenderer @Inject constructor(
             minimumTextSize = NAME_TEXT_MIN_SIZE * scale,
             maxWidth = textArea.width()
         )
+        val nameBaseline = VisualTextMetrics.baselineForName(
+            paint = paint,
+            text = fittedName,
+            area = textArea,
+            legacyOffset = NAME_TEXT_BASELINE_OFFSET * scale,
+            targetLanguage = instruction.targetLocale
+        )
         FgoLogger.debug(
             tag,
             "Name plate: name=$name, box=$box, sourceName=$originalNameBounds, " +
                 "cyan=${detectedPlate.flattenToString()}, " +
                 "plate=${plateLeft.toInt()}..${plateRight.toInt()}, " +
                 "textWidth=${paint.measureText(fittedName).toInt()}, " +
-                "textSize=${paint.textSize.toInt()}"
+                "textSize=${paint.textSize.toInt()}, baseline=${nameBaseline.toInt()}"
         )
 
         canvas.save()
@@ -693,7 +714,7 @@ class OverlayRenderer @Inject constructor(
             paint = paint,
             lines = listOf(fittedName),
             x = textArea.left,
-            firstBaseline = textArea.top - paint.fontMetrics.ascent + NAME_TEXT_BASELINE_OFFSET * scale,
+            firstBaseline = nameBaseline,
             lineHeight = paint.textSize,
             textColor = instruction.textColor ?: FGO_TEXT_COLOR
         )
@@ -834,7 +855,12 @@ class OverlayRenderer @Inject constructor(
             paint = paint,
             text = layout.translationText,
             x = textArea.centerX() - paint.measureText(layout.translationText) / 2f,
-            y = currentTop - paint.fontMetrics.ascent,
+            y = VisualTextMetrics.baselineForTop(
+                paint = paint,
+                top = currentTop,
+                targetLanguage = instruction.targetLocale,
+                text = layout.translationText
+            ),
             textColor = textColor,
             scale = scale
         )
@@ -846,7 +872,12 @@ class OverlayRenderer @Inject constructor(
             paint = paint,
             text = layout.originalText,
             x = textArea.centerX() - paint.measureText(layout.originalText) / 2f,
-            y = currentTop - paint.fontMetrics.ascent,
+            y = VisualTextMetrics.baselineForTop(
+                paint = paint,
+                top = currentTop,
+                targetLanguage = instruction.targetLocale,
+                text = layout.originalText
+            ),
             textColor = ORIGINAL_TEXT_COLOR,
             scale = scale
         )
@@ -987,6 +1018,32 @@ class OverlayRenderer @Inject constructor(
         return overlap.toFloat() / minOf(firstEnd - firstStart, secondEnd - secondStart).coerceAtLeast(1)
     }
 
+    private val latinTokenPunctuation = setOf('_', '.', '-', '—', '–', '/', '&', '\'', '’')
+    private val latinTokenBreakSeparators = setOf('-', '—', '–', '/', '.')
+
+    private fun Char.isLatinTokenChar(): Boolean =
+        code <= 0x7F && (isLetterOrDigit() || this in latinTokenPunctuation)
+
+    /**
+     * Rewrites a cut that would land inside a Latin/number token so the token is never split
+     * mid-word: break after the last internal separator that still fits, otherwise move the
+     * whole token to the next line. A token wider than the whole line keeps the hard break.
+     * CJK text is unaffected because CJK characters are not Latin token characters.
+     */
+    private fun adjustBreakForLatinToken(text: String, count: Int): Int {
+        if (count <= 0 || count >= text.length) return count
+        if (!text[count - 1].isLatinTokenChar() || !text[count].isLatinTokenChar()) return count
+
+        var tokenStart = count
+        while (tokenStart > 0 && text[tokenStart - 1].isLatinTokenChar()) tokenStart--
+
+        for (index in count - 1 downTo tokenStart) {
+            if (text[index] in latinTokenBreakSeparators) return index + 1
+        }
+        if (tokenStart > 0) return tokenStart
+        return count
+    }
+
     private fun wrapText(
         text: String,
         paint: Paint,
@@ -1000,7 +1057,10 @@ class OverlayRenderer @Inject constructor(
             } else {
                 var remaining = paragraph.trim()
                 while (remaining.isNotEmpty()) {
-                    val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                    val count = adjustBreakForLatinToken(
+                        remaining,
+                        paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                    )
                     wrapped.add(remaining.take(count))
                     remaining = remaining.drop(count).trimStart()
                 }
@@ -1028,7 +1088,10 @@ class OverlayRenderer @Inject constructor(
                 } else {
                     var remaining = word
                     while (remaining.isNotEmpty()) {
-                        val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                        val count = adjustBreakForLatinToken(
+                            remaining,
+                            paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+                        )
                         lines += remaining.take(count)
                         remaining = remaining.drop(count)
                     }
@@ -1051,7 +1114,8 @@ class OverlayRenderer @Inject constructor(
         maxLines: Int,
         preserveExplicitLineBreaks: Boolean,
         fallbackText: String,
-        wordWrap: Boolean = false
+        wordWrap: Boolean = false,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Pair<List<String>, Float> {
         val distinctCandidates = distinctDialogueCandidates(candidates)
         val evaluateSize = { textSize: Float ->
@@ -1062,7 +1126,8 @@ class OverlayRenderer @Inject constructor(
                 maxWidth = maxWidth,
                 maxHeight = maxHeight,
                 maxLines = maxLines,
-                wordWrap = wordWrap
+                wordWrap = wordWrap,
+                targetLanguage = targetLanguage
             )
         }
         val preferredFit = PreciseTextSizeSearch.largestFitting(
@@ -1092,7 +1157,8 @@ class OverlayRenderer @Inject constructor(
             paint = paint,
             lineHeight = lineHeight,
             maxHeight = maxHeight,
-            maxLines = maxLines
+            maxLines = maxLines,
+            targetLanguage = targetLanguage
         )
         FgoLogger.debug(tag, "Dialogue still over 2 lines at emergency size; ellipsizing as final fallback")
         val fallbackLines = if (preserveExplicitLineBreaks) {
@@ -1298,7 +1364,8 @@ class OverlayRenderer @Inject constructor(
         maxWidth: Float,
         maxHeight: Float,
         maxLines: Int,
-        wordWrap: Boolean = false
+        wordWrap: Boolean = false,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Pair<List<String>, Float>? {
         val distinctCandidates = distinctDialogueCandidates(candidates)
         paint.textSize = textSize
@@ -1306,7 +1373,7 @@ class OverlayRenderer @Inject constructor(
         distinctCandidates.forEach { candidate ->
             val lines = wrapText(candidate, paint, maxWidth, wordWrap)
             if (lines.size <= maxLines.coerceAtLeast(1) &&
-                textBlockHeight(paint, lineHeight, lines.size) <= maxHeight + 0.5f
+                textBlockHeight(paint, lineHeight, lines.size, targetLanguage) <= maxHeight + 0.5f
             ) {
                 return lines to lineHeight
             }
@@ -1321,23 +1388,20 @@ class OverlayRenderer @Inject constructor(
     private fun textBlockHeight(
         paint: Paint,
         lineHeight: Float,
-        lineCount: Int
-    ): Float {
-        if (lineCount <= 0) return 0f
-        val metrics = paint.fontMetrics
-        val glyphHeight = (metrics.descent - metrics.ascent).coerceAtLeast(0f)
-        return glyphHeight + (lineCount - 1) * lineHeight
-    }
+        lineCount: Int,
+        targetLanguage: String
+    ): Float = VisualTextMetrics.blockHeight(paint, lineHeight, lineCount, targetLanguage)
 
     private fun maximumFittingLineCount(
         paint: Paint,
         lineHeight: Float,
         maxHeight: Float,
-        maxLines: Int
+        maxLines: Int,
+        targetLanguage: String
     ): Int {
         val allowedLines = maxLines.coerceAtLeast(1)
         return (allowedLines downTo 1).firstOrNull { lineCount ->
-            textBlockHeight(paint, lineHeight, lineCount) <= maxHeight + 0.5f
+            textBlockHeight(paint, lineHeight, lineCount, targetLanguage) <= maxHeight + 0.5f
         } ?: 1
     }
 
@@ -1665,6 +1729,7 @@ class OverlayRenderer @Inject constructor(
         paint: Paint,
         translationLines: List<String>,
         originalLines: List<String>,
+        targetLanguage: String,
         x: Float,
         top: Float,
         translationTextSize: Float,
@@ -1684,7 +1749,12 @@ class OverlayRenderer @Inject constructor(
                     paint = paint,
                     lines = listOf(translationLines[index]),
                     x = x,
-                    firstBaseline = currentTop - paint.fontMetrics.ascent,
+                    firstBaseline = VisualTextMetrics.baselineForTop(
+                        paint = paint,
+                        top = currentTop,
+                        targetLanguage = targetLanguage,
+                        text = translationLines[index]
+                    ),
                     lineHeight = translationLineHeight,
                     textColor = translationColor
                 )
@@ -1697,7 +1767,12 @@ class OverlayRenderer @Inject constructor(
                     paint = paint,
                     lines = listOf(originalLines[index]),
                     x = x,
-                    firstBaseline = currentTop - paint.fontMetrics.ascent,
+                    firstBaseline = VisualTextMetrics.baselineForTop(
+                        paint = paint,
+                        top = currentTop,
+                        targetLanguage = targetLanguage,
+                        text = originalLines[index]
+                    ),
                     lineHeight = originalLineHeight,
                     textColor = ORIGINAL_TEXT_COLOR
                 )

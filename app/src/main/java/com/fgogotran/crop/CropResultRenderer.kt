@@ -9,6 +9,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
+import com.fgogotran.overlay.VisualTextMetrics
 import com.fgogotran.translation.FgoDialogueSymbols
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -62,9 +63,12 @@ class CropResultRenderer @Inject constructor(
 
         textPaint.textSize = fitted.textSize
         val totalTextHeight = fitted.lines.size * fitted.lineHeight
-        var baseline = padding +
-                ((maxHeight - totalTextHeight) / 2f).coerceAtLeast(0f) -
-                textPaint.fontMetrics.ascent
+        var baseline = VisualTextMetrics.baselineForTop(
+            paint = textPaint,
+            top = padding + ((maxHeight - totalTextHeight) / 2f).coerceAtLeast(0f),
+            targetLanguage = targetLocale,
+            text = fitted.lines.firstOrNull().orEmpty()
+        )
         fitted.lines.forEach { line ->
             drawTranslatedLine(canvas, line, padding, baseline, textColor)
             baseline += fitted.lineHeight
@@ -120,7 +124,12 @@ class CropResultRenderer @Inject constructor(
             val layout = row.layout
             if (layout.text.isNotBlank()) {
                 textPaint.textSize = layout.textSize
-                val baseline = rowBaseline(layout.textArea, layout.lineHeight)
+                val baseline = rowBaseline(
+                    textArea = layout.textArea,
+                    lineHeight = layout.lineHeight,
+                    text = layout.text,
+                    targetLanguage = targetLocale
+                )
                 canvas.save()
                 canvas.clipRect(row.clearBox)
                 drawTranslatedLine(canvas, layout.text, layout.textArea.left, baseline, textColor)
@@ -438,9 +447,19 @@ class CropResultRenderer @Inject constructor(
         )
     }
 
-    private fun rowBaseline(textArea: RectF, lineHeight: Float): Float {
+    private fun rowBaseline(
+        textArea: RectF,
+        lineHeight: Float,
+        text: String,
+        targetLanguage: String
+    ): Float {
         val extraHeight = (textArea.height() - lineHeight).coerceAtLeast(0f)
-        return textArea.top + extraHeight / 2f - textPaint.fontMetrics.ascent
+        return VisualTextMetrics.baselineForTop(
+            paint = textPaint,
+            top = textArea.top + extraHeight / 2f,
+            targetLanguage = targetLanguage,
+            text = text
+        )
     }
 
     private fun clippedLineBounds(sourceBounds: Rect, cropBounds: Rect): Rect? {

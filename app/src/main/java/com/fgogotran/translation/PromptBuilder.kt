@@ -159,8 +159,22 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v92-plain-layout"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v93-plain-layout"
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v7-plain-layout"
+        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v1-plain-layout"
+        const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v1-plain-layout"
+
+        /** Prompt/cache version for the requested target; English has its own block set. */
+        fun promptVersionFor(targetLanguage: String, battleSubtitle: Boolean): String {
+            val english = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+                SettingsRepository.TARGET_LANGUAGE_ENGLISH
+            return when {
+                english && battleSubtitle -> BATTLE_PROMPT_VERSION_EN
+                english -> PROMPT_VERSION_EN
+                battleSubtitle -> BATTLE_PROMPT_VERSION
+                else -> PROMPT_VERSION
+            }
+        }
         private const val MAX_RAG_TERMS = 5
         private const val MIN_TERM_MATCH_LENGTH = 2
         /** Rollback switch: false restores the old linear term scan. */
@@ -306,6 +320,7 @@ class PromptBuilder @Inject constructor() {
         private val RUBY_PROMPT = """
             - base〈ruby〉 -> Chinese base〈ruby〉; translate both naturally and never omit ruby.
             - English-style ruby may stay English; use 〈〉 only.
+            - If the translated ruby is identical to the translated base, output the base only (no 〈〉 marker).
             """.trimIndent()
 
         private val PAUSE_PROMPT = """
@@ -323,6 +338,90 @@ class PromptBuilder @Inject constructor() {
 
         private val AMBIGUOUS_ROMAN_PROMPT = """
             - ロマン is a character/name only when clearly a person; otherwise translate it as 浪漫.
+            """.trimIndent()
+
+        // ─── English (FGO NA) prompt set ────────────────────────────────────────────
+        private val BASE_TRANSLATION_PROMPT_EN = """
+            You are an expert Japanese-to-English localizer for Fate/Grand Order (NA).
+            Translate the current Japanese faithfully into concise, natural English for an in-game overlay.
+            Match the official FGO NA tone: natural spoken English, literary where the scene calls for it; preserve meaning, viewpoint, character voice and register, relationships, intentional ambiguity, and ellipsis. Use only English.
+            Convert 「」 to "..." and 『』 to "..." (nested quotes use '...'); never output Japanese brackets.
+            """.trimIndent()
+
+        private val BATTLE_SUBTITLE_BASE_PROMPT_EN = """
+            You are an expert Japanese-to-English localizer for Fate/Grand Order battle subtitles.
+            Translate all visible text in the current OCR capture, in order, as one concise, natural English caption; OCR newlines are visual wrapping.
+            Match FGO NA battle style: short and punchy, fragments stay fragments, keep expressive punctuation (!?, !!, ...), and never add text that is not visible.
+            Convert 「」 and 『』 to "..." (nested quotes use '...'); never output Japanese brackets.
+            """.trimIndent()
+
+        private val CROP_BASE_PROMPT_EN = """
+            Translate visible Fate/Grand Order Japanese OCR faithfully into natural English; be concise without losing information.
+            Use only English; do not infer text outside the crop.
+            """.trimIndent()
+
+        private val PLAIN_OUTPUT_PROMPT_EN = """
+            Return only the English translation, without notes, labels, wrappers, or source text.
+            """.trimIndent()
+
+        private val BATTLE_PLAIN_OUTPUT_PROMPT_EN = """
+            Return only the English translation; no explanations, labels, or code fences.
+            """.trimIndent()
+
+        private val PRONOUN_FIDELITY_PROMPT_EN = """
+            - English requires an explicit subject. Supply the subject English grammar needs, preferring natural "you", "I", "they", or "it", and restructure (imperative, passive, "It's...") when that reads better. Never invent a person, speaker, or relationship the Japanese does not support.
+            """.trimIndent()
+
+        private val PARTICIPANT_DIRECTION_PROMPT_EN = """
+            - For benefactives, causatives, and 〜(ら)れる, determine the grammatical function from Japanese syntax and context. Preserve action direction and possession even when restructuring English; do not automatically translate every 〜(ら)れる as passive.
+            """.trimIndent()
+
+        private val LINE_BREAK_PROMPT_EN = """
+            - Keep each source sentence's meaning in its corresponding English sentence; preserve line breaks only when meaningful.
+            """.trimIndent()
+
+        private val MASTER_PROMPT_EN = """
+            - In FGO dialogue, マスター->Master (capitalized, matching FGO NA). Use lowercase "master" only for generic 主人/使い手 meanings; never use the Chinese form 御主.
+            """.trimIndent()
+
+        private val CROP_STYLE_PROMPT_EN = """
+            - Preserve OCR row order and every visible fragment; never merge, split, add, omit, or complete text.
+            - Preserve numbers, percentages, levels, ranks, counts, and text-like icons.
+            - Dialogue: preserve voice. Other text: concise game-UI style (Title Case for UI labels, sentence case for dialogue). Never add names or labels.
+            """.trimIndent()
+
+        private val CHOICE_PROMPT_EN = """
+            - Choices are Master/player replies, not narration or objective description; keep the elliptical English style ("Yes.", "Understood.") and add "I" only when English grammar requires a subject and the choice is clearly the player's own act.
+            - Preserve the original sentence type; do not expand partial or attitude choices into full explanations.
+            """.trimIndent()
+
+        private val NAME_PROMPT_EN = """
+            - Unknown names/proper nouns -> FGO NA-style romanization; never leave Japanese kana and never substitute another character.
+            - Use the official NA spelling when known; keep Japanese name order for Japanese figures (Okita Souji) and Western order for Western figures (Mash Kyrielight). Keep titles (Dr., Miss, Lord) and name-box states (Alter).
+            - Name-box: preserve every visible title, suffix, annotation/state, ?, A/B, bracket, and ruby.
+            """.trimIndent()
+
+        private val RUBY_PROMPT_EN = """
+            - base〈ruby〉 -> English base〈English ruby〉; translate both naturally and never omit ruby.
+            - If the translated ruby is identical to the translated base, output the base only (no 〈〉 marker).
+            - Never output 〈〉 for anything except ruby.
+            """.trimIndent()
+
+        private val PAUSE_PROMPT_EN = """
+            - Hesitant or trailing dots -> "..." (ASCII); never output "……" or "…". Long dashes -> a single em dash "—". Keep "!?", "?!", "!!" and other expressive punctuation.
+            """.trimIndent()
+
+        private val ADDRESS_PRONOUN_PROMPT_EN = """
+            - Translate Japanese second-person address as "you" (or an English insult such as "you fool" when the JP is hostile); never keep Japanese forms or replace them with a name.
+            """.trimIndent()
+
+        private val KATAKANA_STYLE_PROMPT_EN = """
+            - Katakana names and terms -> the official FGO NA spelling when known (use the provided glossary verbatim), otherwise standard romanization.
+            - Never leave kana in the translation.
+            """.trimIndent()
+
+        private val AMBIGUOUS_ROMAN_PROMPT_EN = """
+            - ロマン is the character only when it clearly refers to a person ("Roman", Dr. Roman); otherwise translate the ordinary noun as "romance".
             """.trimIndent()
 
     }
@@ -452,12 +551,15 @@ class PromptBuilder @Inject constructor() {
         val rules = StringBuilder()
         val blockNames = mutableListOf<String>()
         val targetChinese = targetLanguagePromptLabel(context.targetLanguage)
+        val isEnglish = SettingsRepository.normalizeTargetLanguage(context.targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
         val isBattleSubtitle =
             context.promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
         val basePrompt = when {
-            context.isCropMode -> CROP_BASE_PROMPT
-            isBattleSubtitle -> BATTLE_SUBTITLE_BASE_PROMPT
-            else -> BASE_TRANSLATION_PROMPT
+            context.isCropMode -> if (isEnglish) CROP_BASE_PROMPT_EN else CROP_BASE_PROMPT
+            isBattleSubtitle ->
+                if (isEnglish) BATTLE_SUBTITLE_BASE_PROMPT_EN else BATTLE_SUBTITLE_BASE_PROMPT
+            else -> if (isEnglish) BASE_TRANSLATION_PROMPT_EN else BASE_TRANSLATION_PROMPT
         }
         val baseBlockName = when {
             context.isCropMode -> "crop_base"
@@ -471,7 +573,7 @@ class PromptBuilder @Inject constructor() {
                 rules,
                 blockNames,
                 "pronoun_fidelity",
-                buildPronounFidelityPrompt()
+                if (isEnglish) PRONOUN_FIDELITY_PROMPT_EN else buildPronounFidelityPrompt()
             )
         }
         if (context.hasPlaceholders) {
@@ -489,9 +591,17 @@ class PromptBuilder @Inject constructor() {
             )
         }
         if (context.isCropMode) {
-            appendPromptBlock(rules, blockNames, "crop_style", CROP_STYLE_PROMPT)
+            appendPromptBlock(
+                rules,
+                blockNames,
+                "crop_style",
+                if (isEnglish) CROP_STYLE_PROMPT_EN else CROP_STYLE_PROMPT
+            )
             if (context.hasMasterWord) {
-                appendPromptBlock(rules, blockNames, "master", buildMasterPrompt(context.playerGender))
+                appendPromptBlock(
+                    rules, blockNames, "master",
+                    buildMasterPrompt(context.playerGender, isEnglish)
+                )
             }
         } else {
             if (context.isDialogue && !isBattleSubtitle) {
@@ -513,10 +623,16 @@ class PromptBuilder @Inject constructor() {
                 }
             }
             if (!isBattleSubtitle && context.hasLineBreaks) {
-                appendPromptBlock(rules, blockNames, "line_break", LINE_BREAK_PROMPT)
+                appendPromptBlock(
+                    rules, blockNames, "line_break",
+                    if (isEnglish) LINE_BREAK_PROMPT_EN else LINE_BREAK_PROMPT
+                )
             }
             if (context.hasMasterWord) {
-                appendPromptBlock(rules, blockNames, "master", buildMasterPrompt(context.playerGender))
+                appendPromptBlock(
+                    rules, blockNames, "master",
+                    buildMasterPrompt(context.playerGender, isEnglish)
+                )
             }
             if (context.currentSpeakerGender.isNotBlank()) {
                 appendPromptBlock(
@@ -544,9 +660,12 @@ class PromptBuilder @Inject constructor() {
         sb.appendPromptSectionText(rules.toString())
         val useBattlePlainOutput =
             isBattleSubtitle && context.outputFormat == PromptOutputFormat.PLAIN_TEXT
-        sb.appendPromptSectionText(
-            if (useBattlePlainOutput) BATTLE_PLAIN_OUTPUT_PROMPT else outputPromptBlock(context.outputFormat)
-        )
+        val outputPrompt = when {
+            useBattlePlainOutput && isEnglish -> BATTLE_PLAIN_OUTPUT_PROMPT_EN
+            useBattlePlainOutput -> BATTLE_PLAIN_OUTPUT_PROMPT
+            else -> outputPromptBlock(context.outputFormat, isEnglish)
+        }
+        sb.appendPromptSectionText(outputPrompt)
         blockNames += if (useBattlePlainOutput) {
             "battle_plain_output"
         } else {
@@ -570,9 +689,10 @@ class PromptBuilder @Inject constructor() {
         }
     }
 
-    private fun outputPromptBlock(outputFormat: PromptOutputFormat): String {
+    private fun outputPromptBlock(outputFormat: PromptOutputFormat, english: Boolean): String {
         return when (outputFormat) {
-            PromptOutputFormat.PLAIN_TEXT -> PLAIN_OUTPUT_PROMPT
+            PromptOutputFormat.PLAIN_TEXT ->
+                if (english) PLAIN_OUTPUT_PROMPT_EN else PLAIN_OUTPUT_PROMPT
             PromptOutputFormat.JSON_ARRAY -> JSON_ARRAY_OUTPUT_PROMPT
             PromptOutputFormat.JSON_OBJECT -> JSON_OBJECT_OUTPUT_PROMPT
         }
@@ -605,12 +725,21 @@ class PromptBuilder @Inject constructor() {
     private fun featurePromptBlocks(context: PromptContext): List<Pair<String, String>> {
         val isBattleSubtitle =
             context.promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
+        val english = SettingsRepository.normalizeTargetLanguage(context.targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
         return buildList {
             if (!context.isCropMode && context.hasBenefactivePassiveCausative) {
-                add("participant_direction" to PARTICIPANT_DIRECTION_PROMPT)
+                add(
+                    "participant_direction" to
+                        if (english) PARTICIPANT_DIRECTION_PROMPT_EN else PARTICIPANT_DIRECTION_PROMPT
+                )
             }
-            if (!isBattleSubtitle && context.hasChoices) add("choices" to CHOICE_PROMPT)
-            if (!isBattleSubtitle && context.hasName) add("name" to NAME_PROMPT)
+            if (!isBattleSubtitle && context.hasChoices) {
+                add("choices" to if (english) CHOICE_PROMPT_EN else CHOICE_PROMPT)
+            }
+            if (!isBattleSubtitle && context.hasName) {
+                add("name" to if (english) NAME_PROMPT_EN else NAME_PROMPT)
+            }
             if (context.namePluralUsage.isPresent) {
                 add(
                     "name_plural" to buildNamePluralPrompt(
@@ -619,8 +748,12 @@ class PromptBuilder @Inject constructor() {
                     )
                 )
             }
-            if (!isBattleSubtitle && context.hasRuby) add("ruby" to RUBY_PROMPT)
-            if (!isBattleSubtitle && context.hasPauseMarks) add("pause" to PAUSE_PROMPT)
+            if (!isBattleSubtitle && context.hasRuby) {
+                add("ruby" to if (english) RUBY_PROMPT_EN else RUBY_PROMPT)
+            }
+            if (!isBattleSubtitle && context.hasPauseMarks) {
+                add("pause" to if (english) PAUSE_PROMPT_EN else PAUSE_PROMPT)
+            }
             if (context.honorificMatches.isNotEmpty()) {
                 add(
                     "honorific" to buildHonorificPrompt(
@@ -629,23 +762,39 @@ class PromptBuilder @Inject constructor() {
                     )
                 )
             }
-            if (context.hasAddressPronouns) add("address_pronoun" to ADDRESS_PRONOUN_PROMPT)
-            if (context.specialSecondPersonMappings.isNotEmpty()) {
+            if (context.hasAddressPronouns) {
+                add(
+                    "address_pronoun" to
+                        if (english) ADDRESS_PRONOUN_PROMPT_EN else ADDRESS_PRONOUN_PROMPT
+                )
+            }
+            // English uses one I/you set, so the Chinese pronoun mapping tables are skipped.
+            if (!english && context.specialSecondPersonMappings.isNotEmpty()) {
                 add(
                     "special_second_person" to buildSpecialSecondPersonPrompt(
                         context.specialSecondPersonMappings
                     )
                 )
             }
-            if (!isBattleSubtitle && context.hasKatakana) add("katakana_style" to KATAKANA_STYLE_PROMPT)
-            if (context.specialFirstPersonMappings.isNotEmpty()) {
+            if (!isBattleSubtitle && context.hasKatakana) {
+                add(
+                    "katakana_style" to
+                        if (english) KATAKANA_STYLE_PROMPT_EN else KATAKANA_STYLE_PROMPT
+                )
+            }
+            if (!english && context.specialFirstPersonMappings.isNotEmpty()) {
                 add(
                     "special_first_person" to buildSpecialFirstPersonPrompt(
                         context.specialFirstPersonMappings
                     )
                 )
             }
-            if (context.hasAmbiguousRoman) add("ambiguous_roman" to AMBIGUOUS_ROMAN_PROMPT)
+            if (context.hasAmbiguousRoman) {
+                add(
+                    "ambiguous_roman" to
+                        if (english) AMBIGUOUS_ROMAN_PROMPT_EN else AMBIGUOUS_ROMAN_PROMPT
+                )
+            }
         }
     }
 
@@ -819,10 +968,10 @@ class PromptBuilder @Inject constructor() {
         }
     }
 
-    private fun buildMasterPrompt(playerGender: String): String {
+    private fun buildMasterPrompt(playerGender: String, english: Boolean = false): String {
         val gender = playerGenderPromptLabel(playerGender)
         return buildString {
-            append(MASTER_PROMPT)
+            append(if (english) MASTER_PROMPT_EN else MASTER_PROMPT)
             if (gender.isNotBlank()) {
                 append("\n- The configured Master is $gender. Use this only for explicit references to the Master; never infer omitted pronouns or participants.")
             }
@@ -845,10 +994,20 @@ class PromptBuilder @Inject constructor() {
         usage: NamePluralPromptUsage,
         targetLanguage: String
     ): String {
-        val plural = if (
-            SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
-            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
-        ) {
+        val normalizedTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage)
+        if (normalizedTarget == SettingsRepository.TARGET_LANGUAGE_ENGLISH) {
+            return when {
+                usage.inNameField && usage.inOtherText ->
+                    "- Name-group suffix: in the name field, Xズ->the Xs. Elsewhere, use \"the Xs\" only " +
+                        "when Xズ clearly denotes a character/name group; otherwise ズ is part of the word."
+                usage.inNameField -> "- Name-group suffix in the name field: Xズ->the Xs."
+                usage.inOtherText ->
+                    "- If Xズ clearly denotes a character/name group, use \"the Xs\"; otherwise treat ズ as " +
+                        "part of the ordinary word."
+                else -> ""
+            }
+        }
+        val plural = if (normalizedTarget == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL) {
             "們"
         } else {
             "们"
@@ -869,8 +1028,36 @@ class PromptBuilder @Inject constructor() {
         matches: List<HonorificPromptMatch>,
         targetLanguage: String
     ): String {
-        val traditional = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
-            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
+        val normalizedTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage)
+        val traditional = normalizedTarget == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
+        if (normalizedTarget == SettingsRepository.TARGET_LANGUAGE_ENGLISH) {
+            val englishMappings = matches.joinToString("; ") { match ->
+                when (match.rule) {
+                    HonorificPromptRule.SAN -> "XXさん->XX-san"
+                    HonorificPromptRule.KUN -> "XXくん->XX-kun"
+                    HonorificPromptRule.CHAN -> "XXちゃん->XX-chan"
+                    HonorificPromptRule.SAMA ->
+                        "XX様->Lord/Lady/Sir/Madam by context (王様->the King, 神様->God, " +
+                            "お嬢様->milady, 皆様->everyone, 陛下->Your Majesty)"
+                    HonorificPromptRule.TONO -> "XX殿->Lord XX"
+                    HonorificPromptRule.SHI -> "XX氏->Mr. XX"
+                    HonorificPromptRule.TAN -> "XXたん->XX-tan"
+                    HonorificPromptRule.TYA -> "XXてゃ->XX-tya"
+                    HonorificPromptRule.CCHI -> "XXっち->little XX"
+                }
+            }
+            val englishExceptions = matches.flatMap { it.presentExceptions }.distinct()
+            return buildString {
+                append("- Names only: ")
+                append(englishMappings)
+                append('.')
+                if (englishExceptions.isNotEmpty()) {
+                    append(" Current-source exceptions (ordinary/kinship/title, not name suffixes): ")
+                    append(englishExceptions.joinToString(", "))
+                    append('.')
+                }
+            }
+        }
         val mappings = matches.joinToString("; ") { match ->
             when (match.rule) {
                 HonorificPromptRule.SAN -> "XXさん->XX桑"

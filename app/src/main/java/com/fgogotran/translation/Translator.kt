@@ -944,8 +944,11 @@ class Translator @Inject constructor(
 
         translationMemory.lookupNormalized(normalizedText)?.let {
             FgoLogger.info(tag, "Official CN memory HIT")
-            return TranslateResult(sanitizeTranslation(normalizedText, it), "official-cn", true)
-                .forTargetLocale(config, punctuationSourceText)
+            return TranslateResult(
+                sanitizeCacheTranslation(normalizedText, it, config.targetLanguage),
+                "official-cn",
+                true
+            ).forTargetLocale(config, punctuationSourceText)
         }
 
         findCharacterNameTranslation(
@@ -963,8 +966,11 @@ class Translator @Inject constructor(
         if (!TextNormalizer.hasRubyAnnotations(normalizedText)) {
             findTermTranslation(normalizedText, targetLanguage = config.targetLanguage)?.let {
                 FgoLogger.info(tag, "Glossary exact HIT")
-                return TranslateResult(sanitizeTranslation(normalizedText, it), "glossary", true)
-                    .forTargetLocale(config, punctuationSourceText)
+                return TranslateResult(
+                    sanitizeCacheTranslation(normalizedText, it, config.targetLanguage),
+                    "glossary",
+                    true
+                ).forTargetLocale(config, punctuationSourceText)
             }
         }
 
@@ -1006,7 +1012,8 @@ class Translator @Inject constructor(
             .orEmpty()
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val promptPolicyKey = when {
-            isBattleSubtitle -> PromptBuilder.BATTLE_PROMPT_VERSION
+            isBattleSubtitle ->
+                PromptBuilder.promptVersionFor(config.targetLanguage, battleSubtitle = true)
             cropMode -> "crop-screen-v2"
             translateAsName -> "name-only-v1"
             preserveRubyMeaning -> "ruby-angle-v4"
@@ -1431,7 +1438,11 @@ class Translator @Inject constructor(
             val officialMemory = translationMemory.lookupNormalized(normalizedText)
             if (officialMemory != null) {
                 FgoLogger.info(tag, "Batch official CN memory HIT[$index]")
-                results[index] = TranslateResult(sanitizeTranslation(normalizedText, officialMemory), "official-cn", true)
+                results[index] = TranslateResult(
+                    sanitizeCacheTranslation(normalizedText, officialMemory, config.targetLanguage),
+                    "official-cn",
+                    true
+                )
                 continue
             }
 
@@ -1452,7 +1463,11 @@ class Translator @Inject constructor(
             )
             if (termTranslation != null) {
                 FgoLogger.info(tag, "Batch term exact HIT[$index]")
-                results[index] = TranslateResult(sanitizeTranslation(normalizedText, termTranslation), "glossary", true)
+                results[index] = TranslateResult(
+                    sanitizeCacheTranslation(normalizedText, termTranslation, config.targetLanguage),
+                    "glossary",
+                    true
+                )
                 continue
             }
 
@@ -1796,12 +1811,20 @@ class Translator @Inject constructor(
             }
             translationMemory.lookupNormalized(normalized)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT dialogue")
-                dialogueResult = TranslateResult(sanitizeTranslation(normalized, it), "official-cn", true)
+                dialogueResult = TranslateResult(
+                    sanitizeCacheTranslation(normalized, it, config.targetLanguage),
+                    "official-cn",
+                    true
+                )
             }
             if (dialogueResult == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
                 findTermTranslation(normalized, targetLanguage = config.targetLanguage)?.let {
                     FgoLogger.info(tag, "Term exact HIT dialogue")
-                    dialogueResult = TranslateResult(sanitizeTranslation(normalized, it), "glossary", true)
+                    dialogueResult = TranslateResult(
+                        sanitizeCacheTranslation(normalized, it, config.targetLanguage),
+                        "glossary",
+                        true
+                    )
                 }
             }
         }
@@ -1818,12 +1841,20 @@ class Translator @Inject constructor(
             }
             translationMemory.lookupNormalized(normalized)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT choice[$index]")
-                choiceResults[index] = TranslateResult(sanitizeTranslation(normalized, it), "official-cn", true)
+                choiceResults[index] = TranslateResult(
+                    sanitizeCacheTranslation(normalized, it, config.targetLanguage),
+                    "official-cn",
+                    true
+                )
             }
             if (choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
                 findTermTranslation(normalized, targetLanguage = config.targetLanguage)?.let {
                     FgoLogger.info(tag, "Term exact HIT choice[$index]")
-                    choiceResults[index] = TranslateResult(sanitizeTranslation(normalized, it), "glossary", true)
+                    choiceResults[index] = TranslateResult(
+                        sanitizeCacheTranslation(normalized, it, config.targetLanguage),
+                        "glossary",
+                        true
+                    )
                 }
             }
             if (choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
@@ -2474,7 +2505,7 @@ class Translator @Inject constructor(
                 } else {
                     dialogueResult = modelTranslateResult(maskedSafeDialogue, backend, false, config)
                     if (cacheEnabled) {
-                        cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue, maskedSafeDialogue, backend, playerName, targetLanguage = config.targetLanguage)
+                        cacheTranslatedText(dialogueHash!!, input.dialogue.orEmpty(), normalizedDialogue, maskedSafeDialogue, backend, playerName, promptVersion = translationPromptVersion(config), targetLanguage = config.targetLanguage)
                     }
                 }
             }
@@ -2525,7 +2556,7 @@ class Translator @Inject constructor(
             }
             choiceResults[originalIndex] = modelTranslateResult(maskedSafeChoice, backend, false, config)
             if (cacheEnabled) {
-                cacheTranslatedText(hash, input.choices[originalIndex], normalizedChoice, maskedSafeChoice, backend, playerName, targetLanguage = config.targetLanguage)
+                cacheTranslatedText(hash, input.choices[originalIndex], normalizedChoice, maskedSafeChoice, backend, playerName, promptVersion = translationPromptVersion(config), targetLanguage = config.targetLanguage)
             }
         }
 
@@ -4599,7 +4630,8 @@ class Translator @Inject constructor(
         return returnedRubyAnglePattern.replace(text) { match ->
             val base = match.groupValues[1]
             val reading = match.groupValues[2].trim()
-            if (reading.isBlank()) base else match.value
+            // A ruby that repeats the base carries no extra information (e.g. 異聞帶〈異聞帶〉).
+            if (reading.isBlank() || reading == base.trim()) base else match.value
         }
     }
 
@@ -6627,7 +6659,10 @@ class Translator @Inject constructor(
         return if (usesSakuraPrompt(config)) {
             SakuraPromptBuilder.PROMPT_VERSION
         } else {
-            PromptBuilder.PROMPT_VERSION
+            PromptBuilder.promptVersionFor(
+                targetLanguage = promptTargetLanguage(config),
+                battleSubtitle = false
+            )
         }
     }
 
