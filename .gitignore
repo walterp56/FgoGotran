@@ -98,3 +98,4 @@ local-ai-studio/
 app/src/test/
 .video_inspect/
 .font_inspect/
+tmp/
