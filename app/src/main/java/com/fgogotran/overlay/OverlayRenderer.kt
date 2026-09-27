@@ -76,18 +76,9 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
         private const val DIALOGUE_MAX_LINES = 2
         private const val DIALOGUE_TEXT_LEFT_INSET = DialogueReferenceGeometry.TEXT_LEFT_INSET
-        private const val DIALOGUE_TEXT_TOP_INSET = 48f
-        private const val DIALOGUE_TEXT_TOP_NUDGE_PX = 10f
         private const val DIALOGUE_TEXT_RIGHT_INSET = DialogueReferenceGeometry.TEXT_RIGHT_INSET
-        private const val DIALOGUE_TEXT_BOTTOM_INSET = 12f
         private const val BILINGUAL_DIALOGUE_TEXT_TOP_INSET = 24f
         private const val BILINGUAL_DIALOGUE_TEXT_BOTTOM_INSET = 0f
-        private const val DYNAMIC_DIALOGUE_HORIZONTAL_PADDING = 34f
-        private const val DYNAMIC_DIALOGUE_LEFT_PADDING = 30f
-        private const val DYNAMIC_DIALOGUE_VERTICAL_PADDING = 18f
-        private const val DYNAMIC_DIALOGUE_TEXT_HORIZONTAL_INSET = 24f
-        private const val DYNAMIC_DIALOGUE_TEXT_LEFT_INSET = 14f
-        private const val DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET = 4f
         private const val SOURCE_BOUNDS_RUBY_MAX_CHARS = 14
         private const val SOURCE_BOUNDS_RUBY_HEIGHT_RATIO = 0.72f
         const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.57f
@@ -105,10 +96,6 @@ class OverlayRenderer @Inject constructor(
         private const val DIALOGUE_MIN_TEXT_SIZE = 28f
         private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
         private const val DIALOGUE_TEXT_SIZE_SEARCH_PRECISION = 0.25f
-        private const val NAME_TEXT_SIZE = 56f
-        /** FGO NA name plate text is larger than the JP/CJK one (measured 33 px vs 29 px ink). */
-        private const val NAME_TEXT_SIZE_EN = 64f
-        private const val NAME_TEXT_MIN_SIZE = 31f
         /** FGO NA row pitch is ~88 px at 1080p (61 px x 1.44); the CJK build uses 53 px x 1.57 = 83 px. */
         private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER_EN = 1.44f
         private const val NAME_TEXT_LEFT_INSET = 52f
@@ -445,7 +432,11 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): DialogueTextLayout {
         val panelBox = RectF(instruction.region.boundingBox)
-        val textArea = fixedDialogueTextArea(panelBox, scale)
+        val textArea = DialogueRenderGeometry.textArea(
+            panel = panelBox.toDialogueRect(),
+            scale = scale,
+            englishTarget = instruction.isEnglishTarget()
+        ).toRectF()
         val preferredTextSize = dialogueTextSize(instruction) * scale
         paint.textSize = preferredTextSize
         val candidates = instruction.dialogueRenderCandidates(
@@ -506,36 +497,23 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): RectF {
         val originalBounds = originalTextBounds(instruction)?.let(::RectF)
-        val clearInsetX = DYNAMIC_DIALOGUE_TEXT_HORIZONTAL_INSET * scale
-        val clearLeftInsetX = DYNAMIC_DIALOGUE_TEXT_LEFT_INSET * scale
-        val clearInsetY = DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET * scale
-        val sourcePaddingX = DYNAMIC_DIALOGUE_HORIZONTAL_PADDING * scale
-        val sourcePaddingY = DYNAMIC_DIALOGUE_VERTICAL_PADDING * scale
-
         val textWidth = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
-        val textBottom = textArea.top + VisualTextMetrics.blockHeight(
+        val textBlockHeight = VisualTextMetrics.blockHeight(
             paint = paint,
             lineHeight = lineHeight,
             lineCount = lines.size.coerceAtLeast(1),
             targetLanguage = instruction.targetLocale
         )
-        val anchorLeft = textArea.left - clearLeftInsetX
-        val anchorTop = textArea.top - clearInsetY - 12f * scale
-        val sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: anchorLeft
-        val sourceBottom = originalBounds?.bottom?.plus(sourcePaddingY) ?: anchorTop
-        val clearRightForRiskyTail = if (instruction.hasRiskyTrailingDialogueText()) {
-            textArea.right
-        } else {
-            anchorLeft
-        }
-
-        return boundedRect(
-            left = anchorLeft,
-            top = anchorTop,
-            right = maxOf(sourceRight, textArea.left + textWidth + clearInsetX, clearRightForRiskyTail),
-            bottom = maxOf(sourceBottom, textBottom + clearInsetY),
-            bounds = panelBox
-        )
+        return DialogueRenderGeometry.clearBox(
+            panel = panelBox.toDialogueRect(),
+            textArea = textArea.toDialogueRect(),
+            originalBounds = originalBounds?.toDialogueRect(),
+            textWidth = textWidth,
+            textBlockHeight = textBlockHeight,
+            hasRiskyTrailingText = instruction.hasRiskyTrailingDialogueText(),
+            scale = scale,
+            englishTarget = instruction.isEnglishTarget()
+        ).toRectF()
     }
 
     private fun bilingualDialogueClearBoxForLayout(
@@ -553,12 +531,12 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): RectF {
         val originalBounds = originalTextBounds(instruction)?.let(::RectF)
-        val clearInsetX = DYNAMIC_DIALOGUE_TEXT_HORIZONTAL_INSET * scale
-        val clearLeftInsetX = DYNAMIC_DIALOGUE_TEXT_LEFT_INSET * scale
-        val clearInsetY = DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET * scale
-        val sourcePaddingX = DYNAMIC_DIALOGUE_HORIZONTAL_PADDING * scale
-        val sourceLeftPaddingX = DYNAMIC_DIALOGUE_LEFT_PADDING * scale
-        val sourcePaddingY = DYNAMIC_DIALOGUE_VERTICAL_PADDING * scale
+        val clearInsetX = DialogueRenderGeometry.DYNAMIC_DIALOGUE_TEXT_HORIZONTAL_INSET * scale
+        val clearLeftInsetX = DialogueRenderGeometry.DYNAMIC_DIALOGUE_TEXT_LEFT_INSET * scale
+        val clearInsetY = DialogueRenderGeometry.DYNAMIC_DIALOGUE_TEXT_VERTICAL_INSET * scale
+        val sourcePaddingX = DialogueRenderGeometry.DYNAMIC_DIALOGUE_HORIZONTAL_PADDING * scale
+        val sourceLeftPaddingX = DialogueRenderGeometry.DYNAMIC_DIALOGUE_LEFT_PADDING * scale
+        val sourcePaddingY = DialogueRenderGeometry.DYNAMIC_DIALOGUE_VERTICAL_PADDING * scale
         val translationWidth = measureMaxLineWidth(paint, translationTextSize, translationLines)
         val originalWidth = measureMaxLineWidth(paint, originalTextSize, originalLines)
         val textBottom = textArea.top + bilingualLinePairsHeight(
@@ -598,6 +576,12 @@ class OverlayRenderer @Inject constructor(
         return width
     }
 
+    private fun RectF.toDialogueRect(): DialogueRect =
+        DialogueRect(left, top, right, bottom)
+
+    private fun DialogueRect.toRectF(): RectF =
+        RectF(left, top, right, bottom)
+
     private fun boundedRect(
         left: Float,
         top: Float,
@@ -614,15 +598,6 @@ class OverlayRenderer @Inject constructor(
             safeTop,
             safeRight,
             safeBottom
-        )
-    }
-
-    private fun fixedDialogueTextArea(panelBox: RectF, scale: Float): RectF {
-        return RectF(
-            panelBox.left + DIALOGUE_TEXT_LEFT_INSET * scale,
-            panelBox.top + DIALOGUE_TEXT_TOP_INSET * scale - DIALOGUE_TEXT_TOP_NUDGE_PX,
-            panelBox.right - DIALOGUE_TEXT_RIGHT_INSET * scale,
-            panelBox.bottom - DIALOGUE_TEXT_BOTTOM_INSET * scale
         )
     }
 
@@ -647,20 +622,16 @@ class OverlayRenderer @Inject constructor(
         val scale = screenScale(canvas)
         val name = instruction.translatedText.trim()
 
-        val nameTextSize = if (instruction.isEnglishTarget()) {
-            NAME_TEXT_SIZE_EN
-        } else {
-            NAME_TEXT_SIZE
-        }
+        val nameTextSize = NameRenderGeometry.textSize(instruction.targetLocale)
         paint.apply {
             color = instruction.textColor ?: FGO_TEXT_COLOR
             textSize = nameTextSize * scale
         }
 
         // The cyan border bounds OCR, but the original glyphs alone determine the painted width.
-        // A loose OCR box or a long translation must never enlarge the cover into the scene.
-        // If glyph measurement fails, keep the fixed left edge and use the raw OCR bounds for the
-        // right edge; the translated text is still fitted inside that measured name box.
+        // The name keeps a fixed text size, so the plate stays on the detected blue-plate width
+        // when that is wide enough, and expands to the right only when the name needs more room.
+        // If glyph measurement fails, keep the fixed left edge and use the raw OCR bounds.
         val originalNameBounds = instruction.region.sourceNameTextBounds
             ?: originalTextBounds(instruction)
             ?: return
@@ -672,10 +643,17 @@ class OverlayRenderer @Inject constructor(
         }
         val detectedPlate = instruction.region.sourcePlateBounds ?: return
         val textLeft = box.left + NAME_TEXT_LEFT_INSET * scale
-        val plateRight = minOf(
+        val basePlateRight = minOf(
             originalNameBounds.right + NAME_SOURCE_COVER_PAD * scale,
             detectedPlate.right.toFloat(),
             canvas.width.toFloat()
+        )
+        val plateRight = NameRenderGeometry.plateRight(
+            basePlateRight = basePlateRight,
+            textLeft = textLeft,
+            textWidth = paint.measureText(name),
+            rightInset = NAME_TEXT_RIGHT_INSET * scale,
+            maxRight = canvas.width.toFloat()
         )
         // The left edge is fixed to the render band plus the arrow inset, exactly like the previous
         // release: the plate must not start further left, and detected/undetected frames must not
@@ -696,16 +674,9 @@ class OverlayRenderer @Inject constructor(
             (plateRight - NAME_TEXT_RIGHT_INSET * scale).coerceAtLeast(textLeft),
             box.bottom - NAME_TEXT_BOTTOM_INSET * scale
         )
-        val fittedName = fitSingleLine(
-            text = instruction.translatedText.trim(),
-            paint = paint,
-            initialTextSize = nameTextSize * scale,
-            minimumTextSize = NAME_TEXT_MIN_SIZE * scale,
-            maxWidth = textArea.width()
-        )
         val nameBaseline = VisualTextMetrics.baselineForName(
             paint = paint,
-            text = fittedName,
+            text = name,
             area = textArea,
             legacyOffset = NAME_TEXT_BASELINE_OFFSET * scale,
             targetLanguage = instruction.targetLocale
@@ -715,7 +686,7 @@ class OverlayRenderer @Inject constructor(
             "Name plate: name=$name, box=$box, sourceName=$originalNameBounds, " +
                 "cyan=${detectedPlate.flattenToString()}, " +
                 "plate=${plateLeft.toInt()}..${plateRight.toInt()}, " +
-                "textWidth=${paint.measureText(fittedName).toInt()}, " +
+                "textWidth=${paint.measureText(name).toInt()}, " +
                 "textSize=${paint.textSize.toInt()}, baseline=${nameBaseline.toInt()}"
         )
 
@@ -724,7 +695,7 @@ class OverlayRenderer @Inject constructor(
         drawLines(
             canvas = canvas,
             paint = paint,
-            lines = listOf(fittedName),
+            lines = listOf(name),
             x = textArea.left,
             firstBaseline = nameBaseline,
             lineHeight = paint.textSize,

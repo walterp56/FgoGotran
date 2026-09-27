@@ -915,7 +915,8 @@ class Translator @Inject constructor(
         maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS,
         restoreSourcePunctuation: Boolean = true,
         promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL,
-        translateAsName: Boolean = false
+        translateAsName: Boolean = false,
+        nameHints: List<NameTranslationHint> = emptyList()
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -1051,6 +1052,14 @@ class Translator @Inject constructor(
             FgoLogger.warn(tag, "RAG term lookup failed, continuing without glossary", e)
             emptyList()
         }
+        val nameHintFingerprint = if (nameHints.isEmpty()) {
+            ""
+        } else {
+            nameHints.sortedBy { it.source }
+                .joinToString(prefix = "|name-hints=", separator = ";") { hint ->
+                    "${hint.source}=${hint.target}"
+                }
+        }
         val cacheKeyInfo = cacheKey(
             normalizedText,
             normalizedChoices,
@@ -1060,7 +1069,7 @@ class Translator @Inject constructor(
             currentSpeakerCacheIdentity,
             activeCharacterContextCacheIdentity,
             translateAsChoices,
-            glossaryFingerprintOf(matchedTerms)
+            glossaryFingerprintOf(matchedTerms) + nameHintFingerprint
         )
         val hash = cacheKeyInfo.hash
 
@@ -1123,13 +1132,21 @@ class Translator @Inject constructor(
             isChoiceBatch = translateAsChoices,
             promptProfile = promptProfile
         )
-        val promptGlossaryEntries = TranslationGlossaryBuilder.build(
+        val builtGlossaryEntries = TranslationGlossaryBuilder.build(
             sourceText = ragSourceText,
             context = promptContext,
             matchedEntries = matchedGlossaryEntries,
             currentSpeaker = activeCurrentSpeaker,
             includeCurrentSpeaker = false
         )
+        val promptGlossaryEntries = if (nameHints.isEmpty()) {
+            builtGlossaryEntries
+        } else {
+            val hintEntries = nameHints.map { hint ->
+                TranslationGlossaryEntry(hint.source, hint.target, "official name")
+            }
+            (hintEntries + builtGlossaryEntries).distinctBy { it.source }
+        }
         val systemPrompt = if (useSakuraPrompt) {
             SakuraPromptBuilder.buildSystemPrompt()
         } else {
@@ -1913,7 +1930,7 @@ class Translator @Inject constructor(
                     translatedText = cached,
                     targetLanguage = config.targetLanguage
                 )
-                if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName)) {
+                if (isBadLlmNameTranslation(nameForLlm, cachedName, playerName, config.targetLanguage)) {
                     FgoLogger.warn(tag, "Dropping unsafe cached name translation, hash=${nameHash.take(8)}...")
                     removeMemoryCachedTranslation(nameHash)
                     cacheDao.deleteByHash(nameHash)
@@ -2444,7 +2461,7 @@ class Translator @Inject constructor(
                 nameResult = modelTranslateResult(maskedSafeName, MASKED_TEXT_BACKEND, true, config)
             } else {
                 val nameNeedsRepair = restoredName == null ||
-                    isBadLlmNameTranslation(sourceName, maskedSafeName, playerName)
+                    isBadLlmNameTranslation(sourceName, maskedSafeName, playerName, config.targetLanguage)
                 if (nameNeedsRepair) {
                     FgoLogger.warn(tag, "Structured scene name needs repair; retrying name-only path")
                     val retryResult = translate(
@@ -3033,6 +3050,9 @@ class Translator @Inject constructor(
         normalizedName: String,
         targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): TranslateResult? {
+        if (isEnglishTarget(targetLanguage)) {
+            return resolveEnglishCharacterNameWithState(normalizedName, targetLanguage)
+        }
         val stateName = parseCharacterNameState(normalizedName) ?: return null
         val baseTranslation = findCharacterNameTranslation(
             stateName.baseName,
@@ -3055,6 +3075,76 @@ class Translator @Inject constructor(
             "character-db+${stateTranslation.backend}"
         }
         return TranslateResult(composed, backend, stateTranslation.cached)
+    }
+
+    /**
+     * English-only name+state resolution.
+     *
+     * Full name hit -> 0 API. State hit in the English glossary -> 0 API.
+     * Partial hit -> the whole name goes to the API with the resolved base as a hint.
+     * Invalid/failed API result -> base name only (never Japanese text in an English name).
+     */
+    private suspend fun resolveEnglishCharacterNameWithState(
+        normalizedName: String,
+        targetLanguage: String
+    ): TranslateResult? {
+        findExactVisibleCharacterNameTranslation(normalizedName, targetLanguage)?.let {
+            return TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
+        }
+        val stateName = parseCharacterNameState(normalizedName) ?: return null
+        val baseTranslation = findCharacterNameTranslation(
+            stateName.baseName,
+            allowOcrWrappedMatch = true,
+            targetLanguage = targetLanguage
+        ) ?: return null
+        val baseName = sanitizeCharacterNameResult(baseTranslation).takeIf { it.isNotBlank() } ?: return null
+
+        findTermTranslation(stateName.stateText, targetLanguage)?.let { state ->
+            val cleanState = sanitizeNameStateTranslation(stateName.stateText, state, targetLanguage)
+            if (isUsableNameStateTranslation(stateName.stateText, cleanState, targetLanguage)) {
+                composeCharacterNameWithState(baseName, cleanState)?.let {
+                    return TranslateResult(it, "character-db+glossary", true)
+                }
+            }
+        }
+
+        translateEnglishNameWithState(
+            normalizedName = normalizedName,
+            baseSource = stateName.baseName,
+            baseTranslation = baseName
+        )?.let { return it }
+
+        FgoLogger.warn(tag, "English name state could not be translated safely: ${stateName.stateText}")
+        return TranslateResult(baseName, "character-db", true)
+    }
+
+    private suspend fun translateEnglishNameWithState(
+        normalizedName: String,
+        baseSource: String,
+        baseTranslation: String
+    ): TranslateResult? {
+        val hint = NameTranslationHint(
+            source = baseSource,
+            target = baseTranslation
+        )
+        val result = translate(
+            japaneseText = normalizedName,
+            translateAsName = true,
+            nameHints = listOf(hint),
+            maxTokens = UTILITY_PROMPT_MAX_TOKENS,
+            useTranslationCache = true
+        )
+        val translated = result.translatedText.trim()
+        if (!EnglishNameValidation.isValidFullName(
+                sourceName = normalizedName,
+                translatedName = translated,
+                baseTranslation = baseTranslation,
+                maxLength = NAME_WITH_STATE_MAX_TRANSLATED_LENGTH
+            )
+        ) {
+            return null
+        }
+        return result.copy(translatedText = translated)
     }
 
     private suspend fun resolveCombinedCharacterNames(
@@ -3144,14 +3234,14 @@ class Translator @Inject constructor(
         if (!englishTarget) {
             translationMemory.lookupNormalized(stateText)?.let {
                 val state = sanitizeNameStateTranslation(stateText, it, targetLanguage)
-                if (isUsableNameStateTranslation(stateText, state)) {
+                if (isUsableNameStateTranslation(stateText, state, targetLanguage)) {
                     return TranslateResult(state, "official-cn", true)
                 }
             }
         }
         findTermTranslation(stateText, targetLanguage)?.let {
             val state = sanitizeNameStateTranslation(stateText, it, targetLanguage)
-            if (isUsableNameStateTranslation(stateText, state)) {
+            if (isUsableNameStateTranslation(stateText, state, targetLanguage)) {
                 return TranslateResult(state, "glossary", true)
             }
         }
@@ -3161,7 +3251,7 @@ class Translator @Inject constructor(
             restoreSourcePunctuation = false
         )
         val state = sanitizeNameStateTranslation(stateText, translated.translatedText, targetLanguage)
-        if (isUsableNameStateTranslation(stateText, state)) {
+        if (isUsableNameStateTranslation(stateText, state, targetLanguage)) {
             return translated.copy(translatedText = state)
         }
         return fallbackCharacterNameState(stateText, targetLanguage)
@@ -3171,6 +3261,8 @@ class Translator @Inject constructor(
         stateText: String,
         targetLanguage: String
     ): TranslateResult? {
+        // English never uses the Simplified-Chinese pseudo translation as a fallback.
+        if (isEnglishTarget(targetLanguage)) return null
         val state = sanitizeNameStateTranslation(
             sourceText = stateText,
             translatedText = toSimplifiedChinese(stateText),
@@ -3230,10 +3322,19 @@ class Translator @Inject constructor(
             .trim()
     }
 
-    private fun isUsableNameStateTranslation(sourceText: String, stateText: String): Boolean {
+    private fun isUsableNameStateTranslation(
+        sourceText: String,
+        stateText: String,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    ): Boolean {
         if (stateText.isBlank()) return false
         if (stateText.length > NAME_STATE_MAX_TRANSLATED_LENGTH) return false
         if (stateText.any(::isJapaneseKana)) return false
+        if (isEnglishTarget(targetLanguage) &&
+            !EnglishNameValidation.isValidState(stateText, NAME_STATE_MAX_TRANSLATED_LENGTH)
+        ) {
+            return false
+        }
         if (stateText.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') }) return false
         if (stateText.any { it in setOf('(', ')', '（', '）', '[', ']', '［', '］') }) return false
         return !(
@@ -3594,7 +3695,7 @@ class Translator @Inject constructor(
         val maskedSafeName = enforceMaskedTranslationPolicy(normalizedName, simplifiedName)
         return if (isMaskedSourcePreserved(normalizedName, maskedSafeName)) {
             TranslateResult(maskedSafeName, MASKED_TEXT_BACKEND, true)
-        } else if (isBadLlmNameTranslation(normalizedName, maskedSafeName, playerName)) {
+        } else if (isBadLlmNameTranslation(normalizedName, maskedSafeName, playerName, targetLanguage)) {
             FgoLogger.warn(tag, "LLM name fallback returned unsafe/wrong name; skipping name render")
             result.copy(translatedText = UNTRANSLATED_FALLBACK)
         } else {
@@ -3642,13 +3743,20 @@ class Translator @Inject constructor(
     private suspend fun isBadLlmNameTranslation(
         sourceText: String,
         translatedText: String,
-        playerName: String
+        playerName: String,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Boolean {
         if (TextNormalizer.isQuestionMaskOnly(sourceText)) return false
         val translated = translatedText.trim()
         if (translated.isBlank()) return true
         if (translated.length > 32) return true
         if (translated.any(::isJapaneseKana)) return true
+        if (isEnglishTarget(targetLanguage) &&
+            (EnglishNameValidation.containsCjkOrKana(translated) ||
+                !EnglishNameValidation.hasLatinLetter(translated))
+        ) {
+            return true
+        }
         if (translated.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') } &&
             !hasAllowedVisibleNameTrailingMark(sourceText, translated)
         ) {

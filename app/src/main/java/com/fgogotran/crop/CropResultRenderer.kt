@@ -58,7 +58,8 @@ class CropResultRenderer @Inject constructor(
             normalizeForRender(text.trim(), targetLocale),
             maxWidth,
             maxHeight,
-            wordWrap = isEnglishTarget(targetLocale)
+            wordWrap = isEnglishTarget(targetLocale),
+            targetLanguage = targetLocale
         )
 
         textPaint.textSize = fitted.textSize
@@ -160,9 +161,14 @@ class CropResultRenderer @Inject constructor(
         maxHeight: Float,
         minSize: Float = 12f,
         maxSizeLimit: Float? = null,
-        wordWrap: Boolean = false
+        wordWrap: Boolean = false,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): FittedLines {
-        val source = text
+        val source = if (isEnglishTarget(targetLanguage)) {
+            text
+        } else {
+            text.ifBlank { "未识别到文字" }
+        }
         val safeMinSize = minSize.coerceAtLeast(6f)
         val maxSize = maxOf(
             safeMinSize,
