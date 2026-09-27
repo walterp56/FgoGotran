@@ -1,6 +1,7 @@
 import {
   Accessibility,
   BrainCircuit,
+  Captions,
   CirclePlay,
   DatabaseZap,
   History,
@@ -243,5 +244,10 @@ export const modeCards: Feature[] = [
     title: "翻译 LOG",
     body: "查看本次识别和翻译过的角色名、对话与选项，方便回看。",
     icon: History
+  },
+  {
+    title: "战斗字幕",
+    body: "适合不想错过战斗内对话的你。只锁定战斗字幕区域。",
+    icon: Captions
   }
 ];

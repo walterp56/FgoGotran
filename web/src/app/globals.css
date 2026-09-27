@@ -1555,57 +1555,45 @@ dd {
   max-width: 980px;
 }
 
-.trouble-symptom-grid {
-  align-items: start;
-}
-
-.trouble-card {
-  scroll-margin-top: 96px;
-}
-
-.trouble-card-title {
+.trouble-jump-nav {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
+  margin-top: 22px;
 }
 
-.trouble-card-title svg {
-  flex: 0 0 auto;
-  margin-top: 2px;
+.trouble-jump-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--brand-strong);
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.trouble-jump-nav a:hover {
+  border-color: rgba(14, 90, 167, 0.35);
+  background: #eef5fc;
   color: var(--brand);
 }
 
-.trouble-card .guide-label {
-  margin-top: 16px;
+.trouble-jump-nav .jump-primary {
+  background: var(--brand);
+  border-color: transparent;
+  color: #ffffff;
 }
 
-.trouble-check-list {
-  margin: 8px 0 0;
-  padding-left: 20px;
-  color: var(--muted);
+.trouble-jump-nav .jump-primary:hover {
+  background: var(--brand-strong);
+  color: #ffffff;
 }
 
-.trouble-check-list li + li {
-  margin-top: 6px;
-}
 
-.trouble-emulator-checks {
-  margin-bottom: 26px;
-}
-
-.trouble-feedback-template {
-  margin: 0;
-  padding: 16px;
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: #fbfcfe;
-  color: var(--brand-strong);
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 14px;
-  line-height: 1.65;
-  white-space: pre-wrap;
-}
 
 .text-link.inline {
   display: inline-flex;
@@ -2136,17 +2124,20 @@ dd {
   border-color: rgba(201, 69, 69, 0.24);
 }
 
+.qa-list,
 .local-trouble-list {
   display: grid;
   gap: 10px;
 }
 
+.qa-list details,
 .local-trouble-list details {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
+.qa-list summary,
 .local-trouble-list summary {
   padding: 14px 16px;
   color: var(--ink);
@@ -2154,6 +2145,7 @@ dd {
   font-weight: 720;
 }
 
+.qa-list summary:hover,
 .local-trouble-list summary:hover {
   color: var(--brand);
   background: #fbfcfe;
@@ -2163,6 +2155,43 @@ dd {
   margin: 0;
   padding: 0 16px 16px;
   color: var(--muted);
+}
+
+.qa-list details > .qa-body {
+  padding: 0 16px 16px;
+}
+
+.qa-body .qa-cause {
+  margin: 0;
+  color: var(--muted);
+}
+
+.qa-body .qa-steps {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.qa-body .qa-verify {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(22, 138, 88, 0.24);
+  border-radius: 8px;
+  background: rgba(22, 138, 88, 0.08);
+  color: #0c6b44;
+}
+
+.qa-body .qa-escalate {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.qa-body .qa-escalate a {
+  color: var(--brand);
+  font-weight: 680;
 }
 
 .local-security-grid article {

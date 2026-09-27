@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import {
   AlertCircle,
   BookOpen,
+  Captions,
   CirclePlay,
   Gamepad2,
   ImageOff,
@@ -90,17 +91,21 @@ const buttonGuides: ButtonGuide[] = [
     id: "floating-menu",
     title: "打开翻译菜单",
     body: "长按悬浮按钮可以打开翻译菜单。菜单里可以切换模式、查看翻译 LOG，或关闭服务。",
-    images: [{ src: "/guide/guide-11.jpeg", alt: "长按悬浮按钮打开菜单", kind: "wide" }]
+    images: [
+      { src: "/guide/guide-11.jpeg", alt: "长按悬浮按钮打开菜单", kind: "wide" },
+      { src: "/guide/guide-11_2.jpeg", alt: "长按悬浮按钮打开菜单", kind: "wide" }
+    ]
   },
   {
     id: "mode-indicator",
     title: "查看当前翻译模式",
-    body: "悬浮按钮会显示当前模式，方便你确认现在是手动、半自动、全自动还是裁剪模式。",
+    body: "悬浮按钮会显示当前模式，方便你确认现在是手动、半自动、全自动、裁剪模式还是战斗字幕。",
     images: [
       { src: "/guide/guide-12.jpeg", alt: "手动模式悬浮按钮", kind: "icon" },
       { src: "/guide/guide-13.jpeg", alt: "半自动模式悬浮按钮", kind: "icon" },
       { src: "/guide/guide-14.jpeg", alt: "全自动模式悬浮按钮", kind: "icon" },
-      { src: "/guide/guide-15.jpeg", alt: "裁剪模式悬浮按钮", kind: "icon" }
+      { src: "/guide/guide-15.jpeg", alt: "裁剪模式悬浮按钮", kind: "icon" },
+      { src: "/guide/guide-20.jpeg", alt: "裁剪模式悬浮按钮", kind: "icon" },
     ]
   },
   {
@@ -122,6 +127,12 @@ const buttonGuides: ButtonGuide[] = [
     ]
   },
   {
+    id: "battle-subtitles",
+    title: "战斗字幕",
+    body: "战斗字幕模式只锁定战斗字幕区域。",
+    images: [{ src: "/guide/battle.jpg", alt: "战斗字幕模式示例", kind: "wide" }]
+  },
+  {
     id: "translation-log",
     title: "翻译 LOG",
     body: "翻译 LOG 可以查看本次识别和翻译过的角色名、对话与选项，方便回看。",
@@ -141,6 +152,7 @@ const toc = [
   { href: "#mode-indicator", label: "模式显示" },
   { href: "#failure-ring", label: "红色外圈" },
   { href: "#crop-mode", label: "裁剪模式" },
+  { href: "#battle-subtitles", label: "战斗字幕" },
   { href: "#translation-log", label: "翻译 LOG" }
 ];
 
@@ -273,6 +285,8 @@ export default function GuidePage() {
                     <Settings size={18} aria-hidden="true" />
                   ) : guide.id === "translation-log" ? (
                     <MessageSquareText size={18} aria-hidden="true" />
+                  ) : guide.id === "battle-subtitles" ? (
+                    <Captions size={18} aria-hidden="true" />
                   ) : (
                     <CirclePlay size={18} aria-hidden="true" />
                   )}
