@@ -268,7 +268,7 @@ class Translator @Inject constructor(
         val matchedTerms = try {
             val allTerms = getCachedTerms()
             filterDialogueMatchedTerms(
-                promptBuilder.extractTermMatches(normalizedText, allTerms)
+                promptBuilder.extractTermMatches(normalizedText, allTerms, config.targetLanguage)
             )
         } catch (e: CancellationException) {
             throw e
@@ -1024,7 +1024,11 @@ class Translator @Inject constructor(
         val ragSourceText = (listOf(normalizedText) + normalizedChoices).joinToString("\n")
         val matchedTerms = try {
             val allTerms = getCachedTerms()
-            val rawMatches = promptBuilder.extractTermMatches(ragSourceText, allTerms)
+            val rawMatches = promptBuilder.extractTermMatches(
+                ragSourceText,
+                allTerms,
+                config.targetLanguage
+            )
             val matches = if (cropMode) rawMatches else filterDialogueMatchedTerms(rawMatches)
             FgoLogger.debug(tag, "RAG: matched ${matches.size} of ${allTerms.size} terms")
             matches
@@ -1392,7 +1396,7 @@ class Translator @Inject constructor(
             promptTargetLanguage(config)
         )
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
-        val glossaryFingerprints = normalizedTexts.map { text -> glossaryFingerprintFor(text) }
+        val glossaryFingerprints = normalizedTexts.map { text -> glossaryFingerprintFor(text, config.targetLanguage) }
         val cacheKeys = normalizedTexts.mapIndexed { index, text ->
             cacheKey(
                 normalizedText = text,
@@ -1512,7 +1516,7 @@ class Translator @Inject constructor(
         val matchedTerms = try {
             val allTerms = getCachedTerms()
             val matches = filterDialogueMatchedTerms(
-                promptBuilder.extractTermMatches(ragSourceText, allTerms)
+                promptBuilder.extractTermMatches(ragSourceText, allTerms, config.targetLanguage)
             )
             FgoLogger.debug(tag, "Batch RAG: matched ${matches.size} of ${allTerms.size} terms")
             matches
@@ -1886,7 +1890,7 @@ class Translator @Inject constructor(
                 normalizedText = it,
                 choiceTexts = emptyList(),
                 config = config,
-                glossaryFingerprint = glossaryFingerprintFor(it)
+                glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage)
             )
         }
         val nameHash = nameKey?.hash
@@ -1936,7 +1940,7 @@ class Translator @Inject constructor(
                 sceneContextPolicyKey = sceneContextPolicyKey,
                 currentSpeaker = currentSpeakerSourceName,
                 characterContextCacheIdentity = characterContextCacheIdentity,
-                glossaryFingerprint = glossaryFingerprintFor(it)
+                glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage)
             )
         }
         val dialogueHash = dialogueKey?.hash
@@ -1949,7 +1953,7 @@ class Translator @Inject constructor(
                     sceneContextPolicyKey = sceneContextPolicyKey,
                     currentSpeaker = currentSpeakerSourceName,
                     choiceBatch = true,
-                    glossaryFingerprint = glossaryFingerprintFor(it)
+                    glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage)
                 )
             }
         }
@@ -2206,7 +2210,7 @@ class Translator @Inject constructor(
         val matchedTerms = try {
             val allTerms = getCachedTerms()
             val matches = filterDialogueMatchedTerms(
-                promptBuilder.extractTermMatches(combinedText, allTerms)
+                promptBuilder.extractTermMatches(combinedText, allTerms, config.targetLanguage)
             )
             FgoLogger.debug(tag, "Scene RAG: matched ${matches.size} of ${allTerms.size} terms")
             matches
@@ -6555,13 +6559,18 @@ class Translator @Inject constructor(
     /** Matched-term fingerprint for one text (used by the paths that look up the cache per field). */
     private suspend fun glossaryFingerprintFor(
         sourceText: String,
+        targetLanguage: String,
         choiceTexts: List<String> = emptyList(),
         cropMode: Boolean = false
     ): String {
         val ragSourceText = (listOf(sourceText) + choiceTexts).joinToString("\n")
         return try {
             val allTerms = getCachedTerms()
-            val rawMatches = promptBuilder.extractTermMatches(ragSourceText, allTerms)
+            val rawMatches = promptBuilder.extractTermMatches(
+                ragSourceText,
+                allTerms,
+                targetLanguage
+            )
             val matches = if (cropMode) rawMatches else filterDialogueMatchedTerms(rawMatches)
             glossaryFingerprintOf(matches)
         } catch (e: CancellationException) {

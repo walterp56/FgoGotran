@@ -1103,7 +1103,11 @@ class PromptBuilder @Inject constructor() {
      * @param terms all known FGO terms from the glossary database
      * @return subset of terms that appear in the text
      */
-    fun extractTermMatches(japaneseText: String, terms: List<TermEntity>): List<TermEntity> {
+    fun extractTermMatches(
+        japaneseText: String,
+        terms: List<TermEntity>,
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    ): List<TermEntity> {
         val searchText = buildTermSearchText(japaneseText)
         if (searchText.compactText.isBlank()) return emptyList()
 
@@ -1132,11 +1136,19 @@ class PromptBuilder @Inject constructor() {
 
         FgoLogger.debug(tag, "Term matching: ${matches.size} of ${terms.size} terms matched")
         if (matches.isNotEmpty()) {
+            // Debug output follows the active target so EN runs log EN glossary hits.
+            val englishTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+                SettingsRepository.TARGET_LANGUAGE_ENGLISH
             FgoLogger.debug(
                 tag,
-                "Matched terms: ${
-                    matches.joinToString(limit = MAX_RAG_TERMS) {
-                        "${it.jpTerm}->${it.cnTerm}"
+                "Matched terms (${if (englishTarget) "en" else "zh"}): ${
+                    matches.joinToString(limit = MAX_RAG_TERMS) { term ->
+                        val target = if (englishTarget) {
+                            term.enTerm.trim().ifBlank { term.cnTerm }
+                        } else {
+                            term.cnTerm
+                        }
+                        "${term.jpTerm}->$target"
                     }
                 }"
             )

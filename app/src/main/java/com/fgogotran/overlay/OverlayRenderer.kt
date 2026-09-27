@@ -106,7 +106,11 @@ class OverlayRenderer @Inject constructor(
         private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
         private const val DIALOGUE_TEXT_SIZE_SEARCH_PRECISION = 0.25f
         private const val NAME_TEXT_SIZE = 56f
+        /** FGO NA name plate text is larger than the JP/CJK one (measured 33 px vs 29 px ink). */
+        private const val NAME_TEXT_SIZE_EN = 64f
         private const val NAME_TEXT_MIN_SIZE = 31f
+        /** FGO NA row pitch is 88 px at 1080p (53 px x 1.66); the CJK build uses 1.57. */
+        private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER_EN = 1.66f
         private const val NAME_TEXT_LEFT_INSET = 52f
         private const val NAME_PLATE_LEFT_INSET = 42f
         private const val NAME_TEXT_TOP_INSET = 8f
@@ -640,9 +644,14 @@ class OverlayRenderer @Inject constructor(
         val scale = screenScale(canvas)
         val name = instruction.translatedText.trim()
 
+        val nameTextSize = if (instruction.isEnglishTarget()) {
+            NAME_TEXT_SIZE_EN
+        } else {
+            NAME_TEXT_SIZE
+        }
         paint.apply {
             color = instruction.textColor ?: FGO_TEXT_COLOR
-            textSize = NAME_TEXT_SIZE * scale
+            textSize = nameTextSize * scale
         }
 
         // The cyan border bounds OCR, but the original glyphs alone determine the painted width.
@@ -687,7 +696,7 @@ class OverlayRenderer @Inject constructor(
         val fittedName = fitSingleLine(
             text = instruction.translatedText.trim(),
             paint = paint,
-            initialTextSize = NAME_TEXT_SIZE * scale,
+            initialTextSize = nameTextSize * scale,
             minimumTextSize = NAME_TEXT_MIN_SIZE * scale,
             maxWidth = textArea.width()
         )
@@ -1152,7 +1161,7 @@ class OverlayRenderer @Inject constructor(
             .takeIf { it.isNotBlank() }
             ?: distinctCandidates.last()
         paint.textSize = emergencyMinimumTextSize
-        val lineHeight = emergencyMinimumTextSize * DIALOGUE_LINE_HEIGHT_MULTIPLIER
+        val lineHeight = emergencyMinimumTextSize * dialogueLineHeightMultiplier(targetLanguage)
         val maximumLines = maximumFittingLineCount(
             paint = paint,
             lineHeight = lineHeight,
@@ -1369,7 +1378,7 @@ class OverlayRenderer @Inject constructor(
     ): Pair<List<String>, Float>? {
         val distinctCandidates = distinctDialogueCandidates(candidates)
         paint.textSize = textSize
-        val lineHeight = textSize * DIALOGUE_LINE_HEIGHT_MULTIPLIER
+        val lineHeight = textSize * dialogueLineHeightMultiplier(targetLanguage)
         distinctCandidates.forEach { candidate ->
             val lines = wrapText(candidate, paint, maxWidth, wordWrap)
             if (lines.size <= maxLines.coerceAtLeast(1) &&
@@ -1445,6 +1454,15 @@ class OverlayRenderer @Inject constructor(
         }
         return height
     }
+
+    private fun dialogueLineHeightMultiplier(targetLanguage: String): Float =
+        if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
+        ) {
+            DIALOGUE_LINE_HEIGHT_MULTIPLIER_EN
+        } else {
+            DIALOGUE_LINE_HEIGHT_MULTIPLIER
+        }
 
     private fun RenderInstruction.isEnglishTarget(): Boolean {
         return SettingsRepository.normalizeTargetLanguage(targetLocale) ==
