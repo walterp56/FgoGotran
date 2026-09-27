@@ -1,5 +1,7 @@
 package com.fgogotran.overlay
 
+import com.fgogotran.data.SettingsRepository
+
 /** Plain float rectangle so the dialogue geometry stays free of Android framework classes. */
 internal data class DialogueRect(
     val left: Float,
@@ -11,13 +13,18 @@ internal data class DialogueRect(
 /**
  * Single-language story dialogue geometry.
  *
- * Chinese keeps the exact v3.1.2 formulas. English keeps the later top nudge and the fixed
- * clear-box anchor, so an English-only adjustment can no longer move the Chinese layout.
+ * Both targets share the v3.1.2 text top; English keeps a slightly larger row pitch (1.46) and
+ * the fixed clear-box anchor, while Chinese keeps the exact v3.1.2 formulas.
  */
 internal object DialogueRenderGeometry {
     const val TEXT_TOP_INSET = 48f
-    const val TEXT_TOP_NUDGE_PX = 10f
     const val TEXT_BOTTOM_INSET = 12f
+
+    const val LINE_HEIGHT_MULTIPLIER_CN = 1.57f
+    const val LINE_HEIGHT_MULTIPLIER_EN = 1.46f
+
+    /** English clear box extends upward so the first-line ruby above the text is covered. */
+    const val RUBY_COVER_TOP_PX = 10f
 
     const val DYNAMIC_DIALOGUE_HORIZONTAL_PADDING = 34f
     const val DYNAMIC_DIALOGUE_LEFT_PADDING = 30f
@@ -28,17 +35,22 @@ internal object DialogueRenderGeometry {
 
     fun textArea(
         panel: DialogueRect,
-        scale: Float,
-        englishTarget: Boolean
-    ): DialogueRect {
-        val topNudge = if (englishTarget) TEXT_TOP_NUDGE_PX else 0f
-        return DialogueRect(
-            left = panel.left + DialogueReferenceGeometry.TEXT_LEFT_INSET * scale,
-            top = panel.top + TEXT_TOP_INSET * scale - topNudge,
-            right = panel.right - DialogueReferenceGeometry.TEXT_RIGHT_INSET * scale,
-            bottom = panel.bottom - TEXT_BOTTOM_INSET * scale
-        )
-    }
+        scale: Float
+    ): DialogueRect = DialogueRect(
+        left = panel.left + DialogueReferenceGeometry.TEXT_LEFT_INSET * scale,
+        top = panel.top + TEXT_TOP_INSET * scale,
+        right = panel.right - DialogueReferenceGeometry.TEXT_RIGHT_INSET * scale,
+        bottom = panel.bottom - TEXT_BOTTOM_INSET * scale
+    )
+
+    fun lineHeightMultiplier(targetLanguage: String): Float =
+        if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH
+        ) {
+            LINE_HEIGHT_MULTIPLIER_EN
+        } else {
+            LINE_HEIGHT_MULTIPLIER_CN
+        }
 
     fun clearBox(
         panel: DialogueRect,
@@ -68,7 +80,7 @@ internal object DialogueRenderGeometry {
         val sourceBottom: Float
         if (englishTarget) {
             left = anchorLeft
-            top = anchorTop
+            top = anchorTop - RUBY_COVER_TOP_PX * scale
             clearRightFallback = anchorLeft
             sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: anchorLeft
             sourceBottom = originalBounds?.bottom?.plus(sourcePaddingY) ?: anchorTop

@@ -81,7 +81,6 @@ class OverlayRenderer @Inject constructor(
         private const val BILINGUAL_DIALOGUE_TEXT_BOTTOM_INSET = 0f
         private const val SOURCE_BOUNDS_RUBY_MAX_CHARS = 14
         private const val SOURCE_BOUNDS_RUBY_HEIGHT_RATIO = 0.72f
-        const val DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.57f
         private const val ORIGINAL_TEXT_SIZE_RATIO = 0.85f
         private const val ORIGINAL_LINE_HEIGHT_MULTIPLIER = 1.18f
         private const val BILINGUAL_PAIR_GAP = 10f
@@ -96,8 +95,6 @@ class OverlayRenderer @Inject constructor(
         private const val DIALOGUE_MIN_TEXT_SIZE = 28f
         private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
         private const val DIALOGUE_TEXT_SIZE_SEARCH_PRECISION = 0.25f
-        /** FGO NA row pitch is ~88 px at 1080p (61 px x 1.44); the CJK build uses 53 px x 1.57 = 83 px. */
-        private const val DIALOGUE_LINE_HEIGHT_MULTIPLIER_EN = 1.44f
         private const val NAME_TEXT_LEFT_INSET = 52f
         private const val NAME_PLATE_LEFT_INSET = 42f
         private const val NAME_TEXT_TOP_INSET = 8f
@@ -434,8 +431,7 @@ class OverlayRenderer @Inject constructor(
         val panelBox = RectF(instruction.region.boundingBox)
         val textArea = DialogueRenderGeometry.textArea(
             panel = panelBox.toDialogueRect(),
-            scale = scale,
-            englishTarget = instruction.isEnglishTarget()
+            scale = scale
         ).toRectF()
         val preferredTextSize = dialogueTextSize(instruction) * scale
         paint.textSize = preferredTextSize
@@ -1135,7 +1131,7 @@ class OverlayRenderer @Inject constructor(
             .takeIf { it.isNotBlank() }
             ?: distinctCandidates.last()
         paint.textSize = emergencyMinimumTextSize
-        val lineHeight = emergencyMinimumTextSize * dialogueLineHeightMultiplier(targetLanguage)
+        val lineHeight = emergencyMinimumTextSize * DialogueRenderGeometry.lineHeightMultiplier(targetLanguage)
         val maximumLines = maximumFittingLineCount(
             paint = paint,
             lineHeight = lineHeight,
@@ -1352,7 +1348,7 @@ class OverlayRenderer @Inject constructor(
     ): Pair<List<String>, Float>? {
         val distinctCandidates = distinctDialogueCandidates(candidates)
         paint.textSize = textSize
-        val lineHeight = textSize * dialogueLineHeightMultiplier(targetLanguage)
+        val lineHeight = textSize * DialogueRenderGeometry.lineHeightMultiplier(targetLanguage)
         distinctCandidates.forEach { candidate ->
             val lines = wrapText(candidate, paint, maxWidth, wordWrap)
             if (lines.size <= maxLines.coerceAtLeast(1) &&
@@ -1434,15 +1430,6 @@ class OverlayRenderer @Inject constructor(
 
     private fun choiceTextSize(instruction: RenderInstruction): Float =
         if (instruction.isEnglishTarget()) CHOICE_TEXT_SIZE_EN else CHOICE_TEXT_SIZE
-
-    private fun dialogueLineHeightMultiplier(targetLanguage: String): Float =
-        if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
-            SettingsRepository.TARGET_LANGUAGE_ENGLISH
-        ) {
-            DIALOGUE_LINE_HEIGHT_MULTIPLIER_EN
-        } else {
-            DIALOGUE_LINE_HEIGHT_MULTIPLIER
-        }
 
     private fun RenderInstruction.isEnglishTarget(): Boolean {
         return SettingsRepository.normalizeTargetLanguage(targetLocale) ==
