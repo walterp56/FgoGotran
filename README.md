@@ -170,4 +170,8 @@ Licensed under the [Apache License 2.0](LICENSE).
 
 ## Disclaimer
 
-FgoGotran is an unofficial helper tool for understanding FGO JP story text and battle subtitles. Fate/Grand Order and related assets belong to their respective rights holders.
+FgoGotran is an independent, unofficial project. It is not affiliated with, endorsed by, sponsored by, or approved by TYPE-MOON, Aniplex, Lasengle, or any other owner, publisher, or rights holder for Fate/Grand Order. It is also not affiliated with or endorsed by any third-party translation, speech, hosting, or AI service provider.
+
+Fate/Grand Order and all related names, characters, artwork, audio, trademarks, and other game content belong to their respective rights holders. Third-party service names and trademarks belong to their respective owners. FgoGotran’s Apache 2.0 license applies only to material owned by the project and does not grant any rights to third-party game content, trademarks, or services.
+
+FgoGotran is provided on an “as is” and “as available” basis, without warranties of any kind. You are solely responsible for how you use the software, including compliance with FGO’s terms of service, applicable laws, and the terms of any translation, speech, or hosting service you configure. The developers do not condone use that violates those terms and are not responsible for account restrictions, data loss, service interruptions, or other consequences arising from use of the software.
