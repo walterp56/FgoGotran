@@ -4306,13 +4306,9 @@ class FgoAccessibilityService : AccessibilityService() {
                 ?: return@mapNotNull null
             Triple(translated, instruction.historyOriginalText(), instruction.textColor)
         }
-        val targetLocale = listOfNotNull(
-            nameInstruction?.targetLocale,
-            dialogueInstruction?.targetLocale
-        )
-            .plus(choiceInstructions.map { it.targetLocale })
-            .firstOrNull { it == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL }
-            ?: SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+        // The scene result already carries the configured target language (including English);
+        // reuse the same precedence as the render path instead of assuming Simplified Chinese.
+        val targetLocale = nameFallbackTargetLocale(sceneTranslation)
         val dialogueSourceKey = sceneSource.historyDialogueSourceKey()
         val entrySourceKey = sceneSource.historySourceKey(hasChoices = choiceEntries.isNotEmpty())
 

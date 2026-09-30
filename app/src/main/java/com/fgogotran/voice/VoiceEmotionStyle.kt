@@ -15,7 +15,7 @@ object VoiceEmotionStyle {
     ): VoiceExpression? {
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) return null
 
-        val normalized = text.replace(Regex("\\s+"), "")
+        val normalized = normalizedTextForStyleMatching(text)
         val voiceTuning = AzureVoiceModelTuning.forVoice(profile.voiceName)
         val trustedVoiceHint = trustedVoiceHint(voiceHint)
         val expression = buildExpression(
@@ -56,8 +56,8 @@ object VoiceEmotionStyle {
             localStyle = localStyle
         )
         val styleOverride = detectedStyle
+            ?.let { resolveSupportedStyle(profile.voiceName, voiceTuning, it) }
             ?.takeIf { it != baseStyle }
-            ?.takeIf { canApplyStyle(profile.voiceName, voiceTuning, it) }
         val resolvedStyle = resolveStyle(profile, styleOverride)
         val rateOverride = rateOverrideFor(
             baseRate = profile.rate,
@@ -82,7 +82,7 @@ object VoiceEmotionStyle {
                     style = it,
                     voiceTuning = voiceTuning,
                     voiceHint = trustedVoiceHint,
-                    hintControlsStyle = resolvedStyle in hintedStyles
+                    hintControlsStyle = detectedStyle in hintedStyles
                 )
             }
 
@@ -116,22 +116,24 @@ object VoiceEmotionStyle {
                 ?: ""
         }
 
-        styleOverride
-            ?.trim()
-            ?.takeIf(String::isNotBlank)
-            ?.takeIf { isNaturalDialogueStyle(it) }
-            ?.takeIf { AzureVoiceModelTuning.forVoice(profile.voiceName).allowsStyle(it) }
-            ?.takeIf { supportsStyle(profile.voiceName, it) }
-            ?.let { return it }
-
         val voiceTuning = AzureVoiceModelTuning.forVoice(profile.voiceName)
-        return profile.style
-            .trim()
-            .takeIf(String::isNotBlank)
-            ?.takeIf { isNaturalDialogueStyle(it) }
-            ?.takeIf(voiceTuning::allowsStyle)
-            ?.takeIf { supportsStyle(profile.voiceName, it) }
-            .orEmpty()
+        resolveSupportedStyle(profile.voiceName, voiceTuning, styleOverride)?.let { return it }
+        return resolveSupportedStyle(profile.voiceName, voiceTuning, profile.style).orEmpty()
+    }
+
+    /**
+     * Returns [requested] when the voice can apply it, otherwise the nearest style that voice
+     * supports (see [STYLE_FALLBACKS]). Returns null when nothing usable exists.
+     */
+    private fun resolveSupportedStyle(
+        voiceName: String,
+        voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
+        requested: String?
+    ): String? {
+        val style = requested?.trim()?.takeIf(String::isNotBlank) ?: return null
+        if (canApplyStyle(voiceName, voiceTuning, style)) return style
+        return STYLE_FALLBACKS[style].orEmpty()
+            .firstOrNull { canApplyStyle(voiceName, voiceTuning, it) }
     }
 
     /**
@@ -140,20 +142,33 @@ object VoiceEmotionStyle {
      * Chinese read text uses the substring tables; English read text uses word-boundary
      * matching so English words cannot match inside longer words.
      */
-    private fun detectStyle(normalizedText: String): String? {
+    internal fun detectStyle(normalizedText: String): String? {
         val english = normalizedText.none { char -> char.isCjkVoiceChar() }
-        fun matches(hints: Set<String>): Boolean =
-            if (english) normalizedText.matchesEnglishHints(hints)
-            else normalizedText.hasAny(hints)
+        fun matches(chineseHints: Set<String>, englishHints: Set<String>): Boolean =
+            if (english) normalizedText.matchesEnglishHints(englishHints)
+            else normalizedText.hasAny(chineseHints)
 
         return when {
-            matches(SAD_HINTS) -> "sad"
-            matches(FEARFUL_HINTS) -> "fearful"
-            matches(ANGRY_HINTS) -> "angry"
-            matches(CHEERFUL_HINTS) -> "cheerful"
-            matches(DISGRUNTLED_HINTS) -> "disgruntled"
+            matches(SAD_HINTS, SAD_HINTS_EN) -> "sad"
+            matches(FEARFUL_HINTS, FEARFUL_HINTS_EN) -> "fearful"
+            matches(ANGRY_HINTS, ANGRY_HINTS_EN) -> "angry"
+            matches(CHEERFUL_HINTS, CHEERFUL_HINTS_EN) -> "cheerful"
+            matches(DISGRUNTLED_HINTS, DISGRUNTLED_HINTS_EN) -> "disgruntled"
             normalizedText.shortExcitedLine() -> "cheerful"
             else -> null
+        }
+    }
+
+    /**
+     * Chinese read text is matched without whitespace; English read text keeps single spaces so
+     * multi-word cues such as "i'm sorry" can still match with word boundaries.
+     */
+    internal fun normalizedTextForStyleMatching(text: String): String {
+        val english = text.none { char -> char.isCjkVoiceChar() }
+        return if (english) {
+            text.replace(Regex("\\s+"), " ").trim()
+        } else {
+            text.replace(Regex("\\s+"), "")
         }
     }
 
@@ -164,8 +179,7 @@ object VoiceEmotionStyle {
         localStyle: String?
     ): String? {
         return (hintedStyles + listOfNotNull(localStyle))
-            .firstOrNull { canApplyStyle(profile.voiceName, voiceTuning, it) }
-            ?: localStyle
+            .firstOrNull { resolveSupportedStyle(profile.voiceName, voiceTuning, it) != null }
     }
 
     private fun canApplyStyle(
@@ -445,6 +459,34 @@ object VoiceEmotionStyle {
     )
 
     private val NATURAL_DIALOGUE_STYLES = BASE_DIALOGUE_STYLES + EMOTION_DIALOGUE_STYLES + ROLE_DIALOGUE_STYLES
+
+    /**
+     * Nearest-style fallbacks, used when a voice does not support the requested style.
+     *
+     * Every profile and every model voice hint goes through the same list, so Chinese and English
+     * read text resolve styles identically. Order matters: the first supported entry wins.
+     */
+    private val STYLE_FALLBACKS = mapOf(
+        "gentle" to listOf("comforting", "empathetic", "affectionate", "calm", "chat", "cute", "cheerful"),
+        "calm" to listOf("comforting", "empathetic", "gentle", "serious", "chat"),
+        "chat" to listOf("cheerful", "comforting", "debating", "gentle", "serious"),
+        "strict" to listOf("serious", "debating", "disappointed", "chat"),
+        "debating" to listOf("serious", "strict", "chat"),
+        "serious" to listOf("strict", "calm", "chat", "gentle"),
+        "curious" to listOf("excited", "surprised", "chat", "nervous"),
+        "cheerful" to listOf("excited", "cute", "chat"),
+        "prince" to listOf("cavalier", "captain", "affectionate", "chat"),
+        "affectionate" to listOf("comforting", "empathetic", "gentle", "cute"),
+        "angry" to listOf("strict", "complaining", "disappointed"),
+        "shy" to listOf("nervous", "cute", "embarrassed"),
+        "surprised" to listOf("excited", "curious", "nervous", "shy"),
+        "tired" to listOf("disappointed", "complaining", "sad", "lonely"),
+        "complaining" to listOf("disgruntled", "disappointed", "angry"),
+        "disgruntled" to listOf("complaining", "disappointed", "angry"),
+        "sad" to listOf("sorry", "disappointed", "lonely"),
+        "fearful" to listOf("nervous", "anxious"),
+        "excited" to listOf("cheerful", "surprised")
+    )
 
     private val SUPPORTED_STYLES_BY_VOICE = mapOf(
         "zh-CN-Xiaoxiao:DragonHDFlashLatestNeural" to setOf(
@@ -873,6 +915,8 @@ object VoiceEmotionStyle {
 
     private fun String.matchesEnglishHints(hints: Set<String>): Boolean {
         val lower = lowercase(Locale.US)
+            .replace('\u2019', '\'')
+            .replace('\u2018', '\'')
         return hints.any { hint -> englishHintPattern(hint).containsMatchIn(lower) }
     }
 

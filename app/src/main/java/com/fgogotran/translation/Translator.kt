@@ -125,6 +125,32 @@ internal fun buildPreviousSceneBilingualContextPrompt(
     )
 }
 
+/**
+ * Maximum rendered length for a combined speaker name such as `マシュ＆ダ・ヴィンチ`.
+ */
+private const val COMBINED_NAME_MAX_TRANSLATED_LENGTH = 48
+
+/**
+ * Joins resolved combined-name parts with the separator of the target language.
+ *
+ * Chinese targets keep the full-width `＆` used by the game; other targets use ` & `.
+ * Returns null when a part is blank or the result is too long, so the caller can fall back.
+ */
+internal fun composeCombinedCharacterName(parts: List<String>, targetLanguage: String): String? {
+    val translatedParts = parts.map { it.trim() }
+    if (translatedParts.isEmpty() || translatedParts.any { it.isBlank() }) return null
+    val separator = if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+        SettingsRepository.TARGET_LANGUAGE_ENGLISH
+    ) {
+        " & "
+    } else {
+        "＆"
+    }
+    return translatedParts
+        .joinToString(separator)
+        .takeIf { it.length <= COMBINED_NAME_MAX_TRANSLATED_LENGTH }
+}
+
 data class SceneTranslateResult(
     val name: TranslateResult?,
     val dialogue: TranslateResult?,
@@ -649,7 +675,6 @@ class Translator @Inject constructor(
         private const val NAME_STATE_MAX_TRANSLATED_LENGTH = 18
         private const val NAME_WITH_STATE_MAX_TRANSLATED_LENGTH = 32
         private const val COMBINED_NAME_MAX_PARTS = 4
-        private const val COMBINED_NAME_MAX_TRANSLATED_LENGTH = 48
         private const val VOICE_HINT_NULL_EXAMPLE =
             """{"voice_hint":null}"""
         private const val VOICE_HINT_ACTIVE_EXAMPLE =
@@ -1810,7 +1835,7 @@ class Translator @Inject constructor(
                     nameResult = it
                 }
                 if (nameResult != null) return@let
-                resolveCombinedCharacterNames(normalized, playerName)?.let {
+                resolveCombinedCharacterNames(normalized, playerName, config.targetLanguage)?.let {
                     FgoLogger.info(tag, "Character TSV HIT combined name")
                     nameResult = it
                 }
@@ -3149,20 +3174,19 @@ class Translator @Inject constructor(
 
     private suspend fun resolveCombinedCharacterNames(
         normalizedName: String,
-        playerName: String
+        playerName: String,
+        targetLanguage: String
     ): TranslateResult? {
         val parts = splitCombinedSpeakerNameParts(normalizedName)
         if (parts.size !in 2..COMBINED_NAME_MAX_PARTS) return null
 
         val resolvedParts = parts.map { part ->
-            resolveCombinedCharacterNamePart(part, playerName) ?: return null
+            resolveCombinedCharacterNamePart(part, playerName, targetLanguage) ?: return null
         }
-        val composed = resolvedParts
-            .map { it.translatedText.trim() }
-            .takeIf { translatedParts -> translatedParts.all { it.isNotBlank() } }
-            ?.joinToString("＆")
-            ?: return null
-        if (composed.length > COMBINED_NAME_MAX_TRANSLATED_LENGTH) return null
+        val composed = composeCombinedCharacterName(
+            parts = resolvedParts.map { it.translatedText },
+            targetLanguage = targetLanguage
+        ) ?: return null
 
         return TranslateResult(
             translatedText = composed,
@@ -3173,7 +3197,8 @@ class Translator @Inject constructor(
 
     private suspend fun resolveCombinedCharacterNamePart(
         namePart: String,
-        playerName: String
+        playerName: String,
+        targetLanguage: String
     ): TranslateResult? {
         val normalizedPart = TextNormalizer.normalizeForTranslation(namePart)
         if (normalizedPart.isBlank()) return null
@@ -3185,11 +3210,30 @@ class Translator @Inject constructor(
             return TranslateResult(normalizedPlayerName, "player-name", true)
         }
 
-        resolveCharacterNameWithState(normalizedPart)?.let { return it }
-
-        return findCharacterNameTranslation(normalizedPart, allowOcrWrappedMatch = true)?.let {
-            TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
+        val resolved = resolveCharacterNameWithState(normalizedPart, targetLanguage)
+            ?: findCharacterNameTranslation(
+                normalizedPart,
+                allowOcrWrappedMatch = true,
+                targetLanguage = targetLanguage
+            )?.let {
+                TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
+            }
+        if (resolved == null) return null
+        if (isEnglishTarget(targetLanguage) &&
+            !isUsableEnglishCombinedNamePart(resolved.translatedText)
+        ) {
+            return null
         }
+        return resolved
+    }
+
+    /**
+     * Guards the English combined-name path: a part must be Latin text and must not contain
+     * Chinese characters or kana, so an English target can never render Chinese name parts.
+     */
+    private fun isUsableEnglishCombinedNamePart(text: String): Boolean {
+        return !EnglishNameValidation.containsCjkOrKana(text) &&
+            EnglishNameValidation.hasLatinLetter(text)
     }
 
     private fun splitCombinedSpeakerNameParts(normalizedName: String): List<String> {

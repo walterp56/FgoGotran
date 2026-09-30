@@ -244,6 +244,12 @@ class AiVoiceService @Inject constructor(
             voiceHint = voiceHint,
             aiVoiceSpeedPercent = voiceSpeedPercent
         )
+        logVoiceExpression(
+            speaker = cleanSpeaker,
+            profile = profile,
+            voiceHint = voiceHint,
+            expression = expression
+        )
         val speechRegion = SettingsRepository.normalizeAzureSpeechRegion(
             settingsRepository.azureSpeechRegion.first()
         )
@@ -353,6 +359,12 @@ class AiVoiceService @Inject constructor(
                 dialogue = dialogue,
                 voiceHint = voiceHint,
                 aiVoiceSpeedPercent = aiVoiceSpeedPercent
+            )
+            logVoiceExpression(
+                speaker = speaker,
+                profile = profile,
+                voiceHint = voiceHint,
+                expression = expression
             )
             val request = VoiceSynthesisRequest(
                 speakerName = speaker,
@@ -603,6 +615,23 @@ class AiVoiceService @Inject constructor(
             text = dialogue,
             voiceHint = voiceHint,
             baseSpeedMultiplier = SettingsRepository.normalizeAiVoiceSpeedPercent(aiVoiceSpeedPercent) / 100.0
+        )
+    }
+
+    private fun logVoiceExpression(
+        speaker: String,
+        profile: VoiceProfile,
+        voiceHint: VoiceLineHint?,
+        expression: VoiceExpression?
+    ) {
+        val appliedStyle = VoiceEmotionStyle.resolveStyle(profile, expression?.styleOverride).ifBlank { "-" }
+        val hintStyles = voiceHint?.styles.orEmpty().ifEmpty { listOf("-") }.joinToString("/")
+        FgoLogger.debug(
+            tag,
+            "AI voice expression speaker=$speaker voice=${profile.voiceName} " +
+                "profileStyle=${profile.style.ifBlank { "-" }} hintStyles=$hintStyles " +
+                "appliedStyle=$appliedStyle rate=${expression?.rateOverride ?: "-"} " +
+                "pitch=${expression?.pitchOverride ?: "-"} pause=${expression?.pauseScale ?: "-"}"
         )
     }
 
