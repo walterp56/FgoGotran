@@ -1,29 +1,33 @@
 # FgoGotran
 
-FgoGotran is an Android floating translation tool for reading **Fate/Grand Order JP story content and battle subtitles**.
+FgoGotran is an Android floating translation tool for reading **Fate/Grand Order JP/NA story content and battle subtitles**. It can produce Simplified Chinese, Traditional Chinese, or English translations, and its interface can follow the system language or use a manually selected language.
 
 It reads the current FGO screen with OCR, matches FGO character names and terminology from a glossary, sends the text to a user-configured AI translation API, and renders the translated speaker name, dialogue, and choices back on top of the game.
 
-- Website: [https://fgogotran.com](https://fgogotran.com)
+- Website: [https://fgogotran.com/en/](https://fgogotran.com/en/)
 - Download: [GitHub Releases](https://github.com/walterp56/FgoGotran/releases)
-- User Guide: [https://fgogotran.com/guide/](https://fgogotran.com/guide/)
-- API Guide: [https://fgogotran.com/api-guide/](https://fgogotran.com/api-guide/)
+- User Guide: [https://fgogotran.com/en/guide/](https://fgogotran.com/en/guide/)
+- API Guide: [https://fgogotran.com/en/api-guide/](https://fgogotran.com/en/api-guide/)
+- Simplified Chinese: [https://fgogotran.com/zh-CN/](https://fgogotran.com/zh-CN/)
+- Traditional Chinese: [https://fgogotran.com/zh-TW/](https://fgogotran.com/zh-TW/)
 
 ## Features
 
-- Designed specifically for FGO JP story reading.
+- Designed specifically for FGO JP and NA story reading, with translation output in Simplified Chinese, Traditional Chinese, or English.
+- Application UI languages include System default, Simplified Chinese, Traditional Chinese, and English; update reminders follow the selected UI language.
 - Supports manual, semi-auto, auto, crop, and dedicated BATTLE subtitle modes for short in-battle dialogue.
-- Uses Japanese OCR to recognize story dialogue, choice text, and speaker names.
-- Uses a glossary/RAG layer before AI translation to keep FGO names, official terms, and story tone more stable.
-- Supports user-provided OpenAI-compatible API settings, including DeepSeek, Qwen, Alibaba Cloud Model Studio, custom endpoints, and authenticated local models on a trusted LAN.
-- Includes FgoGotran Local, a guided Windows x64 setup and control interface for authenticated local AI translation with llama.cpp.
+- Reads supported JP and NA server text, including story dialogue, choice text, and speaker names.
+- Uses a glossary/RAG layer with JP/CN/EN names and terminology to keep FGO names, official terms, and story tone stable across target languages.
+- Supports user-provided API settings for DeepSeek, Zhipu GLM, Alibaba Qwen China/International, OpenAI, Google Gemini, Anthropic Claude, custom endpoints, and authenticated local models on a trusted LAN.
+- Includes FgoGotran Local, a guided Windows x64 setup and control interface in Simplified Chinese, Traditional Chinese, and English for authenticated local AI translation with llama.cpp.
 - Downloads the latest online terminology database instead of bundling a local DB inside the APK.
 - Includes a translation LOG so users can review translated speaker names, dialogue, and choices from the current session.
-- Optionally captures eligible FGO playback audio and streams it to a user-configured Azure Speech resource for low-latency Japanese-to-Chinese subtitles.
+- Optionally captures eligible FGO playback audio and streams it to a user-configured Azure Speech resource for low-latency live subtitles.
+- Optionally reads translated subtitles aloud with Azure TTS in Chinese or English.
 
 ### Battle subtitles
 
-Select `BATTLE字幕` from the floating menu during FGO JP battles. It uses the selected OCR engine and translation API to display translated dialogue above the original subtitle and record it in LOG. Switch back to a story translation mode after the battle.
+Select `Battle` in the English UI or `BATTLE字幕` in the Chinese UI from the floating menu during FGO battles. It uses the selected OCR engine and translation API to display translated dialogue above the original subtitle and record it in LOG. Switch back to a story translation mode after the battle.
 
 ## Installation Note
 
@@ -46,11 +50,12 @@ For a local OpenAI-compatible server such as llama.cpp, enter the phone-reachabl
 ## Project Structure
 
 ```text
-app/             Android app source code
-web/             FgoGotran website, built with Next.js static export
-FgoGotranLocal/  Guided local-AI setup and llama.cpp process manager
-term_builder/    Glossary TSV files and database build scripts
-scripts/         Helper scripts for APK, DB, and preview JSON release workflows
+app/                 Android app source and localized UI resources
+web/                 Localized Next.js website and static export
+web/messages/        zh-CN, zh-TW, and en website text catalogs
+FgoGotranLocal/      Tri-language Windows local-AI setup and control interface
+term_builder/        Glossary TSVs, including English terms, and DB build scripts
+scripts/             APK, DB, voice, and preview release workflows
 ```
 
 ## Android Development
@@ -70,6 +75,7 @@ Generate release APKs with your own signing key in Android Studio. Do not commit
 ```powershell
 cd web
 npm ci
+npm run check:messages
 npm run dev
 ```
 
@@ -87,6 +93,8 @@ Static output:
 web/out
 ```
 
+The static export includes `/zh-CN/`, `/zh-TW/`, and `/en/` routes.
+
 ## FgoGotran Local
 
 FgoGotran Local provides a guided Windows 10/11 x64 setup for authenticated local AI translation with llama.cpp. It can prepare verified Python and llama.cpp components, prefers NVIDIA CUDA with a CPU fallback, and provides a local interface for configuring and monitoring the server. GGUF models remain user-managed.
@@ -96,7 +104,11 @@ cd FgoGotranLocal
 .\Start-FgoGotranLocal.cmd
 ```
 
-Open `http://127.0.0.1:18081`. Setup and security guidance is available in [FgoGotranLocal/README.md](FgoGotranLocal/README.md).
+- [http://127.0.0.1:18081/](http://127.0.0.1:18081/) - Simplified Chinese
+- [http://127.0.0.1:18081/zh-Hant/](http://127.0.0.1:18081/zh-Hant/) - Traditional Chinese
+- [http://127.0.0.1:18081/en/](http://127.0.0.1:18081/en/) - English
+
+The interface, runtime messages, validation errors, logs, and REST responses follow the selected language or `Accept-Language`. Setup and security guidance is available in [FgoGotranLocal/README.md](FgoGotranLocal/README.md).
 
 ## Terminology Database
 
@@ -106,6 +118,8 @@ Editable glossary sources:
 term_builder/character_names.tsv
 term_builder/term.tsv
 ```
+
+The TSVs include English name and term columns used by the English translation target.
 
 Build the database:
 
@@ -125,7 +139,7 @@ See [term_builder/README.md](term_builder/README.md) for details.
 
 ## Privacy and Security
 
-FgoGotran does not upload game screenshots. Screenshots are used locally for OCR. When text translation is enabled, recognized text and the translation prompt are sent to the selected online or local translation API. When the optional real-time voice feature is enabled, eligible FGO playback audio is streamed to the Azure Speech resource configured by the user and is not stored by FgoGotran. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+FgoGotran does not upload game screenshots. Screenshots are used locally for OCR. When text translation is enabled, recognized text and the translation prompt are sent to the selected online or local translation API. When real-time voice translation is enabled, eligible FGO playback audio is streamed to the configured Azure Speech resource for speech recognition. When AI read-aloud is enabled, translated subtitle text is sent to Azure for speech synthesis. FgoGotran does not store the captured audio. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
 
 Before committing, make sure the repository does not contain:
 
@@ -136,4 +150,4 @@ Before committing, make sure the repository does not contain:
 
 ## Disclaimer
 
-FgoGotran is an unofficial helper tool for understanding FGO JP story text. Fate/Grand Order and related assets belong to their respective rights holders.
+FgoGotran is an unofficial helper tool for understanding FGO JP/NA story text and battle subtitles. Fate/Grand Order and related assets belong to their respective rights holders.
