@@ -11,7 +11,7 @@ term_builder/character_names.tsv
 term_builder/term.tsv
 ```
 
-The TSV files are saved as UTF-8 with BOM so spreadsheet tools can open Japanese and Chinese text correctly. If Excel asks during save, keep the file as UTF-8 text. Do not save as ANSI, Big5, or CP950, or Japanese text may become corrupted.
+The editable TSV files use UTF-8. Keep them as UTF-8 text and do not save them as ANSI, Big5, or CP950, or Japanese text may become corrupted.
 
 ## `character_names.tsv`
 

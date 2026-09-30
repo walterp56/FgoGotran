@@ -21,7 +21,7 @@ You can decline automatic llama.cpp setup and configure your own runtime on the 
 
 1. Select the complete `llama-server.exe` from a trusted llama.cpp build.
 2. Select the directory containing your GGUF models.
-3. Scan and choose a Japanese-to-Chinese Instruction/Chat GGUF.
+3. Scan and choose an Instruction/Chat GGUF suitable for translation into your target language.
 4. Confirm the Model ID and network mode.
 5. Save the active profile and start the model.
 

@@ -5,7 +5,7 @@
 Prefer a model that:
 
 - Is an Instruction or Chat model rather than an unaligned Base model.
-- Understands Japanese and reliably produces the selected Chinese variant.
+- Understands Japanese and reliably produces the selected target language.
 - Follows concise formatting instructions without adding explanations.
 - Uses a chat template supported by the selected llama.cpp release.
 - Comes from a trusted publisher and matches the original model documentation.
@@ -57,7 +57,7 @@ FgoGotran Local now detects the specific HTTP 200, empty-content, end-token resp
 
 Test more than one representative FGO scene. Evaluate:
 
-- Correct Japanese-to-Chinese meaning.
+- Correct meaning in the selected target language.
 - Stable output structure and preserved line breaks.
 - Names and glossary terms.
 - Omitted subjects and character relationships.
