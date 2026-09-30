@@ -138,6 +138,9 @@
     <string name="update_release_date">發佈日期：%1$s</string>
     <string name="update_whats_new">更新內容</string>
     <string name="update_open_download">請前往下載頁面查看更新內容。</string>
+    <string name="update_status_checking">正在檢查版本</string>
+    <string name="update_status_available">發現新版本 %1$s</string>
+    <string name="update_status_up_to_date">已是最新版本</string>
     <string name="diagnostic_title">錯誤紀錄</string>
     <string name="diagnostic_back">返回</string>
     <string name="diagnostic_description">自動顯示全部最近問題：錯誤、權限阻塞、資料更新失敗、缺少語音檔案、臨時語音 API 建立結果。</string>

@@ -138,6 +138,9 @@
     <string name="update_release_date">Release date: %1$s</string>
     <string name="update_whats_new">What\'s new</string>
     <string name="update_open_download">Open the download page to see what is new.</string>
+    <string name="update_status_checking">Checking for updates</string>
+    <string name="update_status_available">New version %1$s available</string>
+    <string name="update_status_up_to_date">Up to date</string>
     <string name="diagnostic_title">Diagnostic log</string>
     <string name="diagnostic_back">Back</string>
     <string name="diagnostic_description">Shows recent issues: errors, permission blocks, data update failures, missing voice profiles, and temporary voice API setup results.</string>

@@ -6,6 +6,8 @@ param(
     [string]$ReleaseSlug = "",
     [string]$ApkName = "",
     [string[]]$Changelog = @("Signed release APK"),
+    [string[]]$ChangelogHant = @(),
+    [string[]]$ChangelogEn = @(),
     [string]$S3Uri = "",
     [string]$AwsCli = "aws",
     [string]$CloudFrontDistributionId = "",
@@ -76,7 +78,7 @@ function Get-RelativeUrlPath {
 }
 
 function Normalize-Changelog {
-    param([string[]]$Items)
+    param([string[]]$Items, [switch]$Optional)
 
     $Normalized = @()
     foreach ($Item in $Items) {
@@ -91,6 +93,9 @@ function Normalize-Changelog {
     }
 
     if ($Normalized.Count -eq 0) {
+        if ($Optional) {
+            return @()
+        }
         return @("Signed release APK")
     }
     return $Normalized
@@ -195,6 +200,12 @@ if ($ApkName) {
 }
 foreach ($Item in (Normalize-Changelog $Changelog)) {
     $Args += @("--changelog", $Item)
+}
+foreach ($Item in (Normalize-Changelog -Items $ChangelogHant -Optional)) {
+    $Args += @("--changelog-hant", $Item)
+}
+foreach ($Item in (Normalize-Changelog -Items $ChangelogEn -Optional)) {
+    $Args += @("--changelog-en", $Item)
 }
 
 Push-Location $RepoRoot

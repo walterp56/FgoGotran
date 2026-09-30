@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import com.fgogotran.R
+import com.fgogotran.localization.AppLanguageManager
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -100,8 +102,12 @@ class AppVersionManager @Inject constructor(
             settingsRepository.setAppVersionLastCheckAt(now)
             _status.value = AppVersionStatus(
                 isChecking = true,
-                message = "正在检查版本",
-                detail = "当前版本 ${currentVersionName()}"
+                message = AppLanguageManager.localizedString(context, R.string.update_status_checking),
+                detail = AppLanguageManager.localizedString(
+                    context,
+                    R.string.update_current_version,
+                    currentVersionName()
+                )
             )
             val manifest = fetchManifest()
             validateManifest(manifest)
@@ -117,17 +123,33 @@ class AppVersionManager @Inject constructor(
                     versionName = manifest.versionName,
                     versionCode = manifest.versionCode.toLong(),
                     releaseDate = manifest.releaseDate,
-                    changelog = manifest.changelog
+                    changelog = selectAppChangelog(
+                        language = AppLanguageManager.effectiveLanguageTag(context),
+                        legacy = manifest.changelog,
+                        localized = manifest.changelogI18n
+                    )
                 )
                 _status.value = AppVersionStatus(
-                    message = "发现新版本 ${info.versionName}",
-                    detail = "当前版本 ${currentVersionName()}"
+                    message = AppLanguageManager.localizedString(
+                        context,
+                        R.string.update_status_available,
+                        info.versionName
+                    ),
+                    detail = AppLanguageManager.localizedString(
+                        context,
+                        R.string.update_current_version,
+                        currentVersionName()
+                    )
                 )
                 AppVersionCheckResult.UpdateAvailable(info)
             } else {
                 _status.value = AppVersionStatus(
-                    message = "已是最新版本",
-                    detail = "当前版本 ${currentVersionName()}"
+                    message = AppLanguageManager.localizedString(context, R.string.update_status_up_to_date),
+                    detail = AppLanguageManager.localizedString(
+                        context,
+                        R.string.update_current_version,
+                        currentVersionName()
+                    )
                 )
                 AppVersionCheckResult.UpToDate
             }
@@ -137,7 +159,11 @@ class AppVersionManager @Inject constructor(
             val message = userFacingError(e)
             _status.value = AppVersionStatus(
                 message = message,
-                detail = "当前版本 ${currentVersionName()}",
+                detail = AppLanguageManager.localizedString(
+                    context,
+                    R.string.update_current_version,
+                    currentVersionName()
+                ),
                 isError = true
             )
             AppVersionCheckResult.Failed(message)
@@ -209,7 +235,8 @@ class AppVersionManager @Inject constructor(
         val apkUrl: String = "",
         val apkSha256: String = "",
         val apkSize: Long = 0L,
-        val changelog: List<String> = emptyList()
+        val changelog: List<String> = emptyList(),
+        val changelogI18n: Map<String, List<String>> = emptyMap()
     )
 
     companion object {
@@ -220,4 +247,27 @@ class AppVersionManager @Inject constructor(
         private const val CHECK_COOLDOWN_MS = 24 * 60 * 60 * 1000L
         private const val FAILED_CHECK_COOLDOWN_MS = 60 * 60 * 1000L
     }
+}
+
+/**
+ * Picks the changelog text that matches the app UI language.
+ *
+ * Order: requested language -> Simplified Chinese -> the legacy `changelog` list, so the update
+ * dialog is never empty even when the manifest carries no translation for that language.
+ */
+internal fun selectAppChangelog(
+    language: String,
+    legacy: List<String>,
+    localized: Map<String, List<String>>
+): List<String> {
+    val normalized = SettingsRepository.normalizeTargetLanguage(language)
+    val candidates = listOfNotNull(
+        localized[normalized],
+        localized[SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED]
+    )
+    candidates.forEach { list ->
+        val cleaned = list.map { it.trim() }.filter { it.isNotBlank() }
+        if (cleaned.isNotEmpty()) return cleaned
+    }
+    return legacy.map { it.trim() }.filter { it.isNotBlank() }
 }

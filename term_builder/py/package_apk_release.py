@@ -152,6 +152,13 @@ def package_apk_release(args: argparse.Namespace) -> dict[str, Any]:
         "apkSize": apk_size,
         "changelog": changelog,
     }
+    changelog_i18n = build_changelog_i18n(
+        simplified=changelog,
+        traditional=args.changelog_hant,
+        english=args.changelog_en,
+    )
+    if changelog_i18n:
+        manifest["changelogI18n"] = changelog_i18n
     write_json(latest_dir / "manifest.json", manifest)
 
     return {
@@ -162,6 +169,26 @@ def package_apk_release(args: argparse.Namespace) -> dict[str, Any]:
         "apkSha256": apk_hash,
         "apkSize": apk_size,
     }
+
+
+def build_changelog_i18n(
+    simplified: list[str],
+    traditional: list[str] | None,
+    english: list[str] | None,
+) -> dict[str, list[str]]:
+    """Locale -> changelog map.
+
+    The legacy ``changelog`` field always keeps the Simplified Chinese list so older app
+    versions keep working; this map is only added when a translation is supplied.
+    """
+    if not traditional and not english:
+        return {}
+    localized: dict[str, list[str]] = {"zh-Hans": list(simplified)}
+    if traditional:
+        localized["zh-Hant"] = list(traditional)
+    if english:
+        localized["en"] = list(english)
+    return localized
 
 
 def main() -> None:
@@ -178,6 +205,8 @@ def main() -> None:
     parser.add_argument("--min-sdk", type=int)
     parser.add_argument("--minimum-android")
     parser.add_argument("--changelog", action="append")
+    parser.add_argument("--changelog-hant", action="append")
+    parser.add_argument("--changelog-en", action="append")
     args = parser.parse_args()
 
     result = package_apk_release(args)
