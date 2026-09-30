@@ -57,7 +57,7 @@
     "lede": "An Android overlay translator for the FGO JP story. It reads the screen with OCR, then combines an online terminology database and AI translation to keep character names, proper nouns and story tone consistent.",
     "downloadApk": "Download APK",
     "guide": "Guide",
-    "miniStatus": "Android 11+ · Simplified/Traditional Chinese, English · Bring Your Own API Key",
+    "miniStatus": "Android 11+ · Simplified Chinese / Traditional Chinese / English · Bring Your Own API Key",
     "featuresEyebrow": "What it does",
     "featuresTitle": "Built for reading the FGO story",
     "featuresBody": "Covers story dialogue, choices, character names and common proper nouns, so the JP story reads smoothly.",
@@ -79,7 +79,7 @@
       },
       "modes": {
         "title": "Multiple translation modes",
-        "body": "Manual, semi-auto, full-auto and crop modes for different reading habits and game situations."
+        "body": "Manual, semi-auto, full-auto, crop mode and battle subtitles for different reading habits and game situations."
       },
       "terms": {
         "title": "Online terminology database",
@@ -150,9 +150,9 @@
       },
       "master-name": {
         "title": "Save your Master name",
-        "body": "Enter your Master name and save it. Make sure it matches your name in FGO.",
+        "body": "Enter your Master name and gender, then save. Make sure the name matches your Master name in FGO.",
         "images": [
-          "Master name settings"
+          "Master name and gender settings"
         ]
       },
       "start-service": {
@@ -1219,6 +1219,19 @@
     "body": "A record of the main FgoGotran Android app updates.",
     "recent": "Recent updates",
     "entries": {
+      "v4_0_0": {
+        "items": [
+          "Added an app UI language selector for System default / Simplified Chinese / Traditional Chinese / English.",
+          "Added English as a translation target with a dedicated story font; English prompts; glossary support; name validation; and improved dialogue/name layout.",
+          "Added FGO NA server text reading for English story and choice text.",
+          "Added English live subtitles and Azure English read-aloud support; displays a warning when the subtitle and read-aloud languages differ.",
+          "Added Simplified Chinese / Traditional Chinese / English interfaces to FgoGotran Local; runtime status; error messages; logs; and REST responses now follow the selected language.",
+          "Added Simplified Chinese / Traditional Chinese / English website versions with language switching; dedicated URLs; localized SEO; and translated guides.",
+          "Added localized CDN update notes so the in-app update reminder follows the selected UI language.",
+          "Updated website guidance and feature copy for battle subtitles and Master name/gender setup.",
+          "Improved multilingual text rendering; wrapping; and sizing in translations; subtitles; and overlay results to reduce English overflow and layout issues."
+        ]
+      },
       "v3_1_2": {
         "items": [
           "Added support for rare six-choice story screens, including the sixth option panel below the normal choice area.",
@@ -1385,7 +1398,7 @@
     "facts": {
       "version": "Current version: {version}",
       "android": "Supports Android 11+",
-      "size": "APK size: 153.12 MB",
+      "size": "APK size: 154.80 MB",
       "apiKey": "You provide your own translation API key"
     },
     "installReminderTitle": "Install note: ",
