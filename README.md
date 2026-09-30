@@ -1,41 +1,47 @@
 # FgoGotran
 
-FgoGotran is an Android floating translation tool for reading **Fate/Grand Order JP story content and battle subtitles**. It can produce Simplified Chinese, Traditional Chinese, or English translations, and its interface can follow the system language or use a manually selected language.
+FgoGotran is an Android floating translation tool for **Fate/Grand Order JP story content and battle subtitles**. It reads the current game screen with OCR, applies an FGO glossary/RAG layer, sends the recognized text to a user-configured translation API, and renders the translation above the game.
 
-It reads the current FGO screen with OCR, matches FGO character names and terminology from a glossary, sends the text to a user-configured AI translation API, and renders the translated speaker name, dialogue, and choices back on top of the game.
+| At a glance | |
+| --- | --- |
+| Source content | FGO JP story dialogue, choices, speaker names, and battle subtitles |
+| Interface and output | Supports Simplified Chinese, Traditional Chinese, and English; the interface can also follow the system language |
+| Platform | Android 11+ |
+| Translation backend | User-provided cloud API key or authenticated local OpenAI-compatible server |
+| Local AI | FgoGotran Local for Windows 10/11 x64 with llama.cpp |
 
-- Website: [https://fgogotran.com/en/](https://fgogotran.com/en/)
-- Download: [GitHub Releases](https://github.com/walterp56/FgoGotran/releases)
-- User Guide: [https://fgogotran.com/en/guide/](https://fgogotran.com/en/guide/)
-- API Guide: [https://fgogotran.com/en/api-guide/](https://fgogotran.com/en/api-guide/)
-- Simplified Chinese: [https://fgogotran.com/zh-CN/](https://fgogotran.com/zh-CN/)
-- Traditional Chinese: [https://fgogotran.com/zh-TW/](https://fgogotran.com/zh-TW/)
+## Resources
+
+- [Website](https://fgogotran.com/en/)
+- [Downloads](https://github.com/walterp56/FgoGotran/releases)
+- [User Guide](https://fgogotran.com/en/guide/)
+- [API Guide](https://fgogotran.com/en/api-guide/)
+- [Media and demos](https://fgogotran.com/en/media/)
+- [FgoGotran Local guide](FgoGotranLocal/README.md)
+
+> [!NOTE]
+> On Android 11+, installation may be blocked by Google Play Protect. If needed, install [APKMirror Installer](https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod) first, then install FgoGotran.
 
 ## Features
 
-- Designed specifically for FGO JP story reading, with translation output in Simplified Chinese, Traditional Chinese, or English.
-- Application UI languages include System default, Simplified Chinese, Traditional Chinese, and English; update reminders follow the selected UI language.
-- Supports manual, semi-auto, auto, crop, and dedicated BATTLE subtitle modes for short in-battle dialogue.
-- Uses OCR to recognize FGO JP story dialogue, choice text, and speaker names.
-- Uses a glossary/RAG layer with JP/CN/EN names and terminology to keep FGO names, official terms, and story tone stable across target languages.
-- Supports user-provided API settings for DeepSeek, Zhipu GLM, Alibaba Qwen China/International, OpenAI, Google Gemini, Anthropic Claude, custom endpoints, and authenticated local models on a trusted LAN.
-- Includes FgoGotran Local, a guided Windows x64 setup and control interface in Simplified Chinese, Traditional Chinese, and English for authenticated local AI translation with llama.cpp.
-- Downloads the latest online terminology database instead of bundling a local DB inside the APK.
-- Includes a translation LOG so users can review translated speaker names, dialogue, and choices from the current session.
-- Optionally captures eligible FGO playback audio and streams it to a user-configured Azure Speech resource for low-latency live subtitles.
-- Optionally reads translated subtitles aloud with Azure TTS in Chinese or English.
+- Floating translation overlay for story dialogue, choices, and speaker names.
+- Manual, semi-automatic, automatic, crop, and Battle subtitle modes.
+- ML Kit and PaddleOCR engines with selectable OCR behavior.
+- Online terminology database updated from the CDN.
+- Glossary/RAG protection for character names, classes, Noble Phantasms, places, and other official terms.
+- Translation cache with a session LOG for reviewing recognized and translated text.
+- Live voice subtitles from eligible FGO playback audio.
+- Optional Azure TTS read-aloud.
+- Localized update checks and release notes.
+- Provider presets for DeepSeek, Zhipu GLM, Alibaba Qwen, OpenAI, Gemini, Claude, and custom or local endpoints.
 
-### Battle subtitles
+## Quick Start
 
-Select `Battle` in the English UI or `BATTLE字幕` in the Chinese UI from the floating menu during FGO JP battles. It uses the selected OCR engine and translation API to display translated dialogue above the original subtitle and record it in LOG. Switch back to a story translation mode after the battle.
-
-## Installation Note
-
-On Android 11+, or if installation is blocked by Google Play Protect, please use [APKMirror Installer](https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod) to install FgoGotran. Otherwise, Android may block the Accessibility service from being enabled.
-
-## Before Using
-
-Recommended FGO in-game story settings:
+1. Download the latest APK from [GitHub Releases](https://github.com/walterp56/FgoGotran/releases).
+2. Install the APK. Use APKMirror Installer if Google Play Protect blocks installation.
+3. Enable the overlay and Accessibility permissions requested by FgoGotran.
+4. Configure a translation provider and API key. For a local model, see [FgoGotran Local](FgoGotranLocal/README.md).
+5. Apply the recommended FGO story settings:
 
 ```text
 Text Speed: MAX
@@ -43,26 +49,34 @@ Page Speed: MAX
 Punctuation Wait Time: 0
 ```
 
-FgoGotran also requires Android overlay and Accessibility permissions. A working translation API key is required for AI translation.
+6. Start the FgoGotran service, open FGO, and use the floating button or selected translation mode.
 
-For a local OpenAI-compatible server such as llama.cpp, enter the phone-reachable Chat Completions endpoint (for example, `http://<PC-LAN-IP>:18080/v1/chat/completions`). Unencrypted HTTP is accepted only for numeric private-LAN addresses and should be used only on a trusted Wi-Fi network. Keep API-key authentication enabled on the local server.
+## Translation Modes
 
-## Project Structure
+| Mode | Description |
+| --- | --- |
+| Manual | Translates when you tap the floating button. |
+| Semi-auto | Translates story dialogue automatically and leaves choices for manual confirmation. |
+| Full-auto | Watches the screen and refreshes translations automatically. |
+| Crop | Lets you select a screen region for OCR and translation. |
+| Battle subtitles | Locks onto the battle subtitle area for short in-battle dialogue. |
 
-```text
-app/                 Android app source and localized UI resources
-web/                 Localized Next.js website and static export
-web/messages/        zh-CN, zh-TW, and en website text catalogs
-FgoGotranLocal/      Tri-language Windows local-AI setup and control interface
-term_builder/        Glossary TSVs, including English terms, and DB build scripts
-scripts/             APK, DB, voice, and preview release workflows
+## Local AI with FgoGotran Local
+
+FgoGotran Local is an optional Windows 10/11 x64 companion for running an authenticated local translation server with llama.cpp.
+
+```powershell
+cd FgoGotranLocal
+.\Start-FgoGotranLocal.cmd
 ```
 
-## Android Development
+Open `http://127.0.0.1:18081`, then choose the interface language from the page header. The interface, runtime messages, validation errors, logs, and REST responses follow the selected language or `Accept-Language`. GGUF models remain user-managed. See [FgoGotranLocal/README.md](FgoGotranLocal/README.md) for setup and security details.
 
-Open the project with Android Studio.
+## Development
 
-Build a debug APK from the command line:
+### Android
+
+Open the project with Android Studio, or build a debug APK from the command line:
 
 ```powershell
 .\gradlew.bat assembleDebug
@@ -70,7 +84,7 @@ Build a debug APK from the command line:
 
 Generate release APKs with your own signing key in Android Studio. Do not commit keystores, `key.properties`, `local.properties`, or API keys.
 
-## Website Development
+### Website
 
 ```powershell
 cd web
@@ -93,22 +107,23 @@ Static output:
 web/out
 ```
 
-The static export includes `/zh-CN/`, `/zh-TW/`, and `/en/` routes.
-
-## FgoGotran Local
-
-FgoGotran Local provides a guided Windows 10/11 x64 setup for authenticated local AI translation with llama.cpp. It can prepare verified Python and llama.cpp components, prefers NVIDIA CUDA with a CPU fallback, and provides a local interface for configuring and monitoring the server. GGUF models remain user-managed.
+### FgoGotran Local
 
 ```powershell
 cd FgoGotranLocal
 .\Start-FgoGotranLocal.cmd
 ```
 
-- [http://127.0.0.1:18081/](http://127.0.0.1:18081/) - Simplified Chinese
-- [http://127.0.0.1:18081/zh-Hant/](http://127.0.0.1:18081/zh-Hant/) - Traditional Chinese
-- [http://127.0.0.1:18081/en/](http://127.0.0.1:18081/en/) - English
+## Project Structure
 
-The interface, runtime messages, validation errors, logs, and REST responses follow the selected language or `Accept-Language`. Setup and security guidance is available in [FgoGotranLocal/README.md](FgoGotranLocal/README.md).
+```text
+app/                 Android app source and localized UI resources
+web/                 Localized Next.js website and static export
+web/messages/        Website text catalogs
+FgoGotranLocal/      Windows local-AI setup and control interface
+term_builder/        Glossary TSVs and database build scripts
+scripts/             APK, DB, voice, and preview release workflows
+```
 
 ## Terminology Database
 
@@ -139,14 +154,19 @@ See [term_builder/README.md](term_builder/README.md) for details.
 
 ## Privacy and Security
 
-FgoGotran does not upload game screenshots. Screenshots are used locally for OCR. When text translation is enabled, recognized text and the translation prompt are sent to the selected online or local translation API. When real-time voice translation is enabled, eligible FGO playback audio is streamed to the configured Azure Speech resource for speech recognition. When AI read-aloud is enabled, translated subtitle text is sent to Azure for speech synthesis. FgoGotran does not store the captured audio. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
+FgoGotran does not upload game screenshots. Screenshots are used locally for OCR. When translation is enabled, recognized text and the translation prompt are sent to the configured online or local translation API.
 
-Before committing, make sure the repository does not contain:
+When real-time voice translation is enabled, eligible FGO playback audio is streamed to the configured Azure Speech resource for speech recognition. When AI read-aloud is enabled, translated subtitle text is sent to Azure for speech synthesis. FgoGotran does not store the captured audio. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md).
 
-- API keys, AWS secrets, or access tokens.
-- Android signing files, keystores, or `key.properties`.
-- Local machine paths, debug logs, or build outputs.
-- Virtual environments, cache files, or generated release packages.
+Before committing, make sure the repository does not contain API keys, AWS secrets, access tokens, Android signing files, local machine paths, debug logs, virtual environments, caches, or generated release packages.
+
+## Contributing
+
+Issues and pull requests are welcome. Keep changes focused, avoid committing generated files or credentials, and update documentation when behavior changes.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
 
 ## Disclaimer
 
