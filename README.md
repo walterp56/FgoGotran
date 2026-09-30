@@ -1,6 +1,6 @@
 # FgoGotran
 
-FgoGotran is an Android floating translation tool for reading **Fate/Grand Order JP/NA story content and battle subtitles**. It can produce Simplified Chinese, Traditional Chinese, or English translations, and its interface can follow the system language or use a manually selected language.
+FgoGotran is an Android floating translation tool for reading **Fate/Grand Order JP story content and battle subtitles**. It can produce Simplified Chinese, Traditional Chinese, or English translations, and its interface can follow the system language or use a manually selected language.
 
 It reads the current FGO screen with OCR, matches FGO character names and terminology from a glossary, sends the text to a user-configured AI translation API, and renders the translated speaker name, dialogue, and choices back on top of the game.
 
@@ -13,10 +13,10 @@ It reads the current FGO screen with OCR, matches FGO character names and termin
 
 ## Features
 
-- Designed specifically for FGO JP and NA story reading, with translation output in Simplified Chinese, Traditional Chinese, or English.
+- Designed specifically for FGO JP story reading, with translation output in Simplified Chinese, Traditional Chinese, or English.
 - Application UI languages include System default, Simplified Chinese, Traditional Chinese, and English; update reminders follow the selected UI language.
 - Supports manual, semi-auto, auto, crop, and dedicated BATTLE subtitle modes for short in-battle dialogue.
-- Reads supported JP and NA server text, including story dialogue, choice text, and speaker names.
+- Uses OCR to recognize FGO JP story dialogue, choice text, and speaker names.
 - Uses a glossary/RAG layer with JP/CN/EN names and terminology to keep FGO names, official terms, and story tone stable across target languages.
 - Supports user-provided API settings for DeepSeek, Zhipu GLM, Alibaba Qwen China/International, OpenAI, Google Gemini, Anthropic Claude, custom endpoints, and authenticated local models on a trusted LAN.
 - Includes FgoGotran Local, a guided Windows x64 setup and control interface in Simplified Chinese, Traditional Chinese, and English for authenticated local AI translation with llama.cpp.
@@ -27,7 +27,7 @@ It reads the current FGO screen with OCR, matches FGO character names and termin
 
 ### Battle subtitles
 
-Select `Battle` in the English UI or `BATTLE字幕` in the Chinese UI from the floating menu during FGO battles. It uses the selected OCR engine and translation API to display translated dialogue above the original subtitle and record it in LOG. Switch back to a story translation mode after the battle.
+Select `Battle` in the English UI or `BATTLE字幕` in the Chinese UI from the floating menu during FGO JP battles. It uses the selected OCR engine and translation API to display translated dialogue above the original subtitle and record it in LOG. Switch back to a story translation mode after the battle.
 
 ## Installation Note
 
@@ -150,4 +150,4 @@ Before committing, make sure the repository does not contain:
 
 ## Disclaimer
 
-FgoGotran is an unofficial helper tool for understanding FGO JP/NA story text and battle subtitles. Fate/Grand Order and related assets belong to their respective rights holders.
+FgoGotran is an unofficial helper tool for understanding FGO JP story text and battle subtitles. Fate/Grand Order and related assets belong to their respective rights holders.
