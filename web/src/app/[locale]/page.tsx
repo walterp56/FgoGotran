@@ -1,5 +1,3 @@
-import { readdirSync } from "node:fs";
-import path from "node:path";
 import { BookOpen, Download, GitBranch } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
@@ -7,27 +5,8 @@ import { ExampleSlideshow, type ExampleImage } from "@/components/ExampleSlidesh
 import { FeatureGrid } from "@/components/FeatureGrid";
 import { SectionHeader } from "@/components/SectionHeader";
 import { featureDefs, modeCardDefs, siteConfig, type Feature } from "@/data/site";
+import { listLocalizedImages } from "@/lib/localizedImage";
 import { pageMetadata } from "@/lib/seo";
-
-const exampleImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
-
-function getHeroExamples(): ExampleImage[] {
-  const examplesDirectory = path.join(process.cwd(), "public", "examples");
-
-  try {
-    return readdirSync(examplesDirectory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && exampleImageExtensions.has(path.extname(entry.name).toLowerCase()))
-      .sort((a, b) => a.name.localeCompare(b.name, "en"))
-      .map((entry, index) => ({
-        src: `/examples/${encodeURIComponent(entry.name)}`,
-        alt: `FGO translation screenshot example ${index + 1}`
-      }));
-  } catch {
-    return [];
-  }
-}
-
-const heroExamples = getHeroExamples();
 
 type HomePageProps = {
   params: Promise<{ locale: string }>;
@@ -44,6 +23,11 @@ export default async function HomePage({ params }: HomePageProps) {
   setRequestLocale(locale);
   const t = await getTranslations("home");
   const modes = await getTranslations("modes");
+
+  const heroExamples: ExampleImage[] = listLocalizedImages(locale, "examples").map((src, index) => ({
+    src,
+    alt: t("heroImageAlt", { number: index + 1 })
+  }));
 
   const features: Feature[] = featureDefs.map((def) => ({
     ...def,

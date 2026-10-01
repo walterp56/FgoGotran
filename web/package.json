@@ -8,9 +8,10 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
+    "check:images": "node scripts/check-images.mjs",
     "check:messages": "node scripts/check-messages.mjs",
     "gen:zh-tw": "node scripts/gen-zh-tw.mjs",
-    "prebuild": "npm run check:messages"
+    "prebuild": "npm run check:messages && npm run check:images"
   },
   "dependencies": {
     "lucide-react": "latest",

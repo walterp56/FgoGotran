@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { modeCardDefs, type Feature } from "@/data/site";
+import { localizedImage } from "@/lib/localizedImage";
 import { pageMetadata } from "@/lib/seo";
 
 type GuideImage = {
@@ -88,8 +89,12 @@ const tocDefs = [
   { href: "#translation-log", key: "translationLog" }
 ];
 
-function buildImages(defs: GuideImageDef[], alts: string[]): GuideImage[] {
-  return defs.map((image, index) => ({ src: image.src, alt: alts[index] ?? "", kind: image.kind }));
+function buildImages(defs: GuideImageDef[], alts: string[], locale: string): GuideImage[] {
+  return defs.map((image, index) => ({
+    src: localizedImage(locale, image.src),
+    alt: alts[index] ?? "",
+    kind: image.kind
+  }));
 }
 
 function ImageStrip({ images }: { images: GuideImage[] }) {
@@ -137,14 +142,14 @@ export default async function GuidePage({ params }: GuidePageProps) {
     title: t(`setupSteps.${def.id}.title`),
     body: t(`setupSteps.${def.id}.body`),
     note: t.has(`setupSteps.${def.id}.note`) ? t.raw(`setupSteps.${def.id}.note`) : undefined,
-    images: buildImages(def.images, t.raw(`setupSteps.${def.id}.images`))
+    images: buildImages(def.images, t.raw(`setupSteps.${def.id}.images`), locale)
   }));
 
   const buttonGuides = buttonGuideDefs.map((def) => ({
     ...def,
     title: t(`buttonGuides.${def.id}.title`),
     body: t(`buttonGuides.${def.id}.body`),
-    images: buildImages(def.images, t.raw(`buttonGuides.${def.id}.images`))
+    images: buildImages(def.images, t.raw(`buttonGuides.${def.id}.images`), locale)
   }));
 
   return (

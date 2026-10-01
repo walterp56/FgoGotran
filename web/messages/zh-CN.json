@@ -2,7 +2,7 @@
   "meta": {
     "defaultTitle": "FgoGotran",
     "titleTemplate": "%s | FgoGotran",
-    "description": "Fate/Grand Order 日服剧情 OCR + AI 中文翻译工具。"
+    "description": "Fate/Grand Order 日服剧情 OCR + AI 翻译工具，支持简体中文、繁体中文和 English。"
   },
   "nav": {
     "guide": "使用指南",
@@ -32,6 +32,7 @@
     "downloadApk": "下载 APK",
     "guide": "使用指南",
     "miniStatus": "Android 11+ · 简体中文 / 繁體中文 / English · Bring Your Own API Key",
+    "heroImageAlt": "FGO 翻译截图示例 {number}",
     "featuresEyebrow": "What it does",
     "featuresTitle": "为 FGO 剧情阅读而做",
     "featuresBody": "覆盖剧情对话、选项、角色名和常见专有名词，让日服剧情阅读更顺手。",
@@ -95,7 +96,7 @@
     "setupSteps": {
       "install": {
         "title": "安装并打开 FgoGotran",
-        "body": "选择简体中文或繁体中文翻译。按提示开启无障碍服务权限、悬浮窗权限，并尽量关闭电池优化。",
+        "body": "选择翻译语言：简体中文、繁体中文或 English。按提示开启无障碍服务权限、悬浮窗权限，并尽量关闭电池优化。",
         "note": "不同手机品牌可能没有关闭电池优化的选项；没有这个选项也可以继续使用。",
         "images": [
           "FgoGotran 初次设置页面",
@@ -153,7 +154,7 @@
           "半自动模式悬浮按钮",
           "全自动模式悬浮按钮",
           "裁剪模式悬浮按钮",
-          "裁剪模式悬浮按钮"
+          "战斗字幕模式悬浮按钮"
         ]
       },
       "failure-ring": {

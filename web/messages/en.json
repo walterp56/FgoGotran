@@ -2,7 +2,7 @@
   "meta": {
     "defaultTitle": "FgoGotran",
     "titleTemplate": "%s | FgoGotran",
-    "description": "OCR + AI Chinese translation tool for the Fate/Grand Order JP story."
+    "description": "OCR + AI translation tool for the Fate/Grand Order JP story, with Simplified Chinese, Traditional Chinese and English output."
   },
   "nav": {
     "guide": "Guide",
@@ -58,6 +58,7 @@
     "downloadApk": "Download APK",
     "guide": "Guide",
     "miniStatus": "Android 11+ · Simplified Chinese / Traditional Chinese / English · Bring Your Own API Key",
+    "heroImageAlt": "FGO translation screenshot example {number}",
     "featuresEyebrow": "What it does",
     "featuresTitle": "Built for reading the FGO story",
     "featuresBody": "Covers story dialogue, choices, character names and common proper nouns, so the JP story reads smoothly.",
@@ -122,7 +123,7 @@
     "setupSteps": {
       "install": {
         "title": "Install and open FgoGotran",
-        "body": "Choose Simplified or Traditional Chinese translation. Follow the prompts to grant the accessibility service and overlay permissions, and disable battery optimization if you can.",
+        "body": "Choose the translation language: Simplified Chinese, Traditional Chinese or English. Follow the prompts to grant the accessibility service and overlay permissions, and disable battery optimization if you can.",
         "note": "Some phone brands do not offer a battery-optimization option; you can keep using the app without it.",
         "images": [
           "FgoGotran first-time setup screen",
@@ -180,7 +181,7 @@
           "Semi-auto-mode floating button",
           "Auto-mode floating button",
           "Crop-mode floating button",
-          "Crop-mode floating button"
+          "Battle-subtitle-mode floating button"
         ]
       },
       "failure-ring": {
