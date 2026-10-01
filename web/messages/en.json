@@ -1118,7 +1118,7 @@
       "test-voice": {
         "title": "Test the voice",
         "body": "Tap Test voice. If everything works you will hear Mash's test line, which means the key, region and Azure TTS are all working.",
-        "value": "瑪修・基列萊特，在此。御主……戰鬥準備完成，請下達指示。"
+        "value": "Mash Kyrielight, reporting. Master... combat preparation complete. Awaiting your orders."
       }
     },
     "chinaAzure": {
