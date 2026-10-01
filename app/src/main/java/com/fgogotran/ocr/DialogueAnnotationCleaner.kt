@@ -54,7 +54,7 @@ internal object DialogueAnnotationCleaner {
             return Result(pixels, maskedComponents = 0, maskedRows = 0)
         }
 
-        val foreground = BooleanArray(width * height) { index -> pixels[index].isNeutralDialogueInk() }
+        val foreground = BooleanArray(width * height) { index -> pixels[index].isDialogueInk() }
         val components = connectedComponents(foreground, width, height)
         val maximumDotSide = max(MIN_DOT_SIDE, (height * MAX_DOT_SIDE_HEIGHT_RATIO).roundToInt())
         val candidates = components.mapNotNull { component ->
@@ -287,15 +287,11 @@ internal object DialogueAnnotationCleaner {
         }
     }
 
-    private fun Int.isNeutralDialogueInk(): Boolean {
+    private fun Int.isDialogueInk(): Boolean {
         val red = (this shr 16) and 0xff
         val green = (this shr 8) and 0xff
         val blue = this and 0xff
-        val brightest = max(red, max(green, blue))
-        val darkest = min(red, min(green, blue))
-        return luminance() >= MIN_TEXT_LUMINANCE &&
-            darkest >= MIN_TEXT_CHANNEL &&
-            brightest - darkest <= MAX_TEXT_CHROMA
+        return FgoStoryTextPalette.isDialogueInk(red, green, blue)
     }
 
     private fun Int.luminance(): Int {
@@ -305,9 +301,6 @@ internal object DialogueAnnotationCleaner {
         return (red * 77 + green * 150 + blue * 29) shr 8
     }
 
-    private const val MIN_TEXT_LUMINANCE = 165
-    private const val MIN_TEXT_CHANNEL = 120
-    private const val MAX_TEXT_CHROMA = 95
     private const val MIN_COMPONENT_PIXELS = 5
     private const val MIN_DOT_SIDE = 3
     private const val MAX_DOT_SIDE_HEIGHT_RATIO = 0.09f

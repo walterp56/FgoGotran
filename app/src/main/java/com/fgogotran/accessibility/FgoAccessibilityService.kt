@@ -37,6 +37,7 @@ import com.fgogotran.game.FgoPackages
 import com.fgogotran.game.ForegroundTestOverride
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.ocr.ChoicePunctuationRecovery
+import com.fgogotran.ocr.FgoStoryTextPalette
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrEngineId
 import com.fgogotran.ocr.OcrContentKind
@@ -306,28 +307,6 @@ class FgoAccessibilityService : AccessibilityService() {
 
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
-        private val FGO_TEXT_COLOR_SAMPLES = listOf(
-            TextColorSample(
-                sampleColor = Color.rgb(245, 245, 240),
-                renderColor = Color.rgb(245, 245, 240),
-                maxDistanceSquared = 120 * 120
-            ),
-            TextColorSample(
-                sampleColor = FGO_RENDER_RED,
-                renderColor = FGO_RENDER_RED,
-                maxDistanceSquared = 100 * 100
-            ),
-            TextColorSample(
-                sampleColor = Color.rgb(80, 235, 235),
-                renderColor = Color.rgb(80, 235, 235),
-                maxDistanceSquared = 115 * 115
-            ),
-            TextColorSample(
-                sampleColor = Color.rgb(197, 227, 94),
-                renderColor = Color.rgb(197, 227, 94),
-                maxDistanceSquared = 90 * 90
-            )
-        )
 
         private val _serviceStarted = mutableStateOf(false)
         val serviceStarted: State<Boolean>
@@ -3089,7 +3068,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     lines = region.lines,
                     rubyDetectionMode = RubyDetectionMode.STRICT,
                     needVoiceText = needVoiceText,
-                    sourceBitmap = source
+                    sourceBitmap = source,
+                    scope = textInkScope(region.region)
                 )
             }
             TextRegion.NAME_LABEL -> null
@@ -3395,7 +3375,8 @@ class FgoAccessibilityService : AccessibilityService() {
         lines: List<OcrTextLine>,
         rubyDetectionMode: RubyDetectionMode,
         needVoiceText: Boolean = true,
-        sourceBitmap: Bitmap? = null
+        sourceBitmap: Bitmap? = null,
+        scope: FgoStoryTextPalette.Scope = FgoStoryTextPalette.Scope.STORY
     ): DialogueSourceText {
         // Dialogue OCR already runs in its own crop. A punctuation-only row such as `……。`
         // is therefore real dialogue, not name ruby, and must survive the ruby-noise filter.
@@ -3519,7 +3500,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         mainBounds = main.boundingBox,
                         rubies = rubies,
                         useJapaneseRubyMarkup = true,
-                        sourceBitmap = sourceBitmap
+                        sourceBitmap = sourceBitmap,
+                        scope = scope
                     )
                 }
             }
@@ -3775,7 +3757,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun buildBaseSpans(
         source: Bitmap,
         mainText: String,
-        mainBounds: Rect
+        mainBounds: Rect,
+        scope: FgoStoryTextPalette.Scope
     ): List<BaseSpan> {
         if (mainText.isBlank() || mainBounds.width() <= 1 || mainBounds.height() <= 1) return emptyList()
         val bounds = Rect(mainBounds).apply { intersect(0, 0, source.width, source.height) }
@@ -3790,7 +3773,7 @@ class FgoAccessibilityService : AccessibilityService() {
             var count = 0
             var index = x
             while (index < pixels.size) {
-                if (isLikelyTextPixel(pixels[index])) count++
+                if (isLikelyTextPixel(pixels[index], scope)) count++
                 index += width
             }
             columnCounts[x] = count
@@ -3944,10 +3927,11 @@ class FgoAccessibilityService : AccessibilityService() {
         mainBounds: Rect,
         rubies: List<OcrTextLine>,
         useJapaneseRubyMarkup: Boolean,
-        sourceBitmap: Bitmap? = null
+        sourceBitmap: Bitmap?,
+        scope: FgoStoryTextPalette.Scope
     ): String {
         val baseSpans = sourceBitmap
-            ?.let { bitmap -> buildBaseSpans(bitmap, mainText, mainBounds) }
+            ?.let { bitmap -> buildBaseSpans(bitmap, mainText, mainBounds, scope) }
             .orEmpty()
         val insertions = rubies
             .mapNotNull { ruby ->
@@ -4130,7 +4114,9 @@ class FgoAccessibilityService : AccessibilityService() {
 
         // A name OCR box can still include artwork through the translucent plate. Vote only in
         // the measured name glyph extent when it is available.
-        val matchCounts = IntArray(FGO_TEXT_COLOR_SAMPLES.size)
+        val scope = textInkScope(region.region)
+        val colorSamples = FgoStoryTextPalette.samplesFor(scope)
+        val matchCounts = IntArray(colorSamples.size)
 
         for (line in region.lines) {
             val bounds = Rect(
@@ -4150,12 +4136,12 @@ class FgoAccessibilityService : AccessibilityService() {
                     // scene art showing through it; counting those pixels let the
                     // background outvote the name and made the colour flip per frame.
                     // Same text-pixel test the visual fingerprint mask uses.
-                    if (!isLikelyTextPixel(pixel)) continue
+                    if (!isLikelyTextPixel(pixel, scope)) continue
                     val r = (pixel shr 16) and 0xFF
                     val g = (pixel shr 8) and 0xFF
                     val b = pixel and 0xFF
 
-                    val sampleIndex = nearestTextColorSampleIndex(r, g, b)
+                    val sampleIndex = FgoStoryTextPalette.nearestIndex(r, g, b, scope)
                     if (sampleIndex >= 0) {
                         matchCounts[sampleIndex]++
                     }
@@ -4184,7 +4170,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
         }
         return if (bestCount >= MIN_PALETTE_TEXT_PIXELS) {
-            FGO_TEXT_COLOR_SAMPLES[bestIndex].renderColor
+            colorSamples[bestIndex].renderColor
         } else {
             null
         }
@@ -4223,32 +4209,6 @@ class FgoAccessibilityService : AccessibilityService() {
                 ocrEngine = OcrEngineId.UNKNOWN
             )
         )
-    }
-
-    private fun nearestTextColorSampleIndex(red: Int, green: Int, blue: Int): Int {
-        var bestIndex = -1
-        var bestDistance = Int.MAX_VALUE
-        FGO_TEXT_COLOR_SAMPLES.forEachIndexed { index, sample ->
-            val distance = sample.distanceSquared(red, green, blue)
-            if (distance <= sample.maxDistanceSquared && distance < bestDistance) {
-                bestDistance = distance
-                bestIndex = index
-            }
-        }
-        return bestIndex
-    }
-
-    private data class TextColorSample(
-        val sampleColor: Int,
-        val renderColor: Int,
-        val maxDistanceSquared: Int
-    ) {
-        fun distanceSquared(red: Int, green: Int, blue: Int): Int {
-            val dr = red - Color.red(sampleColor)
-            val dg = green - Color.green(sampleColor)
-            val db = blue - Color.blue(sampleColor)
-            return dr * dr + dg * dg + db * db
-        }
     }
 
     private fun addHistoryEntry(
@@ -5330,13 +5290,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val r = (pixel shr 16) and 0xFF
         val g = (pixel shr 8) and 0xFF
         val b = pixel and 0xFF
-        val strongestNonRed = maxOf(g, b)
-        val vividRed = r >= 130 && r - strongestNonRed >= 35
-        val dimRed = r >= 95 &&
-                r - strongestNonRed >= 24 &&
-                r * 2 >= g * 3 &&
-                r * 2 >= b * 3
-        return vividRed || dimRed
+        return FgoStoryTextPalette.isRedInk(r, g, b)
     }
 
     private fun dialogueOcrQuality(text: String): DialogueOcrQuality {
@@ -5434,7 +5388,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             if (expected.samples.isEmpty()) return false
             expected.samples.all { sample ->
-                val currentMask = textMaskFor(currentScreenshot, sample.bounds)
+                val currentMask = textMaskFor(currentScreenshot, sample.bounds, textInkScope(sample.region))
                 val matches = currentMask != null && masksAreSimilar(sample.mask, currentMask)
                 if (!matches) {
                     FgoLogger.debug(tag, "Visual freshness mismatch in ${sample.region}")
@@ -5452,7 +5406,7 @@ class FgoAccessibilityService : AccessibilityService() {
     ): VisualSourceFingerprint {
         val samples = regions.flatMap { region ->
             region.lines.mapNotNull { line ->
-                textMaskFor(source, line.boundingBox)?.let { mask ->
+                textMaskFor(source, line.boundingBox, textInkScope(region.region))?.let { mask ->
                     VisualTextSample(region.region, Rect(line.boundingBox), mask)
                 }
             }
@@ -5467,7 +5421,11 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun textMaskFor(bitmap: Bitmap, sourceBounds: Rect): VisualTextMask? {
+    private fun textMaskFor(
+        bitmap: Bitmap,
+        sourceBounds: Rect,
+        scope: FgoStoryTextPalette.Scope = FgoStoryTextPalette.Scope.STORY
+    ): VisualTextMask? {
         val bounds = Rect(sourceBounds)
         bounds.inset(-2, -2)
         if (!bounds.intersect(0, 0, bitmap.width, bitmap.height)) return null
@@ -5484,7 +5442,7 @@ class FgoAccessibilityService : AccessibilityService() {
         while (y < bounds.bottom) {
             var x = bounds.left
             while (x < bounds.right) {
-                if (isLikelyTextPixel(bitmap.getPixel(x, y))) {
+                if (isLikelyTextPixel(bitmap.getPixel(x, y), scope)) {
                     words[index / 64] = words[index / 64] or (1L shl (index and 63))
                     textPixels++
                 }
@@ -5497,7 +5455,14 @@ class FgoAccessibilityService : AccessibilityService() {
         return VisualTextMask(sampleCount = index, textPixels = textPixels, words = words)
     }
 
-    private fun isLikelyTextPixel(pixel: Int): Boolean {
+    private fun textInkScope(region: TextRegion): FgoStoryTextPalette.Scope =
+        if (region == TextRegion.CHOICE_BUTTON) FgoStoryTextPalette.Scope.CHOICE
+        else FgoStoryTextPalette.Scope.STORY
+
+    private fun isLikelyTextPixel(
+        pixel: Int,
+        scope: FgoStoryTextPalette.Scope = FgoStoryTextPalette.Scope.STORY
+    ): Boolean {
         val r = (pixel shr 16) and 0xFF
         val g = (pixel shr 8) and 0xFF
         val b = pixel and 0xFF
@@ -5505,12 +5470,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val min = minOf(r, g, b)
         val spread = max - min
         val whiteText = r >= 170 && g >= 170 && b >= 170 && spread <= 95
-        val redText = r >= 165 && r - maxOf(g, b) >= 40
-        val cyanText = isFgoCyanTextColor(r, g, b)
-        // Some speakers use the yellow-green palette colour. Without this branch those glyphs never
-        // reached the colour vote (and the visual mask ignored them completely).
-        val yellowGreenText = g >= 150 && g - maxOf(r, b) >= 15
-        return whiteText || redText || cyanText || yellowGreenText
+        return whiteText || FgoStoryTextPalette.isColoredInk(r, g, b, scope)
     }
 
     private fun masksAreSimilar(

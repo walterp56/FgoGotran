@@ -543,12 +543,7 @@ internal object ChoicePunctuationRecovery {
         val red = (this shr 16) and 0xff
         val green = (this shr 8) and 0xff
         val blue = this and 0xff
-        val brightest = maxOf(red, green, blue)
-        val darkest = minOf(red, green, blue)
-        val luminance = (red * 77 + green * 150 + blue * 29) shr 8
-        return luminance >= MIN_TEXT_LUMA &&
-            darkest >= MIN_TEXT_CHANNEL &&
-            brightest - darkest <= MAX_TEXT_CHROMA
+        return FgoStoryTextPalette.isChoiceInk(red, green, blue)
     }
 
     private fun Bounds.clipped(width: Int, height: Int): Bounds? {
@@ -614,9 +609,6 @@ internal object ChoicePunctuationRecovery {
     private const val MIN_SCAN_INSET = 2
     private const val HORIZONTAL_SCAN_INSET_RATIO = 0.015f
     private const val VERTICAL_SCAN_INSET_RATIO = 0.08f
-    private const val MIN_TEXT_LUMA = 160
-    private const val MIN_TEXT_CHANNEL = 115
-    private const val MAX_TEXT_CHROMA = 90
     private const val MIN_COMPONENT_PIXELS = 4
     private const val MAIN_LINE_MIN_HEIGHT_RATIO = 0.66f
     private const val MAIN_LINE_MAX_CENTER_DIFFERENCE_RATIO = 0.45f

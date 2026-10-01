@@ -12,6 +12,8 @@ import kotlin.math.roundToInt
  * were included in the normal pass and retrying them adds work without context.
  */
 internal object PaddleEdgePunctuationProbe {
+    private data class ForegroundReference(val threshold: Int, val family: FgoStoryTextPalette.Family?)
+
     fun hasEvidence(
         pixels: IntArray,
         width: Int,
@@ -19,7 +21,8 @@ internal object PaddleEdgePunctuationProbe {
         textLeft: Int,
         textTop: Int,
         textRight: Int,
-        textBottom: Int
+        textBottom: Int,
+        allowStoryColors: Boolean = false
     ): Boolean {
         if (width <= 0 || height <= 0 || pixels.size < width * height) return false
         if (textLeft !in 0 until width || textTop !in 0 until height) return false
@@ -27,13 +30,14 @@ internal object PaddleEdgePunctuationProbe {
         if (textRight <= textLeft || textBottom <= textTop) return false
 
         val lineHeight = (textBottom - textTop).coerceAtLeast(1)
-        val foregroundThreshold = foregroundThreshold(
+        val reference = foregroundReference(
             pixels = pixels,
             width = width,
             textLeft = textLeft,
             textTop = textTop,
             textRight = textRight,
-            textBottom = textBottom
+            textBottom = textBottom,
+            allowStoryColors = allowStoryColors
         ) ?: return false
         val verticalPadding = max(1, (lineHeight * VERTICAL_SCAN_PADDING_RATIO).roundToInt())
         val scanTop = (textTop - verticalPadding).coerceAtLeast(0)
@@ -43,7 +47,9 @@ internal object PaddleEdgePunctuationProbe {
             val rowOffset = y * width
             for (x in 0 until width) {
                 if (x in textLeft until textRight) continue
-                active[rowOffset + x] = luminance(pixels[rowOffset + x]) >= foregroundThreshold
+                val pixel = pixels[rowOffset + x]
+                active[rowOffset + x] = luminance(pixel) >= reference.threshold ||
+                    (reference.family != null && additionalInkFamily(pixel) == reference.family)
             }
         }
 
@@ -107,29 +113,53 @@ internal object PaddleEdgePunctuationProbe {
         return false
     }
 
-    private fun foregroundThreshold(
+    private fun foregroundReference(
         pixels: IntArray,
         width: Int,
         textLeft: Int,
         textTop: Int,
         textRight: Int,
-        textBottom: Int
-    ): Int? {
+        textBottom: Int,
+        allowStoryColors: Boolean
+    ): ForegroundReference? {
         val histogram = IntArray(256)
+        val colorVotes = if (allowStoryColors) IntArray(FgoStoryTextPalette.Family.entries.size) else null
         var samples = 0
         for (y in textTop until textBottom step SAMPLE_STEP) {
             val rowOffset = y * width
             for (x in textLeft until textRight step SAMPLE_STEP) {
-                histogram[luminance(pixels[rowOffset + x])]++
+                val pixel = pixels[rowOffset + x]
+                histogram[luminance(pixel)]++
+                if (colorVotes != null) additionalInkFamily(pixel)?.let { colorVotes[it.ordinal]++ }
                 samples++
             }
         }
         if (samples == 0) return null
 
         val brightReference = percentile(histogram, samples, FOREGROUND_REFERENCE_PERCENTILE)
-        if (brightReference < MIN_TEXT_REFERENCE_LUMA) return null
-        return max(MIN_FOREGROUND_LUMA, brightReference - FOREGROUND_REFERENCE_MARGIN)
+        val family = colorVotes?.let { votes ->
+            val best = votes.indices.maxByOrNull { votes[it] } ?: return@let null
+            val runnerUp = votes.indices.filter { it != best }.maxOfOrNull { votes[it] } ?: 0
+            FgoStoryTextPalette.Family.entries[best].takeIf {
+                votes[best] >= max(MIN_COLOR_REFERENCE_PIXELS, (samples * MIN_COLOR_REFERENCE_RATIO).roundToInt()) &&
+                    votes[best] >= runnerUp * MIN_COLOR_WINNER_RATIO
+            }
+        }
+        if (brightReference < MIN_TEXT_REFERENCE_LUMA && family == null) return null
+        // Dim brown/purple evidence must match the supported colour of the recognized body.
+        // Do not lower the global brightness floor or accept an unrelated coloured edge.
+        val threshold = if (brightReference >= MIN_TEXT_REFERENCE_LUMA) {
+            max(MIN_FOREGROUND_LUMA, brightReference - FOREGROUND_REFERENCE_MARGIN)
+        } else {
+            Int.MAX_VALUE
+        }
+        return ForegroundReference(threshold, family)
     }
+
+    private fun additionalInkFamily(pixel: Int): FgoStoryTextPalette.Family? =
+        FgoStoryTextPalette.additionalInkFamily(
+            (pixel shr 16) and 0xff, (pixel shr 8) and 0xff, pixel and 0xff
+        )
 
     private fun percentile(histogram: IntArray, samples: Int, percentile: Float): Int {
         val target = (samples * percentile).roundToInt().coerceIn(1, samples)
@@ -201,6 +231,9 @@ internal object PaddleEdgePunctuationProbe {
     private const val FOREGROUND_REFERENCE_PERCENTILE = 0.97f
     private const val MIN_TEXT_REFERENCE_LUMA = 155
     private const val MIN_FOREGROUND_LUMA = 150
+    private const val MIN_COLOR_REFERENCE_PIXELS = 4
+    private const val MIN_COLOR_REFERENCE_RATIO = 0.03f
+    private const val MIN_COLOR_WINNER_RATIO = 1.4f
     private const val FOREGROUND_REFERENCE_MARGIN = 55
     private const val VERTICAL_SCAN_PADDING_RATIO = 0.12f
     private const val MIN_COMPONENT_PIXELS = 2

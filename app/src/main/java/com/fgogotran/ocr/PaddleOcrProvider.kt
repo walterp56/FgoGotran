@@ -1033,12 +1033,7 @@ private class PaddleOcrRuntime(
         val red = (this shr 16) and 0xff
         val green = (this shr 8) and 0xff
         val blue = this and 0xff
-        val brightest = max(red, max(green, blue))
-        val darkest = min(red, min(green, blue))
-        val luminance = (red * 77 + green * 150 + blue * 29) shr 8
-        return luminance >= DIALOGUE_PUNCTUATION_MIN_LUMA &&
-            darkest >= DIALOGUE_PUNCTUATION_MIN_CHANNEL &&
-            brightest - darkest <= DIALOGUE_PUNCTUATION_MAX_CHROMA
+        return FgoStoryTextPalette.isDialogueInk(red, green, blue)
     }
 
     private fun String.hasJapaneseOrCjkText(): Boolean = any { character ->
@@ -1088,7 +1083,7 @@ private class PaddleOcrRuntime(
             lineHeight * EDGE_HORIZONTAL_PADDING_HEIGHT_RATIO
         ).coerceAtMost(source.width * EDGE_MAX_PADDING_WIDTH_RATIO)
         val expandedBox = expandTextLineHorizontally(box, padding, source.width, source.height)
-        if (!hasEdgePunctuationEvidence(source, box, expandedBox)) {
+        if (!hasEdgePunctuationEvidence(source, box, expandedBox, dialogue)) {
             return EdgePunctuationRecovery(tightRecognition)
         }
         val expandedCrop = cropTextLine(source, expandedBox)
@@ -1164,7 +1159,8 @@ private class PaddleOcrRuntime(
     private fun hasEdgePunctuationEvidence(
         source: Bitmap,
         tightBox: FloatArray,
-        expandedBox: FloatArray
+        expandedBox: FloatArray,
+        allowStoryColors: Boolean
     ): Boolean {
         val tightBounds = boxToRect(tightBox, source.width, source.height)
         val sampleBounds = boxToRect(expandedBox, source.width, source.height)
@@ -1187,7 +1183,8 @@ private class PaddleOcrRuntime(
             textLeft = tightBounds.left - sampleBounds.left,
             textTop = tightBounds.top - sampleBounds.top,
             textRight = tightBounds.right - sampleBounds.left,
-            textBottom = tightBounds.bottom - sampleBounds.top
+            textBottom = tightBounds.bottom - sampleBounds.top,
+            allowStoryColors = allowStoryColors
         )
     }
 
@@ -1957,9 +1954,6 @@ private class PaddleOcrRuntime(
         private const val DIALOGUE_DASH_MIN_SUPPORT_ROWS = 2
         private const val DIALOGUE_DASH_LINE_MAX_STROKE_HEIGHT_RATIO = 0.25f
         private const val DIALOGUE_DASH_LINE_MAX_CENTER_DIFFERENCE_RATIO = 0.35f
-        private const val DIALOGUE_PUNCTUATION_MIN_LUMA = 165
-        private const val DIALOGUE_PUNCTUATION_MIN_CHANNEL = 120
-        private const val DIALOGUE_PUNCTUATION_MAX_CHROMA = 95
         private const val DIALOGUE_PAUSE_MIN_REFERENCE_HEIGHT = 20
         private const val DIALOGUE_PAUSE_MAX_ANCHOR_X_RATIO = 0.50f
         private const val DIALOGUE_PAUSE_SEARCH_LEFT_RATIO = 0.75f
