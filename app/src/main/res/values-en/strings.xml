@@ -116,7 +116,7 @@
     <string name="home_go_settings">Open Settings</string>
     <string name="home_close">Close</string>
     <string name="menu_log">Log</string>
-    <string name="menu_area">Area</string>
+    <string name="menu_area">Crop</string>
     <string name="menu_battle">Battle</string>
     <string name="menu_live">Live</string>
     <string name="menu_manual">Manual</string>
