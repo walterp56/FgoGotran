@@ -624,7 +624,7 @@ class OverlayRenderer @Inject constructor(
             textSize = nameTextSize * scale
         }
 
-        // The cyan border bounds OCR, but the original glyphs alone determine the painted width.
+        // The measured plate bounds OCR, but the original glyphs alone determine the painted width.
         // The name keeps a fixed text size, so the plate stays on the detected blue-plate width
         // when that is wide enough, and expands to the right only when the name needs more room.
         // If glyph measurement fails, keep the fixed left edge and use the raw OCR bounds.
@@ -680,7 +680,7 @@ class OverlayRenderer @Inject constructor(
         FgoLogger.debug(
             tag,
             "Name plate: name=$name, box=$box, sourceName=$originalNameBounds, " +
-                "cyan=${detectedPlate.flattenToString()}, " +
+                "detectedPlate=${detectedPlate.flattenToString()}, " +
                 "plate=${plateLeft.toInt()}..${plateRight.toInt()}, " +
                 "textWidth=${paint.measureText(name).toInt()}, " +
                 "textSize=${paint.textSize.toInt()}, baseline=${nameBaseline.toInt()}"

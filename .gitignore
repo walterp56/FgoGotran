@@ -109,6 +109,7 @@ tmp/
 !app/src/test/java/com/fgogotran/accessibility/
 app/src/test/java/com/fgogotran/accessibility/*
 !app/src/test/java/com/fgogotran/accessibility/NameInkColorClassifierTest.kt
+!app/src/test/java/com/fgogotran/accessibility/BlueNamePlateDetectorTest.kt
 !app/src/test/java/com/fgogotran/ocr/
 !app/src/test/java/com/fgogotran/ocr/FgoStoryTextPaletteTest.kt
 !app/src/test/java/com/fgogotran/ocr/ChoicePunctuationRecoveryTest.kt

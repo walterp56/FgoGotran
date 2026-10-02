@@ -3159,10 +3159,12 @@ class FgoAccessibilityService : AccessibilityService() {
         )
     }
 
-    /** Only the top cyan border determines the right edge of the fixed-height name OCR crop. */
+    /** Cyan first; a confidently bounded blue upper interior can rescue a missing cyan line. */
     private fun detectNamePlate(source: Bitmap, region: Rect): Rect? {
-        val scan = Rect(region).apply { intersect(0, 0, source.width, source.height) }
+        val scan = Rect(region)
+        if (!scan.intersect(0, 0, source.width, source.height)) return null
         if (scan.width() <= 1 || scan.height() <= 1) return null
+        var method = "cyan"
         val right = CyanNameLineDetector.rightEdge(
             pixelAt = source::getPixel,
             imageWidth = source.width,
@@ -3171,13 +3173,30 @@ class FgoAccessibilityService : AccessibilityService() {
             top = scan.top,
             right = scan.right,
             bottom = scan.bottom
-        )
+        ) ?: run {
+            method = "blue-background"
+            val bandTop = (scan.top + BlueNamePlateDetector.bandTopOffset(scan.height()))
+                .coerceAtLeast(0)
+            val bandBottom = (scan.top + BlueNamePlateDetector.bandBottomOffset(scan.height()))
+                .coerceAtMost(source.height)
+            val bandHeight = bandBottom - bandTop
+            if (bandHeight <= 0) return@run null
+            val pixels = IntArray(scan.width() * bandHeight)
+            source.getPixels(pixels, 0, scan.width(), scan.left, bandTop, scan.width(), bandHeight)
+            BlueNamePlateDetector.rightEdge(
+                pixels = pixels,
+                width = scan.width(),
+                bandHeight = bandHeight,
+                nameHeight = scan.height(),
+                nameTopInBand = scan.top - bandTop
+            )?.let { scan.left + it }
+        }
         if (right == null) {
-            FgoLogger.debug(tag, "Name cyan line not measured; skipping name OCR")
+            FgoLogger.debug(tag, "Name plate not measured by cyan or blue-background; skipping name OCR")
             return null
         }
         return Rect(scan.left, scan.top, right, scan.bottom).also {
-            FgoLogger.debug(tag, "Name cyan line: right=$right rect=${it.flattenToString()}")
+            FgoLogger.debug(tag, "Name plate measured: method=$method right=$right rect=${it.flattenToString()}")
         }
     }
 
@@ -4639,13 +4658,14 @@ class FgoAccessibilityService : AccessibilityService() {
         screenRegions: FgoScreenRegions,
         allowRedTextFallback: Boolean = false
     ): List<ClassifiedRegion> {
-        // The cyan name-plate line is the width authority for name OCR. Name and dialogue must not
+        // A measured name-plate edge is the width authority for name OCR. Name and dialogue must not
         // share an OCR bitmap: even when their result boxes are classified separately, a shared
         // bitmap lets the OCR detector inspect the gap and dialogue pixels while recognising a name.
-        // Without a confident line measurement, do not OCR a wider name band.
+        // Cyan stays first; only a confident blue-background fallback may supply a missing edge.
+        // Without either measurement, do not OCR a wider name band.
         val namePlate = detectNamePlate(source, screenRegions.name)
         val nameOcrRegion = namePlate?.let { plate ->
-            // Keep the fixed name height; only the cyan-line end determines OCR input width.
+            // Keep the fixed name height; only the measured plate end determines OCR input width.
             Rect(
                 screenRegions.name.left,
                 screenRegions.name.top,
@@ -4699,7 +4719,7 @@ class FgoAccessibilityService : AccessibilityService() {
             return cached.region
         }
 
-        // No padding: the OCR bitmap contains only the cyan-bounded name region.
+        // No padding: the OCR bitmap contains only the measured name-plate region.
         val region = recognizeExactScreenRegion(
             source = source,
             target = OcrRegionTarget(crop, TextRegion.NAME_LABEL)
@@ -4980,7 +5000,7 @@ class FgoAccessibilityService : AccessibilityService() {
     )
 
     /**
-     * OCR precisely the supplied target bitmap. This is the hard cyan-line guard for speaker
+     * OCR precisely the supplied target bitmap. This is the hard measured-plate guard for speaker
      * names: there is no padding and no dialogue or intervening screen content in the OCR input.
      */
     private suspend fun recognizeExactScreenRegion(
