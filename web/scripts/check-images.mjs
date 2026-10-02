@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const publicDirectory = path.join(scriptDirectory, "..", "public");
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
-const LOCALIZED_LOCALES = ["en"];
+const GUIDE_LOCALES = ["en"];
+const SLIDESHOW_LOCALES = ["en", "zh-TW"];
 
 // Guide images that intentionally stay in the default language: FGO JP game UI
 // (Japanese is expected there) and language-neutral button glyphs.
@@ -37,7 +38,7 @@ function imageFiles(directory) {
 function reportGuide() {
   const baseFiles = imageFiles(path.join(publicDirectory, "guide"));
   console.log("Guide images (public/guide): " + baseFiles.length + " default image(s)");
-  for (const locale of LOCALIZED_LOCALES) {
+  for (const locale of GUIDE_LOCALES) {
     const localized = new Set(imageFiles(path.join(publicDirectory, "guide", locale)));
     const expected = baseFiles.filter((file) => !DEFAULT_ONLY_GUIDE_IMAGES.has(file));
     const present = expected.filter((file) => localized.has(file));
@@ -52,7 +53,7 @@ function reportGuide() {
 function reportSlideshow() {
   const baseFiles = imageFiles(path.join(publicDirectory, "examples"));
   console.log("Home slideshow (public/examples): " + baseFiles.length + " default image(s)");
-  for (const locale of LOCALIZED_LOCALES) {
+  for (const locale of SLIDESHOW_LOCALES) {
     const localized = imageFiles(path.join(publicDirectory, "examples", locale));
     if (localized.length > 0) {
       console.log("  " + locale + ": " + localized.length + " localized image(s)");
