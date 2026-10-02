@@ -108,8 +108,6 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_TEXT_SIZE_EN = 61f
         private const val CHOICE_TEXT_MIN_SIZE = 29f
         private const val WIDE_RENDER_SPACE = "\u3000"
-        private val TRAILING_DASH_CLEAR_RISK = Regex("""[-ー‐‑‒–—―−─━－一]{2,}\s*$""")
-        private val COUNTDOWN_CLEAR_RISK = Regex("""(?:[0-9\uFF10-\uFF19][ \t\u3000]+){2,}[0-9\uFF10-\uFF19]\s*[-ー‐‑‒–—―−─━－一]*\s*$""")
         private val WIDE_RENDER_CONNECTORS = listOf(
             "\u4EE5\u53CA", "\u8FD8\u6709", "\u6216\u8005", "\u4F46\u662F",
             "\u56E0\u6B64", "\u6240\u4EE5", "\u4E0D\u8FC7", "\u7136\u540E",
@@ -506,7 +504,7 @@ class OverlayRenderer @Inject constructor(
             originalBounds = originalBounds?.toDialogueRect(),
             textWidth = textWidth,
             textBlockHeight = textBlockHeight,
-            hasRiskyTrailingText = instruction.hasRiskyTrailingDialogueText(),
+            hasCountdownTail = instruction.hasCountdownDialogueTail(),
             scale = scale,
             englishTarget = instruction.isEnglishTarget()
         ).toRectF()
@@ -773,13 +771,12 @@ class OverlayRenderer @Inject constructor(
                 this == '\u3005'
     }
 
-    private fun RenderInstruction.hasRiskyTrailingDialogueText(): Boolean {
+    private fun RenderInstruction.hasCountdownDialogueTail(): Boolean {
         val sourceTail = region.lines
             .map { it.text.trim() }
             .lastOrNull { it.isNotBlank() }
             ?: return false
-        return TRAILING_DASH_CLEAR_RISK.containsMatchIn(sourceTail) ||
-                COUNTDOWN_CLEAR_RISK.containsMatchIn(sourceTail)
+        return DialogueRenderGeometry.isCountdownTail(sourceTail)
     }
 
     private fun renderBilingualChoiceButton(

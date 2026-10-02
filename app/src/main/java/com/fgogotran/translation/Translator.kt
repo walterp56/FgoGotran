@@ -972,6 +972,12 @@ class Translator @Inject constructor(
             }
         }
         val punctuationSourceText = normalizedText.takeIf { restoreSourcePunctuation }
+        if (!cropMode && !translateAsChoices && !translateAsName &&
+            TextNormalizer.isPunctuationOnlyDialogue(normalizedText)
+        ) {
+            return TranslateResult(normalizedText, "source-punctuation", true, trustedForContext = false)
+                .forTargetLocale(config, punctuationSourceText)
+        }
         maskedSourceFallback(normalizedText)?.let {
             return it.forTargetLocale(config, punctuationSourceText)
         }
@@ -1857,6 +1863,10 @@ class Translator @Inject constructor(
             }
         }
         normalizedDialogue?.let { normalized ->
+            if (TextNormalizer.isPunctuationOnlyDialogue(normalized)) {
+                dialogueResult = TranslateResult(normalized, "source-punctuation", true, trustedForContext = false)
+                return@let
+            }
             maskedSourceFallback(normalized)?.let {
                 dialogueResult = it
             }

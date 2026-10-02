@@ -35,6 +35,20 @@ object TextNormalizer {
         return normalizeForTranslation(text).any { it.isLetterOrDigit() }
     }
 
+    /** Real dialogue can consist entirely of expressive marks; it needs display, not an API. */
+    fun isPunctuationOnlyDialogue(text: String): Boolean {
+        val normalized = normalizeForTranslation(text)
+        return normalized.isNotEmpty() && normalized.all {
+            it.isWhitespace() || it in DIALOGUE_PUNCTUATION
+        }
+    }
+
+    fun hasDialogueContent(text: String): Boolean =
+        hasTranslatableContent(text) || isPunctuationOnlyDialogue(text)
+
+    // Do not include Japanese ー or 一: they remain lexical text, never a global dash substitute.
+    private const val DIALOGUE_PUNCTUATION = "…‥⋯.．·・･•─━—―-－_、。，,!！?？:：;；「」『』“”\"'（）()[]【】〈〉《》"
+
     /** FGO's standard masked speaker name is exactly three full-width question marks. */
     fun canonicalQuestionMask(text: String): String? {
         val compact = normalizeForTranslation(text)

@@ -117,7 +117,10 @@ internal data class PaddlePositionedToken(
 internal data class PaddleMaskMergeResult(
     val text: String,
     val confidence: Float,
-    val recoveredMaskCount: Int
+    val recoveredMaskCount: Int,
+    // Dialogue only; normalized to the unpadded recognition-crop width. Empty when a mask merge
+    // changed the CTC text, since token positions must never be guessed for synthesized symbols.
+    val positionedTokens: List<PaddlePositionedToken> = emptyList()
 )
 
 /**

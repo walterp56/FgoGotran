@@ -17,6 +17,12 @@ internal data class DialogueRect(
  * the fixed clear-box anchor, while Chinese keeps the exact v3.1.2 formulas.
  */
 internal object DialogueRenderGeometry {
+    // Keep the existing countdown safeguard. A dash alone no longer forces a full-row clear:
+    // recovered punctuation is already included in originalBounds below.
+    private val COUNTDOWN_CLEAR_RISK = Regex("""(?:[0-9\uFF10-\uFF19][ \t\u3000]+){2,}[0-9\uFF10-\uFF19]\s*[-ー‐‑‒–—―−─━－一]*\s*$""")
+
+    fun isCountdownTail(sourceTail: String): Boolean = COUNTDOWN_CLEAR_RISK.containsMatchIn(sourceTail)
+
     const val TEXT_TOP_INSET = 48f
     const val TEXT_BOTTOM_INSET = 12f
 
@@ -58,7 +64,7 @@ internal object DialogueRenderGeometry {
         originalBounds: DialogueRect?,
         textWidth: Float,
         textBlockHeight: Float,
-        hasRiskyTrailingText: Boolean,
+        hasCountdownTail: Boolean,
         scale: Float,
         englishTarget: Boolean
     ): DialogueRect {
@@ -93,7 +99,7 @@ internal object DialogueRenderGeometry {
             sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: textArea.left
             sourceBottom = originalBounds?.bottom?.plus(sourcePaddingY) ?: textArea.top
         }
-        val clearRightForRiskyTail = if (hasRiskyTrailingText) {
+        val clearRightForCountdown = if (hasCountdownTail) {
             textArea.right
         } else {
             clearRightFallback
@@ -102,7 +108,7 @@ internal object DialogueRenderGeometry {
         return boundedRect(
             left = left,
             top = top,
-            right = maxOf(sourceRight, textArea.left + textWidth + clearInsetX, clearRightForRiskyTail),
+            right = maxOf(sourceRight, textArea.left + textWidth + clearInsetX, clearRightForCountdown),
             bottom = maxOf(sourceBottom, textBottom + clearInsetY),
             bounds = panel
         )

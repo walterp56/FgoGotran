@@ -115,3 +115,11 @@ app/src/test/java/com/fgogotran/accessibility/*
 !app/src/test/java/com/fgogotran/ocr/ChoicePunctuationRecoveryTest.kt
 !app/src/test/java/com/fgogotran/ocr/DialogueAnnotationCleanerTest.kt
 !app/src/test/java/com/fgogotran/ocr/PaddleEdgePunctuationProbeTest.kt
+!app/src/test/java/com/fgogotran/ocr/DialoguePunctuationRecoveryTest.kt
+!app/src/test/java/com/fgogotran/ocr/DialogueOcrVisualGatePaletteTest.kt
+!app/src/test/java/com/fgogotran/translation/
+!app/src/test/java/com/fgogotran/translation/DialogueContentPolicyTest.kt
+# Retain the focused trailing-dash clear-box regressions.
+!app/src/test/java/com/fgogotran/overlay/
+app/src/test/java/com/fgogotran/overlay/*
+!app/src/test/java/com/fgogotran/overlay/DialogueRenderGeometryTest.kt

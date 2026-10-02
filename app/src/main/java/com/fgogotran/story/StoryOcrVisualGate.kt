@@ -1,5 +1,6 @@
 package com.fgogotran.story
 
+import com.fgogotran.ocr.FgoStoryTextPalette
 import kotlin.math.roundToInt
 
 /**
@@ -109,7 +110,7 @@ internal class StoryOcrVisualGate {
         val normalizedNameBounds = nameBounds.clamp(width, height)
         val normalizedDialogueBounds = dialogueBounds.clamp(width, height)
         val nameMask = sampleRegion(normalizedNameBounds, step, pixel)
-        val dialogueMask = sampleRegion(normalizedDialogueBounds, step, pixel)
+        val dialogueMask = sampleRegion(normalizedDialogueBounds, step, pixel, includeAdditionalStoryColors = true)
 
         return Signature(
             scope = scope,
@@ -126,7 +127,8 @@ internal class StoryOcrVisualGate {
     private fun sampleRegion(
         bounds: StoryOcrVisualBounds,
         step: Int,
-        pixel: (Int, Int) -> Int
+        pixel: (Int, Int) -> Int,
+        includeAdditionalStoryColors: Boolean = false
     ): TextMask {
         if (bounds.isEmpty) return TextMask(0, 0, LongArray(0))
 
@@ -141,7 +143,7 @@ internal class StoryOcrVisualGate {
         while (y < bounds.bottom) {
             var x = bounds.left
             while (x < bounds.right) {
-                if (isLikelyStoryTextPixel(pixel(x, y))) {
+                if (isLikelyStoryTextPixel(pixel(x, y), includeAdditionalStoryColors)) {
                     words[sampleIndex / Long.SIZE_BITS] =
                         words[sampleIndex / Long.SIZE_BITS] or
                             (1L shl (sampleIndex and (Long.SIZE_BITS - 1)))
@@ -156,7 +158,7 @@ internal class StoryOcrVisualGate {
         return TextMask(sampleIndex, textPixels, words)
     }
 
-    private fun isLikelyStoryTextPixel(color: Int): Boolean {
+    private fun isLikelyStoryTextPixel(color: Int, includeAdditionalStoryColors: Boolean): Boolean {
         val red = color shr 16 and 255
         val green = color shr 8 and 255
         val blue = color and 255
@@ -167,7 +169,10 @@ internal class StoryOcrVisualGate {
         // Same yellow-green palette branch the service colour vote uses: without it the sampled
         // mask ignores those glyphs completely and the gate re-schedules OCR on every frame.
         val yellowGreenText = green >= 150 && green - maxOf(red, blue) >= 15
-        return whiteText || redText || cyanText || yellowGreenText
+        // Keep legacy name sampling unchanged. Dialogue must also notice the approved rare
+        // colours when a fixed white speaker name would otherwise make its mask look unchanged.
+        return whiteText || redText || cyanText || yellowGreenText ||
+            (includeAdditionalStoryColors && FgoStoryTextPalette.additionalInkFamily(red, green, blue) != null)
     }
 
     private data class PendingRecognition(

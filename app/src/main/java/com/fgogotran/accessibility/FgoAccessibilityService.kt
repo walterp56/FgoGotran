@@ -2989,7 +2989,7 @@ class FgoAccessibilityService : AccessibilityService() {
     ): String? {
         val sourceHasDialogue = sceneSource.regions.any {
             it.region.region == TextRegion.DIALOGUE_BOX &&
-                TextNormalizer.hasTranslatableContent(it.text)
+                TextNormalizer.hasDialogueContent(it.text)
         }
         val renderedHasDialogue = instructions.any {
             it.region.region == TextRegion.DIALOGUE_BOX && it.translatedText.isNotBlank()
@@ -3016,7 +3016,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun sceneHasRequiredTranslation(sceneSource: SceneSource): Boolean {
         return sceneSource.regions.any {
             when (it.region.region) {
-                TextRegion.DIALOGUE_BOX,
+                TextRegion.DIALOGUE_BOX -> TextNormalizer.hasDialogueContent(it.text)
                 TextRegion.CHOICE_BUTTON -> TextNormalizer.hasTranslatableContent(it.text)
                 TextRegion.NAME_LABEL -> false
             }
@@ -3594,7 +3594,7 @@ class FgoAccessibilityService : AccessibilityService() {
         if (sorted.size < 2) {
             return sorted.filterNot {
                 isRubyDotNoiseLine(it) &&
-                    !(preserveLongPauses && FgoDialogueSymbols.containsLongPause(it.text))
+                    !(preserveLongPauses && TextNormalizer.isPunctuationOnlyDialogue(it.text))
             }
         }
 
@@ -3602,7 +3602,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val meaningfulLines = sorted.filterNot { isRubyDotNoiseLine(it) }
         if (meaningfulLines.isEmpty()) {
             return if (preserveLongPauses) {
-                sorted.filter { FgoDialogueSymbols.containsLongPause(it.text) }
+                sorted.filter { TextNormalizer.isPunctuationOnlyDialogue(it.text) }
             } else {
                 emptyList()
             }
@@ -4674,7 +4674,9 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         }
 
-        val dialogueRegion = recognizePaddedScreenRegion(
+        // Dialogue is already a complete, separate fixed crop. Recovery may expand individual
+        // detected lines inside it, but must not inspect the name, artwork or controls outside it.
+        val dialogueRegion = recognizeExactScreenRegion(
             source = source,
             target = OcrRegionTarget(screenRegions.dialogue, TextRegion.DIALOGUE_BOX)
         )
@@ -4743,6 +4745,9 @@ class FgoAccessibilityService : AccessibilityService() {
 
         val normalDialogue = regions.firstOrNull { it.region == TextRegion.DIALOGUE_BOX }
         val normalText = normalDialogue?.let { sourceTextFor(it, source) }.orEmpty()
+        // A verified punctuation-only row is complete content, not weak Japanese OCR. Do not
+        // send it through the word-quality red fallback and then discard it for having no words.
+        if (TextNormalizer.isPunctuationOnlyDialogue(normalText)) return regions
         val normalQuality = dialogueOcrQuality(normalText)
 
         val shouldTryEnhanced = normalQuality.suspicious ||
@@ -4986,39 +4991,14 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * OCR dialogue with its historic small surrounding context. Name OCR uses
-     * [recognizeExactScreenRegion] only.
-     */
-    private suspend fun recognizePaddedScreenRegion(
-        source: Bitmap,
-        target: OcrRegionTarget
-    ): ClassifiedRegion? = recognizeScreenRegion(
-        source = source,
-        target = target,
-        cropBounds = paddedSharedOcrBounds(target.bounds, source.width, source.height),
-        requireFullContainment = false
-    )
-
-    /**
-     * OCR precisely the supplied target bitmap. This is the hard measured-plate guard for speaker
-     * names: there is no padding and no dialogue or intervening screen content in the OCR input.
+     * OCR precisely the supplied name or dialogue bitmap. No outside padding or other screen
+     * content is available to the detector or to bounded line recognition recovery.
      */
     private suspend fun recognizeExactScreenRegion(
         source: Bitmap,
         target: OcrRegionTarget
-    ): ClassifiedRegion? = recognizeScreenRegion(
-        source = source,
-        target = target,
-        cropBounds = Rect(target.bounds),
-        requireFullContainment = true
-    )
-
-    private suspend fun recognizeScreenRegion(
-        source: Bitmap,
-        target: OcrRegionTarget,
-        cropBounds: Rect,
-        requireFullContainment: Boolean
     ): ClassifiedRegion? {
+        val cropBounds = Rect(target.bounds)
         if (!cropBounds.intersect(0, 0, source.width, source.height) ||
             cropBounds.width() <= 0 ||
             cropBounds.height() <= 0
@@ -5047,13 +5027,7 @@ class FgoAccessibilityService : AccessibilityService() {
             val regionLines = ocrResult.lines
                 .toScreenCoordinates(cropBounds)
                 .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
-                .filter { line ->
-                    if (requireFullContainment) {
-                        target.bounds.contains(line.boundingBox)
-                    } else {
-                        lineBelongsToRegion(line.boundingBox, target.bounds)
-                    }
-                }
+                .filter { line -> target.bounds.contains(line.boundingBox) }
             if (regionLines.isEmpty()) {
                 null
             } else {
@@ -5355,9 +5329,8 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Keeps a small amount of screenshot context outside the configured OCR
-     * regions so Paddle's wider line crop can see thin edge punctuation. Text
-     * is still assigned against the original target bounds.
+     * Choices only: retain their established shared-crop context and classification.
+     * Name and dialogue OCR use exact, separate crops instead.
      */
     private fun paddedSharedOcrBounds(bounds: Rect, screenWidth: Int, screenHeight: Int): Rect {
         val paddingX = (bounds.width() * 0.02f).toInt().coerceAtLeast(12)

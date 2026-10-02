@@ -17,12 +17,14 @@ internal object DialogueAnnotationCleaner {
     data class Result(
         val pixels: IntArray,
         val maskedComponents: Int,
-        val maskedRows: Int
+        val maskedRows: Int,
+        // Reuse the one foreground/component scan for dialogue punctuation recovery.
+        val components: List<Component> = emptyList()
     ) {
         val changed: Boolean get() = maskedComponents > 0
     }
 
-    private data class Component(
+    data class Component(
         val left: Int,
         val top: Int,
         val right: Int,
@@ -64,14 +66,14 @@ internal object DialogueAnnotationCleaner {
             DotCandidate(component, evidence)
         }
         if (candidates.size < MIN_DOTS_PER_EMPHASIS_ROW) {
-            return Result(pixels, maskedComponents = 0, maskedRows = 0)
+            return Result(pixels, maskedComponents = 0, maskedRows = 0, components = components)
         }
 
         val emphasisRows = candidateRows(candidates)
             .flatMap(::trustedRuns)
             .filter { it.size >= MIN_DOTS_PER_EMPHASIS_ROW }
         if (emphasisRows.isEmpty()) {
-            return Result(pixels, maskedComponents = 0, maskedRows = 0)
+            return Result(pixels, maskedComponents = 0, maskedRows = 0, components = components)
         }
 
         val emphasisComponents = emphasisRows
@@ -85,7 +87,15 @@ internal object DialogueAnnotationCleaner {
         return Result(
             pixels = cleaned,
             maskedComponents = emphasisComponents.size,
-            maskedRows = emphasisRows.size
+            maskedRows = emphasisRows.size,
+            components = components.filterNot { component ->
+                emphasisComponents.any { masked ->
+                    component.left < masked.right + MASK_PADDING &&
+                        component.right > masked.left - MASK_PADDING &&
+                        component.top < masked.bottom + MASK_PADDING &&
+                        component.bottom > masked.top - MASK_PADDING
+                }
+            }
         )
     }
 

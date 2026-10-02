@@ -156,7 +156,11 @@ private class PaddleOcrRuntime(
 
         val recognitionTargets = boxes.mapIndexed { index, box ->
             val bounds = boxToRect(box, recognitionBitmap.width, recognitionBitmap.height)
-            val crop = cropTextLine(recognitionBitmap, box)
+            val visualDash = dialoguePixels != null && isVisualDialogueDash(
+                dialoguePixels, bitmap.width, bitmap.height, bounds
+            )
+            // A verified visual dash needs neither scaling nor a model recognition call.
+            val crop = if (visualDash) null else cropTextLine(recognitionBitmap, box)
             val prepared = if (crop == null) {
                 null
             } else {
@@ -170,31 +174,20 @@ private class PaddleOcrRuntime(
                 index = index,
                 box = box,
                 bounds = bounds,
-                prepared = prepared
+                prepared = prepared,
+                visualDash = visualDash
             )
         }
-        val visualDashTargetIndexes = if (dialoguePixels == null) {
-            emptySet()
-        } else {
-            recognitionTargets
-                .filter { target ->
-                    isVisualDialogueDash(
-                        pixels = dialoguePixels,
-                        sourceWidth = bitmap.width,
-                        sourceHeight = bitmap.height,
-                        bounds = target.bounds
-                    )
-                }
-                .mapTo(mutableSetOf(), PaddleRecognitionTarget::index)
-        }
-        val tightRecognitions = recognizePreparedTargets(recognitionTargets)
+        val tightRecognitions = recognizePreparedTargets(
+            recognitionTargets, collectPositions = contentKind == OcrContentKind.DIALOGUE
+        )
 
         val detectedTextBoxes = mutableListOf<PaddleDetectedTextBox>()
         var edgeRecoveryAttempts = 0
         var edgeRecoveryChanges = 0
         for (target in recognitionTargets) {
             val tightRecognition = tightRecognitions[target.index]
-            if (target.index in visualDashTargetIndexes) {
+            if (target.visualDash) {
                 FgoLogger.debug(
                     tag,
                     "PaddleOCR visual dialogue dash recovered from pixels: " +
@@ -294,18 +287,63 @@ private class PaddleOcrRuntime(
         val lines = if (dialoguePixels == null) {
             mergedLines
         } else {
-            val dashRecoveredLines = recoverLeadingVisualDash(
+            val positionedLines = mergedLines.map { line ->
+                val target = recognitionTargets.firstOrNull { it.bounds == line.boundingBox }
+                val recognition = target?.let { tightRecognitions[it.index] }
+                dialoguePunctuationLine(line, recognition, target?.box)
+            }
+            var recovery = DialoguePunctuationRecovery.recover(
                 pixels = dialoguePixels,
-                sourceWidth = bitmap.width,
-                sourceHeight = bitmap.height,
-                lines = mergedLines
+                width = bitmap.width,
+                height = bitmap.height,
+                components = annotationCleanup.components,
+                lines = positionedLines
             )
-            recoverLeadingStandalonePauseLine(
-                pixels = dialoguePixels,
-                sourceWidth = bitmap.width,
-                sourceHeight = bitmap.height,
-                lines = dashRecoveredLines
+            // Usually the base CTC positions are sufficient. If a mask/edge merge invalidated
+            // them, reuse the remaining existing recovery budget on that row, inside this crop.
+            // The retry can add edge punctuation, but cannot replace any recognised word.
+            val retryLines = recovery.lines.toMutableList()
+            var positionRetries = 0
+            retryLines.indices.forEach { index ->
+                if (edgeRecoveryAttempts >= DIALOGUE_EDGE_RECOVERY_MAX_PASSES) return@forEach
+                val line = retryLines[index]
+                if (recovery.unresolvedBounds.none { bounds ->
+                        bounds.centerX in line.bounds.left.toFloat()..line.bounds.right.toFloat() &&
+                            bounds.centerY in line.bounds.top.toFloat()..line.bounds.bottom.toFloat()
+                    }) return@forEach
+                val box = floatArrayOf(
+                    line.bounds.left.toFloat(), line.bounds.top.toFloat(),
+                    line.bounds.right.toFloat(), line.bounds.top.toFloat(),
+                    line.bounds.right.toFloat(), line.bounds.bottom.toFloat(),
+                    line.bounds.left.toFloat(), line.bounds.bottom.toFloat()
+                )
+                val crop = cropTextLine(recognitionBitmap, box) ?: return@forEach
+                val recognition = try {
+                    edgeRecoveryAttempts++
+                    positionRetries++
+                    recognizeCrop(crop, collectPositions = true)
+                } finally {
+                    if (!crop.isRecycled) crop.recycle()
+                }
+                if (recognition.confidence >= REC_TEXT_SCORE_THRESHOLD) {
+                    val text = PaddleEdgePunctuationMerger.merge(line.text, recognition.text)
+                    val positioned = dialoguePunctuationLine(
+                        OcrTextLine(text, line.bounds.toRect(), recognition.confidence), recognition, box
+                    )
+                    if (positioned.tokens.isNotEmpty()) retryLines[index] = positioned
+                }
+            }
+            if (positionRetries > 0) {
+                val retried = DialoguePunctuationRecovery.recover(
+                    dialoguePixels, bitmap.width, bitmap.height, annotationCleanup.components, retryLines
+                )
+                recovery = retried.copy(recoveredCount = recovery.recoveredCount + retried.recoveredCount)
+            }
+            FgoLogger.debug(
+                tag, "PaddleOCR fixed dialogue punctuation: recovered=${recovery.recoveredCount}, " +
+                    "positionRetries=$positionRetries, unresolved=${recovery.unresolvedBounds.size}"
             )
+            recovery.lines.map { OcrTextLine(it.text, it.bounds.toRect(), it.confidence) }
         }
 
         val fullText = lines.joinToString("\n") { it.text }
@@ -739,295 +777,6 @@ private class PaddleOcrRuntime(
         )
     }
 
-    /**
-     * The detector can discard the five-pixel dash before producing any box. Inspect the original
-     * pixels on the same row as each recognized Japanese line and prepend the canonical dash only
-     * when a long horizontal stroke is repeated across adjacent rows.
-     */
-    private fun recoverLeadingVisualDash(
-        pixels: IntArray,
-        sourceWidth: Int,
-        sourceHeight: Int,
-        lines: List<OcrTextLine>
-    ): List<OcrTextLine> {
-        if (lines.isEmpty() || pixels.size < sourceWidth * sourceHeight) return lines
-        var changed = false
-        val recovered = lines.map { line ->
-            if (!line.text.hasJapaneseOrCjkText() || line.text.startsWithCanonicalDialogueDash()) {
-                return@map line
-            }
-            val lineHeight = line.boundingBox.height().coerceAtLeast(1)
-            if (lineHeight < DIALOGUE_DASH_MIN_REFERENCE_HEIGHT ||
-                line.boundingBox.left >= sourceWidth * DIALOGUE_DASH_MAX_ANCHOR_X_RATIO
-            ) {
-                return@map line
-            }
-            val searchLeft = (line.boundingBox.left - lineHeight * DIALOGUE_DASH_SEARCH_SIDE_RATIO)
-                .roundToInt()
-                .coerceAtLeast(0)
-            val searchRight = (line.boundingBox.left + lineHeight * DIALOGUE_DASH_SEARCH_SIDE_RATIO)
-                .roundToInt()
-                .coerceAtMost(sourceWidth)
-            val searchTop = line.boundingBox.top.coerceAtLeast(0)
-            val searchBottom = line.boundingBox.bottom.coerceAtMost(sourceHeight)
-            if (searchRight <= searchLeft || searchBottom <= searchTop) return@map line
-
-            val minimumRun = max(
-                DIALOGUE_DASH_MIN_RUN,
-                (lineHeight * DIALOGUE_DASH_LINE_MIN_RUN_HEIGHT_RATIO).roundToInt()
-            )
-            val runs = mutableListOf<DialogueHorizontalRun>()
-            for (y in searchTop until searchBottom) {
-                var runStart = -1
-                for (x in searchLeft..searchRight) {
-                    val active = x < searchRight &&
-                        pixels[y * sourceWidth + x].isDialoguePunctuationPixel()
-                    if (active && runStart < 0) runStart = x
-                    if (!active && runStart >= 0) {
-                        if (x - runStart >= minimumRun) {
-                            runs += DialogueHorizontalRun(runStart, x, y)
-                        }
-                        runStart = -1
-                    }
-                }
-            }
-            val best = runs.maxByOrNull(DialogueHorizontalRun::width) ?: return@map line
-            val supporting = runs.filter { candidate ->
-                val overlap = (min(best.right, candidate.right) - max(best.left, candidate.left))
-                    .coerceAtLeast(0)
-                overlap >= best.width * DIALOGUE_DASH_SUPPORT_OVERLAP_RATIO
-            }
-            if (supporting.size < DIALOGUE_DASH_MIN_SUPPORT_ROWS) return@map line
-            val strokeTop = supporting.minOf(DialogueHorizontalRun::y)
-            val strokeBottom = supporting.maxOf(DialogueHorizontalRun::y) + 1
-            if (strokeBottom - strokeTop >
-                max(DIALOGUE_DASH_MAX_STROKE_HEIGHT,
-                    (lineHeight * DIALOGUE_DASH_LINE_MAX_STROKE_HEIGHT_RATIO).roundToInt())
-            ) {
-                return@map line
-            }
-            val strokeCenterY = (strokeTop + strokeBottom) / 2f
-            if (abs(strokeCenterY - line.boundingBox.centerY()) >
-                lineHeight * DIALOGUE_DASH_LINE_MAX_CENTER_DIFFERENCE_RATIO
-            ) {
-                return@map line
-            }
-
-            changed = true
-            val strokeLeft = supporting.minOf(DialogueHorizontalRun::left)
-            FgoLogger.debug(
-                tag,
-                "PaddleOCR leading dialogue dash recovered from source pixels: " +
-                    "before=${line.text}, run=${best.width}px, rows=${supporting.size}"
-            )
-            line.copy(
-                text = FgoDialogueSymbols.LONG_DASH_RUN + line.text,
-                boundingBox = Rect(
-                    min(strokeLeft, line.boundingBox.left),
-                    min(strokeTop, line.boundingBox.top),
-                    line.boundingBox.right,
-                    max(strokeBottom, line.boundingBox.bottom)
-                )
-            )
-        }
-        return if (changed) recovered else lines
-    }
-
-    /**
-     * A standalone `……。` row consists only of tiny components, so Paddle's text detector can omit
-     * it before recognition. Use the first real Japanese dialogue line as the size/position anchor,
-     * then look immediately above it for five or more solid, evenly spaced dots. This is deliberately
-     * narrower than general OCR: it cannot manufacture words and it runs only for dialogue crops.
-     */
-    private fun recoverLeadingStandalonePauseLine(
-        pixels: IntArray,
-        sourceWidth: Int,
-        sourceHeight: Int,
-        lines: List<OcrTextLine>
-    ): List<OcrTextLine> {
-        if (lines.isEmpty() || pixels.size < sourceWidth * sourceHeight) return lines
-        val main = lines.asSequence()
-            .filter { it.text.hasJapaneseOrCjkText() }
-            .filter { it.boundingBox.height() >= DIALOGUE_PAUSE_MIN_REFERENCE_HEIGHT }
-            .filter { it.boundingBox.left < sourceWidth * DIALOGUE_PAUSE_MAX_ANCHOR_X_RATIO }
-            .minWithOrNull(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-            ?: return lines
-        val referenceHeight = main.boundingBox.height().coerceAtLeast(1)
-        val searchLeft = (main.boundingBox.left - referenceHeight * DIALOGUE_PAUSE_SEARCH_LEFT_RATIO)
-            .roundToInt()
-            .coerceAtLeast(0)
-        val searchRight = (main.boundingBox.left + referenceHeight * DIALOGUE_PAUSE_SEARCH_RIGHT_RATIO)
-            .roundToInt()
-            .coerceAtMost(sourceWidth)
-        val searchTop = (main.boundingBox.top - referenceHeight * DIALOGUE_PAUSE_SEARCH_UP_RATIO)
-            .roundToInt()
-            .coerceAtLeast(0)
-        val searchBottom = (main.boundingBox.top - referenceHeight * DIALOGUE_PAUSE_SEARCH_BOTTOM_GAP_RATIO)
-            .roundToInt()
-            .coerceAtMost(sourceHeight)
-        if (searchRight <= searchLeft || searchBottom <= searchTop) return lines
-
-        val components = dialoguePunctuationComponents(
-            pixels = pixels,
-            sourceWidth = sourceWidth,
-            left = searchLeft,
-            top = searchTop,
-            right = searchRight,
-            bottom = searchBottom
-        )
-        val maximumDotSize = max(
-            DIALOGUE_PAUSE_MIN_DOT_SIZE,
-            (referenceHeight * DIALOGUE_PAUSE_MAX_DOT_SIZE_RATIO).roundToInt()
-        )
-        val dotCandidates = components.filter { component ->
-            component.width in DIALOGUE_PAUSE_MIN_DOT_SIZE..maximumDotSize &&
-                component.height in DIALOGUE_PAUSE_MIN_DOT_SIZE..maximumDotSize &&
-                component.pixelCount >= component.width * component.height * DIALOGUE_PAUSE_MIN_DOT_FILL_RATIO &&
-                component.width <= component.height * DIALOGUE_PAUSE_MAX_DOT_ASPECT_RATIO &&
-                component.height <= component.width * DIALOGUE_PAUSE_MAX_DOT_ASPECT_RATIO
-        }
-        if (dotCandidates.size < DIALOGUE_PAUSE_MIN_ALIGNED_DOTS) return lines
-
-        val maximumRowDifference = referenceHeight * DIALOGUE_PAUSE_MAX_ROW_DIFFERENCE_RATIO
-        val minimumGap = referenceHeight * DIALOGUE_PAUSE_MIN_DOT_GAP_RATIO
-        val maximumGap = referenceHeight * DIALOGUE_PAUSE_MAX_DOT_GAP_RATIO
-        var bestRun = emptyList<DialoguePunctuationComponent>()
-        dotCandidates.forEach { seed ->
-            val row = dotCandidates
-                .filter { abs(it.centerY - seed.centerY) <= maximumRowDifference }
-                .sortedBy(DialoguePunctuationComponent::centerX)
-            var current = mutableListOf<DialoguePunctuationComponent>()
-            row.forEach { component ->
-                val gap = current.lastOrNull()?.let { component.centerX - it.centerX }
-                if (gap == null || gap in minimumGap..maximumGap) {
-                    current += component
-                } else {
-                    if (current.size > bestRun.size) bestRun = current.toList()
-                    current = mutableListOf(component)
-                }
-            }
-            if (current.size > bestRun.size) bestRun = current.toList()
-        }
-        if (bestRun.size < DIALOGUE_PAUSE_MIN_ALIGNED_DOTS) return lines
-
-        val runStart = bestRun.first().centerX
-        val runEnd = bestRun.last().centerX
-        if (runStart > main.boundingBox.left + referenceHeight * DIALOGUE_PAUSE_MAX_START_OFFSET_RATIO) {
-            return lines
-        }
-        if (runEnd - runStart < referenceHeight * DIALOGUE_PAUSE_MIN_SPAN_RATIO) return lines
-        val gaps = bestRun.zipWithNext { first, second -> second.centerX - first.centerX }
-        if (gaps.isNotEmpty() && gaps.maxOrNull()!! > gaps.minOrNull()!! * DIALOGUE_PAUSE_MAX_GAP_VARIATION_RATIO) {
-            return lines
-        }
-
-        val runCenterY = bestRun.map(DialoguePunctuationComponent::centerY).average().toFloat()
-        val terminalPeriod = components
-            .asSequence()
-            .filter { it !in bestRun }
-            .filter { it.centerX > runEnd }
-            .filter { it.centerX - runEnd <= referenceHeight * DIALOGUE_PAUSE_MAX_PERIOD_GAP_RATIO }
-            .filter { it.centerY - runCenterY in
-                referenceHeight * DIALOGUE_PAUSE_MIN_PERIOD_DROP_RATIO..
-                    referenceHeight * DIALOGUE_PAUSE_MAX_PERIOD_DROP_RATIO }
-            .filter { it.width <= maximumDotSize * 2 && it.height <= maximumDotSize * 2 }
-            .minByOrNull { it.centerX }
-        val recoveredComponents = if (terminalPeriod == null) bestRun else bestRun + terminalPeriod
-        val recoveredBounds = Rect(
-            recoveredComponents.minOf(DialoguePunctuationComponent::left),
-            recoveredComponents.minOf(DialoguePunctuationComponent::top),
-            recoveredComponents.maxOf(DialoguePunctuationComponent::right),
-            recoveredComponents.maxOf(DialoguePunctuationComponent::bottom)
-        )
-        if (lines.any { line ->
-                FgoDialogueSymbols.containsLongPause(line.text) &&
-                    abs(line.boundingBox.centerY() - recoveredBounds.centerY()) <=
-                    referenceHeight * DIALOGUE_PAUSE_DUPLICATE_ROW_RATIO
-            }
-        ) return lines
-
-        val recoveredText = FgoDialogueSymbols.PAUSE_ELLIPSIS +
-            if (terminalPeriod == null) "" else "。"
-        FgoLogger.debug(
-            tag,
-            "PaddleOCR standalone dialogue pause recovered from pixels: " +
-                "dots=${bestRun.size}, period=${terminalPeriod != null}, " +
-                "box=${recoveredBounds.flattenToString()}"
-        )
-        return (lines + OcrTextLine(
-            text = recoveredText,
-            boundingBox = recoveredBounds,
-            confidence = REC_TEXT_SCORE_THRESHOLD
-        )).sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-    }
-
-    private fun dialoguePunctuationComponents(
-        pixels: IntArray,
-        sourceWidth: Int,
-        left: Int,
-        top: Int,
-        right: Int,
-        bottom: Int
-    ): List<DialoguePunctuationComponent> {
-        val width = right - left
-        val height = bottom - top
-        if (width <= 0 || height <= 0) return emptyList()
-        val active = BooleanArray(width * height)
-        for (localY in 0 until height) {
-            val sourceOffset = (top + localY) * sourceWidth + left
-            val localOffset = localY * width
-            for (localX in 0 until width) {
-                active[localOffset + localX] =
-                    pixels[sourceOffset + localX].isDialoguePunctuationPixel()
-            }
-        }
-
-        val visited = BooleanArray(active.size)
-        val queue = IntArray(active.size)
-        val components = mutableListOf<DialoguePunctuationComponent>()
-        for (start in active.indices) {
-            if (!active[start] || visited[start]) continue
-            var head = 0
-            var tail = 0
-            queue[tail++] = start
-            visited[start] = true
-            var componentLeft = width
-            var componentTop = height
-            var componentRight = 0
-            var componentBottom = 0
-            var pixelCount = 0
-            while (head < tail) {
-                val current = queue[head++]
-                val x = current % width
-                val y = current / width
-                componentLeft = min(componentLeft, x)
-                componentTop = min(componentTop, y)
-                componentRight = max(componentRight, x + 1)
-                componentBottom = max(componentBottom, y + 1)
-                pixelCount++
-                for (nextY in max(0, y - 1)..min(height - 1, y + 1)) {
-                    for (nextX in max(0, x - 1)..min(width - 1, x + 1)) {
-                        if (nextX == x && nextY == y) continue
-                        val next = nextY * width + nextX
-                        if (active[next] && !visited[next]) {
-                            visited[next] = true
-                            queue[tail++] = next
-                        }
-                    }
-                }
-            }
-            if (pixelCount >= DIALOGUE_PAUSE_MIN_COMPONENT_PIXELS) {
-                components += DialoguePunctuationComponent(
-                    left = left + componentLeft,
-                    top = top + componentTop,
-                    right = left + componentRight,
-                    bottom = top + componentBottom,
-                    pixelCount = pixelCount
-                )
-            }
-        }
-        return components
-    }
 
     private fun Int.isDialoguePunctuationPixel(): Boolean {
         val red = (this shr 16) and 0xff
@@ -1036,18 +785,29 @@ private class PaddleOcrRuntime(
         return FgoStoryTextPalette.isDialogueInk(red, green, blue)
     }
 
-    private fun String.hasJapaneseOrCjkText(): Boolean = any { character ->
-        character in '\u3040'..'\u30ff' ||
-            character in '\u31f0'..'\u31ff' ||
-            character in '\u3400'..'\u9fff' ||
-            character in '\uf900'..'\ufaff' ||
-            character in '\uff66'..'\uff9d'
-    }
+    private fun DialoguePunctuationRecovery.Bounds.toRect() = Rect(left, top, right, bottom)
 
-    private fun String.startsWithCanonicalDialogueDash(): Boolean {
-        val visible = trimStart()
-        return visible.startsWith(FgoDialogueSymbols.LONG_DASH_RUN) ||
-            visible.startsWith("――") || visible.startsWith("——")
+    private fun dialoguePunctuationLine(
+        line: OcrTextLine,
+        recognition: PaddleMaskMergeResult?,
+        box: FloatArray?
+    ): DialoguePunctuationRecovery.Line {
+        val positioned = recognition?.positionedTokens.orEmpty()
+        val tokens = if (box != null && positioned.joinToString("") { it.text } == recognition?.text &&
+            positioned.all { it.centerX.isFinite() && it.centerX in 0f..1f } &&
+            line.boundingBox.width() >= line.boundingBox.height()
+        ) {
+            val left = (box[0] + box[6]) / 2f
+            val right = (box[2] + box[4]) / 2f
+            DialoguePunctuationRecovery.tokensForText(line.text,
+                positioned.map { DialoguePunctuationRecovery.Token(it.text, left + it.centerX * (right - left)) })
+        } else emptyList()
+        return DialoguePunctuationRecovery.Line(
+            line.text,
+            DialoguePunctuationRecovery.Bounds(
+                line.boundingBox.left, line.boundingBox.top, line.boundingBox.right, line.boundingBox.bottom
+            ), line.confidence, tokens
+        )
     }
 
     private fun recoverEdgePunctuation(
@@ -1589,7 +1349,8 @@ private class PaddleOcrRuntime(
     }
 
     private fun recognizePreparedTargets(
-        targets: List<PaddleRecognitionTarget>
+        targets: List<PaddleRecognitionTarget>,
+        collectPositions: Boolean = false
     ): Map<Int, PaddleMaskMergeResult> {
         val preparedTargets = targets
             .mapNotNull { target ->
@@ -1618,7 +1379,7 @@ private class PaddleOcrRuntime(
             val batchResults = if (preparedBatch.size > 1) {
                 try {
                     modelRuns++
-                    runRecognitionBatch(preparedBatch).also { successfulBatchRuns++ }
+                    runRecognitionBatch(preparedBatch, collectPositions).also { successfulBatchRuns++ }
                 } catch (error: Exception) {
                     recognitionBatchEnabled = false
                     fellBackToSingle = true
@@ -1629,12 +1390,12 @@ private class PaddleOcrRuntime(
                     )
                     preparedBatch.map { prepared ->
                         modelRuns++
-                        runRecognitionBatch(listOf(prepared)).single()
+                        runRecognitionBatch(listOf(prepared), collectPositions).single()
                     }
                 }
             } else {
                 modelRuns++
-                listOf(runRecognitionBatch(preparedBatch).single())
+                listOf(runRecognitionBatch(preparedBatch, collectPositions).single())
             }
             check(batchResults.size == batch.size) {
                 "PaddleOCR recognition result count mismatch: expected=${batch.size}, actual=${batchResults.size}"
@@ -1684,14 +1445,16 @@ private class PaddleOcrRuntime(
     private fun recognizeCrop(
         crop: Bitmap,
         knownMasks: List<PaddleSolidMask>? = null,
-        knownSeparators: List<PaddleSolidMaskSeparator> = emptyList()
+        knownSeparators: List<PaddleSolidMaskSeparator> = emptyList(),
+        collectPositions: Boolean = false
     ): PaddleMaskMergeResult {
         val prepared = prepareRecognitionCrop(crop, knownMasks, knownSeparators)
-        return runRecognitionBatch(listOf(prepared)).single()
+        return runRecognitionBatch(listOf(prepared), collectPositions).single()
     }
 
     private fun runRecognitionBatch(
-        preparedBatch: List<PreparedRecognitionCrop>
+        preparedBatch: List<PreparedRecognitionCrop>,
+        collectPositions: Boolean = false
     ): List<PaddleMaskMergeResult> {
         require(preparedBatch.isNotEmpty()) { "PaddleOCR recognition batch must not be empty" }
         val batchSize = preparedBatch.size
@@ -1773,7 +1536,15 @@ private class PaddleOcrRuntime(
                             )
                         }
                     }.let { merged ->
-                        merged.copy(text = merged.text.trim())
+                        val text = merged.text.trim()
+                        val originalText = tokens.joinToString("") { it.text }
+                        val positioned = if (collectPositions && merged.recoveredMaskCount == 0 &&
+                            text == originalText.trim()
+                        ) {
+                            tokens.dropWhile { it.text.isBlank() }.dropLastWhile { it.text.isBlank() }
+                                .map { it.copy(centerX = it.centerX / prepared.resizedWidth) }
+                        } else emptyList()
+                        merged.copy(text = text, positionedTokens = positioned)
                     }
                 }
             }
@@ -1857,7 +1628,8 @@ private class PaddleOcrRuntime(
         val index: Int,
         val box: FloatArray,
         val bounds: Rect,
-        val prepared: PreparedRecognitionCrop?
+        val prepared: PreparedRecognitionCrop?,
+        val visualDash: Boolean
     )
 
     private data class PreparedRecognitionCrop(
@@ -1885,27 +1657,6 @@ private class PaddleOcrRuntime(
         val noisyLeadingQuoteCandidate: PaddleEdgePunctuationMerger.NoisyLeadingQuoteCandidate? = null,
         val attempted: Boolean = false
     )
-
-    private data class DialoguePunctuationComponent(
-        val left: Int,
-        val top: Int,
-        val right: Int,
-        val bottom: Int,
-        val pixelCount: Int
-    ) {
-        val width: Int get() = right - left
-        val height: Int get() = bottom - top
-        val centerX: Float get() = (left + right) / 2f
-        val centerY: Float get() = (top + bottom) / 2f
-    }
-
-    private data class DialogueHorizontalRun(
-        val left: Int,
-        val right: Int,
-        val y: Int
-    ) {
-        val width: Int get() = right - left
-    }
 
     companion object {
         private const val DET_MODEL_ASSET = "ppocrv6/det_v6_small.onnx"
@@ -1946,36 +1697,6 @@ private class PaddleOcrRuntime(
         private const val DIALOGUE_DASH_MIN_RUN_RATIO = 0.55f
         private const val DIALOGUE_DASH_MAX_STROKE_HEIGHT = 8
         private const val DIALOGUE_DASH_MAX_STROKE_HEIGHT_RATIO = 0.75f
-        private const val DIALOGUE_DASH_MIN_REFERENCE_HEIGHT = 20
-        private const val DIALOGUE_DASH_MAX_ANCHOR_X_RATIO = 0.60f
-        private const val DIALOGUE_DASH_SEARCH_SIDE_RATIO = 4f
-        private const val DIALOGUE_DASH_LINE_MIN_RUN_HEIGHT_RATIO = 1.5f
-        private const val DIALOGUE_DASH_SUPPORT_OVERLAP_RATIO = 0.75f
-        private const val DIALOGUE_DASH_MIN_SUPPORT_ROWS = 2
-        private const val DIALOGUE_DASH_LINE_MAX_STROKE_HEIGHT_RATIO = 0.25f
-        private const val DIALOGUE_DASH_LINE_MAX_CENTER_DIFFERENCE_RATIO = 0.35f
-        private const val DIALOGUE_PAUSE_MIN_REFERENCE_HEIGHT = 20
-        private const val DIALOGUE_PAUSE_MAX_ANCHOR_X_RATIO = 0.50f
-        private const val DIALOGUE_PAUSE_SEARCH_LEFT_RATIO = 0.75f
-        private const val DIALOGUE_PAUSE_SEARCH_RIGHT_RATIO = 4.50f
-        private const val DIALOGUE_PAUSE_SEARCH_UP_RATIO = 1.60f
-        private const val DIALOGUE_PAUSE_SEARCH_BOTTOM_GAP_RATIO = 0.15f
-        private const val DIALOGUE_PAUSE_MIN_DOT_SIZE = 3
-        private const val DIALOGUE_PAUSE_MAX_DOT_SIZE_RATIO = 0.28f
-        private const val DIALOGUE_PAUSE_MIN_DOT_FILL_RATIO = 0.45f
-        private const val DIALOGUE_PAUSE_MAX_DOT_ASPECT_RATIO = 2f
-        private const val DIALOGUE_PAUSE_MIN_ALIGNED_DOTS = 5
-        private const val DIALOGUE_PAUSE_MAX_ROW_DIFFERENCE_RATIO = 0.12f
-        private const val DIALOGUE_PAUSE_MIN_DOT_GAP_RATIO = 0.12f
-        private const val DIALOGUE_PAUSE_MAX_DOT_GAP_RATIO = 0.55f
-        private const val DIALOGUE_PAUSE_MAX_START_OFFSET_RATIO = 1.25f
-        private const val DIALOGUE_PAUSE_MIN_SPAN_RATIO = 0.70f
-        private const val DIALOGUE_PAUSE_MAX_GAP_VARIATION_RATIO = 2.2f
-        private const val DIALOGUE_PAUSE_MAX_PERIOD_GAP_RATIO = 0.65f
-        private const val DIALOGUE_PAUSE_MIN_PERIOD_DROP_RATIO = 0.08f
-        private const val DIALOGUE_PAUSE_MAX_PERIOD_DROP_RATIO = 0.55f
-        private const val DIALOGUE_PAUSE_DUPLICATE_ROW_RATIO = 0.45f
-        private const val DIALOGUE_PAUSE_MIN_COMPONENT_PIXELS = 5
         private val EDGE_QUOTATION_SYMBOLS = setOf('「', '」', '『', '』', '“', '”', '"')
         private val EDGE_OPENING_QUOTATION_SYMBOLS = setOf('「', '『', '“')
         private val EDGE_CLOSING_QUOTATION_SYMBOLS = setOf('」', '』', '”')
