@@ -1,4 +1,5 @@
-import { BookOpen, Download, GitBranch } from "lucide-react";
+import Image from "next/image";
+import { BookOpen, Download } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { ExampleSlideshow, type ExampleImage } from "@/components/ExampleSlideshow";
@@ -59,7 +60,7 @@ export default async function HomePage({ params }: HomePageProps) {
                 {t("guide")}
               </Link>
               <a className="icon-button" href={siteConfig.githubUrl} target="_blank" rel="noreferrer">
-                <GitBranch size={19} aria-hidden="true" />
+                <Image src="/download-icons/github.svg" alt="" width={19} height={19} aria-hidden="true" />
                 GitHub
               </a>
             </div>

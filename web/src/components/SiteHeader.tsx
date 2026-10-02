@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Download, GitBranch, Menu, X } from "lucide-react";
+import { ChevronDown, Download, Menu, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
@@ -93,8 +93,9 @@ export function SiteHeader() {
           href={siteConfig.githubUrl}
           target="_blank"
           rel="noreferrer"
+          aria-label={common("github")}
         >
-          <GitBranch size={18} aria-hidden="true" />
+          <Image src="/download-icons/github.svg" alt="" width={18} height={18} aria-hidden="true" />
           <span>{common("github")}</span>
         </a>
         <Link className="primary-button small header-download" href="/download">
@@ -133,7 +134,7 @@ export function SiteHeader() {
               target="_blank"
               rel="noreferrer"
             >
-              <GitBranch size={17} aria-hidden="true" />
+              <Image src="/download-icons/github.svg" alt="" width={17} height={17} aria-hidden="true" />
               {common("github")}
             </a>
           </div>
