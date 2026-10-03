@@ -167,30 +167,6 @@ class OverlayRenderer @Inject constructor(
         return result
     }
 
-    fun renderedChoiceBounds(
-        instructions: List<RenderInstruction>,
-        screenWidth: Int,
-        screenHeight: Int
-    ): List<Rect> {
-        val scale = screenScale(screenWidth, screenHeight)
-        return instructions.mapNotNull { instruction ->
-            if (instruction.region.region != TextRegion.CHOICE_BUTTON) return@mapNotNull null
-            val box = fixedChoiceRenderBox(
-                rawBox = instruction.region.boundingBox,
-                canvasWidth = screenWidth,
-                canvasHeight = screenHeight,
-                scale = scale
-            ) ?: return@mapNotNull null
-
-            Rect(
-                kotlin.math.floor(box.left).toInt(),
-                kotlin.math.floor(box.top).toInt(),
-                kotlin.math.ceil(box.right).toInt(),
-                kotlin.math.ceil(box.bottom).toInt()
-            )
-        }
-    }
-
     fun renderedDialogueText(
         instruction: RenderInstruction,
         screenWidth: Int,

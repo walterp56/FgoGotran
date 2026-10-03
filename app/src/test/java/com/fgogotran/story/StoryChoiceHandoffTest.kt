@@ -195,19 +195,6 @@ class StoryChoiceHandoffTest {
     }
 
     @Test
-    fun `presence probe sees a tall-list top and rare sixth slot but rejects plain backgrounds`() {
-        val search = FgoReferenceRect(220, 0, 1690, 870)
-        for (top in listOf(14, 156, 735)) {
-            assertTrue(StoryTapHandoff.mayHaveChoices(1920, 1080, search) { x, y ->
-                if (x in 220..1689 && y == top) CYAN else BLACK
-            }, "top=$top")
-        }
-        assertFalse(StoryTapHandoff.mayHaveChoices(1920, 1080, search) { _, _ -> BLACK })
-        assertFalse(StoryTapHandoff.mayHaveChoices(1920, 1080, search) { _, _ -> WHITE })
-        assertFalse(StoryTapHandoff.mayHaveChoices(1920, 1080, search) { _, _ -> 0xff142943.toInt() })
-    }
-
-    @Test
     fun `cancel and expiry stop choice work without disabling subsequent dialogue tickets`() {
         renderChoices()
         begin()
@@ -236,6 +223,5 @@ class StoryChoiceHandoffTest {
     companion object {
         private val BLACK = 0xff000000.toInt()
         private const val WHITE = -1
-        private val CYAN = 0xffa0ffff.toInt()
     }
 }

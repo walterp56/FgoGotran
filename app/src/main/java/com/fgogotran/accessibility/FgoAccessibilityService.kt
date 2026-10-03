@@ -58,10 +58,14 @@ import com.fgogotran.overlay.TextRegion
 import com.fgogotran.overlay.TranslationOverlay
 import com.fgogotran.runner.FgoRunnerOverlay
 import com.fgogotran.runner.FgoRunnerService
+import com.fgogotran.story.ChoiceRecognitionPolicy
+import com.fgogotran.story.ChoiceRetrySource
 import com.fgogotran.story.StoryTapHandoff
+import com.fgogotran.story.StoryFramePixels
 import com.fgogotran.story.StoryDetector
 import com.fgogotran.story.StoryOcrVisualAction
 import com.fgogotran.story.StoryOcrVisualBounds
+import com.fgogotran.story.StoryOcrVisualDecision
 import com.fgogotran.story.StoryOcrVisualGate
 import com.fgogotran.story.StoryOcrVisualScope
 import com.fgogotran.translation.SceneTranslateInput
@@ -76,6 +80,9 @@ import com.fgogotran.translation.TranslateResult
 import com.fgogotran.translation.Translator
 import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.util.FgoLogger
+import com.fgogotran.util.FramePixelReader
+import com.fgogotran.util.framePixels
+import com.fgogotran.util.read
 import com.fgogotran.voice.AiVoiceService
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -120,7 +127,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val storyOcrVisualGate = StoryOcrVisualGate()
-    private val semiAutoStoryTapHandoff = StoryTapHandoff(NEXT_DIALOGUE_POLL_TIMEOUT)
+    private val storyTapHandoff = StoryTapHandoff(NEXT_DIALOGUE_POLL_TIMEOUT)
     private var isProcessing = false
     private var foregroundTestOverrideEnabled = false
     private val foregroundTestOverride = ForegroundTestOverride()
@@ -162,8 +169,6 @@ class FgoAccessibilityService : AccessibilityService() {
     private var dialogueFallbackMaskPrev2: VisualTextMask? = null
     private var dialogueFallbackEvidencePrev1 = false
     private var dialogueFallbackEvidencePrev2 = false
-    private var renderedChoiceBounds: List<Rect> = emptyList()
-    private var waitingForChoiceSelectionExit = false
     private var isForwardingOverlayTap = false
     private var choiceOcrSuppressedUntil = 0L
     private var suppressedChoiceBoundsKey = ""
@@ -409,7 +414,18 @@ class FgoAccessibilityService : AccessibilityService() {
     private data class ChoiceRecognitionResult(
         val bounds: List<Rect>,
         val regions: List<ClassifiedRegion>
-    )
+    ) {
+        val isComplete: Boolean
+            get() = regions.all { it.region == TextRegion.CHOICE_BUTTON } &&
+                ChoiceRecognitionPolicy.isComplete(
+                    bounds.map { FgoReferenceRect(it.left, it.top, it.right, it.bottom) },
+                    regions.map {
+                        val box = it.boundingBox
+                        FgoReferenceRect(box.left, box.top, box.right, box.bottom) to
+                            it.lines.joinToString("\n") { line -> line.text }
+                    }
+                )
+    }
 
     private data class ManualScanResult(
         val regions: List<ClassifiedRegion>,
@@ -443,7 +459,10 @@ class FgoAccessibilityService : AccessibilityService() {
         MANUAL_TAP(true),
         SEMI_AUTO_CHOICE_TAP(true),
         SEMI_AUTO_BACKGROUND(false),
-        AUTO_BACKGROUND(false)
+        AUTO_BACKGROUND(false);
+
+        val recognizesChoices: Boolean
+            get() = ChoiceRecognitionPolicy.canRecognize(userInitiated, this == AUTO_BACKGROUND)
     }
 
     override fun onServiceConnected() {
@@ -765,7 +784,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         cancelTransientForegroundLoss()
         if (externalPackage != null && !testTargetChanged && !wasFgoForeground) return
-        semiAutoStoryTapHandoff.clear()
+        storyTapHandoff.clear()
         storyOcrVisualGate.reset()
         resetSemiAutoBackgroundState()
         translationOverlay.hideAll()
@@ -789,7 +808,7 @@ class FgoAccessibilityService : AccessibilityService() {
      */
     override fun onUnbind(intent: Intent?): Boolean {
         FgoLogger.warn(tag, "Service unbound by the system")
-        semiAutoStoryTapHandoff.clear()
+        storyTapHandoff.clear()
         // Drop the instance first: the binding is already gone, so every caller that
         // checks instance != null must stop treating the service as usable.
         instance = null
@@ -812,7 +831,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
-        semiAutoStoryTapHandoff.clear()
+        storyTapHandoff.clear()
         battleModeState.setEnabled(false)
         cancelTransientForegroundLoss()
         translationOverlay.destroy()
@@ -1027,7 +1046,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun cancelCurrentTranslation() {
         stopVersion++
-        semiAutoStoryTapHandoff.clear()
+        storyTapHandoff.clear()
         TranslationTrigger.cancelPendingTranslation()
         translationJob?.cancel()
         cropTranslationJob?.cancel()
@@ -1045,9 +1064,8 @@ class FgoAccessibilityService : AccessibilityService() {
         failedAutoRenderFingerprint = ""
         failedAutoRenderRetryAt = 0L
         resetSemiAutoBackgroundState()
-        renderedChoiceBounds = emptyList()
-        waitingForChoiceSelectionExit = false
         isForwardingOverlayTap = false
+        tapAdvancePolling = false
         autoTapHandoffPreviousFingerprint = ""
         choiceOcrSuppressedUntil = 0L
         suppressedChoiceBoundsKey = ""
@@ -1289,14 +1307,15 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun dialogueCompleteWithFallback(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        markerReport: DialogueMarkerReport
+        markerReport: DialogueMarkerReport,
+        pixels: FramePixelReader
     ): Boolean {
         val markerEvidence = markerReport.evidence
         FgoLogger.debug(
             tag,
             "Dialogue complete marker evidence=$markerEvidence shape=${markerReport.shapeVisible}"
         )
-        val dialogueMask = textMaskFor(source, screenRegions.dialogue)
+        val dialogueMask = textMaskFor(source, screenRegions.dialogue, pixels = pixels)
         val previousMask = dialogueFallbackMaskPrev1
         val beforePreviousMask = dialogueFallbackMaskPrev2
 
@@ -1361,6 +1380,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val processingVersion = stopVersion
 
         var screenshot: Bitmap? = null
+        var framePixels: StoryFramePixels? = null
         var restoreHiddenOverlay = false
         try {
             if (translationOverlay.isShowing()) {
@@ -1371,7 +1391,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 delay(CAPTURE_SETTLE_DELAY)
             }
 
-            screenshot = takeScreenshotCompat()
+            screenshot = takeScreenshotCompat(timingLabel = mode.name)
             if (screenshot == null) {
                 val failureInfo = screenshotFailureInfo(lastScreenshotErrorCode)
                 diagnosticEventStore.record(
@@ -1394,6 +1414,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 return
             }
             val source = screenshot
+            val frame = StoryFramePixels(source.framePixels())
+            framePixels = frame
             val currentScreenWidth = source.width
             val currentScreenHeight = source.height
             val screenRegions = FgoViewportLayout.regionsForScreen(currentScreenWidth, currentScreenHeight)
@@ -1401,7 +1423,8 @@ class FgoAccessibilityService : AccessibilityService() {
             val markerReport = if (isJapaneseServer()) {
                 backgroundDetector.dialogueCompleteMarkerReport(
                     source,
-                    screenRegions.dialogueComplete
+                    screenRegions.dialogueComplete,
+                    frame.pixels
                 )
             } else {
                 null
@@ -1415,7 +1438,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     resetDialogueFallbackState()
                     true
                 } else {
-                    val fallback = dialogueCompleteWithFallback(source, screenRegions, markerReport)
+                    val fallback = dialogueCompleteWithFallback(source, screenRegions, markerReport, frame.pixels)
                     fallbackAccepted = fallback
                     fallback
                 }
@@ -1444,16 +1467,16 @@ class FgoAccessibilityService : AccessibilityService() {
                     processStartedAt = processStartedAt,
                     processingVersion = processingVersion,
                     restoreHiddenOverlay = restoreHiddenOverlay,
-                    dialogueComplete = dialogueComplete
+                    dialogueComplete = dialogueComplete,
+                    frame = frame
                 )
                 ProcessingMode.SEMI_AUTO_CHOICE_TAP -> processSemiAutoChoiceScreen(
                     source = source,
                     screenRegions = screenRegions,
-                    currentScreenWidth = currentScreenWidth,
-                    currentScreenHeight = currentScreenHeight,
                     processStartedAt = processStartedAt,
                     processingVersion = processingVersion,
-                    restoreHiddenOverlay = restoreHiddenOverlay
+                    restoreHiddenOverlay = restoreHiddenOverlay,
+                    frame = frame
                 )
                 ProcessingMode.SEMI_AUTO_BACKGROUND -> {
                     processSemiAutoStoryScreen(
@@ -1464,7 +1487,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         processStartedAt = processStartedAt,
                         processingVersion = processingVersion,
                         dialogueComplete = dialogueComplete,
-                        dialogueCompleteByFallback = fallbackAccepted
+                        dialogueCompleteByFallback = fallbackAccepted,
+                        frame = frame
                     )
                     false
                 }
@@ -1477,7 +1501,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         processStartedAt = processStartedAt,
                         processingVersion = processingVersion,
                         dialogueComplete = dialogueComplete,
-                        dialogueCompleteByFallback = fallbackAccepted
+                        dialogueCompleteByFallback = fallbackAccepted,
+                        frame = frame
                     )
                     false
                 }
@@ -1498,6 +1523,7 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.error(tag, "processScreen failed", e)
             runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
         } finally {
+            framePixels?.clear()
             screenshot?.recycle()
             if (restoreHiddenOverlay && processingVersion == stopVersion && !translationOverlay.isShowing()) {
                 translationOverlay.restoreAfterCapture()
@@ -1914,9 +1940,10 @@ class FgoAccessibilityService : AccessibilityService() {
         processStartedAt: Long,
         processingVersion: Long,
         restoreHiddenOverlay: Boolean,
-        dialogueComplete: Boolean
+        dialogueComplete: Boolean,
+        frame: StoryFramePixels
     ): Boolean {
-        val scan = scanManualScene(source, screenRegions, dialogueComplete)
+        val scan = scanManualScene(source, screenRegions, dialogueComplete, frame)
         if (scan.regions.isEmpty()) {
             if (scan.dialogueComplete) {
                 FgoLogger.debug(tag, "No translatable completed dialogue detected in FGO regions")
@@ -1951,7 +1978,8 @@ class FgoAccessibilityService : AccessibilityService() {
             processStartedAt = processStartedAt,
             processingVersion = processingVersion,
             sceneSource = sceneSource,
-            recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
+            recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
+            frame = frame
         )
         return false
     }
@@ -1959,25 +1987,33 @@ class FgoAccessibilityService : AccessibilityService() {
     private suspend fun processSemiAutoChoiceScreen(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        currentScreenWidth: Int,
-        currentScreenHeight: Int,
         processStartedAt: Long,
         processingVersion: Long,
-        restoreHiddenOverlay: Boolean
+        restoreHiddenOverlay: Boolean,
+        frame: StoryFramePixels
     ): Boolean {
-        var choiceRecognition = recognizeChoiceRegions(
-            source = source,
-            screenRegions = screenRegions,
-            mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP
-        )
-        var choiceRegions = choiceRecognition.regions
-        if (choiceRegions.isEmpty()) {
-            FgoLogger.debug(tag, "Semi-auto tap OCR empty; retrying after settle delay")
-            delay(SEMI_AUTO_CHOICE_RETRY_DELAY_MS)
-            val retryScreenshot = takeScreenshotCompat()
-            if (retryScreenshot != null) {
-                try {
-                    val retryBounds = detectChoiceBounds(retryScreenshot, screenRegions)
+        // Keep a successful retry alive for formatting, colour, freshness and rendering.
+        // processScreen still owns and recycles the original screenshot.
+        val frames = ChoiceRetrySource(source, Bitmap::recycle)
+        var recognitionFrame = frame
+        return try {
+            var choiceRecognition = recognizeChoiceRegions(
+                source = source,
+                screenRegions = screenRegions,
+                mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP,
+                frame = recognitionFrame
+            )
+            if (choiceRecognition.regions.isEmpty()) {
+                FgoLogger.debug(tag, "Semi-auto tap OCR empty; retrying after settle delay")
+                delay(SEMI_AUTO_CHOICE_RETRY_DELAY_MS)
+                val retryScreenshot = takeScreenshotCompat(timingLabel = "SEMI_AUTO_CHOICE_RETRY")
+                if (retryScreenshot != null) {
+                    frames.useRetry(retryScreenshot)
+                    recognitionFrame = StoryFramePixels(retryScreenshot.framePixels())
+                    val retryScreenRegions = FgoViewportLayout.regionsForScreen(
+                        retryScreenshot.width, retryScreenshot.height
+                    )
+                    val retryBounds = detectChoiceBounds(retryScreenshot, retryScreenRegions, recognitionFrame.pixels)
                     if (retryBounds.isNotEmpty()) {
                         choiceRecognition = recognizeChoiceRegions(
                             source = retryScreenshot,
@@ -1987,67 +2023,77 @@ class FgoAccessibilityService : AccessibilityService() {
                     } else {
                         choiceRecognition = recognizeChoiceRegionsByFixedSlots(
                             source = retryScreenshot,
-                            screenRegions = screenRegions,
+                            screenRegions = retryScreenRegions,
                             preferredCount = null
                         )
                     }
-                    choiceRegions = choiceRecognition.regions
-                    if (choiceRegions.isEmpty()) {
+                    if (choiceRecognition.regions.isEmpty()) {
                         choiceRecognition = recognizeChoiceRegions(
                             source = retryScreenshot,
-                            screenRegions = screenRegions,
-                            mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP
+                            screenRegions = retryScreenRegions,
+                            mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP,
+                            frame = recognitionFrame
                         )
-                        choiceRegions = choiceRecognition.regions
                     }
-                } finally {
-                    retryScreenshot.recycle()
                 }
             }
-        }
-        if (choiceRegions.isEmpty()) {
-            if (choiceRecognition.bounds.isEmpty()) {
-                FgoLogger.debug(tag, "Semi-auto tap found no choice panels")
-            } else {
-                FgoLogger.debug(tag, "Semi-auto tap found choice panels but OCR returned no text")
+            if (choiceRecognition.regions.isEmpty()) {
+                if (choiceRecognition.bounds.isEmpty()) {
+                    FgoLogger.debug(tag, "Semi-auto tap found no choice panels")
+                } else {
+                    FgoLogger.debug(tag, "Semi-auto tap found choice panels but OCR returned no text")
+                }
+                return restoreHiddenOverlay
             }
-            return restoreHiddenOverlay
-        }
 
-        FgoLogger.debug(tag, "Semi-auto tap uses choice-only OCR path")
-        val sceneSource = sceneSourceFor(choiceRegions, source)
-        if (sceneSource == null) {
-            runnerOverlay.showTranslationFailureFeedback()
-            translationOverlay.hide()
-            return false
-        }
+            if (!choiceRecognition.isComplete) {
+                FgoLogger.debug(tag, "Semi-auto choice OCR incomplete; not translating a partial list")
+                runnerOverlay.showTranslationFailureFeedback()
+                translationOverlay.hide()
+                return false
+            }
 
-        if (restoreHiddenOverlay &&
-            isAlreadyRenderedSource(ProcessingMode.SEMI_AUTO_CHOICE_TAP, sceneSource)
-        ) {
-            FgoLogger.debug(tag, "Semi-auto choice source unchanged; restoring previous overlay")
-            return true
-        }
+            FgoLogger.debug(tag, "Semi-auto tap uses choice-only OCR path")
+            val recognitionSource = frames.source
+            val sceneSource = completeChoiceSceneSourceFor(choiceRecognition, recognitionSource)
+            if (sceneSource == null) {
+                runnerOverlay.showTranslationFailureFeedback()
+                translationOverlay.hide()
+                return false
+            }
 
-        val rendered = translateAndRenderScene(
-            mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP,
-            source = source,
-            currentScreenWidth = currentScreenWidth,
-            currentScreenHeight = currentScreenHeight,
-            processStartedAt = processStartedAt,
-            processingVersion = processingVersion,
-            sceneSource = sceneSource,
-            recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
-        )
-        return if (rendered) false else restoreHiddenOverlay
+            if (restoreHiddenOverlay &&
+                isAlreadyRenderedSource(ProcessingMode.SEMI_AUTO_CHOICE_TAP, sceneSource)
+            ) {
+                FgoLogger.debug(tag, "Semi-auto choice source unchanged; restoring previous overlay")
+                return true
+            }
+
+            val rendered = translateAndRenderScene(
+                mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP,
+                source = recognitionSource,
+                currentScreenWidth = recognitionSource.width,
+                currentScreenHeight = recognitionSource.height,
+                processStartedAt = processStartedAt,
+                processingVersion = processingVersion,
+                sceneSource = sceneSource,
+                recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
+                frame = recognitionFrame
+            )
+            if (rendered) false else restoreHiddenOverlay
+        } finally {
+            if (recognitionFrame !== frame) recognitionFrame.clear()
+            frames.close()
+        }
     }
 
     private suspend fun scanManualScene(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        dialogueComplete: Boolean
+        dialogueComplete: Boolean,
+        frame: StoryFramePixels
     ): ManualScanResult {
-        val choiceRecognition = recognizeChoiceRegions(source, screenRegions, ProcessingMode.MANUAL_TAP)
+        val choiceRecognition = recognizeChoiceRegions(source, screenRegions, ProcessingMode.MANUAL_TAP, frame)
         val choiceRegions = choiceRecognition.regions
         if (choiceRegions.isNotEmpty()) {
             FgoLogger.debug(tag, "Manual choice text detected; reading dialogue for context")
@@ -2093,7 +2139,8 @@ class FgoAccessibilityService : AccessibilityService() {
         processStartedAt: Long,
         processingVersion: Long,
         dialogueComplete: Boolean,
-        dialogueCompleteByFallback: Boolean
+        dialogueCompleteByFallback: Boolean,
+        frame: StoryFramePixels
     ) {
         when (val scan = scanSemiAutoStoryScene(
             source,
@@ -2101,9 +2148,14 @@ class FgoAccessibilityService : AccessibilityService() {
             currentScreenWidth,
             currentScreenHeight,
             dialogueComplete,
-            dialogueCompleteByFallback
+            dialogueCompleteByFallback,
+            frame
         )) {
             is AutoScanResult.Ready -> {
+                if (!isOverlayTapContextCurrent(processingVersion, TranslationMode.SEMI_AUTO)) {
+                    storyOcrVisualGate.completeRecognition(scan.storyVisualRecognitionToken, accepted = false)
+                    return
+                }
                 val sceneSource = scan.sceneSource
                 if (sceneSource == null) {
                     storyOcrVisualGate.completeRecognition(
@@ -2115,9 +2167,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     return
                 }
                 resetSemiAutoBackoff()
-                // Old choices were already excluded by pixels. A new list can legitimately
-                // repeat the same source text after the preceding list disappeared.
-                if (!scan.choiceHandoff && isAlreadyRenderedSource(ProcessingMode.SEMI_AUTO_BACKGROUND, sceneSource)) {
+                if (isAlreadyRenderedSource(ProcessingMode.SEMI_AUTO_BACKGROUND, sceneSource)) {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
                         accepted = true
@@ -2135,9 +2185,10 @@ class FgoAccessibilityService : AccessibilityService() {
                         processStartedAt = processStartedAt,
                         processingVersion = processingVersion,
                         sceneSource = sceneSource,
-                        recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
+                        recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
+                        frame = frame
                     )
-                    if (accepted) semiAutoStoryTapHandoff.finishPending()
+                    if (accepted) storyTapHandoff.finishPending()
                 } finally {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
@@ -2160,17 +2211,17 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenWidth: Int,
         currentScreenHeight: Int,
         dialogueComplete: Boolean,
-        dialogueCompleteByFallback: Boolean
+        dialogueCompleteByFallback: Boolean,
+        frame: StoryFramePixels
     ): AutoScanResult {
         val now = SystemClock.elapsedRealtime()
-        if (semiAutoStoryTapHandoff.isPending(now)) {
-            scanSemiAutoHandoffChoices(source, screenRegions)?.let { return it }
-        }
+        // A replayed story tap advances FGO, not a request to translate choices. Semi-auto
+        // background scans stay dialogue-only; choices use SEMI_AUTO_CHOICE_TAP.
         if (!dialogueComplete) {
             // A tap is advance intent, not completion. Keep the rendered baseline briefly so a
             // still-visible old frame can be skipped when the marker returns; normal expiry and
             // the visual gate's periodic verification still apply.
-            if (!semiAutoStoryTapHandoff.keepDialogueBaseline(now)) {
+            if (!storyTapHandoff.keepDialogueBaseline(now)) {
                 storyOcrVisualGate.reset()
             }
             FgoLogger.debug(tag, "Semi-auto waiting for completed dialogue marker")
@@ -2181,7 +2232,8 @@ class FgoAccessibilityService : AccessibilityService() {
         val visualDecision = observeStoryOcrVisual(
             source = source,
             screenRegions = screenRegions,
-            scope = StoryOcrVisualScope.SEMI_AUTO
+            scope = StoryOcrVisualScope.SEMI_AUTO,
+            pixels = frame.pixels
         )
         if (visualDecision.action == StoryOcrVisualAction.SKIP_UNCHANGED) {
             resetSemiAutoBackoff()
@@ -2235,59 +2287,6 @@ class FgoAccessibilityService : AccessibilityService() {
         return AutoScanResult.EmptyCompletedDialogue
     }
 
-    /** Tap-triggered only: normal semi-auto idle scans remain dialogue-only. */
-    private suspend fun scanSemiAutoHandoffChoices(
-        source: Bitmap,
-        screenRegions: FgoScreenRegions
-    ): AutoScanResult? {
-        val checkStartedAt = SystemClock.elapsedRealtime()
-        val choiceBounds = withContext(Dispatchers.Default) {
-            // Include the tall-list top and rare sixth slot, without changing any OCR crop.
-            val search = FgoReferenceRect(screenRegions.choiceSearch.left, screenRegions.viewport.top,
-                screenRegions.choiceSearch.right,
-                screenRegions.choiceSlotLayouts.flatten().maxOfOrNull { it.bottom }
-                    ?: screenRegions.choiceSearch.bottom)
-            if (StoryTapHandoff.mayHaveChoices(source.width, source.height, search, source::getPixel)) {
-                detectChoiceBounds(source, screenRegions)
-            } else {
-                emptyList()
-            }
-        }
-        if (!semiAutoStoryTapHandoff.isPending(SystemClock.elapsedRealtime())) return AutoScanResult.Waiting
-        if (choiceBounds.isEmpty()) {
-            semiAutoStoryTapHandoff.onChoicesAbsent()
-            return null // Continue the unchanged completed-dialogue workflow.
-        }
-        val frame = withContext(Dispatchers.Default) {
-            StoryTapHandoff.sampleChoices(source.width, source.height,
-                choiceBounds.map { it.toStoryBounds() }, source::getPixel)
-        }
-        // A cancellation, mode switch or foreground loss may happen during pixel analysis.
-        val now = SystemClock.elapsedRealtime()
-        if (!semiAutoStoryTapHandoff.isPending(now)) return AutoScanResult.Waiting
-        when (semiAutoStoryTapHandoff.observeChoices(frame, now)) {
-            StoryTapHandoff.ChoiceAction.WAIT_OLD -> {
-                FgoLogger.debug(tag, "Semi-auto choice handoff: old choice text still visible; skipping OCR")
-            }
-            StoryTapHandoff.ChoiceAction.WAIT_SETTLE -> {
-                FgoLogger.debug(tag, "Semi-auto choice handoff: waiting for stable new choice text")
-            }
-            StoryTapHandoff.ChoiceAction.RECOGNIZE -> {
-                FgoLogger.debug(tag, "Semi-auto choice handoff ready: buttons=${choiceBounds.size}, " +
-                    "pixelCheck=${now - checkStartedAt}ms")
-                val choices = recognizeChoiceRegions(source, choiceBounds, ProcessingMode.SEMI_AUTO_BACKGROUND)
-                if (choices.regions.size == choiceBounds.size) {
-                    return AutoScanResult.Ready(sceneSourceFor(choices.regions, source), choiceHandoff = true)
-                }
-                // Keep retrying missing rows with normal backoff; do not render a partial list.
-                rememberEmptyOcrRetry(ProcessingMode.SEMI_AUTO_BACKGROUND)
-                return AutoScanResult.Waiting
-            }
-        }
-        rememberDialogueWait(ProcessingMode.SEMI_AUTO_BACKGROUND)
-        return AutoScanResult.Waiting
-    }
-
     private fun Rect.toStoryBounds() = FgoReferenceRect(left, top, right, bottom)
 
     private suspend fun processAutoScreen(
@@ -2298,7 +2297,8 @@ class FgoAccessibilityService : AccessibilityService() {
         processStartedAt: Long,
         processingVersion: Long,
         dialogueComplete: Boolean,
-        dialogueCompleteByFallback: Boolean
+        dialogueCompleteByFallback: Boolean,
+        frame: StoryFramePixels
     ) {
         when (val scan = scanAutoScene(
             source,
@@ -2306,9 +2306,15 @@ class FgoAccessibilityService : AccessibilityService() {
             currentScreenWidth,
             currentScreenHeight,
             dialogueComplete,
-            dialogueCompleteByFallback
+            dialogueCompleteByFallback,
+            processingVersion,
+            frame
         )) {
             is AutoScanResult.Ready -> {
+                if (!isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO)) {
+                    storyOcrVisualGate.completeRecognition(scan.storyVisualRecognitionToken, accepted = false)
+                    return
+                }
                 val sceneSource = scan.sceneSource
                 if (sceneSource == null) {
                     storyOcrVisualGate.completeRecognition(
@@ -2320,7 +2326,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     return
                 }
                 resetAutoBackoff()
-                if (isAlreadyRenderedSource(ProcessingMode.AUTO_BACKGROUND, sceneSource)) {
+                if (!scan.choiceHandoff && isAlreadyRenderedSource(ProcessingMode.AUTO_BACKGROUND, sceneSource)) {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
                         accepted = true
@@ -2338,7 +2344,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 if (shouldHoldAutoTapHandoffScene(
                         sceneSource = sceneSource,
                         currentScreenWidth = currentScreenWidth,
-                        currentScreenHeight = currentScreenHeight
+                        currentScreenHeight = currentScreenHeight,
+                        confirmedChoiceHandoff = scan.choiceHandoff
                     )
                 ) {
                     storyOcrVisualGate.completeRecognition(
@@ -2357,8 +2364,10 @@ class FgoAccessibilityService : AccessibilityService() {
                         processStartedAt = processStartedAt,
                         processingVersion = processingVersion,
                         sceneSource = sceneSource,
-                        recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt
+                        recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
+                        frame = frame
                     )
+                    if (accepted) storyTapHandoff.finishPending()
                 } finally {
                     storyOcrVisualGate.completeRecognition(
                         scan.storyVisualRecognitionToken,
@@ -2382,25 +2391,49 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenWidth: Int,
         currentScreenHeight: Int,
         dialogueComplete: Boolean,
-        dialogueCompleteByFallback: Boolean
+        dialogueCompleteByFallback: Boolean,
+        processingVersion: Long,
+        frame: StoryFramePixels
     ): AutoScanResult {
         if (!dialogueComplete) {
             storyOcrVisualGate.reset()
         }
-        val choiceBounds = detectChoiceBounds(source, screenRegions)
-        if (waitingForChoiceSelectionExit) {
-            if (choiceBounds.isNotEmpty()) {
-                FgoLogger.debug(tag, "Choice selection is still leaving the screen; suppressing repeated choice translation")
-                return AutoScanResult.Waiting
+        val choiceBounds = detectChoiceBounds(source, screenRegions, frame.pixels)
+        if (!isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO)) return AutoScanResult.Waiting
+        var confirmedChoiceHandoff = false
+        if (storyTapHandoff.isPending(SystemClock.elapsedRealtime())) {
+            if (choiceBounds.isEmpty()) {
+                storyTapHandoff.onChoicesAbsent()
+                // A choice tap does not replace the existing dialogue-completion checks.
+            } else {
+                val maskStartedAt = SystemClock.elapsedRealtime()
+                val choiceFrame = withContext(Dispatchers.Default) {
+                    frame.choices(choiceBounds.map { it.toStoryBounds() })
+                }
+                FgoLogger.debug(tag, "Auto choice handoff mask timing: ${SystemClock.elapsedRealtime() - maskStartedAt}ms")
+                if (!isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO) ||
+                    !storyTapHandoff.isPending(SystemClock.elapsedRealtime())
+                ) return AutoScanResult.Waiting
+                when (storyTapHandoff.observeChoices(choiceFrame, SystemClock.elapsedRealtime())) {
+                    StoryTapHandoff.ChoiceAction.WAIT_OLD -> {
+                        FgoLogger.debug(tag, "Auto choice handoff: old choice text still visible; skipping OCR")
+                        rememberDialogueWait(ProcessingMode.AUTO_BACKGROUND)
+                        return AutoScanResult.Waiting
+                    }
+                    StoryTapHandoff.ChoiceAction.WAIT_SETTLE -> {
+                        FgoLogger.debug(tag, "Auto choice handoff: waiting for stable new choice text")
+                        rememberDialogueWait(ProcessingMode.AUTO_BACKGROUND)
+                        return AutoScanResult.Waiting
+                    }
+                    StoryTapHandoff.ChoiceAction.RECOGNIZE -> confirmedChoiceHandoff = true
+                }
             }
-            waitingForChoiceSelectionExit = false
-            FgoLogger.debug(tag, "Choice selection left the screen; resuming auto translation")
         }
 
         if (choiceBounds.isNotEmpty()) {
             val choiceRecognition = recognizeChoiceRegions(source, choiceBounds, ProcessingMode.AUTO_BACKGROUND)
             val choiceRegions = choiceRecognition.regions
-            if (choiceRegions.isNotEmpty()) {
+            if (choiceRecognition.isComplete) {
                 FgoLogger.debug(tag, "Auto choice text detected")
                 val dialogueRegions = if (dialogueComplete) {
                     recognizeDialogueRegions(
@@ -2413,10 +2446,16 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
                 val sceneRegions = mergeManualSceneRegions(choiceRegions, dialogueRegions)
                 logAutoStoryDetection("Choice", sceneRegions, currentScreenWidth, currentScreenHeight)
-                return AutoScanResult.Ready(sceneSource = sceneSourceFor(sceneRegions, source))
+                val sceneSource = completeChoiceSceneSourceFor(choiceRecognition, source, sceneRegions)
+                if (sceneSource != null) return AutoScanResult.Ready(
+                    sceneSource = sceneSource,
+                    choiceHandoff = confirmedChoiceHandoff
+                )
             }
 
-            FgoLogger.debug(tag, "Choice panels detected by pixels but OCR returned no text")
+            FgoLogger.debug(tag, "Auto choice OCR incomplete; waiting instead of translating a partial list")
+            rememberEmptyOcrRetry(ProcessingMode.AUTO_BACKGROUND)
+            return AutoScanResult.Waiting
         }
 
         if (!dialogueComplete) {
@@ -2428,7 +2467,8 @@ class FgoAccessibilityService : AccessibilityService() {
         val visualDecision = observeStoryOcrVisual(
             source = source,
             screenRegions = screenRegions,
-            scope = StoryOcrVisualScope.AUTO
+            scope = StoryOcrVisualScope.AUTO,
+            pixels = frame.pixels
         )
         if (visualDecision.action == StoryOcrVisualAction.SKIP_UNCHANGED) {
             resetAutoBackoff()
@@ -2462,12 +2502,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 FgoLogger.debug(tag, "Auto fallback OCR rejected; waiting for strict marker")
                 return AutoScanResult.Waiting
             }
-            val label = if (choiceBounds.isEmpty()) {
-                "Completed dialogue"
-            } else {
-                "Completed dialogue after empty choice"
-            }
-            logAutoStoryDetection(label, dialogueRegions, currentScreenWidth, currentScreenHeight)
+            logAutoStoryDetection("Completed dialogue", dialogueRegions, currentScreenWidth, currentScreenHeight)
             return AutoScanResult.Ready(
                 sceneSource = dialogueScene,
                 storyVisualRecognitionToken = visualDecision.recognitionToken
@@ -2484,16 +2519,24 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun observeStoryOcrVisual(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        scope: StoryOcrVisualScope
-    ) = storyOcrVisualGate.observe(
-        scope = scope,
-        width = source.width,
-        height = source.height,
-        nameBounds = screenRegions.name.toStoryOcrVisualBounds(),
-        dialogueBounds = screenRegions.dialogue.toStoryOcrVisualBounds(),
-        pixel = source::getPixel,
-        now = SystemClock.elapsedRealtime()
-    )
+        scope: StoryOcrVisualScope,
+        pixels: FramePixelReader
+    ): StoryOcrVisualDecision {
+        val namePixels = pixels.read(screenRegions.name)
+        val dialoguePixels = pixels.read(screenRegions.dialogue)
+        return storyOcrVisualGate.observe(
+            scope = scope,
+            width = source.width,
+            height = source.height,
+            nameBounds = screenRegions.name.toStoryOcrVisualBounds(),
+            dialogueBounds = screenRegions.dialogue.toStoryOcrVisualBounds(),
+            pixel = { x, y ->
+                if (screenRegions.name.contains(x, y)) namePixels.getPixel(x, y)
+                else dialoguePixels.getPixel(x, y)
+            },
+            now = SystemClock.elapsedRealtime()
+        )
+    }
 
     private fun Rect.toStoryOcrVisualBounds(): StoryOcrVisualBounds =
         StoryOcrVisualBounds(left, top, right, bottom)
@@ -2521,8 +2564,10 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun shouldHoldAutoTapHandoffScene(
         sceneSource: SceneSource,
         currentScreenWidth: Int,
-        currentScreenHeight: Int
+        currentScreenHeight: Int,
+        confirmedChoiceHandoff: Boolean = false
     ): Boolean {
+        if (confirmedChoiceHandoff && sceneSource.hasChoices) return false
         if (!isAutoTapHandoffActive()) return false
         if (sceneSource.fingerprint == autoTapHandoffPreviousFingerprint) {
             FgoLogger.debug(tag, "Auto tap handoff saw previous source text again; waiting")
@@ -2555,17 +2600,27 @@ class FgoAccessibilityService : AccessibilityService() {
         processStartedAt: Long,
         processingVersion: Long,
         sceneSource: SceneSource,
-        recognitionDuration: Long
+        recognitionDuration: Long,
+        frame: StoryFramePixels
     ): Boolean {
+        if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
+            TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
+        ) return false
         val sourceFingerprint = sceneSource.fingerprint
         val translationStartedAt = SystemClock.elapsedRealtime()
         val sceneTranslation = translateSceneSource(sceneSource)
+        if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
+            TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
+        ) return false
         val translationDuration = SystemClock.elapsedRealtime() - translationStartedAt
         val layoutStartedAt = SystemClock.elapsedRealtime()
         val instructions = withContext(Dispatchers.Default) {
             buildRenderInstructions(source, sceneSource, sceneTranslation)
         }
         val layoutDuration = SystemClock.elapsedRealtime() - layoutStartedAt
+        if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
+            TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
+        ) return false
         logSceneTranslationDebug(mode, sceneSource, sceneTranslation, instructions)
         val renderedHasChoices = instructions.any { it.region.region == TextRegion.CHOICE_BUTTON }
 
@@ -2579,7 +2634,7 @@ class FgoAccessibilityService : AccessibilityService() {
         if (instructions.isEmpty()) {
             if (!sceneHasRequiredTranslation(sceneSource)) {
                 FgoLogger.debug(tag, "Scene has no translatable text; skipping overlay render")
-                rememberRenderedSourceText(mode, sourceFingerprint, sceneSource.stabilityKey, sceneSource.hasChoices)
+                rememberRenderedSourceText(mode, sourceFingerprint, sceneSource.stabilityKey)
                 clearFailedRenderAttempt(sourceFingerprint)
                 translationOverlay.hide()
                 return true
@@ -2591,9 +2646,15 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         val resultBuildDuration = translationDuration + layoutDuration
         val forceVisualFreshness = mode == ProcessingMode.AUTO_BACKGROUND && isAutoTapHandoffActive()
+        var freshnessDuration = 0L
         if (resultBuildDuration >= FRESHNESS_CHECK_TRANSLATION_DELAY || forceVisualFreshness) {
-            val sourceVisualFingerprint = visualFingerprintFor(source, sceneSource.regions.map { it.region })
-            if (!isSourceVisuallyCurrent(sourceVisualFingerprint)) {
+            val freshnessStartedAt = SystemClock.elapsedRealtime()
+            val maskStartedAt = SystemClock.elapsedRealtime()
+            val sourceVisualFingerprint = visualFingerprintFor(source, sceneSource.regions.map { it.region }, frame.pixels)
+            FgoLogger.debug(tag, "Freshness source mask timing: ${SystemClock.elapsedRealtime() - maskStartedAt}ms")
+            val isCurrent = isSourceVisuallyCurrent(sourceVisualFingerprint)
+            freshnessDuration = SystemClock.elapsedRealtime() - freshnessStartedAt
+            if (!isCurrent) {
                 FgoLogger.debug(tag, "Dialogue changed during translation; discarding stale result")
                 return false
             }
@@ -2610,12 +2671,16 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "Translation was stopped; discarding completed result")
             return false
         }
-        if (TranslationTrigger.isUiBlockingOcr()) {
-            FgoLogger.debug(tag, "Overlay UI opened during translation; discarding result")
+        if (!isProcessingModeEnabled(mode) || TranslationTrigger.isUiBlockingOcr() ||
+            (!mode.userInitiated && !isEffectiveFgoForeground)
+        ) {
+            FgoLogger.debug(tag, "Translation context changed during translation; discarding result")
             return false
         }
 
-        val semiAutoSceneKind = if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND || mode == ProcessingMode.SEMI_AUTO_CHOICE_TAP) {
+        val storySceneKind = if (mode == ProcessingMode.AUTO_BACKGROUND ||
+            mode == ProcessingMode.SEMI_AUTO_BACKGROUND || mode == ProcessingMode.SEMI_AUTO_CHOICE_TAP
+        ) {
             when {
                 renderedHasChoices -> StoryTapHandoff.Kind.CHOICES
                 sceneSource.hasDialogue && !sceneSource.hasChoices &&
@@ -2627,14 +2692,20 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         val choiceButtonBounds = sceneSource.regions.filter { it.region.region == TextRegion.CHOICE_BUTTON }
             .map { it.region.boundingBox.toStoryBounds() }
-        val choiceFrame = if (semiAutoSceneKind == StoryTapHandoff.Kind.CHOICES) {
+        val choiceMaskStartedAt = SystemClock.elapsedRealtime()
+        val choiceFrame = if (storySceneKind == StoryTapHandoff.Kind.CHOICES) {
             withContext(Dispatchers.Default) {
-                StoryTapHandoff.sampleChoices(currentScreenWidth, currentScreenHeight,
-                    choiceButtonBounds, source::getPixel)
+                frame.choices(choiceButtonBounds)
             }
         } else {
             null
         }
+        val choiceMaskDuration = if (choiceFrame != null) {
+            SystemClock.elapsedRealtime() - choiceMaskStartedAt
+        } else 0L
+        if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
+            TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
+        ) return false
         val renderStartedAt = SystemClock.elapsedRealtime()
         val rendered = withContext(Dispatchers.Default) {
             overlayRenderer.render(
@@ -2650,45 +2721,44 @@ class FgoAccessibilityService : AccessibilityService() {
             rendered.recycle()
             return false
         }
-        if (!isProcessingModeEnabled(mode) || TranslationTrigger.isUiBlockingOcr()) {
-            FgoLogger.debug(tag, "Translation mode changed or overlay UI opened during render; discarding rendered bitmap")
+        if (!isProcessingModeEnabled(mode) || TranslationTrigger.isUiBlockingOcr() ||
+            (!mode.userInitiated && !isEffectiveFgoForeground)
+        ) {
+            FgoLogger.debug(tag, "Translation context changed during render; discarding rendered bitmap")
             rendered.recycle()
             return false
         }
-        rememberRenderedSourceText(mode, sourceFingerprint, sceneSource.stabilityKey, sceneSource.hasChoices)
+        val overlayStartedAt = SystemClock.elapsedRealtime()
+        restoreFgoForegroundAfterCapture(mode.name)
+        translationOverlay.updateImage(rendered)
+        if (!translationOverlay.isShowing()) {
+            FgoLogger.warn(tag, "Overlay display failed; keeping scene retryable without a render commit")
+            rememberFailedRenderAttempt(mode, sourceFingerprint)
+            runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
+            return false
+        }
+        rememberRenderedSourceText(mode, sourceFingerprint, sceneSource.stabilityKey)
         clearFailedRenderAttempt(sourceFingerprint)
         if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
             resetSemiAutoBackoff()
         }
-        renderedChoiceBounds = if (mode == ProcessingMode.AUTO_BACKGROUND ||
-            ((mode == ProcessingMode.SEMI_AUTO_CHOICE_TAP || mode == ProcessingMode.SEMI_AUTO_BACKGROUND) && renderedHasChoices)
-        ) {
-            overlayRenderer.renderedChoiceBounds(
-                instructions = instructions,
-                screenWidth = currentScreenWidth,
-                screenHeight = currentScreenHeight
-            )
-        } else {
-            emptyList()
-        }
         addHistoryEntry(source, sceneSource, sceneTranslation, instructions)
-        val overlayStartedAt = SystemClock.elapsedRealtime()
-        restoreFgoForegroundAfterCapture(mode.name)
-        translationOverlay.updateImage(rendered)
-        semiAutoStoryTapHandoff.onSceneRendered(
+        storyTapHandoff.onSceneRendered(
             fingerprint = sourceFingerprint,
             width = currentScreenWidth,
             height = currentScreenHeight,
-            kind = semiAutoSceneKind.takeIf { translationOverlay.isShowing() },
+            kind = storySceneKind,
             choiceHitBounds = choiceButtonBounds,
-            choices = choiceFrame
+            choices = choiceFrame,
+            autoRenderCommitted = mode == ProcessingMode.AUTO_BACKGROUND
         )
         maybeSpeakRenderedDialogue(sceneSource, sceneTranslation, instructions)
         val overlayDuration = SystemClock.elapsedRealtime() - overlayStartedAt
         FgoLogger.info(
             tag,
             "Pipeline ready ($mode): ocr=${recognitionDuration}ms, translate=${translationDuration}ms, " +
-                    "layout=${layoutDuration}ms, render=${renderDuration}ms, overlay=${overlayDuration}ms, " +
+                    "layout=${layoutDuration}ms, freshness=${freshnessDuration}ms, choiceMask=${choiceMaskDuration}ms, " +
+                    "render=${renderDuration}ms, overlay=${overlayDuration}ms, " +
                     "total=${SystemClock.elapsedRealtime() - processStartedAt}ms"
         )
         return true
@@ -2783,25 +2853,25 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun lastRenderedSourceTextFor(mode: ProcessingMode, hasChoices: Boolean = false): String {
+    private fun lastRenderedSourceTextFor(mode: ProcessingMode): String {
         return when (mode) {
             ProcessingMode.MANUAL_TAP -> lastManualRenderedSourceText
             ProcessingMode.SEMI_AUTO_CHOICE_TAP -> lastSemiAutoChoiceRenderedSourceText
-            ProcessingMode.SEMI_AUTO_BACKGROUND -> if (hasChoices) lastSemiAutoChoiceRenderedSourceText else lastSemiAutoRenderedSourceText
+            ProcessingMode.SEMI_AUTO_BACKGROUND -> lastSemiAutoRenderedSourceText
             ProcessingMode.AUTO_BACKGROUND -> lastAutoRenderedSourceText
         }
     }
 
-    private fun lastRenderedStabilityKeyFor(mode: ProcessingMode, hasChoices: Boolean = false): String {
+    private fun lastRenderedStabilityKeyFor(mode: ProcessingMode): String {
         return when (mode) {
             ProcessingMode.MANUAL_TAP -> lastManualRenderedStabilityKey
             ProcessingMode.SEMI_AUTO_CHOICE_TAP -> lastSemiAutoChoiceRenderedStabilityKey
-            ProcessingMode.SEMI_AUTO_BACKGROUND -> if (hasChoices) lastSemiAutoChoiceRenderedStabilityKey else lastSemiAutoRenderedStabilityKey
+            ProcessingMode.SEMI_AUTO_BACKGROUND -> lastSemiAutoRenderedStabilityKey
             ProcessingMode.AUTO_BACKGROUND -> lastAutoRenderedStabilityKey
         }
     }
 
-    private fun rememberRenderedSourceText(mode: ProcessingMode, fingerprint: String, stabilityKey: String, hasChoices: Boolean = false) {
+    private fun rememberRenderedSourceText(mode: ProcessingMode, fingerprint: String, stabilityKey: String) {
         when (mode) {
             ProcessingMode.MANUAL_TAP -> {
                 lastManualRenderedSourceText = fingerprint
@@ -2812,13 +2882,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 lastSemiAutoChoiceRenderedStabilityKey = stabilityKey
             }
             ProcessingMode.SEMI_AUTO_BACKGROUND -> {
-                if (hasChoices) {
-                    lastSemiAutoChoiceRenderedSourceText = fingerprint
-                    lastSemiAutoChoiceRenderedStabilityKey = stabilityKey
-                } else {
-                    lastSemiAutoRenderedSourceText = fingerprint
-                    lastSemiAutoRenderedStabilityKey = stabilityKey
-                }
+                lastSemiAutoRenderedSourceText = fingerprint
+                lastSemiAutoRenderedStabilityKey = stabilityKey
             }
             ProcessingMode.AUTO_BACKGROUND -> {
                 lastAutoRenderedSourceText = fingerprint
@@ -2828,8 +2893,8 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun isAlreadyRenderedSource(mode: ProcessingMode, sceneSource: SceneSource): Boolean {
-        if (sceneSource.fingerprint == lastRenderedSourceTextFor(mode, sceneSource.hasChoices)) return true
-        val renderedKey = lastRenderedStabilityKeyFor(mode, sceneSource.hasChoices)
+        if (sceneSource.fingerprint == lastRenderedSourceTextFor(mode)) return true
+        val renderedKey = lastRenderedStabilityKeyFor(mode)
         if (renderedKey.isBlank() || sceneSource.stabilityKey.isBlank()) return false
         return sceneSource.stabilityKey == renderedKey
     }
@@ -2910,6 +2975,23 @@ class FgoAccessibilityService : AccessibilityService() {
             hasDialogue = dialogueText.isNotBlank(),
             contextGeneration = SessionTranslationHistory.currentSceneContextGeneration()
         )
+    }
+
+    /** Formatting can discard a blank row too; validate once more before the API boundary. */
+    private fun completeChoiceSceneSourceFor(
+        choices: ChoiceRecognitionResult,
+        source: Bitmap,
+        sceneRegions: List<ClassifiedRegion> = choices.regions
+    ): SceneSource? {
+        if (!choices.isComplete) return null
+        val scene = sceneSourceFor(sceneRegions, source) ?: return null
+        val rows = scene.regions.filter { it.region.region == TextRegion.CHOICE_BUTTON }
+            .map { it.region.boundingBox.toStoryBounds() to it.text }
+        if (!ChoiceRecognitionPolicy.isComplete(choices.bounds.map { it.toStoryBounds() }, rows)) {
+            FgoLogger.debug(tag, "Choice source formatting incomplete; not submitting a partial list")
+            return null
+        }
+        return scene
     }
 
     private fun sceneStabilityKey(name: String?, dialogue: String?, choices: List<String>): String {
@@ -4498,21 +4580,25 @@ class FgoAccessibilityService : AccessibilityService() {
     private suspend fun recognizeChoiceRegions(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        mode: ProcessingMode
+        mode: ProcessingMode,
+        frame: StoryFramePixels = StoryFramePixels(source.framePixels())
     ): ChoiceRecognitionResult {
+        if (!mode.recognizesChoices) return ChoiceRecognitionResult(emptyList(), emptyList())
         return recognizeChoiceRegions(
             source = source,
-            choiceBounds = detectChoiceBounds(source, screenRegions),
+            choiceBounds = detectChoiceBounds(source, screenRegions, frame.pixels),
             mode = mode
         )
     }
 
     private suspend fun detectChoiceBounds(
         source: Bitmap,
-        screenRegions: FgoScreenRegions
+        screenRegions: FgoScreenRegions,
+        pixels: FramePixelReader = source.framePixels()
     ): List<Rect> {
+        val discoveryStartedAt = SystemClock.elapsedRealtime()
         val primaryChoiceBounds = withContext(Dispatchers.Default) {
-            backgroundDetector.detectChoiceButtons(source, screenRegions.choiceSearch)
+            backgroundDetector.detectChoiceButtons(source, screenRegions.choiceSearch, pixels)
         }
         val detectedChoiceBounds = if (shouldExpandChoiceSearch(primaryChoiceBounds, screenRegions.choiceSearch)) {
             val expandedSearch = Rect(
@@ -4526,7 +4612,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 "Expanding choice search upward for tall list candidate: ${primaryChoiceBounds.map { it.flattenToString() }}"
             )
             withContext(Dispatchers.Default) {
-                backgroundDetector.detectChoiceButtons(source, expandedSearch)
+                backgroundDetector.detectChoiceButtons(source, expandedSearch, pixels)
             }
         } else {
             primaryChoiceBounds
@@ -4534,16 +4620,22 @@ class FgoAccessibilityService : AccessibilityService() {
         val rawChoiceBounds = appendRareSixthChoiceCandidate(
             source = source,
             detectedBounds = detectedChoiceBounds,
-            fixedSlotLayouts = screenRegions.choiceSlotLayouts
+            fixedSlotLayouts = screenRegions.choiceSlotLayouts,
+            pixels = pixels
         )
         val filteredChoiceBounds = filterChoiceBounds(rawChoiceBounds, screenRegions.choiceSearch)
-        return withContext(Dispatchers.Default) {
+        val validationStartedAt = SystemClock.elapsedRealtime()
+        val fixedChoiceBounds = withContext(Dispatchers.Default) {
             backgroundDetector.snapChoiceButtonsToFixedSlots(
                 bitmap = source,
                 rawButtons = filteredChoiceBounds,
-                fixedSlotLayouts = screenRegions.choiceSlotLayouts
+                fixedSlotLayouts = screenRegions.choiceSlotLayouts,
+                pixels = pixels
             )
         }
+        FgoLogger.debug(tag, "Choice detection timing: discovery=${validationStartedAt - discoveryStartedAt}ms, " +
+            "fixedSlots=${SystemClock.elapsedRealtime() - validationStartedAt}ms, buttons=${fixedChoiceBounds.size}")
+        return fixedChoiceBounds
     }
 
     /**
@@ -4554,7 +4646,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private suspend fun appendRareSixthChoiceCandidate(
         source: Bitmap,
         detectedBounds: List<Rect>,
-        fixedSlotLayouts: List<List<Rect>>
+        fixedSlotLayouts: List<List<Rect>>,
+        pixels: FramePixelReader
     ): List<Rect> {
         if (detectedBounds.size != RARE_SIX_CHOICE_COUNT - 1) return detectedBounds
         val sixthSlot = fixedSlotLayouts
@@ -4563,7 +4656,7 @@ class FgoAccessibilityService : AccessibilityService() {
             ?: return detectedBounds
 
         val candidates = withContext(Dispatchers.Default) {
-            backgroundDetector.detectChoiceButtons(source, sixthSlot)
+            backgroundDetector.detectChoiceButtons(source, sixthSlot, pixels)
         }
         val sixthCandidate = candidates.singleOrNull() ?: return detectedBounds
         FgoLogger.debug(
@@ -4580,6 +4673,7 @@ class FgoAccessibilityService : AccessibilityService() {
         retryEmptyTargetsIndividually: Boolean = mode == ProcessingMode.AUTO_BACKGROUND || choiceBounds.size >= 2,
         allowEnhancedSingleChoiceFallback: Boolean = true
     ): ChoiceRecognitionResult {
+        if (!mode.recognizesChoices) return ChoiceRecognitionResult(emptyList(), emptyList())
         val now = SystemClock.elapsedRealtime()
         val useEmptyChoiceCooldown = mode == ProcessingMode.AUTO_BACKGROUND
         if (choiceBounds.isEmpty()) return ChoiceRecognitionResult(emptyList(), emptyList())
@@ -4598,12 +4692,12 @@ class FgoAccessibilityService : AccessibilityService() {
             targets = choiceBounds.map { OcrRegionTarget(it, TextRegion.CHOICE_BUTTON) },
             retryEmptyTargetsIndividually = retryEmptyTargetsIndividually
         ).ifEmpty {
-            if (allowEnhancedSingleChoiceFallback &&
-                choiceBounds.size == 1 &&
-                (mode.userInitiated || mode == ProcessingMode.AUTO_BACKGROUND || mode == ProcessingMode.SEMI_AUTO_BACKGROUND)
-            ) {
-                recognizeEnhancedSingleChoiceRegion(source, choiceBounds.single())?.let { listOf(it) }
-                    ?: emptyList()
+            if (allowEnhancedSingleChoiceFallback && choiceBounds.size == 1) {
+                val recoveryStartedAt = SystemClock.elapsedRealtime()
+                val recovered = recognizeEnhancedSingleChoiceRegion(source, choiceBounds.single())
+                FgoLogger.debug(tag, "Choice OCR recovery: enhancedSingleCalls=1, " +
+                    "total=${SystemClock.elapsedRealtime() - recoveryStartedAt}ms")
+                recovered?.let { listOf(it) } ?: emptyList()
             } else {
                 emptyList()
             }
@@ -4991,7 +5085,10 @@ class FgoAccessibilityService : AccessibilityService() {
             cropBounds.width(),
             cropBounds.height()
         )
+        var recoveryDuration = 0L
+        var recoveryCalls = 0
         return try {
+            val sharedStartedAt = SystemClock.elapsedRealtime()
             val ocrResult = withContext(Dispatchers.Default) {
                 val choicesOnly = clippedTargets.all { it.region == TextRegion.CHOICE_BUTTON }
                 ocrEngine.recognize(cropped,
@@ -5001,6 +5098,7 @@ class FgoAccessibilityService : AccessibilityService() {
                         target.bounds.right - cropBounds.left, target.bounds.bottom - cropBounds.top
                     ) } else emptyList())
             }
+            val sharedDuration = SystemClock.elapsedRealtime() - sharedStartedAt
             val rawLocalLines = ocrResult.lines
                 .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
             val lines = rawLocalLines
@@ -5022,7 +5120,9 @@ class FgoAccessibilityService : AccessibilityService() {
 
             if (retryEmptyTargetsIndividually) {
                 val missingTargets = clippedTargets.filter { targetKey(it) !in regionsByTarget }
+                val recoveryStartedAt = SystemClock.elapsedRealtime()
                 missingTargets.forEach { target ->
+                    recoveryCalls++
                     recognizeSingleScreenRegion(source, target)?.let { recoveredRegion ->
                         regionsByTarget[targetKey(target)] = recoveredRegion
                     }
@@ -5033,8 +5133,11 @@ class FgoAccessibilityService : AccessibilityService() {
                         "Choice OCR individual retry recovered ${regionsByTarget.size}/${clippedTargets.size} panel(s)"
                     )
                 }
+                recoveryDuration = SystemClock.elapsedRealtime() - recoveryStartedAt
             }
 
+            FgoLogger.debug(tag, "Choice OCR passes: sharedCalls=1, individualRecoveryCalls=$recoveryCalls, " +
+                "shared=${sharedDuration}ms, recovery=${recoveryDuration}ms")
             clippedTargets.mapNotNull { regionsByTarget[targetKey(it)] }
         } finally {
             cropped.recycle()
@@ -5219,13 +5322,22 @@ class FgoAccessibilityService : AccessibilityService() {
         screenRegions: FgoScreenRegions,
         preferredCount: Int?
     ): ChoiceRecognitionResult {
+        val recoveryStartedAt = SystemClock.elapsedRealtime()
+        var slotRecoveryCalls = 0
         val layouts = screenRegions.choiceSlotLayouts
         var bestBounds: List<Rect> = emptyList()
         var bestRegions: List<ClassifiedRegion> = emptyList()
 
+        fun result(bounds: List<Rect>, regions: List<ClassifiedRegion>): ChoiceRecognitionResult {
+            FgoLogger.debug(tag, "Choice OCR recovery: fixedSlotCalls=$slotRecoveryCalls, " +
+                "mapped=${regions.size}/${bounds.size}, total=${SystemClock.elapsedRealtime() - recoveryStartedAt}ms")
+            return ChoiceRecognitionResult(bounds, regions)
+        }
+
         fun evaluate(layout: List<Rect>) {
             if (layout.isEmpty()) return
             val regions = layout.mapNotNull { slot ->
+                slotRecoveryCalls++
                 recognizeChoiceSlot(source, slot)
             }.filter { region ->
                 preferredCount != null || regionAverageConfidence(region) >= MIN_FIXED_SLOT_CONFIDENCE
@@ -5239,9 +5351,12 @@ class FgoAccessibilityService : AccessibilityService() {
 
         if (preferredCount != null) {
             layouts.firstOrNull { it.size == preferredCount }?.let { layout ->
-                val regions = layout.mapNotNull { slot -> recognizeChoiceSlot(source, slot) }
+                val regions = layout.mapNotNull { slot ->
+                    slotRecoveryCalls++
+                    recognizeChoiceSlot(source, slot)
+                }
                 if (regions.size == layout.size) {
-                    return ChoiceRecognitionResult(layout, regions)
+                    return result(layout, regions)
                 }
                 if (regions.size > bestRegions.size) {
                     bestBounds = layout
@@ -5255,7 +5370,7 @@ class FgoAccessibilityService : AccessibilityService() {
             evaluate(layout)
         }
 
-        return ChoiceRecognitionResult(bestBounds, bestRegions)
+        return result(bestBounds, bestRegions)
     }
 
     private fun regionAverageConfidence(region: ClassifiedRegion): Float {
@@ -5469,20 +5584,23 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun isSourceVisuallyCurrent(expected: VisualSourceFingerprint): Boolean {
-        val currentScreenshot = takeScreenshotCompat() ?: return false
+        val currentScreenshot = takeScreenshotCompat(timingLabel = "FRESHNESS") ?: return false
+        val checkStartedAt = SystemClock.elapsedRealtime()
+        val pixels = currentScreenshot.framePixels()
         return try {
             val screenRegions = FgoViewportLayout.regionsForScreen(
                 currentScreenshot.width,
                 currentScreenshot.height
             )
             if (expected.hasChoices) {
-                val currentChoices = detectChoiceBounds(currentScreenshot, screenRegions)
+                val currentChoices = detectChoiceBounds(currentScreenshot, screenRegions, pixels)
                 if (currentChoices.size < expected.choiceRegionCount) return false
             }
             if (expected.hasDialogue) {
                 val markerVisible = backgroundDetector.isDialogueCompleteMarkerVisible(
                     currentScreenshot,
-                    screenRegions.dialogueComplete
+                    screenRegions.dialogueComplete,
+                    pixels
                 )
                 if (!markerVisible) {
                     FgoLogger.debug(tag, "Dialogue marker not visible during visual freshness check; ignoring animated marker")
@@ -5490,7 +5608,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             if (expected.samples.isEmpty()) return false
             expected.samples.all { sample ->
-                val currentMask = textMaskFor(currentScreenshot, sample.bounds, textInkScope(sample.region))
+                val currentMask = textMaskFor(currentScreenshot, sample.bounds, textInkScope(sample.region), pixels)
                 val matches = currentMask != null && masksAreSimilar(sample.mask, currentMask)
                 if (!matches) {
                     FgoLogger.debug(tag, "Visual freshness mismatch in ${sample.region}")
@@ -5498,17 +5616,20 @@ class FgoAccessibilityService : AccessibilityService() {
                 matches
             }
         } finally {
+            pixels.clear()
             currentScreenshot.recycle()
+            FgoLogger.debug(tag, "Freshness check timing: ${SystemClock.elapsedRealtime() - checkStartedAt}ms")
         }
     }
 
     private fun visualFingerprintFor(
         source: Bitmap,
-        regions: List<ClassifiedRegion>
+        regions: List<ClassifiedRegion>,
+        pixels: FramePixelReader
     ): VisualSourceFingerprint {
         val samples = regions.flatMap { region ->
             region.lines.mapNotNull { line ->
-                textMaskFor(source, line.boundingBox, textInkScope(region.region))?.let { mask ->
+                textMaskFor(source, line.boundingBox, textInkScope(region.region), pixels)?.let { mask ->
                     VisualTextSample(region.region, Rect(line.boundingBox), mask)
                 }
             }
@@ -5526,12 +5647,15 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun textMaskFor(
         bitmap: Bitmap,
         sourceBounds: Rect,
-        scope: FgoStoryTextPalette.Scope = FgoStoryTextPalette.Scope.STORY
+        scope: FgoStoryTextPalette.Scope = FgoStoryTextPalette.Scope.STORY,
+        pixels: FramePixelReader = bitmap.framePixels()
     ): VisualTextMask? {
         val bounds = Rect(sourceBounds)
         bounds.inset(-2, -2)
         if (!bounds.intersect(0, 0, bitmap.width, bitmap.height)) return null
         if (bounds.width() <= 0 || bounds.height() <= 0) return null
+
+        val regionPixels = pixels.read(bounds)
 
         val columns = ((bounds.width() + VISUAL_FINGERPRINT_STEP - 1) / VISUAL_FINGERPRINT_STEP).coerceAtLeast(1)
         val rows = ((bounds.height() + VISUAL_FINGERPRINT_STEP - 1) / VISUAL_FINGERPRINT_STEP).coerceAtLeast(1)
@@ -5544,7 +5668,7 @@ class FgoAccessibilityService : AccessibilityService() {
         while (y < bounds.bottom) {
             var x = bounds.left
             while (x < bounds.right) {
-                if (isLikelyTextPixel(bitmap.getPixel(x, y), scope)) {
+                if (isLikelyTextPixel(regionPixels.getPixel(x, y), scope)) {
                     words[index / 64] = words[index / 64] or (1L shl (index and 63))
                     textPixels++
                 }
@@ -5629,8 +5753,11 @@ class FgoAccessibilityService : AccessibilityService() {
      * Single funnel for every OCR screenshot. OCR always uses the accessibility screenshot API;
      * MediaProjection is reserved for live voice audio capture.
      */
-    private suspend fun takeScreenshotCompat(): Bitmap? = screenshotMutex.withLock {
-        captureAccessibilityScreenshotPaced()
+    private suspend fun takeScreenshotCompat(timingLabel: String? = null): Bitmap? {
+        val requestedAt = SystemClock.elapsedRealtime()
+        return screenshotMutex.withLock {
+            captureAccessibilityScreenshotPaced(timingLabel, SystemClock.elapsedRealtime() - requestedAt)
+        }
     }
 
     /**
@@ -5638,42 +5765,71 @@ class FgoAccessibilityService : AccessibilityService() {
      * reports a rate limit or a transient internal error. A rate-limited request is a
      * timing problem rather than an OCR failure, so it must never surface as "截图失败".
      */
-    private suspend fun captureAccessibilityScreenshotPaced(): Bitmap? {
+    private suspend fun captureAccessibilityScreenshotPaced(timingLabel: String?, queuedMs: Long): Bitmap? {
         var attempt = 0
-        while (true) {
-            awaitAccessibilityScreenshotSlot()
-            lastAccessibilityScreenshotAt = SystemClock.elapsedRealtime()
-            val result = captureAccessibilityScreenshot()
-            if (result.bitmap != null) {
-                lastScreenshotErrorCode = 0
-                reportBlankAccessibilityFrameIfNeeded(result.bitmap)
-                return result.bitmap
-            }
-            lastScreenshotErrorCode = result.errorCode
-            val retryable = result.errorCode ==
-                AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT ||
-                result.errorCode == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR
-            if (!retryable || attempt >= ACCESSIBILITY_SCREENSHOT_MAX_RETRIES) {
-                if (result.errorCode ==
-                    AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS
-                ) {
-                    recordAccessibilityScreenshotAccessLost()
+        var captureAttempts = 0
+        var pacingMs = 0L
+        var captureMs = 0L
+        var retryWaitMs = 0L
+        val startedAt = SystemClock.elapsedRealtime()
+        try {
+            while (true) {
+                val pacingStartedAt = SystemClock.elapsedRealtime()
+                try {
+                    awaitAccessibilityScreenshotSlot()
+                } finally {
+                    pacingMs += SystemClock.elapsedRealtime() - pacingStartedAt
                 }
-                return null
+                lastAccessibilityScreenshotAt = SystemClock.elapsedRealtime()
+                val captureStartedAt = SystemClock.elapsedRealtime()
+                captureAttempts++
+                val result = try {
+                    captureAccessibilityScreenshot()
+                } finally {
+                    captureMs += SystemClock.elapsedRealtime() - captureStartedAt
+                }
+                if (result.bitmap != null) {
+                    lastScreenshotErrorCode = 0
+                    reportBlankAccessibilityFrameIfNeeded(result.bitmap)
+                    return result.bitmap
+                }
+                lastScreenshotErrorCode = result.errorCode
+                val retryable = result.errorCode ==
+                    AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT ||
+                    result.errorCode == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR
+                if (!retryable || attempt >= ACCESSIBILITY_SCREENSHOT_MAX_RETRIES) {
+                    if (result.errorCode ==
+                        AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS
+                    ) {
+                        recordAccessibilityScreenshotAccessLost()
+                    }
+                    return null
+                }
+                attempt += 1
+                val reason = if (result.errorCode ==
+                    AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT
+                ) {
+                    "rate limited by Android"
+                } else {
+                    "transient internal error"
+                }
+                FgoLogger.debug(
+                    tag,
+                    "Accessibility screenshot $reason; retry $attempt/$ACCESSIBILITY_SCREENSHOT_MAX_RETRIES"
+                )
+                val retryStartedAt = SystemClock.elapsedRealtime()
+                try {
+                    delay(ACCESSIBILITY_SCREENSHOT_RETRY_DELAY_MS)
+                } finally {
+                    retryWaitMs += SystemClock.elapsedRealtime() - retryStartedAt
+                }
             }
-            attempt += 1
-            val reason = if (result.errorCode ==
-                AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT
-            ) {
-                "rate limited by Android"
-            } else {
-                "transient internal error"
+        } finally {
+            if (timingLabel != null) {
+                FgoLogger.debug(tag, "Screenshot timing ($timingLabel): queue=${queuedMs}ms, pacing=${pacingMs}ms, " +
+                    "capture=${captureMs}ms, retryWait=${retryWaitMs}ms, attempts=$captureAttempts, " +
+                    "total=${queuedMs + SystemClock.elapsedRealtime() - startedAt}ms")
             }
-            FgoLogger.debug(
-                tag,
-                "Accessibility screenshot $reason; retry $attempt/$ACCESSIBILITY_SCREENSHOT_MAX_RETRIES"
-            )
-            delay(ACCESSIBILITY_SCREENSHOT_RETRY_DELAY_MS)
         }
     }
 
@@ -5899,7 +6055,7 @@ class FgoAccessibilityService : AccessibilityService() {
         if (runnerOverlay.handleInterceptedButtonTap(x, y)) {
             return
         }
-        val storyTapScene = semiAutoStoryTapHandoff.takeTap(x, y)
+        val storyTapScene = storyTapHandoff.takeTap(x, y)
             ?.takeIf { translationOverlay.isShowing() }
         if (isForwardingOverlayTap) {
             FgoLogger.debug(tag, "Ignoring duplicate translated overlay tap while replay is active")
@@ -5910,61 +6066,37 @@ class FgoAccessibilityService : AccessibilityService() {
             return
         }
 
-        val currentRenderedChoiceBounds = renderedChoiceBounds
-        val hasRenderedChoices = currentRenderedChoiceBounds.isNotEmpty()
-        val tappedChoice = currentRenderedChoiceBounds.any { it.contains(x.toInt(), y.toInt()) }
-        val fullAutoEnabled = TranslationTrigger.isAutoTranslateEnabled()
-        val semiAutoEnabled = TranslationTrigger.isSemiAutoEnabled()
-        val autoChoiceHandoff = (tappedChoice || hasRenderedChoices) && fullAutoEnabled
-        val semiAutoChoiceHandoff = (tappedChoice || hasRenderedChoices) && semiAutoEnabled
+        val tapMode = TranslationTrigger.translationMode()
         val previousAutoFingerprint = lastAutoRenderedSourceText
         val tapProcessingVersion = stopVersion
-        if (autoChoiceHandoff) {
-            waitingForChoiceSelectionExit = true
-            renderedChoiceBounds = emptyList()
-            FgoLogger.debug(
-                tag,
-                if (tappedChoice) {
-                    "Translated choice tapped; suppressing choice OCR until selection closes"
-                } else {
-                    "Auto choice scene tapped; suppressing choice OCR until selection closes"
-                }
-            )
-        }
-        if (semiAutoChoiceHandoff) {
-            renderedChoiceBounds = emptyList()
-            FgoLogger.debug(
-                tag,
-                if (tappedChoice) {
-                    "Semi-auto translated choice tapped; forwarding without pausing dialogue scan"
-                } else {
-                    "Semi-auto choice scene tapped; forwarding without pausing dialogue scan"
-                }
-            )
-        }
+        val tapRenderGeneration = storyTapHandoff.autoRenderGeneration
+        fun replayContextCurrent(): Boolean =
+            isOverlayTapContextCurrent(tapProcessingVersion, tapMode) &&
+                storyTapHandoff.autoRenderGeneration == tapRenderGeneration &&
+                (storyTapScene == null || storyTapHandoff.ownsScene(storyTapScene))
+        if (!replayContextCurrent()) return
 
+        // Reserve replay before launch so a second callback cannot start another gesture.
+        isForwardingOverlayTap = true
         serviceScope.launch {
-            isForwardingOverlayTap = true
-            if (!canPerformGestures()) {
-                FgoLogger.warn(tag, "Gesture injection is not granted; disable and re-enable accessibility service")
-                diagnosticEventStore.record(
-                    level = DiagnosticEventStore.LEVEL_WARNING,
-                    category = DiagnosticEventStore.CATEGORY_SETUP,
-                    eventId = "gesture_injection_missing",
-                    title = "无障碍手势注入不可用",
-                    message = "翻译覆盖层点击无法转发给 FGO",
-                    mode = "OVERLAY_TAP"
-                )
-                if (semiAutoChoiceHandoff) {
-                    renderedChoiceBounds = currentRenderedChoiceBounds
-                }
-                isForwardingOverlayTap = false
-                return@launch
-            }
             try {
+                if (!replayContextCurrent()) return@launch
+                if (!canPerformGestures()) {
+                    FgoLogger.warn(tag, "Gesture injection is not granted; disable and re-enable accessibility service")
+                    diagnosticEventStore.record(
+                        level = DiagnosticEventStore.LEVEL_WARNING,
+                        category = DiagnosticEventStore.CATEGORY_SETUP,
+                        eventId = "gesture_injection_missing",
+                        title = "无障碍手势注入不可用",
+                        message = "翻译覆盖层点击无法转发给 FGO",
+                        mode = "OVERLAY_TAP"
+                    )
+                    return@launch
+                }
                 FgoLogger.debug(tag, "Translated overlay tapped; forwarding to FGO at $x,$y")
                 translationOverlay.setTranslatedOverlayTouchable(false)
                 delay(TAP_PASSTHROUGH_SETTLE_DELAY)
+                if (!replayContextCurrent()) return@launch
                 val dispatched = try {
                     withTimeoutOrNull(TAP_REPLAY_TIMEOUT) {
                         dispatchTapToFgo(x, y)
@@ -5972,77 +6104,89 @@ class FgoAccessibilityService : AccessibilityService() {
                         FgoLogger.warn(tag, "Overlay tap replay timed out")
                         false
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     FgoLogger.error(tag, "Overlay tap replay failed", e)
                     false
                 }
+                if (!replayContextCurrent()) return@launch
                 if (dispatched) {
-                    if (fullAutoEnabled) {
+                    // The ticket uses detected button bounds, not translated glyph bounds.
+                    // Outside-button/control taps still forward, but never arm a choice handoff.
+                    val handoffScene = storyTapScene?.takeIf {
+                        tapMode != TranslationMode.MANUAL &&
+                            storyTapHandoff.beginAfterReplay(it, SystemClock.elapsedRealtime())
+                    }
+                    if (tapMode == TranslationMode.AUTO && handoffScene != null) {
                         FgoLogger.debug(
                             tag,
-                            if (autoChoiceHandoff) {
-                                "Overlay choice tap replay completed; polling next dialogue immediately"
+                            if (handoffScene.kind == StoryTapHandoff.Kind.CHOICES) {
+                                "Overlay choice tap replay completed; polling next scene immediately"
                             } else {
-                                "Overlay tap replay completed; holding translation before polling next dialogue"
+                                "Overlay tap replay completed; holding translation before polling next scene"
                             }
                         )
-                        pollNextCompletedDialogueAfterTap(
-                            skipReadHold = autoChoiceHandoff,
-                            previousFingerprint = previousAutoFingerprint
+                        pollNextSceneAfterTap(
+                            skipReadHold = handoffScene.kind == StoryTapHandoff.Kind.CHOICES,
+                            previousFingerprint = previousAutoFingerprint,
+                            processingVersion = tapProcessingVersion,
+                            scene = handoffScene
                         )
-                    } else if (semiAutoEnabled) {
-                        FgoLogger.debug(tag, "Semi-auto overlay tap replay completed; clearing tap overlay")
-                        if (storyTapScene != null && tapProcessingVersion == stopVersion &&
-                            isEffectiveFgoForeground && TranslationTrigger.isSemiAutoEnabled() &&
-                            !TranslationTrigger.isUiBlockingOcr() &&
-                            semiAutoStoryTapHandoff.beginAfterReplay(storyTapScene, SystemClock.elapsedRealtime())
-                        ) {
+                    } else {
+                        if (tapMode == TranslationMode.SEMI_AUTO && handoffScene != null) {
                             resetSemiAutoBackoff()
                             resetDialogueFallbackState()
                             nextStoryBackgroundScanAt = 0L
                             FgoLogger.debug(
                                 tag,
-                                "Semi-auto next scene expected after ${storyTapScene.kind} tap; normal scan eligible " +
-                                    "(source=${storyTapScene.fingerprint.hashCode().toUInt().toString(16)})"
+                                "Semi-auto next scene expected after ${handoffScene.kind} tap; normal scan eligible " +
+                                    "(source=${handoffScene.fingerprint.hashCode().toUInt().toString(16)})"
                             )
                         }
-                        delay(TAP_TRANSLATION_READ_HOLD_DELAY)
-                        translationOverlay.hideForCapture()
-                    } else {
                         FgoLogger.debug(tag, "Overlay tap replay completed; holding translation before capture hide")
                         delay(TAP_TRANSLATION_READ_HOLD_DELAY)
+                        if (!replayContextCurrent()) return@launch
                         translationOverlay.hideForCapture()
                     }
                 } else {
-                    if (autoChoiceHandoff) {
-                        waitingForChoiceSelectionExit = false
-                        renderedChoiceBounds = currentRenderedChoiceBounds
-                    }
-                    if (semiAutoChoiceHandoff) {
-                        renderedChoiceBounds = currentRenderedChoiceBounds
-                    }
                     FgoLogger.warn(tag, "Overlay tap replay failed; restoring current translation")
                     translationOverlay.setTranslatedOverlayTouchable(true)
                 }
             } finally {
-                isForwardingOverlayTap = false
+                if (tapProcessingVersion == stopVersion) {
+                    // Restore only our unchanged scene, never alter a newer render.
+                    if (TranslationTrigger.translationMode() == tapMode &&
+                        storyTapHandoff.autoRenderGeneration == tapRenderGeneration &&
+                        (storyTapScene == null || storyTapHandoff.ownsScene(storyTapScene)) &&
+                        translationOverlay.isShowing()
+                    ) {
+                        translationOverlay.setTranslatedOverlayTouchable(true)
+                    }
+                    isForwardingOverlayTap = false
+                }
             }
         }
     }
 
+    private fun isOverlayTapContextCurrent(version: Long, mode: TranslationMode): Boolean =
+        version == stopVersion && TranslationTrigger.translationMode() == mode &&
+            isEffectiveFgoForeground && !battleModeState.active.value &&
+            !TranslationTrigger.isUiBlockingOcr()
+
     private fun handleTranslatedOverlayTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> semiAutoStoryTapHandoff.touchDown(
+            MotionEvent.ACTION_DOWN -> storyTapHandoff.touchDown(
                 event.rawX, event.rawY, OVERLAY_BUTTON_TOUCH_SLOP * resources.displayMetrics.density
             )
             MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP ->
-                semiAutoStoryTapHandoff.touchMove(event.rawX, event.rawY)
-            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_CANCEL -> semiAutoStoryTapHandoff.cancelTouch()
+                storyTapHandoff.touchMove(event.rawX, event.rawY)
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_CANCEL -> storyTapHandoff.cancelTouch()
         }
         val consumed = handleRenderedOverlayButtonTouch(event) {
             translationOverlay.hide()
         }
-        if (consumed) semiAutoStoryTapHandoff.cancelTouch()
+        if (consumed) storyTapHandoff.cancelTouch()
         return consumed
     }
 
@@ -6159,41 +6303,51 @@ class FgoAccessibilityService : AccessibilityService() {
         overlayButtonDragging = false
     }
 
-    private suspend fun pollNextCompletedDialogueAfterTap(
-        skipReadHold: Boolean = false,
-        previousFingerprint: String = ""
+    private suspend fun pollNextSceneAfterTap(
+        skipReadHold: Boolean,
+        previousFingerprint: String,
+        processingVersion: Long,
+        scene: StoryTapHandoff.RenderedScene
     ) {
+        fun contextCurrent(): Boolean = isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO)
+        if (!contextCurrent() || !storyTapHandoff.ownsScene(scene)) return
+        val previousRenderGeneration = storyTapHandoff.autoRenderGeneration
         tapAdvancePolling = true
         autoTapHandoffPreviousFingerprint = previousFingerprint
         try {
             if (!skipReadHold) {
                 delay(TAP_TRANSLATION_READ_HOLD_DELAY)
             }
+            if (!contextCurrent() || !storyTapHandoff.ownsScene(scene) ||
+                storyTapHandoff.autoRenderGeneration != previousRenderGeneration
+            ) return
             translationOverlay.hideForCapture()
 
             val deadline = SystemClock.elapsedRealtime() + NEXT_DIALOGUE_POLL_TIMEOUT
             while (SystemClock.elapsedRealtime() < deadline &&
-                TranslationTrigger.isAutoTranslateEnabled()
+                contextCurrent() && storyTapHandoff.ownsScene(scene)
             ) {
                 processScreen(ProcessingMode.AUTO_BACKGROUND)
-                val renderedFingerprint = lastAutoRenderedSourceText
+                if (!contextCurrent()) return
                 if (translationOverlay.isShowing() &&
-                    renderedFingerprint.isNotBlank() &&
-                    renderedFingerprint != previousFingerprint
+                    storyTapHandoff.autoRenderGeneration > previousRenderGeneration
                 ) {
-                    FgoLogger.debug(tag, "Next dialogue translated during tap handoff")
+                    FgoLogger.debug(tag, "Next scene translated during tap handoff")
                     return
                 }
+                if (!storyTapHandoff.ownsScene(scene)) return
                 if (translationOverlay.isShowing()) {
-                    FgoLogger.debug(tag, "Tap handoff rendered without a new source fingerprint; hiding for next capture")
+                    FgoLogger.debug(tag, "Tap handoff has no new render commit; hiding for next capture")
                     translationOverlay.hideForCapture()
                 }
                 delay(NEXT_DIALOGUE_POLL_INTERVAL)
             }
-            FgoLogger.debug(tag, "Next dialogue handoff polling ended; normal scan will continue")
+            FgoLogger.debug(tag, "Next scene handoff polling ended; normal scan will continue")
         } finally {
-            autoTapHandoffPreviousFingerprint = ""
-            tapAdvancePolling = false
+            if (processingVersion == stopVersion) {
+                autoTapHandoffPreviousFingerprint = ""
+                tapAdvancePolling = false
+            }
         }
     }
 

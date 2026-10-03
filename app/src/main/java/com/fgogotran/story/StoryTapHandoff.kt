@@ -6,7 +6,7 @@ import com.fgogotran.ocr.FgoStoryTextPalette
 import kotlin.math.roundToInt
 
 /**
- * Semi-auto next-scene intent, not proof that dialogue or choices have finished appearing.
+ * AUTO/semi-auto next-scene intent, not proof that dialogue or choices have finished appearing.
  * Owns only small sampled choice masks, never a bitmap, capture loop or coroutine.
  */
 internal class StoryTapHandoff(
@@ -36,6 +36,9 @@ internal class StoryTapHandoff(
     private var downX = 0f
     private var downY = 0f
     private var touchSlopSquared = 0f
+    /** Monotonic commits, not distinct text: a new list may repeat the previous options. */
+    var autoRenderGeneration = 0L
+        private set
 
     init {
         require(baselineTimeoutMs > 0L && transitionTimeoutMs >= baselineTimeoutMs)
@@ -47,7 +50,8 @@ internal class StoryTapHandoff(
         height: Int,
         kind: Kind?,
         choiceHitBounds: List<FgoReferenceRect> = emptyList(),
-        choices: ChoiceFrame? = null
+        choices: ChoiceFrame? = null,
+        autoRenderCommitted: Boolean = false
     ) {
         finishPending()
         cancelTouch()
@@ -58,6 +62,7 @@ internal class StoryTapHandoff(
         } else {
             null
         }
+        if (autoRenderCommitted) autoRenderGeneration++
     }
 
     fun touchDown(x: Float, y: Float, slop: Float) {
@@ -106,6 +111,9 @@ internal class StoryTapHandoff(
         return true
     }
 
+    /** Keep suspended tap work tied to its displayed scene, including after replay starts. */
+    fun ownsScene(scene: RenderedScene): Boolean = scene === renderedScene || scene === pendingScene
+
     fun isPending(now: Long): Boolean {
         if (pendingUntil != 0L && now >= pendingUntil) finishPending()
         return pendingUntil != 0L
@@ -153,39 +161,6 @@ internal class StoryTapHandoff(
     }
 
     companion object {
-        /** Cheap broad probe only. The existing panel detector still validates actual bounds. */
-        fun mayHaveChoices(
-            width: Int,
-            height: Int,
-            search: FgoReferenceRect,
-            pixel: (Int, Int) -> Int
-        ): Boolean {
-            val bounds = clipped(search, width, height)
-            if (bounds.width <= 0 || bounds.height <= 0) return false
-            val scale = minOf(width / 1920f, height / 1080f)
-            val step = (scale * 2f).roundToInt().coerceAtLeast(1)
-            val insideOffset = (scale * 18f).roundToInt().coerceAtLeast(3)
-            for (y in bounds.top until bounds.bottom - insideOffset step step) {
-                var borderVotes = 0
-                for (column in 0 until 8) {
-                    val x = bounds.left + (bounds.width * (0.15f + column * 0.10f)).toInt()
-                    if ((y until minOf(y + step, bounds.bottom)).any { isBorder(pixel(x, it)) }) {
-                        borderVotes++
-                    }
-                }
-                if (borderVotes < 4) continue
-                val insideY = y + insideOffset
-                val leftDark = listOf(0.04f, 0.12f, 0.20f).count {
-                    isDark(pixel(bounds.left + (bounds.width * it).toInt(), insideY))
-                }
-                val rightDark = listOf(0.78f, 0.88f, 0.96f).count {
-                    isDark(pixel(bounds.left + (bounds.width * it).toInt(), insideY))
-                }
-                if (leftDark >= 2 && rightDark >= 2) return true
-            }
-            return false
-        }
-
         fun sampleChoices(
             width: Int,
             height: Int,
@@ -229,19 +204,6 @@ internal class StoryTapHandoff(
             bounds.left.coerceIn(0, width.coerceAtLeast(0)), bounds.top.coerceIn(0, height.coerceAtLeast(0)),
             bounds.right.coerceIn(0, width.coerceAtLeast(0)), bounds.bottom.coerceIn(0, height.coerceAtLeast(0))
         )
-
-        private fun isDark(pixel: Int): Boolean =
-            (((pixel shr 16) and 255) * 299 + ((pixel shr 8) and 255) * 587 +
-                (pixel and 255) * 114) / 1000 < 80
-
-        private fun isBorder(pixel: Int): Boolean {
-            val r = (pixel shr 16) and 255
-            val g = (pixel shr 8) and 255
-            val b = pixel and 255
-            return (r >= 175 && g >= 185 && b >= 190 && maxOf(r, g, b) - minOf(r, g, b) <= 82) ||
-                (r >= 80 && g >= 125 && b >= 150 && b >= r + 24 && g >= r + 12) ||
-                (r >= 110 && g >= 150 && b >= 170 && b >= r + 18 && maxOf(r, g, b) - minOf(r, g, b) <= 115)
-        }
 
         // Centered 1920x1080 story coordinates, with a small hit-area safety margin.
         // These are tap exclusions only; no OCR/render region is changed.

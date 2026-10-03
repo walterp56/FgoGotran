@@ -131,3 +131,12 @@ app/src/test/java/com/fgogotran/story/*
 !app/src/test/java/com/fgogotran/story/StoryTapHandoffTest.kt
 !app/src/test/java/com/fgogotran/story/DialogueTapVisualGateTest.kt
 !app/src/test/java/com/fgogotran/story/StoryChoiceHandoffTest.kt
+!app/src/test/java/com/fgogotran/story/ChoiceRecognitionPolicyTest.kt
+!app/src/test/java/com/fgogotran/story/ChoiceRetrySourceTest.kt
+!app/src/test/java/com/fgogotran/story/AutoChoiceHandoffTest.kt
+# Retain capture-local bulk-pixel equivalence regressions.
+!app/src/test/java/com/fgogotran/util/
+app/src/test/java/com/fgogotran/util/*
+!app/src/test/java/com/fgogotran/util/FramePixelReaderTest.kt
+!app/src/test/java/com/fgogotran/overlay/ChoicePixelSamplerTest.kt
+!app/src/test/java/com/fgogotran/story/StoryFramePixelsTest.kt

@@ -3,6 +3,10 @@ package com.fgogotran.overlay
 import android.graphics.Bitmap
 import android.graphics.Rect
 import com.fgogotran.util.FgoLogger
+import com.fgogotran.util.FramePixelReader
+import com.fgogotran.util.framePixels
+import com.fgogotran.util.pixelBounds
+import com.fgogotran.util.read
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,8 +20,6 @@ import javax.inject.Singleton
 class BackgroundDetector @Inject constructor() {
 
     companion object {
-        private const val DARK_LUMINANCE_THRESHOLD = 80
-
         private const val CHOICE_LEFT_ANCHOR_START_RATIO = 0.02f
         private const val CHOICE_LEFT_ANCHOR_END_RATIO = 0.22f
         private const val CHOICE_RIGHT_ANCHOR_START_RATIO = 0.76f
@@ -126,7 +128,14 @@ class BackgroundDetector @Inject constructor() {
     /**
      * Locates repeated black choice panels inside the known story choice zone.
      */
-    fun detectChoiceButtons(bitmap: Bitmap, searchRegion: Rect): List<Rect> {
+    fun detectChoiceButtons(bitmap: Bitmap, searchRegion: Rect): List<Rect> =
+        detectChoiceButtons(bitmap, searchRegion, bitmap.framePixels())
+
+    internal fun detectChoiceButtons(
+        bitmap: Bitmap,
+        searchRegion: Rect,
+        pixels: FramePixelReader
+    ): List<Rect> {
         val bounds = Rect(
             searchRegion.left.coerceIn(0, bitmap.width),
             searchRegion.top.coerceIn(0, bitmap.height),
@@ -151,6 +160,10 @@ class BackgroundDetector @Inject constructor() {
             bounds.left + (width * CHOICE_RIGHT_ANCHOR_END_RATIO).toInt(),
             bounds.bottom
         )
+        // Do not copy the full choice zone on every idle dialogue frame.
+        pixels.read(leftAnchor)
+        pixels.read(rightAnchor)
+        val samples = ChoicePixelSampler(pixels)
         val buttons = mutableListOf<Rect>()
         var darkRunStart: Int? = null
         var lastDarkRow = bounds.top
@@ -174,7 +187,8 @@ class BackgroundDetector @Inject constructor() {
         }
 
         for (y in bounds.top until bounds.bottom) {
-            val isPanelRow = isChoicePanelAnchorRow(bitmap, y, leftAnchor, rightAnchor)
+            val isPanelRow = samples.darkRatioInRow(leftAnchor.left, leftAnchor.right, y) >= MIN_CHOICE_LEFT_ANCHOR_DARK_RATIO &&
+                samples.darkRatioInRow(rightAnchor.left, rightAnchor.right, y) >= MIN_CHOICE_RIGHT_ANCHOR_DARK_RATIO
             if (isPanelRow && darkRunStart == null) {
                 darkRunStart = y
                 lastDarkRow = y
@@ -202,8 +216,15 @@ class BackgroundDetector @Inject constructor() {
         bitmap: Bitmap,
         rawButtons: List<Rect>,
         fixedSlotLayouts: List<List<Rect>>
+    ): List<Rect> = snapChoiceButtonsToFixedSlots(bitmap, rawButtons, fixedSlotLayouts, bitmap.framePixels())
+
+    internal fun snapChoiceButtonsToFixedSlots(
+        bitmap: Bitmap,
+        rawButtons: List<Rect>,
+        fixedSlotLayouts: List<List<Rect>>,
+        pixels: FramePixelReader
     ): List<Rect> {
-        val fixedButtons = fixedChoiceButtons(bitmap, rawButtons, fixedSlotLayouts)
+        val fixedButtons = fixedChoiceButtons(bitmap, rawButtons, fixedSlotLayouts, pixels)
         if (fixedButtons != null) {
             FgoLogger.debug(
                 tag,
@@ -226,7 +247,14 @@ class BackgroundDetector @Inject constructor() {
      * One-shot report for the continue diamond: strict shape and component evidence.
      * Both verdicts are computed from the same component pass.
      */
-    fun dialogueCompleteMarkerReport(bitmap: Bitmap, markerRegion: Rect): DialogueMarkerReport {
+    fun dialogueCompleteMarkerReport(bitmap: Bitmap, markerRegion: Rect): DialogueMarkerReport =
+        dialogueCompleteMarkerReport(bitmap, markerRegion, bitmap.framePixels())
+
+    internal fun dialogueCompleteMarkerReport(
+        bitmap: Bitmap,
+        markerRegion: Rect,
+        pixels: FramePixelReader
+    ): DialogueMarkerReport {
         val baseBounds = clampMarkerBounds(bitmap, markerRegion)
         if (baseBounds.width() <= 0 || baseBounds.height() <= 0) {
             return DialogueMarkerReport(
@@ -235,8 +263,9 @@ class BackgroundDetector @Inject constructor() {
             )
         }
 
-        val markerProfile = completeMarkerColorProfile(bitmap, baseBounds)
-        val components = markerComponents(bitmap, baseBounds, markerProfile)
+        val markerPixels = pixels.read(baseBounds)
+        val markerProfile = completeMarkerColorProfile(markerPixels, baseBounds)
+        val components = markerComponents(markerPixels, baseBounds, markerProfile)
         val regionWidth = baseBounds.width()
         val regionHeight = baseBounds.height()
         val shapeVisible = components.any { it.matchesStrictShape(regionWidth, regionHeight) }
@@ -268,6 +297,9 @@ class BackgroundDetector @Inject constructor() {
      */
     fun isDialogueCompleteMarkerVisible(bitmap: Bitmap, markerRegion: Rect): Boolean =
         dialogueCompleteMarkerReport(bitmap, markerRegion).shapeVisible
+
+    internal fun isDialogueCompleteMarkerVisible(bitmap: Bitmap, markerRegion: Rect, pixels: FramePixelReader): Boolean =
+        dialogueCompleteMarkerReport(bitmap, markerRegion, pixels).shapeVisible
 
     private fun clampMarkerBounds(bitmap: Bitmap, markerRegion: Rect): Rect =
         Rect(
@@ -339,7 +371,7 @@ class BackgroundDetector @Inject constructor() {
     }
 
     private fun markerComponents(
-        bitmap: Bitmap,
+        pixels: FramePixelReader.Region,
         bounds: Rect,
         markerProfile: MarkerColorProfile?
     ): List<MarkerComponent> {
@@ -358,7 +390,7 @@ class BackgroundDetector @Inject constructor() {
                 if (visited[seedIndex]) continue
                 val screenX = bounds.left + localX
                 val screenY = bounds.top + localY
-                if (!isCompleteMarkerPixel(bitmap.getPixel(screenX, screenY), markerProfile)) {
+                if (!isCompleteMarkerPixel(pixels.getPixel(screenX, screenY), markerProfile)) {
                     visited[seedIndex] = true
                     continue
                 }
@@ -385,7 +417,7 @@ class BackgroundDetector @Inject constructor() {
                             val nextIndex = index(nx, ny)
                             if (visited[nextIndex]) continue
                             visited[nextIndex] = true
-                            if (isCompleteMarkerPixel(bitmap.getPixel(bounds.left + nx, bounds.top + ny), markerProfile)) {
+                            if (isCompleteMarkerPixel(pixels.getPixel(bounds.left + nx, bounds.top + ny), markerProfile)) {
                                 queue.add(nx to ny)
                             }
                         }
@@ -401,7 +433,7 @@ class BackgroundDetector @Inject constructor() {
         return components
     }
 
-    private fun completeMarkerColorProfile(bitmap: Bitmap, bounds: Rect): MarkerColorProfile? {
+    private fun completeMarkerColorProfile(pixels: FramePixelReader.Region, bounds: Rect): MarkerColorProfile? {
         var darkR = 0L
         var darkG = 0L
         var darkB = 0L
@@ -415,7 +447,7 @@ class BackgroundDetector @Inject constructor() {
 
         for (y in bounds.top until bounds.bottom step 3) {
             for (x in bounds.left until bounds.right step 3) {
-                val pixel = bitmap.getPixel(x, y)
+                val pixel = pixels.getPixel(x, y)
                 val r = (pixel shr 16) and 0xFF
                 val g = (pixel shr 8) and 0xFF
                 val b = pixel and 0xFF
@@ -476,36 +508,22 @@ class BackgroundDetector @Inject constructor() {
         return (r * 299 + g * 587 + b * 114) / 1000
     }
 
-    private fun isChoicePanelAnchorRow(
-        bitmap: Bitmap,
-        y: Int,
-        leftAnchor: Rect,
-        rightAnchor: Rect
-    ): Boolean {
-        return darkRatioInRow(bitmap, leftAnchor.left, leftAnchor.right, y) >= MIN_CHOICE_LEFT_ANCHOR_DARK_RATIO &&
-            darkRatioInRow(bitmap, rightAnchor.left, rightAnchor.right, y) >= MIN_CHOICE_RIGHT_ANCHOR_DARK_RATIO
-    }
-
-    private fun darkRatioInRow(bitmap: Bitmap, left: Int, right: Int, y: Int): Float {
-        var dark = 0
-        var total = 0
-        val actualLeft = left.coerceIn(0, bitmap.width)
-        val actualRight = right.coerceIn(0, bitmap.width)
-        for (x in actualLeft until actualRight step 2) {
-            if (getPixelLuminance(bitmap, x, y) < DARK_LUMINANCE_THRESHOLD) {
-                dark++
-            }
-            total++
-        }
-        return if (total == 0) 0f else dark.toFloat() / total
-    }
-
     private fun fixedChoiceButtons(
         bitmap: Bitmap,
         rawButtons: List<Rect>,
-        fixedSlotLayouts: List<List<Rect>>
+        fixedSlotLayouts: List<List<Rect>>,
+        pixels: FramePixelReader
     ): List<Rect>? {
         if (fixedSlotLayouts.isEmpty() || rawButtons.isEmpty()) return null
+
+        val allBounds = rawButtons + fixedSlotLayouts.flatten()
+        // Include every legacy candidate and the raw-edge border bands, including the sixth slot.
+        val sampleBounds = Rect(
+            allBounds.minOf { it.left } - 12, allBounds.minOf { it.top } - 12,
+            allBounds.maxOf { it.right } + 12, allBounds.maxOf { it.bottom } + 12
+        )
+        pixels.read(sampleBounds)
+        val samples = ChoicePixelSampler(pixels)
 
         val candidate = fixedSlotLayouts
             .filter { it.isNotEmpty() }
@@ -513,7 +531,7 @@ class BackgroundDetector @Inject constructor() {
             .mapNotNull { layout ->
                 val clippedLayout = layout.mapNotNull { clippedToBitmap(it, bitmap) }
                 if (clippedLayout.size != layout.size) return@mapNotNull null
-                val matches = clippedLayout.map { slot -> fixedChoiceSlotMatch(bitmap, rawButtons, slot) }
+                val matches = clippedLayout.map { slot -> fixedChoiceSlotMatch(bitmap, rawButtons, slot, samples) }
                 if (!matches.all { it.isVisible }) return@mapNotNull null
                 if (!matches.any { it.hasRawEvidence }) return@mapNotNull null
 
@@ -539,12 +557,13 @@ class BackgroundDetector @Inject constructor() {
     private fun fixedChoiceSlotMatch(
         bitmap: Bitmap,
         rawButtons: List<Rect>,
-        slot: Rect
+        slot: Rect,
+        samples: ChoicePixelSampler
     ): FixedChoiceSlotMatch {
-        val fixedScore = fixedChoiceSlotScore(bitmap, slot)
+        val fixedScore = fixedChoiceSlotScore(bitmap, slot, samples)
         val partialScore = rawButtons
             .filter { raw -> verticalOverlapRatio(raw, slot) >= MIN_FIXED_CHOICE_RAW_OVERLAP_RATIO }
-            .map { raw -> partialFixedChoiceSlotScore(bitmap, raw, slot) }
+            .map { raw -> partialFixedChoiceSlotScore(bitmap, raw, slot, samples) }
             .maxByOrNull { it.combinedScore }
         return FixedChoiceSlotMatch(fixedScore, partialScore)
     }
@@ -557,7 +576,7 @@ class BackgroundDetector @Inject constructor() {
         }
     }
 
-    private fun fixedChoiceSlotScore(bitmap: Bitmap, slot: Rect): ChoiceSlotScore {
+    private fun fixedChoiceSlotScore(bitmap: Bitmap, slot: Rect, samples: ChoicePixelSampler): ChoiceSlotScore {
         val bounds = Rect(slot)
         if (!bounds.intersect(0, 0, bitmap.width, bitmap.height) ||
             bounds.width() <= 0 ||
@@ -583,8 +602,8 @@ class BackgroundDetector @Inject constructor() {
             sampleBottom
         )
         val darkRatio = minOf(
-            darkRatioInRect(bitmap, leftAnchor),
-            darkRatioInRect(bitmap, rightAnchor)
+            samples.darkRatioInRect(leftAnchor.pixelBounds()),
+            samples.darkRatioInRect(rightAnchor.pixelBounds())
         )
         val horizontalInset = (width * 0.035f).toInt().coerceAtLeast(12)
         val borderBandHeight = (height * 0.08f).toInt().coerceIn(5, 12)
@@ -603,12 +622,17 @@ class BackgroundDetector @Inject constructor() {
 
         return ChoiceSlotScore(
             darkRatio = darkRatio,
-            topBorderRatio = choiceBorderRatioInRect(bitmap, topBorder),
-            bottomBorderRatio = choiceBorderRatioInRect(bitmap, bottomBorder)
+            topBorderRatio = samples.borderRatioInRect(topBorder.pixelBounds()),
+            bottomBorderRatio = samples.borderRatioInRect(bottomBorder.pixelBounds())
         )
     }
 
-    private fun partialFixedChoiceSlotScore(bitmap: Bitmap, rawButton: Rect, slot: Rect): PartialChoiceSlotScore {
+    private fun partialFixedChoiceSlotScore(
+        bitmap: Bitmap,
+        rawButton: Rect,
+        slot: Rect,
+        samples: ChoicePixelSampler
+    ): PartialChoiceSlotScore {
         val raw = clippedToBitmap(rawButton, bitmap) ?: return PartialChoiceSlotScore(0f, 0f, 0f, 0f, 1f)
         val fixed = clippedToBitmap(slot, bitmap) ?: return PartialChoiceSlotScore(0f, 0f, 0f, 0f, 1f)
         if (raw.height() <= 0 || fixed.height() <= 0 || fixed.width() <= 0) {
@@ -621,9 +645,9 @@ class BackgroundDetector @Inject constructor() {
             bottom -= verticalInset
         }
         val rawDarkRatio = if (rawDarkBounds.height() > 0) {
-            darkRatioInRect(bitmap, rawDarkBounds)
+            samples.darkRatioInRect(rawDarkBounds.pixelBounds())
         } else {
-            darkRatioInRect(bitmap, raw)
+            samples.darkRatioInRect(raw.pixelBounds())
         }
 
         val horizontalInset = (fixed.width() * 0.035f).toInt().coerceAtLeast(12)
@@ -653,10 +677,10 @@ class BackgroundDetector @Inject constructor() {
             bandHeight = borderBandHeight
         )
         val borderRatio = maxOf(
-            choiceBorderRatioInRect(bitmap, topFixedBorder),
-            choiceBorderRatioInRect(bitmap, bottomFixedBorder),
-            choiceBorderRatioInRect(bitmap, topRawBorder),
-            choiceBorderRatioInRect(bitmap, bottomRawBorder)
+            samples.borderRatioInRect(topFixedBorder.pixelBounds()),
+            samples.borderRatioInRect(bottomFixedBorder.pixelBounds()),
+            samples.borderRatioInRect(topRawBorder.pixelBounds()),
+            samples.borderRatioInRect(bottomRawBorder.pixelBounds())
         )
 
         return PartialChoiceSlotScore(
@@ -681,62 +705,6 @@ class BackgroundDetector @Inject constructor() {
             fixed.right - horizontalInset,
             centerY - halfHeight + bandHeight
         )
-    }
-
-    private fun darkRatioInRect(bitmap: Bitmap, rect: Rect): Float {
-        val bounds = Rect(rect)
-        if (!bounds.intersect(0, 0, bitmap.width, bitmap.height) ||
-            bounds.width() <= 0 ||
-            bounds.height() <= 0
-        ) {
-            return 0f
-        }
-
-        var dark = 0
-        var total = 0
-        for (y in bounds.top until bounds.bottom step 3) {
-            for (x in bounds.left until bounds.right step 3) {
-                if (getPixelLuminance(bitmap, x, y) < DARK_LUMINANCE_THRESHOLD) {
-                    dark++
-                }
-                total++
-            }
-        }
-        return if (total == 0) 0f else dark.toFloat() / total
-    }
-
-    private fun choiceBorderRatioInRect(bitmap: Bitmap, rect: Rect): Float {
-        val bounds = Rect(rect)
-        if (!bounds.intersect(0, 0, bitmap.width, bitmap.height) ||
-            bounds.width() <= 0 ||
-            bounds.height() <= 0
-        ) {
-            return 0f
-        }
-
-        var border = 0
-        var total = 0
-        for (y in bounds.top until bounds.bottom step 2) {
-            for (x in bounds.left until bounds.right step 2) {
-                if (isChoiceBorderPixel(bitmap.getPixel(x, y))) {
-                    border++
-                }
-                total++
-            }
-        }
-        return if (total == 0) 0f else border.toFloat() / total
-    }
-
-    private fun isChoiceBorderPixel(pixel: Int): Boolean {
-        val r = (pixel shr 16) and 0xFF
-        val g = (pixel shr 8) and 0xFF
-        val b = pixel and 0xFF
-        val max = maxOf(r, g, b)
-        val min = minOf(r, g, b)
-        val brightNeutral = r >= 175 && g >= 185 && b >= 190 && max - min <= 82
-        val cyanBlue = r >= 80 && g >= 125 && b >= 150 && b >= r + 24 && g >= r + 12
-        val paleBlue = r >= 110 && g >= 150 && b >= 170 && b >= r + 18 && max - min <= 115
-        return brightNeutral || cyanBlue || paleBlue
     }
 
     private fun verticalOverlapRatio(first: Rect, second: Rect): Float {
@@ -773,14 +741,6 @@ class BackgroundDetector @Inject constructor() {
                 (bottom + edgePadding).coerceAtMost(searchRegion.bottom)
             )
         )
-    }
-
-    private fun getPixelLuminance(bitmap: Bitmap, x: Int, y: Int): Int {
-        val pixel = bitmap.getPixel(x, y)
-        val r = (pixel shr 16) and 0xFF
-        val g = (pixel shr 8) and 0xFF
-        val b = pixel and 0xFF
-        return (0.299f * r + 0.587f * g + 0.114f * b).toInt()
     }
 
 }
