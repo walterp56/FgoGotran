@@ -36,7 +36,7 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.game.FgoPackages
 import com.fgogotran.game.ForegroundTestOverride
 import com.fgogotran.diagnostic.DiagnosticEventStore
-import com.fgogotran.ocr.ChoicePunctuationRecovery
+import com.fgogotran.ocr.ChoiceOcrContext
 import com.fgogotran.ocr.DialogueRubyLayout
 import com.fgogotran.ocr.FgoStoryTextPalette
 import com.fgogotran.ocr.OcrEngine
@@ -3071,7 +3071,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     needVoiceText = needVoiceText,
                     sourceBitmap = source,
                     scope = textInkScope(region.region),
-                    useDialogueRubyLayout = region.region == TextRegion.DIALOGUE_BOX
+                    useDialogueRubyLayout = region.region == TextRegion.DIALOGUE_BOX || region.region == TextRegion.CHOICE_BUTTON
                 )
             }
             TextRegion.NAME_LABEL -> null
@@ -3461,7 +3461,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 mainLineBounds = sorted.toDialogueRenderLineBounds()
             )
         }
-        val mergedRubyCandidates = mergeRubyFragments(rubyCandidates, heightReference, useDialogueRubyLayout)
+        val mergedRubyCandidates = mergeRubyFragments(rubyCandidates, heightReference, useDialogueRubyLayout,
+            preserveRecoveredGroups = scope == FgoStoryTextPalette.Scope.CHOICE)
         if (mergedRubyCandidates.size != rubyCandidates.size) {
             FgoLogger.debug(
                 tag,
@@ -3744,7 +3745,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun mergeRubyFragments(
         rubies: List<OcrTextLine>,
         heightReference: Int,
-        useDialogueRubyLayout: Boolean = false
+        useDialogueRubyLayout: Boolean = false,
+        preserveRecoveredGroups: Boolean = false
     ): List<OcrTextLine> {
         if (rubies.size < 2) return rubies
         val rows = if (useDialogueRubyLayout) {
@@ -3757,7 +3759,9 @@ class FgoAccessibilityService : AccessibilityService() {
             val merged = mutableListOf<OcrTextLine>()
             for (ruby in row) {
                 val previous = merged.lastOrNull()
-                if (previous != null && canMergeRubyFragments(previous, ruby, heightReference)) {
+                if (previous != null &&
+                    !(preserveRecoveredGroups && (previous.isRecoveredRubyGroup || ruby.isRecoveredRubyGroup)) &&
+                    canMergeRubyFragments(previous, ruby, heightReference)) {
                     merged[merged.lastIndex] = mergeRubyLines(previous, ruby)
                 } else {
                     merged += ruby
@@ -4577,15 +4581,25 @@ class FgoAccessibilityService : AccessibilityService() {
             val ocrResult = withContext(Dispatchers.Default) {
                 ocrEngine.recognize(scaled!!, inputScale = OcrInputScale.X2)
             }
-            val lines = ocrResult.lines
+            val localResult = ocrResult.copy(lines = ocrResult.lines.map { line ->
+                line.copy(boundingBox = Rect(line.boundingBox.left / scale, line.boundingBox.top / scale,
+                    line.boundingBox.right / scale, line.boundingBox.bottom / scale))
+            })
+            // The recognizer saw an inverted binary image. Recovery must inspect the original
+            // white/red choice pixels, not mistake that white background for text.
+            val recovered = ChoiceOcrContext.create(cropped, listOf(Rect(
+                choiceBounds.left - textBounds.left, choiceBounds.top - textBounds.top,
+                choiceBounds.right - textBounds.left, choiceBounds.bottom - textBounds.top
+            ))).recover(localResult)
+            val lines = recovered.lines
                 .map { line ->
                     OcrTextLine(
                         text = line.text,
                         boundingBox = Rect(
-                            textBounds.left + line.boundingBox.left / scale,
-                            textBounds.top + line.boundingBox.top / scale,
-                            textBounds.left + line.boundingBox.right / scale,
-                            textBounds.top + line.boundingBox.bottom / scale
+                            textBounds.left + line.boundingBox.left,
+                            textBounds.top + line.boundingBox.top,
+                            textBounds.left + line.boundingBox.right,
+                            textBounds.top + line.boundingBox.bottom
                         ),
                         confidence = line.confidence
                     )
@@ -4869,74 +4883,17 @@ class FgoAccessibilityService : AccessibilityService() {
         )
         return try {
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(cropped)
+                val choicesOnly = clippedTargets.all { it.region == TextRegion.CHOICE_BUTTON }
+                ocrEngine.recognize(cropped,
+                    contentKind = if (choicesOnly) OcrContentKind.CHOICE else OcrContentKind.GENERAL,
+                    choiceBounds = if (choicesOnly) clippedTargets.map { target -> Rect(
+                        target.bounds.left - cropBounds.left, target.bounds.top - cropBounds.top,
+                        target.bounds.right - cropBounds.left, target.bounds.bottom - cropBounds.top
+                    ) } else emptyList())
             }
             val rawLocalLines = ocrResult.lines
                 .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
-            val localLines = if (clippedTargets.all { it.region == TextRegion.CHOICE_BUTTON }) {
-                val recovery = withContext(Dispatchers.Default) {
-                    val pixels = IntArray(cropped.width * cropped.height)
-                    cropped.getPixels(
-                        pixels,
-                        0,
-                        cropped.width,
-                        0,
-                        0,
-                        cropped.width,
-                        cropped.height
-                    )
-                    ChoicePunctuationRecovery.recover(
-                        pixels = pixels,
-                        width = cropped.width,
-                        height = cropped.height,
-                        buttons = clippedTargets.map { target ->
-                            ChoicePunctuationRecovery.Bounds(
-                                left = target.bounds.left - cropBounds.left,
-                                top = target.bounds.top - cropBounds.top,
-                                right = target.bounds.right - cropBounds.left,
-                                bottom = target.bounds.bottom - cropBounds.top
-                            )
-                        },
-                        lines = rawLocalLines.mapIndexed { index, line ->
-                            ChoicePunctuationRecovery.Line(
-                                sourceIndex = index,
-                                text = line.text,
-                                bounds = ChoicePunctuationRecovery.Bounds(
-                                    line.boundingBox.left,
-                                    line.boundingBox.top,
-                                    line.boundingBox.right,
-                                    line.boundingBox.bottom
-                                ),
-                                confidence = line.confidence
-                            )
-                        }
-                    )
-                }
-                if (recovery.recoveredCount > 0) {
-                    FgoLogger.debug(
-                        tag,
-                        "Choice punctuation recovered from shared pixels: " +
-                            "count=${recovery.recoveredCount}, " +
-                            "before=${rawLocalLines.joinToString(" | ") { it.text }}, " +
-                            "after=${recovery.lines.joinToString(" | ") { it.text }}"
-                    )
-                }
-                recovery.lines.map { line ->
-                    OcrTextLine(
-                        text = line.text,
-                        boundingBox = Rect(
-                            line.bounds.left,
-                            line.bounds.top,
-                            line.bounds.right,
-                            line.bounds.bottom
-                        ),
-                        confidence = line.confidence
-                    )
-                }
-            } else {
-                rawLocalLines
-            }
-            val lines = localLines
+            val lines = rawLocalLines
                 .toScreenCoordinates(cropBounds)
 
             val regionsByTarget = clippedTargets.mapNotNull { target ->
@@ -4994,9 +4951,15 @@ class FgoAccessibilityService : AccessibilityService() {
                     cropped,
                     contentKind = if (target.region == TextRegion.DIALOGUE_BOX) {
                         OcrContentKind.DIALOGUE
+                    } else if (target.region == TextRegion.CHOICE_BUTTON) {
+                        OcrContentKind.CHOICE
                     } else {
                         OcrContentKind.GENERAL
-                    }
+                    },
+                    choiceBounds = if (target.region == TextRegion.CHOICE_BUTTON) listOf(Rect(
+                        target.bounds.left - cropBounds.left, target.bounds.top - cropBounds.top,
+                        target.bounds.right - cropBounds.left, target.bounds.bottom - cropBounds.top
+                    )) else emptyList()
                 )
             }
             val regionLines = ocrResult.lines
@@ -5099,19 +5062,27 @@ class FgoAccessibilityService : AccessibilityService() {
 
         return try {
             val ocrResult = withContext(Dispatchers.Default) {
-                ocrEngine.recognize(scaledBitmap, inputScale = OcrInputScale.X2)
+                ocrEngine.recognize(
+                    scaledBitmap,
+                    inputScale = OcrInputScale.X2,
+                    contentKind = OcrContentKind.CHOICE,
+                    choiceBounds = listOf(Rect(
+                        (slot.left - cropBounds.left) * CHOICE_OCR_SCALE,
+                        (slot.top - cropBounds.top) * CHOICE_OCR_SCALE,
+                        (slot.right - cropBounds.left) * CHOICE_OCR_SCALE,
+                        (slot.bottom - cropBounds.top) * CHOICE_OCR_SCALE
+                    ))
+                )
             }
             val regionLines = ocrResult.lines
                 .map { line ->
-                    OcrTextLine(
-                        text = line.text,
+                    line.copy(
                         boundingBox = Rect(
                             cropBounds.left + line.boundingBox.left / CHOICE_OCR_SCALE,
                             cropBounds.top + line.boundingBox.top / CHOICE_OCR_SCALE,
                             cropBounds.left + line.boundingBox.right / CHOICE_OCR_SCALE,
                             cropBounds.top + line.boundingBox.bottom / CHOICE_OCR_SCALE
-                        ),
-                        confidence = line.confidence
+                        )
                     )
                 }
                 .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
@@ -5533,15 +5504,13 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun List<OcrTextLine>.toScreenCoordinates(offset: Rect): List<OcrTextLine> {
         return map { line ->
-            OcrTextLine(
-                text = line.text,
+            line.copy(
                 boundingBox = Rect(
                     line.boundingBox.left + offset.left,
                     line.boundingBox.top + offset.top,
                     line.boundingBox.right + offset.left,
                     line.boundingBox.bottom + offset.top
-                ),
-                confidence = line.confidence
+                )
             )
         }
     }

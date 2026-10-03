@@ -44,6 +44,11 @@ internal class PaddleOcrProvider(context: Context) : OcrProvider {
         }
     }
 
+    override suspend fun recognizeChoices(bitmap: Bitmap, buttons: List<Rect>): OcrResult =
+        withContext(Dispatchers.Default) {
+            runtime.recognize(bitmap, OcrContentKind.CHOICE, ChoiceOcrContext.create(bitmap, buttons))
+        }
+
     override fun close() {
         runtime.close()
     }
@@ -113,7 +118,7 @@ private class PaddleOcrRuntime(
         }
     }
 
-    fun recognize(bitmap: Bitmap, contentKind: OcrContentKind): OcrResult {
+    fun recognize(bitmap: Bitmap, contentKind: OcrContentKind, choices: ChoiceOcrContext? = null): OcrResult {
         initialize()
         require(!bitmap.isRecycled) { "Bitmap has been recycled" }
 
@@ -135,7 +140,7 @@ private class PaddleOcrRuntime(
             DialogueAnnotationCleaner.clean(pixels, bitmap.width, bitmap.height)
         }
         val dialoguePixels = annotationCleanup?.pixels
-        val recognitionBitmap = annotationCleanup
+        val recognitionBitmap = choices?.recognitionBitmap(bitmap) ?: annotationCleanup
             ?.takeIf(DialogueAnnotationCleaner.Result::changed)
             ?.let { cleanup ->
                 Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888).apply {
@@ -155,12 +160,13 @@ private class PaddleOcrRuntime(
             .sortedWith(compareBy({ boxMinY(it) }, { boxMinX(it) }))
 
         val rubyPlanningStartedAt = System.currentTimeMillis()
-        val rubyGroups = if (annotationCleanup == null) emptyList() else DialogueRubyGroupRecovery.plan(
-            annotationCleanup.components,
-            boxes.map { boxToRect(it, bitmap.width, bitmap.height).toRubyGroupBox() },
-            bitmap.width,
-            bitmap.height
-        )
+        val rubyGroups = when {
+            choices != null -> DialogueRubyGroupRecovery.planChoices(choices.analysis,
+                boxes.map { boxToRect(it, bitmap.width, bitmap.height).toRubyGroupBox() }, bitmap.width, bitmap.height)
+            annotationCleanup != null -> DialogueRubyGroupRecovery.plan(annotationCleanup.components,
+                boxes.map { boxToRect(it, bitmap.width, bitmap.height).toRubyGroupBox() }, bitmap.width, bitmap.height)
+            else -> emptyList()
+        }
         val rubyPlanningMs = System.currentTimeMillis() - rubyPlanningStartedAt
         val supplementaryBoxes = rubyGroups.map { group -> group.bounds.toRecognitionBox() }
         // Preserve every original target as fallback. Supplement only an incomplete upper group,
@@ -192,16 +198,17 @@ private class PaddleOcrRuntime(
         }
         val batchedRecognitionStartedAt = System.currentTimeMillis()
         val tightRecognitions = recognizePreparedTargets(
-            recognitionTargets, collectPositions = contentKind == OcrContentKind.DIALOGUE
+            recognitionTargets, collectPositions = contentKind == OcrContentKind.DIALOGUE || choices != null
         )
         if (rubyGroups.isNotEmpty()) FgoLogger.debug(
-            tag, "PaddleOCR ruby groups planned: added=${rubyGroups.size}, planningMs=$rubyPlanningMs, " +
+            tag, "PaddleOCR ${if (choices == null) "ruby" else "choice ruby"} groups planned: added=${rubyGroups.size}, planningMs=$rubyPlanningMs, " +
                 "combinedRecognitionMs=${System.currentTimeMillis() - batchedRecognitionStartedAt}"
         )
 
         val detectedTextBoxes = mutableListOf<PaddleDetectedTextBox>()
         var edgeRecoveryAttempts = 0
         var edgeRecoveryChanges = 0
+        val edgeBudget = if (choices != null) CHOICE_EDGE_RECOVERY_MAX_PASSES else DIALOGUE_EDGE_RECOVERY_MAX_PASSES
         for (target in recognitionTargets) {
             if (target.index >= boxes.size) break
             val tightRecognition = tightRecognitions[target.index]
@@ -227,14 +234,18 @@ private class PaddleOcrRuntime(
                 continue
             }
             val edgeRecovery = if (
-                contentKind != OcrContentKind.DIALOGUE ||
-                edgeRecoveryAttempts < DIALOGUE_EDGE_RECOVERY_MAX_PASSES
+                (contentKind == OcrContentKind.GENERAL && choices == null) || edgeRecoveryAttempts < edgeBudget
             ) {
                 recoverEdgePunctuation(
                     source = recognitionBitmap,
                     box = target.box,
                     tightRecognition = tightRecognition,
-                    contentKind = contentKind
+                    contentKind = contentKind,
+                    choiceBounds = choices?.analysis?.firstOrNull { button ->
+                        target.bounds.centerX() in button.bounds.left until button.bounds.right &&
+                            target.bounds.centerY() in button.bounds.top until button.bounds.bottom
+                    }?.interior?.let { Rect(it.left, it.top, it.right, it.bottom) },
+                    choicePixels = choices?.pixels
                 )
             } else {
                 EdgePunctuationRecovery(tightRecognition)
@@ -302,7 +313,45 @@ private class PaddleOcrRuntime(
             lowConfidenceEdgeFragments = lowConfidenceEdgeFragments
         )
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-        val punctuationLines = if (dialoguePixels == null) {
+        val punctuationLines = if (choices != null) {
+            val positioned = mergedLines.mapIndexed { index, line ->
+                val target = recognitionTargets.firstOrNull { it.index < boxes.size && it.bounds == line.boundingBox }
+                val value = dialoguePunctuationLine(line, target?.let { tightRecognitions[it.index] }, target?.box)
+                ChoicePunctuationRecovery.Line(index, value.text,
+                    ChoicePunctuationRecovery.Bounds(value.bounds.left, value.bounds.top, value.bounds.right, value.bounds.bottom),
+                    value.confidence, value.tokens)
+            }
+            var recovery = choices.recover(positioned)
+            var positionRetries = 0
+            val retryLines = recovery.lines.toMutableList()
+            retryLines.indices.forEach { index ->
+                val line = retryLines[index]
+                if (line.sourceIndex !in recovery.unresolvedSourceIndices || edgeRecoveryAttempts >= edgeBudget) return@forEach
+                val crop = cropTextLine(recognitionBitmap,
+                    DialogueRubyLayout.Box(line.bounds.left, line.bounds.top, line.bounds.right, line.bounds.bottom).toRecognitionBox())
+                    ?: return@forEach
+                val recognition = try {
+                    edgeRecoveryAttempts++
+                    positionRetries++
+                    recognizeCrop(crop, collectPositions = true)
+                } finally { if (!crop.isRecycled) crop.recycle() }
+                if (recognition.confidence >= REC_TEXT_SCORE_THRESHOLD) {
+                    val text = PaddleEdgePunctuationMerger.merge(line.text, recognition.text)
+                    val original = OcrTextLine(text, Rect(line.bounds.left, line.bounds.top, line.bounds.right, line.bounds.bottom), recognition.confidence)
+                    val positionedLine = dialoguePunctuationLine(original, recognition,
+                        original.boundingBox.toRubyGroupBox().toRecognitionBox())
+                    if (positionedLine.tokens.isNotEmpty()) retryLines[index] = line.copy(text = text, tokens = positionedLine.tokens)
+                }
+            }
+            if (positionRetries > 0) {
+                val retried = choices.recover(retryLines)
+                recovery = retried.copy(recoveredCount = recovery.recoveredCount + retried.recoveredCount)
+            }
+            FgoLogger.debug(tag, "PaddleOCR choice punctuation: recovered=${recovery.recoveredCount}, " +
+                "positionRetries=$positionRetries, unresolved=${recovery.unresolvedSourceIndices.size}")
+            recovery.lines.map { OcrTextLine(it.text,
+                Rect(it.bounds.left, it.bounds.top, it.bounds.right, it.bounds.bottom), it.confidence) }
+        } else if (dialoguePixels == null) {
             mergedLines
         } else {
             val positionedLines = mergedLines.map { line ->
@@ -366,7 +415,8 @@ private class PaddleOcrRuntime(
         // Supplementary annotations never participate in main-row punctuation recovery. Accept
         // them afterwards, retaining the old lines if confidence or fragment preservation fails.
         val lines = recoverRubyGroups(
-            punctuationLines, rubyGroups, recognitionTargets, tightRecognitions, boxes.size
+            punctuationLines, rubyGroups, recognitionTargets, tightRecognitions, boxes.size,
+            choice = choices != null
         )
 
         val fullText = lines.joinToString("\n") { it.text }
@@ -403,7 +453,8 @@ private class PaddleOcrRuntime(
         groups: List<DialogueRubyGroupRecovery.Group>,
         targets: List<PaddleRecognitionTarget>,
         recognitions: Map<Int, PaddleMaskMergeResult>,
-        originalTargetCount: Int
+        originalTargetCount: Int,
+        choice: Boolean = false
     ): List<OcrTextLine> {
         if (groups.isEmpty()) return lines
         val output = lines.toMutableList()
@@ -421,14 +472,15 @@ private class PaddleOcrRuntime(
                 originals.map { DialogueRubyGroupRecovery.Reading(it.text, it.confidence) }
             )
             FgoLogger.debug(
-                tag, "PaddleOCR ruby group: box=${target.bounds.flattenToString()}, " +
+                tag, "PaddleOCR ${if (choice) "choice ruby" else "ruby"} group: box=${target.bounds.flattenToString()}, " +
                     "components=${group.componentCount}, hint=${group.expectedBand}, " +
                     "text=${recognition?.text.orEmpty()}, confidence=${recognition?.confidence ?: 0f}, " +
                     "result=${reason ?: "accepted"}, originals=${originals.size}"
             )
             if (reason == null && recognition != null) {
                 output.removeAll(originals.toSet())
-                output += OcrTextLine(recognition.text, target.bounds, recognition.confidence.coerceIn(0f, 1f))
+                output += OcrTextLine(recognition.text, target.bounds, recognition.confidence.coerceIn(0f, 1f),
+                    isRecoveredRubyGroup = choice)
             }
         }
         return output.sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
@@ -880,7 +932,9 @@ private class PaddleOcrRuntime(
         source: Bitmap,
         box: FloatArray,
         tightRecognition: PaddleMaskMergeResult,
-        contentKind: OcrContentKind
+        contentKind: OcrContentKind,
+        choiceBounds: Rect? = null,
+        choicePixels: IntArray? = null
     ): EdgePunctuationRecovery {
         val dialogue = contentKind == OcrContentKind.DIALOGUE
         val lineWidth = max(
@@ -894,7 +948,7 @@ private class PaddleOcrRuntime(
         if (tightRecognition.confidence < REC_TEXT_SCORE_THRESHOLD ||
             !PaddleEdgePunctuationMerger.mayHaveRecoverableEdges(
                 tightRecognition.text,
-                allowShortBody = dialogue
+                allowShortBody = dialogue || choiceBounds != null
             )
         ) {
             return EdgePunctuationRecovery(tightRecognition)
@@ -908,8 +962,14 @@ private class PaddleOcrRuntime(
             EDGE_MIN_HORIZONTAL_PADDING.toFloat(),
             lineHeight * EDGE_HORIZONTAL_PADDING_HEIGHT_RATIO
         ).coerceAtMost(source.width * EDGE_MAX_PADDING_WIDTH_RATIO)
-        val expandedBox = expandTextLineHorizontally(box, padding, source.width, source.height)
-        if (!hasEdgePunctuationEvidence(source, box, expandedBox, dialogue)) {
+        if (contentKind == OcrContentKind.CHOICE && choiceBounds == null) return EdgePunctuationRecovery(tightRecognition)
+        val expandedBox = expandTextLineHorizontally(box, padding, source.width, source.height).also { expanded ->
+            if (choiceBounds != null) for (index in expanded.indices step 2) {
+                expanded[index] = expanded[index].coerceIn(choiceBounds.left.toFloat(), (choiceBounds.right - 1).toFloat())
+                expanded[index + 1] = expanded[index + 1].coerceIn(choiceBounds.top.toFloat(), (choiceBounds.bottom - 1).toFloat())
+            }
+        }
+        if (!hasEdgePunctuationEvidence(source, box, expandedBox, dialogue, choicePixels)) {
             return EdgePunctuationRecovery(tightRecognition)
         }
         val expandedCrop = cropTextLine(source, expandedBox)
@@ -986,14 +1046,24 @@ private class PaddleOcrRuntime(
         source: Bitmap,
         tightBox: FloatArray,
         expandedBox: FloatArray,
-        allowStoryColors: Boolean
+        allowStoryColors: Boolean,
+        capturedPixels: IntArray? = null
     ): Boolean {
         val tightBounds = boxToRect(tightBox, source.width, source.height)
         val sampleBounds = boxToRect(expandedBox, source.width, source.height)
         if (sampleBounds == tightBounds) return false
 
         val pixels = IntArray(sampleBounds.width() * sampleBounds.height())
-        source.getPixels(
+        if (capturedPixels != null) {
+            // The choice probe accepts only white/red ink. Normalize the already captured
+            // pixels for the neutral probe so dim red quotes work without admitting blue glow.
+            for (y in 0 until sampleBounds.height()) for (x in 0 until sampleBounds.width()) {
+                val pixel = capturedPixels[(sampleBounds.top + y) * source.width + sampleBounds.left + x]
+                pixels[y * sampleBounds.width() + x] = if (FgoStoryTextPalette.isChoiceInk(
+                        (pixel shr 16) and 255, (pixel shr 8) and 255, pixel and 255
+                    )) 0xffffffff.toInt() else 0xff000000.toInt()
+            }
+        } else source.getPixels(
             pixels,
             0,
             sampleBounds.width(),
@@ -1754,6 +1824,7 @@ private class PaddleOcrRuntime(
         private const val EDGE_MAX_PADDING_WIDTH_RATIO = 0.25f
         private const val EDGE_MIN_HORIZONTAL_PADDING = 12
         private const val DIALOGUE_EDGE_RECOVERY_MAX_PASSES = 4
+        private const val CHOICE_EDGE_RECOVERY_MAX_PASSES = 2
         private const val DIALOGUE_DASH_MIN_WIDTH = 40
         private const val DIALOGUE_DASH_MIN_WIDTH_RATIO = 0.03f
         private const val DIALOGUE_DASH_MAX_HEIGHT = 14

@@ -37,6 +37,13 @@ internal object DialoguePunctuationRecovery {
         val unresolvedBounds: Set<Bounds>
     )
 
+    /** Share position-aware insertion with choices without changing dialogue's detection policy. */
+    fun mergeVisualRun(line: Line, text: String, bounds: Bounds, referenceHeight: Int): Line? =
+        merge(line, Candidate(if (text.startsWith('─')) Kind.DASH else Kind.PAUSE, text, bounds), referenceHeight)
+
+    /** Upgrade verified runs without throwing away recognized quotes or other marks. */
+    fun completeStandaloneRun(existing: String, candidate: String): String = completeStandaloneText(existing, candidate)
+
     private enum class Kind { PAUSE, DASH }
     private data class Candidate(
         val kind: Kind, val text: String, val bounds: Bounds,

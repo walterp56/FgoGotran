@@ -21,7 +21,9 @@ import javax.inject.Singleton
 data class OcrTextLine(
     val text: String,
     val boundingBox: Rect,
-    val confidence: Float
+    val confidence: Float,
+    // Choice-only provenance: the formatter must not rejoin independent recovered groups.
+    val isRecoveredRubyGroup: Boolean = false
 )
 
 enum class OcrEngineId {
@@ -34,7 +36,8 @@ enum class OcrEngineId {
 
 enum class OcrContentKind {
     GENERAL,
-    DIALOGUE
+    DIALOGUE,
+    CHOICE
 }
 
 /**
@@ -55,6 +58,15 @@ internal interface OcrProvider {
     suspend fun warmUp()
     suspend fun recognize(bitmap: Bitmap): OcrResult
     suspend fun recognize(bitmap: Bitmap, contentKind: OcrContentKind): OcrResult = recognize(bitmap)
+    suspend fun recognizeChoices(bitmap: Bitmap, buttons: List<Rect>): OcrResult {
+        val context = ChoiceOcrContext.create(bitmap, buttons)
+        val prepared = context.recognitionBitmap(bitmap)
+        return try {
+            context.recover(recognize(prepared, OcrContentKind.CHOICE))
+        } finally {
+            if (prepared !== bitmap && !prepared.isRecycled) prepared.recycle()
+        }
+    }
     fun close()
 }
 
@@ -97,7 +109,8 @@ class OcrEngine @Inject constructor(
     suspend fun recognize(
         bitmap: Bitmap,
         inputScale: OcrInputScale = OcrInputScale.X1,
-        contentKind: OcrContentKind = OcrContentKind.GENERAL
+        contentKind: OcrContentKind = OcrContentKind.GENERAL,
+        choiceBounds: List<Rect> = emptyList()
     ): OcrResult {
         return try {
             providerMutex.withLock {
@@ -143,7 +156,12 @@ class OcrEngine @Inject constructor(
                 }
 
                 try {
-                    val result = provider.recognize(preparedBitmap, contentKind)
+                    val result = if (contentKind == OcrContentKind.CHOICE && choiceBounds.isNotEmpty()) {
+                        provider.recognizeChoices(preparedBitmap, choiceBounds.map { bounds ->
+                            Rect(bounds.left * additionalScale, bounds.top * additionalScale,
+                                bounds.right * additionalScale, bounds.bottom * additionalScale)
+                        })
+                    } else provider.recognize(preparedBitmap, contentKind)
                     if (additionalScale > 1) {
                         result.toInputCoordinates(
                             scale = additionalScale,

@@ -236,4 +236,113 @@ class DialogueRubyGroupRecoveryTest {
             assertEquals(1, plan(cleaned.components).size, color.toUInt().toString(16))
         }
     }
+
+    private fun choiceAnalysis(
+        offsetY: Int = 0, parts: List<Component> = listOf(glyph(30), glyph(80), glyph(130))
+    ): ChoicePunctuationRecovery.ButtonAnalysis {
+        fun shifted(box: Box) = ChoicePunctuationRecovery.Bounds(
+            box.left, box.top + offsetY, box.right, box.bottom + offsetY
+        )
+        return ChoicePunctuationRecovery.ButtonAnalysis(
+            bounds = shifted(Box(0, 0, 700, 150)),
+            interior = shifted(Box(10, 12, 690, 138)),
+            components = parts.map { ChoicePunctuationRecovery.Component(
+                ChoicePunctuationRecovery.Bounds(it.left, it.top + offsetY, it.right, it.bottom + offsetY), it.pixelCount
+            ) },
+            mainBand = shifted(main)
+        )
+    }
+
+    @Test
+    fun `choice ruby groups use the button band at any screen Y`() {
+        for (offset in listOf(0, 171, 570, 850)) {
+            val analysis = choiceAnalysis(offset)
+            val boxes = listOf(Box(main.left, main.top + offset, main.right, main.bottom + offset),
+                Box(128, 17 + offset, 146, 38 + offset))
+            val groups = DialogueRubyGroupRecovery.planChoices(listOf(analysis), boxes, 700, 1100)
+            assertEquals(1, groups.size, "offset=$offset")
+            assertEquals(listOf(1), groups.single().originalBoxIndices)
+            assertTrue(groups.single().bounds.left < 30)
+            assertTrue(groups.single().bounds.right > 144)
+            assertTrue(groups.single().expectedBand)
+        }
+    }
+
+    @Test
+    fun `six choices keep ruby components and detector indices inside their own button`() {
+        val analyses = (0 until 6).map { choiceAnalysis(it * 160) }
+        val boxes = (0 until 6).flatMap { index ->
+            val offset = index * 160
+            listOf(Box(main.left, main.top + offset, main.right, main.bottom + offset),
+                Box(128, 17 + offset, 146, 38 + offset))
+        }
+        val groups = DialogueRubyGroupRecovery.planChoices(analyses, boxes, 700, 960)
+        assertEquals(6, groups.size)
+        groups.forEachIndexed { index, group ->
+            assertEquals(listOf(index * 2 + 1), group.originalBoxIndices)
+            assertTrue(group.bounds.top >= analyses[index].interior.top)
+            assertTrue(group.bounds.bottom <= analyses[index].interior.bottom)
+        }
+    }
+
+    @Test
+    fun `complete choice ruby and ordinary choices need no supplementary recognition`() {
+        val complete = choiceAnalysis()
+        assertTrue(DialogueRubyGroupRecovery.planChoices(
+            listOf(complete), listOf(main, Box(28, 16, 146, 39)), 700, 150
+        ).isEmpty())
+        val ordinary = choiceAnalysis(parts = listOf(glyph(30, 60), glyph(80, 60)))
+        assertTrue(DialogueRubyGroupRecovery.planChoices(listOf(ordinary), listOf(main), 700, 150).isEmpty())
+    }
+
+    @Test
+    fun `choice ruby includes wide gaps long vowels and nearby dakuten`() {
+        val parts = listOf(glyph(30), glyph(130), Component(230, 26, 246, 28, 32),
+            Component(43, 12, 46, 15, 6), Component(47, 12, 50, 15, 6))
+        val groups = DialogueRubyGroupRecovery.planChoices(listOf(choiceAnalysis(parts = parts)), listOf(main), 700, 150)
+        assertEquals(1, groups.size)
+        assertEquals(5, groups.single().componentCount)
+        assertTrue(groups.single().bounds.right > 246)
+        assertTrue(groups.single().bounds.top <= 12)
+    }
+
+    @Test
+    fun `choice dots cannot manufacture ruby and missing main evidence cannot anchor it`() {
+        val dots = (0..5).map { Component(30 + it * 35, 24, 37 + it * 35, 31, 49) }
+        assertTrue(DialogueRubyGroupRecovery.planChoices(
+            listOf(choiceAnalysis(parts = dots)), listOf(main), 700, 150
+        ).isEmpty())
+        assertTrue(DialogueRubyGroupRecovery.planChoices(
+            listOf(choiceAnalysis().copy(mainBand = null)), listOf(main), 700, 150
+        ).isEmpty())
+        assertTrue(DialogueRubyGroupRecovery.planChoices(
+            listOf(choiceAnalysis()), listOf(Box(20, 10, 680, 110)), 700, 150
+        ).isEmpty())
+    }
+
+    @Test
+    fun `independently detected choice readings are not recombined`() {
+        val analysis = choiceAnalysis(parts = listOf(glyph(30), glyph(50), glyph(85), glyph(105)))
+        assertTrue(DialogueRubyGroupRecovery.planChoices(
+            listOf(analysis), listOf(main, Box(28, 16, 66, 39), Box(83, 16, 121, 39)), 700, 150
+        ).isEmpty())
+    }
+
+    @Test
+    fun `choice recovery geometry scales with existing engine scaling`() {
+        val analysis = choiceAnalysis()
+        fun twice(bounds: ChoicePunctuationRecovery.Bounds) = ChoicePunctuationRecovery.Bounds(
+            bounds.left * 2, bounds.top * 2, bounds.right * 2, bounds.bottom * 2
+        )
+        val scaled = analysis.copy(
+            bounds = twice(analysis.bounds), interior = twice(analysis.interior),
+            components = analysis.components.map { it.copy(bounds = twice(it.bounds), pixelCount = it.pixelCount * 4) },
+            mainBand = twice(analysis.mainBand!!)
+        )
+        val expected = DialogueRubyGroupRecovery.planChoices(listOf(analysis), listOf(main), 700, 150).single().bounds
+        val actual = DialogueRubyGroupRecovery.planChoices(
+            listOf(scaled), listOf(Box(main.left * 2, main.top * 2, main.right * 2, main.bottom * 2)), 1400, 300
+        ).single().bounds
+        assertEquals(Box(expected.left * 2, expected.top * 2, expected.right * 2, expected.bottom * 2), actual)
+    }
 }

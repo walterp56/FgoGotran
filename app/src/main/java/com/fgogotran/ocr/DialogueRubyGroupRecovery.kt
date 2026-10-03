@@ -28,6 +28,45 @@ internal object DialogueRubyGroupRecovery {
         val mains = boxes.filter {
             it.height >= height * 0.16f && it.height <= height * 0.42f && it.width >= it.height * 0.8f
         }
+        return planWithAnchors(components, boxes, width, height, mains) { inExpectedBand(it, height) }
+    }
+
+    /** Choice anchors are relative to each button's main ink, never the dialogue fixed-Y bands. */
+    fun planChoices(
+        analysis: List<ChoicePunctuationRecovery.ButtonAnalysis>, boxes: List<Box>, width: Int, height: Int
+    ): List<Group> = analysis.flatMap { button ->
+        val band = button.mainBand ?: return@flatMap emptyList()
+        val indices = boxes.indices.filter { index ->
+            val box = boxes[index]
+            box.left >= button.interior.left && box.right <= button.interior.right &&
+                box.top >= button.interior.top && box.bottom <= button.interior.bottom
+        }
+        val localBoxes = indices.map(boxes::get)
+        val mains = localBoxes.filter {
+            it.height >= band.height * 0.65f && it.height <= band.height * 1.45f &&
+                abs(it.centerY - band.centerY) <= band.height * 0.35f && it.width >= it.height * 0.8f
+        }
+        val components = button.components.map {
+            Component(it.bounds.left, it.bounds.top, it.bounds.right, it.bounds.bottom, it.pixelCount)
+        }
+        planWithAnchors(components, localBoxes, width, height, mains) { centerY ->
+            centerY < band.top && band.top - centerY <= band.height
+        }.map { group ->
+            // A recognition inset touching the button guard must be clipped, not cause the
+            // complete reading (especially its upper dakuten) to be dropped.
+            group.copy(bounds = Box(
+                group.bounds.left.coerceAtLeast(button.interior.left),
+                group.bounds.top.coerceAtLeast(button.interior.top),
+                group.bounds.right.coerceAtMost(button.interior.right),
+                group.bounds.bottom.coerceAtMost(button.interior.bottom)
+            ), originalBoxIndices = group.originalBoxIndices.map(indices::get))
+        }
+    }.distinctBy { it.bounds }.sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
+
+    private fun planWithAnchors(
+        components: List<Component>, boxes: List<Box>, width: Int, height: Int, mains: List<Box>,
+        hinted: (Float) -> Boolean
+    ): List<Group> {
         if (mains.isEmpty()) return emptyList()
         val upperByMain = components.mapNotNull { component ->
             val main = mains.filter { candidate ->
@@ -36,7 +75,7 @@ internal object DialogueRubyGroupRecovery {
                     component.centerX <= candidate.right + candidate.height * 0.5f &&
                     mains.none { occupied -> component.centerY >= occupied.top + occupied.height * 0.1f &&
                         component.centerY <= occupied.bottom && component.centerX in occupied.left.toFloat()..occupied.right.toFloat() } &&
-                    isAbove(component, candidate, height)
+                    isAbove(component, candidate, hinted(component.centerY))
             }.minByOrNull { abs(it.top - component.bottom) } ?: return@mapNotNull null
             main to component
         }.groupBy({ it.first }, { it.second })
@@ -44,7 +83,7 @@ internal object DialogueRubyGroupRecovery {
         for (main in mains) {
             val reference = main.height
             val upper = upperByMain[main].orEmpty()
-            val seeds = upper.filter { isReadableSeed(it, reference, height) }
+            val seeds = upper.filter { isReadableSeed(it, reference, hinted(it.centerY)) }
             // Pixel components are strokes, not OCR word boxes. One kana's strokes can have
             // very different centres; use the main-row scale to align this annotation band.
             val rows = mutableListOf<MutableList<Component>>()
@@ -123,7 +162,7 @@ internal object DialogueRubyGroupRecovery {
                             intersects(inkBounds, boxes[index])
                     }
                     if (!crossingBox) groups += Group(
-                        bounds, originals, parts.size, inExpectedBand(inkBounds.centerY, height)
+                        bounds, originals, parts.size, hinted(inkBounds.centerY)
                     )
                 }
             }
@@ -154,16 +193,15 @@ internal object DialogueRubyGroupRecovery {
         return null
     }
 
-    private fun isAbove(component: Component, main: Box, cropHeight: Int): Boolean {
-        val hinted = inExpectedBand(component.centerY, cropHeight)
+    private fun isAbove(component: Component, main: Box, hinted: Boolean): Boolean {
         val overlap = main.height * if (hinted) 0.28f else 0.18f
         val maxGap = main.height * if (hinted) 0.95f else 0.75f
         return component.centerY < main.top + main.height * 0.06f &&
             component.bottom <= main.top + overlap && main.top - component.bottom <= maxGap
     }
 
-    private fun isReadableSeed(component: Component, reference: Int, cropHeight: Int): Boolean {
-        val heightRatio = if (inExpectedBand(component.centerY, cropHeight)) 0.055f else 0.12f
+    private fun isReadableSeed(component: Component, reference: Int, hinted: Boolean): Boolean {
+        val heightRatio = if (hinted) 0.055f else 0.12f
         if (component.height < maxOf(3f, reference * heightRatio)) return false
         return !isRoundDot(component, reference, 0.65f)
     }

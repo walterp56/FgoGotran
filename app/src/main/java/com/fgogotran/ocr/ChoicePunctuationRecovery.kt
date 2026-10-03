@@ -36,12 +36,14 @@ internal object ChoicePunctuationRecovery {
         val sourceIndex: Int,
         val text: String,
         val bounds: Bounds,
-        val confidence: Float
+        val confidence: Float,
+        val tokens: List<DialoguePunctuationRecovery.Token> = emptyList()
     )
 
     data class Result(
         val lines: List<Line>,
-        val recoveredCount: Int
+        val recoveredCount: Int,
+        val unresolvedSourceIndices: Set<Int> = emptySet()
     )
 
     private enum class Kind {
@@ -49,10 +51,79 @@ internal object ChoicePunctuationRecovery {
         DASH
     }
 
-    private data class Component(
+    data class Component(
         val bounds: Bounds,
         val pixelCount: Int
     )
+
+    data class ButtonAnalysis(
+        val bounds: Bounds,
+        val interior: Bounds,
+        val components: List<Component>,
+        val mainBand: Bounds?
+    )
+
+    /** One white/red component scan per button, shared by ruby and punctuation recovery. */
+    fun analyze(pixels: IntArray, width: Int, height: Int, buttons: List<Bounds>): List<ButtonAnalysis> {
+        if (width <= 0 || height <= 0 || pixels.size < width * height) return emptyList()
+        return buttons.mapNotNull { raw ->
+            val button = raw.clipped(width, height) ?: return@mapNotNull null
+            val insetX = max(MIN_SCAN_INSET, (button.width * HORIZONTAL_SCAN_INSET_RATIO).roundToInt())
+            val insetY = max(MIN_SCAN_INSET, (button.height * VERTICAL_SCAN_INSET_RATIO).roundToInt())
+            val interior = Bounds(button.left + insetX, button.top + insetY,
+                button.right - insetX, button.bottom - insetY).clipped(width, height) ?: return@mapNotNull null
+            val components = brightNeutralComponents(pixels, width, interior)
+            // Use full-size ink, not the number of small ruby fragments, to locate the lower row.
+            val mainInk = components.filter {
+                it.bounds.height >= button.height * 0.22f && it.bounds.height <= button.height * 0.70f
+            }
+            val anchor = mainInk.maxWithOrNull(compareBy<Component> { it.bounds.height }
+                .thenBy { it.pixelCount }.thenBy { it.bounds.centerY })
+            val band = anchor?.let {
+                mainInk.filter { part -> abs(part.bounds.centerY - it.bounds.centerY) <= it.bounds.height * 0.35f }
+                    .map(Component::bounds).reduce(Bounds::union)
+            }
+            ButtonAnalysis(button, interior, components, band)
+        }
+    }
+
+    /** Only verified, separated upper dots over full-size glyphs are emphasis, not kana/dakuten. */
+    fun emphasisDots(analysis: List<ButtonAnalysis>): Set<Component> = analysis.flatMap { button ->
+        val band = button.mainBand ?: return@flatMap emptyList()
+        val upper = button.components.filter { it.bounds.centerY < band.top }
+        fun isDot(component: Component): Boolean {
+            val bounds = component.bounds
+            val side = max(bounds.width, bounds.height)
+            return side in 3..max(3, (band.height * 0.24f).roundToInt()) &&
+                side <= minOf(bounds.width, bounds.height) * 1.55f &&
+                component.pixelCount.toFloat() / (bounds.width * bounds.height).coerceAtLeast(1) >= 0.65f
+        }
+        val dots = upper.filter { dot ->
+            isDot(dot) && band.top - dot.bounds.bottom in 2..(band.height * 0.45f).roundToInt() &&
+                button.components.any { main -> main.bounds.height >= band.height * 0.65f &&
+                    dot.bounds.centerX in main.bounds.left.toFloat()..main.bounds.right.toFloat() &&
+                    abs(main.bounds.centerY - band.centerY) <= band.height * 0.35f } &&
+                upper.none { part -> part != dot && !isDot(part) &&
+                    abs(part.bounds.centerY - dot.bounds.centerY) <= band.height * 0.25f &&
+                    maxOf(0, part.bounds.left - dot.bounds.right, dot.bounds.left - part.bounds.right) <=
+                    max(dot.bounds.width, dot.bounds.height) * 1.5f }
+        }.sortedBy { it.bounds.left }
+        val runs = mutableListOf<MutableList<Component>>()
+        dots.forEach { dot ->
+            val previous = runs.lastOrNull()?.lastOrNull()
+            if (previous != null &&
+                abs(previous.bounds.centerY - dot.bounds.centerY) <= band.height * 0.12f &&
+                dot.bounds.centerX - previous.bounds.centerX in band.height * 0.65f..band.height * 1.8f) {
+                runs.last() += dot
+            } else runs += mutableListOf(dot)
+        }
+        runs.filter { run ->
+            if (run.size < 2) false else {
+                val gaps = run.zipWithNext { a, b -> b.bounds.centerX - a.bounds.centerX }
+                gaps.maxOrNull()!! <= gaps.minOrNull()!! * 1.55f
+            }
+        }.flatten()
+    }.toSet()
 
     private data class Candidate(
         val kind: Kind,
@@ -65,7 +136,8 @@ internal object ChoicePunctuationRecovery {
         width: Int,
         height: Int,
         buttons: List<Bounds>,
-        lines: List<Line>
+        lines: List<Line>,
+        analysis: List<ButtonAnalysis>? = null
     ): Result {
         if (width <= 0 || height <= 0 || pixels.size < width * height || buttons.isEmpty()) {
             return Result(lines, 0)
@@ -74,25 +146,41 @@ internal object ChoicePunctuationRecovery {
         val output = lines.toMutableList()
         var nextSourceIndex = (lines.maxOfOrNull(Line::sourceIndex) ?: -1) + 1
         var recoveredCount = 0
+        val unresolved = mutableSetOf<Int>()
 
-        buttons.forEach { rawButton ->
-            val button = rawButton.clipped(width, height) ?: return@forEach
+        (analysis ?: analyze(pixels, width, height, buttons)).forEach { buttonAnalysis ->
+            val button = buttonAnalysis.bounds
             val rowLines = output.filter { lineBelongsToButton(it.bounds, button) }
-            val mainLines = mainTextLines(rowLines)
+            var mainLines = mainTextLines(rowLines, buttonAnalysis.mainBand)
+            val orderedMain = mainLines.sortedBy { it.bounds.left }
+            if (orderedMain.size > 1 && orderedMain.zipWithNext().all { (a, b) -> a.bounds.right <= b.bounds.left }) {
+                val joined = orderedMain.first().copy(
+                    text = orderedMain.joinToString("") { it.text },
+                    bounds = orderedMain.map(Line::bounds).reduce(Bounds::union),
+                    confidence = orderedMain.minOf(Line::confidence),
+                    tokens = if (orderedMain.all { it.tokens.isNotEmpty() && it.tokens.joinToString("") { token -> token.text } == it.text }) {
+                        orderedMain.flatMap(Line::tokens)
+                    } else emptyList()
+                )
+                orderedMain.forEach { output.removeLine(it.sourceIndex) }
+                output += joined
+                mainLines = listOf(joined)
+            }
             val referenceHeight = mainLines.maxOfOrNull { it.bounds.height }
                 ?.coerceAtLeast(1)
+                ?: buttonAnalysis.mainBand?.height
                 ?: (button.height * DEFAULT_TEXT_HEIGHT_RATIO).roundToInt().coerceAtLeast(1)
             val expectedCenterY = mainLines
                 .maxByOrNull { it.bounds.height }
                 ?.bounds
                 ?.centerY
+                ?: buttonAnalysis.mainBand?.centerY
                 ?: button.centerY
 
             val candidates = detectCandidates(
                 pixels = pixels,
                 sourceWidth = width,
-                sourceHeight = height,
-                button = button,
+                components = buttonAnalysis.components,
                 referenceHeight = referenceHeight,
                 expectedCenterY = expectedCenterY,
                 hasMainText = mainLines.isNotEmpty()
@@ -100,7 +188,10 @@ internal object ChoicePunctuationRecovery {
             if (candidates.isEmpty()) return@forEach
 
             if (mainLines.isEmpty()) {
-                val punctuationLines = rowLines.filter { it.text.isPauseOrDashOnly() }
+                val punctuationLines = rowLines.filter { line ->
+                    line.text.isKnownPunctuationOnly() &&
+                        abs(line.bounds.centerY - expectedCenterY) <= referenceHeight * FRAGMENT_MAX_CENTER_DIFFERENCE_RATIO
+                }
                 val standaloneText = candidates
                     .sortedBy { it.bounds.left }
                     .joinToString(separator = "", transform = Candidate::text)
@@ -109,10 +200,19 @@ internal object ChoicePunctuationRecovery {
                     .reduce(Bounds::union)
                 val existing = punctuationLines.minByOrNull { it.bounds.left }
                 if (existing != null) {
-                    if (existing.text.trim() != standaloneText || existing.bounds != standaloneBounds) {
+                    val previousText = punctuationLines.sortedBy { it.bounds.left }.joinToString("") { it.text.trim() }
+                    // Normalize OCR's dash confusables only when the complete row is verified
+                    // as a dash. Never treat an ordinary kanji/long vowel inside words this way.
+                    val verifiedPrevious = if (candidates.all { it.kind == Kind.DASH } &&
+                        previousText.all { it.isWhitespace() || it in DASH_SYMBOLS || it == '。' }) {
+                        previousText.map { if (it in "一ー_") '─' else it }.joinToString("")
+                    } else previousText
+                    val recoveredText = DialoguePunctuationRecovery.completeStandaloneRun(verifiedPrevious, standaloneText)
+                    val recoveredBounds = punctuationLines.map(Line::bounds).fold(standaloneBounds, Bounds::union)
+                    if (existing.text.trim() != recoveredText || existing.bounds != recoveredBounds || punctuationLines.size > 1) {
                         output.replaceLine(
                             existing.sourceIndex,
-                            existing.copy(text = standaloneText, bounds = standaloneBounds)
+                            existing.copy(text = recoveredText, bounds = recoveredBounds, tokens = emptyList())
                         )
                         punctuationLines
                             .filterNot { it.sourceIndex == existing.sourceIndex }
@@ -136,16 +236,21 @@ internal object ChoicePunctuationRecovery {
                 val currentMainLines = output.filter { it.sourceIndex in mainSourceIndexes }
                 val target = bestTargetLine(candidate, currentMainLines, referenceHeight)
                     ?: return@candidateLoop
-                val mergedText = mergeCandidateText(target, candidate, referenceHeight)
-                    ?: return@candidateLoop
-                val textChanged = mergedText != target.text
+                val positionedLine = DialoguePunctuationRecovery.Line(target.text, target.bounds.toDialogueBounds(),
+                    target.confidence, target.tokens)
+                val merged = mergeAtPixelEdge(positionedLine, candidate, buttonAnalysis.mainBand, referenceHeight)
+                    ?: DialoguePunctuationRecovery.mergeVisualRun(
+                    positionedLine, candidate.text, candidate.bounds.toDialogueBounds(), referenceHeight
+                ) ?: run { unresolved += target.sourceIndex; return@candidateLoop }
+                val textChanged = merged.text != target.text
                 val boundsChanged = !target.bounds.contains(candidate.bounds)
                 if (textChanged || boundsChanged) {
                     output.replaceLine(
                         target.sourceIndex,
                         target.copy(
-                            text = mergedText,
-                            bounds = target.bounds.union(candidate.bounds)
+                            text = merged.text,
+                            bounds = target.bounds.union(candidate.bounds),
+                            tokens = merged.tokens
                         )
                     )
                     if (textChanged) recoveredCount++
@@ -166,29 +271,17 @@ internal object ChoicePunctuationRecovery {
             }
         }
 
-        return Result(output, recoveredCount)
+        return Result(output, recoveredCount, unresolved)
     }
 
     private fun detectCandidates(
         pixels: IntArray,
         sourceWidth: Int,
-        sourceHeight: Int,
-        button: Bounds,
+        components: List<Component>,
         referenceHeight: Int,
         expectedCenterY: Float,
         hasMainText: Boolean
     ): List<Candidate> {
-        val insetX = max(MIN_SCAN_INSET, (button.width * HORIZONTAL_SCAN_INSET_RATIO).roundToInt())
-        val insetY = max(MIN_SCAN_INSET, (button.height * VERTICAL_SCAN_INSET_RATIO).roundToInt())
-        val scan = Bounds(
-            left = button.left + insetX,
-            top = button.top + insetY,
-            right = button.right - insetX,
-            bottom = button.bottom - insetY
-        ).clipped(sourceWidth, sourceHeight) ?: return emptyList()
-        if (scan.width <= 0 || scan.height <= 0) return emptyList()
-
-        val components = brightNeutralComponents(pixels, sourceWidth, scan)
         if (components.isEmpty()) return emptyList()
 
         val maximumCenterDifference = referenceHeight * if (hasMainText) {
@@ -201,19 +294,30 @@ internal object ChoicePunctuationRecovery {
         }
         if (aligned.isEmpty()) return emptyList()
 
-        val pauseCandidates = detectPauseCandidates(aligned, referenceHeight)
+        val pauseCandidates = detectPauseCandidates(aligned, referenceHeight).map { candidate ->
+            val period = components.firstOrNull { component ->
+                val bounds = component.bounds
+                val fill = component.pixelCount.toFloat() / (bounds.width * bounds.height).coerceAtLeast(1)
+                bounds.left >= candidate.bounds.right && bounds.left - candidate.bounds.right <= referenceHeight * 0.6f &&
+                    bounds.centerY - candidate.bounds.centerY in referenceHeight * 0.08f..referenceHeight * 0.45f &&
+                    bounds.width in 3..max(3, (referenceHeight * 0.30f).roundToInt()) &&
+                    bounds.height in 3..max(3, (referenceHeight * 0.30f).roundToInt()) &&
+                    max(bounds.width, bounds.height) <= minOf(bounds.width, bounds.height) * 1.5f &&
+                    fill in 0.15f..0.70f && !pixels[(bounds.centerY.toInt()) * sourceWidth + bounds.centerX.toInt()].isChoiceTextPixel()
+            }
+            if (period == null) candidate else candidate.copy(text = candidate.text + "。", bounds = candidate.bounds.union(period.bounds))
+        }
         val dashCandidates = aligned.mapNotNull { component ->
             val componentWidth = component.bounds.width
             val componentHeight = component.bounds.height
             val minimumWidth = (referenceHeight * DASH_MIN_WIDTH_RATIO).roundToInt()
-            val maximumWidth = (referenceHeight * DASH_MAX_WIDTH_RATIO).roundToInt()
             val maximumHeight = max(
                 DASH_MIN_MAX_HEIGHT,
                 (referenceHeight * DASH_MAX_HEIGHT_RATIO).roundToInt()
             )
             val fillRatio = component.pixelCount.toFloat() /
                 (componentWidth * componentHeight).coerceAtLeast(1)
-            if (componentWidth in minimumWidth..maximumWidth &&
+            if (componentWidth >= minimumWidth &&
                 componentHeight in 1..maximumHeight &&
                 componentWidth >= componentHeight * DASH_MIN_ASPECT_RATIO &&
                 fillRatio >= DASH_MIN_FILL_RATIO
@@ -340,7 +444,7 @@ internal object ChoicePunctuationRecovery {
             var run = mutableListOf<Component>()
 
             fun finishRun() {
-                if (run.size < MIN_PAUSE_DOTS) {
+                if (run.size != 3 && run.size < 5) {
                     run = mutableListOf()
                     return
                 }
@@ -357,11 +461,11 @@ internal object ChoicePunctuationRecovery {
                     return
                 }
                 val bounds = run.map(Component::bounds).reduce(Bounds::union)
-                if (bounds.width < referenceHeight * DOT_MIN_SPAN_RATIO) {
+                if (bounds.width < referenceHeight * if (run.size == 3) 0.40f else DOT_MIN_SPAN_RATIO) {
                     run = mutableListOf()
                     return
                 }
-                val ellipsisCount = max(2, (run.size / DOTS_PER_ELLIPSIS.toFloat()).roundToInt())
+                val ellipsisCount = max(1, (run.size / DOTS_PER_ELLIPSIS.toFloat()).roundToInt())
                 candidates += Candidate(
                     kind = Kind.PAUSE,
                     text = ELLIPSIS.repeat(ellipsisCount),
@@ -396,9 +500,11 @@ internal object ChoicePunctuationRecovery {
             }
     }
 
-    private fun mainTextLines(lines: List<Line>): List<Line> {
+    private fun mainTextLines(lines: List<Line>, mainBand: Bounds?): List<Line> {
         val readable = lines.filterNot { it.text.isPauseOrDashOnly() }
             .filter { line -> line.text.any { it.isLetterOrDigit() || it.isJapaneseOrCjk() } }
+            .filter { line -> mainBand == null || (line.bounds.height >= mainBand.height * 0.60f &&
+                abs(line.bounds.centerY - mainBand.centerY) <= mainBand.height * 0.45f) }
         val anchor = readable.maxWithOrNull(
             compareBy<Line> { it.bounds.height }
                 .thenBy { it.bounds.width }
@@ -433,100 +539,14 @@ internal object ChoicePunctuationRecovery {
             ?.first
     }
 
-    private fun mergeCandidateText(
-        line: Line,
-        candidate: Candidate,
-        referenceHeight: Int
-    ): String? {
-        val text = line.text
-        if (text.isBlank()) return candidate.text
-        val edgeTolerance = referenceHeight * EDGE_ATTACHMENT_TOLERANCE_RATIO
-        val insertionIndex = when {
-            candidate.bounds.centerX <= line.bounds.left + edgeTolerance -> 0
-            candidate.bounds.centerX >= line.bounds.right - edgeTolerance -> text.length
-            else -> {
-                val estimatedCellCount = text.length + candidate.text.length
-                val relativeCenter = (
-                    (candidate.bounds.centerX - line.bounds.left) /
-                        line.bounds.width.coerceAtLeast(1).toFloat()
-                    ).coerceIn(0f, 1f)
-                (relativeCenter * estimatedCellCount - candidate.text.length / 2f)
-                    .roundToInt()
-                    .coerceIn(0, text.length)
-            }
-        }
-
-        val existingRun = punctuationRuns(text, candidate.kind)
-            .minByOrNull { run ->
-                val runCenter = (run.first + run.last + 1) / 2f
-                abs(runCenter - insertionIndex)
-            }
-            ?.takeIf { run ->
-                val characterWidth = line.bounds.width.toFloat() / text.length.coerceAtLeast(1)
-                val runCenterX = line.bounds.left +
-                    ((run.first + run.last + 1) / 2f / text.length.coerceAtLeast(1)) * line.bounds.width
-                abs(runCenterX - candidate.bounds.centerX) <= max(
-                    referenceHeight * EXISTING_RUN_MAX_DISTANCE_RATIO,
-                    characterWidth * EXISTING_RUN_MAX_CHARACTER_DISTANCE
-                )
-            }
-        if (existingRun != null) {
-            val current = text.substring(existingRun)
-            return if (current.visualPunctuationLength(candidate.kind) >=
-                candidate.text.visualPunctuationLength(candidate.kind)
-            ) {
-                text
-            } else {
-                text.replaceRange(existingRun, candidate.text)
-            }
-        }
-
-        if (insertionIndex in 1 until text.length &&
-            text[insertionIndex - 1].isAsciiLetterOrDigit() &&
-            text[insertionIndex].isAsciiLetterOrDigit()
-        ) {
-            return null
-        }
-        return text.substring(0, insertionIndex) + candidate.text + text.substring(insertionIndex)
-    }
-
-    private fun punctuationRuns(text: String, kind: Kind): List<IntRange> {
-        val runs = mutableListOf<IntRange>()
-        var start = -1
-        for (index in 0..text.length) {
-            val matches = index < text.length && when (kind) {
-                Kind.PAUSE -> text[index] in PAUSE_SYMBOLS
-                Kind.DASH -> text[index] in DASH_SYMBOLS
-            }
-            if (matches && start < 0) start = index
-            if (!matches && start >= 0) {
-                val range = start until index
-                val value = text.substring(range)
-                val valid = when (kind) {
-                    Kind.PAUSE -> value.visualPunctuationLength(kind) >= MIN_EXISTING_PAUSE_DOTS
-                    Kind.DASH -> value.length >= MIN_EXISTING_DASHES
-                }
-                if (valid) runs += range
-                start = -1
-            }
-        }
-        return runs
-    }
-
-    private fun String.visualPunctuationLength(kind: Kind): Int = when (kind) {
-        Kind.PAUSE -> fold(0) { total, symbol -> total +
-            when (symbol) {
-                '…', '⋯' -> 3
-                '‥' -> 2
-                else -> 1
-            }
-        }
-        Kind.DASH -> length
-    }
-
     private fun String.isPauseOrDashOnly(): Boolean {
         val visible = trim().filterNot(Char::isWhitespace)
-        return visible.isNotEmpty() && visible.all { it in PAUSE_SYMBOLS || it in DASH_SYMBOLS }
+        return visible.isNotEmpty() && visible.any { it in PAUSE_SYMBOLS || it in DASH_SYMBOLS } &&
+            visible.all { it in PAUSE_SYMBOLS || it in DASH_SYMBOLS || it == '。' }
+    }
+
+    private fun String.isKnownPunctuationOnly(): Boolean = isNotBlank() && all {
+        it.isWhitespace() || it in PAUSE_SYMBOLS || it in DASH_SYMBOLS || it in "。、，,!！?？「」『』“”\"'（）()[]【】"
     }
 
     private fun Char.isJapaneseOrCjk(): Boolean =
@@ -536,8 +556,29 @@ internal object ChoicePunctuationRecovery {
             this in '\uf900'..'\ufaff' ||
             this in '\uff66'..'\uff9d'
 
-    private fun Char.isAsciiLetterOrDigit(): Boolean =
-        this in 'A'..'Z' || this in 'a'..'z' || this in '0'..'9'
+    private fun Bounds.toDialogueBounds() = DialoguePunctuationRecovery.Bounds(left, top, right, bottom)
+
+    /** Expanded OCR boxes can include a partially read pause. Main ink provides a real edge anchor. */
+    private fun mergeAtPixelEdge(
+        line: DialoguePunctuationRecovery.Line, candidate: Candidate, band: Bounds?, reference: Int
+    ): DialoguePunctuationRecovery.Line? {
+        if (line.tokens.isNotEmpty() || band == null) return null
+        val leading = candidate.bounds.right <= band.left + reference * 0.25f
+        val trailing = candidate.bounds.left >= band.right - reference * 0.25f
+        if (!leading && !trailing) return null
+        fun matches(char: Char) = if (candidate.kind == Kind.PAUSE) char in PAUSE_SYMBOLS else char in DASH_SYMBOLS
+        fun weight(text: String): Int = text.fold(0) { total, char ->
+            total + if (char == '…' || char == '⋯') 3 else if (char == '‥') 2 else 1
+        }
+        val existing = if (leading) line.text.takeWhile(::matches) else line.text.takeLastWhile { matches(it) || it == '。' }
+        val replacement = candidate.text + if (existing.endsWith('。') && !candidate.text.endsWith('。')) "。" else ""
+        val text = when {
+            existing.isNotEmpty() && weight(existing) >= weight(replacement) -> line.text
+            leading -> replacement + line.text.drop(existing.length)
+            else -> line.text.dropLast(existing.length) + replacement
+        }
+        return line.copy(text = text, bounds = line.bounds.union(candidate.bounds.toDialogueBounds()))
+    }
 
     private fun Int.isChoiceTextPixel(): Boolean {
         val red = (this shr 16) and 0xff
@@ -623,10 +664,9 @@ internal object ChoicePunctuationRecovery {
     private const val DOT_MAX_GAP_RATIO = 0.55f
     private const val DOT_MAX_GAP_VARIATION_RATIO = 2.2f
     private const val DOT_MIN_SPAN_RATIO = 0.70f
-    private const val MIN_PAUSE_DOTS = 5
+    private const val MIN_PAUSE_DOTS = 3
     private const val DOTS_PER_ELLIPSIS = 3
     private const val DASH_MIN_WIDTH_RATIO = 1.65f
-    private const val DASH_MAX_WIDTH_RATIO = 6f
     private const val DASH_MAX_HEIGHT_RATIO = 0.25f
     private const val DASH_MIN_MAX_HEIGHT = 3
     private const val DASH_MIN_ASPECT_RATIO = 5f
@@ -634,11 +674,6 @@ internal object ChoicePunctuationRecovery {
     private const val DUPLICATE_OVERLAP_RATIO = 0.55f
     private const val MAX_CANDIDATE_LINE_GAP_RATIO = 2.25f
     private const val VERTICAL_TARGET_PENALTY = 0.5f
-    private const val EDGE_ATTACHMENT_TOLERANCE_RATIO = 0.35f
-    private const val EXISTING_RUN_MAX_DISTANCE_RATIO = 1.20f
-    private const val EXISTING_RUN_MAX_CHARACTER_DISTANCE = 2f
-    private const val MIN_EXISTING_PAUSE_DOTS = 2
-    private const val MIN_EXISTING_DASHES = 2
     private const val FRAGMENT_MAX_CENTER_DIFFERENCE_RATIO = 0.45f
     private const val FRAGMENT_MAX_GAP_RATIO = 0.75f
     private const val MIN_LINE_BUTTON_OVERLAP_RATIO = 0.45f
