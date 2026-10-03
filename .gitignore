@@ -115,6 +115,7 @@ app/src/test/java/com/fgogotran/accessibility/*
 !app/src/test/java/com/fgogotran/ocr/ChoicePunctuationRecoveryTest.kt
 !app/src/test/java/com/fgogotran/ocr/DialogueAnnotationCleanerTest.kt
 !app/src/test/java/com/fgogotran/ocr/DialogueRubyLayoutTest.kt
+!app/src/test/java/com/fgogotran/ocr/DialogueRubyGroupRecoveryTest.kt
 !app/src/test/java/com/fgogotran/ocr/PaddleEdgePunctuationProbeTest.kt
 !app/src/test/java/com/fgogotran/ocr/DialoguePunctuationRecoveryTest.kt
 !app/src/test/java/com/fgogotran/ocr/DialogueOcrVisualGatePaletteTest.kt

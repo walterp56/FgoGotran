@@ -154,7 +154,19 @@ private class PaddleOcrRuntime(
         val boxes = detection.boxes
             .sortedWith(compareBy({ boxMinY(it) }, { boxMinX(it) }))
 
-        val recognitionTargets = boxes.mapIndexed { index, box ->
+        val rubyPlanningStartedAt = System.currentTimeMillis()
+        val rubyGroups = if (annotationCleanup == null) emptyList() else DialogueRubyGroupRecovery.plan(
+            annotationCleanup.components,
+            boxes.map { boxToRect(it, bitmap.width, bitmap.height).toRubyGroupBox() },
+            bitmap.width,
+            bitmap.height
+        )
+        val rubyPlanningMs = System.currentTimeMillis() - rubyPlanningStartedAt
+        val supplementaryBoxes = rubyGroups.map { group -> group.bounds.toRecognitionBox() }
+        // Preserve every original target as fallback. Supplement only an incomplete upper group,
+        // in the same recognition batch; do not add a detector pass or upscale the dialogue image.
+        val targetBoxes = if (supplementaryBoxes.isEmpty()) boxes else boxes + supplementaryBoxes
+        val recognitionTargets = targetBoxes.mapIndexed { index, box ->
             val bounds = boxToRect(box, recognitionBitmap.width, recognitionBitmap.height)
             val visualDash = dialoguePixels != null && isVisualDialogueDash(
                 dialoguePixels, bitmap.width, bitmap.height, bounds
@@ -178,14 +190,20 @@ private class PaddleOcrRuntime(
                 visualDash = visualDash
             )
         }
+        val batchedRecognitionStartedAt = System.currentTimeMillis()
         val tightRecognitions = recognizePreparedTargets(
             recognitionTargets, collectPositions = contentKind == OcrContentKind.DIALOGUE
+        )
+        if (rubyGroups.isNotEmpty()) FgoLogger.debug(
+            tag, "PaddleOCR ruby groups planned: added=${rubyGroups.size}, planningMs=$rubyPlanningMs, " +
+                "combinedRecognitionMs=${System.currentTimeMillis() - batchedRecognitionStartedAt}"
         )
 
         val detectedTextBoxes = mutableListOf<PaddleDetectedTextBox>()
         var edgeRecoveryAttempts = 0
         var edgeRecoveryChanges = 0
         for (target in recognitionTargets) {
+            if (target.index >= boxes.size) break
             val tightRecognition = tightRecognitions[target.index]
             if (target.visualDash) {
                 FgoLogger.debug(
@@ -284,11 +302,11 @@ private class PaddleOcrRuntime(
             lowConfidenceEdgeFragments = lowConfidenceEdgeFragments
         )
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-        val lines = if (dialoguePixels == null) {
+        val punctuationLines = if (dialoguePixels == null) {
             mergedLines
         } else {
             val positionedLines = mergedLines.map { line ->
-                val target = recognitionTargets.firstOrNull { it.bounds == line.boundingBox }
+                val target = recognitionTargets.firstOrNull { it.index < boxes.size && it.bounds == line.boundingBox }
                 val recognition = target?.let { tightRecognitions[it.index] }
                 dialoguePunctuationLine(line, recognition, target?.box)
             }
@@ -345,6 +363,11 @@ private class PaddleOcrRuntime(
             )
             recovery.lines.map { OcrTextLine(it.text, it.bounds.toRect(), it.confidence) }
         }
+        // Supplementary annotations never participate in main-row punctuation recovery. Accept
+        // them afterwards, retaining the old lines if confidence or fragment preservation fails.
+        val lines = recoverRubyGroups(
+            punctuationLines, rubyGroups, recognitionTargets, tightRecognitions, boxes.size
+        )
 
         val fullText = lines.joinToString("\n") { it.text }
         val elapsed = System.currentTimeMillis() - startedAt
@@ -366,6 +389,49 @@ private class PaddleOcrRuntime(
                 recognitionBitmap.recycle()
             }
         }
+    }
+
+    private fun Rect.toRubyGroupBox() = DialogueRubyLayout.Box(left, top, right, bottom)
+
+    private fun DialogueRubyLayout.Box.toRecognitionBox() = floatArrayOf(
+        left.toFloat(), top.toFloat(), right.toFloat(), top.toFloat(),
+        right.toFloat(), bottom.toFloat(), left.toFloat(), bottom.toFloat()
+    )
+
+    private fun recoverRubyGroups(
+        lines: List<OcrTextLine>,
+        groups: List<DialogueRubyGroupRecovery.Group>,
+        targets: List<PaddleRecognitionTarget>,
+        recognitions: Map<Int, PaddleMaskMergeResult>,
+        originalTargetCount: Int
+    ): List<OcrTextLine> {
+        if (groups.isEmpty()) return lines
+        val output = lines.toMutableList()
+        groups.forEachIndexed { index, group ->
+            val target = targets[originalTargetCount + index]
+            val originalBounds = group.originalBoxIndices.map { targets[it].bounds }
+            val originals = output.filter { it.boundingBox in originalBounds }
+                .sortedBy { it.boundingBox.left }
+            val recognition = recognitions[target.index]
+            val overlapChanged = DialogueRubyGroupRecovery.hasUnownedOverlap(
+                group.bounds, originalBounds.map { it.toRubyGroupBox() }, output.map { it.boundingBox.toRubyGroupBox() }
+            )
+            val reason = if (overlapChanged) "overlap_changed" else DialogueRubyGroupRecovery.rejectionReason(
+                recognition?.let { DialogueRubyGroupRecovery.Reading(it.text, it.confidence) },
+                originals.map { DialogueRubyGroupRecovery.Reading(it.text, it.confidence) }
+            )
+            FgoLogger.debug(
+                tag, "PaddleOCR ruby group: box=${target.bounds.flattenToString()}, " +
+                    "components=${group.componentCount}, hint=${group.expectedBand}, " +
+                    "text=${recognition?.text.orEmpty()}, confidence=${recognition?.confidence ?: 0f}, " +
+                    "result=${reason ?: "accepted"}, originals=${originals.size}"
+            )
+            if (reason == null && recognition != null) {
+                output.removeAll(originals.toSet())
+                output += OcrTextLine(recognition.text, target.bounds, recognition.confidence.coerceIn(0f, 1f))
+            }
+        }
+        return output.sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
     }
 
     private fun readAsset(path: String): ByteArray {
