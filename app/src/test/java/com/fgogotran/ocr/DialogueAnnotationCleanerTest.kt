@@ -87,6 +87,81 @@ class DialogueAnnotationCleanerTest {
         assertTrue(before.contentEquals(result.pixels))
     }
 
+    @Test
+    fun `keeps dot-shaped ruby parts next to taller strokes in every story colour`() {
+        FgoStoryTextPalette.samples.forEach { sample ->
+            val fixture = Fixture(ink = sample.renderColor)
+            listOf(40, 90, 140, 190).forEach { centerX ->
+                fixture.drawRect(centerX - 4, 10, centerX + 4, 18)
+                fixture.drawRect(centerX + 8, 6, centerX + 11, 22)
+                fixture.drawRect(centerX - 16, 28, centerX + 16, 70)
+            }
+            val before = fixture.pixels.copyOf()
+            val result = fixture.clean()
+
+            assertEquals(0, result.maskedComponents)
+            assertTrue(before.contentEquals(result.pixels))
+        }
+    }
+
+    @Test
+    fun `keeps close dakuten-like dots above main text`() {
+        val fixture = Fixture()
+        listOf(40, 90, 140, 190).forEach { centerX ->
+            fixture.drawRect(centerX - 4, 10, centerX + 4, 18)
+            fixture.drawRect(centerX + 7, 10, centerX + 11, 14)
+            fixture.drawRect(centerX - 16, 28, centerX + 16, 70)
+        }
+        val before = fixture.pixels.copyOf()
+
+        assertTrue(before.contentEquals(fixture.clean().pixels))
+    }
+
+    @Test
+    fun `does not erase tiny neighbours omitted from component reporting`() {
+        val fixture = Fixture()
+        listOf(40, 90, 140, 190).forEach { centerX ->
+            fixture.drawRect(centerX - 4, 10, centerX + 4, 18)
+            fixture.drawRect(centerX + 5, 11, centerX + 6, 13)
+            fixture.drawRect(centerX - 16, 28, centerX + 16, 70)
+        }
+        val before = fixture.pixels.copyOf()
+
+        assertEquals(0, fixture.clean().maskedComponents)
+        assertTrue(before.contentEquals(fixture.pixels))
+        assertTrue(before.contentEquals(fixture.clean().pixels))
+    }
+
+    @Test
+    fun `still cleans a separate emphasis run beside protected ruby`() {
+        val fixture = Fixture()
+        listOf(40, 90, 140, 190).forEach { centerX ->
+            fixture.drawRect(centerX - 4, 10, centerX + 4, 18)
+            fixture.drawRect(centerX - 16, 28, centerX + 16, 70)
+        }
+        fixture.drawRect(48, 6, 51, 22)
+        val before = fixture.pixels.copyOf()
+        val result = fixture.clean()
+
+        assertEquals(3, result.maskedComponents)
+        assertEquals(1, result.maskedRows)
+        assertTrue(result.pixels[14 * fixture.width + 40].isWhite())
+        assertTrue(result.pixels[12 * fixture.width + 49].isWhite())
+        assertFalse(result.pixels[14 * fixture.width + 90].isWhite())
+        assertTrue(result.components.any { it.left == 48 && it.top == 6 })
+        assertTrue(before.contentEquals(fixture.pixels))
+    }
+
+    @Test
+    fun `preserves a thin trailing dash`() {
+        val fixture = Fixture()
+        fixture.drawRect(24, 30, 150, 72)
+        fixture.drawRect(162, 49, 227, 52)
+        val before = fixture.pixels.copyOf()
+
+        assertTrue(before.contentEquals(fixture.clean().pixels))
+    }
+
     private class Fixture(
         val width: Int = 240,
         private val height: Int = 96,

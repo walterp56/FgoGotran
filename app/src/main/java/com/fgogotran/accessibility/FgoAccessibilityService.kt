@@ -37,6 +37,7 @@ import com.fgogotran.game.FgoPackages
 import com.fgogotran.game.ForegroundTestOverride
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.ocr.ChoicePunctuationRecovery
+import com.fgogotran.ocr.DialogueRubyLayout
 import com.fgogotran.ocr.FgoStoryTextPalette
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrEngineId
@@ -3069,7 +3070,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     rubyDetectionMode = RubyDetectionMode.STRICT,
                     needVoiceText = needVoiceText,
                     sourceBitmap = source,
-                    scope = textInkScope(region.region)
+                    scope = textInkScope(region.region),
+                    useDialogueRubyLayout = region.region == TextRegion.DIALOGUE_BOX
                 )
             }
             TextRegion.NAME_LABEL -> null
@@ -3395,11 +3397,24 @@ class FgoAccessibilityService : AccessibilityService() {
         rubyDetectionMode: RubyDetectionMode,
         needVoiceText: Boolean = true,
         sourceBitmap: Bitmap? = null,
-        scope: FgoStoryTextPalette.Scope = FgoStoryTextPalette.Scope.STORY
+        scope: FgoStoryTextPalette.Scope = FgoStoryTextPalette.Scope.STORY,
+        useDialogueRubyLayout: Boolean = false
     ): DialogueSourceText {
         // Dialogue OCR already runs in its own crop. A punctuation-only row such as `……。`
         // is therefore real dialogue, not name ruby, and must survive the ruby-noise filter.
-        val cleanedLines = cleanRubyNoiseLines(lines, preserveLongPauses = true)
+        val dialogueHeightReference = if (useDialogueRubyLayout) {
+            DialogueRubyLayout.heightReference(
+                lines.filter { line -> line.text.any { it.isLetterOrDigit() } }
+                    .map { it.toRubyLayoutBox() }
+            ).takeIf { it > 0 }
+        } else {
+            null
+        }
+        val cleanedLines = cleanRubyNoiseLines(
+            lines,
+            preserveLongPauses = true,
+            heightReferenceOverride = dialogueHeightReference
+        )
         if (cleanedLines.size < 2) {
             val text = cleanedLines.joinToString("\n") { it.text }.trim()
             return DialogueSourceText(
@@ -3421,7 +3436,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         }
 
-        val heightReference = rubyHeightReference(sorted)
+        val heightReference = dialogueHeightReference ?: rubyHeightReference(sorted)
         val rubySizedLines = sorted.filter { line -> isRubySizedLine(line, heightReference) }
         val potentialMainCandidates = sorted.filterNot { it in rubySizedLines }
         if (potentialMainCandidates.isEmpty()) {
@@ -3446,7 +3461,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 mainLineBounds = sorted.toDialogueRenderLineBounds()
             )
         }
-        val mergedRubyCandidates = mergeRubyFragments(rubyCandidates, heightReference)
+        val mergedRubyCandidates = mergeRubyFragments(rubyCandidates, heightReference, useDialogueRubyLayout)
         if (mergedRubyCandidates.size != rubyCandidates.size) {
             FgoLogger.debug(
                 tag,
@@ -3586,7 +3601,8 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun cleanRubyNoiseLines(
         lines: List<OcrTextLine>,
-        preserveLongPauses: Boolean = false
+        preserveLongPauses: Boolean = false,
+        heightReferenceOverride: Int? = null
     ): List<OcrTextLine> {
         val sorted = lines
             .filter { it.text.isNotBlank() }
@@ -3598,7 +3614,7 @@ class FgoAccessibilityService : AccessibilityService() {
             }
         }
 
-        val heightReference = rubyHeightReference(sorted)
+        val heightReference = heightReferenceOverride ?: rubyHeightReference(sorted)
         val meaningfulLines = sorted.filterNot { isRubyDotNoiseLine(it) }
         if (meaningfulLines.isEmpty()) {
             return if (preserveLongPauses) {
@@ -3727,21 +3743,33 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun mergeRubyFragments(
         rubies: List<OcrTextLine>,
-        heightReference: Int
+        heightReference: Int,
+        useDialogueRubyLayout: Boolean = false
     ): List<OcrTextLine> {
         if (rubies.size < 2) return rubies
-        val sorted = rubies.sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
-        val merged = mutableListOf<OcrTextLine>()
-        for (ruby in sorted) {
-            val previous = merged.lastOrNull()
-            if (previous != null && canMergeRubyFragments(previous, ruby, heightReference)) {
-                merged[merged.lastIndex] = mergeRubyLines(previous, ruby)
-            } else {
-                merged += ruby
-            }
+        val rows = if (useDialogueRubyLayout) {
+            DialogueRubyLayout.orderedRows(rubies.map { it.toRubyLayoutBox() }, heightReference)
+                .map { row -> row.map(rubies::get) }
+        } else {
+            listOf(rubies.sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left })))
         }
-        return merged
+        return rows.flatMap { row ->
+            val merged = mutableListOf<OcrTextLine>()
+            for (ruby in row) {
+                val previous = merged.lastOrNull()
+                if (previous != null && canMergeRubyFragments(previous, ruby, heightReference)) {
+                    merged[merged.lastIndex] = mergeRubyLines(previous, ruby)
+                } else {
+                    merged += ruby
+                }
+            }
+            merged
+        }
     }
+
+    private fun OcrTextLine.toRubyLayoutBox() = DialogueRubyLayout.Box(
+        boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom
+    )
 
     private fun canMergeRubyFragments(
         first: OcrTextLine,

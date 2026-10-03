@@ -10,8 +10,8 @@ import kotlin.math.roundToInt
  *
  * Emphasis dots are an annotation layer: small, filled, evenly aligned components immediately
  * above separate full-size glyphs. They are not dialogue punctuation and must not be sent through
- * the recognizer together with the main row. Readable ruby is deliberately left alone; its shapes
- * do not satisfy the filled-dot geometry below and the existing ruby formatter handles it later.
+ * the recognizer together with the main row. A dot near other upper-band ink may instead be part
+ * of readable ruby, so uncertain candidates are left for OCR and the existing ruby formatter.
  */
 internal object DialogueAnnotationCleaner {
     data class Result(
@@ -63,6 +63,9 @@ internal object DialogueAnnotationCleaner {
             if (!component.isDotCandidate(maximumDotSide)) return@mapNotNull null
             val evidence = mainEvidenceBelow(component, foreground, width, height)
                 ?: return@mapNotNull null
+            if (hasSurroundingRubyInk(component, evidence, foreground, width, height)) {
+                return@mapNotNull null
+            }
             DotCandidate(component, evidence)
         }
         if (candidates.size < MIN_DOTS_PER_EMPHASIS_ROW) {
@@ -82,21 +85,46 @@ internal object DialogueAnnotationCleaner {
             .distinct()
         val cleaned = pixels.copyOf()
         emphasisComponents.forEach { component ->
-            maskComponent(cleaned, width, height, component)
+            maskComponent(cleaned, pixels, width, height, component)
         }
+        val masked = emphasisComponents.toSet()
         return Result(
             pixels = cleaned,
             maskedComponents = emphasisComponents.size,
             maskedRows = emphasisRows.size,
-            components = components.filterNot { component ->
-                emphasisComponents.any { masked ->
-                    component.left < masked.right + MASK_PADDING &&
-                        component.right > masked.left - MASK_PADDING &&
-                        component.top < masked.bottom + MASK_PADDING &&
-                        component.bottom > masked.top - MASK_PADDING
-                }
-            }
+            components = components.filterNot { it in masked }
         )
+    }
+
+    /** Inspect only a small upper-band neighbourhood, reusing the original foreground mask. */
+    private fun hasSurroundingRubyInk(
+        dot: Component,
+        main: MainEvidence,
+        foreground: BooleanArray,
+        width: Int,
+        height: Int
+    ): Boolean {
+        val side = max(dot.width, dot.height)
+        val horizontalGap = max(MASK_PADDING, (side * RUBY_NEIGHBOUR_HORIZONTAL_RATIO).roundToInt())
+        val verticalGap = max(MASK_PADDING, (side * RUBY_NEIGHBOUR_VERTICAL_RATIO).roundToInt())
+        val left = (dot.left - horizontalGap).coerceAtLeast(0)
+        val right = (dot.right + horizontalGap).coerceAtMost(width)
+        val top = (dot.top - verticalGap).coerceAtLeast(0)
+        val bottom = min(height, min(main.top, dot.bottom + verticalGap))
+        var surroundingInk = 0
+        for (y in top until bottom) {
+            for (x in left until right) {
+                if (x in dot.left until dot.right && y in dot.top until dot.bottom) continue
+                if (!foreground[y * width + x]) continue
+                // Even a tiny, unreported component must not be erased by the padded mask.
+                if (x >= dot.left - MASK_PADDING && x < dot.right + MASK_PADDING &&
+                    y >= dot.top - MASK_PADDING && y < dot.bottom + MASK_PADDING
+                ) return true
+                surroundingInk++
+                if (surroundingInk >= MIN_COMPONENT_PIXELS) return true
+            }
+        }
+        return false
     }
 
     private fun connectedComponents(
@@ -277,6 +305,7 @@ internal object DialogueAnnotationCleaner {
 
     private fun maskComponent(
         pixels: IntArray,
+        originalPixels: IntArray,
         width: Int,
         height: Int,
         component: Component
@@ -289,8 +318,8 @@ internal object DialogueAnnotationCleaner {
             val sampleDistance = MASK_PADDING + 1
             val leftSampleX = (left - sampleDistance).coerceAtLeast(0)
             val rightSampleX = (right + sampleDistance - 1).coerceAtMost(width - 1)
-            val leftPixel = pixels[y * width + leftSampleX]
-            val rightPixel = pixels[y * width + rightSampleX]
+            val leftPixel = originalPixels[y * width + leftSampleX]
+            val rightPixel = originalPixels[y * width + rightSampleX]
             val background = if (leftPixel.luminance() <= rightPixel.luminance()) leftPixel else rightPixel
             val row = y * width
             for (x in left until right) pixels[row + x] = background
@@ -338,4 +367,6 @@ internal object DialogueAnnotationCleaner {
     private const val MAX_MAIN_TOP_VARIATION_RATIO = 0.40f
     private const val MAX_CENTER_GAP_VARIATION_RATIO = 1.55f
     private const val MASK_PADDING = 2
+    private const val RUBY_NEIGHBOUR_HORIZONTAL_RATIO = 1.50f
+    private const val RUBY_NEIGHBOUR_VERTICAL_RATIO = 0.75f
 }
