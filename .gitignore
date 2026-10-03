@@ -125,3 +125,9 @@ app/src/test/java/com/fgogotran/accessibility/*
 !app/src/test/java/com/fgogotran/overlay/
 app/src/test/java/com/fgogotran/overlay/*
 !app/src/test/java/com/fgogotran/overlay/DialogueRenderGeometryTest.kt
+# Retain the focused semi-auto tap-handoff regressions.
+!app/src/test/java/com/fgogotran/story/
+app/src/test/java/com/fgogotran/story/*
+!app/src/test/java/com/fgogotran/story/StoryTapHandoffTest.kt
+!app/src/test/java/com/fgogotran/story/DialogueTapVisualGateTest.kt
+!app/src/test/java/com/fgogotran/story/StoryChoiceHandoffTest.kt
