@@ -140,3 +140,4 @@ app/src/test/java/com/fgogotran/util/*
 !app/src/test/java/com/fgogotran/util/FramePixelReaderTest.kt
 !app/src/test/java/com/fgogotran/overlay/ChoicePixelSamplerTest.kt
 !app/src/test/java/com/fgogotran/story/StoryFramePixelsTest.kt
+docs/
