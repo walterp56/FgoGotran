@@ -146,4 +146,7 @@ app/src/test/java/com/fgogotran/util/*
 # Retain the narrow AUTO one-row guard and existing render-row regression fixtures.
 !app/src/test/java/com/fgogotran/story/AutoDialogueHandoffPolicyTest.kt
 !app/src/test/java/com/fgogotran/overlay/DialogueRenderTextPolicyTest.kt
+# Retain the character-context language-selection and prompt-scope regressions.
+!app/src/test/java/com/fgogotran/translation/CharacterContextRepositoryTest.kt
+!app/src/test/java/com/fgogotran/translation/CharacterContextPromptTest.kt
 docs/

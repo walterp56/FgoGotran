@@ -1050,10 +1050,16 @@ class Translator @Inject constructor(
                     activeCurrentSpeaker.isBlank()
             }
         val activeCharacterContextPrompt = activeCharacterContext
-            ?.promptFor(isSakuraModel = useSakuraPrompt)
+            ?.promptFor(
+                targetLanguage = promptTargetLanguage(config),
+                isSakuraModel = useSakuraPrompt
+            )
             .orEmpty()
         val activeCharacterContextCacheIdentity = activeCharacterContext
-            ?.cacheIdentityFor(isSakuraModel = useSakuraPrompt)
+            ?.cacheIdentityFor(
+                targetLanguage = promptTargetLanguage(config),
+                isSakuraModel = useSakuraPrompt
+            )
             .orEmpty()
         val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts)
         val promptPolicyKey = when {
@@ -1994,10 +2000,16 @@ class Translator @Inject constructor(
             characterContextRepository.resolveProfileOrNull(normalizedName)
         }
         val characterContextPrompt = characterContext
-            ?.promptFor(isSakuraModel = useSakuraPrompt)
+            ?.promptFor(
+                targetLanguage = promptTargetLanguage(config),
+                isSakuraModel = useSakuraPrompt
+            )
             .orEmpty()
         val characterContextCacheIdentity = characterContext
-            ?.cacheIdentityFor(isSakuraModel = useSakuraPrompt)
+            ?.cacheIdentityFor(
+                targetLanguage = promptTargetLanguage(config),
+                isSakuraModel = useSakuraPrompt
+            )
             .orEmpty()
         val dialogueKey = normalizedDialogue?.let {
             cacheKey(

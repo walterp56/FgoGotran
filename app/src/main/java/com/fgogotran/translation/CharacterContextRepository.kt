@@ -1,6 +1,7 @@
 package com.fgogotran.translation
 
 import android.content.Context
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.text.Normalizer
@@ -11,16 +12,28 @@ data class CharacterContextProfile internal constructor(
     val speakerId: String,
     val aliases: List<String>,
     val generalPrompt: String,
-    val sakuraPrompt: String
+    val sakuraPrompt: String,
+    val englishPrompt: String
 ) {
-    internal fun promptFor(isSakuraModel: Boolean): String =
-        if (isSakuraModel) sakuraPrompt else generalPrompt
+    internal fun promptFor(targetLanguage: String, isSakuraModel: Boolean): String =
+        when (promptVariantFor(targetLanguage, isSakuraModel)) {
+            "english" -> englishPrompt
+            "sakura" -> sakuraPrompt
+            else -> generalPrompt
+        }
 
-    internal fun cacheIdentityFor(isSakuraModel: Boolean): String = listOf(
+    internal fun cacheIdentityFor(targetLanguage: String, isSakuraModel: Boolean): String = listOf(
         speakerId,
-        if (isSakuraModel) "sakura" else "general",
-        promptFor(isSakuraModel)
+        promptVariantFor(targetLanguage, isSakuraModel),
+        promptFor(targetLanguage, isSakuraModel)
     ).joinToString("\u001D")
+
+    private fun promptVariantFor(targetLanguage: String, isSakuraModel: Boolean): String = when {
+        SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> "english"
+        isSakuraModel -> "sakura"
+        else -> "general"
+    }
 }
 
 @Singleton
@@ -86,7 +99,7 @@ internal fun parseCharacterContextProfiles(
     }
 
     return rows.drop(1).map { (lineNumber, line) ->
-        val columns = line.split('\t', limit = CHARACTER_CONTEXT_HEADER.size)
+        val columns = line.split('\t')
         require(columns.size == CHARACTER_CONTEXT_HEADER.size) {
             "Character context TSV line $lineNumber must have ${CHARACTER_CONTEXT_HEADER.size} columns"
         }
@@ -98,6 +111,7 @@ internal fun parseCharacterContextProfiles(
             .distinct()
         val generalPrompt = columns[2].normalizeCharacterContextPrompt()
         val sakuraPrompt = columns[3].normalizeCharacterContextPrompt()
+        val englishPrompt = columns[4].normalizeCharacterContextPrompt()
         require(speakerId.isNotBlank()) { "Blank speaker_id at character context TSV line $lineNumber" }
         require(generalPrompt.isNotBlank()) {
             "Blank prompt_general at character context TSV line $lineNumber"
@@ -105,17 +119,24 @@ internal fun parseCharacterContextProfiles(
         require(sakuraPrompt.isNotBlank()) {
             "Blank prompt_sakura at character context TSV line $lineNumber"
         }
+        require(englishPrompt.isNotBlank()) {
+            "Blank prompt_english at character context TSV line $lineNumber"
+        }
         require(generalPrompt.length <= CHARACTER_CONTEXT_PROMPT_MAX_CHARS) {
             "Character context prompt_general is too long at line $lineNumber: ${generalPrompt.length} chars"
         }
         require(sakuraPrompt.length <= CHARACTER_CONTEXT_PROMPT_MAX_CHARS) {
             "Character context prompt_sakura is too long at line $lineNumber: ${sakuraPrompt.length} chars"
         }
+        require(englishPrompt.length <= CHARACTER_CONTEXT_PROMPT_MAX_CHARS) {
+            "Character context prompt_english is too long at line $lineNumber: ${englishPrompt.length} chars"
+        }
         CharacterContextProfile(
             speakerId = speakerId,
             aliases = aliases,
             generalPrompt = generalPrompt,
-            sakuraPrompt = sakuraPrompt
+            sakuraPrompt = sakuraPrompt,
+            englishPrompt = englishPrompt
         )
     }
 }
@@ -169,5 +190,5 @@ private fun String.normalizeCharacterContextPrompt(): String =
     replace(Regex("\\s+"), " ").trim()
 
 private val CHARACTER_CONTEXT_HEADER =
-    listOf("speaker_id", "aliases", "prompt_general", "prompt_sakura")
+    listOf("speaker_id", "aliases", "prompt_general", "prompt_sakura", "prompt_english")
 private const val CHARACTER_CONTEXT_PROMPT_MAX_CHARS = 800
