@@ -22,7 +22,7 @@ internal class StoryTapHandoff(
         val height: Int,
         val kind: Kind,
         val choiceHitBounds: List<FgoReferenceRect>,
-        val choices: ChoiceFrame?
+        var choices: ChoiceFrame?
     )
 
     private var renderedScene: RenderedScene? = null
@@ -32,6 +32,9 @@ internal class StoryTapHandoff(
     private var choicesDeparted = false
     private var absentFrames = 0
     private var choiceCandidate: ChoiceFrame? = null
+    private var renderedAutoChoices = false
+    private var unchangedChoicesObservedAt = Long.MIN_VALUE
+    private var autoChoiceVerificationPending = false
     private var touchMayAdvance = false
     private var downX = 0f
     private var downY = 0f
@@ -62,6 +65,9 @@ internal class StoryTapHandoff(
         } else {
             null
         }
+        renderedAutoChoices = autoRenderCommitted && renderedScene?.kind == Kind.CHOICES
+        unchangedChoicesObservedAt = Long.MIN_VALUE
+        autoChoiceVerificationPending = false
         if (autoRenderCommitted) autoRenderGeneration++
     }
 
@@ -125,8 +131,42 @@ internal class StoryTapHandoff(
     /** Two ordinary captures without panels establish departure, not a single animation frame. */
     fun onChoicesAbsent() {
         choiceCandidate = null
+        unchangedChoicesObservedAt = Long.MIN_VALUE
         absentFrames++
         if (absentFrames >= 2) choicesDeparted = true
+    }
+
+    /** AUTO only: reuse the displayed choice masks, not OCR or a second observation owner. */
+    fun shouldSkipRenderedChoices(frame: ChoiceFrame, now: Long, dialogueMayBePresent: Boolean): Boolean {
+        absentFrames = 0
+        val displayed = renderedScene?.choices
+        if (dialogueMayBePresent || !renderedAutoChoices || choicesDeparted || pendingScene != null ||
+            !frame.hasText || displayed == null || !displayed.sameText(frame)
+        ) {
+            unchangedChoicesObservedAt = Long.MIN_VALUE
+            return false
+        }
+        if (autoChoiceVerificationPending) return false
+        if (unchangedChoicesObservedAt == Long.MIN_VALUE) unchangedChoicesObservedAt = now
+        // Recheck on ordinary captures: tiny ruby/punctuation may fall between sampled columns.
+        if (now - unchangedChoicesObservedAt >= MAX_UNCHANGED_CHOICE_SKIP_MS) {
+            autoChoiceVerificationPending = true
+            return false
+        }
+        return true
+    }
+
+    /** A panel-free transition can happen without a replayed tap; repeated options are legitimate. */
+    fun hasDepartedRenderedAutoChoices(): Boolean =
+        renderedAutoChoices && renderedScene != null && choicesDeparted
+
+    /** Verification recognized the already displayed source; failures must never call this. */
+    fun acceptAutoChoiceObservation(frame: ChoiceFrame?) {
+        if (frame == null || !frame.hasText || !renderedAutoChoices || choicesDeparted || pendingScene != null) return
+        if (renderedScene?.choices?.sameGeometry(frame) != true) return
+        renderedScene?.choices = frame
+        unchangedChoicesObservedAt = Long.MIN_VALUE
+        autoChoiceVerificationPending = false
     }
 
     fun observeChoices(frame: ChoiceFrame, now: Long): ChoiceAction {
@@ -156,11 +196,16 @@ internal class StoryTapHandoff(
 
     fun clear() {
         renderedScene = null
+        renderedAutoChoices = false
+        unchangedChoicesObservedAt = Long.MIN_VALUE
+        autoChoiceVerificationPending = false
         finishPending()
         cancelTouch()
     }
 
     companion object {
+        private const val MAX_UNCHANGED_CHOICE_SKIP_MS = 1_200L
+
         fun sampleChoices(
             width: Int,
             height: Int,
@@ -220,12 +265,16 @@ internal class StoryTapHandoff(
     ) {
         val hasText: Boolean get() = masks.isNotEmpty() && masks.all { it.ink > 0 }
 
-        fun sameText(other: ChoiceFrame): Boolean =
+        fun sameGeometry(other: ChoiceFrame): Boolean =
             width == other.width && height == other.height && masks.size == other.masks.size &&
+                masks.indices.all { masks[it].bounds == other.masks[it].bounds }
+
+        fun sameText(other: ChoiceFrame): Boolean =
+            sameGeometry(other) &&
                 masks.indices.all { index ->
                     val a = masks[index]
                     val b = other.masks[index]
-                    a.bounds == b.bounds && a.words.contentEquals(b.words)
+                    a.words.contentEquals(b.words)
                 }
 
         /** A selection animation may remove old buttons one at a time. Those are not new rows. */

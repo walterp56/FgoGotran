@@ -32,7 +32,8 @@ internal object DialogueRenderTextPolicy {
         .lineSequence()
         .count { it.isNotBlank() }
 
-    private fun visualRowCount(sourceLines: List<LineBounds>): Int {
+    /** Shared with the AUTO handoff guard; callers must supply main-text bounds, not ruby. */
+    fun visualRowCount(sourceLines: List<LineBounds>): Int {
         val rows = mutableListOf<LineBounds>()
         sourceLines
             .filter { it.bottom > it.top }

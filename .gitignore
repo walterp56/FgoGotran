@@ -140,4 +140,10 @@ app/src/test/java/com/fgogotran/util/*
 !app/src/test/java/com/fgogotran/util/FramePixelReaderTest.kt
 !app/src/test/java/com/fgogotran/overlay/ChoicePixelSamplerTest.kt
 !app/src/test/java/com/fgogotran/story/StoryFramePixelsTest.kt
+# Retain AUTO unchanged-choice and content-aware retry regressions.
+!app/src/test/java/com/fgogotran/story/AutoChoiceVisualGateTest.kt
+!app/src/test/java/com/fgogotran/story/ChoiceEmptyOcrCooldownTest.kt
+# Retain the narrow AUTO one-row guard and existing render-row regression fixtures.
+!app/src/test/java/com/fgogotran/story/AutoDialogueHandoffPolicyTest.kt
+!app/src/test/java/com/fgogotran/overlay/DialogueRenderTextPolicyTest.kt
 docs/
