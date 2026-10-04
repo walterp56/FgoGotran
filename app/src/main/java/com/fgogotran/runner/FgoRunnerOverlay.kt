@@ -77,6 +77,7 @@ class FgoRunnerOverlay @Inject constructor(
     private var onLiveVoiceTranslationToggleRequested: ((Boolean) -> Unit)? = null
     private var shown = false
     private var cropModeState = CropModeState.IDLE
+    private var cropLoadingJob: Job? = null
     private var modeBeforeCrop: TranslationMode? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val overlayScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -381,6 +382,21 @@ class FgoRunnerOverlay @Inject constructor(
             updateButtonMode()
         } else {
             mainHandler.post { updateButtonMode() }
+        }
+    }
+
+    /** Display-only: retain the crop icon while the accepted request is loading. */
+    fun showCropTranslationLoading(job: Job) {
+        cropLoadingJob = job
+        refreshButtonMode()
+        job.invokeOnCompletion {
+            mainHandler.post {
+                // An older request must not clear a newer request's indicator.
+                if (cropLoadingJob === job) {
+                    cropLoadingJob = null
+                    refreshButtonMode()
+                }
+            }
         }
     }
 
@@ -841,6 +857,7 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun cancelCropMode() {
         cropModeState = CropModeState.IDLE
+        cropLoadingJob = null
         cropSelectionOverlay.hide()
         restoreModeAfterCropSelection(modeBeforeCrop)
         modeBeforeCrop = null
@@ -871,7 +888,8 @@ class FgoRunnerOverlay @Inject constructor(
         val japaneseServer = isJapaneseServer()
         val translationMode = TranslationTrigger.translationMode()
         val normalMode = when {
-            cropModeState == CropModeState.SELECTING && japaneseServer -> FloatingButtonMode.CROP
+            japaneseServer && (cropModeState == CropModeState.SELECTING || cropLoadingJob?.isActive == true) ->
+                FloatingButtonMode.CROP
             translationMode == TranslationMode.SEMI_AUTO -> FloatingButtonMode.SEMI_AUTO
             translationMode == TranslationMode.AUTO -> FloatingButtonMode.AUTO
             else -> FloatingButtonMode.MANUAL

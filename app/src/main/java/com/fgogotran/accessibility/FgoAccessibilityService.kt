@@ -1012,6 +1012,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
             }
         }
+        cropTranslationJob?.let { runnerOverlay.showCropTranslationLoading(it) }
         return true
     }
 

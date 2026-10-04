@@ -73,7 +73,7 @@
     <string name="api_error_provider_rejected">模型或請求參數不被服務商接受：%1$s</string>
     <string name="api_error_quota">額度或頻率限制異常：%1$s</string>
     <string name="api_error_empty_response">模型回傳為空</string>
-    <string name="api_error_untranslated">模型沒有按 FgoGotran 翻譯格式回傳中文</string>
+    <string name="api_error_untranslated">模型未按 FgoGotran 要求的格式回傳有效譯文</string>
     <string name="api_error_timeout">連線模型逾時，請確認電腦端模型已載入完成</string>
     <string name="api_error_connect">無法連線伺服器，請檢查電腦 IP、連接埠、防火牆和 VPN 的區域網路放行設定</string>
     <string name="api_error_provider">服務商傳回錯誤：%1$s</string>
@@ -199,7 +199,7 @@
     <string name="guide_auto_42">半</string>
     <string name="guide_auto_43">全</string>
     <string name="guide_auto_44">战</string>
-    <string name="settings_auto_1">提供最近场景的日文与中文对照；模型误译前文时可关闭；会增加Token消耗(云端API)</string>
+    <string name="settings_auto_1">提供最近場景的日文與譯文對照；模型誤譯前文時可關閉；會增加Token消耗(雲端API)</string>
     <string name="settings_auto_2">默认关闭：送翻译前会移除〈…〉注音，注音有时会干扰翻译质量；需要读音提示时可打开</string>
     <string name="settings_auto_3">默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。</string>
     <string name="settings_auto_4">相同原文可直接使用上次翻译，速度更快；\n遇到旧译文时可以清除缓存。</string>
@@ -267,7 +267,7 @@
     <string name="voice_auto_4">当前模型 Sakura 不支持 AI 语气增强，将自动使用本机语气规则。切换到其他模型后会恢复已保存的选择。</string>
     <string name="voice_auto_5">https://资源名.cognitiveservices.azure.cn</string>
     <string name="voice_auto_6">测试例句：玛修・基列莱特，在此。御主……战斗准备完成，请下达指示。</string>
-    <string name="voice_auto_7">捕获播放的日语语音，直接通过 Azure 显示中文流式字幕。</string>
+    <string name="voice_auto_7">透過 Azure 將日語遊戲語音即時翻譯為字幕。</string>
     <string name="voice_auto_8">仅保存在本机，用于 AI 语音朗读和已启用的实时语音翻译。</string>
     <string name="voice_auto_9">瑪修・基列萊特，在此。御主……戰鬥準備完成，請下達指示。</string>
     <string name="voice_auto_10">玛修·基列莱特，在此。御主……战斗准备完成，请下达指示。</string>

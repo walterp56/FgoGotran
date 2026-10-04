@@ -73,7 +73,7 @@
     <string name="api_error_provider_rejected">Provider rejected model/parameters: %1$s</string>
     <string name="api_error_quota">Quota/rate limit issue: %1$s</string>
     <string name="api_error_empty_response">Empty model response</string>
-    <string name="api_error_untranslated">Model did not return FgoGotran format</string>
+    <string name="api_error_untranslated">Model did not return a valid translation in the required FgoGotran format</string>
     <string name="api_error_timeout">Model timeout. Check that the PC model is loaded.</string>
     <string name="api_error_connect">Cannot reach server. Check IP, port, firewall, and VPN/LAN.</string>
     <string name="api_error_provider">Provider error: %1$s</string>
@@ -199,7 +199,7 @@
     <string name="guide_auto_42">S</string>
     <string name="guide_auto_43">A</string>
     <string name="guide_auto_44">B</string>
-    <string name="settings_auto_1">Provides recent scene context in Japanese and Chinese; disable if the model misreads earlier text; increases token usage on cloud APIs.</string>
+    <string name="settings_auto_1">Provides recent scene context using Japanese text and its translation; disable if the model misreads earlier text; increases token usage on cloud APIs.</string>
     <string name="settings_auto_2">Off by default: ruby annotations are removed before translation because they can hurt quality. Enable if you need reading hints.</string>
     <string name="settings_auto_3">Default engine. Fast startup and low power use. Recognizes on-device with Google ML Kit.</string>
     <string name="settings_auto_4">Identical source text reuses the previous translation for speed.\nClear the cache if you see stale translations.</string>
@@ -267,7 +267,7 @@
     <string name="voice_auto_4">The current Sakura model does not support AI expression. Local expression rules will be used; switching models restores your saved choice.</string>
     <string name="voice_auto_5">https://resource-name.cognitiveservices.azure.cn</string>
     <string name="voice_auto_6">Test sentence: Mash Kyrielight, reporting. Master... combat preparation complete. Awaiting your orders.</string>
-    <string name="voice_auto_7">Captures playing Japanese audio and shows Chinese streaming subtitles via Azure.</string>
+    <string name="voice_auto_7">Translates Japanese game audio into live subtitles via Azure.</string>
     <string name="voice_auto_8">Stored only on this device for AI voice playback and live voice translation when enabled.</string>
     <string name="voice_auto_9">Mash Kyrielight, reporting. Master... combat preparation complete. Awaiting your orders.</string>
     <string name="voice_auto_10">Mash Kyrielight, reporting. Master... combat preparation complete. Awaiting your orders.</string>
