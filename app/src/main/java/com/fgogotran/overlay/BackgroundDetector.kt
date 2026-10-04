@@ -27,6 +27,7 @@ class BackgroundDetector @Inject constructor() {
         private const val MIN_CHOICE_LEFT_ANCHOR_DARK_RATIO = 0.58f
         private const val MIN_CHOICE_RIGHT_ANCHOR_DARK_RATIO = 0.48f
         private const val MIN_CHOICE_HEIGHT = 30
+        private const val MAX_CHOICE_LIGHT_GAP_ROWS = 3
         private const val MIN_FIXED_CHOICE_SLOT_DARK_RATIO = 0.46f
         private const val MIN_FIXED_CHOICE_RAW_OVERLAP_RATIO = 0.22f
         private const val MIN_FIXED_CHOICE_BORDER_RATIO = 0.08f
@@ -131,29 +132,35 @@ class BackgroundDetector @Inject constructor() {
     fun detectChoiceButtons(bitmap: Bitmap, searchRegion: Rect): List<Rect> =
         detectChoiceButtons(bitmap, searchRegion, bitmap.framePixels())
 
+    /** Negative-only shortcut; possible panels still use the unchanged full detector. */
+    internal fun mayContainChoiceButtons(
+        bitmap: Bitmap,
+        searchRegion: Rect,
+        pixels: FramePixelReader
+    ): Boolean {
+        if (pixels.width != bitmap.width || pixels.height != bitmap.height) return true
+        val bounds = choiceSearchBounds(bitmap, searchRegion)
+        return ChoicePixelSampler(pixels).mayContainDarkPanelRows(
+            anchor = choiceLeftAnchor(bounds).pixelBounds(),
+            minimumHeight = minimumChoiceHeight(bitmap.height),
+            maximumGapRows = MAX_CHOICE_LIGHT_GAP_ROWS,
+            minimumDarkRatio = MIN_CHOICE_LEFT_ANCHOR_DARK_RATIO
+        )
+    }
+
     internal fun detectChoiceButtons(
         bitmap: Bitmap,
         searchRegion: Rect,
         pixels: FramePixelReader
     ): List<Rect> {
-        val bounds = Rect(
-            searchRegion.left.coerceIn(0, bitmap.width),
-            searchRegion.top.coerceIn(0, bitmap.height),
-            searchRegion.right.coerceIn(0, bitmap.width),
-            searchRegion.bottom.coerceIn(0, bitmap.height)
-        )
+        val bounds = choiceSearchBounds(bitmap, searchRegion)
         if (bounds.width() <= 0 || bounds.height() <= 0) return emptyList()
 
-        val minHeight = (bitmap.height * 0.055f).toInt().coerceAtLeast(MIN_CHOICE_HEIGHT)
+        val minHeight = minimumChoiceHeight(bitmap.height)
         val maxHeight = (bitmap.height * 0.15f).toInt().coerceAtLeast(120)
         val edgePadding = (bitmap.height * 0.006f).toInt().coerceAtLeast(3)
         val width = bounds.width()
-        val leftAnchor = Rect(
-            bounds.left + (width * CHOICE_LEFT_ANCHOR_START_RATIO).toInt(),
-            bounds.top,
-            bounds.left + (width * CHOICE_LEFT_ANCHOR_END_RATIO).toInt(),
-            bounds.bottom
-        )
+        val leftAnchor = choiceLeftAnchor(bounds)
         val rightAnchor = Rect(
             bounds.left + (width * CHOICE_RIGHT_ANCHOR_START_RATIO).toInt(),
             bounds.top,
@@ -198,7 +205,7 @@ class BackgroundDetector @Inject constructor() {
                 lightGapRows = 0
             } else if (darkRunStart != null) {
                 lightGapRows++
-                if (lightGapRows > 3) {
+                if (lightGapRows > MAX_CHOICE_LIGHT_GAP_ROWS) {
                     finishRun(lastDarkRow + 1)
                 }
             }
@@ -211,6 +218,23 @@ class BackgroundDetector @Inject constructor() {
         FgoLogger.info(tag, "Choice zone detected ${buttons.size} panels in $bounds ${buttons.map { it.flattenToString() }}")
         return buttons
     }
+
+    private fun choiceSearchBounds(bitmap: Bitmap, searchRegion: Rect): Rect = Rect(
+        searchRegion.left.coerceIn(0, bitmap.width),
+        searchRegion.top.coerceIn(0, bitmap.height),
+        searchRegion.right.coerceIn(0, bitmap.width),
+        searchRegion.bottom.coerceIn(0, bitmap.height)
+    )
+
+    private fun choiceLeftAnchor(bounds: Rect): Rect = Rect(
+        bounds.left + (bounds.width() * CHOICE_LEFT_ANCHOR_START_RATIO).toInt(),
+        bounds.top,
+        bounds.left + (bounds.width() * CHOICE_LEFT_ANCHOR_END_RATIO).toInt(),
+        bounds.bottom
+    )
+
+    private fun minimumChoiceHeight(bitmapHeight: Int): Int =
+        (bitmapHeight * 0.055f).toInt().coerceAtLeast(MIN_CHOICE_HEIGHT)
 
     fun snapChoiceButtonsToFixedSlots(
         bitmap: Bitmap,

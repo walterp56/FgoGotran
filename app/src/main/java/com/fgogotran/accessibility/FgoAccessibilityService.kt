@@ -2405,7 +2405,24 @@ class FgoAccessibilityService : AccessibilityService() {
         if (!dialogueComplete) {
             storyOcrVisualGate.reset()
         }
-        val choiceBounds = detectChoiceBounds(source, screenRegions, frame.pixels)
+        val mayContainChoices = if (dialogueComplete && !dialogueCompleteByFallback) {
+            val gateStartedAt = SystemClock.elapsedRealtime()
+            val possible = withContext(Dispatchers.Default) {
+                backgroundDetector.mayContainChoiceButtons(source, screenRegions.choiceSearch, frame.pixels)
+            }
+            FgoLogger.debug(tag, "Auto choice gate: ${SystemClock.elapsedRealtime() - gateStartedAt}ms, possible=$possible")
+            possible
+        } else {
+            true
+        }
+        if (!isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO)) return AutoScanResult.Waiting
+        // Only a strict diamond plus proven panel absence bypasses choice discovery.
+        // Fallback/no-diamond frames and mixed dialogue/choices keep the full path.
+        val choiceBounds = if (mayContainChoices) {
+            detectChoiceBounds(source, screenRegions, frame.pixels)
+        } else {
+            emptyList()
+        }
         if (!isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO)) return AutoScanResult.Waiting
         var confirmedChoiceHandoff = false
         val handoffPending = storyTapHandoff.isPending(SystemClock.elapsedRealtime())

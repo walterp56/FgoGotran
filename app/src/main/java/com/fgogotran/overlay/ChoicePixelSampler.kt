@@ -21,6 +21,37 @@ internal class ChoicePixelSampler(private val pixels: FramePixelReader) {
         return if (total == 0) 0f else dark.toFloat() / total
     }
 
+    /**
+     * Rules out dark panel runs without scanning every row. A false result is definitive;
+     * a true result only asks the full detector to validate the possible panels.
+     */
+    fun mayContainDarkPanelRows(
+        anchor: Bounds,
+        minimumHeight: Int,
+        maximumGapRows: Int,
+        minimumDarkRatio: Float
+    ): Boolean {
+        if (anchor.isEmpty || anchor != anchor.clamp(pixels.width, pixels.height) ||
+            minimumHeight <= 0 || anchor.height < minimumHeight ||
+            maximumGapRows < 0 || maximumGapRows >= minimumHeight ||
+            minimumDarkRatio !in 0f..1f
+        ) return true
+
+        val bandHeight = maximumGapRows + 1
+        val stride = minimumHeight - maximumGapRows
+        // Every minimum-height run contains a complete sampled band. An accepted run
+        // cannot have bandHeight consecutive light rows, so it must hit this exact grid.
+        var bandTop = anchor.top
+        while (bandTop <= anchor.bottom - bandHeight) {
+            pixels.read(Bounds(anchor.left, bandTop, anchor.right, bandTop + bandHeight))
+            for (y in bandTop until bandTop + bandHeight) {
+                if (darkRatioInRow(anchor.left, anchor.right, y) >= minimumDarkRatio) return true
+            }
+            bandTop += stride
+        }
+        return false
+    }
+
     fun darkRatioInRect(bounds: Bounds): Float = ratio(bounds, 3, darkScores, ::isDark)
 
     fun borderRatioInRect(bounds: Bounds): Float = ratio(bounds, 2, borderScores, ::isBorder)
