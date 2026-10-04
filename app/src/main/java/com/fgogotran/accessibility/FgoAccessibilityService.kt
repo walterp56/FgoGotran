@@ -1314,6 +1314,11 @@ class FgoAccessibilityService : AccessibilityService() {
             tag,
             "Dialogue complete marker evidence=$markerEvidence shape=${markerReport.shapeVisible}"
         )
+        if (!markerEvidence) {
+            resetDialogueFallbackState()
+            return false
+        }
+
         val dialogueMask = textMaskFor(source, screenRegions.dialogue, pixels = pixels)
         val previousMask = dialogueFallbackMaskPrev1
         val beforePreviousMask = dialogueFallbackMaskPrev2
@@ -5395,7 +5400,8 @@ class FgoAccessibilityService : AccessibilityService() {
             }
         }
 
-        layouts.sortedByDescending { it.size }.forEach { layout ->
+        // Try common two- and one-choice layouts before the rarer larger layouts.
+        layouts.sortedBy { if (it.size == 2) 0 else it.size }.forEach { layout ->
             if (preferredCount != null && layout.size == preferredCount) return@forEach
             evaluate(layout)
         }
