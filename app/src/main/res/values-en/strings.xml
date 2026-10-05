@@ -101,7 +101,6 @@
     <string name="home_action_manage">Manage →</string>
     <string name="home_settings">Settings</string>
     <string name="home_guide">Guide</string>
-    <string name="home_language">Language</string>
     <string name="home_server_title">FGO server</string>
     <string name="home_server_jp">JP</string>
     <string name="home_server_cn">CN</string>
@@ -332,10 +331,10 @@
     <string name="settings_context_scenes">%1$d scenes</string>
     <string name="voice_read_chinese">Chinese</string>
     <string name="voice_read_english">English</string>
-    <string name="voice_read_text_invalid_hint">Must match the subtitle language.</string>
-    <string name="ui_language_system">System default</string>
-    <string name="ui_language_follow_system">Follow system settings</string>
-    <string name="ui_language_title">Language</string>
+    <string name="voice_read_text_invalid_hint">Must match the translation language.</string>
+    <string name="ui_language_system">Follow system</string>
+    <string name="ui_language_follow_system">Use your phone’s language.</string>
+    <string name="ui_language_title">App language</string>
     <string name="ui_language_close">Close</string>
     <string name="mode_desc_manual">Manual translation</string>
     <string name="mode_desc_semi">Semi-auto translation</string>

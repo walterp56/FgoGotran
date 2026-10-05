@@ -19,7 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,9 +65,12 @@ import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.AppThemeMode
 import com.fgogotran.localization.AppLanguageManager
+import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AppUpdateDialog
 import com.fgogotran.ui.component.BackendProviderLabel
+import com.fgogotran.ui.component.LanguagePickerDialog
+import com.fgogotran.ui.component.appLanguageLabel
 import com.fgogotran.ui.component.ThemePickerDialog
 import com.fgogotran.ui.component.themeLabelRes
 import com.fgogotran.ui.component.openAppDownloadPage
@@ -80,6 +87,28 @@ import kotlin.math.roundToInt
 private const val HIDDEN_TOGGLE_TAP_THRESHOLD = 10
 private const val HIDDEN_TOGGLE_TAP_WINDOW_MS = 5_000L
 private const val FLOATING_BUTTON_SIZE_STEP_DP = 2
+
+private data class OcrEngineOption(
+    val engine: String,
+    @DrawableRes val iconRes: Int,
+    val title: String,
+    @StringRes val descriptionRes: Int
+)
+
+private val ocrEngineOptions = listOf(
+    OcrEngineOption(
+        SettingsRepository.OCR_ENGINE_MLKIT,
+        R.drawable.ic_mlkit_japanese_mark,
+        "ML Kit OCR",
+        R.string.settings_auto_3
+    ),
+    OcrEngineOption(
+        SettingsRepository.OCR_ENGINE_PADDLE,
+        R.drawable.ic_paddleocr_mark,
+        "PaddleOCR",
+        R.string.settings_auto_5
+    )
+)
 
 /**
  * Settings page for user-facing configuration and maintenance actions.
@@ -129,10 +158,11 @@ fun SettingsScreen(
     )
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
-    var playerName by remember { mutableStateOf("") }
-    var playerGender by remember {
+    var playerName by rememberSaveable { mutableStateOf("") }
+    var playerGender by rememberSaveable {
         mutableStateOf(SettingsRepository.DEFAULT_PLAYER_GENDER)
     }
+    var playerProfileLoaded by rememberSaveable { mutableStateOf(false) }
     var playerNameSaveMessage by remember { mutableStateOf("") }
     var floatingButtonSizeDp by remember {
         mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
@@ -160,10 +190,17 @@ fun SettingsScreen(
     var cacheClearMessage by remember { mutableStateOf("") }
     var pendingUpdate by remember { mutableStateOf<AppVersionInfo?>(null) }
     var showThemePicker by remember { mutableStateOf(false) }
+    var showOcrPicker by remember { mutableStateOf(false) }
+    var showLanguagePicker by remember { mutableStateOf(false) }
+    var appLanguage by remember { mutableStateOf(AppLanguageManager.getLanguage(context)) }
 
     LaunchedEffect(Unit) {
-        playerName = settingsRepository.playerName.first()
-        playerGender = settingsRepository.playerGender.first()
+        // A language refresh must not overwrite a restored, unsaved player-profile edit.
+        if (!playerProfileLoaded) {
+            playerName = settingsRepository.playerName.first()
+            playerGender = settingsRepository.playerGender.first()
+            playerProfileLoaded = true
+        }
         floatingButtonSizeDp = settingsRepository.getFloatingButtonSizeDp()
         showOriginalGameText = settingsRepository.showOriginalGameText.first()
         ocrEngine = settingsRepository.getOcrEngine()
@@ -275,6 +312,22 @@ fun SettingsScreen(
         )
     }
 
+    if (showLanguagePicker) {
+        LanguagePickerDialog(
+            selectedLanguage = appLanguage,
+            onDismiss = { showLanguagePicker = false },
+            onSelect = { language ->
+                showLanguagePicker = false
+                if (language != appLanguage) {
+                    appLanguage = language
+                    AppLanguageManager.setLanguage(context, language)
+                    AppLanguageManager.recreateActivity(context)
+                    FgoRunnerService.refreshOverlayLanguage()
+                }
+            }
+        )
+    }
+
     if (showThemePicker) {
         ThemePickerDialog(
             selectedMode = themeMode,
@@ -282,6 +335,44 @@ fun SettingsScreen(
             onSelect = { mode ->
                 showThemePicker = false
                 if (mode != themeMode) onThemeChange(mode)
+            }
+        )
+    }
+
+    if (showOcrPicker) {
+        AlertDialog(
+            onDismissRequest = { showOcrPicker = false },
+            title = { Text(stringResource(R.string.settings_auto_18)) },
+            text = {
+                Column(
+                    modifier = Modifier.selectableGroup(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ocrEngineOptions.forEach { option ->
+                        val selected = option.engine == ocrEngine
+                        OcrEngineRow(
+                            option = option,
+                            selected = selected,
+                            modifier = Modifier.selectable(selected = selected, role = Role.RadioButton) {
+                                showOcrPicker = false
+                                if (!selected) {
+                                    ocrEngine = option.engine
+                                    scope.launch { settingsRepository.setOcrEngine(option.engine) }
+                                }
+                            }
+                        ) {
+                            RadioButton(selected = selected, onClick = null)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    colors = FgoUiColors.textButtonColors(),
+                    onClick = { showOcrPicker = false }
+                ) {
+                    Text(stringResource(R.string.home_cancel))
+                }
             }
         )
     }
@@ -341,26 +432,20 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_auto_18),
                 body = stringResource(R.string.settings_auto_6)
             ) {
-                OcrEngineOption(
-                    iconRes = R.drawable.ic_mlkit_japanese_mark,
-                    title = "ML Kit OCR",
-                    body = stringResource(R.string.settings_auto_3),
-                    selected = ocrEngine == SettingsRepository.OCR_ENGINE_MLKIT,
-                    onClick = {
-                        ocrEngine = SettingsRepository.OCR_ENGINE_MLKIT
-                        scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_MLKIT) }
-                    }
-                )
-                OcrEngineOption(
-                    iconRes = R.drawable.ic_paddleocr_mark,
-                    title = "PaddleOCR",
-                    body = stringResource(R.string.settings_auto_5),
-                    selected = ocrEngine == SettingsRepository.OCR_ENGINE_PADDLE,
-                    onClick = {
-                        ocrEngine = SettingsRepository.OCR_ENGINE_PADDLE
-                        scope.launch { settingsRepository.setOcrEngine(SettingsRepository.OCR_ENGINE_PADDLE) }
-                    }
-                )
+                val selectedOption = ocrEngineOptions.first {
+                    it.engine == SettingsRepository.normalizeOcrEngine(ocrEngine)
+                }
+                OcrEngineRow(
+                    option = selectedOption,
+                    modifier = Modifier.clickable(role = Role.Button) { showOcrPicker = true }
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_settings_chevron_right),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
+                    )
+                }
             }
 
             SettingsCard(
@@ -508,6 +593,34 @@ fun SettingsScreen(
                 title = stringResource(R.string.app_appearance_title),
                 body = ""
             ) {
+                SettingsInfoRow(
+                    label = stringResource(R.string.ui_language_title),
+                    valueContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Keep each language name in its own script, as in the picker.
+                            androidx.compose.material3.Text(
+                                text = appLanguageLabel(appLanguage, stringResource(R.string.ui_language_system)),
+                                modifier = Modifier.weight(1f, fill = false),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FgoUiColors.text(darkAlpha = 0.82f),
+                                textAlign = TextAlign.End
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.ic_settings_chevron_right),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clickable(role = Role.Button) { showLanguagePicker = true }
+                )
+                HorizontalDivider()
                 SettingsInfoRow(
                     label = stringResource(R.string.app_theme_title),
                     valueContent = {
@@ -937,17 +1050,14 @@ private fun PlayerGenderOption(
 }
 
 @Composable
-private fun OcrEngineOption(
-    @DrawableRes iconRes: Int,
-    title: String,
-    body: String,
-    selected: Boolean,
-    onClick: () -> Unit
+private fun OcrEngineRow(
+    option: OcrEngineOption,
+    modifier: Modifier,
+    selected: Boolean = false,
+    trailingContent: @Composable () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
         color = if (selected) {
             FgoUiColors.optionContainer(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f), selected = true)
@@ -959,28 +1069,28 @@ private fun OcrEngineOption(
         )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            RadioButton(selected = selected, onClick = onClick)
             Image(
-                painter = painterResource(id = iconRes),
+                painter = painterResource(id = option.iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(28.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    title,
+                    option.title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    body,
+                    stringResource(option.descriptionRes),
                     style = MaterialTheme.typography.bodySmall,
                     color = FgoUiColors.text(darkAlpha = 0.62f, secondary = true)
                 )
             }
+            trailingContent()
         }
     }
 }

@@ -101,7 +101,6 @@
     <string name="home_action_manage">去管理 →</string>
     <string name="home_settings">设置</string>
     <string name="home_guide">使用指南</string>
-    <string name="home_language">语言</string>
     <string name="home_server_title">FGO 服务器</string>
     <string name="home_server_jp">日服</string>
     <string name="home_server_cn">简中服</string>
@@ -332,10 +331,10 @@
     <string name="settings_context_scenes">%1$d 幕</string>
     <string name="voice_read_chinese">中文</string>
     <string name="voice_read_english">英文</string>
-    <string name="voice_read_text_invalid_hint">需与字幕语言一致</string>
-    <string name="ui_language_system">系统默认</string>
-    <string name="ui_language_follow_system">跟随系统设置</string>
-    <string name="ui_language_title">语言</string>
+    <string name="voice_read_text_invalid_hint">需与译文语言一致</string>
+    <string name="ui_language_system">跟随系统</string>
+    <string name="ui_language_follow_system">使用手机的语言。</string>
+    <string name="ui_language_title">界面语言</string>
     <string name="ui_language_close">关闭</string>
     <string name="mode_desc_manual">手動翻譯</string>
     <string name="mode_desc_semi">半自動翻譯</string>

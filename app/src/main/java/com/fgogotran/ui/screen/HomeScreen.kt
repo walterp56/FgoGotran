@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -35,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -46,7 +44,6 @@ import com.fgogotran.accessibility.FgoAccessibilityService
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.runner.FgoRunnerService
-import com.fgogotran.ui.component.LanguagePickerDialog
 import com.fgogotran.ui.theme.FgoUiColors
 import com.fgogotran.ui.theme.FgoUiStyle
 import com.fgogotran.ui.theme.LocalFgoDarkTheme
@@ -125,8 +122,6 @@ fun HomeScreen(
         mutableStateOf(pm.isIgnoringBatteryOptimizations(context.packageName))
     }
     var showServerDialog by remember { mutableStateOf(false) }
-    var showLanguageDialog by remember { mutableStateOf(false) }
-    var appLanguage by remember { mutableStateOf(AppLanguageManager.getLanguage(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var homeResumed by remember {
@@ -251,7 +246,7 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -260,13 +255,6 @@ fun HomeScreen(
                     color = FgoUiColors.blueText,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = { showLanguageDialog = true }) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_language_globe),
-                        contentDescription = stringResource(R.string.home_language),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
             }
 
             ServerPreference(
@@ -372,20 +360,6 @@ fun HomeScreen(
                     Text(stringResource(R.string.home_guide))
                 }
             }
-        }
-
-        if (showLanguageDialog) {
-            LanguagePickerDialog(
-                selectedLanguage = appLanguage,
-                onDismiss = { showLanguageDialog = false },
-                onSelect = { language ->
-                    showLanguageDialog = false
-                    appLanguage = language
-                    AppLanguageManager.setLanguage(context, language)
-                    AppLanguageManager.recreateActivity(context)
-                    FgoRunnerService.refreshOverlayLanguage()
-                }
-            )
         }
 
         if (showServerDialog) {
