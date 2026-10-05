@@ -9,11 +9,13 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.FloatingActionButtonElevation
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
@@ -53,44 +55,44 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = Color.White,
 )
 
-/** Independent light palette: neutral grey, soft off-white cards, and muted purple accents. */
+/** Independent light palette: achromatic surfaces with restrained purple and blue accents. */
 private val LightColorScheme = lightColorScheme(
     primary = Color(0xFF76518F),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFEDE3F2),
+    primaryContainer = Color(0xFFF1EEF4),
     onPrimaryContainer = Color(0xFF402A50),
-    secondary = Color(0xFF606663),
+    secondary = Color(0xFF606060),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE7E8E5),
-    onSecondaryContainer = Color(0xFF292B2B),
+    secondaryContainer = Color(0xFFE7E7E7),
+    onSecondaryContainer = Color(0xFF292929),
     tertiary = Color(0xFF875A20),
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFEEE1C7),
     onTertiaryContainer = Color(0xFF4A3618),
-    background = Color(0xFFEBEBE9),
-    onBackground = Color(0xFF292B2B),
-    surface = Color(0xFFF5F5F2),
-    onSurface = Color(0xFF292B2B),
-    surfaceVariant = Color(0xFFE7E8E5),
-    onSurfaceVariant = Color(0xFF606663),
+    background = Color(0xFFEBEBEB),
+    onBackground = Color(0xFF292929),
+    surface = Color(0xFFF5F5F5),
+    onSurface = Color(0xFF292929),
+    surfaceVariant = Color(0xFFE7E7E7),
+    onSurfaceVariant = Color(0xFF606060),
     surfaceTint = Color.Transparent,
-    inverseSurface = Color(0xFF292B2B),
-    inverseOnSurface = Color(0xFFF5F5F2),
+    inverseSurface = Color(0xFF292929),
+    inverseOnSurface = Color(0xFFF5F5F5),
     inversePrimary = Color(0xFFD6B6E6),
     error = Color(0xFFA63D40),
     onError = Color.White,
     errorContainer = Color(0xFFF4DDDE),
     onErrorContainer = Color(0xFF531F22),
-    outline = Color(0xFF7C837F),
-    outlineVariant = Color(0xFFD0D4D1),
+    outline = Color(0xFF838383),
+    outlineVariant = Color(0xFFD1D1D1),
     scrim = Color.Black,
-    surfaceDim = Color(0xFFDADCD8),
-    surfaceBright = Color(0xFFF5F5F2),
-    surfaceContainerLowest = Color(0xFFF5F5F2),
-    surfaceContainerLow = Color(0xFFF0F0ED),
-    surfaceContainer = Color(0xFFECECE9),
-    surfaceContainerHigh = Color(0xFFE7E8E5),
-    surfaceContainerHighest = Color(0xFFE0E2DE),
+    surfaceDim = Color(0xFFDADADA),
+    surfaceBright = Color(0xFFF5F5F5),
+    surfaceContainerLowest = Color(0xFFF5F5F5),
+    surfaceContainerLow = Color(0xFFF0F0F0),
+    surfaceContainer = Color(0xFFECECEC),
+    surfaceContainerHigh = Color(0xFFE7E7E7),
+    surfaceContainerHighest = Color(0xFFE0E0E0),
 )
 
 private val LightShapes = Shapes(
@@ -106,10 +108,10 @@ internal val LocalFgoDarkTheme = staticCompositionLocalOf { true }
 
 internal object FgoUiColors {
     private val lightInformation = Color(0xFF315E8C)
-    private val lightInformationContainer = Color(0xFFE4ECF5)
-    private val disabledText = Color(0xFF606663)
+    private val lightBadgeContainer = Color(0xFFEFEFEF)
+    private val disabledText = Color(0xFF606060)
 
-    /** Light page cards stay neutral; accent badges opt into their own colour helpers. */
+    /** Light page cards stay neutral; colour is reserved for content and controls. */
     @Composable
     fun cardColors(darkContainerColor: Color = MaterialTheme.colorScheme.surface): CardColors =
         CardDefaults.cardColors(
@@ -120,22 +122,22 @@ internal object FgoUiColors {
     fun sectionContainer(darkColor: Color): Color =
         if (LocalFgoDarkTheme.current) darkColor else MaterialTheme.colorScheme.surfaceContainerHigh
 
-    /** Purple identity accents in light mode; dark styling is kept verbatim. */
+    /** Neutral light badge backgrounds keep the purple icons and labels restrained. */
     @Composable
     fun accentContainer(darkColor: Color): Color =
-        if (LocalFgoDarkTheme.current) darkColor else MaterialTheme.colorScheme.primaryContainer
+        if (LocalFgoDarkTheme.current) darkColor else lightBadgeContainer
 
     @Composable
     fun accentContent(darkColor: Color): Color =
         if (LocalFgoDarkTheme.current) darkColor else MaterialTheme.colorScheme.primary
 
-    /** Blue informational highlights and paired badge colours, separate from controls. */
+    /** Ordinary information boxes stay neutral; filled guide examples retain blue. */
     @Composable
     fun informationContainer(darkColor: Color, filled: Boolean = false): Color =
         if (LocalFgoDarkTheme.current) darkColor else if (filled) {
             lightInformation
         } else {
-            lightInformationContainer
+            lightBadgeContainer
         }
 
     /** Matches the blue text positions in dark mode without recolouring controls or icons. */
@@ -154,6 +156,19 @@ internal object FgoUiColors {
         ButtonDefaults.textButtonColors()
     } else {
         ButtonDefaults.textButtonColors(contentColor = lightInformation)
+    }
+
+    @Composable
+    fun filterChipColors(): SelectableChipColors = if (LocalFgoDarkTheme.current) {
+        FilterChipDefaults.filterChipColors()
+    } else {
+        FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.primary,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.primary,
+            selectedTrailingIconColor = MaterialTheme.colorScheme.primary,
+        )
     }
 
     /** Dark styling is kept verbatim; light text uses solid, readable semantic colours. */

@@ -530,11 +530,13 @@ fun ApiSettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 FilterChip(
+                                    colors = FgoUiColors.filterChipColors(),
                                     selected = qwenSite == SettingsRepository.QWEN_SITE_CHINA,
                                     onClick = { selectQwenSite(SettingsRepository.QWEN_SITE_CHINA) },
                                     label = { Text(stringResource(R.string.api_site_china)) }
                                 )
                                 FilterChip(
+                                    colors = FgoUiColors.filterChipColors(),
                                     selected = qwenSite == SettingsRepository.QWEN_SITE_INTERNATIONAL,
                                     onClick = {
                                         selectQwenSite(SettingsRepository.QWEN_SITE_INTERNATIONAL)
@@ -635,6 +637,7 @@ fun ApiSettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             FilterChip(
+                                colors = FgoUiColors.filterChipColors(),
                                 selected = !supportsSamplingCustomization ||
                                     samplingMode == SettingsRepository.API_SAMPLING_MODE_AUTO,
                                 onClick = {
@@ -645,6 +648,7 @@ fun ApiSettingsScreen(
                                 label = { Text(stringResource(R.string.api_sampling_auto_recommended)) }
                             )
                             FilterChip(
+                                colors = FgoUiColors.filterChipColors(),
                                 selected = supportsSamplingCustomization &&
                                     samplingMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM,
                                 onClick = {

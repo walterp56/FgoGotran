@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.FgoGotran" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#EBEBE9</item>
-        <item name="android:statusBarColor">#EBEBE9</item>
-        <item name="android:navigationBarColor">#EBEBE9</item>
+        <item name="android:windowBackground">#EBEBEB</item>
+        <item name="android:statusBarColor">#EBEBEB</item>
+        <item name="android:navigationBarColor">#EBEBEB</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:forceDarkAllowed">false</item>
@@ -16,11 +16,11 @@
     </style>
 
     <style name="Theme.FgoGotran.Dialog.Light" parent="Theme.AppCompat.Light.Dialog">
-        <item name="android:windowBackground">#F5F5F2</item>
+        <item name="android:windowBackground">#F5F5F5</item>
         <item name="android:windowIsFloating">true</item>
         <item name="colorAccent">#76518F</item>
-        <item name="android:textColorPrimary">#292B2B</item>
-        <item name="android:textColorSecondary">#606663</item>
+        <item name="android:textColorPrimary">#292929</item>
+        <item name="android:textColorSecondary">#606060</item>
         <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>
