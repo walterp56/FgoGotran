@@ -102,12 +102,13 @@
     <string name="home_settings">設定</string>
     <string name="home_guide">使用指南</string>
     <string name="home_server_title">FGO 伺服器</string>
+    <string name="home_change_server">切換 FGO 伺服器</string>
     <string name="home_server_jp">日服</string>
     <string name="home_server_cn">簡中服</string>
     <string name="home_server_tw">繁中服</string>
     <string name="home_server_en">美服</string>
     <string name="home_current">目前</string>
-    <string name="home_mode">模式</string>
+    <string name="home_supported_features">支援功能</string>
     <string name="home_mode_translate_voice">翻譯 + 朗讀</string>
     <string name="home_mode_voice">朗讀</string>
     <string name="home_agree_open_settings">我同意並前往設定</string>

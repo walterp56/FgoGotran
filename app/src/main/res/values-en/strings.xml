@@ -24,7 +24,7 @@
     <string name="api_api_key_required">API key required</string>
     <string name="api_advanced_custom">Advanced</string>
     <string name="api_advanced_hide">Hide advanced</string>
-    <string name="api_sampling_auto_recommended">Auto (best)</string>
+    <string name="api_sampling_auto_recommended">Auto (recommended)</string>
     <string name="api_sampling_custom">Custom</string>
     <string name="api_sampling_auto_only">Auto only for compatibility.</string>
     <string name="api_sampling_local_note">Local/custom: enable either or both.</string>
@@ -102,12 +102,13 @@
     <string name="home_settings">Settings</string>
     <string name="home_guide">Guide</string>
     <string name="home_server_title">FGO server</string>
+    <string name="home_change_server">Change FGO server</string>
     <string name="home_server_jp">JP</string>
     <string name="home_server_cn">CN</string>
     <string name="home_server_tw">TW</string>
     <string name="home_server_en">NA</string>
     <string name="home_current">Current</string>
-    <string name="home_mode">Mode</string>
+    <string name="home_supported_features">Supported features</string>
     <string name="home_mode_translate_voice">Translate + voice</string>
     <string name="home_mode_voice">Voice</string>
     <string name="home_agree_open_settings">Agree, open Settings</string>

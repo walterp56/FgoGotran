@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -314,7 +315,9 @@ fun HomeScreen(
                 statusText = if (canDrawOverlays) stringResource(R.string.home_granted) else stringResource(R.string.home_not_granted),
                 statusColor = if (canDrawOverlays) FgoUiColors.success else FgoUiColors.warning,
                 enabled = canDrawOverlays,
-                actionText = stringResource(R.string.home_action_grant),
+                actionText = stringResource(
+                    if (canDrawOverlays) R.string.home_action_manage else R.string.home_action_grant
+                ),
                 onClick = { showOverlayPermissionDisclosure(context, dialogTheme) }
             )
 
@@ -388,7 +391,10 @@ private fun ServerPreference(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(
+                onClickLabel = stringResource(R.string.home_change_server),
+                onClick = onClick
+            ),
         border = FgoUiStyle.cardBorder,
         colors = FgoUiColors.cardColors()
     ) {
@@ -406,10 +412,11 @@ private fun ServerPreference(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    selectedLabel,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                Icon(
+                    painter = painterResource(R.drawable.ic_settings_chevron_right),
+                    contentDescription = null,
+                    tint = FgoUiColors.blueText,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -430,7 +437,7 @@ private fun ServerPreference(
                     color = FgoUiColors.blueText
                 )
                 LanguageDirectionChip(
-                    label = stringResource(R.string.home_mode),
+                    label = stringResource(R.string.home_supported_features),
                     value = serverFeatureLabel(context, selectedServer),
                     highlighted = true,
                     modifier = Modifier.weight(1f)
@@ -514,6 +521,8 @@ private fun LanguageDirectionChip(
     highlighted: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // Keep the feature highlight distinct from neutral light information boxes.
+    val lightHighlight = highlighted && !LocalFgoDarkTheme.current
     val backgroundColor = if (highlighted) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
@@ -528,7 +537,7 @@ private fun LanguageDirectionChip(
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.small,
-        color = FgoUiColors.informationContainer(backgroundColor)
+        color = if (lightHighlight) Color(0xFFE6DAEF) else FgoUiColors.informationContainer(backgroundColor)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -537,12 +546,14 @@ private fun LanguageDirectionChip(
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = FgoUiColors.text(valueColor.copy(alpha = 0.72f), secondary = true)
+                color = if (lightHighlight) valueColor else {
+                    FgoUiColors.text(valueColor.copy(alpha = 0.72f), secondary = true)
+                }
             )
             Text(
                 value,
                 style = MaterialTheme.typography.bodyLarge,
-                color = FgoUiColors.text(valueColor)
+                color = if (lightHighlight) valueColor else FgoUiColors.text(valueColor)
             )
         }
     }
