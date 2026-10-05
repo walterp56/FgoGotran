@@ -155,7 +155,7 @@
     <string name="diagnostic_error">錯誤</string>
     <string name="diagnostic_note">注意</string>
     <string name="diagnostic_record">紀錄</string>
-    <string name="guide_auto_1">マイルーム → ゲームオプション → テキスト表示速度\n我的房间 → 游戏选项 → 文本显示速度</string>
+    <string name="guide_auto_1">マイルーム → ゲームオプション → テキスト表示速度\n個人空間 → 遊戲設定 → 劇情演出速度</string>
     <string name="guide_auto_2">FgoGotran 只收集匿名使用统计，用来了解版本、模式和 API 类型的使用情况。</string>
     <string name="guide_auto_3">BATTLE 字幕模式：仅翻译战斗字幕区域；长按悬浮按钮打开菜单后选择。</string>
     <string name="guide_auto_4">截图、游戏文本、译文、API Key、玩家名、账号信息或设备识别码。</string>
@@ -172,14 +172,14 @@
     <string name="guide_auto_15">不用一直换模式，先按自己的阅读习惯选一个。</string>
     <string name="guide_auto_16">全自动运行；此模式下点击按钮不会手动翻译。</string>
     <string name="guide_auto_17">查看完整教程、下载页面和最新信息。</string>
-    <string name="guide_auto_18">句読点待ち時間 / 标点等待时间</string>
+    <string name="guide_auto_18">句読点待ち時間 / 標點符號等待時間</string>
     <string name="guide_auto_19">半自动阅读，点击按钮翻译选项。</string>
     <string name="guide_auto_20">打开 FgoGotran 网站</string>
-    <string name="guide_auto_21">ページ送り / 表示速度</string>
+    <string name="guide_auto_21">ページ送り / 傳送頁面</string>
     <string name="guide_auto_22">查看本次识别和翻译历史。</string>
     <string name="guide_auto_23">FgoGotran 网站</string>
     <string name="guide_auto_24">先调 FGO 文字速度</string>
-    <string name="guide_auto_25">文字送り / 表示速度</string>
+    <string name="guide_auto_25">文字送り / 傳送文字</string>
     <string name="guide_auto_26">点击按钮翻译当前画面。</string>
     <string name="guide_auto_27">选择阅读方式</string>
     <string name="guide_auto_28">看懂悬浮按钮</string>
