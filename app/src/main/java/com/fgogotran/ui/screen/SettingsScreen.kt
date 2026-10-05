@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,11 +22,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -52,16 +53,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.data.AppThemeMode
 import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AppUpdateDialog
 import com.fgogotran.ui.component.BackendProviderLabel
+import com.fgogotran.ui.component.ThemePickerDialog
+import com.fgogotran.ui.component.themeLabelRes
 import com.fgogotran.ui.component.openAppDownloadPage
+import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoUiStyle
+import com.fgogotran.ui.theme.LocalFgoDarkTheme
 import com.fgogotran.update.AppVersionCheckResult
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.update.AppVersionManager
@@ -84,6 +92,8 @@ private const val FLOATING_BUTTON_SIZE_STEP_DP = 2
 fun SettingsScreen(
     settingsRepository: SettingsRepository,
     appVersionManager: AppVersionManager,
+    themeMode: AppThemeMode,
+    onThemeChange: (AppThemeMode) -> Unit,
     onClearTranslationCache: suspend () -> Int,
     onApiSettings: () -> Unit,
     onVoiceSettings: () -> Unit,
@@ -149,6 +159,7 @@ fun SettingsScreen(
     var clearingCache by remember { mutableStateOf(false) }
     var cacheClearMessage by remember { mutableStateOf("") }
     var pendingUpdate by remember { mutableStateOf<AppVersionInfo?>(null) }
+    var showThemePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         playerName = settingsRepository.playerName.first()
@@ -264,13 +275,25 @@ fun SettingsScreen(
         )
     }
 
+    if (showThemePicker) {
+        ThemePickerDialog(
+            selectedMode = themeMode,
+            onDismiss = { showThemePicker = false },
+            onSelect = { mode ->
+                showThemePicker = false
+                if (mode != themeMode) onThemeChange(mode)
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = FgoUiColors.topAppBarColors(),
                 title = { Text(stringResource(R.string.settings_auto_48)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.settings_auto_49), color = MaterialTheme.colorScheme.primary)
+                    TextButton(colors = FgoUiColors.textButtonColors(), onClick = onBack) {
+                        Text(stringResource(R.string.settings_auto_49), color = FgoUiColors.blueText)
                     }
                 }
             )
@@ -305,6 +328,7 @@ fun SettingsScreen(
                     value = apiModel.ifBlank { SettingsRepository.defaultApiModel(translationBackend) }
                 )
                 Button(
+                    shape = FgoUiStyle.buttonShape,
                     onClick = onApiSettings,
                     modifier = Modifier.align(Alignment.End)
                 ) {
@@ -383,6 +407,7 @@ fun SettingsScreen(
                     }
                 )
                 OutlinedTextField(
+                    colors = FgoUiColors.outlinedTextFieldColors(),
                     value = playerName,
                     onValueChange = {
                         playerName = it
@@ -409,11 +434,11 @@ fun SettingsScreen(
                         Text(
                             playerNameSaveMessage,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = FgoUiColors.blueText
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                     }
-                    Button(onClick = { savePlayerName() }) {
+                    Button(shape = FgoUiStyle.buttonShape, onClick = { savePlayerName() }) {
                         Text(stringResource(R.string.settings_auto_51))
                     }
                 }
@@ -436,12 +461,12 @@ fun SettingsScreen(
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_20),
                     value = if (liveVoiceTranslationEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45),
-                    valueColor = if (liveVoiceTranslationEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                    valueColor = if (liveVoiceTranslationEnabled) FgoUiColors.success else FgoUiColors.warning
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_31),
                     value = if (aiVoiceEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45),
-                    valueColor = if (aiVoiceEnabled) Color(0xFF4CAF50) else Color(0xFFFF9800)
+                    valueColor = if (aiVoiceEnabled) FgoUiColors.success else FgoUiColors.warning
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_32),
@@ -464,12 +489,13 @@ fun SettingsScreen(
                         else -> stringResource(R.string.settings_auto_54)
                     },
                     valueColor = if (apiVoiceHintsSupported && aiVoiceApiHintsEnabled) {
-                        Color(0xFF4CAF50)
+                        FgoUiColors.success
                     } else {
-                        Color(0xFFFF9800)
+                        FgoUiColors.warning
                     }
                 )
                 Button(
+                    shape = FgoUiStyle.buttonShape,
                     onClick = onVoiceSettings,
                     modifier = Modifier.align(Alignment.End)
                 ) {
@@ -478,12 +504,39 @@ fun SettingsScreen(
             }
 
             SettingsCard(
-                iconRes = R.drawable.ic_settings_touch_app,
-                title = stringResource(R.string.settings_auto_34),
+                iconRes = R.drawable.ic_settings_palette,
+                title = stringResource(R.string.app_appearance_title),
                 body = ""
             ) {
                 SettingsInfoRow(
-                    label = stringResource(R.string.settings_auto_55),
+                    label = stringResource(R.string.app_theme_title),
+                    valueContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = stringResource(themeLabelRes(themeMode)),
+                                modifier = Modifier.weight(1f, fill = false),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = FgoUiColors.text(darkAlpha = 0.82f),
+                                textAlign = TextAlign.End
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.ic_settings_chevron_right),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clickable(role = Role.Button) { showThemePicker = true }
+                )
+                HorizontalDivider()
+                SettingsInfoRow(
+                    label = stringResource(R.string.settings_floating_button_size),
                     valueContent = {
                         Text(
                             text = floatingButtonSizeLabel(floatingButtonSizeDp),
@@ -491,7 +544,7 @@ fun SettingsScreen(
                             color = if (floatingButtonSizeDp == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP) {
                                 MaterialTheme.colorScheme.onSurface
                             } else {
-                                MaterialTheme.colorScheme.primary
+                                FgoUiColors.blueText
                             },
                             textAlign = TextAlign.End
                         )
@@ -504,7 +557,7 @@ fun SettingsScreen(
                     Text(
                         stringResource(R.string.settings_auto_62),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = FgoUiColors.blueText
                     )
                     Slider(
                         value = floatingButtonSizeDp.toFloat(),
@@ -527,77 +580,8 @@ fun SettingsScreen(
                     Text(
                         stringResource(R.string.settings_auto_63),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = FgoUiColors.blueText
                     )
-                }
-            }
-
-            SettingsCard(
-                iconRes = R.drawable.ic_settings_cached,
-                title = stringResource(R.string.settings_auto_35),
-                body = stringResource(R.string.settings_auto_4)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.settings_auto_36),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(
-                        checked = cacheEnabled,
-                        onCheckedChange = {
-                            cacheEnabled = it
-                            scope.launch { settingsRepository.setCacheEnabled(it) }
-                        }
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (cacheClearMessage.isNotBlank()) {
-                        Text(
-                            cacheClearMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                    }
-                    OutlinedButton(
-                        onClick = { clearTranslationCache() },
-                        enabled = !clearingCache
-                    ) {
-                        if (clearingCache) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text(if (clearingCache) stringResource(R.string.settings_auto_46) else stringResource(R.string.settings_auto_37))
-                    }
-                }
-            }
-
-            SettingsCard(
-                iconRes = R.drawable.ic_settings_error_log,
-                title = stringResource(R.string.settings_auto_38),
-                body = stringResource(R.string.settings_auto_9)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(onClick = onDiagnosticLog) {
-                        Text(stringResource(R.string.settings_auto_22))
-                    }
                 }
             }
 
@@ -625,6 +609,8 @@ fun SettingsScreen(
                     enabled = foregroundTestOverrideEnabled
                 )
                 OutlinedButton(
+                    colors = FgoUiColors.outlinedButtonColors(),
+                    shape = FgoUiStyle.buttonShape,
                     onClick = { checkAppVersion() },
                     enabled = !appVersionStatus.isChecking,
                     modifier = Modifier.align(Alignment.End)
@@ -637,6 +623,85 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     Text(if (appVersionStatus.isChecking) stringResource(R.string.settings_auto_47) else stringResource(R.string.settings_auto_40))
+                }
+                HorizontalDivider()
+                Text(
+                    text = stringResource(R.string.settings_auto_35),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.settings_auto_4),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FgoUiColors.text(darkAlpha = 0.65f, secondary = true)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.settings_auto_36),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = FgoUiColors.text(darkAlpha = 0.82f)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = cacheEnabled,
+                        onCheckedChange = {
+                            cacheEnabled = it
+                            scope.launch { settingsRepository.setCacheEnabled(it) }
+                        }
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (cacheClearMessage.isNotBlank()) {
+                        Text(
+                            cacheClearMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+                    OutlinedButton(
+                        colors = FgoUiColors.outlinedButtonColors(),
+                        shape = FgoUiStyle.buttonShape,
+                        onClick = { clearTranslationCache() },
+                        enabled = !clearingCache
+                    ) {
+                        if (clearingCache) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (clearingCache) stringResource(R.string.settings_auto_46) else stringResource(R.string.settings_auto_37))
+                    }
+                }
+                HorizontalDivider()
+                Text(
+                    text = stringResource(R.string.settings_auto_38),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.settings_auto_9),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FgoUiColors.text(darkAlpha = 0.65f, secondary = true)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(shape = FgoUiStyle.buttonShape, onClick = onDiagnosticLog) {
+                        Text(stringResource(R.string.settings_auto_22))
+                    }
                 }
             }
         }
@@ -696,7 +761,7 @@ private fun TranslationLanguageSelector(
         Text(
             stringResource(R.string.settings_auto_23),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+            color = FgoUiColors.text(darkAlpha = 0.72f, secondary = true),
             fontWeight = FontWeight.SemiBold
         )
         Row(
@@ -707,10 +772,10 @@ private fun TranslationLanguageSelector(
             Surface(
                 modifier = Modifier.weight(0.34f),
                 shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+                color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)),
                 border = BorderStroke(
                     width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
+                    color = FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.24f))
                 )
             ) {
                 Box(
@@ -739,10 +804,10 @@ private fun TranslationLanguageSelector(
                         .fillMaxWidth()
                         .clickable { expanded = true },
                     shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                    color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
                     border = BorderStroke(
                         width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+                        color = FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.34f))
                     )
                 ) {
                     Row(
@@ -779,7 +844,7 @@ private fun TranslationLanguageSelector(
                                     stringResource(option.labelRes),
                                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                     color = if (selected) {
-                                        MaterialTheme.colorScheme.primary
+                                        FgoUiColors.blueText
                                     } else {
                                         MaterialTheme.colorScheme.onSurface
                                     }
@@ -811,7 +876,7 @@ private fun PlayerGenderSelector(
         Text(
             stringResource(R.string.settings_auto_41),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+            color = FgoUiColors.text(darkAlpha = 0.72f, secondary = true),
             fontWeight = FontWeight.SemiBold
         )
         Row(
@@ -844,11 +909,14 @@ private fun PlayerGenderOption(
         color = if (selected) {
             MaterialTheme.colorScheme.primaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+            FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
         },
         border = BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+            color = FgoUiColors.controlOutline(
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.34f),
+                selected = selected
+            )
         )
     ) {
         Text(
@@ -882,10 +950,13 @@ private fun OcrEngineOption(
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.small,
         color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f)
+            FgoUiColors.optionContainer(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f), selected = true)
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f)
-        }
+            FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f))
+        },
+        border = if (LocalFgoDarkTheme.current) null else BorderStroke(
+            1.dp, FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline, selected = selected)
+        )
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -907,7 +978,7 @@ private fun OcrEngineOption(
                 Text(
                     body,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                    color = FgoUiColors.text(darkAlpha = 0.62f, secondary = true)
                 )
             }
         }
@@ -948,8 +1019,11 @@ private fun TranslationContextSceneCountSelector(
     onSceneCountChange: (Int) -> Unit
 ) {
     val safeCount = SettingsRepository.normalizeTranslationContextSceneCount(sceneCount)
-    val contentColor = MaterialTheme.colorScheme.onSurface.copy(
-        alpha = if (enabled) 0.82f else 0.38f
+    val contentColor = FgoUiColors.text(
+        MaterialTheme.colorScheme.onSurface.copy(
+            alpha = if (enabled) 0.82f else 0.38f
+        ),
+        enabled = enabled
     )
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -965,7 +1039,7 @@ private fun TranslationContextSceneCountSelector(
             Text(
                 stringResource(R.string.settings_context_scenes, safeCount),
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (enabled) MaterialTheme.colorScheme.primary else contentColor
+                color = if (enabled) FgoUiColors.blueText else contentColor
             )
         }
         Row(
@@ -1021,12 +1095,12 @@ private fun PreferenceSwitchRow(
             Text(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                color = FgoUiColors.text(darkAlpha = 0.82f)
             )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
@@ -1046,7 +1120,8 @@ private fun SettingsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1063,7 +1138,7 @@ private fun SettingsCard(
                 Text(
                     body,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                    color = FgoUiColors.text(darkAlpha = 0.65f, secondary = true)
                 )
             }
             content()
@@ -1075,7 +1150,7 @@ private fun SettingsCard(
 private fun SettingsIconBadge(@DrawableRes iconRes: Int) {
     Surface(
         modifier = Modifier.size(36.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+        color = FgoUiColors.accentContainer(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)),
         shape = MaterialTheme.shapes.small
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -1083,7 +1158,7 @@ private fun SettingsIconBadge(@DrawableRes iconRes: Int) {
                 painter = painterResource(id = iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.primary
+                tint = FgoUiColors.accentContent(MaterialTheme.colorScheme.primary)
             )
         }
     }
@@ -1128,7 +1203,7 @@ private fun SettingsInfoRow(
     label: String,
     value: String = "",
     valueContent: (@Composable () -> Unit)? = null,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+    valueColor: Color = FgoUiColors.text(darkAlpha = 0.82f),
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -1139,7 +1214,7 @@ private fun SettingsInfoRow(
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            color = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Box(

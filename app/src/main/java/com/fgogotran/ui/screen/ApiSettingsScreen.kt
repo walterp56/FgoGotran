@@ -17,6 +17,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
+import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoUiStyle
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
@@ -454,10 +456,11 @@ fun ApiSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = FgoUiColors.topAppBarColors(),
                 title = { Text(stringResource(R.string.api_title)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.api_back), color = MaterialTheme.colorScheme.primary)
+                    TextButton(colors = FgoUiColors.textButtonColors(), onClick = onBack) {
+                        Text(stringResource(R.string.api_back), color = FgoUiColors.blueText)
                     }
                 }
             )
@@ -473,7 +476,8 @@ fun ApiSettingsScreen(
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                border = FgoUiStyle.cardBorder,
+                colors = FgoUiColors.cardColors()
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -499,7 +503,7 @@ fun ApiSettingsScreen(
                                     Text(
                                         note,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                                     )
                                 }
                             }
@@ -510,7 +514,8 @@ fun ApiSettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                border = FgoUiStyle.cardBorder,
+                colors = FgoUiColors.cardColors()
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -540,12 +545,13 @@ fun ApiSettingsScreen(
                             Text(
                                 stringResource(R.string.api_site_key_note),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                             )
                         }
                     }
                     if (isCustomBackend) {
                         OutlinedTextField(
+                            colors = FgoUiColors.outlinedTextFieldColors(),
                             value = apiBaseUrl,
                             onValueChange = {
                                 apiBaseUrl = it
@@ -574,7 +580,7 @@ fun ApiSettingsScreen(
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (localEndpointValid) {
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
                                 } else {
                                     MaterialTheme.colorScheme.error
                                 }
@@ -582,6 +588,7 @@ fun ApiSettingsScreen(
                         }
                     }
                     OutlinedTextField(
+                        colors = FgoUiColors.outlinedTextFieldColors(),
                         value = apiModel,
                         onValueChange = {
                             apiModel = it
@@ -593,6 +600,7 @@ fun ApiSettingsScreen(
                         singleLine = true
                     )
                     OutlinedTextField(
+                        colors = FgoUiColors.outlinedTextFieldColors(),
                         value = apiKey,
                         onValueChange = {
                             apiKey = it
@@ -610,6 +618,7 @@ fun ApiSettingsScreen(
                     )
                     HorizontalDivider()
                     TextButton(
+                        colors = FgoUiColors.textButtonColors(),
                         onClick = { advancedSamplingExpanded = !advancedSamplingExpanded },
                         modifier = Modifier.align(Alignment.Start)
                     ) {
@@ -619,7 +628,7 @@ fun ApiSettingsScreen(
                         Text(
                             samplingRecommendation(context, selectedBackend, apiModel),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            color = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
                         )
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -661,7 +670,7 @@ fun ApiSettingsScreen(
                             Text(
                                 stringResource(R.string.api_sampling_auto_only),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                             )
                         } else if (samplingMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM) {
                             Text(
@@ -671,7 +680,7 @@ fun ApiSettingsScreen(
                                     stringResource(R.string.api_sampling_cloud_note)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                             )
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -686,7 +695,7 @@ fun ApiSettingsScreen(
                                             stringResource(R.string.api_not_supported)
                                         },
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                                     )
                                 }
                                 Switch(
@@ -704,6 +713,7 @@ fun ApiSettingsScreen(
                                 )
                             }
                             OutlinedTextField(
+                                colors = FgoUiColors.outlinedTextFieldColors(),
                                 value = temperatureText,
                                 onValueChange = {
                                     temperatureText = it
@@ -731,7 +741,7 @@ fun ApiSettingsScreen(
                                             stringResource(R.string.api_not_supported)
                                         },
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                                     )
                                 }
                                 Switch(
@@ -748,6 +758,7 @@ fun ApiSettingsScreen(
                                 )
                             }
                             OutlinedTextField(
+                                colors = FgoUiColors.outlinedTextFieldColors(),
                                 value = topPText,
                                 onValueChange = {
                                     topPText = it
@@ -769,7 +780,7 @@ fun ApiSettingsScreen(
                             color = if (saveMessageIsError) {
                                 MaterialTheme.colorScheme.error
                             } else {
-                                MaterialTheme.colorScheme.primary
+                                FgoUiColors.blueText
                             },
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -780,6 +791,8 @@ fun ApiSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
+                            colors = FgoUiColors.outlinedButtonColors(),
+                            shape = FgoUiStyle.buttonShape,
                             onClick = { testApi() },
                             enabled = !testingApi
                         ) {
@@ -799,12 +812,14 @@ fun ApiSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
+                            colors = FgoUiColors.outlinedButtonColors(),
+                            shape = FgoUiStyle.buttonShape,
                             onClick = { restoreBackendDefaults() }
                         ) {
                             Text(stringResource(R.string.api_restore_defaults))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(onClick = { saveSettings() }) {
+                        Button(shape = FgoUiStyle.buttonShape, onClick = { saveSettings() }) {
                             Text(stringResource(R.string.api_apply))
                         }
                     }

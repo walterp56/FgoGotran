@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
+import com.fgogotran.ui.theme.FgoUiColors
 import com.fgogotran.localization.AppLanguageManager
 
 private data class AppLanguageDialogOption(
@@ -82,7 +83,7 @@ fun LanguagePickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(colors = FgoUiColors.textButtonColors(), onClick = onDismiss) {
                 Text(stringResource(R.string.ui_language_close))
             }
         }
@@ -123,7 +124,7 @@ private fun LanguageOptionRow(
         Text(
             text = if (selected) "✓" else "",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
+            color = FgoUiColors.blueText
         )
     }
 }

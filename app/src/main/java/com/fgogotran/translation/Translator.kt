@@ -1516,7 +1516,9 @@ class Translator @Inject constructor(
                 continue
             }
 
-            val characterTranslation = findCharacterNameTranslation(
+            // Base-only lookup hits would discard ruby before the API can translate it.
+            val hasRuby = TextNormalizer.hasRubyAnnotations(normalizedText)
+            val characterTranslation = if (hasRuby) null else findCharacterNameTranslation(
                 normalizedText,
                 allowAmbiguousDialogueName = false,
                 targetLanguage = config.targetLanguage
@@ -1527,7 +1529,7 @@ class Translator @Inject constructor(
                 continue
             }
 
-            val termTranslation = findTermTranslation(
+            val termTranslation = if (hasRuby) null else findTermTranslation(
                 normalizedText,
                 targetLanguage = config.targetLanguage
             )

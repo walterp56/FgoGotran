@@ -16,6 +16,7 @@ import com.fgogotran.terminology.LocalGlossaryDatabase
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -93,6 +94,7 @@ class SettingsRepository @Inject constructor(
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_LANGUAGE = stringPreferencesKey("target_chinese_locale") // legacy key name kept for migration
         val KEY_GAME_SERVER = stringPreferencesKey("game_server")
+        val KEY_APP_THEME_MODE = stringPreferencesKey("app_theme_mode")
         val KEY_DB_CONTENT_VERSION = stringPreferencesKey("db_content_version")
         val KEY_DB_SHA256 = stringPreferencesKey("db_sha256")
         val KEY_DB_LOCALE = stringPreferencesKey("db_locale")
@@ -711,8 +713,8 @@ class SettingsRepository @Inject constructor(
     }
 
     /**
-     * Whether 〈…〉 ruby readings are kept in the text sent to the translator. They help some engines
-     * and disturb others, so they are dropped by default.
+     * Whether detected 〈…〉 ruby annotations are included in translation requests. Included by
+     * default; an explicitly saved preference is preserved. OCR detection is always unchanged.
      */
     val translationIncludeRuby: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_TRANSLATION_INCLUDE_RUBY] ?: DEFAULT_TRANSLATION_INCLUDE_RUBY
@@ -835,6 +837,11 @@ class SettingsRepository @Inject constructor(
     val targetLanguage: Flow<String> = context.dataStore.data.map { prefs ->
         normalizeTargetLanguage(prefs[KEY_TARGET_LANGUAGE] ?: TARGET_LANGUAGE_SIMPLIFIED)
     }
+
+    /** UI-only preference; the runner and in-game overlays do not observe this flow. */
+    val appThemeMode: Flow<AppThemeMode> = context.dataStore.data.map { prefs ->
+        AppThemeMode.fromPreference(prefs[KEY_APP_THEME_MODE])
+    }.distinctUntilChanged()
 
     /** FGO server source currently being read from the game screen. */
     val gameServer: Flow<String> = context.dataStore.data.map { prefs ->
@@ -1280,6 +1287,11 @@ class SettingsRepository @Inject constructor(
 
     suspend fun getGameServer(): String {
         return gameServer.first()
+    }
+
+    suspend fun setAppThemeMode(mode: AppThemeMode) {
+        context.dataStore.edit { it[KEY_APP_THEME_MODE] = mode.preferenceValue }
+        FgoLogger.debug(tag, "Setting updated: app_theme_mode=${mode.preferenceValue}")
     }
 
     suspend fun setGameServer(server: String) {

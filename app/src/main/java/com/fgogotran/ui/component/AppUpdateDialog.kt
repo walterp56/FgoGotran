@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.fgogotran.R
+import com.fgogotran.ui.theme.FgoUiColors
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.update.AppVersionManager
 
@@ -50,7 +51,7 @@ fun AppUpdateDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
             ) {
-                TextButton(onClick = onDismiss) {
+                TextButton(colors = FgoUiColors.textButtonColors(), onClick = onDismiss) {
                     Text(stringResource(R.string.update_not_now))
                 }
                 Button(onClick = onUpdateNow) {
@@ -85,10 +86,10 @@ fun AutoAppUpdateDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
             ) {
-                TextButton(onClick = onIgnoreVersion) {
+                TextButton(colors = FgoUiColors.textButtonColors(), onClick = onIgnoreVersion) {
                     Text(stringResource(R.string.update_skip_version))
                 }
-                TextButton(onClick = onDismiss) {
+                TextButton(colors = FgoUiColors.textButtonColors(), onClick = onDismiss) {
                     Text(stringResource(R.string.update_not_now))
                 }
                 Button(onClick = onUpdateNow) {

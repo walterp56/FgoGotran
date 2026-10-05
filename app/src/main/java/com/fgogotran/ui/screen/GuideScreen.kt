@@ -16,13 +16,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import com.fgogotran.R
+import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoUiStyle
 import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,10 +46,11 @@ fun GuideScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = FgoUiColors.topAppBarColors(),
                 title = { Text(stringResource(R.string.guide_auto_30)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.guide_auto_38), color = MaterialTheme.colorScheme.primary)
+                    TextButton(colors = FgoUiColors.textButtonColors(), onClick = onBack) {
+                        Text(stringResource(R.string.guide_auto_38), color = FgoUiColors.blueText)
                     }
                 }
             )
@@ -142,7 +144,8 @@ fun GuideScreen(
 private fun GuideScopeCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -152,7 +155,7 @@ private fun GuideScopeCard() {
             Text(
                 stringResource(R.string.guide_auto_7),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                color = FgoUiColors.text(darkAlpha = 0.65f, secondary = true)
             )
             GuideInfoRow(label = stringResource(R.string.guide_auto_41), text = stringResource(R.string.guide_auto_5))
             GuideInfoRow(label = stringResource(R.string.guide_auto_37), text = stringResource(R.string.guide_auto_8))
@@ -164,7 +167,8 @@ private fun GuideScopeCard() {
 private fun GuideWebsiteCard(onOpenWebsite: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors(MaterialTheme.colorScheme.primaryContainer)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -173,14 +177,15 @@ private fun GuideWebsiteCard(onOpenWebsite: () -> Unit) {
             Text(
                 stringResource(R.string.guide_auto_23),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color = FgoUiColors.text(MaterialTheme.colorScheme.onPrimaryContainer)
             )
             Text(
                 stringResource(R.string.guide_auto_17),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+                color = FgoUiColors.text(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f), secondary = true)
             )
             Button(
+                shape = FgoUiStyle.buttonShape,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onOpenWebsite
             ) {
@@ -199,7 +204,8 @@ private fun GuideSectionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -215,7 +221,7 @@ private fun GuideSectionCard(
             Text(
                 body,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                color = FgoUiColors.text(darkAlpha = 0.65f, secondary = true)
             )
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 content()
@@ -227,14 +233,14 @@ private fun GuideSectionCard(
 @Composable
 private fun StepBadge(number: String) {
     Surface(
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+        color = FgoUiColors.informationContainer(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
         shape = MaterialTheme.shapes.small
     ) {
         Text(
             number,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary
+            color = FgoUiColors.blueText
         )
     }
 }
@@ -251,7 +257,7 @@ private fun GuideModeRow(mode: String, text: String) {
             text,
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+            color = FgoUiColors.text(darkAlpha = 0.82f)
         )
     }
 }
@@ -259,14 +265,14 @@ private fun GuideModeRow(mode: String, text: String) {
 @Composable
 private fun ModeChip(text: String) {
     Surface(
-        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f),
+        color = FgoUiColors.accentContainer(MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)),
         shape = MaterialTheme.shapes.small
     ) {
         Text(
             text,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.secondary
+            color = FgoUiColors.accentContent(MaterialTheme.colorScheme.secondary)
         )
     }
 }
@@ -279,7 +285,7 @@ private fun GuideBadgeRow(label: String, text: String) {
         verticalAlignment = Alignment.Top
     ) {
         Surface(
-            color = Color(0xFF23405F),
+            color = FgoUiColors.informationContainer(Color(0xFF23405F), filled = true),
             shape = MaterialTheme.shapes.small
         ) {
             Text(
@@ -293,7 +299,7 @@ private fun GuideBadgeRow(label: String, text: String) {
             text,
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+            color = FgoUiColors.text(darkAlpha = 0.82f)
         )
     }
 }
@@ -308,13 +314,13 @@ private fun GuideSettingRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+            color = FgoUiColors.text(darkAlpha = 0.75f, secondary = true)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary
+            color = FgoUiColors.blueText
         )
     }
 }
@@ -329,13 +335,13 @@ private fun GuideInfoRow(label: String, text: String) {
         Text(
             "$label：",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+            color = FgoUiColors.text(darkAlpha = 0.75f, secondary = true)
         )
         Text(
             text,
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary
+            color = FgoUiColors.blueText
         )
     }
 }

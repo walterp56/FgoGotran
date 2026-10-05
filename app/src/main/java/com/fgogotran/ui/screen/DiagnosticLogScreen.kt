@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -37,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.fgogotran.diagnostic.DiagnosticEvent
 import com.fgogotran.R
+import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoUiStyle
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.localization.AppLanguageManager
 import kotlinx.coroutines.launch
@@ -64,10 +65,11 @@ fun DiagnosticLogScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = FgoUiColors.topAppBarColors(),
                 title = { Text(stringResource(R.string.diagnostic_title)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.diagnostic_back), color = MaterialTheme.colorScheme.primary)
+                    TextButton(colors = FgoUiColors.textButtonColors(), onClick = onBack) {
+                        Text(stringResource(R.string.diagnostic_back), color = FgoUiColors.blueText)
                     }
                 }
             )
@@ -84,7 +86,7 @@ fun DiagnosticLogScreen(
             Text(
                 stringResource(R.string.diagnostic_description),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f)
+                color = FgoUiColors.text(darkAlpha = 0.66f, secondary = true)
             )
 
             Row(
@@ -93,6 +95,8 @@ fun DiagnosticLogScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
+                    colors = FgoUiColors.outlinedButtonColors(),
+                    shape = FgoUiStyle.buttonShape,
                     onClick = {
                         scope.launch {
                             runCatching {
@@ -122,6 +126,8 @@ fun DiagnosticLogScreen(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedButton(
+                    colors = FgoUiColors.outlinedButtonColors(),
+                    shape = FgoUiStyle.buttonShape,
                     onClick = {
                         diagnosticEventStore.clear()
                         exportMessage = context.getString(R.string.diagnostic_cleared)
@@ -136,7 +142,7 @@ fun DiagnosticLogScreen(
                 Text(
                     exportMessage,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = FgoUiColors.blueText
                 )
             }
 
@@ -155,13 +161,14 @@ fun DiagnosticLogScreen(
 private fun EmptyDiagnosticState() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
         Text(
             stringResource(R.string.diagnostic_empty),
             modifier = Modifier.padding(16.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+            color = FgoUiColors.text(darkAlpha = 0.68f, secondary = true)
         )
     }
 }
@@ -172,7 +179,8 @@ private fun DiagnosticEventRow(event: DiagnosticEvent) {
     val colors = eventColors(event)
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -192,7 +200,7 @@ private fun DiagnosticEventRow(event: DiagnosticEvent) {
                     Text(
                         event.metaLine(context),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                        color = FgoUiColors.text(darkAlpha = 0.58f, secondary = true)
                     )
                 }
                 SeverityBadge(event.level, colors)
@@ -201,14 +209,14 @@ private fun DiagnosticEventRow(event: DiagnosticEvent) {
                 Text(
                     line,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+                    color = FgoUiColors.text(darkAlpha = 0.78f)
                 )
             }
             event.detailLine(context)?.let { line ->
                 Text(
                     line,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                    color = FgoUiColors.text(darkAlpha = 0.58f, secondary = true)
                 )
             }
         }

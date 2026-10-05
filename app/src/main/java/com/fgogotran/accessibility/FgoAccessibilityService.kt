@@ -77,6 +77,7 @@ import com.fgogotran.translation.FgoDialogueSymbols
 import com.fgogotran.translation.TextNormalizer
 import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
+import com.fgogotran.translation.TranslationRubyPolicy
 import com.fgogotran.translation.TranslateResult
 import com.fgogotran.translation.Translator
 import com.fgogotran.translation.VoiceLineHint
@@ -308,9 +309,6 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val ACCESSIBILITY_SCREENSHOT_RETRY_DELAY_MS = 400L
         private const val ACCESSIBILITY_SCREENSHOT_MAX_RETRIES = 2
         private const val SCREENSHOT_TIMEOUT_MS = 3_000L
-        /** 〈…〉 is the ruby reading markup our formatter writes. */
-        private val RUBY_MARKUP_PATTERN = Regex("〈[^〉]*〉")
-
         private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
 
@@ -3090,6 +3088,8 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun translateSceneSource(sceneSource: SceneSource): SceneTranslateResult {
+        // Snapshot once: a setting change must not alter an in-flight request or its retries.
+        val includeRuby = translationIncludeRuby
         val previousDialogueContexts = if (isJapaneseServer() && translationContextEnabled) {
             SessionTranslationHistory.lastSceneDialogueContexts(
                 limit = translationContextSceneCount,
@@ -3098,10 +3098,12 @@ class FgoAccessibilityService : AccessibilityService() {
         } else {
             emptyList()
         }
-        val input = sceneSource.input.copy(
+        val fullInput = sceneSource.input.copy(
             requestVoiceHint = shouldRequestVoiceHint(sceneSource),
             previousDialogueContexts = previousDialogueContexts
         )
+        val input = TranslationRubyPolicy.prepare(fullInput, includeRuby)
+        FgoLogger.debug(tag, "Scene ruby policy: include=$includeRuby, filtered=${input != fullInput}")
         return withContext(Dispatchers.IO) {
             translator.translateScene(input)
         }
@@ -3340,13 +3342,9 @@ class FgoAccessibilityService : AccessibilityService() {
                 ocrEngine = region.ocrEngine
             )
         }
-        // Only the text handed to the translator loses the ruby readings: they help some models and
-        // disturb others, so the user can decide in the translation preferences.
-        val sourceText = when (region.region) {
-            TextRegion.NAME_LABEL -> corrected
-            TextRegion.DIALOGUE_BOX,
-            TextRegion.CHOICE_BUTTON -> dropRubyMarkupForTranslation(corrected)
-        }
+        // Keep the full OCR source for rendering, history and scene identity. Ruby filtering is
+        // applied only to a request copy in translateSceneSource(), never to recognised regions.
+        val sourceText = corrected
         if (sourceText.isBlank()) return null
         val voiceText = if (needVoiceText && region.region == TextRegion.DIALOGUE_BOX) {
             correctMlKitOcrSourceText(
@@ -3367,25 +3365,6 @@ class FgoAccessibilityService : AccessibilityService() {
                 emptyList()
             }
         )
-    }
-
-    /**
-     * Removes 〈…〉 ruby readings from the text that goes to the translator unless the user enabled
-     * them. A line that was nothing but a reading keeps its original text.
-     */
-    private fun dropRubyMarkupForTranslation(text: String): String {
-        if (translationIncludeRuby || text.isBlank()) return text
-        val stripped = RUBY_MARKUP_PATTERN.replace(text, "")
-            .replace(Regex("[ \t]{2,}"), " ")
-            .trim()
-        if (stripped.isBlank()) return text
-        if (stripped != text) {
-            FgoLogger.debug(
-                tag,
-                "Ruby markup dropped for translation: ${debugQuote(text)} -> ${debugQuote(stripped)}"
-            )
-        }
-        return stripped
     }
 
     /** Speaker name text: the OCR lines of the already narrowed name region, left to right. */

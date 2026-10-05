@@ -200,7 +200,7 @@
     <string name="guide_auto_43">A</string>
     <string name="guide_auto_44">B</string>
     <string name="settings_auto_1">Provides recent scene context using Japanese text and its translation; disable if the model misreads earlier text; increases token usage on cloud APIs.</string>
-    <string name="settings_auto_2">Off by default: ruby annotations are removed before translation because they can hurt quality. Enable if you need reading hints.</string>
+    <string name="settings_auto_2">On by default: include detected ruby when translating. Turn off to translate only the main text. Applies to the next translation.</string>
     <string name="settings_auto_3">Default engine. Fast startup and low power use. Recognizes on-device with Google ML Kit.</string>
     <string name="settings_auto_4">Identical source text reuses the previous translation for speed.\nClear the cache if you see stale translations.</string>
     <string name="settings_auto_5">Advanced engine. High accuracy and broad recognition, but CPU-intensive.</string>
@@ -368,6 +368,14 @@
     <string name="azure_endpoint_components_forbidden">China Azure resource endpoint cannot contain credentials, port, query, or fragment</string>
     <string name="azure_endpoint_root_hint">Enter the resource root endpoint shown in the Azure portal</string>
     <string name="voice_ai_expression_requires_playback">Takes effect only while AI voice playback is on.</string>
+    <string name="app_appearance_title">Appearance</string>
+    <string name="settings_floating_button_size">Floating button size</string>
+    <string name="app_theme_title">Theme</string>
+    <string name="app_theme_system">Follow system</string>
+    <string name="app_theme_light">Light</string>
+    <string name="app_theme_dark">Dark</string>
+    <string name="app_theme_system_description">Use your phone’s light or dark setting.</string>
+    <string name="app_theme_close">Close</string>
 </resources>
 
 

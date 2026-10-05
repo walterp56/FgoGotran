@@ -10,7 +10,9 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.annotation.StyleRes
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -45,6 +47,9 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.ui.component.LanguagePickerDialog
+import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoUiStyle
+import com.fgogotran.ui.theme.LocalFgoDarkTheme
 import com.fgogotran.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -70,6 +75,11 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val dialogTheme = if (LocalFgoDarkTheme.current) {
+        R.style.Theme_FgoGotran_Dialog
+    } else {
+        R.style.Theme_FgoGotran_Dialog_Light
+    }
     val audioCapturePermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -83,7 +93,7 @@ fun HomeScreen(
                 detail = "Android 使用 RECORD_AUDIO 权限保护其他应用的播放声音捕获"
             )
         }
-        if (ensureAccessibilityConnected(context, diagnosticEventStore, "audio_permission_result")) {
+        if (ensureAccessibilityConnected(context, diagnosticEventStore, "audio_permission_result", dialogTheme)) {
             FgoRunnerService.startService(context)
         }
     }
@@ -97,8 +107,8 @@ fun HomeScreen(
     val serviceRunning = FgoRunnerService.serviceStarted.value
     val accessibilityState = FgoAccessibilityService.connectionState.value
     val accessibilityRunningStatusColor = when (accessibilityState) {
-        AccessibilityConnectionState.CONNECTED -> Color(0xFF4CAF50)
-        else -> Color(0xFFFF9800)
+        AccessibilityConnectionState.CONNECTED -> FgoUiColors.success
+        else -> FgoUiColors.warning
     }
     val accessibilityRunningStatusText = when (accessibilityState) {
         AccessibilityConnectionState.CONNECTED -> stringResource(R.string.home_accessibility_connected)
@@ -172,12 +182,12 @@ fun HomeScreen(
                 message = "启动服务被阻止",
                 detail = "显示在其他应用上层权限未开启"
             )
-            showOverlayPermissionDisclosure(context)
+            showOverlayPermissionDisclosure(context, dialogTheme)
             return
         }
 
         // The system switch alone does not mean Android has bound our service.
-        if (!ensureAccessibilityConnected(context, diagnosticEventStore, "toggle_service")) return
+        if (!ensureAccessibilityConnected(context, diagnosticEventStore, "toggle_service", dialogTheme)) return
 
         // All permissions granted → start service
         if (!isIgnoringBatteryOptimizations) {
@@ -206,6 +216,8 @@ fun HomeScreen(
     Scaffold(
         floatingActionButton = {
             ExtendedFloatingActionButton(
+                shape = FgoUiStyle.fabShape,
+                elevation = FgoUiStyle.fabElevation(),
                 onClick = { toggleService() },
                 icon = {
                     Text(
@@ -245,7 +257,7 @@ fun HomeScreen(
                 Text(
                     text = "FgoGotran",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = FgoUiColors.blueText,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { showLanguageDialog = true }) {
@@ -302,9 +314,9 @@ fun HomeScreen(
                 onClick = {
                     when (accessibilityState) {
                         AccessibilityConnectionState.DISABLED,
-                        AccessibilityConnectionState.CONNECTED -> showAccessibilityDisclosure(context)
+                        AccessibilityConnectionState.CONNECTED -> showAccessibilityDisclosure(context, dialogTheme)
                         AccessibilityConnectionState.ENABLED_NOT_CONNECTED,
-                        AccessibilityConnectionState.UNKNOWN -> showAccessibilityNotConnectedDialog(context)
+                        AccessibilityConnectionState.UNKNOWN -> showAccessibilityNotConnectedDialog(context, dialogTheme)
                     }
                 }
             )
@@ -312,22 +324,22 @@ fun HomeScreen(
             StatusActionCard(
                 label = stringResource(R.string.home_overlay_label),
                 statusText = if (canDrawOverlays) stringResource(R.string.home_granted) else stringResource(R.string.home_not_granted),
-                statusColor = if (canDrawOverlays) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                statusColor = if (canDrawOverlays) FgoUiColors.success else FgoUiColors.warning,
                 enabled = canDrawOverlays,
                 actionText = stringResource(R.string.home_action_grant),
-                onClick = { showOverlayPermissionDisclosure(context) }
+                onClick = { showOverlayPermissionDisclosure(context, dialogTheme) }
             )
 
             Text(
                 text = stringResource(R.string.home_optional_stability),
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+                color = FgoUiColors.text(darkAlpha = 0.68f, secondary = true),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp)
             )
 
-            val batteryColor = if (isIgnoringBatteryOptimizations) Color(0xFF4CAF50) else Color(0xFFFF9800)
+            val batteryColor = if (isIgnoringBatteryOptimizations) FgoUiColors.success else FgoUiColors.warning
             val batteryText = if (isIgnoringBatteryOptimizations) stringResource(R.string.home_battery_optimization_off) else stringResource(R.string.home_battery_optimization_on)
             StatusActionCard(
                 label = stringResource(R.string.home_battery_optimization),
@@ -343,6 +355,8 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
+                    colors = FgoUiColors.outlinedButtonColors(),
+                    shape = FgoUiStyle.buttonShape,
                     onClick = onSettings,
                     modifier = Modifier.weight(1f)
                 ) {
@@ -350,6 +364,8 @@ fun HomeScreen(
                 }
 
                 OutlinedButton(
+                    colors = FgoUiColors.outlinedButtonColors(),
+                    shape = FgoUiStyle.buttonShape,
                     onClick = onGuide,
                     modifier = Modifier.weight(1f)
                 ) {
@@ -399,7 +415,8 @@ private fun ServerPreference(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -436,7 +453,7 @@ private fun ServerPreference(
                 Text(
                     "→",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = FgoUiColors.blueText
                 )
                 LanguageDirectionChip(
                     label = stringResource(R.string.home_mode),
@@ -537,7 +554,7 @@ private fun LanguageDirectionChip(
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.small,
-        color = backgroundColor
+        color = FgoUiColors.informationContainer(backgroundColor)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -546,12 +563,12 @@ private fun LanguageDirectionChip(
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = valueColor.copy(alpha = 0.72f)
+                color = FgoUiColors.text(valueColor.copy(alpha = 0.72f), secondary = true)
             )
             Text(
                 value,
                 style = MaterialTheme.typography.bodyLarge,
-                color = valueColor
+                color = FgoUiColors.text(valueColor)
             )
         }
     }
@@ -568,7 +585,8 @@ private fun StatusActionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
         Row(
             modifier = Modifier
@@ -601,6 +619,7 @@ private fun StatusActionCard(
                 )
             }
             TextButton(
+                colors = FgoUiColors.textButtonColors(),
                 onClick = onClick,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
@@ -614,7 +633,7 @@ private fun StatusActionCard(
 private fun StatusDot(enabled: Boolean) {
     Surface(
         shape = MaterialTheme.shapes.extraSmall,
-        color = if (enabled) Color(0xFF4CAF50) else Color(0xFFFF9800),
+        color = if (enabled) FgoUiColors.success else FgoUiColors.warning,
         modifier = Modifier.size(10.dp)
     ) {}
 }
@@ -629,7 +648,11 @@ private fun LanguageDialogOption(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = CircleShape,
+        shape = FgoUiStyle.controlShape(CircleShape),
+        border = if (LocalFgoDarkTheme.current) null else BorderStroke(
+            1.dp,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+        ),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
                 MaterialTheme.colorScheme.primaryContainer
@@ -659,7 +682,7 @@ private fun LanguageDialogOption(
                 Text(
                     "✓",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = FgoUiColors.blueText
                 )
             }
         }
@@ -670,7 +693,8 @@ private fun LanguageDialogOption(
 private fun ensureAccessibilityConnected(
     context: Context,
     diagnosticEventStore: DiagnosticEventStore,
-    reason: String
+    reason: String,
+    @StyleRes dialogTheme: Int
 ): Boolean {
     return when (FgoAccessibilityService.refreshConnectionState(context, reason)) {
         AccessibilityConnectionState.CONNECTED -> true
@@ -683,7 +707,7 @@ private fun ensureAccessibilityConnected(
                 message = "启动服务被阻止",
                 detail = "若 Android 已显示开启，请关闭 FgoGotran 无障碍服务后重新开启"
             )
-            showAccessibilityDisclosure(context)
+            showAccessibilityDisclosure(context, dialogTheme)
             false
         }
         AccessibilityConnectionState.ENABLED_NOT_CONNECTED,
@@ -696,14 +720,14 @@ private fun ensureAccessibilityConnected(
                 message = "启动服务被阻止：FgoGotran 没有收到无障碍服务连接",
                 detail = "关闭 FgoGotran 无障碍服务 → 等 2–3 秒 → 重新开启；若仍失败请重启模拟器"
             )
-            showAccessibilityNotConnectedDialog(context)
+            showAccessibilityNotConnectedDialog(context, dialogTheme)
             false
         }
     }
 }
 
-private fun showAccessibilityDisclosure(context: Context) {
-    AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
+private fun showAccessibilityDisclosure(context: Context, @StyleRes dialogTheme: Int) {
+    AlertDialog.Builder(context, dialogTheme)
         .setTitle(context.getString(R.string.accessibility_disclosure_title))
         .setMessage(context.getString(R.string.accessibility_disclosure_message))
         .setPositiveButton(context.getString(R.string.home_agree_open_settings)) { _, _ ->
@@ -716,8 +740,8 @@ private fun showAccessibilityDisclosure(context: Context) {
 /**
  * Shown when no live binding exists even though Android may show the service as enabled.
  */
-private fun showAccessibilityNotConnectedDialog(context: Context) {
-    AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
+private fun showAccessibilityNotConnectedDialog(context: Context, @StyleRes dialogTheme: Int) {
+    AlertDialog.Builder(context, dialogTheme)
         .setTitle(context.getString(R.string.accessibility_not_connected_title))
         .setMessage(context.getString(R.string.accessibility_not_connected_message))
         .setPositiveButton(context.getString(R.string.home_go_settings)) { _, _ ->
@@ -727,8 +751,8 @@ private fun showAccessibilityNotConnectedDialog(context: Context) {
         .show()
 }
 
-private fun showOverlayPermissionDisclosure(context: Context) {
-    AlertDialog.Builder(context, R.style.Theme_FgoGotran_Dialog)
+private fun showOverlayPermissionDisclosure(context: Context, @StyleRes dialogTheme: Int) {
+    AlertDialog.Builder(context, dialogTheme)
         .setTitle(context.getString(R.string.overlay_permission_title))
         .setMessage(context.getString(R.string.overlay_permission_message))
         .setPositiveButton(context.getString(R.string.home_agree_open_settings)) { _, _ ->

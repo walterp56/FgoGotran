@@ -200,12 +200,12 @@
     <string name="guide_auto_43">全</string>
     <string name="guide_auto_44">战</string>
     <string name="settings_auto_1">提供最近场景的日文与译文对照；模型误译前文时可关闭；会增加Token消耗(云端API)</string>
-    <string name="settings_auto_2">默认关闭：送翻译前会移除〈…〉注音，注音有时会干扰翻译质量；需要读音提示时可打开</string>
+    <string name="settings_auto_2">默认开启：包含识别到的 ruby 一起翻译。关闭后只翻译正文，不影响 ruby 识别；下次翻译生效。</string>
     <string name="settings_auto_3">默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。</string>
     <string name="settings_auto_4">相同原文可直接使用上次翻译，速度更快；\n遇到旧译文时可以清除缓存。</string>
     <string name="settings_auto_5">进阶引擎。准确度高，识别范围广。依赖 CPU 算力。</string>
     <string name="settings_auto_6">选择适合的 OCR（光学字元识别）引擎</string>
-    <string name="settings_auto_7">翻译时包含注音〈ruby〉</string>
+    <string name="settings_auto_7">翻译时包含 ruby</string>
     <string name="settings_auto_8">Sakura：本机规则</string>
     <string name="settings_auto_9">用于调试和排查问题。</string>
     <string name="settings_auto_10">前台检测已恢复正常</string>
@@ -368,6 +368,14 @@
     <string name="azure_endpoint_components_forbidden">中国 Azure 资源端点不能包含账号、端口、查询参数或片段</string>
     <string name="azure_endpoint_root_hint">请填写 Azure 门户显示的资源根端点</string>
     <string name="voice_ai_expression_requires_playback">需要开启 AI 语音播放后才会生效。</string>
+    <string name="app_appearance_title">外观</string>
+    <string name="settings_floating_button_size">悬浮按钮大小</string>
+    <string name="app_theme_title">主题</string>
+    <string name="app_theme_system">跟随系统</string>
+    <string name="app_theme_light">浅色</string>
+    <string name="app_theme_dark">深色</string>
+    <string name="app_theme_system_description">使用手机的浅色或深色设置。</string>
+    <string name="app_theme_close">关闭</string>
 </resources>
 
 

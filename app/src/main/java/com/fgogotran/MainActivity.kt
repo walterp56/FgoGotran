@@ -1,6 +1,7 @@
 package com.fgogotran
 
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -9,8 +10,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.data.AppThemeMode
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.translation.Translator
@@ -48,6 +51,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    private var systemDarkTheme by mutableStateOf(false)
+
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var appVersionManager: AppVersionManager
     @Inject lateinit var translator: Translator
@@ -61,6 +66,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        refreshSystemTheme()
         lifecycleScope.launch {
             settingsRepository.debugLoggingEnabled.collect { enabled ->
                 FgoLogger.setEnabled(enabled)
@@ -73,17 +79,39 @@ class MainActivity : ComponentActivity() {
             appAnalytics.reportCurrentBackendType()
         }
         setContent {
-            FgoGotranTheme {
+            val themeMode by settingsRepository.appThemeMode
+                .collectAsStateWithLifecycle<AppThemeMode?>(initialValue = null)
+            // Do not show a temporary theme while the asynchronous preference read completes.
+            val loadedThemeMode = themeMode ?: return@setContent
+            FgoGotranTheme(darkTheme = loadedThemeMode.isDark(systemDarkTheme)) {
                 MainScreen(
                     settingsRepository,
                     appVersionManager,
                     translator,
                     appAnalytics,
                     diagnosticEventStore,
-                    aiVoiceService
+                    aiVoiceService,
+                    loadedThemeMode
                 )
             }
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        refreshSystemTheme()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshSystemTheme()
+    }
+
+    private fun refreshSystemTheme() {
+        // The Activity's locale wrapper can contain an older uiMode snapshot.
+        // Read the unwrapped application configuration, and update only on lifecycle/config events.
+        systemDarkTheme = (applicationContext.resources.configuration.uiMode and
+            Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     }
 }
 
@@ -102,7 +130,8 @@ fun MainScreen(
     translator: Translator,
     appAnalytics: AppAnalytics,
     diagnosticEventStore: DiagnosticEventStore,
-    aiVoiceService: AiVoiceService
+    aiVoiceService: AiVoiceService,
+    themeMode: AppThemeMode
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -166,6 +195,10 @@ fun MainScreen(
         Screen.SETTINGS -> SettingsScreen(
             settingsRepository = settingsRepository,
             appVersionManager = appVersionManager,
+            themeMode = themeMode,
+            onThemeChange = { mode ->
+                scope.launch { settingsRepository.setAppThemeMode(mode) }
+            },
             onClearTranslationCache = { translator.clearTranslationCache() },
             onApiSettings = { currentScreen = Screen.API_SETTINGS },
             onVoiceSettings = { currentScreen = Screen.VOICE_SETTINGS },

@@ -22,7 +22,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +49,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -58,6 +58,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fgogotran.R
+import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoUiStyle
+import com.fgogotran.ui.theme.LocalFgoDarkTheme
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.translation.Translator
@@ -226,10 +229,11 @@ fun VoiceSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = FgoUiColors.topAppBarColors(),
                 title = { Text(stringResource(R.string.voice_auto_39)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.voice_auto_48), color = MaterialTheme.colorScheme.primary)
+                    TextButton(colors = FgoUiColors.textButtonColors(), onClick = onBack) {
+                        Text(stringResource(R.string.voice_auto_48), color = FgoUiColors.blueText)
                     }
                 }
             )
@@ -280,11 +284,13 @@ fun VoiceSettingsScreen(
                         Text(
                             subtitlePositionResetMessage,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = FgoUiColors.blueText
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                     }
                     OutlinedButton(
+                        colors = FgoUiColors.outlinedButtonColors(),
+                        shape = FgoUiStyle.buttonShape,
                         onClick = {
                             subtitlePositionResetMessage = ""
                             scope.launch {
@@ -452,7 +458,7 @@ fun VoiceSettingsScreen(
                 Text(
                     stringResource(R.string.voice_auto_25),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                    color = FgoUiColors.text(darkAlpha = 0.82f)
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -479,10 +485,11 @@ fun VoiceSettingsScreen(
                 Text(
                     stringResource(R.string.voice_auto_3),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                    color = FgoUiColors.text(darkAlpha = 0.58f, secondary = true)
                 )
                 if (azureSpeechRegion == SettingsRepository.AZURE_SPEECH_REGION_CHINA_NORTH3) {
                     OutlinedTextField(
+                        colors = FgoUiColors.outlinedTextFieldColors(),
                         value = azureSpeechEndpoint,
                         onValueChange = {
                             azureSpeechEndpoint = it
@@ -501,6 +508,7 @@ fun VoiceSettingsScreen(
                     )
                 }
                 OutlinedTextField(
+                    colors = FgoUiColors.outlinedTextFieldColors(),
                     value = azureSpeechKey,
                     onValueChange = {
                         azureSpeechKey = it
@@ -520,7 +528,7 @@ fun VoiceSettingsScreen(
                 Text(
                     stringResource(R.string.voice_auto_6),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                    color = FgoUiColors.text(darkAlpha = 0.58f, secondary = true)
                 )
                 if (azureSpeechTestMessage.isNotBlank()) {
                     Text(
@@ -529,7 +537,7 @@ fun VoiceSettingsScreen(
                         color = if (azureSpeechTestIsError) {
                             MaterialTheme.colorScheme.error
                         } else {
-                            MaterialTheme.colorScheme.primary
+                            FgoUiColors.blueText
                         }
                     )
                 }
@@ -542,18 +550,20 @@ fun VoiceSettingsScreen(
                         Text(
                             azureSpeechSaveMessage,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = FgoUiColors.blueText
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                     }
                     OutlinedButton(
+                        colors = FgoUiColors.outlinedButtonColors(),
+                        shape = FgoUiStyle.buttonShape,
                         onClick = { testAzureVoice() },
                         enabled = !azureSpeechTesting
                     ) {
                         Text(if (azureSpeechTesting) stringResource(R.string.voice_auto_36) else stringResource(R.string.voice_auto_45))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { saveAzureSpeechSettings() }) {
+                    Button(shape = FgoUiStyle.buttonShape, onClick = { saveAzureSpeechSettings() }) {
                         Text(stringResource(R.string.voice_auto_20))
                     }
                 }
@@ -656,7 +666,7 @@ private fun LiveVoiceSubtitleSizeSlider(
             Text(
                 stringResource(R.string.voice_auto_46),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                color = FgoUiColors.text(darkAlpha = 0.82f)
             )
             Text(
                 "${normalizedSize}sp",
@@ -666,7 +676,7 @@ private fun LiveVoiceSubtitleSizeSlider(
                 ) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
-                    MaterialTheme.colorScheme.primary
+                    FgoUiColors.blueText
                 },
                 textAlign = TextAlign.End
             )
@@ -678,7 +688,7 @@ private fun LiveVoiceSubtitleSizeSlider(
             Text(
                 stringResource(R.string.voice_auto_53),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                color = FgoUiColors.blueText
             )
             Slider(
                 value = normalizedSize.toFloat(),
@@ -693,7 +703,7 @@ private fun LiveVoiceSubtitleSizeSlider(
             Text(
                 stringResource(R.string.voice_auto_54),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                color = FgoUiColors.blueText
             )
         }
     }
@@ -744,7 +754,7 @@ private fun VoiceSpeedSlider(
             Text(
                 stringResource(R.string.voice_auto_51),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                color = FgoUiColors.text(darkAlpha = 0.82f)
             )
             Text(
                 aiVoiceSpeedMultiplierLabel(normalizedSpeed),
@@ -752,7 +762,7 @@ private fun VoiceSpeedSlider(
                 color = if (normalizedSpeed == SettingsRepository.DEFAULT_AI_VOICE_SPEED_PERCENT) {
                     MaterialTheme.colorScheme.onSurface
                 } else {
-                    MaterialTheme.colorScheme.primary
+                    FgoUiColors.blueText
                 },
                 textAlign = TextAlign.End
             )
@@ -764,7 +774,7 @@ private fun VoiceSpeedSlider(
             Text(
                 stringResource(R.string.voice_auto_55),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                color = FgoUiColors.blueText
             )
             Slider(
                 value = normalizedSpeed.toFloat(),
@@ -783,7 +793,7 @@ private fun VoiceSpeedSlider(
             Text(
                 stringResource(R.string.voice_auto_56),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                color = FgoUiColors.blueText
             )
         }
     }
@@ -822,15 +832,15 @@ private fun VoiceVolumeSlider(
             Text(
                 stringResource(R.string.voice_auto_52),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
+                color = FgoUiColors.text(darkAlpha = contentAlpha, enabled = enabled)
             )
             Text(
                 "$normalizedVolume%",
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (enabled && normalizedVolume != SettingsRepository.DEFAULT_AI_VOICE_VOLUME_PERCENT) {
-                    MaterialTheme.colorScheme.primary
+                    FgoUiColors.blueText
                 } else {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha)
+                    FgoUiColors.text(darkAlpha = contentAlpha, enabled = enabled)
                 },
                 textAlign = TextAlign.End
             )
@@ -842,7 +852,10 @@ private fun VoiceVolumeSlider(
             Text(
                 stringResource(R.string.voice_auto_53),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.48f)
+                color = FgoUiColors.disabledContent(
+                    FgoUiColors.blueText.copy(alpha = if (enabled) 1f else 0.48f),
+                    enabled = enabled
+                )
             )
             Slider(
                 value = normalizedVolume.toFloat(),
@@ -860,7 +873,10 @@ private fun VoiceVolumeSlider(
             Text(
                 stringResource(R.string.voice_auto_54),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.48f)
+                color = FgoUiColors.disabledContent(
+                    FgoUiColors.blueText.copy(alpha = if (enabled) 1f else 0.48f),
+                    enabled = enabled
+                )
             )
         }
     }
@@ -885,13 +901,19 @@ private fun AzureSpeechRegionOptionRow(
             .clickable(enabled = enabled, onClick = onClick),
         shape = MaterialTheme.shapes.small,
         color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 1f else 0.42f)
+            FgoUiColors.optionContainer(
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 1f else 0.42f),
+                selected = true, enabled = enabled
+            )
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+            FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
         },
         border = BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+            color = FgoUiColors.controlOutline(
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.34f),
+                selected = selected, enabled = enabled
+            )
         )
     ) {
         Box(
@@ -909,7 +931,7 @@ private fun AzureSpeechRegionOptionRow(
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = when {
-                        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.48f)
+                        !enabled -> FgoUiColors.text(darkAlpha = 0.48f, secondary = true, enabled = false)
                         selected -> MaterialTheme.colorScheme.onPrimaryContainer
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
@@ -919,9 +941,15 @@ private fun AzureSpeechRegionOptionRow(
                     option.subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = when {
-                        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                        selected -> MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                        !enabled -> FgoUiColors.text(darkAlpha = 0.38f, secondary = true, enabled = false)
+                        selected -> FgoUiColors.text(
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+                            secondary = true
+                        )
+                        else -> FgoUiColors.text(
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            secondary = true
+                        )
                     },
                     textAlign = TextAlign.Center
                 )
@@ -947,13 +975,17 @@ private fun VoiceCheckboxRow(
             Text(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.82f else 0.48f)
+                color = FgoUiColors.text(darkAlpha = if (enabled) 0.82f else 0.48f, enabled = enabled)
             )
             if (body.isNotBlank()) {
                 Text(
                     body,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.6f else 0.38f)
+                    color = FgoUiColors.text(
+                        darkAlpha = if (enabled) 0.6f else 0.38f,
+                        secondary = true,
+                        enabled = enabled
+                    )
                 )
             }
         }
@@ -978,7 +1010,10 @@ private fun VoiceMasterGenderIndicator(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 0.32f else 0.16f)
+        color = FgoUiColors.optionContainer(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (enabled) 0.32f else 0.16f),
+            selected = true, enabled = enabled
+        )
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -989,12 +1024,16 @@ private fun VoiceMasterGenderIndicator(
                 Text(
                     stringResource(R.string.voice_auto_38),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.82f else 0.48f)
+                    color = FgoUiColors.text(darkAlpha = if (enabled) 0.82f else 0.48f, enabled = enabled)
                 )
                 Text(
                     stringResource(R.string.voice_auto_16),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.6f else 0.38f)
+                    color = FgoUiColors.text(
+                        darkAlpha = if (enabled) 0.6f else 0.38f,
+                        secondary = true,
+                        enabled = enabled
+                    )
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -1002,7 +1041,10 @@ private fun VoiceMasterGenderIndicator(
                 genderLabel,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.48f)
+                color = FgoUiColors.disabledContent(
+                    FgoUiColors.blueText.copy(alpha = if (enabled) 1f else 0.48f),
+                    enabled = enabled
+                )
             )
         }
     }
@@ -1020,10 +1062,19 @@ private fun VoiceReadTextOption(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
         color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f)
+            FgoUiColors.optionContainer(
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f),
+                selected = true,
+                enabled = enabled
+            )
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
-        }
+            FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f))
+        },
+        border = if (LocalFgoDarkTheme.current) null else BorderStroke(
+            1.dp, FgoUiColors.controlOutline(
+                MaterialTheme.colorScheme.outline, selected = selected, enabled = enabled
+            )
+        )
     ) {
         Row(
             modifier = Modifier
@@ -1041,15 +1092,18 @@ private fun VoiceReadTextOption(
                 Text(
                     title,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(
-                        alpha = if (enabled || selected) 0.82f else 0.48f
+                    color = FgoUiColors.text(
+                        MaterialTheme.colorScheme.onSurface.copy(
+                            alpha = if (enabled || selected) 0.82f else 0.48f
+                        ),
+                        enabled = enabled
                     )
                 )
                 if (!enabled && hint.isNotBlank()) {
                     Text(
                         hint,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                     )
                 }
             }
@@ -1066,7 +1120,8 @@ private fun VoiceSettingsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1085,7 +1140,7 @@ private fun VoiceSettingsCard(
                 Text(
                     body,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                    color = FgoUiColors.text(darkAlpha = 0.65f, secondary = true)
                 )
             }
             content()
@@ -1097,14 +1152,17 @@ private fun VoiceSettingsCard(
 private fun VoiceSettingsIconBadge(@DrawableRes iconRes: Int) {
     Surface(
         modifier = Modifier.size(36.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+        color = FgoUiColors.accentContainer(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)),
         shape = MaterialTheme.shapes.small
     ) {
         Box(contentAlignment = Alignment.Center) {
             Image(
                 painter = painterResource(id = iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(24.dp),
+                colorFilter = if (LocalFgoDarkTheme.current) null else {
+                    ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                }
             )
         }
     }
@@ -1127,12 +1185,12 @@ private fun VoiceSwitchRow(
             Text(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+                color = FgoUiColors.text(darkAlpha = 0.82f, enabled = enabled)
             )
             Text(
                 body,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true, enabled = enabled)
             )
         }
         Spacer(modifier = Modifier.width(12.dp))

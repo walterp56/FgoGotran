@@ -150,3 +150,9 @@ app/src/test/java/com/fgogotran/util/*
 !app/src/test/java/com/fgogotran/translation/CharacterContextRepositoryTest.kt
 !app/src/test/java/com/fgogotran/translation/CharacterContextPromptTest.kt
 docs/
+# Retain focused app-theme preference regressions.
+!app/src/test/java/com/fgogotran/ui/
+app/src/test/java/com/fgogotran/ui/*
+!app/src/test/java/com/fgogotran/ui/theme/
+app/src/test/java/com/fgogotran/ui/theme/*
+!app/src/test/java/com/fgogotran/ui/theme/AppThemeModeTest.java
