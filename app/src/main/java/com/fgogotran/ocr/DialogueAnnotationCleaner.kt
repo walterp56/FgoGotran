@@ -29,7 +29,9 @@ internal object DialogueAnnotationCleaner {
         val top: Int,
         val right: Int,
         val bottom: Int,
-        val pixelCount: Int
+        val pixelCount: Int,
+        // Retained only for fixed dialogue: mask this component, not its entire rectangle/band.
+        val pixelIndices: List<Int> = emptyList()
     ) {
         val width: Int get() = right - left
         val height: Int get() = bottom - top
@@ -51,13 +53,13 @@ internal object DialogueAnnotationCleaner {
         val main: MainEvidence
     )
 
-    fun clean(pixels: IntArray, width: Int, height: Int): Result {
+    fun clean(pixels: IntArray, width: Int, height: Int, retainPixelIndices: Boolean = false): Result {
         if (width <= 0 || height <= 0 || pixels.size < width * height) {
             return Result(pixels, maskedComponents = 0, maskedRows = 0)
         }
 
         val foreground = BooleanArray(width * height) { index -> pixels[index].isDialogueInk() }
-        val components = connectedComponents(foreground, width, height)
+        val components = connectedComponents(foreground, width, height, retainPixelIndices)
         val maximumDotSide = max(MIN_DOT_SIDE, (height * MAX_DOT_SIDE_HEIGHT_RATIO).roundToInt())
         val candidates = components.mapNotNull { component ->
             if (!component.isDotCandidate(maximumDotSide)) return@mapNotNull null
@@ -130,7 +132,8 @@ internal object DialogueAnnotationCleaner {
     private fun connectedComponents(
         foreground: BooleanArray,
         width: Int,
-        height: Int
+        height: Int,
+        retainPixelIndices: Boolean
     ): List<Component> {
         val visited = BooleanArray(foreground.size)
         val queue = IntArray(foreground.size)
@@ -170,7 +173,8 @@ internal object DialogueAnnotationCleaner {
             }
 
             if (count >= MIN_COMPONENT_PIXELS) {
-                components += Component(left, top, right, bottom, count)
+                components += Component(left, top, right, bottom, count,
+                    if (retainPixelIndices) queue.take(tail) else emptyList())
             }
         }
         return components

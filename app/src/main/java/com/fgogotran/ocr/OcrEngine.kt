@@ -23,8 +23,14 @@ data class OcrTextLine(
     val boundingBox: Rect,
     val confidence: Float,
     // Choice-only provenance: the formatter must not rejoin independent recovered groups.
-    val isRecoveredRubyGroup: Boolean = false
+    val isRecoveredRubyGroup: Boolean = false,
+    // Only the fixed JP dialogue path supplies row ownership and character positions.
+    val dialogueRow: Int? = null,
+    val isDialogueRuby: Boolean = false,
+    val characterPositions: List<OcrCharacterPosition> = emptyList()
 )
+
+data class OcrCharacterPosition(val text: String, val centerX: Float)
 
 enum class OcrEngineId {
     ML_KIT,
@@ -37,6 +43,7 @@ enum class OcrEngineId {
 enum class OcrContentKind {
     GENERAL,
     DIALOGUE,
+    FIXED_JP_DIALOGUE,
     CHOICE
 }
 
@@ -203,7 +210,8 @@ class OcrEngine @Inject constructor(
                         OcrScalePolicy.scaleDownStart(line.boundingBox.top, scale, inputHeight),
                         OcrScalePolicy.scaleDownEnd(line.boundingBox.right, scale, inputWidth),
                         OcrScalePolicy.scaleDownEnd(line.boundingBox.bottom, scale, inputHeight)
-                    )
+                    ),
+                    characterPositions = line.characterPositions.map { it.copy(centerX = it.centerX / scale) }
                 )
             }
         )

@@ -124,12 +124,14 @@ private class PaddleOcrRuntime(
 
         val startedAt = System.currentTimeMillis()
         FgoLogger.debug(tag, "PaddleOCR starting on ${bitmap.width}x${bitmap.height}")
+        val fixedDialogue = contentKind == OcrContentKind.FIXED_JP_DIALOGUE
+        val dialogue = contentKind == OcrContentKind.DIALOGUE || fixedDialogue
 
         // Dialogue annotations must be separated before detection. If emphasis dots reach Paddle's
         // detector, it can split one horizontal main row into dot/glyph fragments and the recognizer
         // never receives the clean Japanese line. Only verified upper dot components are masked;
         // readable ruby and main-band punctuation remain in the image.
-        val originalDialoguePixels = if (contentKind == OcrContentKind.DIALOGUE) {
+        val originalDialoguePixels = if (dialogue) {
             IntArray(bitmap.width * bitmap.height).also { pixels ->
                 bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
             }
@@ -137,9 +139,9 @@ private class PaddleOcrRuntime(
             null
         }
         val annotationCleanup = originalDialoguePixels?.let { pixels ->
-            DialogueAnnotationCleaner.clean(pixels, bitmap.width, bitmap.height)
+            DialogueAnnotationCleaner.clean(pixels, bitmap.width, bitmap.height, retainPixelIndices = fixedDialogue)
         }
-        val dialoguePixels = annotationCleanup?.pixels
+        var dialoguePixels = annotationCleanup?.pixels
         val recognitionBitmap = choices?.recognitionBitmap(bitmap) ?: annotationCleanup
             ?.takeIf(DialogueAnnotationCleaner.Result::changed)
             ?.let { cleanup ->
@@ -153,6 +155,7 @@ private class PaddleOcrRuntime(
                     )
                 }
             } ?: bitmap
+        var mainRecognitionBitmap: Bitmap? = null
 
         return try {
         val detection = detectText(recognitionBitmap)
@@ -163,22 +166,42 @@ private class PaddleOcrRuntime(
         val rubyGroups = when {
             choices != null -> DialogueRubyGroupRecovery.planChoices(choices.analysis,
                 boxes.map { boxToRect(it, bitmap.width, bitmap.height).toRubyGroupBox() }, bitmap.width, bitmap.height)
+            fixedDialogue && annotationCleanup != null -> DialogueRubyGroupRecovery.planFixedDialogue(
+                annotationCleanup.components, boxes.map { boxToRect(it, bitmap.width, bitmap.height).toRubyGroupBox() },
+                bitmap.width, bitmap.height)
             annotationCleanup != null -> DialogueRubyGroupRecovery.plan(annotationCleanup.components,
                 boxes.map { boxToRect(it, bitmap.width, bitmap.height).toRubyGroupBox() }, bitmap.width, bitmap.height)
             else -> emptyList()
         }
         val rubyPlanningMs = System.currentTimeMillis() - rubyPlanningStartedAt
+        // Ordinary dialogue keeps its existing detector crops; only actual ruby needs separation.
+        val separatedDialogue = fixedDialogue && rubyGroups.isNotEmpty()
+        val rubyComponents = if (fixedDialogue) rubyGroups.flatMap { it.components }.toSet() else emptySet()
+        val mainComponents = if (fixedDialogue) annotationCleanup?.components.orEmpty().filterNot { it in rubyComponents }
+            else annotationCleanup?.components.orEmpty()
+        val mainRows = if (separatedDialogue) DialogueRubyGroupRecovery.mainRows(
+            mainComponents, rubyGroups, bitmap.width, bitmap.height) else emptyList()
+        val mainBoxes = if (separatedDialogue) mainRows.map { it.second.toRecognitionBox() } else boxes
+        val mainTargetCount = mainBoxes.size
+        if (separatedDialogue && dialoguePixels != null) {
+            dialoguePixels = DialogueRubyGroupRecovery.mainPixels(dialoguePixels, bitmap.width, rubyGroups)
+            mainRecognitionBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888).apply {
+                setPixels(dialoguePixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            }
+        }
+        val mainSource = mainRecognitionBitmap ?: recognitionBitmap
         val supplementaryBoxes = rubyGroups.map { group -> group.bounds.toRecognitionBox() }
-        // Preserve every original target as fallback. Supplement only an incomplete upper group,
-        // in the same recognition batch; do not add a detector pass or upscale the dialogue image.
-        val targetBoxes = if (supplementaryBoxes.isEmpty()) boxes else boxes + supplementaryBoxes
+        // Fixed dialogue recognizes each complete reading once, separately from its clean main row.
+        // Legacy dialogue/choices retain their original targets and supplementary fallback policy.
+        val targetBoxes = mainBoxes + supplementaryBoxes
         val recognitionTargets = targetBoxes.mapIndexed { index, box ->
             val bounds = boxToRect(box, recognitionBitmap.width, recognitionBitmap.height)
-            val visualDash = dialoguePixels != null && isVisualDialogueDash(
+            val visualDash = (!separatedDialogue || index < mainTargetCount) && dialoguePixels != null && isVisualDialogueDash(
                 dialoguePixels, bitmap.width, bitmap.height, bounds
             )
             // A verified visual dash needs neither scaling nor a model recognition call.
-            val crop = if (visualDash) null else cropTextLine(recognitionBitmap, box)
+            val crop = if (visualDash) null else cropTextLine(
+                if (separatedDialogue && index < mainTargetCount) mainSource else recognitionBitmap, box)
             val prepared = if (crop == null) {
                 null
             } else {
@@ -198,7 +221,7 @@ private class PaddleOcrRuntime(
         }
         val batchedRecognitionStartedAt = System.currentTimeMillis()
         val tightRecognitions = recognizePreparedTargets(
-            recognitionTargets, collectPositions = contentKind == OcrContentKind.DIALOGUE || choices != null
+            recognitionTargets, collectPositions = dialogue || choices != null
         )
         if (rubyGroups.isNotEmpty()) FgoLogger.debug(
             tag, "PaddleOCR ${if (choices == null) "ruby" else "choice ruby"} groups planned: added=${rubyGroups.size}, planningMs=$rubyPlanningMs, " +
@@ -210,7 +233,7 @@ private class PaddleOcrRuntime(
         var edgeRecoveryChanges = 0
         val edgeBudget = if (choices != null) CHOICE_EDGE_RECOVERY_MAX_PASSES else DIALOGUE_EDGE_RECOVERY_MAX_PASSES
         for (target in recognitionTargets) {
-            if (target.index >= boxes.size) break
+            if (target.index >= mainTargetCount) break
             val tightRecognition = tightRecognitions[target.index]
             if (target.visualDash) {
                 FgoLogger.debug(
@@ -237,7 +260,7 @@ private class PaddleOcrRuntime(
                 (contentKind == OcrContentKind.GENERAL && choices == null) || edgeRecoveryAttempts < edgeBudget
             ) {
                 recoverEdgePunctuation(
-                    source = recognitionBitmap,
+                    source = mainSource,
                     box = target.box,
                     tightRecognition = tightRecognition,
                     contentKind = contentKind,
@@ -272,7 +295,7 @@ private class PaddleOcrRuntime(
                         confidence >= EDGE_RECOVERY_TEXT_SCORE_THRESHOLD &&
                             PaddleEdgePunctuationMerger.isRecoverableDetachedFragment(it) &&
                             (it.hasEdgeQuotationMark() ||
-                                (contentKind == OcrContentKind.DIALOGUE &&
+                                (dialogue &&
                                     PaddleEdgePunctuationMerger.isDialoguePauseOrDashFragment(it)))
                     }
                     ?.let {
@@ -288,17 +311,17 @@ private class PaddleOcrRuntime(
                 )
             }
         }
-        if (boxes.isNotEmpty()) {
+        if (mainTargetCount > 0) {
             FgoLogger.debug(
                 tag,
-                "PaddleOCR edge recovery gate: attempts=$edgeRecoveryAttempts/${boxes.size}, " +
+                "PaddleOCR edge recovery gate: attempts=$edgeRecoveryAttempts/$mainTargetCount, " +
                     "changes=$edgeRecoveryChanges"
             )
         }
 
         val quoteRecoveredTextBoxes = recoverNoisyLeadingQuoteCandidates(detectedTextBoxes)
         val recoveredLines = recoverSplitSolidMaskRows(
-            source = recognitionBitmap,
+            source = mainSource,
             detectedTextBoxes = quoteRecoveredTextBoxes,
             maskRows = detection.solidMaskRows
         )
@@ -306,7 +329,7 @@ private class PaddleOcrRuntime(
             .mapNotNull(PaddleDetectedTextBox::lowConfidenceEdgeFragment)
             .filterWithMatchingQuoteEvidence(
                 regularLines = recoveredLines,
-                allowDialoguePauseOrDash = contentKind == OcrContentKind.DIALOGUE
+                allowDialoguePauseOrDash = dialogue
             )
         val mergedLines = recoverDetachedEdgePunctuation(
             lines = recoveredLines,
@@ -315,7 +338,7 @@ private class PaddleOcrRuntime(
             .sortedWith(compareBy({ it.boundingBox.top }, { it.boundingBox.left }))
         val punctuationLines = if (choices != null) {
             val positioned = mergedLines.mapIndexed { index, line ->
-                val target = recognitionTargets.firstOrNull { it.index < boxes.size && it.bounds == line.boundingBox }
+                val target = recognitionTargets.firstOrNull { it.index < mainTargetCount && it.bounds == line.boundingBox }
                 val value = dialoguePunctuationLine(line, target?.let { tightRecognitions[it.index] }, target?.box)
                 ChoicePunctuationRecovery.Line(index, value.text,
                     ChoicePunctuationRecovery.Bounds(value.bounds.left, value.bounds.top, value.bounds.right, value.bounds.bottom),
@@ -355,7 +378,7 @@ private class PaddleOcrRuntime(
             mergedLines
         } else {
             val positionedLines = mergedLines.map { line ->
-                val target = recognitionTargets.firstOrNull { it.index < boxes.size && it.bounds == line.boundingBox }
+                val target = recognitionTargets.firstOrNull { it.index < mainTargetCount && it.bounds == line.boundingBox }
                 val recognition = target?.let { tightRecognitions[it.index] }
                 dialoguePunctuationLine(line, recognition, target?.box)
             }
@@ -363,7 +386,7 @@ private class PaddleOcrRuntime(
                 pixels = dialoguePixels,
                 width = bitmap.width,
                 height = bitmap.height,
-                components = annotationCleanup.components,
+                components = mainComponents,
                 lines = positionedLines
             )
             // Usually the base CTC positions are sufficient. If a mask/edge merge invalidated
@@ -384,7 +407,7 @@ private class PaddleOcrRuntime(
                     line.bounds.right.toFloat(), line.bounds.bottom.toFloat(),
                     line.bounds.left.toFloat(), line.bounds.bottom.toFloat()
                 )
-                val crop = cropTextLine(recognitionBitmap, box) ?: return@forEach
+                val crop = cropTextLine(mainSource, box) ?: return@forEach
                 val recognition = try {
                     edgeRecoveryAttempts++
                     positionRetries++
@@ -402,7 +425,8 @@ private class PaddleOcrRuntime(
             }
             if (positionRetries > 0) {
                 val retried = DialoguePunctuationRecovery.recover(
-                    dialoguePixels, bitmap.width, bitmap.height, annotationCleanup.components, retryLines
+                    dialoguePixels, bitmap.width, bitmap.height,
+                    mainComponents, retryLines
                 )
                 recovery = retried.copy(recoveredCount = recovery.recoveredCount + retried.recoveredCount)
             }
@@ -410,12 +434,26 @@ private class PaddleOcrRuntime(
                 tag, "PaddleOCR fixed dialogue punctuation: recovered=${recovery.recoveredCount}, " +
                     "positionRetries=$positionRetries, unresolved=${recovery.unresolvedBounds.size}"
             )
-            recovery.lines.map { OcrTextLine(it.text, it.bounds.toRect(), it.confidence) }
+            recovery.lines.map { line -> OcrTextLine(line.text, line.bounds.toRect(), line.confidence,
+                dialogueRow = if (separatedDialogue) DialogueRubyLayout.mainRow(line.bounds.centerY, bitmap.height) else null,
+                characterPositions = if (separatedDialogue) line.tokens.map { OcrCharacterPosition(it.text, it.centerX) } else emptyList()) }
         }
-        // Supplementary annotations never participate in main-row punctuation recovery. Accept
-        // them afterwards, retaining the old lines if confidence or fragment preservation fails.
-        val lines = recoverRubyGroups(
-            punctuationLines, rubyGroups, recognitionTargets, tightRecognitions, boxes.size,
+        // Ruby never participates in main-row punctuation recovery. Fixed dialogue retains its
+        // band ownership; legacy dialogue/choices keep their supplementary replacement policy.
+        val lines = if (fixedDialogue) {
+            punctuationLines + rubyGroups.mapIndexedNotNull { index, group ->
+                val target = recognitionTargets[mainTargetCount + index]
+                val reading = tightRecognitions[target.index]
+                FgoLogger.debug(tag, "PaddleOCR fixed ruby: row=${group.dialogueRow}, " +
+                    "box=${target.bounds.flattenToString()}, text=${reading?.text.orEmpty()}, " +
+                    "confidence=${reading?.confidence ?: 0f}")
+                reading?.takeIf { it.text.isNotBlank() && it.confidence >= REC_TEXT_SCORE_THRESHOLD }?.let {
+                    OcrTextLine(it.text, target.bounds, it.confidence.coerceIn(0f, 1f),
+                        dialogueRow = group.dialogueRow, isDialogueRuby = true)
+                }
+            }
+        } else recoverRubyGroups(
+            punctuationLines, rubyGroups, recognitionTargets, tightRecognitions, mainTargetCount,
             choice = choices != null
         )
 
@@ -435,6 +473,7 @@ private class PaddleOcrRuntime(
             engine = OcrEngineId.PADDLE_OCR
         )
         } finally {
+            mainRecognitionBitmap?.let { if (!it.isRecycled) it.recycle() }
             if (recognitionBitmap !== bitmap && !recognitionBitmap.isRecycled) {
                 recognitionBitmap.recycle()
             }
@@ -936,7 +975,7 @@ private class PaddleOcrRuntime(
         choiceBounds: Rect? = null,
         choicePixels: IntArray? = null
     ): EdgePunctuationRecovery {
-        val dialogue = contentKind == OcrContentKind.DIALOGUE
+        val dialogue = contentKind == OcrContentKind.DIALOGUE || contentKind == OcrContentKind.FIXED_JP_DIALOGUE
         val lineWidth = max(
             distance(box[0], box[1], box[2], box[3]),
             distance(box[6], box[7], box[4], box[5])

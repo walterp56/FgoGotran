@@ -11,7 +11,9 @@ internal object DialogueRubyGroupRecovery {
         val bounds: Box,
         val originalBoxIndices: List<Int>,
         val componentCount: Int,
-        val expectedBand: Boolean
+        val expectedBand: Boolean,
+        val dialogueRow: Int? = null,
+        val components: List<Component> = emptyList()
     )
 
     data class Reading(val text: String, val confidence: Float)
@@ -29,6 +31,55 @@ internal object DialogueRubyGroupRecovery {
             it.height >= height * 0.16f && it.height <= height * 0.42f && it.width >= it.height * 0.8f
         }
         return planWithAnchors(components, boxes, width, height, mains) { inExpectedBand(it, height) }
+    }
+
+    /** Complete readings in the two fixed bands, independent of expanded main detector boxes. */
+    fun planFixedDialogue(components: List<Component>, boxes: List<Box>, width: Int, height: Int): List<Group> {
+        if (width <= 0 || height <= 0 || components.isEmpty()) return emptyList()
+        val bands = DialogueRubyLayout.rubyBands(width, height)
+        // Preserve the existing main-row grouping scale, including the widely spaced そ と case.
+        val reference = (64 * height / 219f).roundToInt().coerceAtLeast(1)
+        val anchors = bands.map { Box(0, it.bottom, width, it.bottom + reference) }
+        return planWithAnchors(components, boxes, width, height, anchors,
+            fixedRows = anchors.mapIndexed { index, box -> box to index + 1 }.toMap()) { true }
+    }
+
+    fun mainPixels(pixels: IntArray, width: Int, groups: List<Group>): IntArray {
+        if (groups.isEmpty()) return pixels
+        val output = pixels.copyOf()
+        groups.flatMap { it.components }.distinct().forEach { component ->
+            var previousY = -1
+            var background = 0
+            component.pixelIndices.forEach { index ->
+                val y = index / width
+                if (y != previousY) {
+                    val left = pixels[y * width + (component.left - 2).coerceAtLeast(0)]
+                    val right = pixels[y * width + (component.right + 1).coerceAtMost(width - 1)]
+                    fun luminance(pixel: Int) = ((pixel shr 16) and 255) * 77 +
+                        ((pixel shr 8) and 255) * 150 + (pixel and 255) * 29
+                    background = if (luminance(left) < luminance(right)) left else right
+                    previousY = y
+                }
+                output[index] = background
+            }
+        }
+        return output
+    }
+
+    /** One main target per occupied slot. Include edge punctuation even without a detector word. */
+    fun mainRows(components: List<Component>, groups: List<Group>, width: Int, height: Int): List<Pair<Int, Box>> {
+        val ruby = groups.flatMap { it.components }.toSet()
+        val bands = DialogueRubyLayout.rubyBands(width, height)
+        return components.filter { it !in ruby }.filter { component ->
+            val row = DialogueRubyLayout.mainRow(component.centerY, height)
+            component.centerY >= bands[row - 1].bottom &&
+                (row == 2 || component.centerY < bands[1].top)
+        }.groupBy { DialogueRubyLayout.mainRow(it.centerY, height) }.toSortedMap().map { (row, ink) ->
+            val bounds = union(ink.map(::box))
+            val padding = maxOf(1, (2 * height / 219f).roundToInt())
+            row to Box((bounds.left - padding).coerceAtLeast(0), (bounds.top - padding).coerceAtLeast(0),
+                (bounds.right + padding).coerceAtMost(width), (bounds.bottom + padding).coerceAtMost(height))
+        }
     }
 
     /** Choice anchors are relative to each button's main ink, never the dialogue fixed-Y bands. */
@@ -65,12 +116,22 @@ internal object DialogueRubyGroupRecovery {
 
     private fun planWithAnchors(
         components: List<Component>, boxes: List<Box>, width: Int, height: Int, mains: List<Box>,
+        fixedRows: Map<Box, Int> = emptyMap(),
         hinted: (Float) -> Boolean
     ): List<Group> {
         if (mains.isEmpty()) return emptyList()
+        val bands = if (fixedRows.isNotEmpty()) DialogueRubyLayout.rubyBands(width, height) else emptyList()
         val upperByMain = components.mapNotNull { component ->
             val main = mains.filter { candidate ->
-                component.height <= candidate.height * 0.55f && component.width <= candidate.height * 1.4f &&
+                if (fixedRows.isNotEmpty()) {
+                    val row = fixedRows.getValue(candidate)
+                    val band = bands[row - 1]
+                    // Lower band edges touch main-text dakuten. Small lower marks are not
+                    // reading seeds; attach marks to readable ruby locally below instead.
+                    DialogueRubyLayout.rubyRow(box(component), width, height) == row &&
+                        (component.height > band.height * 0.3f ||
+                            component.centerY < band.bottom - band.height * 0.15f)
+                } else component.height <= candidate.height * 0.55f && component.width <= candidate.height * 1.4f &&
                     component.centerX >= candidate.left - candidate.height * 0.5f &&
                     component.centerX <= candidate.right + candidate.height * 0.5f &&
                     mains.none { occupied -> component.centerY >= occupied.top + occupied.height * 0.1f &&
@@ -133,7 +194,12 @@ internal object DialogueRubyGroupRecovery {
                     if (run.none { it in rowSeeds }) continue
                     if (run.all { isRoundDot(it, reference, 0.5f) }) continue
                     val ink = union(run.map(::box))
-                    val marks = upper.filter { component ->
+                    // Detached dakuten can cross a band edge. Attach only nearby small marks;
+                    // the band selects the reading, not a hard clipping rectangle for its strokes.
+                    val markCandidates = if (fixedRows.isNotEmpty()) (upper + components.filter {
+                        it.height <= reference * 0.12f && maxOf(it.width, it.height) <= reference * 0.24f
+                    }).distinct() else upper
+                    val marks = markCandidates.filter { component ->
                         component !in row && component.top >= top - maxOf(side * 0.4f, reference * 0.08f) &&
                             component.bottom <= bottom + maxOf(side * 0.15f, reference * 0.06f) &&
                             horizontalGap(ink, box(component)) <= maxOf(side * 0.6f, reference * 0.15f)
@@ -142,7 +208,7 @@ internal object DialogueRubyGroupRecovery {
                     val inkBounds = union(parts.map(::box))
                     if (inkBounds.height > reference * 0.65f) continue
                     // A complete existing box needs no additional recognition, regardless of Y.
-                    if (boxes.any { existing ->
+                    if (fixedRows.isEmpty() && boxes.any { existing ->
                             existing.height <= reference * 0.72f && parts.all { contains(existing, box(it), 1) }
                         }) continue
                     val padding = maxOf(1, (reference * 0.035f).roundToInt())
@@ -161,8 +227,9 @@ internal object DialogueRubyGroupRecovery {
                         index !in originals && boxes[index].height <= reference * 0.72f &&
                             intersects(inkBounds, boxes[index])
                     }
-                    if (!crossingBox) groups += Group(
-                        bounds, originals, parts.size, hinted(inkBounds.centerY)
+                    if (fixedRows.isNotEmpty() || !crossingBox) groups += Group(
+                        bounds, originals, parts.size, hinted(inkBounds.centerY), fixedRows[main],
+                        if (fixedRows.isNotEmpty()) parts else emptyList()
                     )
                 }
             }

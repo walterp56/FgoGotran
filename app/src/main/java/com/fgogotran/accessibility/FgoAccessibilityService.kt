@@ -42,6 +42,7 @@ import com.fgogotran.ocr.FgoStoryTextPalette
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.ocr.OcrEngineId
 import com.fgogotran.ocr.OcrContentKind
+import com.fgogotran.ocr.OcrCharacterPosition
 import com.fgogotran.ocr.OcrInputScale
 import com.fgogotran.ocr.OcrTextCorrector
 import com.fgogotran.ocr.OcrTextLine
@@ -291,7 +292,7 @@ class FgoAccessibilityService : AccessibilityService() {
         /** Measured pairing geometry: ruby bottom ~0.10 x line height above the line top. */
         private const val RUBY_PAIR_GAP_MAX_RATIO = 0.5f
         private const val RUBY_PAIR_GAP_MAX_RATIO_RELAXED = 0.9f
-        private const val RUBY_PAIR_OVERLAP_TOLERANCE_RATIO = 0.2f
+        private const val RUBY_PAIR_OVERLAP_TOLERANCE_PX = 18
         private const val LOG_TEXT_CHUNK_SIZE = 900
         private const val MIN_PALETTE_TEXT_PIXELS = 8
         private const val NO_SPEAKER_PROFILE_ID = "no_speaker"
@@ -3629,6 +3630,34 @@ class FgoAccessibilityService : AccessibilityService() {
         scope: FgoStoryTextPalette.Scope = FgoStoryTextPalette.Scope.STORY,
         useDialogueRubyLayout: Boolean = false
     ): DialogueSourceText {
+        if (useDialogueRubyLayout && lines.any { it.dialogueRow != null }) {
+            // Fixed dialogue already owns its two slots. Never promote ruby to a main row or
+            // rejoin independent groups, and never fall back to a different row.
+            val mains = lines.filter { !it.isDialogueRuby && it.text.isNotBlank() }
+                .sortedWith(compareBy({ it.dialogueRow }, { it.boundingBox.left }))
+            val rubies = lines.filter { it.isDialogueRuby && it.text.isNotBlank() }
+            val formatted = (1..2).mapNotNull { row ->
+                val rowMains = mains.filter { it.dialogueRow == row }
+                val rowRubies = rubies.filter { it.dialogueRow == row }.sortedBy { it.boundingBox.left }
+                if (rowMains.isEmpty()) {
+                    // Preserve a recognized reading when its base was not recognized; do not
+                    // attach it to another row or pretend it is ordinary main text.
+                    rowRubies.takeIf { it.isNotEmpty() }?.joinToString("") { "〈${compactRubyText(it.text)}〉" }
+                } else rowMains.joinToString("") { main ->
+                    val owned = rowRubies.filter { ruby ->
+                        rowMains.maxWithOrNull(compareBy<OcrTextLine> {
+                            horizontalOverlap(it.boundingBox, ruby.boundingBox)
+                        }.thenBy { -kotlin.math.abs(it.boundingBox.centerX() - ruby.boundingBox.centerX()) }) == main
+                    }
+                    insertRubyAnnotations(main.text, main.boundingBox, owned, true, sourceBitmap, scope,
+                        main.characterPositions)
+                }
+            }.joinToString("\n")
+            FgoLogger.debug(tag, "Ruby formatted source (fixed): ruby=${rubies.size}, mains=${mains.size}, $formatted")
+            return DialogueSourceText(formatted,
+                if (needVoiceText) mains.joinToString("\n") { it.text } else "",
+                mains.toDialogueRenderLineBounds())
+        }
         // Dialogue OCR already runs in its own crop. A punctuation-only row such as `……。`
         // is therefore real dialogue, not name ruby, and must survive the ruby-noise filter.
         val dialogueHeightReference = if (useDialogueRubyLayout) {
@@ -3886,9 +3915,7 @@ class FgoAccessibilityService : AccessibilityService() {
         main: OcrTextLine,
         heightReference: Int
     ): Boolean {
-        if (main.boundingBox.top < ruby.boundingBox.bottom -
-            (heightReference * RUBY_PAIR_OVERLAP_TOLERANCE_RATIO).toInt()
-        ) {
+        if (main.boundingBox.top < ruby.boundingBox.bottom - RUBY_PAIR_OVERLAP_TOLERANCE_PX) {
             return false
         }
         if (main.boundingBox.top - ruby.boundingBox.bottom >
@@ -3909,9 +3936,7 @@ class FgoAccessibilityService : AccessibilityService() {
         main: OcrTextLine,
         heightReference: Int
     ): Boolean {
-        if (main.boundingBox.top < ruby.boundingBox.bottom -
-            (heightReference * RUBY_PAIR_OVERLAP_TOLERANCE_RATIO).toInt()
-        ) {
+        if (main.boundingBox.top < ruby.boundingBox.bottom - RUBY_PAIR_OVERLAP_TOLERANCE_PX) {
             return false
         }
         if (main.boundingBox.top - ruby.boundingBox.bottom >
@@ -3957,7 +3982,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         if (strict != null) return strict
 
-        val overlapTolerance = (heightReference * RUBY_PAIR_OVERLAP_TOLERANCE_RATIO).toInt()
+        val overlapTolerance = RUBY_PAIR_OVERLAP_TOLERANCE_PX
         return mainCandidates.minWithOrNull(
             compareBy<OcrTextLine> {
                 if (it.boundingBox.top >= ruby.boundingBox.bottom - overlapTolerance) 0 else 1
@@ -4208,14 +4233,17 @@ class FgoAccessibilityService : AccessibilityService() {
         rubies: List<OcrTextLine>,
         useJapaneseRubyMarkup: Boolean,
         sourceBitmap: Bitmap?,
-        scope: FgoStoryTextPalette.Scope
+        scope: FgoStoryTextPalette.Scope,
+        characterPositions: List<OcrCharacterPosition> = emptyList()
     ): String {
-        val baseSpans = sourceBitmap
+        if (rubies.isEmpty()) return mainText
+        val positioned = characterPositions.isNotEmpty() && characterPositions.joinToString("") { it.text } == mainText
+        val baseSpans = sourceBitmap?.takeUnless { positioned }
             ?.let { bitmap -> buildBaseSpans(bitmap, mainText, mainBounds, scope) }
             .orEmpty()
         val insertions = rubies
             .mapNotNull { ruby ->
-                rubyInsertion(mainText, mainBounds, ruby, useJapaneseRubyMarkup, baseSpans)
+                rubyInsertion(mainText, mainBounds, ruby, useJapaneseRubyMarkup, baseSpans, characterPositions)
             }
             .sortedByDescending { it.index }
         if (insertions.isEmpty()) return mainText
@@ -4238,7 +4266,8 @@ class FgoAccessibilityService : AccessibilityService() {
         mainBounds: Rect,
         ruby: OcrTextLine,
         useJapaneseRubyMarkup: Boolean,
-        baseSpans: List<BaseSpan>
+        baseSpans: List<BaseSpan>,
+        characterPositions: List<OcrCharacterPosition> = emptyList()
     ): RubyInsertion? {
         if (mainText.isBlank()) return null
         val rubyText = compactRubyText(ruby.text)
@@ -4249,7 +4278,8 @@ class FgoAccessibilityService : AccessibilityService() {
             return null
         }
 
-        val insertIndex = bestBaseSpanForRuby(ruby, baseSpans)?.insertionIndex
+        val insertIndex = DialogueRubyLayout.rubyInsertIndex(mainText, characterPositions, ruby.toRubyLayoutBox())
+            ?: bestBaseSpanForRuby(ruby, baseSpans)?.insertionIndex
             ?: approximateRubyInsertIndex(mainText, mainBounds, ruby)
         val annotation = if (useJapaneseRubyMarkup) {
             "〈$rubyText〉"
@@ -5254,7 +5284,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 ocrEngine.recognize(
                     cropped,
                     contentKind = if (target.region == TextRegion.DIALOGUE_BOX) {
-                        OcrContentKind.DIALOGUE
+                        if (isJapaneseServer()) OcrContentKind.FIXED_JP_DIALOGUE else OcrContentKind.DIALOGUE
                     } else {
                         OcrContentKind.GENERAL
                     }
@@ -5469,20 +5499,21 @@ class FgoAccessibilityService : AccessibilityService() {
                 ocrEngine.recognize(
                     scaled!!,
                     inputScale = OcrInputScale.X2,
-                    contentKind = OcrContentKind.DIALOGUE
+                    contentKind = if (isJapaneseServer()) OcrContentKind.FIXED_JP_DIALOGUE else OcrContentKind.DIALOGUE
                 )
             }
             val regionLines = ocrResult.lines
                 .map { line ->
-                    OcrTextLine(
-                        text = line.text,
+                    line.copy(
                         boundingBox = Rect(
                             cropBounds.left + line.boundingBox.left / RED_DIALOGUE_OCR_SCALE,
                             cropBounds.top + line.boundingBox.top / RED_DIALOGUE_OCR_SCALE,
                             cropBounds.left + line.boundingBox.right / RED_DIALOGUE_OCR_SCALE,
                             cropBounds.top + line.boundingBox.bottom / RED_DIALOGUE_OCR_SCALE
                         ),
-                        confidence = line.confidence
+                        characterPositions = line.characterPositions.map {
+                            it.copy(centerX = cropBounds.left + it.centerX / RED_DIALOGUE_OCR_SCALE)
+                        }
                     )
                 }
                 .filter { it.text.isNotBlank() && it.boundingBox.width() > 0 && it.boundingBox.height() > 0 }
@@ -5777,7 +5808,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     line.boundingBox.top + offset.top,
                     line.boundingBox.right + offset.left,
                     line.boundingBox.bottom + offset.top
-                )
+                ),
+                characterPositions = line.characterPositions.map { it.copy(centerX = it.centerX + offset.left) }
             )
         }
     }

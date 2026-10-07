@@ -2,12 +2,40 @@ package com.fgogotran.ocr
 
 import kotlin.math.abs
 
-/** Geometry only: no recognition, character offsets, or changes to the ruby insertion format. */
+/** Geometry and row ownership inside FGO's exact dialogue crop; no recognition or retries. */
 internal object DialogueRubyLayout {
     data class Box(val left: Int, val top: Int, val right: Int, val bottom: Int) {
         val width: Int get() = (right - left).coerceAtLeast(1)
         val height: Int get() = (bottom - top).coerceAtLeast(1)
         val centerY: Float get() = (top + bottom) / 2f
+    }
+
+    /** Reference screenshot is 1080p; the exact dialogue crop starts at 833 and is 219px high. */
+    fun rubyBands(width: Int, height: Int): List<Box> = listOf(15 to 48, 98 to 134).map { (top, bottom) ->
+        Box(0, (top * height / 219f).toInt(), width, (bottom * height / 219f).toInt())
+    }
+
+    fun rubyRow(bounds: Box, width: Int, height: Int): Int? = rubyBands(width, height)
+        .indexOfFirst { band -> bounds.centerY >= band.top && bounds.centerY < band.bottom &&
+            bounds.height <= band.height * 0.8f }
+        .takeIf { it >= 0 }?.plus(1)
+
+    /** Stable slot IDs: a lone second line remains row 2, not row 1. */
+    fun mainRow(centerY: Float, height: Int): Int = if (centerY * 219f / height < 109f) 1 else 2
+
+    /** Use recognizer positions, not uniform character widths or expanded detector-box overlap. */
+    fun rubyInsertIndex(text: String, positions: List<OcrCharacterPosition>, ruby: Box): Int? {
+        if (positions.isEmpty() || positions.joinToString("") { it.text } != text ||
+            positions.any { !it.centerX.isFinite() }) return null
+        var offset = 0
+        val letters = positions.mapNotNull { token ->
+            offset += token.text.length
+            if (token.text.any(Char::isLetterOrDigit)) token.centerX to offset else null
+        }
+        val covered = letters.filter { it.first >= ruby.left && it.first <= ruby.right }
+        return covered.lastOrNull()?.second ?: letters.minByOrNull {
+            abs(it.first - (ruby.left + ruby.right) / 2f)
+        }?.second
     }
 
     /**

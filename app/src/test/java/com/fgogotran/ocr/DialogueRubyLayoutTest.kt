@@ -2,10 +2,47 @@ package com.fgogotran.ocr
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class DialogueRubyLayoutTest {
     private fun box(left: Int, top: Int, width: Int, height: Int) =
         DialogueRubyLayout.Box(left, top, left + width, top + height)
+
+    @Test
+    fun `fixed ruby bands are scaled relative to the exact crop`() {
+        assertEquals(listOf(DialogueRubyLayout.Box(0, 15, 700, 48), DialogueRubyLayout.Box(0, 98, 700, 134)),
+            DialogueRubyLayout.rubyBands(700, 219))
+        assertEquals(listOf(DialogueRubyLayout.Box(0, 30, 1400, 96), DialogueRubyLayout.Box(0, 196, 1400, 268)),
+            DialogueRubyLayout.rubyBands(1400, 438))
+        assertNull(DialogueRubyLayout.rubyRow(box(30, 44, 26, 48), 700, 219))
+    }
+
+    @Test
+    fun `recognizer positions attach after the full base and before its punctuation`() {
+        val text = "我が小源にて起動せよ、大令呪。"
+        val positions = text.mapIndexed { index, char -> OcrCharacterPosition(char.toString(), 20f + index * 40f) }
+        assertEquals(4, DialogueRubyLayout.rubyInsertIndex(text, positions, box(90, 15, 60, 20)))
+        assertEquals(14, DialogueRubyLayout.rubyInsertIndex(text, positions, box(490, 15, 110, 20)))
+    }
+
+    @Test
+    fun `each second-row reading uses only that row's character positions`() {
+        val text = "現の彼方、宙に等しき星の瞬。"
+        val positions = text.mapIndexed { index, char -> OcrCharacterPosition(char.toString(), 20f + index * 40f) }
+        assertEquals(1, DialogueRubyLayout.rubyInsertIndex(text, positions, box(0, 98, 35, 20)))
+        assertEquals(6, DialogueRubyLayout.rubyInsertIndex(text, positions, box(210, 98, 35, 20)))
+        assertEquals(13, DialogueRubyLayout.rubyInsertIndex(text, positions, box(490, 98, 35, 20)))
+    }
+
+    @Test
+    fun `position offsets count punctuation tokens without inserting after them`() {
+        val text = "……大令呪。───"
+        val positions = listOf(OcrCharacterPosition("……", 20f), OcrCharacterPosition("大", 70f),
+            OcrCharacterPosition("令", 110f), OcrCharacterPosition("呪", 150f),
+            OcrCharacterPosition("。", 190f), OcrCharacterPosition("───", 240f))
+        assertEquals(5, DialogueRubyLayout.rubyInsertIndex(text, positions, box(60, 15, 140, 20)))
+        assertNull(DialogueRubyLayout.rubyInsertIndex(text, positions.dropLast(1), box(60, 15, 140, 20)))
+    }
 
     @Test
     fun `many small readings cannot outweigh a single main row`() {

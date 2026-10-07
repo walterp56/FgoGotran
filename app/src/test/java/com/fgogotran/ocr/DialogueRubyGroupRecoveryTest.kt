@@ -16,6 +16,149 @@ class DialogueRubyGroupRecoveryTest {
     private fun plan(components: List<Component>, extra: List<Box> = emptyList()) =
         DialogueRubyGroupRecovery.plan(components, listOf(main) + extra, 700, 219)
 
+    private fun fixed(components: List<Component>, boxes: List<Box> = emptyList()) =
+        DialogueRubyGroupRecovery.planFixedDialogue(components, boxes, 700, 219)
+
+    @Test
+    fun `fixed bands recognize complete groups even with overlapping merged main boxes`() {
+        val groups = fixed(listOf(glyph(30), glyph(130), glyph(30, 110), glyph(130, 110)),
+            listOf(Box(20, 25, 680, 114), Box(20, 96, 680, 185)))
+        assertEquals(listOf(1, 2), groups.map { it.dialogueRow })
+        assertTrue(groups.all { it.componentCount == 2 })
+    }
+
+    @Test
+    fun `fixed complete detector box is recognized once as a complete band group`() {
+        val groups = fixed(listOf(glyph(30), glyph(80)), listOf(Box(28, 16, 96, 39)))
+        assertEquals(1, groups.size)
+        assertEquals(2, groups.single().componentCount)
+    }
+
+    @Test
+    fun `fixed ownership does not require the detector to find a main row`() {
+        assertEquals(2, fixed(listOf(glyph(30, 110))).single().dialogueRow)
+    }
+
+    @Test
+    fun `independent detected readings in a fixed band stay separate`() {
+        val groups = fixed(listOf(glyph(30), glyph(50), glyph(85), glyph(105)),
+            listOf(Box(28, 16, 66, 39), Box(83, 16, 121, 39)))
+        assertEquals(2, groups.size)
+        assertTrue(groups.all { it.dialogueRow == 1 })
+    }
+
+    @Test
+    fun `fixed groups preserve long vowel and detached dakuten beyond the upper band edge`() {
+        val groups = fixed(listOf(glyph(30), Component(130, 26, 146, 28, 32),
+            Component(43, 12, 46, 15, 6), Component(47, 12, 50, 15, 6)))
+        assertEquals(1, groups.size)
+        assertEquals(4, groups.single().componentCount)
+        assertTrue(groups.single().bounds.top <= 12)
+        assertTrue(groups.single().bounds.right >= 146)
+    }
+
+    @Test
+    fun `fixed main strokes crossing the lower ruby band edge are not ruby`() {
+        val mainInk = Component(40, 44, 66, 92, 300)
+        val ruby = glyph(30)
+        val groups = fixed(listOf(mainInk, ruby))
+        assertEquals(listOf(ruby), groups.single().components)
+        val mainRows = DialogueRubyGroupRecovery.mainRows(listOf(mainInk, ruby), groups, 700, 219)
+        assertEquals(1, mainRows.single().first)
+        assertTrue(mainRows.single().second.top < 44)
+        assertTrue(mainRows.single().second.bottom > 92)
+    }
+
+    @Test
+    fun `main ga dakuten at the band edge cannot join the nearby od reading`() {
+        // Measured native-pixel components in Screenshot_20261008_012850_FateGO.jpg.
+        val mainDakuten = Component(128, 43, 136, 49, 24)
+        val ruby = listOf(Component(166, 25, 175, 40, 52), Component(209, 24, 216, 40, 32),
+            Component(217, 31, 222, 35, 9))
+        val group = fixed(ruby + mainDakuten).single()
+        assertEquals(ruby.toSet(), group.components.toSet())
+        assertTrue(group.bounds.bottom < 43)
+        assertTrue(mainDakuten !in group.components)
+    }
+
+    @Test
+    fun `fixed tiny so to components retain every stroke across the measured wide gap`() {
+        val parts = listOf(Component(84, 110, 88, 114, 9), Component(187, 120, 188, 125, 5),
+            Component(191, 110, 196, 117, 18), Component(76, 111, 79, 114, 5),
+            Component(80, 116, 83, 119, 6), Component(195, 126, 201, 127, 6))
+        val group = fixed(parts).single()
+        assertEquals(2, group.dialogueRow)
+        assertEquals(parts.toSet(), group.components.toSet())
+    }
+
+    @Test
+    fun `image-derived Sirius Light strokes cannot become duplicate overlapping groups`() {
+        val parts = listOf(Component(637, 37, 645, 40, 9), Component(660, 24, 663, 35, 17),
+            Component(669, 24, 673, 38, 25), Component(681, 27, 683, 33, 11),
+            Component(687, 24, 691, 28, 10), Component(691, 27, 697, 38, 17),
+            Component(710, 26, 717, 37, 26), Component(736, 29, 742, 38, 18),
+            Component(754, 24, 763, 41, 32), Component(774, 24, 781, 41, 33),
+            Component(639, 24, 643, 27, 7), Component(636, 30, 640, 33, 6),
+            Component(782, 32, 786, 35, 7))
+        val group = fixed(parts).single()
+        assertEquals(1, group.dialogueRow)
+        assertEquals(parts.toSet(), group.components.toSet())
+    }
+
+    @Test
+    fun `fixed first and second bands scale and do not renumber a lone second row`() {
+        val parts = listOf(glyph(30, 110), glyph(130, 110))
+        val expected = fixed(parts).single()
+        val scaled = DialogueRubyGroupRecovery.planFixedDialogue(parts.map {
+            Component(it.left * 2, it.top * 2, it.right * 2, it.bottom * 2, it.pixelCount * 4)
+        }, emptyList(), 1400, 438).single()
+        assertEquals(2, scaled.dialogueRow)
+        assertEquals(Box(expected.bounds.left * 2, expected.bounds.top * 2,
+            expected.bounds.right * 2, expected.bounds.bottom * 2), scaled.bounds)
+        val mainRows = DialogueRubyGroupRecovery.mainRows(listOf(Component(30, 131, 400, 179, 800)),
+            emptyList(), 700, 219)
+        assertEquals(2, mainRows.single().first)
+    }
+
+    @Test
+    fun `fixed main-only copy masks selected pixels without changing original or enclosing main ink`() {
+        val width = 100
+        val pixels = IntArray(width * 219) { 0xFF142B48.toInt() }
+        val rubyIndices = (20 until 32).flatMap { y -> (30 until 38).map { x -> y * width + x } }
+        rubyIndices.forEach { pixels[it] = -1 }
+        // Another component inside the same rectangle must not be erased by rectangle masking.
+        val preservedIndex = 25 * width + 34
+        val selectedIndices = rubyIndices.filter { it != preservedIndex }
+        val selected = Component(30, 20, 38, 32, selectedIndices.size, selectedIndices)
+        val group = DialogueRubyGroupRecovery.Group(Box(28, 18, 40, 34), emptyList(), 1, true, 1, listOf(selected))
+        val masked = DialogueRubyGroupRecovery.mainPixels(pixels, width, listOf(group))
+        assertTrue(selectedIndices.all { masked[it] == 0xFF142B48.toInt() })
+        assertEquals(-1, masked[preservedIndex])
+        assertTrue(rubyIndices.all { pixels[it] == -1 })
+    }
+
+    @Test
+    fun `fixed main rows keep leading internal and trailing punctuation and standalone pauses`() {
+        val components = listOf(Component(0, 75, 7, 80, 20), Component(20, 45, 300, 92, 600),
+            Component(310, 72, 390, 75, 240), Component(500, 75, 530, 79, 100),
+            Component(20, 160, 90, 165, 200))
+        val rows = DialogueRubyGroupRecovery.mainRows(components, emptyList(), 700, 219)
+        assertEquals(listOf(1, 2), rows.map { it.first })
+        assertEquals(0, rows.first().second.left)
+        assertTrue(rows.first().second.right > 530)
+        assertTrue(rows.last().second.left <= 20 && rows.last().second.right >= 90)
+    }
+
+    @Test
+    fun `fixed geometry keeps five distinct readings in the invocation screenshot layout`() {
+        val parts = listOf(glyph(70), glyph(100), glyph(370), glyph(388), glyph(406),
+            glyph(30, 110), glyph(48, 110), glyph(230, 110), glyph(260, 110),
+            glyph(500, 110), glyph(518, 110), glyph(536, 110), glyph(554, 110))
+        val groups = fixed(parts)
+        assertEquals(listOf(1, 1, 2, 2, 2), groups.map { it.dialogueRow })
+        assertEquals(13, groups.sumOf { it.componentCount })
+    }
+
     @Test
     fun `recognizes a complete widely spaced group rather than just the detected suffix`() {
         val groups = plan(listOf(glyph(30), glyph(80), glyph(130)), listOf(Box(128, 17, 146, 38)))
