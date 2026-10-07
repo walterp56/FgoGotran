@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -462,6 +463,16 @@ fun SettingsScreen(
                     }
                 )
                 PreferenceSwitchRow(
+                    title = stringResource(R.string.settings_auto_29),
+                    subtitle = stringResource(R.string.settings_auto_12),
+                    checked = showOriginalGameText,
+                    onCheckedChange = {
+                        showOriginalGameText = it
+                        scope.launch { settingsRepository.setShowOriginalGameText(it) }
+                    }
+                )
+                HorizontalDivider()
+                PreferenceSwitchRow(
                     title = stringResource(R.string.settings_auto_11),
                     subtitle = stringResource(R.string.settings_auto_1),
                     checked = translationContextEnabled,
@@ -482,6 +493,7 @@ fun SettingsScreen(
                         }
                     }
                 )
+                HorizontalDivider()
                 PreferenceSwitchRow(
                     title = stringResource(R.string.settings_auto_7),
                     subtitle = stringResource(R.string.settings_auto_2),
@@ -490,6 +502,37 @@ fun SettingsScreen(
                         translationIncludeRuby = enabled
                         scope.launch { settingsRepository.setTranslationIncludeRuby(enabled) }
                     }
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_ruby_example_label),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // These are Japanese game text, not Chinese UI labels.
+                        androidx.compose.material3.Text(
+                            text = stringResource(R.string.settings_ruby_example_annotation),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = FgoUiColors.blueText
+                        )
+                        androidx.compose.material3.Text(
+                            text = stringResource(R.string.settings_ruby_example_base),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                HorizontalDivider()
+                Text(
+                    text = stringResource(R.string.settings_master_profile_title),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
                 OutlinedTextField(
                     colors = FgoUiColors.outlinedTextFieldColors(),
@@ -527,15 +570,6 @@ fun SettingsScreen(
                         Text(stringResource(R.string.settings_auto_51))
                     }
                 }
-                PreferenceSwitchRow(
-                    title = stringResource(R.string.settings_auto_29),
-                    subtitle = stringResource(R.string.settings_auto_12),
-                    checked = showOriginalGameText,
-                    onCheckedChange = {
-                        showOriginalGameText = it
-                        scope.launch { settingsRepository.setShowOriginalGameText(it) }
-                    }
-                )
             }
 
             SettingsCard(
@@ -981,70 +1015,94 @@ private fun PlayerGenderSelector(
     onSelect: (String) -> Unit
 ) {
     val normalizedGender = SettingsRepository.normalizePlayerGender(selectedGender)
+    val selectedOption = playerGenderOptions.first { it.gender == normalizedGender }
+    var showPicker by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(role = Role.Button) { showPicker = true },
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            stringResource(R.string.settings_auto_41),
+            text = stringResource(R.string.settings_auto_41),
             style = MaterialTheme.typography.bodyMedium,
-            color = FgoUiColors.text(darkAlpha = 0.72f, secondary = true),
-            fontWeight = FontWeight.SemiBold
+            color = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            playerGenderOptions.forEach { option ->
-                PlayerGenderOption(
-                    option = option,
-                    selected = option.gender == normalizedGender,
-                    onClick = { onSelect(option.gender) },
-                    modifier = Modifier.weight(1f)
+        Spacer(modifier = Modifier.width(12.dp))
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            Surface(
+                modifier = Modifier.widthIn(min = 96.dp).heightIn(min = 48.dp),
+                shape = MaterialTheme.shapes.small,
+                color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.34f))
                 )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                ) {
+                    Text(
+                        text = stringResource(selectedOption.labelRes),
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    Icon(
+                        painter = painterResource(R.drawable.ic_settings_chevron_right),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
-}
 
-@Composable
-private fun PlayerGenderOption(
-    option: PlayerGenderOption,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.small,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
-        },
-        border = BorderStroke(
-            width = 1.dp,
-            color = FgoUiColors.controlOutline(
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.34f),
-                selected = selected
-            )
-        )
-    ) {
-        Text(
-            text = stringResource(option.labelRes),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+    if (showPicker) {
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            title = { Text(stringResource(R.string.settings_auto_41)) },
+            text = {
+                Column(modifier = Modifier.selectableGroup()) {
+                    playerGenderOptions.forEach { option ->
+                        val selected = option.gender == normalizedGender
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .selectable(selected = selected, role = Role.RadioButton) {
+                                    showPicker = false
+                                    onSelect(option.gender)
+                                }
+                                .padding(horizontal = 4.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            RadioButton(selected = selected, onClick = null)
+                            Text(
+                                text = stringResource(option.labelRes),
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
             },
-            textAlign = TextAlign.Center
+            confirmButton = {
+                TextButton(
+                    colors = FgoUiColors.textButtonColors(),
+                    onClick = { showPicker = false }
+                ) {
+                    Text(stringResource(R.string.home_cancel))
+                }
+            }
         )
     }
 }

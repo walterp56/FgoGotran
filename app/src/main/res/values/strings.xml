@@ -200,16 +200,19 @@
     <string name="guide_auto_43">全</string>
     <string name="guide_auto_44">战</string>
     <string name="settings_auto_1">提供最近场景的日文与译文对照；模型误译前文时可关闭；会增加Token消耗(云端API)</string>
-    <string name="settings_auto_2">默认开启：包含识别到的 ruby 一起翻译。关闭后只翻译正文，不影响 ruby 识别；下次翻译生效。</string>
+    <string name="settings_auto_2">将正文上方的小字一起交给翻译。关闭后只翻译正文，不影响小字识别；下次翻译生效。</string>
     <string name="settings_auto_3">默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。</string>
     <string name="settings_auto_4">相同原文可直接使用上次翻译，速度更快；\n遇到旧译文时可以清除缓存。</string>
     <string name="settings_auto_5">进阶引擎。准确度高，识别范围广。依赖 CPU 算力。</string>
     <string name="settings_auto_6">选择适合的 OCR（光学字元识别）引擎</string>
-    <string name="settings_auto_7">翻译时包含 ruby</string>
+    <string name="settings_auto_7">翻译时包含上方小字</string>
+    <string name="settings_ruby_example_label">游戏中的例子</string>
+    <string name="settings_ruby_example_annotation" translatable="false">シリウスライト</string>
+    <string name="settings_ruby_example_base" translatable="false">大令呪</string>
     <string name="settings_auto_8">Sakura：本机规则</string>
     <string name="settings_auto_9">用于调试和排查问题。</string>
     <string name="settings_auto_10">前台检测已恢复正常</string>
-    <string name="settings_auto_11">使用双语剧情上下文</string>
+    <string name="settings_auto_11">参考前文</string>
     <string name="settings_auto_12">同时显示日文原文与译文</string>
     <string name="settings_auto_13">调试日志已开启</string>
     <string name="settings_auto_14">调试日志已关闭</string>
@@ -227,6 +230,7 @@
     <string name="settings_auto_26">管理接口</string>
     <string name="settings_auto_27">翻译偏好</string>
     <string name="settings_auto_28">御主名称</string>
+    <string name="settings_master_profile_title">御主资料</string>
     <string name="settings_auto_29">双语显示</string>
     <string name="settings_auto_30">语音设置</string>
     <string name="settings_auto_31">语音朗读</string>
@@ -249,7 +253,7 @@
     <string name="settings_auto_48">设置</string>
     <string name="settings_auto_49">返回</string>
     <string name="settings_auto_50">模型</string>
-    <string name="settings_auto_51">保存</string>
+    <string name="settings_auto_51">保存御主资料</string>
     <string name="settings_auto_53">开启</string>
     <string name="settings_auto_54">关闭</string>
     <string name="settings_auto_55">大小</string>

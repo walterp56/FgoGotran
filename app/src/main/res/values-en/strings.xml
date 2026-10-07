@@ -200,16 +200,17 @@
     <string name="guide_auto_43">A</string>
     <string name="guide_auto_44">B</string>
     <string name="settings_auto_1">Provides recent scene context using Japanese text and its translation; disable if the model misreads earlier text; increases token usage on cloud APIs.</string>
-    <string name="settings_auto_2">On by default: include detected ruby when translating. Turn off to translate only the main text. Applies to the next translation.</string>
+    <string name="settings_auto_2">Include the small text above words when translating. Turn off for main text only. Detection is unchanged; applies to the next translation.</string>
     <string name="settings_auto_3">Default engine. Fast startup and low power use. Recognizes on-device with Google ML Kit.</string>
     <string name="settings_auto_4">Identical source text reuses the previous translation for speed.\nClear the cache if you see stale translations.</string>
     <string name="settings_auto_5">Advanced engine. High accuracy and broad recognition, but CPU-intensive.</string>
     <string name="settings_auto_6">Choose the OCR engine</string>
-    <string name="settings_auto_7">Include ruby annotations when translating</string>
+    <string name="settings_auto_7">Include small text above words</string>
+    <string name="settings_ruby_example_label">In-game example</string>
     <string name="settings_auto_8">Sakura: local rules</string>
     <string name="settings_auto_9">For debugging and troubleshooting.</string>
     <string name="settings_auto_10">Foreground detection restored</string>
-    <string name="settings_auto_11">Use bilingual story context</string>
+    <string name="settings_auto_11">Use story context</string>
     <string name="settings_auto_12">Show Japanese text alongside the translation.</string>
     <string name="settings_auto_13">Debug logging enabled</string>
     <string name="settings_auto_14">Debug logging disabled</string>
@@ -227,6 +228,7 @@
     <string name="settings_auto_26">Manage API</string>
     <string name="settings_auto_27">Translation preferences</string>
     <string name="settings_auto_28">Master name</string>
+    <string name="settings_master_profile_title">Master details</string>
     <string name="settings_auto_29">Bilingual display</string>
     <string name="settings_auto_30">Voice settings</string>
     <string name="settings_auto_31">Voice playback</string>
@@ -249,7 +251,7 @@
     <string name="settings_auto_48">Settings</string>
     <string name="settings_auto_49">Back</string>
     <string name="settings_auto_50">Model</string>
-    <string name="settings_auto_51">Save</string>
+    <string name="settings_auto_51">Save Master details</string>
     <string name="settings_auto_53">On</string>
     <string name="settings_auto_54">Close</string>
     <string name="settings_auto_55">Size</string>
