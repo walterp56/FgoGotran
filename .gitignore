@@ -121,6 +121,7 @@ app/src/test/java/com/fgogotran/accessibility/*
 !app/src/test/java/com/fgogotran/ocr/DialogueOcrVisualGatePaletteTest.kt
 !app/src/test/java/com/fgogotran/translation/
 !app/src/test/java/com/fgogotran/translation/DialogueContentPolicyTest.kt
+!app/src/test/java/com/fgogotran/translation/ReturnedRubyMarkupTest.kt
 # Retain the focused trailing-dash clear-box regressions.
 !app/src/test/java/com/fgogotran/overlay/
 app/src/test/java/com/fgogotran/overlay/*

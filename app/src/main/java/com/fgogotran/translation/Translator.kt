@@ -72,6 +72,21 @@ internal fun normalizeEscapedTranslationLineBreaks(
         .replace("\\r", "\n")
 }
 
+private val returnedRubyAnglePattern = Regex("""([^〈〉\s])〈([^〈〉]+)〉""")
+
+internal fun cleanReturnedRubyMarkup(text: String): String {
+    return returnedRubyAnglePattern.replace(text) { match ->
+        val baseTail = match.groupValues[1]
+        val reading = match.groupValues[2].trim()
+        // The base has no start marker: compare the complete reading with its immediate prefix.
+        val readingEnd = match.range.first + baseTail.length
+        val readingStart = readingEnd - reading.length
+        val repeatsBase = readingStart >= 0 &&
+            text.regionMatches(readingStart, reading, 0, reading.length)
+        if (reading.isBlank() || repeatsBase) baseTail else match.value
+    }
+}
+
 data class TranslateResult(
     val translatedText: String,
     val backend: String,
@@ -781,7 +796,6 @@ class Translator @Inject constructor(
             RegexOption.IGNORE_CASE
         )
         private val AMBIGUOUS_DIALOGUE_CHARACTER_LOOKUPS = setOf("ロマン")
-        private val returnedRubyAnglePattern = Regex("""([^〈〉\s]{1,24})〈([^〉]{1,32})〉""")
         private val maskedSourceIgnoredChars = setOf(
             '、', '。', '，', '．', '.', ',', '・', '･', '·', '：', ':',
             '；', ';', '！', '!', '？', '?', '…', '‥', '—', '―', '–',
@@ -4886,15 +4900,6 @@ class Translator @Inject constructor(
             .replace(Regex("""(?m)(?<=[\u3400-\u9FFF])[\u3040-\u30FF\uFF66-\uFF9D]([\s　]*)$""")) {
                 it.groupValues[1]
             }
-    }
-
-    private fun cleanReturnedRubyMarkup(text: String): String {
-        return returnedRubyAnglePattern.replace(text) { match ->
-            val base = match.groupValues[1]
-            val reading = match.groupValues[2].trim()
-            // A ruby that repeats the base carries no extra information (e.g. 異聞帶〈異聞帶〉).
-            if (reading.isBlank() || reading == base.trim()) base else match.value
-        }
     }
 
     private data class ProtectedText(
