@@ -60,7 +60,7 @@ object AppLanguageManager {
     /**
      * Phrase-level replacements first. ICU then handles the remaining Han characters.
      * This avoids common Mandarin-vs-Taiwan differences that a character-only conversion
-     * would miss (设置 -> 設定, 软件 -> 軟體, 缓存 -> 快取, ...).
+     * would miss (设置 -> 設定, 软件 -> 軟體, 缓存 -> 緩存, ...).
      */
     private val traditionalPhraseReplacements = listOf(
         "界面语言" to "介面語言",
@@ -72,7 +72,7 @@ object AppLanguageManager {
         "软件" to "軟體",
         "视频" to "影片",
         "音频" to "音訊",
-        "缓存" to "快取",
+        "缓存" to "緩存",
         "网络" to "網路",
         "信息" to "資訊",
         "数据" to "資料",

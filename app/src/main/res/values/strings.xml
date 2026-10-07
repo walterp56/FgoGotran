@@ -96,8 +96,8 @@
     <string name="home_action_grant">去授权 →</string>
     <string name="home_optional_stability">可选稳定性（非必要）</string>
     <string name="home_battery_optimization">电池优化</string>
-    <string name="home_battery_optimization_off">已关闭优化</string>
-    <string name="home_battery_optimization_on">优化中</string>
+    <string name="home_battery_optimization_off">已排除</string>
+    <string name="home_battery_optimization_on">未排除</string>
     <string name="home_action_manage">去管理 →</string>
     <string name="home_settings">设置</string>
     <string name="home_guide">使用指南</string>
@@ -210,7 +210,7 @@
     <string name="settings_auto_9">用于调试和排查问题。</string>
     <string name="settings_auto_10">前台检测已恢复正常</string>
     <string name="settings_auto_11">使用双语剧情上下文</string>
-    <string name="settings_auto_12">同时显示游戏原文</string>
+    <string name="settings_auto_12">同时显示日文原文与译文</string>
     <string name="settings_auto_13">调试日志已开启</string>
     <string name="settings_auto_14">调试日志已关闭</string>
     <string name="settings_auto_15">前台测试已开启</string>
@@ -227,7 +227,7 @@
     <string name="settings_auto_26">管理接口</string>
     <string name="settings_auto_27">翻译偏好</string>
     <string name="settings_auto_28">御主名称</string>
-    <string name="settings_auto_29">日文原文</string>
+    <string name="settings_auto_29">双语显示</string>
     <string name="settings_auto_30">语音设置</string>
     <string name="settings_auto_31">语音朗读</string>
     <string name="settings_auto_32">朗读文本</string>

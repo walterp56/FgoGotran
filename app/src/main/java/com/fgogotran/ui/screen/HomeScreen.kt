@@ -337,7 +337,7 @@ fun HomeScreen(
                 statusText = batteryText,
                 statusColor = batteryColor,
                 enabled = isIgnoringBatteryOptimizations,
-                actionText = stringResource(R.string.home_action_manage),
+                actionText = stringResource(R.string.home_action_settings),
                 onClick = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
             )
 

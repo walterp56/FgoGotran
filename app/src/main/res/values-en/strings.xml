@@ -96,8 +96,8 @@
     <string name="home_action_grant">Grant →</string>
     <string name="home_optional_stability">Optional stability</string>
     <string name="home_battery_optimization">Battery optimization</string>
-    <string name="home_battery_optimization_off">Optimization off</string>
-    <string name="home_battery_optimization_on">Optimization on</string>
+    <string name="home_battery_optimization_off">Exempt</string>
+    <string name="home_battery_optimization_on">Not exempt</string>
     <string name="home_action_manage">Manage →</string>
     <string name="home_settings">Settings</string>
     <string name="home_guide">Guide</string>
@@ -210,7 +210,7 @@
     <string name="settings_auto_9">For debugging and troubleshooting.</string>
     <string name="settings_auto_10">Foreground detection restored</string>
     <string name="settings_auto_11">Use bilingual story context</string>
-    <string name="settings_auto_12">Show original game text</string>
+    <string name="settings_auto_12">Show Japanese text alongside the translation.</string>
     <string name="settings_auto_13">Debug logging enabled</string>
     <string name="settings_auto_14">Debug logging disabled</string>
     <string name="settings_auto_15">Foreground test enabled</string>
@@ -227,7 +227,7 @@
     <string name="settings_auto_26">Manage API</string>
     <string name="settings_auto_27">Translation preferences</string>
     <string name="settings_auto_28">Master name</string>
-    <string name="settings_auto_29">Japanese original</string>
+    <string name="settings_auto_29">Bilingual display</string>
     <string name="settings_auto_30">Voice settings</string>
     <string name="settings_auto_31">Voice playback</string>
     <string name="settings_auto_32">Read text</string>

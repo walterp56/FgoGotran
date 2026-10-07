@@ -95,9 +95,9 @@
     <string name="home_not_granted">未授權</string>
     <string name="home_action_grant">去授權 →</string>
     <string name="home_optional_stability">可選穩定性（非必要）</string>
-    <string name="home_battery_optimization">電池最佳化</string>
-    <string name="home_battery_optimization_off">已關閉最佳化</string>
-    <string name="home_battery_optimization_on">最佳化中</string>
+    <string name="home_battery_optimization">電池優化</string>
+    <string name="home_battery_optimization_off">已排除</string>
+    <string name="home_battery_optimization_on">未排除</string>
     <string name="home_action_manage">去管理 →</string>
     <string name="home_settings">設定</string>
     <string name="home_guide">使用指南</string>
@@ -210,7 +210,7 @@
     <string name="settings_auto_9">用于调试和排查问题。</string>
     <string name="settings_auto_10">前台检测已恢复正常</string>
     <string name="settings_auto_11">使用双语剧情上下文</string>
-    <string name="settings_auto_12">同时显示游戏原文</string>
+    <string name="settings_auto_12">同時顯示日文原文與譯文</string>
     <string name="settings_auto_13">调试日志已开启</string>
     <string name="settings_auto_14">调试日志已关闭</string>
     <string name="settings_auto_15">前台测试已开启</string>
@@ -227,7 +227,7 @@
     <string name="settings_auto_26">管理接口</string>
     <string name="settings_auto_27">翻译偏好</string>
     <string name="settings_auto_28">御主名称</string>
-    <string name="settings_auto_29">日文原文</string>
+    <string name="settings_auto_29">雙語顯示</string>
     <string name="settings_auto_30">语音设置</string>
     <string name="settings_auto_31">语音朗读</string>
     <string name="settings_auto_32">朗读文本</string>
@@ -322,7 +322,7 @@
     <string name="voice_test_voice_played">測試語音已播放%1$s</string>
     <string name="voice_azure_request_failed">Azure 語音請求失敗：%1$s</string>
     <string name="voice_test_failed_detail">測試失敗：%1$s</string>
-    <string name="settings_clear_cache_result">已清除 %1$d 條快取</string>
+    <string name="settings_clear_cache_result">已清除 %1$d 條緩存</string>
     <string name="settings_source_japanese">日語</string>
     <string name="settings_target_simplified">簡體中文</string>
     <string name="settings_target_traditional">繁體中文</string>
