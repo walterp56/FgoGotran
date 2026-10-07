@@ -158,3 +158,5 @@ app/src/test/java/com/fgogotran/ui/theme/*
 !app/src/test/java/com/fgogotran/ui/theme/AppThemeModeTest.java
 # Retain the focused app-language label and navigation-state regressions.
 !app/src/test/java/com/fgogotran/ui/AppLanguageOptionTest.java
+# Retain the focused general-prompt fidelity and version regressions.
+!app/src/test/java/com/fgogotran/translation/PronounFidelityPromptTest.kt

@@ -5615,7 +5615,8 @@ class Translator @Inject constructor(
         appendPromptSection(
             "speaker_context",
             currentSpeaker.trim() +
-                "\nUse only for voice, register, and relationship. Never output it or infer omitted participants."
+                "\nUse only for voice and register supported by the Japanese. " +
+                "Never output it or infer omitted participants, possession, or relationships."
         )
     }
 

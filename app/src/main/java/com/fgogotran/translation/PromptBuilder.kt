@@ -163,9 +163,9 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v95-plain-layout"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v96-plain-layout"
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v9-plain-layout"
-        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v3-plain-layout"
+        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v4-plain-layout"
         const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v3-plain-layout"
 
         /** Prompt/cache version for the requested target; English has its own block set. */
@@ -237,7 +237,8 @@ class PromptBuilder @Inject constructor() {
         // ─── Chinese (Simplified/Traditional) prompt set ───────────────────────────
         private val BASE_TRANSLATION_PROMPT = """
             You are an expert Japanese-to-Chinese localizer for Fate/Grand Order.
-            Translate into concise, natural in-game {target_chinese}; keep every meaning, role, relationship, ambiguity, and ellipsis, and add nothing.
+            Translate into concise, natural in-game {target_chinese}; keep every meaning, role, relationship, uncertainty, ambiguity, repetition, and ellipsis, and add nothing.
+            Keep fragments and interrupted sentences unfinished; never summarize or complete the source.
             Use neutral modern standard written Chinese; keep register and voice only when the Japanese carries them. Use natural Chinese order, not Japanese syntax.
             Use each listed glossary target exactly (same characters). Never leave kana: translate or transliterate katakana (common loanwords may use compact English).
             Preserve stated references and action roles; use natural Chinese omission when Japanese omits them, and never infer them from speaker identity.
@@ -322,10 +323,11 @@ class PromptBuilder @Inject constructor() {
         // ─── English (FGO NA) prompt set ────────────────────────────────────────────
         private val BASE_TRANSLATION_PROMPT_EN = """
             You are an expert Japanese-to-English localizer for Fate/Grand Order (NA).
-            Translate into concise, natural in-game English; keep every meaning, role, relationship, ambiguity, and ellipsis, and add nothing.
+            Translate into concise, natural in-game English; keep every meaning, role, relationship, uncertainty, ambiguity, repetition, and ellipsis, and add nothing.
+            Keep fragments and interrupted sentences unfinished; never summarize or complete the source.
             Use neutral modern American English; keep register and voice only when the Japanese carries it. Write natural English, not Japanese word order.
             Use each listed glossary target exactly (spelling and capitalization). Katakana names/terms: official NA spelling when known, otherwise standard romanization; never leave kana.
-            English needs an explicit subject; never invent a person or relationship. Translate second-person address as "you" (or an English insult when hostile), never a name.
+            Use an explicit subject only when English grammar requires one; preserve natural fragments and imperatives, and never invent a person or relationship. Translate second-person address as "you" (or an English insult when hostile), never a name.
             Convert 「」『』 to "..." (nested quotes use '...'). "…" -> "..."; long dash -> "—"; keep !? and !!. Keep source sentences aligned; line breaks only when meaningful.
             """.trimIndent()
 
