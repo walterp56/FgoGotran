@@ -10,6 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.View
+import android.view.WindowInsets
 import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,12 +30,16 @@ import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
 import com.fgogotran.ui.overlay.FloatingButtonMode
+import com.fgogotran.ui.overlay.FloatingButtonDocking
+import com.fgogotran.ui.overlay.FloatingControlBounds
+import com.fgogotran.ui.overlay.FloatingDockSide
 import com.fgogotran.ui.overlay.HistoryOverlayPanel
 import com.fgogotran.ui.overlay.FloatingArcMenu
 import com.fgogotran.ui.overlay.withBattleIndicator
 import com.fgogotran.util.FakeComposeHost
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.overlayType
+import com.fgogotran.util.setFloatingHandleGestureExclusion
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,8 +64,8 @@ import javax.inject.Singleton
  * - Persists button position via DataStore
  *
  * The overlay uses [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY]
- * with FLAG_NOT_TOUCH_MODAL | FLAG_NOT_FOCUSABLE so that all touch events
- * pass through to FGO underneath.
+ * with FLAG_NOT_TOUCH_MODAL | FLAG_NOT_FOCUSABLE so touches outside its
+ * small window pass through to FGO underneath.
  */
 @Singleton
 class FgoRunnerOverlay @Inject constructor(
@@ -83,6 +89,11 @@ class FgoRunnerOverlay @Inject constructor(
     private val overlayScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
     private var buttonSizeDp by mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
+    private var dockedSide by mutableStateOf<FloatingDockSide?>(null)
+    private var buttonDrag: ButtonDrag? = null
+    private var dockViewport = FloatingControlBounds(
+        0, 0, context.resources.displayMetrics.widthPixels, context.resources.displayMetrics.heightPixels
+    )
     private var gameServer by mutableStateOf(SettingsRepository.DEFAULT_GAME_SERVER)
     private var aiVoiceEnabled by mutableStateOf(false)
     private var liveVoiceTranslationEnabled by mutableStateOf(false)
@@ -129,18 +140,30 @@ class FgoRunnerOverlay @Inject constructor(
         LANDSCAPE
     }
 
+    private data class ButtonDrag(
+        val downX: Float,
+        val downY: Float,
+        val buttonX: Int,
+        val buttonY: Int,
+        val windowOriginX: Int,
+        val windowOriginY: Int,
+        val startedDocked: Boolean,
+        val viewport: FloatingControlBounds
+    )
+
     /** Layout params for the floating button overlay. */
     private val btnLayoutParams: WindowManager.LayoutParams
         get() = WindowManager.LayoutParams().apply {
+            val bounds = controlWindowBounds()
             type = overlayType
             format = PixelFormat.TRANSLUCENT
             flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            width = WindowManager.LayoutParams.WRAP_CONTENT
-            height = WindowManager.LayoutParams.WRAP_CONTENT
+            width = if (dockedSide == null) WindowManager.LayoutParams.WRAP_CONTENT else bounds.width
+            height = if (dockedSide == null) WindowManager.LayoutParams.WRAP_CONTENT else bounds.height
             gravity = Gravity.TOP or Gravity.START
-            x = btnX
-            y = btnY
+            x = bounds.left
+            y = bounds.top
         }
 
     private val historyLayoutParams: WindowManager.LayoutParams
@@ -203,6 +226,8 @@ class FgoRunnerOverlay @Inject constructor(
         }
 
         shown = true
+        dockedSide = null
+        buttonDrag = null
         val requestVersion = ++showRequestVersion
         overlayScope.launch {
             try {
@@ -229,6 +254,7 @@ class FgoRunnerOverlay @Inject constructor(
 
                 clampButtonPositionToScreen()
                 wm.addView(composeHost!!.view, btnLayoutParams)
+                observeControlLayout(composeHost!!.view)
                 startButtonSizeObserver()
                 startGameServerObserver()
                 startAiVoiceEnabledObserver()
@@ -266,6 +292,9 @@ class FgoRunnerOverlay @Inject constructor(
     /** Hides the floating button and saves its position. */
     fun hide() {
         if (!shown) return
+        buttonDrag = null
+        dockedSide = null
+        publishDockHandleBounds()
         dismissMenu()
         showRequestVersion += 1
         buttonSizeJob?.cancel()
@@ -308,7 +337,7 @@ class FgoRunnerOverlay @Inject constructor(
         FgoLogger.info(tag, "Overlay destroyed")
     }
 
-    /** Whether the floating button is currently visible. */
+    /** Whether the floating control is running, including its small docked handle. */
     fun isShowing(): Boolean = shown
 
     /**
@@ -349,6 +378,7 @@ class FgoRunnerOverlay @Inject constructor(
         if (floatingMenuHost != null) dismissMenu()
         dismissHistoryPanel()
         val previousHost = composeHost ?: return
+        buttonDrag = null
         composeHost = null
         runCatching { wm.removeView(previousHost.view) }
         previousHost.close()
@@ -356,6 +386,7 @@ class FgoRunnerOverlay @Inject constructor(
         try {
             wm.addView(host.view, btnLayoutParams)
             composeHost = host
+            observeControlLayout(host.view)
             FgoLogger.info(tag, "Floating button rebuilt for UI language")
         } catch (e: Exception) {
             host.close()
@@ -368,12 +399,15 @@ class FgoRunnerOverlay @Inject constructor(
         FloatingButton(
             mode = buttonMode,
             buttonSize = buttonSizeDp.dp,
+            dockedSide = dockedSide,
             showFailureRing = showButtonFailureRing &&
                 buttonMode != FloatingButtonMode.AUTO &&
                 buttonMode != FloatingButtonMode.BATTLE,
             onClick = { onButtonClick() },
             onLongClick = { onButtonLongClick() },
-            onDrag = { dx, dy -> onDrag(dx, dy) }
+            onDragStart = { x, y -> beginButtonDrag(x, y) },
+            onDragTo = { x, y -> dragButtonTo(x, y) },
+            onDragEnd = { cancelled -> finishButtonDrag(cancelled) }
         )
     }
 
@@ -422,33 +456,44 @@ class FgoRunnerOverlay @Inject constructor(
 
     fun handleInterceptedButtonTap(rawX: Float, rawY: Float): Boolean {
         if (!isPointInsideButton(rawX, rawY)) return false
+        if (dockedSide != null) return true
         FgoLogger.debug(tag, "Translated overlay tap routed to floating button")
         onButtonClick()
         return true
     }
 
     fun handleInterceptedButtonLongPress(): Boolean {
-        if (!shown) return false
+        if (!shown || dockedSide != null) return false
         FgoLogger.debug(tag, "Translated overlay long press routed to floating menu")
         onButtonLongClick()
         return true
     }
 
-    fun handleInterceptedButtonDrag(dx: Float, dy: Float): Boolean {
-        if (!shown || windowManager == null || composeHost?.view == null) return false
-        onDrag(dx, dy)
-        return true
-    }
+    fun isButtonDocked(): Boolean = dockedSide != null
+
+    fun canStartButtonDrag(dx: Float, dy: Float, slop: Float): Boolean =
+        FloatingButtonDocking.canStartDrag(dockedSide, dx, dy, slop)
+
+    fun handleInterceptedButtonDragStart(rawX: Float, rawY: Float): Boolean = beginButtonDrag(rawX, rawY)
+
+    fun handleInterceptedButtonDrag(rawX: Float, rawY: Float): Boolean = dragButtonTo(rawX, rawY)
+
+    fun handleInterceptedButtonDragEnd(cancelled: Boolean) = finishButtonDrag(cancelled)
 
     fun isPointInsideButton(rawX: Float, rawY: Float): Boolean {
         if (!shown) return false
         val view = composeHost?.view ?: return false
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        if (dockedSide != null) {
+            return dockHandleScreenBounds()?.contains(rawX.toInt(), rawY.toInt()) == true
+        }
         val fallbackSize = currentButtonSizePx()
         val width = view.width.takeIf { it > 0 } ?: view.measuredWidth.takeIf { it > 0 } ?: fallbackSize
         val height = view.height.takeIf { it > 0 } ?: view.measuredHeight.takeIf { it > 0 } ?: fallbackSize
 
-        val centerX = btnX + width / 2f
-        val centerY = btnY + height / 2f
+        val centerX = location[0] + width / 2f
+        val centerY = location[1] + height / 2f
         val radius = minOf(width, height) / 2f
         val dx = rawX - centerX
         val dy = rawY - centerY
@@ -456,6 +501,7 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun onButtonClick() {
+        if (dockedSide != null) return
         if (cropModeState == CropModeState.SELECTING) {
             if (!isJapaneseServer()) {
                 cancelCropMode()
@@ -505,29 +551,124 @@ class FgoRunnerOverlay @Inject constructor(
 
     // ─── Drag handling ────────────────────────────────────────────────
 
-    /**
-     * Moves the button by (dx, dy) and clamps to screen bounds.
-     * Called from [FloatingButton.onDrag].
-     */
-    private fun onDrag(dx: Float, dy: Float) {
-        val wm = windowManager ?: return
-        val view = composeHost?.view ?: return
+    private fun beginButtonDrag(rawX: Float, rawY: Float): Boolean {
+        if (!shown) return false
+        val wm = windowManager ?: return false
+        val view = composeHost?.view ?: return false
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return false
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        // Existing saved positions are window-relative; routed touches are screen-relative.
+        val originX = location[0] - params.x
+        val originY = location[1] - params.y
+        val metrics = wm.currentWindowMetrics
+        val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
+            WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+        )
+        val left = (insets.left - originX).coerceAtLeast(0)
+        val top = (insets.top - originY).coerceAtLeast(0)
+        dockViewport = FloatingControlBounds(
+            left, top,
+            (metrics.bounds.width() - insets.right - originX).coerceAtLeast(left + 1),
+            (metrics.bounds.height() - insets.bottom - originY).coerceAtLeast(top + 1)
+        )
+        val viewport = if (buttonMode == FloatingButtonMode.AUTO) dockViewport else
+            FloatingControlBounds(0, 0, metrics.bounds.width(), metrics.bounds.height())
         buttonPositionScreen = currentButtonScreen()
+        buttonDrag = ButtonDrag(rawX, rawY, btnX, btnY, originX, originY, dockedSide != null, viewport)
+        return true
+    }
 
-        btnX = (btnX + dx.toInt()).coerceAtLeast(0)
-        btnY = (btnY + dy.toInt()).coerceAtLeast(0)
+    private fun dragButtonTo(rawX: Float, rawY: Float): Boolean {
+        if (!shown || composeHost?.view == null) return false
+        val drag = buttonDrag ?: return false
+        val size = currentButtonSizePx()
+        val bounds = if (drag.startedDocked) {
+            FloatingButtonDocking.revealedButtonBounds(
+                rawX - drag.windowOriginX, rawY - drag.windowOriginY, size, drag.viewport
+            )
+        } else {
+            FloatingButtonDocking.buttonBounds(
+                drag.buttonX + (rawX - drag.downX).roundToInt(),
+                drag.buttonY + (rawY - drag.downY).roundToInt(), size, drag.viewport
+            )
+        }
+        val wasDocked = dockedSide != null
+        dockedSide = null
+        if (wasDocked) {
+            publishDockHandleBounds()
+            FgoLogger.debug(tag, "AUTO floating button revealed from edge")
+        }
+        if (wasDocked || btnX != bounds.left || btnY != bounds.top) {
+            btnX = bounds.left
+            btnY = bounds.top
+            updateButtonLayout()
+            saveButtonPositionSoon()
+        }
+        return true
+    }
 
-        // Clamp to screen bounds accounting for the button's measured size
-        val bounds = wm.currentWindowMetrics.bounds
-        val maxX = bounds.width() - (view.measuredWidth.coerceAtLeast(1))
-        val maxY = bounds.height() - (view.measuredHeight.coerceAtLeast(1))
-        btnX = btnX.coerceAtMost(maxX.coerceAtLeast(0))
-        btnY = btnY.coerceAtMost(maxY.coerceAtLeast(0))
-
-        btnLayoutParams.x = btnX
-        btnLayoutParams.y = btnY
-        wm.updateViewLayout(view, btnLayoutParams)
+    private fun finishButtonDrag(cancelled: Boolean) {
+        val drag = buttonDrag ?: return
+        buttonDrag = null
+        if (!shown) return
+        val size = currentButtonSizePx()
+        val side = FloatingButtonDocking.sideAfterRelease(
+            buttonMode, cancelled, drag.startedDocked, btnX, size, drag.viewport,
+            (FloatingButtonDocking.EDGE_ALLOWANCE_DP * context.resources.displayMetrics.density).roundToInt()
+        )
+        if (side != null) {
+            btnX = if (side == FloatingDockSide.LEFT) drag.viewport.left else
+                (drag.viewport.right - size).coerceAtLeast(drag.viewport.left)
+            dockedSide = side
+            updateButtonLayout()
+            FgoLogger.debug(tag, "AUTO floating button docked at $side edge")
+        }
         saveButtonPositionSoon()
+    }
+
+    private fun controlWindowBounds(): FloatingControlBounds {
+        val size = currentButtonSizePx()
+        val side = dockedSide ?: return FloatingControlBounds(btnX, btnY, btnX + size, btnY + size)
+        val density = context.resources.displayMetrics.density
+        return FloatingButtonDocking.handleBounds(
+            side, btnY, size,
+            (FloatingButtonDocking.HANDLE_WIDTH_DP * density).roundToInt(),
+            (FloatingButtonDocking.HANDLE_HEIGHT_DP * density).roundToInt(), dockViewport
+        )
+    }
+
+    fun dockHandleScreenBounds(): Rect? {
+        if (!shown || dockedSide == null) return null
+        val view = composeHost?.view ?: return null
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        val bounds = controlWindowBounds()
+        return Rect(location[0], location[1], location[0] + bounds.width, location[1] + bounds.height)
+    }
+
+    private fun publishDockHandleBounds() {
+        val bounds = dockHandleScreenBounds()
+        composeHost?.view?.setFloatingHandleGestureExclusion(bounds)
+        FgoAccessibilityService.instance?.updateFloatingHandleGestureExclusion(bounds)
+    }
+
+    private fun observeControlLayout(view: View) {
+        view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            if (composeHost?.view === view) publishDockHandleBounds()
+        }
+        view.post { if (composeHost?.view === view) publishDockHandleBounds() }
+    }
+
+    private fun restoreDockedButton(relayout: Boolean = true) {
+        buttonDrag = null
+        if (dockedSide == null) return
+        dockedSide = null
+        publishDockHandleBounds()
+        if (relayout) {
+            clampButtonPositionToScreen()
+            updateButtonLayout()
+        }
     }
 
     // ─── Menu handling ─────────────────────────────────────────────────
@@ -573,6 +714,7 @@ class FgoRunnerOverlay @Inject constructor(
             settingsRepository.floatingButtonSizeDp.collect { sizeDp ->
                 val safeSize = SettingsRepository.normalizeFloatingButtonSizeDp(sizeDp)
                 if (safeSize == buttonSizeDp) return@collect
+                restoreDockedButton()
                 buttonSizeDp = safeSize
                 composeHost?.view?.post {
                     clampButtonPositionToScreen()
@@ -661,6 +803,8 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun handleScreenBoundsChanged() {
         dismissMenu()
+        // Save the old orientation's full-button position before applying the new bounds.
+        restoreDockedButton(relayout = false)
         if (!shown) {
             buttonPositionScreen = null
             buttonPositionLoaded = false
@@ -689,10 +833,11 @@ class FgoRunnerOverlay @Inject constructor(
     private fun updateButtonLayout() {
         val wm = windowManager ?: return
         val view = composeHost?.view ?: return
-        btnLayoutParams.x = btnX
-        btnLayoutParams.y = btnY
         try {
             wm.updateViewLayout(view, btnLayoutParams)
+            if (dockedSide != null) {
+                view.post { if (composeHost?.view === view) publishDockHandleBounds() }
+            }
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Failed to update floating button layout", e)
         }
@@ -700,6 +845,7 @@ class FgoRunnerOverlay @Inject constructor(
 
     /** Called when the user holds the floating button (not drags). */
     private fun onButtonLongClick() {
+        if (dockedSide != null) return
         if (floatingMenuHost != null) {
             dismissMenu()
         }
@@ -894,7 +1040,10 @@ class FgoRunnerOverlay @Inject constructor(
             translationMode == TranslationMode.AUTO -> FloatingButtonMode.AUTO
             else -> FloatingButtonMode.MANUAL
         }
-        buttonMode = normalMode.withBattleIndicator(battleModeActive)
+        val newMode = normalMode.withBattleIndicator(battleModeActive)
+        if (buttonMode != newMode) buttonDrag = null
+        buttonMode = newMode
+        if (buttonMode != FloatingButtonMode.AUTO && dockedSide != null) restoreDockedButton()
         if (translationMode == TranslationMode.AUTO || buttonMode == FloatingButtonMode.BATTLE) {
             showButtonFailureRing = false
         }

@@ -342,6 +342,7 @@
     <string name="mode_desc_manual">手動翻譯</string>
     <string name="mode_desc_semi">半自動翻譯</string>
     <string name="mode_desc_auto">全自動翻譯</string>
+    <string name="floating_button_edge_handle_desc">向螢幕內拖動，顯示懸浮按鈕</string>
     <string name="mode_desc_battle">BATTLE字幕模式，長按切換模式</string>
     <string name="mode_desc_crop">裁切翻譯</string>
     <string name="guide_mode_battle_label">戰鬥字幕</string>

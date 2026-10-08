@@ -342,6 +342,7 @@
     <string name="mode_desc_manual">Manual translation</string>
     <string name="mode_desc_semi">Semi-auto translation</string>
     <string name="mode_desc_auto">Full-auto translation</string>
+    <string name="floating_button_edge_handle_desc">Drag inward to show the floating button</string>
     <string name="mode_desc_battle">BATTLE subtitle mode. Long-press to switch modes.</string>
     <string name="mode_desc_crop">Crop translation</string>
     <string name="guide_mode_battle_label">Battle</string>

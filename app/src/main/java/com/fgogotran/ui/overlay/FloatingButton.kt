@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,10 +26,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -37,7 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.max
 
 private const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54f
@@ -83,16 +84,19 @@ private fun FloatingActionIcon.textLabel(): String = when (this) {
 fun FloatingButton(
     mode: FloatingButtonMode,
     buttonSize: Dp = 54.dp,
+    dockedSide: FloatingDockSide? = null,
     showFailureRing: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onDrag: (Float, Float) -> Unit
+    onDragStart: (Float, Float) -> Boolean,
+    onDragTo: (Float, Float) -> Boolean,
+    onDragEnd: (cancelled: Boolean) -> Unit
 ) {
     val visualButtonSize = buttonSize
     val glyphSize = visualButtonSize * 0.78f
     val glyphContentScale = (visualButtonSize.value / DEFAULT_FLOATING_BUTTON_SIZE_DP)
         .coerceIn(0.72f, 1.34f)
-    val idleAlpha = 0.38f
+    val idleAlpha = 0.25f
     val pressedAlpha = 0.62f
     val baseColor = when (mode) {
         FloatingButtonMode.MANUAL -> Color(0xFF1E1E1E)
@@ -111,85 +115,119 @@ fun FloatingButton(
         label = "floatingButtonAlpha"
     )
     val hapticFeedback = LocalHapticFeedback.current
-    val modeDescription = stringResource(when (mode) {
-        FloatingButtonMode.MANUAL -> R.string.mode_desc_manual
-        FloatingButtonMode.SEMI_AUTO -> R.string.mode_desc_semi
-        FloatingButtonMode.AUTO -> R.string.mode_desc_auto
-        FloatingButtonMode.BATTLE -> R.string.mode_desc_battle
-        FloatingButtonMode.CROP -> R.string.mode_desc_crop
-    })
+    val view = LocalView.current
+    val screenLocation = remember(view) { IntArray(2) }
+    val currentDockedSide by rememberUpdatedState(dockedSide)
+    val currentOnClick by rememberUpdatedState(onClick)
+    val currentOnLongClick by rememberUpdatedState(onLongClick)
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDragTo by rememberUpdatedState(onDragTo)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
+    val modeDescription = stringResource(
+        if (dockedSide != null) R.string.floating_button_edge_handle_desc else when (mode) {
+            FloatingButtonMode.MANUAL -> R.string.mode_desc_manual
+            FloatingButtonMode.SEMI_AUTO -> R.string.mode_desc_semi
+            FloatingButtonMode.AUTO -> R.string.mode_desc_auto
+            FloatingButtonMode.BATTLE -> R.string.mode_desc_battle
+            FloatingButtonMode.CROP -> R.string.mode_desc_crop
+        }
+    )
 
     Box(
         modifier = Modifier
-            .size(visualButtonSize)
+            .size(
+                width = if (dockedSide != null) FloatingButtonDocking.HANDLE_WIDTH_DP.dp else visualButtonSize,
+                height = if (dockedSide != null) FloatingButtonDocking.HANDLE_HEIGHT_DP.dp else visualButtonSize
+            )
             .semantics {
                 contentDescription = modeDescription
             }
-            .pointerInput(onClick, onLongClick, onDrag) {
+            // Keep this detector alive while a reveal resizes the same overlay window.
+            .pointerInput(view) {
+                fun screenPosition(localPosition: Offset): Offset {
+                    view.getLocationOnScreen(screenLocation)
+                    return localPosition + Offset(screenLocation[0].toFloat(), screenLocation[1].toFloat())
+                }
                 try {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val pointerId = down.id
+                        val downScreenPosition = screenPosition(down.position)
+                        val gestureDockedSide = currentDockedSide
                         val dragSlop = max(viewConfiguration.touchSlop, 18.dp.toPx())
                         val longPressTimeout = minOf(viewConfiguration.longPressTimeoutMillis, 420L)
 
                         pressed = true
-                        var totalDrag = Offset.Zero
-                        var firstDragDelta = Offset.Zero
+                        var firstDragPosition = downScreenPosition
                         var tapReleased = false
                         var dragStarted = false
                         var cancelled = false
 
-                        withTimeoutOrNull(longPressTimeout) {
+                        suspend fun AwaitPointerEventScope.awaitDragOrRelease() {
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == pointerId }
 
-                                if (change == null || change.isConsumed) {
+                                if (change == null || change.isConsumed || event.changes.count { it.pressed } > 1) {
                                     cancelled = true
-                                    return@withTimeoutOrNull
+                                    return
                                 }
 
                                 if (change.changedToUpIgnoreConsumed()) {
                                     tapReleased = true
-                                    return@withTimeoutOrNull
+                                    return
                                 }
 
-                                val delta = change.positionChange()
-                                if (delta != Offset.Zero) {
-                                    totalDrag += delta
-                                    if (totalDrag.getDistance() > dragSlop) {
-                                        dragStarted = true
-                                        firstDragDelta = totalDrag
-                                        change.consume()
-                                        return@withTimeoutOrNull
-                                    }
+                                val position = screenPosition(change.position)
+                                val displacement = position - downScreenPosition
+                                if (FloatingButtonDocking.canStartDrag(
+                                        gestureDockedSide, displacement.x, displacement.y, dragSlop
+                                    )) {
+                                    dragStarted = true
+                                    firstDragPosition = position
+                                    change.consume()
+                                    return
                                 }
                             }
+                        }
+                        // The handle has no long-press timer: it only waits for movement or release.
+                        if (gestureDockedSide == null) {
+                            withTimeoutOrNull(longPressTimeout) { awaitDragOrRelease() }
+                        } else {
+                            awaitDragOrRelease()
                         }
 
                         when {
                             dragStarted -> {
-                                onDrag(firstDragDelta.x, firstDragDelta.y)
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull { it.id == pointerId }
-                                        ?: break
-
-                                    if (change.changedToUpIgnoreConsumed()) break
-
-                                    val delta = change.positionChange()
-                                    if (delta != Offset.Zero) {
-                                        change.consume()
-                                        onDrag(delta.x, delta.y)
+                                var released = false
+                                val started = currentOnDragStart(downScreenPosition.x, downScreenPosition.y)
+                                try {
+                                    if (started && currentOnDragTo(firstDragPosition.x, firstDragPosition.y)) {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull { it.id == pointerId }
+                                                ?: break
+                                            if (change.isConsumed || event.changes.count { it.pressed } > 1) break
+                                            val position = screenPosition(change.position)
+                                            if (!currentOnDragTo(position.x, position.y)) break
+                                            if (change.changedToUpIgnoreConsumed()) {
+                                                change.consume()
+                                                released = true
+                                                break
+                                            }
+                                            if (!change.pressed) break
+                                            change.consume()
+                                        }
                                     }
+                                } finally {
+                                    if (started) currentOnDragEnd(!released)
                                 }
                                 pressed = false
                             }
 
                             tapReleased -> {
                                 pressed = false
-                                onClick()
+                                if (gestureDockedSide == null) currentOnClick()
                             }
 
                             cancelled -> {
@@ -199,7 +237,7 @@ fun FloatingButton(
                             else -> {
                                 pressed = false
                                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onLongClick()
+                                currentOnLongClick()
                                 while (true) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == pointerId }
@@ -216,12 +254,23 @@ fun FloatingButton(
             },
         contentAlignment = Alignment.Center
     ) {
-        Surface(
+        if (dockedSide != null) {
+            Canvas(Modifier.fillMaxSize()) {
+                val halfLineHeight = FloatingButtonDocking.HANDLE_LINE_HEIGHT_DP.dp.toPx() / 2f
+                drawLine(
+                    color = Color.White.copy(alpha = 0.35f),
+                    start = Offset(size.width / 2f, size.height / 2f - halfLineHeight),
+                    end = Offset(size.width / 2f, size.height / 2f + halfLineHeight),
+                    strokeWidth = FloatingButtonDocking.HANDLE_LINE_WIDTH_DP.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+        } else Surface(
             color = baseColor.copy(alpha = buttonAlpha),
             contentColor = Color.White.copy(alpha = if (pressed) 0.9f else 0.68f),
             border = if (showFailureRing) BorderStroke(3.dp, Color(0xFFFF4A4A)) else null,
             shape = CircleShape,
-            shadowElevation = if (pressed) 8.dp else 2.dp,
+            shadowElevation = if (pressed) 8.dp else 0.dp,
             modifier = Modifier
                 .size(visualButtonSize)
                 .graphicsLayer {
@@ -242,7 +291,7 @@ fun FloatingButton(
                         FloatingButtonMode.CROP -> FloatingActionIcon.CROP
                     },
                     prominent = true,
-                    color = Color.White.copy(alpha = if (pressed) 0.95f else 0.82f),
+                    color = Color.White.copy(alpha = if (pressed) 0.95f else 0.50f),
                     contentScale = glyphContentScale,
                     modifier = Modifier.size(glyphSize)
                 )

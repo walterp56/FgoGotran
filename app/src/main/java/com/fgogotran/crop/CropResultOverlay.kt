@@ -11,6 +11,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import com.fgogotran.util.FgoLogger
+import com.fgogotran.util.setFloatingHandleGestureExclusion
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,9 +27,15 @@ class CropResultOverlay @Inject constructor(
     private var latestBitmap: Bitmap? = null
     private var onTap: ((Float, Float) -> Unit)? = null
     private var onTouch: ((MotionEvent) -> Boolean)? = null
+    private var floatingHandleBounds: Rect? = null
     private val tag = "CropResultOverlay"
 
     fun isShowing(): Boolean = rootView != null
+
+    fun setFloatingHandleBounds(screenBounds: Rect?) {
+        floatingHandleBounds = screenBounds?.let { Rect(it) }
+        rootView?.setFloatingHandleGestureExclusion(floatingHandleBounds)
+    }
 
     fun init(
         serviceContext: Context,
@@ -57,6 +64,9 @@ class CropResultOverlay @Inject constructor(
         }
 
         val newRoot = FrameLayout(overlayContext).apply {
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                setFloatingHandleGestureExclusion(floatingHandleBounds)
+            }
             setOnTouchListener { _, event ->
                 if (onTouch?.invoke(event) == true) {
                     return@setOnTouchListener true
@@ -82,6 +92,7 @@ class CropResultOverlay @Inject constructor(
             return
         }
         rootView = newRoot
+        newRoot.setFloatingHandleGestureExclusion(floatingHandleBounds)
         imageView = newImage
         FgoLogger.info(tag, "Crop result shown at ${bounds.flattenToString()}")
     }
@@ -90,6 +101,7 @@ class CropResultOverlay @Inject constructor(
         val wm = windowManager
         rootView?.let { view ->
             try {
+                view.setFloatingHandleGestureExclusion(null)
                 imageView?.setImageBitmap(null)
                 wm?.removeView(view)
             } catch (e: Exception) {
@@ -108,6 +120,7 @@ class CropResultOverlay @Inject constructor(
         overlayContext = appContext
         onTap = null
         onTouch = null
+        floatingHandleBounds = null
     }
 
     private fun replaceBitmap(view: ImageView, bitmap: Bitmap) {

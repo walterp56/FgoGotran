@@ -3,6 +3,7 @@ package com.fgogotran.overlay
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
@@ -11,6 +12,7 @@ import android.view.WindowManager
 import android.widget.ImageView
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.util.FgoLogger
+import com.fgogotran.util.setFloatingHandleGestureExclusion
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,8 +44,20 @@ class TranslationOverlay @Inject constructor(
     private var latestTranslatedBitmap: Bitmap? = null
     private var onOverlayTap: ((Float, Float) -> Unit)? = null
     private var onOverlayTouch: ((MotionEvent) -> Boolean)? = null
+    private var floatingHandleBounds: Rect? = null
 
     private val tag = "Overlay"
+
+    fun setFloatingHandleBounds(screenBounds: Rect?) {
+        floatingHandleBounds = screenBounds?.let { Rect(it) }
+        updateFloatingHandleGestureExclusion()
+    }
+
+    private fun updateFloatingHandleGestureExclusion() {
+        overlayView?.setFloatingHandleGestureExclusion(
+            floatingHandleBounds.takeIf { isOverlayShowing && overlayTouchable }
+        )
+    }
 
     /**
      * Layout params for the full-screen translated image overlay.
@@ -134,6 +148,7 @@ class TranslationOverlay @Inject constructor(
         }
 
         val imageView = ImageView(context).apply {
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateFloatingHandleGestureExclusion() }
             setImageBitmap(bitmap)
             alpha = 1f
             scaleType = ImageView.ScaleType.FIT_XY
@@ -174,6 +189,7 @@ class TranslationOverlay @Inject constructor(
         overlayView = imageView
         isOverlayShowing = true
         overlayTouchable = true
+        updateFloatingHandleGestureExclusion()
         FgoLogger.info(tag, "Showing translated image: ${bitmap.width}x${bitmap.height}")
     }
 
@@ -208,6 +224,7 @@ class TranslationOverlay @Inject constructor(
         try {
             wm.updateViewLayout(view, params)
             overlayTouchable = touchable
+            updateFloatingHandleGestureExclusion()
             FgoLogger.debug(tag, "Translated overlay touchable=$touchable")
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Failed to update translated overlay touchable=$touchable", e)
@@ -247,6 +264,7 @@ class TranslationOverlay @Inject constructor(
         val wm = windowManager ?: return
         overlayView?.let {
             try {
+                it.setFloatingHandleGestureExclusion(null)
                 wm.removeView(it)
                 FgoLogger.info(tag, "Overlay hidden")
             } catch (e: Exception) {
@@ -275,6 +293,7 @@ class TranslationOverlay @Inject constructor(
         hideAll()
         onOverlayTap = null
         onOverlayTouch = null
+        floatingHandleBounds = null
         windowManager = null
         FgoLogger.info(tag, "Overlay destroyed")
     }

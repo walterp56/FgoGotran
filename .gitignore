@@ -161,4 +161,8 @@ app/src/test/java/com/fgogotran/ui/theme/*
 !app/src/test/java/com/fgogotran/ui/AppLanguageOptionTest.java
 # Retain the focused general-prompt fidelity and version regressions.
 !app/src/test/java/com/fgogotran/translation/PronounFidelityPromptTest.kt
+# Retain the focused AUTO floating-button docking regressions.
+!app/src/test/java/com/fgogotran/ui/overlay/
+app/src/test/java/com/fgogotran/ui/overlay/*
+!app/src/test/java/com/fgogotran/ui/overlay/FloatingButtonDockingTest.kt
 AWS/
