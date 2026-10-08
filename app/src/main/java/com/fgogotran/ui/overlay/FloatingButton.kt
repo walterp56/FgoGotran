@@ -1,5 +1,6 @@
 package com.fgogotran.ui.overlay
 
+import android.view.MotionEvent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloatAsState
@@ -19,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -28,6 +30,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
@@ -81,6 +84,7 @@ private fun FloatingActionIcon.textLabel(): String = when (this) {
  * avoids tap, long-press, and drag competing with each other.
  */
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 fun FloatingButton(
     mode: FloatingButtonMode,
     buttonSize: Dp = 54.dp,
@@ -116,7 +120,13 @@ fun FloatingButton(
     )
     val hapticFeedback = LocalHapticFeedback.current
     val view = LocalView.current
-    val screenLocation = remember(view) { IntArray(2) }
+    val rawTouchPosition = remember(view) { FloatArray(2) }
+    val observeRawTouch = remember(view) {
+        { event: MotionEvent ->
+            rawTouchPosition[0] = event.rawX
+            rawTouchPosition[1] = event.rawY
+        }
+    }
     val currentDockedSide by rememberUpdatedState(dockedSide)
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
@@ -142,17 +152,17 @@ fun FloatingButton(
             .semantics {
                 contentDescription = modeDescription
             }
+            // Initial-pass observation supplies screen coordinates before the Main-pass detector.
+            // Do not combine a local event position with a window location that moves mid-gesture.
+            .motionEventSpy(observeRawTouch)
             // Keep this detector alive while a reveal resizes the same overlay window.
             .pointerInput(view) {
-                fun screenPosition(localPosition: Offset): Offset {
-                    view.getLocationOnScreen(screenLocation)
-                    return localPosition + Offset(screenLocation[0].toFloat(), screenLocation[1].toFloat())
-                }
+                fun screenPosition(): Offset = Offset(rawTouchPosition[0], rawTouchPosition[1])
                 try {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val pointerId = down.id
-                        val downScreenPosition = screenPosition(down.position)
+                        val downScreenPosition = screenPosition()
                         val gestureDockedSide = currentDockedSide
                         val dragSlop = max(viewConfiguration.touchSlop, 18.dp.toPx())
                         val longPressTimeout = minOf(viewConfiguration.longPressTimeoutMillis, 420L)
@@ -178,7 +188,7 @@ fun FloatingButton(
                                     return
                                 }
 
-                                val position = screenPosition(change.position)
+                                val position = screenPosition()
                                 val displacement = position - downScreenPosition
                                 if (FloatingButtonDocking.canStartDrag(
                                         gestureDockedSide, displacement.x, displacement.y, dragSlop
@@ -208,7 +218,7 @@ fun FloatingButton(
                                             val change = event.changes.firstOrNull { it.id == pointerId }
                                                 ?: break
                                             if (change.isConsumed || event.changes.count { it.pressed } > 1) break
-                                            val position = screenPosition(change.position)
+                                            val position = screenPosition()
                                             if (!currentOnDragTo(position.x, position.y)) break
                                             if (change.changedToUpIgnoreConsumed()) {
                                                 change.consume()

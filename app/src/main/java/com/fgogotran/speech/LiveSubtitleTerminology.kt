@@ -18,10 +18,10 @@ internal object LiveSubtitleTerminology {
     )
     // Unlike Master, Servant remains a valid term in compounds such as グランドサーヴァント.
     private val servantTerms = Regex(
-        "[サさ][\\p{Zs}\\t]*ー[\\p{Zs}\\t]*[ヴゔ][\\p{Zs}\\t]*[ァぁ][\\p{Zs}\\t]*[ンん][\\p{Zs}\\t]*[トと]|" +
-            "(?<![A-Za-z0-9_])(?i:servant)(?![A-Za-z0-9_])"
+        "[サさ][\\p{Zs}\\t]*ー[\\p{Zs}\\t]*(?:[ヴゔ][\\p{Zs}\\t]*[ァぁ]|[バば])[\\p{Zs}\\t]*[ンん][\\p{Zs}\\t]*[トと]|" +
+            "(?<![A-Za-z0-9_])(?i:servants?)(?![A-Za-z0-9_])"
     )
-    private val servantTranslations = Regex("從者|从者|僕人|仆人|傭人|佣人|侍從|侍从")
+    private val servantTranslations = Regex("從者|从者|僕人|仆人|傭人|佣人|侍從|侍从|隨從|随从|僕從|仆从|僕役|仆役|侍者")
 
     fun correct(sourceText: String, translatedText: String, targetLanguage: String): String {
         if (targetLanguage != "zh-Hans" && targetLanguage != "zh-Hant") return translatedText
