@@ -8,6 +8,8 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.Layout
+import android.text.StaticLayout
 import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
@@ -48,6 +50,8 @@ class VoiceSubtitleOverlay @Inject constructor(
     private var layoutParams: WindowManager.LayoutParams? = null
     private var hideRunnable: Runnable? = null
     private var pendingTimeoutMs: Long? = null
+    private val subtitleHistory = VoiceSubtitleHistory()
+    private var statusText: String? = null
 
     private var fontSizeSp = SettingsRepository.DEFAULT_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP
     private var portraitPosition: Pair<Int, Int>? = null
@@ -92,7 +96,7 @@ class VoiceSubtitleOverlay @Inject constructor(
     }
 
     fun showStatus(text: String, isError: Boolean = false) {
-        show(text, isFinal = true, isError = isError, timeoutMs = STATUS_TIMEOUT_MS)
+        show(text, isFinal = true, isError = isError, timeoutMs = STATUS_TIMEOUT_MS, isStatus = true)
     }
 
     /** Re-selects and safely clamps the orientation-specific position after rotation/resizing. */
@@ -101,6 +105,7 @@ class VoiceSubtitleOverlay @Inject constructor(
             val view = textView ?: return@post
             layoutScreen = null
             updateMaximumWidth(view)
+            updateDisplayText(view)
             view.requestLayout()
             view.post { placeView(view, useConfiguredPosition = true) }
         }
@@ -112,6 +117,7 @@ class VoiceSubtitleOverlay @Inject constructor(
             cancelScheduledHide()
             pendingTimeoutMs = null
             touchActive = false
+            clearDisplayText()
             textView?.visibility = View.GONE
         }
     }
@@ -122,6 +128,7 @@ class VoiceSubtitleOverlay @Inject constructor(
             cancelScheduledHide()
             pendingTimeoutMs = null
             touchActive = false
+            clearDisplayText()
             textView?.let { view ->
                 runCatching { windowManager.removeViewImmediate(view) }
                     .onFailure { FgoLogger.warn(tag, "Voice subtitle overlay removal failed", it) }
@@ -136,7 +143,8 @@ class VoiceSubtitleOverlay @Inject constructor(
         text: String,
         isFinal: Boolean,
         isError: Boolean,
-        timeoutMs: Long? = if (isFinal) FINAL_TIMEOUT_MS else null
+        timeoutMs: Long? = if (isFinal) FINAL_TIMEOUT_MS else null,
+        isStatus: Boolean = false
     ) {
         val safeText = text.trim()
         if (safeText.isEmpty() || !active.get()) return
@@ -145,12 +153,19 @@ class VoiceSubtitleOverlay @Inject constructor(
             val view = ensureView() ?: return@post
             cancelScheduledHide()
             pendingTimeoutMs = timeoutMs
-            view.text = safeText
+            if (isStatus) {
+                subtitleHistory.clear()
+                statusText = safeText
+            } else {
+                statusText = null
+                subtitleHistory.update(safeText, isFinal)
+            }
             view.setTextColor(if (isError) ERROR_TEXT_COLOR else Color.WHITE)
             // Partial and final Azure results use identical brightness to avoid visual flashing.
             view.alpha = 1f
             view.visibility = View.VISIBLE
             updateMaximumWidth(view)
+            updateDisplayText(view)
             view.requestLayout()
             view.post { placeView(view, useConfiguredPosition = false) }
             if (!touchActive) timeoutMs?.let(::scheduleHide)
@@ -165,11 +180,10 @@ class VoiceSubtitleOverlay @Inject constructor(
             return null
         }
         val view = TextView(context).apply {
-            gravity = Gravity.CENTER
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
             setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp.toFloat())
             setPadding(dp(10), dp(6), dp(10), dp(6))
-            maxLines = 3
-            ellipsize = TextUtils.TruncateAt.END
+            maxLines = MAX_SUBTITLE_LINES
             background = GradientDrawable().apply {
                 setColor(BACKGROUND_COLOR)
                 cornerRadius = dp(10).toFloat()
@@ -299,6 +313,7 @@ class VoiceSubtitleOverlay @Inject constructor(
         }
         if (fontChanged || positionsChanged) {
             updateMaximumWidth(view)
+            updateDisplayText(view)
             view.requestLayout()
             view.post { placeView(view, useConfiguredPosition = true) }
         }
@@ -324,6 +339,46 @@ class VoiceSubtitleOverlay @Inject constructor(
             insetRight = viewport.insetRight,
             coverage = MAX_WIDTH_COVERAGE
         )
+    }
+
+    private fun updateDisplayText(view: TextView) {
+        val status = statusText
+        if (status != null) {
+            view.minWidth = 0
+            view.gravity = Gravity.CENTER
+            view.maxLines = MAX_STATUS_LINES
+            view.ellipsize = TextUtils.TruncateAt.END
+            view.text = status
+            return
+        }
+        // Keep the speech reading edge fixed as partial text grows; status messages stay compact.
+        view.minWidth = view.maxWidth
+        view.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        view.maxLines = MAX_SUBTITLE_LINES
+        view.ellipsize = null
+        val text = subtitleHistory.text()
+        if (text.isEmpty()) {
+            view.text = ""
+            return
+        }
+        val textWidth = (view.maxWidth - view.compoundPaddingLeft - view.compoundPaddingRight)
+            .coerceAtLeast(1)
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, view.paint, textWidth)
+            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setIncludePad(view.includeFontPadding)
+            .setLineSpacing(view.lineSpacingExtra, view.lineSpacingMultiplier)
+            .setBreakStrategy(view.breakStrategy)
+            .setHyphenationFrequency(view.hyphenationFrequency)
+            .build()
+        // Drop the oldest visible lines, not the newest words at the end of the caption.
+        val firstVisibleLine = (layout.lineCount - MAX_SUBTITLE_LINES).coerceAtLeast(0)
+        view.text = text.substring(layout.getLineStart(firstVisibleLine))
+    }
+
+    private fun clearDisplayText() {
+        subtitleHistory.clear()
+        statusText = null
+        textView?.text = ""
     }
 
     private fun placeView(view: View, useConfiguredPosition: Boolean) {
@@ -413,6 +468,7 @@ class VoiceSubtitleOverlay @Inject constructor(
     private fun scheduleHide(delayMs: Long) {
         cancelScheduledHide()
         val runnable = Runnable {
+            clearDisplayText()
             textView?.visibility = View.GONE
             hideRunnable = null
             pendingTimeoutMs = null
@@ -454,6 +510,8 @@ class VoiceSubtitleOverlay @Inject constructor(
         const val tag = "VoiceSubtitle"
         const val TOP_MARGIN_DP = 54
         const val MAX_WIDTH_COVERAGE = 0.90f
+        const val MAX_SUBTITLE_LINES = 2
+        const val MAX_STATUS_LINES = 3
         const val FINAL_TIMEOUT_MS = 3_200L
         const val STATUS_TIMEOUT_MS = 3_000L
         const val BACKGROUND_COLOR = 0xCC101010.toInt()

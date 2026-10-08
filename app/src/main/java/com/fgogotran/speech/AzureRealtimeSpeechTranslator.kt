@@ -55,13 +55,19 @@ class AzureRealtimeSpeechTranslator @Inject constructor() {
                     event.result.translations[targetLanguage]
                         ?.trim()
                         ?.takeIf { it.isNotEmpty() }
-                        ?.let { onEvent(AzureTranslationEvent.Partial(it)) }
+                        ?.let {
+                            val text = LiveSubtitleTerminology.correct(event.result.text.orEmpty(), it, targetLanguage)
+                            onEvent(AzureTranslationEvent.Partial(text))
+                        }
                 }
                 recognizer.recognized.addEventListener { _, event ->
                     event.result.translations[targetLanguage]
                         ?.trim()
                         ?.takeIf { it.isNotEmpty() }
-                        ?.let { onEvent(AzureTranslationEvent.Final(it)) }
+                        ?.let {
+                            val text = LiveSubtitleTerminology.correct(event.result.text.orEmpty(), it, targetLanguage)
+                            onEvent(AzureTranslationEvent.Final(text))
+                        }
                 }
                 recognizer.canceled.addEventListener { _, event ->
                     val details = if (event.reason == CancellationReason.Error) {
