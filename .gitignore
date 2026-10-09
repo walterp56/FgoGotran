@@ -166,3 +166,5 @@ app/src/test/java/com/fgogotran/ui/theme/*
 app/src/test/java/com/fgogotran/ui/overlay/*
 !app/src/test/java/com/fgogotran/ui/overlay/FloatingButtonDockingTest.kt
 AWS/
+# Retain the isolated non-JP voice-only story recognition regressions.
+!app/src/test/java/com/fgogotran/story/VoiceOnlyStoryStateTest.kt

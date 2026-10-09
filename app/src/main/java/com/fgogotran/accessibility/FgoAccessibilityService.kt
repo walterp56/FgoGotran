@@ -70,6 +70,7 @@ import com.fgogotran.story.StoryOcrVisualBounds
 import com.fgogotran.story.StoryOcrVisualDecision
 import com.fgogotran.story.StoryOcrVisualGate
 import com.fgogotran.story.StoryOcrVisualScope
+import com.fgogotran.story.VoiceOnlyStoryState
 import com.fgogotran.translation.SceneTranslateInput
 import com.fgogotran.translation.SceneTranslateResult
 import com.fgogotran.translation.SessionTranslationEntry
@@ -131,6 +132,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val storyOcrVisualGate = StoryOcrVisualGate()
     private val storyTapHandoff = StoryTapHandoff(NEXT_DIALOGUE_POLL_TIMEOUT)
+    private val voiceOnlyStoryState = VoiceOnlyStoryState<VisualTextMask>()
+    private var voiceOnlyRequestSerial = 0L
     private var isProcessing = false
     private var foregroundTestOverrideEnabled = false
     private val foregroundTestOverride = ForegroundTestOverride()
@@ -210,6 +213,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private val screenshotMutex = Mutex()
     private var lastAccessibilityScreenshotAt = 0L
     private var cachedNameOcr: CachedNameOcr? = null
+    private var voiceOnlyCachedNameOcr: CachedNameOcr? = null
 
     private val unsupportedFgoLikePackageLoggedAt = LinkedHashMap<String, Long>()
     companion object {
@@ -427,6 +431,15 @@ class FgoAccessibilityService : AccessibilityService() {
         val sceneSource: SceneSource? = null
     )
 
+    private data class VoiceOnlyScanResult(
+        val sceneSource: SceneSource,
+        val dialogueRecognitionToken: Long? = null,
+        val choiceFrame: StoryTapHandoff.ChoiceFrame? = null,
+        val choiceDeparture: Boolean = false
+    )
+
+    private data class VoiceOnlyDialogueCompletion(val complete: Boolean, val byFallback: Boolean)
+
     private enum class RubyDetectionMode {
         STRICT,
         PERMISSIVE
@@ -568,6 +581,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun watchVoiceReadScope() {
         serviceScope.launch {
             settingsRepository.aiVoiceEnabled.collect { enabled ->
+                if (aiVoiceEnabled != enabled && !isJapaneseServer()) resetVoiceOnlyStoryState()
                 aiVoiceEnabled = enabled
             }
         }
@@ -578,22 +592,27 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         serviceScope.launch {
             settingsRepository.aiVoiceNamedDialogueEnabled.collect { enabled ->
+                if (aiVoiceNamedDialogueEnabled != enabled && !isJapaneseServer()) resetVoiceOnlyStoryState()
                 aiVoiceNamedDialogueEnabled = enabled
             }
         }
         serviceScope.launch {
             settingsRepository.aiVoiceNoSpeakerDialogueEnabled.collect { enabled ->
+                if (aiVoiceNoSpeakerDialogueEnabled != enabled && !isJapaneseServer()) resetVoiceOnlyStoryState()
                 aiVoiceNoSpeakerDialogueEnabled = enabled
             }
         }
         serviceScope.launch {
             settingsRepository.aiVoiceChoiceTextEnabled.collect { enabled ->
+                if (aiVoiceChoiceTextEnabled != enabled && !isJapaneseServer()) resetVoiceOnlyStoryState()
                 aiVoiceChoiceTextEnabled = enabled
             }
         }
         serviceScope.launch {
             settingsRepository.aiVoiceMasterVoice.collect { masterVoice ->
-                aiVoiceMasterVoice = SettingsRepository.normalizeAiVoiceMasterVoice(masterVoice)
+                val normalized = SettingsRepository.normalizeAiVoiceMasterVoice(masterVoice)
+                if (aiVoiceMasterVoice != normalized && !isJapaneseServer()) resetVoiceOnlyStoryState()
+                aiVoiceMasterVoice = normalized
             }
         }
     }
@@ -783,6 +802,7 @@ class FgoAccessibilityService : AccessibilityService() {
         storyTapHandoff.clear()
         emptyChoiceOcrCooldown.reset()
         storyOcrVisualGate.reset()
+        resetVoiceOnlyStoryState()
         resetSemiAutoBackgroundState()
         translationOverlay.hideAll()
         cropResultOverlay.hide()
@@ -808,6 +828,7 @@ class FgoAccessibilityService : AccessibilityService() {
         FgoLogger.warn(tag, "Service unbound by the system")
         storyTapHandoff.clear()
         emptyChoiceOcrCooldown.reset()
+        resetVoiceOnlyStoryState()
         // Drop the instance first: the binding is already gone, so every caller that
         // checks instance != null must stop treating the service as usable.
         instance = null
@@ -834,6 +855,7 @@ class FgoAccessibilityService : AccessibilityService() {
         instance = null
         storyTapHandoff.clear()
         emptyChoiceOcrCooldown.reset()
+        resetVoiceOnlyStoryState()
         battleModeState.setEnabled(false)
         cancelTransientForegroundLoss()
         translationOverlay.destroy()
@@ -933,6 +955,7 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     private fun onDialogueAdvanceObserved() {
+        voiceOnlyStoryState.onAdvanceObserved()
         if (translationOverlay.isShowing()) {
             FgoLogger.debug(tag, "FGO dialogue advance detected; hiding translated overlay for next OCR")
             translationOverlay.hide()
@@ -1049,6 +1072,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun cancelCurrentTranslation() {
         stopVersion++
+        resetVoiceOnlyStoryState()
         storyTapHandoff.clear()
         TranslationTrigger.cancelPendingTranslation()
         translationJob?.cancel()
@@ -1073,6 +1097,11 @@ class FgoAccessibilityService : AccessibilityService() {
         emptyChoiceOcrCooldown.reset()
         translationOverlay.hide()
         cropResultOverlay.hide()
+    }
+
+    private fun resetVoiceOnlyStoryState() {
+        voiceOnlyStoryState.reset()
+        voiceOnlyCachedNameOcr = null
     }
 
     private fun isSemiAutoBackgroundCoolingDown(): Boolean {
@@ -1381,6 +1410,9 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "Overlay UI visible; skipping OCR")
             return
         }
+        if (!isJapaneseServer() && !mode.userInitiated &&
+            voiceOnlyStoryState.isCoolingDown(mode.name, SystemClock.elapsedRealtime())
+        ) return
         isProcessing = true
         val processStartedAt = SystemClock.elapsedRealtime()
         val processingVersion = stopVersion
@@ -1411,7 +1443,12 @@ class FgoAccessibilityService : AccessibilityService() {
                     detail = failureInfo.detail,
                     errorCode = failureInfo.code
                 )
-                if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
+                if (!isJapaneseServer() && !mode.userInitiated) {
+                    voiceOnlyStoryState.rememberFailure(
+                        mode.name, "screenshot", SystemClock.elapsedRealtime(),
+                        AUTO_SCREENSHOT_FAIL_BASE_COOLDOWN, AUTO_SCREENSHOT_FAIL_MAX_COOLDOWN
+                    )
+                } else if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
                     rememberSemiAutoScreenshotFailure()
                 } else if (mode == ProcessingMode.AUTO_BACKGROUND) {
                     rememberAutoScreenshotFailure()
@@ -1458,7 +1495,9 @@ class FgoAccessibilityService : AccessibilityService() {
                     source = source,
                     screenRegions = screenRegions,
                     processStartedAt = processStartedAt,
-                    mode = mode
+                    mode = mode,
+                    processingVersion = processingVersion,
+                    frame = frame
                 )
                 restoreHiddenOverlay = false
                 return
@@ -1755,97 +1794,233 @@ class FgoAccessibilityService : AccessibilityService() {
         source: Bitmap,
         screenRegions: FgoScreenRegions,
         processStartedAt: Long,
-        mode: ProcessingMode
+        mode: ProcessingMode,
+        processingVersion: Long,
+        frame: StoryFramePixels
     ) {
-        val sceneSource = when (mode) {
-            ProcessingMode.MANUAL_TAP,
-            ProcessingMode.SEMI_AUTO_CHOICE_TAP -> scanVoiceOnlyDialogueScene(
-                source = source,
-                screenRegions = screenRegions,
-                includeChoices = aiVoiceChoiceTextEnabled,
-                mode = mode
+        val generation = voiceOnlyStoryState.generation
+        val server = gameServer
+        if (!isVoiceOnlyContextCurrent(mode, processingVersion, generation, server)) return
+        val scan = when (mode) {
+            ProcessingMode.MANUAL_TAP -> scanVoiceOnlyManualScene(source, screenRegions, frame)
+            ProcessingMode.SEMI_AUTO_CHOICE_TAP -> scanVoiceOnlyChoiceScene(source, screenRegions, frame)
+            ProcessingMode.SEMI_AUTO_BACKGROUND -> scanVoiceOnlyCompletedDialogueScene(
+                source, screenRegions, mode, frame
             )
-            ProcessingMode.SEMI_AUTO_BACKGROUND,
-            ProcessingMode.AUTO_BACKGROUND -> scanVoiceOnlyCompletedDialogueScene(source, screenRegions, mode)
+            ProcessingMode.AUTO_BACKGROUND -> scanVoiceOnlyAutoScene(source, screenRegions, frame)
         }
-
-        if (sceneSource == null) {
-            if (mode.userInitiated) {
+        if (scan == null) {
+            if (mode.userInitiated && isVoiceOnlyContextCurrent(mode, processingVersion, generation, server)) {
                 runnerOverlay.showTranslationFailureFeedback()
             }
-            translationOverlay.hide()
             return
         }
-
-        if (isAlreadyRenderedSource(mode, sceneSource)) {
+        if (!isVoiceOnlyContextCurrent(mode, processingVersion, generation, server)) {
+            voiceOnlyStoryState.visualGate.completeRecognition(scan.dialogueRecognitionToken, accepted = false)
+            return
+        }
+        val sceneSource = scan.sceneSource
+        val unchanged = !scan.choiceDeparture && voiceOnlyStoryState.isAccepted(
+            mode.name, sceneSource.fingerprint, sceneSource.stabilityKey
+        )
+        // Acceptance is valid recognition, not confirmed TTS playback. Disabled voice categories
+        // still establish a baseline; changing those switches resets only this non-JP owner.
+        voiceOnlyStoryState.acceptSource(mode.name, sceneSource.fingerprint, sceneSource.stabilityKey)
+        scan.choiceFrame?.let(voiceOnlyStoryState::acceptChoices)
+        voiceOnlyStoryState.visualGate.completeRecognition(scan.dialogueRecognitionToken, accepted = true)
+        if (unchanged) {
             FgoLogger.debug(tag, "Voice-only source unchanged; waiting for new OCR text")
-            translationOverlay.hide()
             return
         }
-
-        requestVoiceOnlyScene(sceneSource)
-        rememberRenderedSourceText(mode, sceneSource.fingerprint, sceneSource.stabilityKey)
-        if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
-            resetSemiAutoBackoff()
-        }
-        translationOverlay.hide()
+        requestVoiceOnlyScene(sceneSource, mode, processingVersion, generation, server)
         FgoLogger.info(
             tag,
             "Voice-only pipeline ready ($mode): ocr=${SystemClock.elapsedRealtime() - processStartedAt}ms"
         )
     }
 
-    private suspend fun scanVoiceOnlyDialogueScene(
+    private suspend fun scanVoiceOnlyManualScene(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        includeChoices: Boolean = false,
-        mode: ProcessingMode = ProcessingMode.MANUAL_TAP
-    ): SceneSource? {
+        frame: StoryFramePixels
+    ): VoiceOnlyScanResult? {
+        val choices = recognizeChoiceRegions(source, screenRegions, ProcessingMode.MANUAL_TAP, frame)
+        if (choices.bounds.isNotEmpty() && !choices.isComplete) return null
         val dialogueRegions = recognizeDialogueRegions(
-            source = source,
-            screenRegions = screenRegions,
-            allowRedTextFallback = true
+            source, screenRegions, useVoiceOnlyNameCache = true
         )
-        val choiceRegions = if (includeChoices) {
-            recognizeChoiceRegions(
-                source = source,
-                screenRegions = screenRegions,
-                mode = mode
-            ).regions
-        } else {
-            emptyList()
-        }
-        return sceneSourceFor(mergeManualSceneRegions(choiceRegions, dialogueRegions), source)
-            ?.takeIf { scene ->
-                scene.hasDialogue || scene.input.choices.any { it.isNotBlank() }
+        val regions = mergeManualSceneRegions(choices.regions, dialogueRegions)
+        val scene = if (choices.bounds.isNotEmpty()) {
+            completeChoiceSceneSourceFor(choices, source, regions)
+        } else sceneSourceFor(regions, source)?.takeIf { it.hasDialogue }
+        return scene?.let { VoiceOnlyScanResult(it) }
+    }
+
+    private suspend fun scanVoiceOnlyChoiceScene(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        frame: StoryFramePixels
+    ): VoiceOnlyScanResult? {
+        val frames = ChoiceRetrySource(source, Bitmap::recycle)
+        var recognitionFrame = frame
+        return try {
+            var choices = recognizeChoiceRegions(source, screenRegions, ProcessingMode.SEMI_AUTO_CHOICE_TAP, frame)
+            if (choices.regions.isEmpty()) {
+                FgoLogger.debug(tag, "Voice-only semi-auto choice OCR empty; retrying after settle delay")
+                delay(SEMI_AUTO_CHOICE_RETRY_DELAY_MS)
+                val retry = takeScreenshotCompat(timingLabel = "VOICE_ONLY_CHOICE_RETRY")
+                if (retry != null) {
+                    frames.useRetry(retry)
+                    recognitionFrame = StoryFramePixels(retry.framePixels())
+                    val retryRegions = FgoViewportLayout.regionsForScreen(retry.width, retry.height)
+                    val bounds = detectChoiceBounds(retry, retryRegions, recognitionFrame.pixels)
+                    choices = if (bounds.isNotEmpty()) {
+                        recognizeChoiceRegions(retry, bounds, ProcessingMode.SEMI_AUTO_CHOICE_TAP)
+                    } else {
+                        recognizeChoiceRegionsByFixedSlots(retry, retryRegions, preferredCount = null)
+                    }
+                    if (choices.regions.isEmpty()) {
+                        choices = recognizeChoiceRegions(
+                            retry, retryRegions, ProcessingMode.SEMI_AUTO_CHOICE_TAP, recognitionFrame
+                        )
+                    }
+                }
             }
+            val scene = completeChoiceSceneSourceFor(choices, frames.source)
+            if (scene == null) FgoLogger.debug(tag, "Voice-only choice list empty/incomplete; not submitting partial speech")
+            scene?.let { VoiceOnlyScanResult(it) }
+        } finally {
+            if (recognitionFrame !== frame) recognitionFrame.clear()
+            frames.close()
+        }
+    }
+
+    private fun voiceOnlyDialogueCompletion(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        frame: StoryFramePixels
+    ): VoiceOnlyDialogueCompletion {
+        val report = backgroundDetector.dialogueCompleteMarkerReport(source, screenRegions.dialogueComplete, frame.pixels)
+        val mask = if (!report.shapeVisible && report.evidence) {
+            textMaskFor(source, screenRegions.dialogue, pixels = frame.pixels)
+        } else null
+        val complete = voiceOnlyStoryState.dialogueComplete(report.shapeVisible, report.evidence, mask) { a, b ->
+            masksAreSimilar(a, b)
+        }
+        if (complete && !report.shapeVisible) {
+            FgoLogger.debug(tag, "Voice-only completion fallback accepted: three stable frames with marker evidence")
+        }
+        return VoiceOnlyDialogueCompletion(complete, complete && !report.shapeVisible)
+    }
+
+    private suspend fun scanVoiceOnlyAutoScene(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        frame: StoryFramePixels
+    ): VoiceOnlyScanResult? {
+        val mode = ProcessingMode.AUTO_BACKGROUND
+        val completion = voiceOnlyDialogueCompletion(source, screenRegions, frame)
+        val mayContainChoices = if (completion.complete && !completion.byFallback) {
+            withContext(Dispatchers.Default) {
+                backgroundDetector.mayContainChoiceButtons(source, screenRegions.choiceSearch, frame.pixels)
+            }
+        } else true
+        val bounds = if (mayContainChoices) detectChoiceBounds(source, screenRegions, frame.pixels) else emptyList()
+        if (bounds.isEmpty()) {
+            voiceOnlyStoryState.onChoicesAbsent()
+            return scanVoiceOnlyCompletedDialogueScene(source, screenRegions, mode, frame, completion)
+        }
+        val choiceFrame = withContext(Dispatchers.Default) { frame.choices(bounds.map { it.toStoryBounds() }) }
+        if (voiceOnlyStoryState.shouldSkipChoices(choiceFrame, SystemClock.elapsedRealtime(), completion.complete)) {
+            FgoLogger.debug(tag, "Voice-only AUTO choice OCR skipped: masks match accepted scene")
+            return null
+        }
+        val departure = voiceOnlyStoryState.hasChoiceDeparture()
+        val choices = recognizeChoiceRegions(
+            source, bounds, mode, choiceFrame = choiceFrame,
+            emptyCooldown = voiceOnlyStoryState.emptyChoiceCooldown
+        )
+        if (!choices.isComplete) {
+            FgoLogger.debug(tag, "Voice-only AUTO choice OCR incomplete; waiting instead of reading old dialogue")
+            voiceOnlyStoryState.rememberFailure(
+                mode.name, "empty OCR", SystemClock.elapsedRealtime(), EMPTY_OCR_RETRY_BASE_MS, EMPTY_OCR_RETRY_MAX_MS
+            )
+            return null
+        }
+        val dialogueRegions = if (completion.complete) {
+            recognizeDialogueRegions(source, screenRegions, allowRedTextFallback = true, useVoiceOnlyNameCache = true)
+        } else emptyList()
+        val scene = completeChoiceSceneSourceFor(choices, source, mergeManualSceneRegions(choices.regions, dialogueRegions))
+        if (scene == null) {
+            voiceOnlyStoryState.delayFor(mode.name, SystemClock.elapsedRealtime(), EMPTY_OCR_RETRY_BASE_MS)
+            return null
+        }
+        FgoLogger.debug(tag, "Voice-only AUTO choice text detected: choices=${scene.input.choices.size}")
+        return VoiceOnlyScanResult(scene, choiceFrame = choiceFrame, choiceDeparture = departure)
     }
 
     private suspend fun scanVoiceOnlyCompletedDialogueScene(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        mode: ProcessingMode
-    ): SceneSource? {
-        val dialogueComplete = backgroundDetector.isDialogueCompleteMarkerVisible(
-            source,
-            screenRegions.dialogueComplete
-        )
-        if (!dialogueComplete) {
-            if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
-                rememberSemiAutoBlankOcr()
-            }
+        mode: ProcessingMode,
+        frame: StoryFramePixels,
+        completion: VoiceOnlyDialogueCompletion = voiceOnlyDialogueCompletion(source, screenRegions, frame)
+    ): VoiceOnlyScanResult? {
+        if (!completion.complete) {
+            voiceOnlyStoryState.visualGate.reset()
+            voiceOnlyStoryState.delayFor(mode.name, SystemClock.elapsedRealtime(), DIAMOND_WAIT_RETRY_INTERVAL)
             FgoLogger.debug(tag, "Voice-only waiting for completed dialogue marker")
             return null
         }
-
-        val sceneSource = scanVoiceOnlyDialogueScene(source, screenRegions)
-        if (sceneSource == null && mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
-            rememberSemiAutoBlankOcr()
+        val namePixels = frame.pixels.read(screenRegions.name)
+        val dialoguePixels = frame.pixels.read(screenRegions.dialogue)
+        val visual = voiceOnlyStoryState.visualGate.observe(
+            scope = if (mode == ProcessingMode.AUTO_BACKGROUND) StoryOcrVisualScope.AUTO else StoryOcrVisualScope.SEMI_AUTO,
+            width = source.width, height = source.height,
+            nameBounds = screenRegions.name.toStoryOcrVisualBounds(),
+            dialogueBounds = screenRegions.dialogue.toStoryOcrVisualBounds(),
+            pixel = { x, y ->
+                if (screenRegions.name.contains(x, y)) namePixels.getPixel(x, y) else dialoguePixels.getPixel(x, y)
+            },
+            now = SystemClock.elapsedRealtime()
+        )
+        if (visual.action == StoryOcrVisualAction.SKIP_UNCHANGED) {
+            FgoLogger.debug(tag, "Voice-only dialogue OCR skipped: ${visual.reason}")
+            return null
         }
-        return sceneSource
+        var ready = false
+        try {
+            val regions = recognizeDialogueRegions(
+                source, screenRegions, allowRedTextFallback = true, useVoiceOnlyNameCache = true
+            )
+            val scene = sceneSourceFor(regions, source)?.takeIf { it.hasDialogue }
+            if (scene == null || (completion.byFallback && isSuspiciousFallbackOcr(regions, source.width, source.height))) {
+                voiceOnlyStoryState.rememberFailure(
+                    mode.name, "empty OCR", SystemClock.elapsedRealtime(), EMPTY_OCR_RETRY_BASE_MS, EMPTY_OCR_RETRY_MAX_MS
+                )
+                return null
+            }
+            ready = true
+            return VoiceOnlyScanResult(scene, dialogueRecognitionToken = visual.recognitionToken)
+        } finally {
+            if (!ready) voiceOnlyStoryState.visualGate.completeRecognition(visual.recognitionToken, accepted = false)
+        }
     }
 
-    private fun requestVoiceOnlyScene(sceneSource: SceneSource) {
+    private fun isVoiceOnlyContextCurrent(mode: ProcessingMode, version: Long, generation: Long, server: String): Boolean =
+        version == stopVersion && generation == voiceOnlyStoryState.generation && server == gameServer &&
+            !isJapaneseServer() && isProcessingModeEnabled(mode) && !battleModeState.active.value &&
+            !TranslationTrigger.isUiBlockingOcr() && (mode.userInitiated || isEffectiveFgoForeground)
+
+    private fun requestVoiceOnlyScene(
+        sceneSource: SceneSource,
+        mode: ProcessingMode,
+        processingVersion: Long,
+        generation: Long,
+        server: String
+    ) {
+        val requestSerial = ++voiceOnlyRequestSerial
+        val masterVoice = aiVoiceMasterVoice
         val speakerName = voiceSpeakerForDialogue(sceneSource.input.name)
         val dialogue = (sceneSource.voiceDialogue ?: sceneSource.input.dialogue)
             ?.trim()
@@ -1858,11 +2033,15 @@ class FgoAccessibilityService : AccessibilityService() {
         if ((speakerName == null || dialogue == null) && choiceText == null) return
 
         serviceScope.launch {
+            fun current() = requestSerial == voiceOnlyRequestSerial &&
+                isVoiceOnlyContextCurrent(mode, processingVersion, generation, server)
+            if (!current()) return@launch
             if (speakerName != null && dialogue != null) {
                 val voiceHint = requestVoiceOnlyVoiceHint(
                     speakerName = speakerName,
                     dialogue = dialogue
                 )
+                if (!current()) return@launch
                 aiVoiceService.speakDialogue(
                     speakerName = speakerName,
                     sourceDialogue = sceneSource.input.dialogue,
@@ -1871,8 +2050,9 @@ class FgoAccessibilityService : AccessibilityService() {
                 )
             }
             if (choiceText != null) {
+                if (!current()) return@launch
                 aiVoiceService.speakDialogue(
-                    speakerName = masterVoiceProfileId(aiVoiceMasterVoice),
+                    speakerName = masterVoiceProfileId(masterVoice),
                     sourceDialogue = choiceText,
                     translatedDialogue = choiceText,
                     voiceHint = null
@@ -4746,7 +4926,8 @@ class FgoAccessibilityService : AccessibilityService() {
         mode: ProcessingMode,
         retryEmptyTargetsIndividually: Boolean = mode == ProcessingMode.AUTO_BACKGROUND || choiceBounds.size >= 2,
         allowEnhancedSingleChoiceFallback: Boolean = true,
-        choiceFrame: StoryTapHandoff.ChoiceFrame? = null
+        choiceFrame: StoryTapHandoff.ChoiceFrame? = null,
+        emptyCooldown: ChoiceRecognitionPolicy.EmptyOcrCooldown = emptyChoiceOcrCooldown
     ): ChoiceRecognitionResult {
         if (!mode.recognizesChoices) return ChoiceRecognitionResult(emptyList(), emptyList())
         val now = SystemClock.elapsedRealtime()
@@ -4754,7 +4935,7 @@ class FgoAccessibilityService : AccessibilityService() {
         if (choiceBounds.isEmpty()) return ChoiceRecognitionResult(emptyList(), emptyList())
 
         val autoChoiceFrame = if (useEmptyChoiceCooldown) checkNotNull(choiceFrame) else null
-        if (autoChoiceFrame != null && emptyChoiceOcrCooldown.isCoolingDown(autoChoiceFrame, now)) {
+        if (autoChoiceFrame != null && emptyCooldown.isCoolingDown(autoChoiceFrame, now)) {
             FgoLogger.debug(tag, "Skipping same empty choice content during cooldown")
             return ChoiceRecognitionResult(choiceBounds, emptyList())
         }
@@ -4782,7 +4963,7 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         if (choiceRegions.isEmpty()) {
             if (useEmptyChoiceCooldown) {
-                val cooldown = emptyChoiceOcrCooldown.recordEmpty(
+                val cooldown = emptyCooldown.recordEmpty(
                     checkNotNull(autoChoiceFrame), SystemClock.elapsedRealtime()
                 )
                 FgoLogger.debug(
@@ -4793,7 +4974,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 FgoLogger.debug(tag, "Manual choice OCR returned no text; not applying auto cooldown")
             }
         } else if (useEmptyChoiceCooldown) {
-            emptyChoiceOcrCooldown.reset()
+            emptyCooldown.reset()
         }
         return ChoiceRecognitionResult(choiceBounds, choiceRegions)
     }
@@ -4966,7 +5147,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private suspend fun recognizeDialogueRegions(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        allowRedTextFallback: Boolean = false
+        allowRedTextFallback: Boolean = false,
+        useVoiceOnlyNameCache: Boolean = false
     ): List<ClassifiedRegion> {
         // A measured name-plate edge is the width authority for name OCR. Name and dialogue must not
         // share an OCR bitmap: even when their result boxes are classified separately, a shared
@@ -4991,7 +5173,7 @@ class FgoAccessibilityService : AccessibilityService() {
             target = OcrRegionTarget(screenRegions.dialogue, TextRegion.DIALOGUE_BOX)
         )
         val rawNameRegion = nameOcrRegion?.let { crop ->
-            recognizeNameRegion(source, crop)
+            recognizeNameRegion(source, crop, useVoiceOnlyNameCache)
         }
         val regions = listOfNotNull(dialogueRegion, rawNameRegion).map { region ->
             when (region.region) {
@@ -5021,9 +5203,11 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     /** Reuse unchanged speaker OCR; dialogue changes far more often than the name label. */
-    private suspend fun recognizeNameRegion(source: Bitmap, crop: Rect): ClassifiedRegion? {
+    private suspend fun recognizeNameRegion(
+        source: Bitmap, crop: Rect, useVoiceOnlyNameCache: Boolean = false
+    ): ClassifiedRegion? {
         val currentMask = textMaskFor(source, crop)
-        val cached = cachedNameOcr
+        val cached = if (useVoiceOnlyNameCache) voiceOnlyCachedNameOcr else cachedNameOcr
         if (currentMask != null && cached != null && cached.cropBounds == crop &&
             masksAreSimilar(cached.mask, currentMask, NAME_OCR_CACHE_MAX_DIFF_RATIO)
         ) {
@@ -5036,11 +5220,12 @@ class FgoAccessibilityService : AccessibilityService() {
             source = source,
             target = OcrRegionTarget(crop, TextRegion.NAME_LABEL)
         )
-        cachedNameOcr = if (region != null && currentMask != null) {
+        val updatedCache = if (region != null && currentMask != null) {
             CachedNameOcr(Rect(crop), currentMask, region)
         } else {
             null
         }
+        if (useVoiceOnlyNameCache) voiceOnlyCachedNameOcr = updatedCache else cachedNameOcr = updatedCache
         return region
     }
 
