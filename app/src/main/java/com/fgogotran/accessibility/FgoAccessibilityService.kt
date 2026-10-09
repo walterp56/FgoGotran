@@ -82,12 +82,14 @@ import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.translation.TranslationRubyPolicy
 import com.fgogotran.translation.TranslateResult
 import com.fgogotran.translation.Translator
+import com.fgogotran.translation.VoiceHintContext
 import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.FramePixelReader
 import com.fgogotran.util.framePixels
 import com.fgogotran.util.read
 import com.fgogotran.voice.AiVoiceService
+import com.fgogotran.voice.PreparedVoiceTarget
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -2037,16 +2039,22 @@ class FgoAccessibilityService : AccessibilityService() {
                 isVoiceOnlyContextCurrent(mode, processingVersion, generation, server)
             if (!current()) return@launch
             if (speakerName != null && dialogue != null) {
+                val voiceTarget = if (shouldRequestVoiceHint(sceneSource)) {
+                    aiVoiceService.prepareKnownVoiceTarget(server, speakerName)
+                } else null
+                if (!current()) return@launch
                 val voiceHint = requestVoiceOnlyVoiceHint(
                     speakerName = speakerName,
-                    dialogue = dialogue
+                    dialogue = dialogue,
+                    voiceHintContext = voiceTarget?.hintContext
                 )
                 if (!current()) return@launch
                 aiVoiceService.speakDialogue(
                     speakerName = speakerName,
                     sourceDialogue = sceneSource.input.dialogue,
                     translatedDialogue = dialogue,
-                    voiceHint = voiceHint
+                    voiceHint = voiceHint,
+                    preparedTarget = voiceTarget
                 )
             }
             if (choiceText != null) {
@@ -2063,8 +2071,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun requestVoiceOnlyVoiceHint(
         speakerName: String,
-        dialogue: String
+        dialogue: String,
+        voiceHintContext: VoiceHintContext?
     ): VoiceLineHint? {
+        if (voiceHintContext == null) return null
         if (isJapaneseServer() || !aiVoiceEnabled || !aiVoiceApiHintsEnabled) return null
         if (!SettingsRepository.readTextAvailableFor(settingsRepository.targetLanguage.first())) {
             return null
@@ -2075,7 +2085,7 @@ class FgoAccessibilityService : AccessibilityService() {
         return try {
             val hint = withTimeoutOrNull(VOICE_HINT_REQUEST_TIMEOUT_MS) {
                 val result = withContext(Dispatchers.IO) {
-                    translator.requestVoiceHint(speakerName, dialogue)
+                    translator.requestVoiceHint(speakerName, dialogue, voiceHintContext)
                 }
                 completed = true
                 result
@@ -2847,7 +2857,15 @@ class FgoAccessibilityService : AccessibilityService() {
         ) return false
         val sourceFingerprint = sceneSource.fingerprint
         val translationStartedAt = SystemClock.elapsedRealtime()
-        val sceneTranslation = translateSceneSource(sceneSource)
+        val voiceTarget = if (shouldRequestVoiceHint(sceneSource)) {
+            voiceSpeakerForDialogue(sceneSource.input.name)?.let { speaker ->
+                aiVoiceService.prepareKnownVoiceTarget(gameServer, speaker)
+            }
+        } else null
+        if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
+            TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
+        ) return false
+        val sceneTranslation = translateSceneSource(sceneSource, voiceTarget)
         if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
             TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
         ) return false
@@ -2991,7 +3009,7 @@ class FgoAccessibilityService : AccessibilityService() {
             choices = choiceFrame,
             autoRenderCommitted = mode == ProcessingMode.AUTO_BACKGROUND
         )
-        maybeSpeakRenderedDialogue(sceneSource, sceneTranslation, instructions)
+        maybeSpeakRenderedDialogue(sceneSource, sceneTranslation, instructions, voiceTarget)
         val overlayDuration = SystemClock.elapsedRealtime() - overlayStartedAt
         FgoLogger.info(
             tag,
@@ -3006,7 +3024,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun maybeSpeakRenderedDialogue(
         sceneSource: SceneSource,
         sceneTranslation: SceneTranslateResult,
-        instructions: List<RenderInstruction>
+        instructions: List<RenderInstruction>,
+        voiceTarget: PreparedVoiceTarget?
     ) {
         val renderedDialogue = sceneTranslation.dialogue?.trustedForContext == true &&
             instructions.any {
@@ -3035,7 +3054,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     speakerName = speakerName,
                     sourceDialogue = sceneSource.input.dialogue,
                     translatedDialogue = translatedDialogue,
-                    voiceHint = sceneTranslation.voiceHint
+                    voiceHint = sceneTranslation.voiceHint,
+                    preparedTarget = voiceTarget
                 )
             }
             if (choiceText != null) {
@@ -3270,7 +3290,10 @@ class FgoAccessibilityService : AccessibilityService() {
         return if (punctuationKey.isBlank()) lexicalKey else "$lexicalKey⟦$punctuationKey⟧"
     }
 
-    private suspend fun translateSceneSource(sceneSource: SceneSource): SceneTranslateResult {
+    private suspend fun translateSceneSource(
+        sceneSource: SceneSource,
+        voiceTarget: PreparedVoiceTarget?
+    ): SceneTranslateResult {
         // Snapshot once: a setting change must not alter an in-flight request or its retries.
         val includeRuby = translationIncludeRuby
         val previousDialogueContexts = if (isJapaneseServer() && translationContextEnabled) {
@@ -3282,13 +3305,13 @@ class FgoAccessibilityService : AccessibilityService() {
             emptyList()
         }
         val fullInput = sceneSource.input.copy(
-            requestVoiceHint = shouldRequestVoiceHint(sceneSource),
+            requestVoiceHint = voiceTarget != null,
             previousDialogueContexts = previousDialogueContexts
         )
         val input = TranslationRubyPolicy.prepare(fullInput, includeRuby)
         FgoLogger.debug(tag, "Scene ruby policy: include=$includeRuby, filtered=${input != fullInput}")
         return withContext(Dispatchers.IO) {
-            translator.translateScene(input)
+            translator.translateScene(input, voiceTarget?.hintContext)
         }
     }
 

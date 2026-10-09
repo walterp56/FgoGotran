@@ -1,6 +1,7 @@
 package com.fgogotran.voice
 
 import com.fgogotran.translation.VoiceLineHint
+import com.fgogotran.translation.VoiceHintContext
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
@@ -17,7 +18,9 @@ object VoiceEmotionStyle {
 
         val normalized = normalizedTextForStyleMatching(text)
         val voiceTuning = AzureVoiceModelTuning.forVoice(profile.voiceName)
-        val trustedVoiceHint = trustedVoiceHint(voiceHint)
+        val trustedVoiceHint = trustedVoiceHint(voiceHint)?.takeIf {
+            it.targetVoiceNames.isEmpty() || profile.voiceName in it.targetVoiceNames
+        }
         val expression = buildExpression(
             profile = profile,
             normalizedText = normalized,
@@ -178,8 +181,27 @@ object VoiceEmotionStyle {
         hintedStyles: List<String>,
         localStyle: String?
     ): String? {
-        return (hintedStyles + listOfNotNull(localStyle))
-            .firstOrNull { resolveSupportedStyle(profile.voiceName, voiceTuning, it) != null }
+        // API styles are exact selections, not generic emotions to map to another emotion.
+        return hintedStyles.firstOrNull {
+            it in usableHintStylesFor(profile.voiceName)
+        } ?: localStyle?.takeIf {
+            resolveSupportedStyle(profile.voiceName, voiceTuning, it) != null
+        }
+    }
+
+    fun usableHintStylesFor(voiceName: String): Set<String> {
+        val tuning = AzureVoiceModelTuning.forVoice(voiceName)
+        return supportedStylesFor(voiceName).filterTo(linkedSetOf()) {
+            it !in ROLE_DIALOGUE_STYLES && it != "story-telling" &&
+                canApplyStyle(voiceName, tuning, it)
+        }
+    }
+
+    fun hintContextFor(voiceNames: List<String>): VoiceHintContext {
+        val voices = voiceNames.distinct()
+        val commonStyles = voices.map(::usableHintStylesFor)
+            .reduceOrNull { common, next -> common.intersect(next) }.orEmpty()
+        return VoiceHintContext(voices, commonStyles.sorted())
     }
 
     private fun canApplyStyle(
@@ -463,8 +485,8 @@ object VoiceEmotionStyle {
     /**
      * Nearest-style fallbacks, used when a voice does not support the requested style.
      *
-     * Every profile and every model voice hint goes through the same list, so Chinese and English
-     * read text resolve styles identically. Order matters: the first supported entry wins.
+     * Profile defaults and local cues use these fallbacks for both Chinese and English read text.
+     * API line hints use exact supported styles instead. Order matters: the first supported entry wins.
      */
     private val STYLE_FALLBACKS = mapOf(
         "gentle" to listOf("comforting", "empathetic", "affectionate", "calm", "chat", "cute", "cheerful"),
@@ -942,6 +964,6 @@ object VoiceEmotionStyle {
     private const val HINT_PAUSE_STEP = 0.07
     private const val MIN_USER_SPEED_MULTIPLIER = 0.50
     private const val MAX_USER_SPEED_MULTIPLIER = 2.00
-    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v13"
+    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v14"
     private val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
 }

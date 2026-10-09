@@ -1,5 +1,16 @@
 package com.fgogotran.voice
 
+/** Known profiles resolved once for the hint request and reused for the same playback. */
+data class PreparedVoiceTarget(
+    val gameServer: String,
+    val profilesBySpeaker: Map<String, VoiceProfile>
+) {
+    val hintContext = VoiceEmotionStyle.hintContextFor(profilesBySpeaker.values.map { it.voiceName })
+
+    fun matches(server: String, speakers: List<String>): Boolean =
+        gameServer == server && profilesBySpeaker.keys == speakers.toSet()
+}
+
 data class VoiceProfile(
     val profileId: String,
     val provider: String,

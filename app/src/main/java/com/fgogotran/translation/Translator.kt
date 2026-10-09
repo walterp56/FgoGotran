@@ -180,7 +180,8 @@ data class VoiceLineHint(
     val rate: Int? = null,
     val pitch: Int? = null,
     val pause: Int? = null,
-    val confidence: Double? = null
+    val confidence: Double? = null,
+    val targetVoiceNames: Set<String> = emptySet()
 )
 
 /**
@@ -445,15 +446,18 @@ class Translator @Inject constructor(
 
     suspend fun testVoiceHint(
         speakerName: String,
-        dialogue: String
+        dialogue: String,
+        voiceHintContext: VoiceHintContext?
     ): VoiceLineHint? {
-        return requestVoiceHint(speakerName, dialogue)
+        return requestVoiceHint(speakerName, dialogue, voiceHintContext)
     }
 
     suspend fun requestVoiceHint(
         speakerName: String,
-        dialogue: String
+        dialogue: String,
+        voiceHintContext: VoiceHintContext?
     ): VoiceLineHint? {
+        if (voiceHintContext == null) return null
         val config = getRuntimeConfig()
         if (!SettingsRepository.readTextAvailableFor(config.targetLanguage)) {
             FgoLogger.debug(
@@ -490,7 +494,8 @@ class Translator @Inject constructor(
                     "user",
                     buildVoiceHintPrompt(
                         speakerName = cleanSpeakerName,
-                        dialogue = cleanDialogue
+                        dialogue = cleanDialogue,
+                        voiceHintContext = voiceHintContext
                     )
                 )
             ),
@@ -506,7 +511,8 @@ class Translator @Inject constructor(
             expectName = false,
             expectDialogue = false,
             expectedChoiceCount = 0,
-            expectVoiceHint = true
+            expectVoiceHint = true,
+            voiceHintContext = voiceHintContext
         ).voiceHint
     }
 
@@ -659,9 +665,6 @@ class Translator @Inject constructor(
         private const val VOICE_HINT_TEST_MAX_TOKENS = 96
         private const val VOICE_HINT_SPEAKER_MAX_CHARS = 80
         private const val VOICE_HINT_DIALOGUE_MAX_CHARS = 320
-        private const val VOICE_HINT_MAX_STYLE_CANDIDATES = 3
-        private const val VOICE_HINT_MIN_DELTA = -2
-        private const val VOICE_HINT_MAX_DELTA = 2
         private const val UTILITY_PROMPT_MAX_TOKENS = 128
         private const val API_TEST_JAPANESE_TEXT = "マスター、カルデアに戻りましょう。"
         private const val DIALOGUE_TRANSLATION_MAX_TOKENS = 256
@@ -692,36 +695,10 @@ class Translator @Inject constructor(
         private const val COMBINED_NAME_MAX_PARTS = 4
         private const val VOICE_HINT_NULL_EXAMPLE =
             """{"voice_hint":null}"""
-        private const val VOICE_HINT_ACTIVE_EXAMPLE =
-            """{"voice_hint":{"styles":["serious"],"dragon_styles":[],"intensity":0.6,"rate":-1,"pitch":-1,"pause":1,"confidence":0.8}}"""
         private const val SCENE_RESPONSE_EXAMPLE =
             """{"name":null,"dialogue":null,"choices":[]}"""
         private const val SCENE_WITH_VOICE_HINT_RESPONSE_EXAMPLE =
             """{"name":null,"dialogue":null,"choices":[],"voice_hint":null}"""
-        private val VOICE_HINT_NORMAL_STYLES = listOf(
-            "cheerful",
-            "sad",
-            "angry",
-            "fearful",
-            "gentle",
-            "shy",
-            "strict",
-            "serious",
-            "surprised",
-            "tired",
-            "complaining",
-            "cute",
-            "chat"
-        )
-        private val VOICE_HINT_DRAGON_STYLES = listOf(
-            "comforting",
-            "nervous",
-            "curious",
-            "encouraging",
-            "sentimental",
-            "sorry",
-            "whispering"
-        )
         private val PROMPT_ECHO_STRONG_MARKERS = listOf(
             "你是一个轻小说翻译模型",
             "将下面的日文文本翻译成中文：",
@@ -1802,7 +1779,10 @@ class Translator @Inject constructor(
         return results.completeForTargetLocale(config, normalizedTexts)
     }
 
-    suspend fun translateScene(input: SceneTranslateInput): SceneTranslateResult {
+    suspend fun translateScene(
+        input: SceneTranslateInput,
+        voiceHintContext: VoiceHintContext? = null
+    ): SceneTranslateResult {
         val rawNormalizedName = input.name?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
         val rawNormalizedDialogue = input.dialogue
             ?.let(TextNormalizer::normalizeForTranslation)
@@ -2094,8 +2074,9 @@ class Translator @Inject constructor(
             normalizedDialogue != null &&
             TextNormalizer.hasTranslatableContent(normalizedDialogue)
         val requestVoiceHint = voiceHintRequested &&
+            voiceHintContext != null &&
             supportsApiVoiceHintsForModel(config.apiModel)
-        if (voiceHintRequested && !requestVoiceHint) {
+        if (voiceHintRequested && !supportsApiVoiceHintsForModel(config.apiModel)) {
             FgoLogger.debug(
                 tag,
                 "Scene voice hint skipped: Sakura uses local expression rules"
@@ -2257,7 +2238,7 @@ class Translator @Inject constructor(
                 ?: normalizedName.orEmpty()
             val voiceHint = if (requestVoiceHint) {
                 try {
-                    requestVoiceHint(speakerForHint, normalizedDialogue.orEmpty())
+                    requestVoiceHint(speakerForHint, normalizedDialogue.orEmpty(), voiceHintContext)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -2283,7 +2264,8 @@ class Translator @Inject constructor(
             val voiceHint = try {
                 requestVoiceHint(
                     speakerName = speakerForHint,
-                    dialogue = normalizedDialogue.orEmpty()
+                    dialogue = normalizedDialogue.orEmpty(),
+                    voiceHintContext = voiceHintContext
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -2362,6 +2344,7 @@ class Translator @Inject constructor(
         val sceneUserPrompt = if (useCompactDialogueVoiceHintPrompt) {
             buildDialogueWithVoiceHintUserPrompt(
                 dialogue = protectedDialogue?.text ?: sceneDialogueForApi.orEmpty(),
+                voiceHintContext = checkNotNull(voiceHintContext),
                 previousDialogueContexts = activePreviousDialogueContexts,
                 currentSpeaker = currentSpeaker,
                 glossaryEntries = promptGlossaryEntries
@@ -2376,7 +2359,8 @@ class Translator @Inject constructor(
                 translateDialogue = needsDialogue,
                 previousDialogueContexts = activePreviousDialogueContexts,
                 currentSpeaker = currentSpeaker,
-                glossaryEntries = promptGlossaryEntries
+                glossaryEntries = promptGlossaryEntries,
+                voiceHintContext = voiceHintContext
             )
         }
         val scenePromptKind = when {
@@ -2412,7 +2396,7 @@ class Translator @Inject constructor(
                 maxTokens = sceneMaxTokens,
                 promptKind = scenePromptKind
             )
-            parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size, requestVoiceHint)
+            parseSceneResult(rawResult, needsName, needsDialogue, uncachedChoices.size, requestVoiceHint, voiceHintContext)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -5528,7 +5512,8 @@ class Translator @Inject constructor(
         translateDialogue: Boolean,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
-        glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
+        glossaryEntries: List<TranslationGlossaryEntry> = emptyList(),
+        voiceHintContext: VoiceHintContext? = null
     ): String {
         val responseKeys = if (requestVoiceHint) {
             "name, dialogue, choices, voice_hint"
@@ -5572,13 +5557,7 @@ class Translator @Inject constructor(
                             "choices=exactly ${choices.size} translated strings in the same order."
                     )
                     if (requestVoiceHint) {
-                        appendLine("voice_hint is a delivery hint or null and must not change translation.")
-                        appendLine("styles: ${VOICE_HINT_NORMAL_STYLES.joinToString(",")}")
-                        appendLine("dragon_styles: ${VOICE_HINT_DRAGON_STYLES.joinToString(",")}")
-                        append(
-                            "intensity/confidence 0-1; rate/pitch/pause -2..2; " +
-                                "omit unchanged values; use null when unclear."
-                        )
+                        append(buildVoiceHintInstructions(checkNotNull(voiceHintContext)))
                     }
                 }
             )
@@ -5587,6 +5566,7 @@ class Translator @Inject constructor(
 
     private fun buildDialogueWithVoiceHintUserPrompt(
         dialogue: String,
+        voiceHintContext: VoiceHintContext,
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
         glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
@@ -5601,15 +5581,7 @@ class Translator @Inject constructor(
                 buildString {
                     appendLine("Return JSON only with exactly these keys: dialogue, voice_hint.")
                     appendLine("""Neutral example: {"dialogue":"translated dialogue","voice_hint":null}""")
-                    appendLine("styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
-                    appendLine(
-                        "dragon_styles <=3 DragonHDFlash-only: " +
-                            "${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}."
-                    )
-                    append(
-                        "intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; " +
-                            "omit unchanged values or use null."
-                    )
+                    append(buildVoiceHintInstructions(voiceHintContext))
                 }
             )
         }
@@ -5633,7 +5605,8 @@ class Translator @Inject constructor(
 
     private fun buildVoiceHintPrompt(
         speakerName: String,
-        dialogue: String
+        dialogue: String,
+        voiceHintContext: VoiceHintContext
     ): String {
         return buildString {
             appendPromptSection(
@@ -5644,18 +5617,9 @@ class Translator @Inject constructor(
                 "required_output",
                 buildString {
                     appendLine("Create an Azure TTS acting hint for this FGO line without translating it.")
-                    appendLine("Return JSON only. Neutral/unclear example: $VOICE_HINT_NULL_EXAMPLE")
-                    appendLine("Active example: $VOICE_HINT_ACTIVE_EXAMPLE")
-                    appendLine("Use null when neutral/unclear; otherwise choose only values supported by the line.")
-                    appendLine("styles <=3: ${VOICE_HINT_NORMAL_STYLES.joinToString(", ")}.")
-                    appendLine(
-                        "dragon_styles <=3 DragonHDFlash-only: " +
-                            "${VOICE_HINT_DRAGON_STYLES.joinToString(", ")}."
-                    )
-                    appendLine(
-                        "intensity/confidence 0.0-1.0; rate/pitch/pause integers -2..2; " +
-                            "omit unchanged values or use null."
-                    )
+                    appendLine("Return JSON only with exactly this key: voice_hint.")
+                    appendLine("Neutral/unclear example: $VOICE_HINT_NULL_EXAMPLE")
+                    appendLine(buildVoiceHintInstructions(voiceHintContext))
                     append("Do not use old keys: emotion, energy, delivery, attitude, pace.")
                 }
             )
@@ -5667,7 +5631,8 @@ class Translator @Inject constructor(
         expectName: Boolean,
         expectDialogue: Boolean,
         expectedChoiceCount: Int,
-        expectVoiceHint: Boolean = false
+        expectVoiceHint: Boolean = false,
+        voiceHintContext: VoiceHintContext? = null
     ): ParsedSceneResult {
         val trimmed = rawResult.trim()
         if (looksLikePromptEcho(trimmed)) {
@@ -5705,7 +5670,9 @@ class Translator @Inject constructor(
             ?.jsonArray
             ?.map { it.jsonPrimitive.content.trim() }
             ?: emptyList()
-        val voiceHint = if (expectVoiceHint) parseVoiceHint(obj) else null
+        val voiceHint = if (expectVoiceHint) {
+            parseVoiceLineHint(obj["voice_hint"] ?: obj["voiceHint"], voiceHintContext)
+        } else null
 
         if (expectName && name.isNullOrBlank()) {
             throw IllegalArgumentException("Scene response missing name")
@@ -5726,225 +5693,6 @@ class Translator @Inject constructor(
         )
     }
 
-    private fun parseVoiceHint(obj: JsonObject): VoiceLineHint? {
-        val hintObject = (obj["voice_hint"] ?: obj["voiceHint"])
-            ?.takeUnless { it is JsonNull }
-            ?.let { runCatching { it.jsonObject }.getOrNull() }
-            ?: return null
-        val normalStyles = mutableListOf<String>()
-        val dragonStyles = mutableListOf<String>()
-
-        fun addStyle(rawStyle: String?) {
-            val style = normalizeVoiceHintStyle(rawStyle) ?: return
-            when {
-                style in VOICE_HINT_NORMAL_STYLES -> normalStyles += style
-                style in VOICE_HINT_DRAGON_STYLES -> dragonStyles += style
-            }
-        }
-
-        fun addDragonStyle(rawStyle: String?) {
-            normalizeVoiceHintStyle(rawStyle)
-                ?.takeIf { it in VOICE_HINT_DRAGON_STYLES }
-                ?.let { dragonStyles += it }
-        }
-
-        hintObject.stringListOrNull("styles").forEach(::addStyle)
-        hintObject.stringListOrNull("style").forEach(::addStyle)
-        hintObject.stringListOrNull("dragon_styles").forEach(::addDragonStyle)
-        hintObject.stringListOrNull("dragonStyles").forEach(::addDragonStyle)
-        legacyVoiceHintStyles(hintObject).forEach(::addStyle)
-
-        val styles = normalStyles.distinct().take(VOICE_HINT_MAX_STYLE_CANDIDATES)
-        val dragonOnlyStyles = dragonStyles.distinct().take(VOICE_HINT_MAX_STYLE_CANDIDATES)
-        val intensity = hintObject.doubleOrNull("intensity")?.coerceIn(0.0, 1.0)
-        val rate = nonZeroVoiceDelta(
-            hintObject.intDeltaOrNull("rate") ?: legacyVoiceHintRateDelta(hintObject)
-        )
-        val pitch = nonZeroVoiceDelta(
-            hintObject.intDeltaOrNull("pitch") ?: legacyVoiceHintPitchDelta(hintObject)
-        )
-        val pause = nonZeroVoiceDelta(
-            hintObject.intDeltaOrNull("pause") ?: legacyVoiceHintPauseDelta(hintObject)
-        )
-        val confidence = hintObject.doubleOrNull("confidence")?.coerceIn(0.0, 1.0)
-
-        if (styles.isEmpty() && dragonOnlyStyles.isEmpty() && rate == null && pitch == null && pause == null) {
-            return null
-        }
-        return VoiceLineHint(
-            styles = styles,
-            dragonStyles = dragonOnlyStyles,
-            intensity = intensity,
-            rate = rate,
-            pitch = pitch,
-            pause = pause,
-            confidence = confidence
-        )
-    }
-
-    private fun nonZeroVoiceDelta(value: Int?): Int? = value?.takeIf { it != 0 }
-
-    private fun legacyVoiceHintStyles(hintObject: JsonObject): List<String> {
-        val styles = mutableListOf<String>()
-        hintObject.stringOrNull("emotion")?.let { styles += it }
-        when (hintKey(hintObject.stringOrNull("delivery"))) {
-            "soft" -> styles += "gentle"
-            "bright", "playful" -> styles += "cheerful"
-            "sharp", "commanding" -> styles += "strict"
-            "cold", "formal" -> styles += "serious"
-            "whispered" -> styles += "whispering"
-        }
-        when (hintKey(hintObject.stringOrNull("attitude"))) {
-            "warm" -> styles += "gentle"
-            "teasing", "confident" -> styles += "cheerful"
-            "nervous" -> styles += "fearful"
-            "threatening" -> styles += "angry"
-            "regretful" -> styles += "sad"
-            "calm", "distant" -> styles += "serious"
-        }
-        return styles
-    }
-
-    private fun legacyVoiceHintRateDelta(hintObject: JsonObject): Int? {
-        var delta = 0
-        when (hintKey(hintObject.stringOrNull("pace"))) {
-            "slower", "slow" -> delta -= 1
-            "faster", "fast" -> delta += 1
-        }
-        when (hintKey(hintObject.stringOrNull("energy"))) {
-            "low" -> delta -= 1
-            "high" -> delta += 1
-        }
-        when (hintKey(hintObject.stringOrNull("delivery"))) {
-            "soft", "whispered", "cold", "formal" -> delta -= 1
-            "bright", "playful", "sharp", "commanding" -> delta += 1
-        }
-        when (hintKey(hintObject.stringOrNull("attitude"))) {
-            "regretful", "calm", "distant" -> delta -= 1
-            "nervous", "threatening", "teasing", "confident" -> delta += 1
-        }
-        return delta.coerceIn(VOICE_HINT_MIN_DELTA, VOICE_HINT_MAX_DELTA)
-            .takeIf { it != 0 }
-    }
-
-    private fun legacyVoiceHintPitchDelta(hintObject: JsonObject): Int? {
-        var delta = 0
-        when (hintKey(hintObject.stringOrNull("pitch"))) {
-            "lower", "low" -> delta -= 1
-            "higher", "high" -> delta += 1
-        }
-        when (hintKey(hintObject.stringOrNull("energy"))) {
-            "low" -> delta -= 1
-            "high" -> delta += 1
-        }
-        when (hintKey(hintObject.stringOrNull("delivery"))) {
-            "bright", "playful" -> delta += 1
-            "soft", "cold", "commanding", "whispered" -> delta -= 1
-        }
-        when (hintKey(hintObject.stringOrNull("attitude"))) {
-            "teasing", "nervous" -> delta += 1
-            "threatening", "regretful", "distant" -> delta -= 1
-        }
-        return delta.coerceIn(VOICE_HINT_MIN_DELTA, VOICE_HINT_MAX_DELTA)
-            .takeIf { it != 0 }
-    }
-
-    private fun legacyVoiceHintPauseDelta(hintObject: JsonObject): Int? {
-        var delta = 0
-        when (hintKey(hintObject.stringOrNull("pause"))) {
-            "shorter", "short" -> delta -= 1
-            "longer", "long" -> delta += 1
-        }
-        when (hintKey(hintObject.stringOrNull("energy"))) {
-            "low" -> delta += 1
-            "high" -> delta -= 1
-        }
-        when (hintKey(hintObject.stringOrNull("delivery"))) {
-            "soft", "whispered", "cold", "formal" -> delta += 1
-            "sharp", "commanding" -> delta -= 1
-        }
-        when (hintKey(hintObject.stringOrNull("attitude"))) {
-            "regretful", "calm", "distant" -> delta += 1
-            "nervous", "threatening", "teasing", "confident" -> delta -= 1
-        }
-        return delta.coerceIn(VOICE_HINT_MIN_DELTA, VOICE_HINT_MAX_DELTA)
-            .takeIf { it != 0 }
-    }
-
-    private fun normalizeVoiceHintStyle(rawStyle: String?): String? {
-        val key = hintKey(rawStyle) ?: return null
-        return when (key) {
-            "happy", "joyful", "excited" -> "cheerful"
-            "fear", "scared", "anxious" -> "fearful"
-            "soft" -> "gentle"
-            "stern" -> "strict"
-            "solemn" -> "serious"
-            "irritated", "disgruntled" -> "complaining"
-            "cutesy" -> "cute"
-            "chat-casual", "conversation", "conversational" -> "chat"
-            "whispered" -> "whispering"
-            "comfort", "comforting" -> "comforting"
-            "encourage", "encouraging" -> "encouraging"
-            "apologetic" -> "sorry"
-            else -> key.takeIf { it in VOICE_HINT_NORMAL_STYLES || it in VOICE_HINT_DRAGON_STYLES }
-        }
-    }
-
-    private fun hintKey(rawValue: String?): String? {
-        return rawValue
-            ?.trim()
-            ?.lowercase(Locale.US)
-            ?.replace('_', '-')
-            ?.takeIf { it.isNotBlank() && it != "normal" && it != "neutral" }
-    }
-
-    private fun JsonObject.stringOrNull(key: String): String? {
-        return this[key]
-            ?.takeUnless { it is JsonNull }
-            ?.jsonPrimitive
-            ?.contentOrNull
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-    }
-
-    private fun JsonObject.stringListOrNull(key: String): List<String> {
-        val element = this[key]?.takeUnless { it is JsonNull } ?: return emptyList()
-        val arrayValues = runCatching {
-            element.jsonArray.mapNotNull { item ->
-                item.jsonPrimitive.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
-            }
-        }.getOrNull()
-        if (arrayValues != null) return arrayValues
-
-        return runCatching { element.jsonPrimitive.contentOrNull }
-            .getOrNull()
-            ?.split(',', '，', '|', '/')
-            ?.map { it.trim() }
-            ?.filter { it.isNotBlank() }
-            ?: emptyList()
-    }
-
-    private fun JsonObject.doubleOrNull(key: String): Double? {
-        return this[key]
-            ?.takeUnless { it is JsonNull }
-            ?.jsonPrimitive
-            ?.contentOrNull
-            ?.trim()
-            ?.toDoubleOrNull()
-    }
-
-    private fun JsonObject.intDeltaOrNull(key: String): Int? {
-        val rawValue = stringOrNull(key) ?: return null
-        val numeric = rawValue.toDoubleOrNull()
-        if (numeric != null) {
-            return numeric.roundToInt().coerceIn(VOICE_HINT_MIN_DELTA, VOICE_HINT_MAX_DELTA)
-        }
-        return when (hintKey(rawValue)) {
-            "slower", "slow", "lower", "low", "shorter", "short" -> -1
-            "faster", "fast", "higher", "high", "longer", "long" -> 1
-            else -> null
-        }
-    }
 
     private fun cleanModelText(text: String): String {
         return text

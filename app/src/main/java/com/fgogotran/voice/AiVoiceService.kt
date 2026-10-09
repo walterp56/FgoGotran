@@ -54,6 +54,21 @@ class AiVoiceService @Inject constructor(
     private var lastRequestedCacheMaterial: String? = null
     private var lastRequestedLineKey: String? = null
 
+    /** Local lookup only: never create a temporary voice just to request an acting hint. */
+    suspend fun prepareKnownVoiceTarget(
+        gameServer: String,
+        speakerName: String
+    ): PreparedVoiceTarget? = withContext(Dispatchers.IO) {
+        val server = SettingsRepository.normalizeGameServer(gameServer)
+        val speaker = normalizeVisibleSpeakerName(speakerName).takeIf(String::isNotBlank)
+            ?: return@withContext null
+        val profiles = linkedMapOf<String, VoiceProfile>()
+        for (part in splitVoiceSpeakers(speaker)) {
+            profiles[part] = findKnownVoiceProfile(server, part) ?: return@withContext null
+        }
+        PreparedVoiceTarget(server, profiles.toMap())
+    }
+
     private data class PreparedVoiceLine(
         val speaker: String,
         val profile: VoiceProfile,
@@ -65,7 +80,8 @@ class AiVoiceService @Inject constructor(
         speakerName: String?,
         sourceDialogue: String?,
         translatedDialogue: String?,
-        voiceHint: VoiceLineHint? = null
+        voiceHint: VoiceLineHint? = null,
+        preparedTarget: PreparedVoiceTarget? = null
     ) {
         if (!settingsRepository.aiVoiceEnabled.first()) return
         val targetLanguage = settingsRepository.targetLanguage.first()
@@ -132,7 +148,8 @@ class AiVoiceService @Inject constructor(
             voiceHint = voiceHint,
             azureSpeechRegion = speechRegion,
             aiVoiceSpeedPercent = voiceSpeedPercent,
-            readTextSource = readTextSource
+            readTextSource = readTextSource,
+            preparedTarget = preparedTarget?.takeIf { it.matches(normalizedServer, speakers) }
         )
         if (preparedLines.isEmpty()) {
             FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
@@ -214,10 +231,22 @@ class AiVoiceService @Inject constructor(
         }
     }
 
+    suspend fun prepareAzureVoiceTest(speakerName: String): PreparedVoiceTarget {
+        val cleanSpeaker = normalizeVisibleSpeakerName(speakerName).ifBlank { TEST_VOICE_SPEAKER_JP }
+        // Keep the existing test refresh, but do it before choosing the hint's style list.
+        voiceDataUpdateManager.updateIfNeeded(force = true)
+        val profile = withContext(Dispatchers.IO) {
+            characterVoiceRepository.reload()
+            resolveCuratedTestProfile(cleanSpeaker)
+        } ?: throw IllegalStateException("Mash voice profile not found in CDN voice data")
+        return PreparedVoiceTarget(SettingsRepository.GAME_SERVER_JP, mapOf(cleanSpeaker to profile))
+    }
+
     suspend fun playAzureVoiceTest(
         speakerName: String,
         dialogue: String,
-        voiceHint: VoiceLineHint? = null
+        voiceHint: VoiceLineHint? = null,
+        preparedTarget: PreparedVoiceTarget? = null
     ): AzureVoiceTestResult {
         val speechKey = settingsRepository.azureSpeechKey.first().trim()
         if (speechKey.isBlank()) {
@@ -229,14 +258,10 @@ class AiVoiceService @Inject constructor(
         val cleanDialogue = voiceTextFor(dialogue)
             ?: throw IllegalArgumentException("Test dialogue is blank")
 
-        voiceDataUpdateManager.updateIfNeeded(force = true)
-
-        withContext(Dispatchers.IO) {
-            characterVoiceRepository.reload()
-        }
-
-        val profile = resolveCuratedTestProfile(cleanSpeaker)
-            ?: throw IllegalStateException("Mash voice profile not found in CDN voice data")
+        val target = preparedTarget?.takeIf {
+            it.matches(SettingsRepository.GAME_SERVER_JP, listOf(cleanSpeaker))
+        } ?: prepareAzureVoiceTest(cleanSpeaker)
+        val profile = target.profilesBySpeaker.getValue(cleanSpeaker)
         val voiceSpeedPercent = settingsRepository.aiVoiceSpeedPercent.first()
         val expression = voiceExpressionFor(
             profile = profile,
@@ -338,10 +363,11 @@ class AiVoiceService @Inject constructor(
         voiceHint: VoiceLineHint?,
         azureSpeechRegion: String,
         aiVoiceSpeedPercent: Int,
-        readTextSource: String
+        readTextSource: String,
+        preparedTarget: PreparedVoiceTarget?
     ): List<PreparedVoiceLine> {
         return speakers.mapNotNull { speaker ->
-            val profile = resolveVoiceProfile(
+            val profile = preparedTarget?.profilesBySpeaker?.get(speaker) ?: resolveVoiceProfile(
                 gameServer = gameServer,
                 speaker = speaker,
                 dialogue = dialogue
@@ -414,19 +440,23 @@ class AiVoiceService @Inject constructor(
         }
     }
 
+    private suspend fun findKnownVoiceProfile(gameServer: String, speaker: String): VoiceProfile? {
+        val candidates = voiceSpeakerLookupCandidates(speaker)
+        candidates.firstNotNullOfOrNull { candidate ->
+            characterVoiceRepository.resolveProfileOrNull(candidate, gameServer)
+        }?.let { return it }
+        return candidates.firstNotNullOfOrNull { candidate ->
+            tempVoiceProfileRepository.resolveProfileOrNull(gameServer, candidate)
+        }
+    }
+
     private suspend fun resolveVoiceProfile(
         gameServer: String,
         speaker: String,
         dialogue: String
     ): VoiceProfile? {
         val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
-        val lookupCandidates = voiceSpeakerLookupCandidates(speaker)
-        lookupCandidates.firstNotNullOfOrNull { candidate ->
-            characterVoiceRepository.resolveProfileOrNull(candidate, normalizedServer)
-        }?.let { return it }
-        lookupCandidates.firstNotNullOfOrNull { candidate ->
-            tempVoiceProfileRepository.resolveProfileOrNull(normalizedServer, candidate)
-        }?.let { return it }
+        findKnownVoiceProfile(normalizedServer, speaker)?.let { return it }
 
         val normalizedSpeaker = VoiceNameNormalizer.normalize(speaker)
         val tempKey = "$normalizedServer|$normalizedSpeaker"
@@ -448,12 +478,7 @@ class AiVoiceService @Inject constructor(
         }
 
         return tempProfileMutex.withLock {
-            lookupCandidates.firstNotNullOfOrNull { candidate ->
-                characterVoiceRepository.resolveProfileOrNull(candidate, normalizedServer)
-            }?.let { return@withLock it }
-            lookupCandidates.firstNotNullOfOrNull { candidate ->
-                tempVoiceProfileRepository.resolveProfileOrNull(normalizedServer, candidate)
-            }?.let { return@withLock it }
+            findKnownVoiceProfile(normalizedServer, speaker)?.let { return@withLock it }
 
             FgoLogger.info(tag, "Temp voice profile miss: server=$normalizedServer speaker=$speaker")
             diagnosticEventStore.record(
@@ -631,7 +656,8 @@ class AiVoiceService @Inject constructor(
             "AI voice expression speaker=$speaker voice=${profile.voiceName} " +
                 "profileStyle=${profile.style.ifBlank { "-" }} hintStyles=$hintStyles " +
                 "appliedStyle=$appliedStyle rate=${expression?.rateOverride ?: "-"} " +
-                "pitch=${expression?.pitchOverride ?: "-"} pause=${expression?.pauseScale ?: "-"}"
+                "pitch=${expression?.pitchOverride ?: "-"} pause=${expression?.pauseScale ?: "-"} " +
+                "hintApplied=${expression?.voiceHintApplied == true}"
         )
     }
 

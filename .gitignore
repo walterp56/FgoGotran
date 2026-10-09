@@ -168,3 +168,9 @@ app/src/test/java/com/fgogotran/ui/overlay/*
 AWS/
 # Retain the isolated non-JP voice-only story recognition regressions.
 !app/src/test/java/com/fgogotran/story/VoiceOnlyStoryStateTest.kt
+# Retain the voice-specific API hint contract and playback regressions.
+!app/src/test/java/com/fgogotran/voice/
+app/src/test/java/com/fgogotran/voice/*
+!app/src/test/java/com/fgogotran/voice/VoiceEmotionStyleTest.kt
+!app/src/test/java/com/fgogotran/voice/VoiceHintWorkflowTest.kt
+!app/src/test/java/com/fgogotran/translation/VoiceHintContractTest.kt

@@ -195,11 +195,12 @@ fun VoiceSettingsScreen(
                     azureSpeechEndpoint
                 )
                 val sample = azureVoiceTestSample(context, settingsRepository.targetLanguage.first())
+                val voiceTarget = aiVoiceService.prepareAzureVoiceTest(sample.speakerName)
                 var voiceHint: VoiceLineHint? = null
                 var voiceHintError: Throwable? = null
                 if (effectiveApiVoiceHintsEnabled) {
                     runCatching {
-                        translator.testVoiceHint(sample.speakerName, sample.dialogue)
+                        translator.testVoiceHint(sample.speakerName, sample.dialogue, voiceTarget.hintContext)
                     }.onSuccess { hint ->
                         voiceHint = hint
                     }.onFailure { error ->
@@ -209,7 +210,8 @@ fun VoiceSettingsScreen(
                 val result = aiVoiceService.playAzureVoiceTest(
                     speakerName = sample.speakerName,
                     dialogue = sample.dialogue,
-                    voiceHint = voiceHint
+                    voiceHint = voiceHint,
+                    preparedTarget = voiceTarget
                 )
                 azureSpeechTestMessage = voiceTestSuccessMessage(
                     context = context,
