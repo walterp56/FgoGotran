@@ -168,7 +168,7 @@
     <string name="guide_auto_11">适合想轻松阅读的你。应用会尽量自动刷新对话和选项。</string>
     <string name="guide_auto_12">剧情文字完整显示后，OCR 和自动翻译会更稳定。</string>
     <string name="guide_auto_13">适合菜单、公告、漏识别画面。框选区域会重新翻译。</string>
-    <string name="guide_auto_14">按钮文字会显示当前模式，长按可打开翻译菜单。</string>
+    <string name="guide_auto_14">按鈕文字會顯示目前模式，長按可開啟翻譯選單。所有模式均可拖到左右邊緣隱藏；點擊邊緣條或向內拖動即可顯示，不會觸發翻譯。</string>
     <string name="guide_auto_15">不用一直换模式，先按自己的阅读习惯选一个。</string>
     <string name="guide_auto_16">全自动运行；此模式下点击按钮不会手动翻译。</string>
     <string name="guide_auto_17">查看完整教程、下载页面和最新信息。</string>
@@ -342,7 +342,7 @@
     <string name="mode_desc_manual">手動翻譯</string>
     <string name="mode_desc_semi">半自動翻譯</string>
     <string name="mode_desc_auto">全自動翻譯</string>
-    <string name="floating_button_edge_handle_desc">向螢幕內拖動，顯示懸浮按鈕</string>
+    <string name="floating_button_edge_handle_desc">點擊或向螢幕內拖動，顯示懸浮按鈕</string>
     <string name="mode_desc_battle">BATTLE字幕模式，長按切換模式</string>
     <string name="mode_desc_crop">裁切翻譯</string>
     <string name="guide_mode_battle_label">戰鬥字幕</string>
@@ -371,6 +371,7 @@
     <string name="azure_endpoint_components_forbidden">中國 Azure 資源端點不能包含帳號、連接埠、查詢參數或片段</string>
     <string name="azure_endpoint_root_hint">請填寫 Azure 入口網站顯示的資源根端點</string>
     <string name="voice_ai_expression_requires_playback">需要開啟 AI 語音播放後才會生效。</string>
+    <string name="voice_ai_expression_inactive">未生效</string>
     <string name="app_appearance_title">外觀</string>
     <string name="settings_floating_button_size">懸浮按鈕大小</string>
     <string name="app_theme_title">主題</string>

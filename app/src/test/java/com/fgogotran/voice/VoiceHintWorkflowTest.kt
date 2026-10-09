@@ -143,6 +143,41 @@ class VoiceHintWorkflowTest {
         assertTrue(voice.contains("!apiVoiceHintsSupported && aiVoiceApiHintsEnabled -> stringResource(R.string.voice_auto_4)"))
     }
 
+    @Test
+    fun `voice card shows inactive before saved hint preference or model support`() {
+        val settings = source("ui/screen/SettingsScreen.kt")
+        assertTrue(settings.contains(
+            "val aiVoiceActive = aiVoiceEnabled && SettingsRepository.readTextAvailableFor(targetLanguage)"
+        ))
+        val row = settings.substringAfter("label = stringResource(R.string.settings_auto_33),")
+            .substringBefore("Button(")
+        val value = row.substringAfter("value = when {").substringBefore("valueColor =")
+        val inactive = value.indexOf("!aiVoiceActive -> stringResource(R.string.voice_ai_expression_inactive)")
+        val off = value.indexOf("!aiVoiceApiHintsEnabled ->")
+        val unsupported = value.indexOf("!apiVoiceHintsSupported ->")
+        val on = value.indexOf("else -> stringResource(R.string.settings_auto_53)")
+        assertTrue(inactive >= 0 && off > inactive && unsupported > off && on > unsupported)
+        val color = row.substringAfter("valueColor = when {")
+        assertTrue(color.indexOf("!aiVoiceActive -> MaterialTheme.colorScheme.onSurfaceVariant") >= 0)
+        assertTrue(color.indexOf("apiVoiceHintsSupported && aiVoiceApiHintsEnabled -> FgoUiColors.success") >
+            color.indexOf("!aiVoiceActive ->"))
+        assertFalse(row.contains("setAiVoiceApiHintsEnabled"))
+    }
+
+    @Test
+    fun `voice settings explains inactive playback before Sakura fallback without resetting preference`() {
+        val voice = source("ui/screen/VoiceSettingsScreen.kt")
+        val row = voice.substringAfter("title = stringResource(R.string.voice_auto_32),")
+            .substringBefore("VoiceSettingsCard(")
+        val inactive = row.indexOf("!aiVoiceActive -> stringResource(R.string.voice_ai_expression_requires_playback)")
+        val unsupported = row.indexOf("!apiVoiceHintsSupported && aiVoiceApiHintsEnabled ->")
+        assertTrue(inactive >= 0 && unsupported > inactive)
+        assertTrue(row.contains("checked = effectiveApiVoiceHintsEnabled"))
+        assertTrue(row.contains("enabled = apiVoiceHintsSupported && aiVoiceActive"))
+        val beforeUserChange = row.substringBefore("onCheckedChange =")
+        assertFalse(beforeUserChange.contains("setAiVoiceApiHintsEnabled"))
+    }
+
     private fun source(relativePath: String): String = listOf(
         File("src/main/java/com/fgogotran/$relativePath"),
         File("app/src/main/java/com/fgogotran/$relativePath")

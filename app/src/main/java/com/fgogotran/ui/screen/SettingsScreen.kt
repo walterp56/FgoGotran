@@ -157,6 +157,7 @@ fun SettingsScreen(
     val targetLanguage by settingsRepository.targetLanguage.collectAsState(
         initial = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     )
+    val aiVoiceActive = aiVoiceEnabled && SettingsRepository.readTextAvailableFor(targetLanguage)
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
     var playerName by rememberSaveable { mutableStateOf("") }
@@ -603,14 +604,15 @@ fun SettingsScreen(
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_33),
                     value = when {
+                        !aiVoiceActive -> stringResource(R.string.voice_ai_expression_inactive)
                         !aiVoiceApiHintsEnabled -> stringResource(R.string.settings_auto_54)
                         !apiVoiceHintsSupported -> stringResource(R.string.settings_auto_8)
                         else -> stringResource(R.string.settings_auto_53)
                     },
-                    valueColor = if (apiVoiceHintsSupported && aiVoiceApiHintsEnabled) {
-                        FgoUiColors.success
-                    } else {
-                        FgoUiColors.warning
+                    valueColor = when {
+                        !aiVoiceActive -> MaterialTheme.colorScheme.onSurfaceVariant
+                        apiVoiceHintsSupported && aiVoiceApiHintsEnabled -> FgoUiColors.success
+                        else -> FgoUiColors.warning
                     }
                 )
                 Button(

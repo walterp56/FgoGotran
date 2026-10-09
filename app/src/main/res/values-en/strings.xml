@@ -168,7 +168,7 @@
     <string name="guide_auto_11">Best for relaxed reading. The app refreshes dialogue and choices automatically when possible.</string>
     <string name="guide_auto_12">OCR and auto-translation are more stable after the dialogue text is fully displayed.</string>
     <string name="guide_auto_13">Best for menus, announcements, and missed screens. The selected area is translated again.</string>
-    <string name="guide_auto_14">The button label shows the current mode. Long-press to open the translation menu.</string>
+    <string name="guide_auto_14">The button label shows the current mode. Long-press to open the translation menu. In any mode, drag it to the left or right edge to hide it. Tap the edge handle or drag inward to reveal it without triggering translation.</string>
     <string name="guide_auto_15">You do not need to switch modes constantly. Pick one that matches how you read.</string>
     <string name="guide_auto_16">Full-auto is on; tapping the button will not translate manually.</string>
     <string name="guide_auto_17">View the full guide, downloads, and latest information.</string>
@@ -253,7 +253,7 @@
     <string name="settings_auto_50">Model</string>
     <string name="settings_auto_51">Save Master details</string>
     <string name="settings_auto_53">On</string>
-    <string name="settings_auto_54">Close</string>
+    <string name="settings_auto_54">Off</string>
     <string name="settings_auto_55">Size</string>
     <string name="settings_auto_56">Maintenance</string>
     <string name="settings_auto_57">Status</string>
@@ -342,7 +342,7 @@
     <string name="mode_desc_manual">Manual translation</string>
     <string name="mode_desc_semi">Semi-auto translation</string>
     <string name="mode_desc_auto">Full-auto translation</string>
-    <string name="floating_button_edge_handle_desc">Drag inward to show the floating button</string>
+    <string name="floating_button_edge_handle_desc">Tap or drag inward to show the floating button</string>
     <string name="mode_desc_battle">BATTLE subtitle mode. Long-press to switch modes.</string>
     <string name="mode_desc_crop">Crop translation</string>
     <string name="guide_mode_battle_label">Battle</string>
@@ -371,6 +371,7 @@
     <string name="azure_endpoint_components_forbidden">China Azure resource endpoint cannot contain credentials, port, query, or fragment</string>
     <string name="azure_endpoint_root_hint">Enter the resource root endpoint shown in the Azure portal</string>
     <string name="voice_ai_expression_requires_playback">Takes effect only while AI voice playback is on.</string>
+    <string name="voice_ai_expression_inactive">Inactive</string>
     <string name="app_appearance_title">Appearance</string>
     <string name="settings_floating_button_size">Floating button size</string>
     <string name="app_theme_title">Theme</string>

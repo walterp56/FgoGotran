@@ -22,7 +22,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -79,8 +81,8 @@ private fun FloatingActionIcon.textLabel(): String = when (this) {
 /**
  * Draggable semi-transparent floating translate button.
  *
- * Tap requests one manual translation, long-press opens the menu, and movement
- * past touch slop drags the button. Keeping these gestures in one detector
+ * Tap reveals the docked handle or runs the current mode's action, long-press opens
+ * the menu, and movement past touch slop drags the button. Keeping these gestures in one detector
  * avoids tap, long-press, and drag competing with each other.
  */
 @Composable
@@ -100,15 +102,10 @@ fun FloatingButton(
     val glyphSize = visualButtonSize * 0.78f
     val glyphContentScale = (visualButtonSize.value / DEFAULT_FLOATING_BUTTON_SIZE_DP)
         .coerceIn(0.72f, 1.34f)
-    val idleAlpha = 0.25f
-    val pressedAlpha = 0.62f
-    val baseColor = when (mode) {
-        FloatingButtonMode.MANUAL -> Color(0xFF1E1E1E)
-        FloatingButtonMode.SEMI_AUTO -> Color(0xFF1E1E1E)
-        FloatingButtonMode.AUTO -> Color(0xFF1E1E1E)
-        FloatingButtonMode.BATTLE -> Color(0xFF1E1E1E)
-        FloatingButtonMode.CROP -> Color(0xFF075F66)
-    }
+    val idleAlpha = 0.80f
+    val pressedAlpha = 0.95f
+    val baseColor = Color(0xFF182335)
+    val failureColor = Color(0xFFFF4A4A)
     var pressed by remember { mutableStateOf(false) }
     val buttonScale by animateFloatAsState(
         targetValue = if (pressed) 0.94f else 1f,
@@ -118,6 +115,7 @@ fun FloatingButton(
         targetValue = if (pressed) pressedAlpha else idleAlpha,
         label = "floatingButtonAlpha"
     )
+    val glyphColor = Color(0xFFF1F4F8).copy(alpha = if (pressed) 1f else 0.95f)
     val hapticFeedback = LocalHapticFeedback.current
     val view = LocalView.current
     val rawTouchPosition = remember(view) { FloatArray(2) }
@@ -184,7 +182,12 @@ fun FloatingButton(
                                 }
 
                                 if (change.changedToUpIgnoreConsumed()) {
-                                    tapReleased = true
+                                    // A non-inward swipe off the handle must not become a reveal tap.
+                                    tapReleased = gestureDockedSide == null || (
+                                        change.position.x >= 0f && change.position.x < size.width &&
+                                            change.position.y >= 0f && change.position.y < size.height
+                                        )
+                                    cancelled = !tapReleased
                                     return
                                 }
 
@@ -237,7 +240,7 @@ fun FloatingButton(
 
                             tapReleased -> {
                                 pressed = false
-                                if (gestureDockedSide == null) currentOnClick()
+                                currentOnClick()
                             }
 
                             cancelled -> {
@@ -267,8 +270,16 @@ fun FloatingButton(
         if (dockedSide != null) {
             Canvas(Modifier.fillMaxSize()) {
                 val halfLineHeight = FloatingButtonDocking.HANDLE_LINE_HEIGHT_DP.dp.toPx() / 2f
+                val backingWidth = 9.dp.toPx()
+                val backingHeight = 36.dp.toPx()
+                drawRoundRect(
+                    color = baseColor.copy(alpha = 0.65f),
+                    topLeft = Offset((size.width - backingWidth) / 2f, (size.height - backingHeight) / 2f),
+                    size = Size(backingWidth, backingHeight),
+                    cornerRadius = CornerRadius(backingWidth / 2f)
+                )
                 drawLine(
-                    color = Color.White.copy(alpha = 0.35f),
+                    color = if (showFailureRing) failureColor else Color(0xFFCBD8E8).copy(alpha = 0.90f),
                     start = Offset(size.width / 2f, size.height / 2f - halfLineHeight),
                     end = Offset(size.width / 2f, size.height / 2f + halfLineHeight),
                     strokeWidth = FloatingButtonDocking.HANDLE_LINE_WIDTH_DP.dp.toPx(),
@@ -277,8 +288,9 @@ fun FloatingButton(
             }
         } else Surface(
             color = baseColor.copy(alpha = buttonAlpha),
-            contentColor = Color.White.copy(alpha = if (pressed) 0.9f else 0.68f),
-            border = if (showFailureRing) BorderStroke(3.dp, Color(0xFFFF4A4A)) else null,
+            contentColor = glyphColor,
+            border = if (showFailureRing) BorderStroke(3.dp, failureColor) else
+                BorderStroke(1.dp, Color(0xFFA8B8CE).copy(alpha = 0.45f)),
             shape = CircleShape,
             shadowElevation = if (pressed) 8.dp else 0.dp,
             modifier = Modifier
@@ -301,7 +313,7 @@ fun FloatingButton(
                         FloatingButtonMode.CROP -> FloatingActionIcon.CROP
                     },
                     prominent = true,
-                    color = Color.White.copy(alpha = if (pressed) 0.95f else 0.50f),
+                    color = glyphColor,
                     contentScale = glyphContentScale,
                     modifier = Modifier.size(glyphSize)
                 )

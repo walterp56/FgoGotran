@@ -48,6 +48,7 @@ private const val PILL_HEIGHT_BASE = 54f
 private const val NAV_SIZE_BASE = 46f
 private const val LABEL_SIZE_BASE = 11f
 private const val SCRIM_ALPHA = 0.18f
+private val MENU_ACCENT_COLOR = Color(0xFF76518F)
 
 @Composable
 fun FloatingArcMenu(
@@ -258,7 +259,7 @@ private fun ArcSector(
     val density = LocalDensity.current
     val background = when {
         slot.accentDanger -> Color(0xFFFFF1F0)
-        slot.selected -> Color(0xFF075F66)
+        slot.selected -> MENU_ACCENT_COLOR
         slot.enabled -> Color.White
         else -> Color(0xFFE9EAEC)
     }
@@ -312,7 +313,7 @@ private fun ToggleDot(on: Boolean, viewportScale: Float) {
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (on) Color(0xFF075F66) else Color(0xFFC9CBCE))
+            .background(if (on) MENU_ACCENT_COLOR else Color(0xFFC9CBCE))
     )
 }
 

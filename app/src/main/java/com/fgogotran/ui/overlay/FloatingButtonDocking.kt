@@ -25,7 +25,6 @@ internal object FloatingButtonDocking {
         }
 
     fun sideAfterRelease(
-        mode: FloatingButtonMode,
         cancelled: Boolean,
         startedDocked: Boolean,
         buttonX: Int,
@@ -34,7 +33,7 @@ internal object FloatingButtonDocking {
         allowance: Int
     ): FloatingDockSide? {
         // A reveal gesture must not immediately hide its own restored button.
-        if (mode != FloatingButtonMode.AUTO || cancelled || startedDocked) return null
+        if (cancelled || startedDocked) return null
         return when {
             buttonX - viewport.left <= allowance -> FloatingDockSide.LEFT
             viewport.right - buttonX - buttonSize <= allowance -> FloatingDockSide.RIGHT
