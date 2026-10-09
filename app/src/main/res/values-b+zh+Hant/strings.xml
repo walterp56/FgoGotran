@@ -263,7 +263,7 @@
     <string name="settings_auto_61">最大</string>
     <string name="settings_auto_62">小</string>
     <string name="settings_auto_63">大</string>
-    <string name="voice_auto_1">开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。</string>
+    <string name="voice_auto_1">开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：使用角色预设语音，不分析本句情绪；没有已保存语音档案的角色暂不朗读。</string>
     <string name="voice_auto_2">实时翻译使用 Azure 门户中该 Speech 资源的根端点；仅接受 HTTPS 的 *.cognitiveservices.azure.cn。</string>
     <string name="voice_auto_3">提示：可选全球 Azure；中国 Azure 需要组织/工作/学校账号，个人 Microsoft 账号不能登录使用。</string>
     <string name="voice_auto_4">当前模型 Sakura 不支持 AI 语气增强，将自动使用本机语气规则。切换到其他模型后会恢复已保存的选择。</string>

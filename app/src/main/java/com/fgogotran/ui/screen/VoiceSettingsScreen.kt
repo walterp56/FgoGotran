@@ -439,7 +439,7 @@ fun VoiceSettingsScreen(
                 VoiceSwitchRow(
                     title = stringResource(R.string.voice_auto_32),
                     body = when {
-                        !apiVoiceHintsSupported -> stringResource(R.string.voice_auto_4)
+                        !apiVoiceHintsSupported && aiVoiceApiHintsEnabled -> stringResource(R.string.voice_auto_4)
                         !aiVoiceActive -> stringResource(R.string.voice_ai_expression_requires_playback)
                         else -> stringResource(R.string.voice_auto_1)
                     },

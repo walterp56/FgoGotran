@@ -603,9 +603,9 @@ fun SettingsScreen(
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_33),
                     value = when {
+                        !aiVoiceApiHintsEnabled -> stringResource(R.string.settings_auto_54)
                         !apiVoiceHintsSupported -> stringResource(R.string.settings_auto_8)
-                        aiVoiceApiHintsEnabled -> stringResource(R.string.settings_auto_53)
-                        else -> stringResource(R.string.settings_auto_54)
+                        else -> stringResource(R.string.settings_auto_53)
                     },
                     valueColor = if (apiVoiceHintsSupported && aiVoiceApiHintsEnabled) {
                         FgoUiColors.success

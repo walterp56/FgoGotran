@@ -141,13 +141,15 @@ class AiVoiceService @Inject constructor(
             settingsRepository.azureSpeechRegion.first()
         )
         val voiceSpeedPercent = settingsRepository.aiVoiceSpeedPercent.first()
+        val emotionEnhancementEnabled = settingsRepository.aiVoiceApiHintsEnabled.first()
         val preparedLines = prepareVoiceLines(
             gameServer = normalizedServer,
             speakers = speakers,
             dialogue = dialogue,
-            voiceHint = voiceHint,
+            voiceHint = voiceHint.takeIf { emotionEnhancementEnabled },
             azureSpeechRegion = speechRegion,
             aiVoiceSpeedPercent = voiceSpeedPercent,
+            emotionEnhancementEnabled = emotionEnhancementEnabled,
             readTextSource = readTextSource,
             preparedTarget = preparedTarget?.takeIf { it.matches(normalizedServer, speakers) }
         )
@@ -263,17 +265,21 @@ class AiVoiceService @Inject constructor(
         } ?: prepareAzureVoiceTest(cleanSpeaker)
         val profile = target.profilesBySpeaker.getValue(cleanSpeaker)
         val voiceSpeedPercent = settingsRepository.aiVoiceSpeedPercent.first()
+        val emotionEnhancementEnabled = settingsRepository.aiVoiceApiHintsEnabled.first()
+        val effectiveVoiceHint = voiceHint.takeIf { emotionEnhancementEnabled }
         val expression = voiceExpressionFor(
             profile = profile,
             dialogue = cleanDialogue,
-            voiceHint = voiceHint,
-            aiVoiceSpeedPercent = voiceSpeedPercent
+            voiceHint = effectiveVoiceHint,
+            aiVoiceSpeedPercent = voiceSpeedPercent,
+            emotionEnhancementEnabled = emotionEnhancementEnabled
         )
         logVoiceExpression(
             speaker = cleanSpeaker,
             profile = profile,
-            voiceHint = voiceHint,
-            expression = expression
+            voiceHint = effectiveVoiceHint,
+            expression = expression,
+            emotionEnhancementEnabled = emotionEnhancementEnabled
         )
         val speechRegion = SettingsRepository.normalizeAzureSpeechRegion(
             settingsRepository.azureSpeechRegion.first()
@@ -363,6 +369,7 @@ class AiVoiceService @Inject constructor(
         voiceHint: VoiceLineHint?,
         azureSpeechRegion: String,
         aiVoiceSpeedPercent: Int,
+        emotionEnhancementEnabled: Boolean,
         readTextSource: String,
         preparedTarget: PreparedVoiceTarget?
     ): List<PreparedVoiceLine> {
@@ -370,7 +377,8 @@ class AiVoiceService @Inject constructor(
             val profile = preparedTarget?.profilesBySpeaker?.get(speaker) ?: resolveVoiceProfile(
                 gameServer = gameServer,
                 speaker = speaker,
-                dialogue = dialogue
+                dialogue = dialogue,
+                allowTemporaryProfile = emotionEnhancementEnabled
             ) ?: run {
                 FgoLogger.debug(tag, "No AI voice profile for speaker: $speaker")
                 return@mapNotNull null
@@ -384,13 +392,15 @@ class AiVoiceService @Inject constructor(
                 profile = profile,
                 dialogue = dialogue,
                 voiceHint = voiceHint,
-                aiVoiceSpeedPercent = aiVoiceSpeedPercent
+                aiVoiceSpeedPercent = aiVoiceSpeedPercent,
+                emotionEnhancementEnabled = emotionEnhancementEnabled
             )
             logVoiceExpression(
                 speaker = speaker,
                 profile = profile,
                 voiceHint = voiceHint,
-                expression = expression
+                expression = expression,
+                emotionEnhancementEnabled = emotionEnhancementEnabled
             )
             val request = VoiceSynthesisRequest(
                 speakerName = speaker,
@@ -453,10 +463,15 @@ class AiVoiceService @Inject constructor(
     private suspend fun resolveVoiceProfile(
         gameServer: String,
         speaker: String,
-        dialogue: String
+        dialogue: String,
+        allowTemporaryProfile: Boolean
     ): VoiceProfile? {
         val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
         findKnownVoiceProfile(normalizedServer, speaker)?.let { return it }
+        if (!allowTemporaryProfile) {
+            FgoLogger.debug(tag, "Preset-only voice skipped: no saved profile server=$normalizedServer speaker=$speaker")
+            return null
+        }
 
         val normalizedSpeaker = VoiceNameNormalizer.normalize(speaker)
         val tempKey = "$normalizedServer|$normalizedSpeaker"
@@ -630,7 +645,8 @@ class AiVoiceService @Inject constructor(
         profile: VoiceProfile,
         dialogue: String,
         voiceHint: VoiceLineHint?,
-        aiVoiceSpeedPercent: Int
+        aiVoiceSpeedPercent: Int,
+        emotionEnhancementEnabled: Boolean
     ): VoiceExpression? {
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) {
             return null
@@ -639,7 +655,8 @@ class AiVoiceService @Inject constructor(
             profile = profile,
             text = dialogue,
             voiceHint = voiceHint,
-            baseSpeedMultiplier = SettingsRepository.normalizeAiVoiceSpeedPercent(aiVoiceSpeedPercent) / 100.0
+            baseSpeedMultiplier = SettingsRepository.normalizeAiVoiceSpeedPercent(aiVoiceSpeedPercent) / 100.0,
+            emotionEnhancementEnabled = emotionEnhancementEnabled
         )
     }
 
@@ -647,17 +664,19 @@ class AiVoiceService @Inject constructor(
         speaker: String,
         profile: VoiceProfile,
         voiceHint: VoiceLineHint?,
-        expression: VoiceExpression?
+        expression: VoiceExpression?,
+        emotionEnhancementEnabled: Boolean
     ) {
         val appliedStyle = VoiceEmotionStyle.resolveStyle(profile, expression?.styleOverride).ifBlank { "-" }
         val hintStyles = voiceHint?.styles.orEmpty().ifEmpty { listOf("-") }.joinToString("/")
+        val expressionMode = if (emotionEnhancementEnabled) "enhanced_or_local" else "presets_only"
         FgoLogger.debug(
             tag,
             "AI voice expression speaker=$speaker voice=${profile.voiceName} " +
                 "profileStyle=${profile.style.ifBlank { "-" }} hintStyles=$hintStyles " +
                 "appliedStyle=$appliedStyle rate=${expression?.rateOverride ?: "-"} " +
                 "pitch=${expression?.pitchOverride ?: "-"} pause=${expression?.pauseScale ?: "-"} " +
-                "hintApplied=${expression?.voiceHintApplied == true}"
+                "hintApplied=${expression?.voiceHintApplied == true} expressionMode=$expressionMode"
         )
     }
 

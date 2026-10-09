@@ -96,6 +96,53 @@ class VoiceHintWorkflowTest {
         assertFalse(play.contains("updateIfNeeded("))
     }
 
+    @Test
+    fun `playback and voice test read the saved switch and discard earlier hints when OFF`() {
+        val service = source("voice/AiVoiceService.kt")
+        val playback = function(service, "speakDialogue")
+        assertTrue(playback.contains("settingsRepository.aiVoiceApiHintsEnabled.first()"))
+        assertTrue(playback.contains("voiceHint = voiceHint.takeIf { emotionEnhancementEnabled }"))
+        assertTrue(playback.contains("emotionEnhancementEnabled = emotionEnhancementEnabled"))
+        val test = function(service, "playAzureVoiceTest")
+        assertTrue(test.contains("settingsRepository.aiVoiceApiHintsEnabled.first()"))
+        assertTrue(test.contains("val effectiveVoiceHint = voiceHint.takeIf { emotionEnhancementEnabled }"))
+        assertTrue(test.contains("emotionEnhancementEnabled = emotionEnhancementEnabled"))
+        val expression = function(service, "voiceExpressionFor")
+        assertTrue(expression.contains("emotionEnhancementEnabled = emotionEnhancementEnabled"))
+    }
+
+    @Test
+    fun `OFF returns saved profiles but exits before temporary profile generation`() {
+        val service = source("voice/AiVoiceService.kt")
+        val resolve = function(service, "resolveVoiceProfile")
+        val lookup = resolve.indexOf("findKnownVoiceProfile(normalizedServer, speaker)")
+        val off = resolve.indexOf("if (!allowTemporaryProfile)")
+        val generation = resolve.indexOf("tempProfileMutex.withLock")
+        assertTrue(lookup >= 0 && off > lookup && generation > off)
+        assertTrue(resolve.substring(off, generation).contains("return null"))
+        assertTrue(resolve.substring(generation).contains("tempVoiceProfileBuilder.build("))
+        val prepare = function(service, "prepareVoiceLines")
+        assertTrue(prepare.contains("allowTemporaryProfile = emotionEnhancementEnabled"))
+        assertTrue(prepare.contains("emotionEnhancementEnabled = emotionEnhancementEnabled"))
+    }
+
+    @Test
+    fun `OFF remains the saved default and is logged distinctly from ON fallback`() {
+        val settings = source("data/SettingsRepository.kt")
+        assertTrue(settings.contains("DEFAULT_AI_VOICE_API_HINTS_ENABLED = false"))
+        val logger = function(source("voice/AiVoiceService.kt"), "logVoiceExpression")
+        assertTrue(logger.contains("if (emotionEnhancementEnabled) \"enhanced_or_local\" else \"presets_only\""))
+        assertTrue(logger.contains("expressionMode="))
+    }
+
+    @Test
+    fun `explicit OFF is not described as Sakura local fallback`() {
+        val settings = source("ui/screen/SettingsScreen.kt")
+        assertTrue(settings.contains("!aiVoiceApiHintsEnabled -> stringResource(R.string.settings_auto_54)"))
+        val voice = source("ui/screen/VoiceSettingsScreen.kt")
+        assertTrue(voice.contains("!apiVoiceHintsSupported && aiVoiceApiHintsEnabled -> stringResource(R.string.voice_auto_4)"))
+    }
+
     private fun source(relativePath: String): String = listOf(
         File("src/main/java/com/fgogotran/$relativePath"),
         File("app/src/main/java/com/fgogotran/$relativePath")

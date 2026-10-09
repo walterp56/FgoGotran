@@ -41,7 +41,7 @@ internal object EnglishUiText {
         "仅保存在本机，用于 AI 语音朗读和已启用的实时语音翻译。" to "Stored only on this device for AI voice playback and live voice translation when enabled.",
         "分享错误纪录" to "Share diagnostic log",
         "区域翻译" to "Area",
-        "开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：只用本机规则和已收录语音；更快、更稳定，但新角色需等数据库更新后才有语音。" to "On: calls the API to analyze emotion, speed, and pitch, then temporarily matches a voice; new characters may also be tried.\nOff: uses only local rules and installed voices; faster and more stable, but new characters need a database update before voice is available.",
+        "开启：调用 API 分析本句情绪、语速、音高，并临时匹配语音；新角色也可尝试播放。\n关闭：使用角色预设语音，不分析本句情绪；没有已保存语音档案的角色暂不朗读。" to "On: calls the API to analyze emotion, speed, and pitch, then temporarily matches a voice; new characters may also be tried.\nOff: uses character voice presets without analyzing sentence emotion. Characters without a saved voice profile are not read aloud.",
         "开启" to "On",
         "手动" to "Manual",
         "手动或半自动点击后，本次识别/翻译未成功，可再点一次。" to "After a manual or semi-auto tap, if recognition or translation failed, you can tap again.",

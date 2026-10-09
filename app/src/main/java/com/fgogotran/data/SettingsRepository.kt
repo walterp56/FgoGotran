@@ -740,7 +740,7 @@ class SettingsRepository @Inject constructor(
         normalizeAiVoiceLanguage(prefs[KEY_AI_VOICE_LANGUAGE])
     }
 
-    /** Whether translation API scene responses may include optional voice emotion hints. */
+    /** Enables sentence-based voice expression, API hints and new temporary voice profiles. */
     val aiVoiceApiHintsEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_AI_VOICE_API_HINTS_ENABLED] ?: DEFAULT_AI_VOICE_API_HINTS_ENABLED
     }

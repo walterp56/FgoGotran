@@ -143,7 +143,7 @@ class VoiceEmotionStyleTest {
     }
 
     @Test
-    fun `OFF and rejected style still keep local keyword expression`() {
+    fun `ON without a usable API hint still keeps local keyword expression`() {
         val profile = profile(XIAOXIAO2_FLASH, "anxious")
         val local = assertNotNull(VoiceEmotionStyle.expressionFor(profile, "对不起……"))
         assertEquals("sad", local.styleOverride)
@@ -151,6 +151,116 @@ class VoiceEmotionStyleTest {
         assertEquals(local, VoiceEmotionStyle.expressionFor(
             profile, "对不起……", VoiceLineHint(styles = listOf("strict"), confidence = 0.9)
         ))
+    }
+
+    @Test
+    fun `OFF ignores Chinese and English sentence emotion and excited punctuation`() {
+        val profile = profile(XIAOXIAO2_FLASH, "anxious")
+        val preset = assertNotNull(VoiceEmotionStyle.expressionFor(
+            profile, NEUTRAL_LINE, emotionEnhancementEnabled = false
+        ))
+        for (line in listOf("对不起……", "太好了！谢谢你！！", "滚开！", "I'm sorry...", "Thank you!!", "Damn it!")) {
+            assertEquals(preset, VoiceEmotionStyle.expressionFor(
+                profile, line, emotionEnhancementEnabled = false
+            ), line)
+        }
+        assertNull(preset.styleOverride)
+        assertEquals("anxious", VoiceEmotionStyle.resolveStyle(profile, preset.styleOverride))
+        assertFalse(preset.voiceHintApplied)
+    }
+
+    @Test
+    fun `OFF ignores an earlier API style and all delivery deltas`() {
+        val profile = profile(XIAOXIAO2_FLASH, "anxious")
+        val preset = VoiceEmotionStyle.expressionFor(profile, NEUTRAL_LINE, emotionEnhancementEnabled = false)
+        val hinted = VoiceEmotionStyle.expressionFor(
+            profile, "太好了！！", VoiceLineHint(
+                styles = listOf("cheerful"), intensity = 0.9,
+                rate = 2, pitch = 2, pause = 2, confidence = 0.9
+            ), emotionEnhancementEnabled = false
+        )
+        assertEquals(preset, hinted)
+        assertFalse(assertNotNull(hinted).voiceHintApplied)
+    }
+
+    @Test
+    fun `OFF preserves existing static voice tuning and base style intensity`() {
+        val profile = profile(XIAOXIAO2_FLASH, "anxious")
+        val localNeutral = assertNotNull(VoiceEmotionStyle.expressionFor(profile, NEUTRAL_LINE))
+        val preset = assertNotNull(VoiceEmotionStyle.expressionFor(
+            profile, "太好了！！", emotionEnhancementEnabled = false
+        ))
+        assertEquals(localNeutral.copy(ssmlModeVersion = preset.ssmlModeVersion), preset)
+    }
+
+    @Test
+    fun `OFF still applies the selected user speed`() {
+        val profile = profile(XIAOXIAO2_FLASH, "anxious")
+        val normal = assertNotNull(VoiceEmotionStyle.expressionFor(
+            profile, NEUTRAL_LINE, emotionEnhancementEnabled = false
+        ))
+        val faster = assertNotNull(VoiceEmotionStyle.expressionFor(
+            profile, NEUTRAL_LINE, baseSpeedMultiplier = 1.5, emotionEnhancementEnabled = false
+        ))
+        assertTrue(assertNotNull(faster.rateOverride).toDouble() >
+            (normal.rateOverride?.toDouble() ?: profile.rate.toDouble()))
+        assertEquals(normal.styleOverride, faster.styleOverride)
+        assertEquals(normal.pitchOverride, faster.pitchOverride)
+        assertEquals(normal.pauseScale, faster.pauseScale)
+    }
+
+    @Test
+    fun `OFF retains saved role and supported profile style fallback`() {
+        val cases = listOf(
+            profile("zh-CN-Yunyi:DragonHDFlashLatestNeural", "assassin") to "assassin",
+            profile("zh-CN-Xiaoxiao:DragonHDFlashLatestNeural", "gentle") to "comforting"
+        )
+        for ((profile, expectedStyle) in cases) {
+            val preset = assertNotNull(VoiceEmotionStyle.expressionFor(
+                profile, "太好了！！", emotionEnhancementEnabled = false
+            ))
+            assertNull(preset.styleOverride)
+            assertEquals(expectedStyle, VoiceEmotionStyle.resolveStyle(profile, preset.styleOverride))
+        }
+    }
+
+    @Test
+    fun `OFF does not invent a style for a styleless preset`() {
+        val profile = profile(XIAOXIAO2_FLASH, "")
+        val preset = assertNotNull(VoiceEmotionStyle.expressionFor(
+            profile, "太好了！！", emotionEnhancementEnabled = false
+        ))
+        assertNull(preset.styleOverride)
+        assertNull(preset.styleDegree)
+        assertEquals("", VoiceEmotionStyle.resolveStyle(profile, preset.styleOverride))
+    }
+
+    @Test
+    fun `OFF preserves the existing non Chinese voice behaviour`() {
+        val profile = profile("en-US-JennyNeural", "cheerful").copy(locale = "en-US")
+        assertNull(VoiceEmotionStyle.expressionFor(
+            profile, "Damn it!!", emotionEnhancementEnabled = false
+        ))
+        assertEquals("cheerful", VoiceEmotionStyle.resolveStyle(profile, null))
+    }
+
+    @Test
+    fun `OFF audio cache cannot reuse ON audio even with identical delivery values`() {
+        val profile = profile(XIAOXIAO2_FLASH, "anxious")
+        val localNeutral = assertNotNull(VoiceEmotionStyle.expressionFor(profile, NEUTRAL_LINE))
+        val preset = assertNotNull(VoiceEmotionStyle.expressionFor(
+            profile, NEUTRAL_LINE, emotionEnhancementEnabled = false
+        ))
+        val onRequest = VoiceSynthesisRequest(
+            speakerName = "Olga", spokenText = NEUTRAL_LINE, profile = profile,
+            styleOverride = localNeutral.styleOverride, rateOverride = localNeutral.rateOverride,
+            pitchOverride = localNeutral.pitchOverride, styleDegree = localNeutral.styleDegree,
+            pauseScale = localNeutral.pauseScale, ssmlModeVersion = localNeutral.ssmlModeVersion
+        )
+        val offRequest = onRequest.copy(ssmlModeVersion = preset.ssmlModeVersion)
+        assertFalse(onRequest.cacheMaterial() == offRequest.cacheMaterial())
+        assertEquals("natural_dialogue_v14", localNeutral.ssmlModeVersion)
+        assertEquals("natural_dialogue_v14:presets_only_v1", preset.ssmlModeVersion)
     }
 
     @Test

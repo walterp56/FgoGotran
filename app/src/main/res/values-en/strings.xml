@@ -263,7 +263,7 @@
     <string name="settings_auto_61">Max</string>
     <string name="settings_auto_62">Small</string>
     <string name="settings_auto_63">Large</string>
-    <string name="voice_auto_1">On: calls the API to analyze emotion, speed, and pitch, then temporarily matches a voice; new characters may also be tried.\nOff: uses only local rules and installed voices; faster and more stable, but new characters need a database update before voice is available.</string>
+    <string name="voice_auto_1">On: calls the API to analyze emotion, speed, and pitch, then temporarily matches a voice; new characters may also be tried.\nOff: uses character voice presets without analyzing sentence emotion. Characters without a saved voice profile are not read aloud.</string>
     <string name="voice_auto_2">Live translation uses the root endpoint of that Speech resource in the Azure portal; only HTTPS *.cognitiveservices.azure.cn is accepted.</string>
     <string name="voice_auto_3">Note: Global Azure is optional; China Azure requires an organization/work/school account and cannot be used with a personal Microsoft account.</string>
     <string name="voice_auto_4">The current Sakura model does not support AI expression. Local expression rules will be used; switching models restores your saved choice.</string>

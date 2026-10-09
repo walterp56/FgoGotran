@@ -12,12 +12,25 @@ object VoiceEmotionStyle {
         profile: VoiceProfile,
         text: String,
         voiceHint: VoiceLineHint? = null,
-        baseSpeedMultiplier: Double = 1.0
+        baseSpeedMultiplier: Double = 1.0,
+        emotionEnhancementEnabled: Boolean = true
     ): VoiceExpression? {
         if (!VoiceLocaleSupport.isChineseLocale(profile.locale)) return null
 
-        val normalized = normalizedTextForStyleMatching(text)
         val voiceTuning = AzureVoiceModelTuning.forVoice(profile.voiceName)
+        if (!emotionEnhancementEnabled) {
+            // Empty matching text disables sentence cues, not the text sent to Azure.
+            // Keep preset delivery, model tuning, punctuation pauses and user speed.
+            return buildExpression(
+                profile = profile,
+                normalizedText = "",
+                voiceTuning = voiceTuning,
+                trustedVoiceHint = null,
+                baseSpeedMultiplier = baseSpeedMultiplier
+            ).copy(ssmlModeVersion = "${NATURAL_DIALOGUE_MODE_VERSION}:presets_only_v1")
+        }
+
+        val normalized = normalizedTextForStyleMatching(text)
         val trustedVoiceHint = trustedVoiceHint(voiceHint)?.takeIf {
             it.targetVoiceNames.isEmpty() || profile.voiceName in it.targetVoiceNames
         }
