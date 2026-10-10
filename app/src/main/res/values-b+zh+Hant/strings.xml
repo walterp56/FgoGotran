@@ -200,13 +200,14 @@
     <string name="guide_auto_43">全</string>
     <string name="guide_auto_44">战</string>
     <string name="settings_auto_1">提供最近場景的日文與譯文對照；模型誤譯前文時可關閉；會增加Token消耗(雲端API)</string>
-    <string name="settings_auto_2">將正文上方的小字一起交給翻譯。關閉後只翻譯正文，不影響小字識別；下次翻譯生效。</string>
+    <string name="settings_auto_2">將讀音或別名一起交給翻譯。</string>
     <string name="settings_auto_3">默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。</string>
     <string name="settings_auto_4">相同原文可直接使用上次翻译，速度更快；\n遇到旧译文时可以清除缓存。</string>
     <string name="settings_auto_5">进阶引擎。准确度高，识别范围广。依赖 CPU 算力。</string>
     <string name="settings_auto_6">选择适合的 OCR（光学字元识别）引擎</string>
     <string name="settings_auto_7">翻譯時包含上方小字</string>
     <string name="settings_ruby_example_label">遊戲中的例子</string>
+    <string name="settings_ruby_example_meaning">開啟：大令咒〈Sirius Light〉\n關閉：大令咒\n以〈〉表示遊戲中正文上方的小字。</string>
     <string name="settings_auto_8">Sakura：本机规则</string>
     <string name="settings_auto_9">用于调试和排查问题。</string>
     <string name="settings_auto_10">前台检测已恢复正常</string>

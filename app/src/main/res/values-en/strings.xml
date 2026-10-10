@@ -200,13 +200,14 @@
     <string name="guide_auto_43">A</string>
     <string name="guide_auto_44">B</string>
     <string name="settings_auto_1">Provides recent scene context using Japanese text and its translation; disable if the model misreads earlier text; increases token usage on cloud APIs.</string>
-    <string name="settings_auto_2">Include the small text above words when translating. Turn off for main text only. Detection is unchanged; applies to the next translation.</string>
+    <string name="settings_auto_2">Include readings or alternative names when translating.</string>
     <string name="settings_auto_3">Default engine. Fast startup and low power use. Recognizes on-device with Google ML Kit.</string>
     <string name="settings_auto_4">Identical source text reuses the previous translation for speed.\nClear the cache if you see stale translations.</string>
     <string name="settings_auto_5">Advanced engine. High accuracy and broad recognition, but CPU-intensive.</string>
     <string name="settings_auto_6">Choose the OCR engine</string>
     <string name="settings_auto_7">Include small text above words</string>
     <string name="settings_ruby_example_label">In-game example</string>
+    <string name="settings_ruby_example_meaning">ON: Great Command Spell 〈Sirius Light〉\nOFF: Great Command Spell\n〈〉 represents the small text above the main text in the game.</string>
     <string name="settings_auto_8">Sakura: local rules</string>
     <string name="settings_auto_9">For debugging and troubleshooting.</string>
     <string name="settings_auto_10">Foreground detection restored</string>

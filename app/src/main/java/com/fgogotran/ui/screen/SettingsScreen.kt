@@ -516,7 +516,7 @@ fun SettingsScreen(
                         color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // These are Japanese game text, not Chinese UI labels.
+                        // Preserve the Japanese game text instead of converting it as Chinese UI text.
                         androidx.compose.material3.Text(
                             text = stringResource(R.string.settings_ruby_example_annotation),
                             style = MaterialTheme.typography.labelSmall,
@@ -528,6 +528,16 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
+                }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_ruby_example_meaning),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = FgoUiColors.text(darkAlpha = 0.82f)
+                    )
                 }
                 HorizontalDivider()
                 Text(
