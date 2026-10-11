@@ -186,3 +186,6 @@ app/src/test/java/com/fgogotran/analytics/*
 !app/src/test/java/com/fgogotran/analytics/AnalyticsSuccessTest.kt
 !app/src/test/java/com/fgogotran/analytics/AnalyticsPhase3WiringTest.kt
 !app/src/test/java/com/fgogotran/analytics/AnalyticsBuildGateTest.kt
+# Retain manual fresh-attempt wiring and same-source history replacement regressions.
+!app/src/test/java/com/fgogotran/translation/ManualTranslationRefreshWorkflowTest.kt
+!app/src/test/java/com/fgogotran/translation/SessionTranslationHistoryTest.kt

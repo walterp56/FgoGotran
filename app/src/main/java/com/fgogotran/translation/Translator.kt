@@ -655,6 +655,7 @@ class Translator @Inject constructor(
          * log instead of a bare "Cache miss".
          */
         private const val CACHE_MISS_DISABLED = "cache_disabled"
+        private const val CACHE_MISS_REFRESH_REQUESTED = "refresh_requested"
         private const val CACHE_MISS_KEY_NOT_FOUND = "key_not_found"
         private const val CACHE_MISS_CACHED_EMPTY = "cached_empty"
         private const val CACHE_MISS_CACHED_UNSAFE = "cached_unsafe"
@@ -935,7 +936,8 @@ class Translator @Inject constructor(
         restoreSourcePunctuation: Boolean = true,
         promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL,
         translateAsName: Boolean = false,
-        nameHints: List<NameTranslationHint> = emptyList()
+        nameHints: List<NameTranslationHint> = emptyList(),
+        forceFreshTranslation: Boolean = false
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -947,6 +949,8 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled && useTranslationCache
+        // Refresh skips old answers, but eligible new output still replaces the same cache key.
+        val cacheReadEnabled = cacheEnabled && !forceFreshTranslation
         val attemptLimit = maxApiAttempts.coerceIn(1, MAX_TRANSLATION_API_ATTEMPTS)
         val normalizedSourceText = if (!cropMode && !translateAsChoices && !translateAsName) {
             FgoDialogueSymbols.normalizeLeadingOcrDash(rawNormalizedText)
@@ -981,7 +985,7 @@ class Translator @Inject constructor(
                 .forTargetLocale(config, punctuationSourceText)
         }
 
-        translationMemory.lookupNormalized(normalizedText)?.let {
+        if (!forceFreshTranslation) translationMemory.lookupNormalized(normalizedText)?.let {
             FgoLogger.info(tag, "Official CN memory HIT")
             return TranslateResult(
                 sanitizeCacheTranslation(normalizedText, it, config.targetLanguage),
@@ -990,7 +994,7 @@ class Translator @Inject constructor(
             ).forTargetLocale(config, punctuationSourceText)
         }
 
-        findCharacterNameTranslation(
+        if (!forceFreshTranslation) findCharacterNameTranslation(
             normalizedText,
             allowAmbiguousDialogueName = false,
             targetLanguage = config.targetLanguage
@@ -1002,7 +1006,7 @@ class Translator @Inject constructor(
             }
         }
 
-        if (!TextNormalizer.hasRubyAnnotations(normalizedText)) {
+        if (!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)) {
             findTermTranslation(normalizedText, targetLanguage = config.targetLanguage)?.let {
                 FgoLogger.info(tag, "Glossary exact HIT")
                 return TranslateResult(
@@ -1112,13 +1116,18 @@ class Translator @Inject constructor(
         )
         logSceneContext("single", activePreviousDialogueContexts)
 
-        if (cacheEnabled) {
+        if (cacheReadEnabled) {
             lookupCachedTranslation(hash, normalizedText, playerName, "Cache", cacheKeyInfo.parts, targetLanguage = config.targetLanguage)?.let { cached ->
                 return TranslateResult(cached, "cache", true)
                     .forTargetLocale(config, punctuationSourceText)
             }
         } else {
-            logCacheMiss("Cache", CACHE_MISS_DISABLED, hash, cacheKeyInfo.parts)
+            logCacheMiss(
+                "Cache",
+                if (forceFreshTranslation) CACHE_MISS_REFRESH_REQUESTED else CACHE_MISS_DISABLED,
+                hash,
+                cacheKeyInfo.parts
+            )
         }
         FgoLogger.debug(tag, "Cache miss, hash=${hash.take(8)}...")
 
@@ -1433,7 +1442,8 @@ class Translator @Inject constructor(
         currentSpeakerSourceName: String = "",
         translateAsChoices: Boolean = false,
         maxApiAttempts: Int = MAX_TRANSLATION_API_ATTEMPTS,
-        previousDialogueContexts: List<SceneDialogueContext> = emptyList()
+        previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
+        forceFreshTranslation: Boolean = false
     ): List<TranslateResult> {
         if (japaneseTexts.isEmpty()) return emptyList()
 
@@ -1443,6 +1453,7 @@ class Translator @Inject constructor(
         val apiKey = config.apiKey
         val playerName = config.playerName
         val cacheEnabled = config.cacheEnabled
+        val cacheReadEnabled = cacheEnabled && !forceFreshTranslation
         val attemptLimit = maxApiAttempts.coerceIn(1, MAX_TRANSLATION_API_ATTEMPTS)
         val normalizedTexts = rawNormalizedTexts.mapIndexed { index, text ->
             correctPlayerNameOcr(text, playerName, "BATCH[$index]")
@@ -1478,8 +1489,13 @@ class Translator @Inject constructor(
                 "speaker=${activeCurrentSpeaker.isNotBlank()}, context=${activePreviousDialogueContexts.size}"
         )
         logSceneContext("batch", activePreviousDialogueContexts)
-        if (!cacheEnabled) {
-            logCacheMiss("Batch", CACHE_MISS_DISABLED, "-", "")
+        if (!cacheReadEnabled) {
+            logCacheMiss(
+                "Batch",
+                if (forceFreshTranslation) CACHE_MISS_REFRESH_REQUESTED else CACHE_MISS_DISABLED,
+                "-",
+                ""
+            )
         }
 
         for (index in japaneseTexts.indices) {
@@ -1499,7 +1515,7 @@ class Translator @Inject constructor(
                 continue
             }
 
-            val officialMemory = translationMemory.lookupNormalized(normalizedText)
+            val officialMemory = if (forceFreshTranslation) null else translationMemory.lookupNormalized(normalizedText)
             if (officialMemory != null) {
                 FgoLogger.info(tag, "Batch official CN memory HIT[$index]")
                 results[index] = TranslateResult(
@@ -1512,7 +1528,7 @@ class Translator @Inject constructor(
 
             // Base-only lookup hits would discard ruby before the API can translate it.
             val hasRuby = TextNormalizer.hasRubyAnnotations(normalizedText)
-            val characterTranslation = if (hasRuby) null else findCharacterNameTranslation(
+            val characterTranslation = if (forceFreshTranslation || hasRuby) null else findCharacterNameTranslation(
                 normalizedText,
                 allowAmbiguousDialogueName = false,
                 targetLanguage = config.targetLanguage
@@ -1523,7 +1539,7 @@ class Translator @Inject constructor(
                 continue
             }
 
-            val termTranslation = if (hasRuby) null else findTermTranslation(
+            val termTranslation = if (forceFreshTranslation || hasRuby) null else findTermTranslation(
                 normalizedText,
                 targetLanguage = config.targetLanguage
             )
@@ -1537,7 +1553,7 @@ class Translator @Inject constructor(
                 continue
             }
 
-            if (cacheEnabled) {
+            if (cacheReadEnabled) {
                 val cached = lookupCachedTranslation(
                     hashes[index],
                     normalizedText,
@@ -1684,7 +1700,8 @@ class Translator @Inject constructor(
                         currentSpeakerSourceName = currentSpeakerCacheIdentity,
                         translateAsChoices = translateAsChoices,
                         maxApiAttempts = remainingAttempts,
-                        previousDialogueContexts = activePreviousDialogueContexts
+                        previousDialogueContexts = activePreviousDialogueContexts,
+                        forceFreshTranslation = forceFreshTranslation
                     )
                 }
             } else {
@@ -1739,7 +1756,8 @@ class Translator @Inject constructor(
                         currentSpeakerSourceName = currentSpeakerCacheIdentity,
                         translateAsChoices = translateAsChoices,
                         maxApiAttempts = remainingAttempts,
-                        previousDialogueContexts = activePreviousDialogueContexts
+                        previousDialogueContexts = activePreviousDialogueContexts,
+                        forceFreshTranslation = forceFreshTranslation
                     )
                     if (retryResult.translatedText.isNotBlank() &&
                         !retryResult.translatedText.isSceneContextErrorText()
@@ -1784,7 +1802,8 @@ class Translator @Inject constructor(
 
     suspend fun translateScene(
         input: SceneTranslateInput,
-        voiceHintContext: VoiceHintContext? = null
+        voiceHintContext: VoiceHintContext? = null,
+        forceFreshTranslation: Boolean = false
     ): SceneTranslateResult {
         val rawNormalizedName = input.name?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
         val rawNormalizedDialogue = input.dialogue
@@ -1800,6 +1819,7 @@ class Translator @Inject constructor(
         val backend = config.backend
         val apiKey = config.apiKey
         val cacheEnabled = config.cacheEnabled
+        val cacheReadEnabled = cacheEnabled && !forceFreshTranslation
         val playerName = config.playerName
         val useSakuraPrompt = usesSakuraPrompt(config)
         val normalizedName = rawNormalizedName?.let { correctPlayerNameOcr(it, playerName, "SCENE_NAME") }
@@ -1881,7 +1901,7 @@ class Translator @Inject constructor(
                 dialogueResult = TranslateResult("", "none", true)
                 return@let
             }
-            translationMemory.lookupNormalized(normalized)?.let {
+            if (!forceFreshTranslation) translationMemory.lookupNormalized(normalized)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT dialogue")
                 dialogueResult = TranslateResult(
                     sanitizeCacheTranslation(normalized, it, config.targetLanguage),
@@ -1889,7 +1909,7 @@ class Translator @Inject constructor(
                     true
                 )
             }
-            if (dialogueResult == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
+            if (!forceFreshTranslation && dialogueResult == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
                 findTermTranslation(normalized, targetLanguage = config.targetLanguage)?.let {
                     FgoLogger.info(tag, "Term exact HIT dialogue")
                     dialogueResult = TranslateResult(
@@ -1911,7 +1931,7 @@ class Translator @Inject constructor(
                 choiceResults[index] = TranslateResult("", "none", true)
                 return@forEachIndexed
             }
-            translationMemory.lookupNormalized(normalized)?.let {
+            if (!forceFreshTranslation) translationMemory.lookupNormalized(normalized)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT choice[$index]")
                 choiceResults[index] = TranslateResult(
                     sanitizeCacheTranslation(normalized, it, config.targetLanguage),
@@ -1919,7 +1939,7 @@ class Translator @Inject constructor(
                     true
                 )
             }
-            if (choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
+            if (!forceFreshTranslation && choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
                 findTermTranslation(normalized, targetLanguage = config.targetLanguage)?.let {
                     FgoLogger.info(tag, "Term exact HIT choice[$index]")
                     choiceResults[index] = TranslateResult(
@@ -1929,7 +1949,7 @@ class Translator @Inject constructor(
                     )
                 }
             }
-            if (choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
+            if (!forceFreshTranslation && choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
                 findCharacterNameTranslation(
                     normalized,
                     allowAmbiguousDialogueName = false,
@@ -2037,7 +2057,7 @@ class Translator @Inject constructor(
         }
         val choiceHashes = choiceKeys.map { it?.hash }
 
-        if (cacheEnabled) {
+        if (cacheReadEnabled) {
             if (normalizedDialogue != null && dialogueHash != null && dialogueResult == null) {
                 lookupCachedTranslation(
                     dialogueHash,
@@ -2066,7 +2086,12 @@ class Translator @Inject constructor(
                 }
             }
         } else {
-            logCacheMiss("Scene", CACHE_MISS_DISABLED, "-", "")
+            logCacheMiss(
+                "Scene",
+                if (forceFreshTranslation) CACHE_MISS_REFRESH_REQUESTED else CACHE_MISS_DISABLED,
+                "-",
+                ""
+            )
         }
 
         val needsName = nameForLlm != null && nameResult == null
@@ -2103,7 +2128,8 @@ class Translator @Inject constructor(
                 currentSpeaker = currentSpeaker,
                 currentSpeakerSourceName = currentSpeakerSourceName,
                 currentSpeakerGender = currentSpeakerGender,
-                characterContext = characterContext
+                characterContext = characterContext,
+                forceFreshTranslation = forceFreshTranslation
             )
             return SceneTranslateResult(
                 name = nameResult,
@@ -2123,7 +2149,8 @@ class Translator @Inject constructor(
                 japaneseTexts = neededChoiceIndices.map { input.choices[it] },
                 currentSpeaker = currentSpeaker,
                 currentSpeakerSourceName = currentSpeakerSourceName,
-                translateAsChoices = true
+                translateAsChoices = true,
+                forceFreshTranslation = forceFreshTranslation
             )
             translatedChoices.forEachIndexed { batchIndex, result ->
                 val choiceIndex = neededChoiceIndices[batchIndex]
@@ -2220,7 +2247,8 @@ class Translator @Inject constructor(
                     currentSpeaker = sakuraCurrentSpeaker,
                     currentSpeakerSourceName = currentSpeakerSourceName,
                     currentSpeakerGender = currentSpeakerGender,
-                    characterContext = characterContext
+                    characterContext = characterContext,
+                    forceFreshTranslation = forceFreshTranslation
                 )
             }
             if (neededChoiceIndices.isNotEmpty()) {
@@ -2229,7 +2257,8 @@ class Translator @Inject constructor(
                     currentSpeaker = sakuraCurrentSpeaker,
                     currentSpeakerSourceName = currentSpeakerSourceName,
                     translateAsChoices = true,
-                    previousDialogueContexts = activePreviousDialogueContexts
+                    previousDialogueContexts = activePreviousDialogueContexts,
+                    forceFreshTranslation = forceFreshTranslation
                 )
                 translatedChoices.forEachIndexed { batchIndex, result ->
                     choiceResults[neededChoiceIndices[batchIndex]] = result
@@ -2470,7 +2499,8 @@ class Translator @Inject constructor(
                     currentSpeakerSourceName = currentSpeakerSourceName,
                     currentSpeakerGender = currentSpeakerGender,
                     characterContext = characterContext,
-                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
+                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1,
+                    forceFreshTranslation = forceFreshTranslation
                 )
             }
             if (neededChoiceIndices.isNotEmpty()) {
@@ -2479,7 +2509,8 @@ class Translator @Inject constructor(
                     currentSpeaker = currentSpeaker,
                     currentSpeakerSourceName = currentSpeakerSourceName,
                     translateAsChoices = true,
-                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
+                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1,
+                    forceFreshTranslation = forceFreshTranslation
                 )
                 fallbackChoices.forEachIndexed { fallbackIndex, result ->
                     val choiceIndex = neededChoiceIndices[fallbackIndex]
@@ -2574,7 +2605,8 @@ class Translator @Inject constructor(
                         currentSpeaker = currentSpeaker,
                         currentSpeakerSourceName = currentSpeakerSourceName,
                         characterContext = characterContext,
-                        maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
+                        maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1,
+                        forceFreshTranslation = forceFreshTranslation
                     )
                     val renderResult = if (retryResult.translatedText.isNotBlank() &&
                         !retryResult.translatedText.isSceneContextErrorText()
@@ -2638,7 +2670,8 @@ class Translator @Inject constructor(
                     currentSpeaker = currentSpeaker,
                     currentSpeakerSourceName = currentSpeakerSourceName,
                     translateAsChoices = true,
-                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1
+                    maxApiAttempts = MAX_TRANSLATION_API_ATTEMPTS - 1,
+                    forceFreshTranslation = forceFreshTranslation
                 )
                 choiceResults[originalIndex] = if (retryResult.translatedText.isNotBlank() &&
                     !retryResult.translatedText.isSceneContextErrorText()

@@ -430,7 +430,6 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private data class ManualScanResult(
         val regions: List<ClassifiedRegion>,
-        val dialogueComplete: Boolean,
         val sceneSource: SceneSource? = null
     )
 
@@ -1421,7 +1420,9 @@ class FgoAccessibilityService : AccessibilityService() {
         try {
             if (translationOverlay.isShowing()) {
                 if (!mode.userInitiated) return
-                restoreHiddenOverlay = true
+                // A JP manual retry must not silently restore the answer it is replacing.
+                // Other capture workflows keep their existing restore behaviour.
+                restoreHiddenOverlay = mode != ProcessingMode.MANUAL_TAP || !isJapaneseServer()
                 FgoLogger.debug(tag, "Hiding translation overlay briefly to read source text")
                 translationOverlay.hideForCapture()
                 delay(CAPTURE_SETTLE_DELAY)
@@ -1500,17 +1501,18 @@ class FgoAccessibilityService : AccessibilityService() {
             }
 
             restoreHiddenOverlay = when (mode) {
-                ProcessingMode.MANUAL_TAP -> processManualScreen(
-                    source = source,
-                    screenRegions = screenRegions,
-                    currentScreenWidth = currentScreenWidth,
-                    currentScreenHeight = currentScreenHeight,
-                    processStartedAt = processStartedAt,
-                    processingVersion = processingVersion,
-                    restoreHiddenOverlay = restoreHiddenOverlay,
-                    dialogueComplete = dialogueComplete,
-                    frame = frame
-                )
+                ProcessingMode.MANUAL_TAP -> {
+                    processManualScreen(
+                        source = source,
+                        screenRegions = screenRegions,
+                        currentScreenWidth = currentScreenWidth,
+                        currentScreenHeight = currentScreenHeight,
+                        processStartedAt = processStartedAt,
+                        processingVersion = processingVersion,
+                        frame = frame
+                    )
+                    false
+                }
                 ProcessingMode.SEMI_AUTO_CHOICE_TAP -> processSemiAutoChoiceScreen(
                     source = source,
                     screenRegions = screenRegions,
@@ -2126,37 +2128,25 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenHeight: Int,
         processStartedAt: Long,
         processingVersion: Long,
-        restoreHiddenOverlay: Boolean,
-        dialogueComplete: Boolean,
         frame: StoryFramePixels
-    ): Boolean {
-        val scan = scanManualScene(source, screenRegions, dialogueComplete, frame)
+    ) {
+        val scan = scanManualScene(source, screenRegions, frame)
         if (scan.regions.isEmpty()) {
-            if (scan.dialogueComplete) {
-                FgoLogger.debug(tag, "No translatable completed dialogue detected in FGO regions")
-                runnerOverlay.showTranslationFailureFeedback()
-                translationOverlay.hide()
-                return false
-            }
             FgoLogger.debug(tag, "Manual OCR found no dialogue and no choices")
-            return restoreHiddenOverlay
+            runnerOverlay.showTranslationFailureFeedback(fromUserTap = true)
+            translationOverlay.hide()
+            return
         }
 
         FgoLogger.debug(tag, "Manual path uses fixed dialogue/choice regions without story guard")
         val sceneSource = scan.sceneSource
         if (sceneSource == null) {
-            runnerOverlay.showTranslationFailureFeedback()
+            runnerOverlay.showTranslationFailureFeedback(fromUserTap = true)
             translationOverlay.hide()
-            return false
+            return
         }
 
-        if (restoreHiddenOverlay &&
-            isAlreadyRenderedSource(ProcessingMode.MANUAL_TAP, sceneSource)
-        ) {
-            FgoLogger.debug(tag, "Manual source unchanged; restoring previous overlay without translation")
-            return true
-        }
-
+        FgoLogger.debug(tag, "Manual translation: fresh OCR; requesting fresh dialogue/choice translation")
         translateAndRenderScene(
             mode = ProcessingMode.MANUAL_TAP,
             source = source,
@@ -2168,7 +2158,6 @@ class FgoAccessibilityService : AccessibilityService() {
             recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
             frame = frame
         )
-        return false
     }
 
     private suspend fun processSemiAutoChoiceScreen(
@@ -2277,7 +2266,6 @@ class FgoAccessibilityService : AccessibilityService() {
     private suspend fun scanManualScene(
         source: Bitmap,
         screenRegions: FgoScreenRegions,
-        dialogueComplete: Boolean,
         frame: StoryFramePixels
     ): ManualScanResult {
         val choiceRecognition = recognizeChoiceRegions(source, screenRegions, ProcessingMode.MANUAL_TAP, frame)
@@ -2288,7 +2276,6 @@ class FgoAccessibilityService : AccessibilityService() {
             val mergedRegions = mergeManualSceneRegions(choiceRegions, dialogueRegions)
             return ManualScanResult(
                 regions = mergedRegions,
-                dialogueComplete = false,
                 sceneSource = sceneSourceFor(mergedRegions, source)
             )
         }
@@ -2303,7 +2290,6 @@ class FgoAccessibilityService : AccessibilityService() {
             }
             return ManualScanResult(
                 regions = dialogueRegions,
-                dialogueComplete = false,
                 sceneSource = dialogueScene
             )
         }
@@ -2313,7 +2299,6 @@ class FgoAccessibilityService : AccessibilityService() {
         }
         return ManualScanResult(
             regions = emptyList(),
-            dialogueComplete = dialogueComplete,
             sceneSource = null
         )
     }
@@ -2858,7 +2843,11 @@ class FgoAccessibilityService : AccessibilityService() {
         if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
             TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
         ) return false
-        val sceneTranslation = translateSceneSource(sceneSource, voiceTarget)
+        val sceneTranslation = translateSceneSource(
+            sceneSource,
+            voiceTarget,
+            forceFreshTranslation = mode == ProcessingMode.MANUAL_TAP
+        )
         if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
             TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
         ) return false
@@ -3311,7 +3300,8 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun translateSceneSource(
         sceneSource: SceneSource,
-        voiceTarget: PreparedVoiceTarget?
+        voiceTarget: PreparedVoiceTarget?,
+        forceFreshTranslation: Boolean
     ): SceneTranslateResult {
         // Snapshot once: a setting change must not alter an in-flight request or its retries.
         val includeRuby = translationIncludeRuby
@@ -3330,7 +3320,11 @@ class FgoAccessibilityService : AccessibilityService() {
         val input = TranslationRubyPolicy.prepare(fullInput, includeRuby)
         FgoLogger.debug(tag, "Scene ruby policy: include=$includeRuby, filtered=${input != fullInput}")
         return withContext(Dispatchers.IO) {
-            translator.translateScene(input, voiceTarget?.hintContext)
+            translator.translateScene(
+                input,
+                voiceTarget?.hintContext,
+                forceFreshTranslation = forceFreshTranslation
+            )
         }
     }
 
