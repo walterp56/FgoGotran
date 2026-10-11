@@ -2,14 +2,23 @@ package com.fgogotran.analytics
 
 import com.fgogotran.BuildConfig
 import java.io.File
+import java.util.Properties
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Build/source wiring checks, not a claim of Android device-level verification. */
 class AnalyticsBuildGateTest {
-    @Test fun `debug is compiled with analytics off`() {
-        if (BuildConfig.BUILD_TYPE == "debug") assertFalse(BuildConfig.AWS_USAGE_ANALYTICS_ENABLED)
+    @Test fun `compiled flag follows the owner setting for debug and release`() {
+        val repositoryRoot = listOf(File("."), File("..")).first { File(it, "app/build.gradle.kts").isFile }
+        val ownerFile = File(repositoryRoot, "analytics-release.properties")
+        val properties = Properties().apply {
+            if (ownerFile.isFile) ownerFile.reader(Charsets.UTF_8).use { load(it) }
+        }
+        val expected = properties.getProperty("awsUsageAnalyticsEnabled")?.trim() == "true"
+        assertEquals(expected, BuildConfig.AWS_USAGE_ANALYTICS_ENABLED,
+            "Rebuild after changing the owner setting; an already-built APK cannot change its flag.")
     }
 
     @Test fun `every reporting entry returns before collecting or queueing when off`() {
@@ -29,7 +38,7 @@ class AnalyticsBuildGateTest {
         assertFalse(analytics.contains("readAnalyticsOutbox"))
     }
 
-    @Test fun `build defaults off and only owner file can explicitly enable release`() {
+    @Test fun `all build types share one owner choice and missing configuration defaults off`() {
         val gradle = source("app/build.gradle.kts")
         val choice = gradle.substringBefore("android {")
         assertTrue(choice.contains("file(\"analytics-release.properties\")"))
@@ -40,13 +49,13 @@ class AnalyticsBuildGateTest {
         assertFalse(choice.contains("environmentVariable("))
         assertFalse(choice.contains("System.getenv("))
         val default = gradle.substringAfter("defaultConfig {").substringBefore("ndk {")
-        val release = gradle.substringAfter("release {").substringBefore("isMinifyEnabled")
-        assertTrue(default.contains("val analyticsEnabled = false.toString()"))
-        assertTrue(release.contains("val analyticsEnabled = ownerAnalyticsEnabled.toString()"))
-        for (block in listOf(default, release)) {
-            assertTrue(block.contains("buildConfigField(\"boolean\", \"AWS_USAGE_ANALYTICS_ENABLED\", analyticsEnabled)"))
-            assertTrue(block.contains("manifestPlaceholders[\"awsUsageAnalyticsEnabled\"] = analyticsEnabled"))
-        }
+        assertTrue(default.contains("val analyticsEnabled = ownerAnalyticsEnabled.toString()"))
+        assertTrue(default.contains("buildConfigField(\"boolean\", \"AWS_USAGE_ANALYTICS_ENABLED\", analyticsEnabled)"))
+        assertTrue(default.contains("manifestPlaceholders[\"awsUsageAnalyticsEnabled\"] = analyticsEnabled"))
+        val buildTypes = gradle.substringAfter("buildTypes {").substringBefore("compileOptions {")
+        assertFalse(buildTypes.contains("AWS_USAGE_ANALYTICS_ENABLED"))
+        assertFalse(buildTypes.contains("awsUsageAnalyticsEnabled"))
+        assertFalse(buildTypes.contains("ownerAnalyticsEnabled"))
         assertTrue(gradle.contains("buildConfig = true"))
         val manifest = source("app/src/main/AndroidManifest.xml")
         assertTrue(manifest.contains("android:name=\"com.fgogotran.AWS_USAGE_ANALYTICS_ENABLED\""))

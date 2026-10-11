@@ -12,7 +12,7 @@ plugins {
 
 // OWNER-CONTROLLED: AI must never create, edit, reset or override the real
 // analytics-release.properties setting (including via commands/environment).
-// Missing configuration is OFF; release builds must never enable it implicitly.
+// Missing configuration is OFF; no build type may enable it implicitly.
 val analyticsReleaseProperties = Properties().apply {
     providers.fileContents(rootProject.layout.projectDirectory.file("analytics-release.properties"))
         .asText.orNull?.let { load(StringReader(it)) }
@@ -34,8 +34,8 @@ android {
         versionCode = 16
         versionName = "4.1.0"
 
-        // Default for debug and any future build type. Both markers share one value.
-        val analyticsEnabled = false.toString()
+        // Run/Debug and release share the owner's local choice and both APK markers.
+        val analyticsEnabled = ownerAnalyticsEnabled.toString()
         buildConfigField("boolean", "AWS_USAGE_ANALYTICS_ENABLED", analyticsEnabled)
         manifestPlaceholders["awsUsageAnalyticsEnabled"] = analyticsEnabled
 
@@ -46,9 +46,6 @@ android {
 
     buildTypes {
         release {
-            val analyticsEnabled = ownerAnalyticsEnabled.toString()
-            buildConfigField("boolean", "AWS_USAGE_ANALYTICS_ENABLED", analyticsEnabled)
-            manifestPlaceholders["awsUsageAnalyticsEnabled"] = analyticsEnabled
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
