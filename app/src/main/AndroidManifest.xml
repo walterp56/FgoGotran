@@ -44,6 +44,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FgoGotran">
 
+        <!-- Release audit marker, generated from the same value as BuildConfig.
+             Owner-controlled: AI must never change or bypass the analytics choice. -->
+        <meta-data
+            android:name="com.fgogotran.AWS_USAGE_ANALYTICS_ENABLED"
+            android:value="${awsUsageAnalyticsEnabled}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

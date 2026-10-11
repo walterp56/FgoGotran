@@ -1,3 +1,6 @@
+import java.io.StringReader
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +8,19 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
+}
+
+// OWNER-CONTROLLED: AI must never create, edit, reset or override the real
+// analytics-release.properties setting (including via commands/environment).
+// Missing configuration is OFF; release builds must never enable it implicitly.
+val analyticsReleaseProperties = Properties().apply {
+    providers.fileContents(rootProject.layout.projectDirectory.file("analytics-release.properties"))
+        .asText.orNull?.let { load(StringReader(it)) }
+}
+val ownerAnalyticsEnabled = when (analyticsReleaseProperties.getProperty("awsUsageAnalyticsEnabled")?.trim()) {
+    null, "false" -> false
+    "true" -> true
+    else -> throw GradleException("awsUsageAnalyticsEnabled must be true or false in the owner-controlled analytics-release.properties. Ask the owner to correct it; AI must not change it.")
 }
 
 android {
@@ -18,6 +34,11 @@ android {
         versionCode = 16
         versionName = "4.1.0"
 
+        // Default for debug and any future build type. Both markers share one value.
+        val analyticsEnabled = false.toString()
+        buildConfigField("boolean", "AWS_USAGE_ANALYTICS_ENABLED", analyticsEnabled)
+        manifestPlaceholders["awsUsageAnalyticsEnabled"] = analyticsEnabled
+
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
@@ -25,6 +46,9 @@ android {
 
     buildTypes {
         release {
+            val analyticsEnabled = ownerAnalyticsEnabled.toString()
+            buildConfigField("boolean", "AWS_USAGE_ANALYTICS_ENABLED", analyticsEnabled)
+            manifestPlaceholders["awsUsageAnalyticsEnabled"] = analyticsEnabled
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -44,6 +68,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     androidResources {

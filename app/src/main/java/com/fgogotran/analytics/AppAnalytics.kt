@@ -2,6 +2,7 @@ package com.fgogotran.analytics
 
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
+import com.fgogotran.BuildConfig
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.translation.TranslateResult
@@ -31,60 +32,68 @@ class AppAnalytics @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository
 ) {
-    private val httpClient = HttpClient {
-        install(HttpTimeout) {
-            connectTimeoutMillis = REQUEST_TIMEOUT_MS
-            requestTimeoutMillis = REQUEST_TIMEOUT_MS
-            socketTimeoutMillis = REQUEST_TIMEOUT_MS
+    // OWNER-CONTROLLED build flag. AI must never enable, disable, reset or bypass it.
+    // OFF must not initialize HTTP/workers, collect facts or touch an existing outbox.
+    private val httpClient by lazy {
+        HttpClient {
+            install(HttpTimeout) {
+                connectTimeoutMillis = REQUEST_TIMEOUT_MS
+                requestTimeoutMillis = REQUEST_TIMEOUT_MS
+                socketTimeoutMillis = REQUEST_TIMEOUT_MS
+            }
         }
     }
     private val tag = "Analytics"
-    private val reportingScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val v2Uploader = AnalyticsUploader(
-        reportingScope,
-        AnalyticsUploadSession(
-            store = settingsRepository,
-            send = { payload ->
-                val response = httpClient.post(ANALYTICS_ENDPOINT) {
-                    contentType(ContentType.Application.Json)
-                    setBody(AnalyticsProtocol.encode(payload))
-                }
-                val body = if (response.status.value in 200..299) {
-                    response.bodyAsChannel().readRemaining(AnalyticsProtocol.MAX_ACK_BYTES.toLong() + 1).readText()
-                } else ""
-                AnalyticsHttpResponse(response.status.value, body)
-            },
-            log = { message -> FgoLogger.debug(tag, message) }
+    private val reportingScope by lazy { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
+    private val v2Uploader by lazy {
+        AnalyticsUploader(
+            reportingScope,
+            AnalyticsUploadSession(
+                store = settingsRepository,
+                send = { payload ->
+                    val response = httpClient.post(ANALYTICS_ENDPOINT) {
+                        contentType(ContentType.Application.Json)
+                        setBody(AnalyticsProtocol.encode(payload))
+                    }
+                    val body = if (response.status.value in 200..299) {
+                        response.bodyAsChannel().readRemaining(AnalyticsProtocol.MAX_ACK_BYTES.toLong() + 1).readText()
+                    } else ""
+                    AnalyticsHttpResponse(response.status.value, body)
+                },
+                log = { message -> FgoLogger.debug(tag, message) }
+            )
         )
-    )
+    }
     private sealed interface Recording {
         data class Profile(val uiLanguage: String, val foregroundDate: String?) : Recording
         data class Success(val facts: AnalyticsSuccess, val uiLanguage: String) : Recording
     }
-    private val recordings = Channel<Recording>(Channel.UNLIMITED)
+    private val recordings by lazy { Channel<Recording>(Channel.UNLIMITED) }
 
     init {
         // One FIFO recorder preserves profile and A -> B -> A success order without UI/HTTP waits.
-        reportingScope.launch {
-            for (recording in recordings) {
-                try {
-                    val uiLanguage = when (recording) {
-                        is Recording.Profile -> recording.uiLanguage
-                        is Recording.Success -> recording.uiLanguage
-                    }
-                    val profile = AnalyticsProfile(currentVersionName(), currentVersionCode(), uiLanguage)
-                    settingsRepository.updateAnalyticsOutbox { current ->
-                        when (recording) {
-                            is Recording.Profile -> if (recording.foregroundDate == null) current.withProfile(profile)
-                                else current.onForeground(profile, recording.foregroundDate)
-                            is Recording.Success -> current.withProfile(profile).withSuccess(recording.facts)
+        if (BuildConfig.AWS_USAGE_ANALYTICS_ENABLED) {
+            reportingScope.launch {
+                for (recording in recordings) {
+                    try {
+                        val uiLanguage = when (recording) {
+                            is Recording.Profile -> recording.uiLanguage
+                            is Recording.Success -> recording.uiLanguage
                         }
+                        val profile = AnalyticsProfile(currentVersionName(), currentVersionCode(), uiLanguage)
+                        settingsRepository.updateAnalyticsOutbox { current ->
+                            when (recording) {
+                                is Recording.Profile -> if (recording.foregroundDate == null) current.withProfile(profile)
+                                    else current.onForeground(profile, recording.foregroundDate)
+                                is Recording.Success -> current.withProfile(profile).withSuccess(recording.facts)
+                            }
+                        }
+                        v2Uploader.requestFlush()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        FgoLogger.debug(tag, "Analytics v2 persistence unavailable; existing facts retained")
                     }
-                    v2Uploader.requestFlush()
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    FgoLogger.debug(tag, "Analytics v2 persistence unavailable; existing facts retained")
                 }
             }
         }
@@ -92,24 +101,29 @@ class AppAnalytics @Inject constructor(
 
     /** Called only by the app Activity, not accessibility-service connection. */
     fun reportAppForeground(uiLanguage: String) {
+        if (!BuildConfig.AWS_USAGE_ANALYTICS_ENABLED) return
         recordings.trySend(Recording.Profile(uiLanguage, currentUtcDate()))
     }
 
     fun reportAppProfile(uiLanguage: String) {
+        if (!BuildConfig.AWS_USAGE_ANALYTICS_ENABLED) return
         recordings.trySend(Recording.Profile(uiLanguage, foregroundDate = null))
     }
 
     /** Call after the existing valid-display decision, never after OCR/API completion alone. */
     fun reportTranslationDisplayed(origin: AnalyticsUsageOrigin, displayed: List<TranslateResult>) {
+        if (!BuildConfig.AWS_USAGE_ANALYTICS_ENABLED) return
         recordSuccess { AnalyticsSuccess.translation(currentUtcDate(), origin, displayed) }
     }
 
     /** Call immediately after actual playback starts, including cached audio. */
     fun reportVoicePlaybackStarted(origin: AnalyticsUsageOrigin) {
+        if (!BuildConfig.AWS_USAGE_ANALYTICS_ENABLED) return
         recordSuccess { AnalyticsSuccess.voice(currentUtcDate(), origin) }
     }
 
     private fun recordSuccess(create: () -> AnalyticsSuccess?) {
+        if (!BuildConfig.AWS_USAGE_ANALYTICS_ENABLED) return
         try {
             val success = create() ?: return
             // Only compact facts enter IO; analytics failure must not undo display/playback.

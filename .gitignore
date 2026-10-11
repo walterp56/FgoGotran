@@ -40,6 +40,8 @@ term_builder/atlas_voice_audio/
 
 # Local machine-specific
 local.properties
+# Owner-only AWS analytics release choice. Never commit or auto-toggle this file.
+/analytics-release.properties
 *.jks
 *.keystore
 key.properties
@@ -183,3 +185,4 @@ app/src/test/java/com/fgogotran/analytics/*
 !app/src/test/java/com/fgogotran/analytics/AnalyticsPhase2WiringTest.kt
 !app/src/test/java/com/fgogotran/analytics/AnalyticsSuccessTest.kt
 !app/src/test/java/com/fgogotran/analytics/AnalyticsPhase3WiringTest.kt
+!app/src/test/java/com/fgogotran/analytics/AnalyticsBuildGateTest.kt

@@ -15,8 +15,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
+import subprocess
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -31,6 +34,13 @@ DEFAULT_OUTPUT = REPO_ROOT / "release" / "cdn"
 DEFAULT_BASE_URL = "https://cdn.fgogotran.com"
 DEFAULT_APP_PREFIX = "app/android"
 HK_TIMEZONE = timezone(timedelta(hours=8))
+ANALYTICS_MARKER = "com.fgogotran.AWS_USAGE_ANALYTICS_ENABLED"
+ANDROID_XML = "{http://schemas.android.com/apk/res/android}"
+ANALYTICS_RELEASE_ACTION = (
+    "The owner must manually enable awsUsageAnalyticsEnabled in analytics-release.properties "
+    "BEFORE building a new signed release APK. AI must not change that setting, patch the APK, "
+    "or bypass this check."
+)
 
 ANDROID_NAMES = {
     23: "Android 6.0",
@@ -105,6 +115,66 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def find_apkanalyzer(explicit: Path | None = None) -> Path:
+    """Find installed SDK tooling without changing owner settings or installing anything."""
+    if explicit is not None:
+        tool = explicit.resolve()
+        if tool.is_file():
+            return tool
+        raise FileNotFoundError(f"apkanalyzer does not exist: {tool}")
+    executable = "apkanalyzer.bat" if os.name == "nt" else "apkanalyzer"
+    on_path = shutil.which(executable)
+    if on_path:
+        return Path(on_path)
+    sdk_roots = [Path(value) for key in ("ANDROID_HOME", "ANDROID_SDK_ROOT")
+                 if (value := os.environ.get(key))]
+    sdk_roots.extend((Path.home() / "AppData/Local/Android/Sdk",
+                      Path.home() / "Library/Android/sdk", Path.home() / "Android/Sdk"))
+    for sdk in sdk_roots:
+        candidates = [sdk / "cmdline-tools/latest/bin" / executable]
+        candidates.extend(sorted(sdk.glob(f"cmdline-tools/*/bin/{executable}"), reverse=True))
+        candidates.append(sdk / "tools/bin" / executable)
+        for tool in candidates:
+            if tool.is_file():
+                return tool
+    raise RuntimeError("Cannot verify APK analytics: apkanalyzer was not found. Install Android SDK "
+                       "Command-line Tools or pass --apkanalyzer with its installed path. No release files written.")
+
+
+def require_analytics_enabled_manifest(manifest_xml: str) -> None:
+    """Read the compiled APK marker, never the current local build setting as proof."""
+    try:
+        manifest = ET.fromstring(manifest_xml)
+    except ET.ParseError as error:
+        raise RuntimeError("Cannot read the compiled APK manifest; release packaging stopped.") from error
+    applications = manifest.findall("application")
+    if manifest.tag != "manifest" or len(applications) != 1:
+        raise RuntimeError("Compiled APK manifest has no unique application; release packaging stopped.")
+    markers = [item for item in applications[0].findall("meta-data")
+               if item.get(ANDROID_XML + "name") == ANALYTICS_MARKER]
+    if len(markers) != 1 or markers[0].get(ANDROID_XML + "value") != "true" \
+            or markers[0].get(ANDROID_XML + "resource") is not None:
+        raise RuntimeError("APK AWS usage analytics is OFF or unverified; release packaging stopped. "
+                           + ANALYTICS_RELEASE_ACTION)
+
+
+def verify_apk_analytics(source_apk: Path, apkanalyzer: Path | None = None) -> None:
+    # OWNER-CONTROLLED: no skip/override, APK patching, or owner-setting writes.
+    tool = find_apkanalyzer(apkanalyzer)
+    command = [str(tool), "manifest", "print", str(source_apk)]
+    # Windows batch launchers may interpret shell metacharacters even with shell=False.
+    if os.name == "nt" and tool.suffix.lower() in (".bat", ".cmd"):
+        if any(re.search(r'[&|<>^%!"\r\n]', argument) for argument in command):
+            raise RuntimeError("Cannot safely invoke apkanalyzer with these paths; release packaging stopped.")
+    try:
+        result = subprocess.run(command, capture_output=True, encoding="utf-8", errors="replace",
+                                check=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise RuntimeError("APK analytics verification failed. Check apkanalyzer and JAVA_HOME; "
+                           "no release files written. " + ANALYTICS_RELEASE_ACTION) from error
+    require_analytics_enabled_manifest(result.stdout)
+
+
 def package_apk_release(args: argparse.Namespace) -> dict[str, Any]:
     apk_dir = args.apk_dir.resolve()
     metadata = read_output_metadata(apk_dir)
@@ -118,6 +188,9 @@ def package_apk_release(args: argparse.Namespace) -> dict[str, Any]:
     source_apk = Path(args.apk or metadata["apkPath"]).resolve()
     if not source_apk.exists():
         raise FileNotFoundError(f"APK does not exist: {source_apk}")
+
+    # Must pass before creating directories, replacing any APK, or writing a manifest.
+    verify_apk_analytics(source_apk, getattr(args, "apkanalyzer", None))
 
     release_slug = safe_path_segment(args.release_slug or version_name)
     output_root = args.output.resolve()
@@ -195,6 +268,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Create CDN release files for the signed APK.")
     parser.add_argument("--apk-dir", type=Path, default=DEFAULT_APK_DIR)
     parser.add_argument("--apk", type=Path)
+    parser.add_argument("--apkanalyzer", type=Path, help="Installed Android SDK apkanalyzer path (verification cannot be skipped)")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--app-prefix", default=DEFAULT_APP_PREFIX)
