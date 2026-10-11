@@ -24,6 +24,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import com.fgogotran.analytics.AppAnalytics
+import com.fgogotran.analytics.AnalyticsUsageOrigin
 import com.fgogotran.battle.BattleModeState
 import com.fgogotran.battle.BattleSubtitleController
 import com.fgogotran.R
@@ -473,6 +474,13 @@ class FgoAccessibilityService : AccessibilityService() {
 
         val recognizesChoices: Boolean
             get() = ChoiceRecognitionPolicy.canRecognize(userInitiated, this == AUTO_BACKGROUND)
+
+        val analyticsMode: String
+            get() = when (this) {
+                MANUAL_TAP -> "manual"
+                SEMI_AUTO_CHOICE_TAP, SEMI_AUTO_BACKGROUND -> "semi_auto"
+                AUTO_BACKGROUND -> "auto"
+            }
     }
 
     override fun onServiceConnected() {
@@ -520,7 +528,6 @@ class FgoAccessibilityService : AccessibilityService() {
                 FgoLogger.info(tag, "Foreground test override changed: enabled=$enabled")
             }
         }
-        reportServiceUsage()
         warmUpManualPipeline()
         refreshAccessibilityConnectionState("service_connected")
         FgoLogger.info(tag, "Gesture injection available: ${canPerformGestures()}")
@@ -533,13 +540,6 @@ class FgoAccessibilityService : AccessibilityService() {
             title = "无障碍服务已连接",
             message = "截图能力=${canTakeScreenshots()}，屏幕=${screenWidth}x${screenHeight}"
         )
-    }
-
-    private fun reportServiceUsage() {
-        serviceScope.launch(Dispatchers.IO) {
-            appAnalytics.reportAppUsed()
-            appAnalytics.reportCurrentBackendType()
-        }
     }
 
     private fun watchPlayerName() {
@@ -874,7 +874,6 @@ class FgoAccessibilityService : AccessibilityService() {
         if (persist) {
             serviceScope.launch(Dispatchers.IO) {
                 settingsRepository.setLastTranslationMode(mode.name)
-                appAnalytics.reportTranslationMode(mode)
             }
         }
     }
@@ -1008,9 +1007,6 @@ class FgoAccessibilityService : AccessibilityService() {
         cancelCurrentTranslation()
         battleSubtitles.pause()
         interruptedBattleScan?.cancel()
-        serviceScope.launch(Dispatchers.IO) {
-            appAnalytics.reportCropModeUsed()
-        }
         val cropVersion = stopVersion
         cropTranslationJob = serviceScope.launch {
             var shouldRestoreMode = false
@@ -1490,8 +1486,6 @@ class FgoAccessibilityService : AccessibilityService() {
             } else {
                 strictDialogueComplete
             }
-            reportGameServerPipelineUsed()
-
             if (!isJapaneseServer()) {
                 processVoiceOnlyScreen(
                     source = source,
@@ -1581,6 +1575,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun processCropTranslation(requestedBounds: Rect) {
         if (isProcessing) return
+        val usageOrigin = AnalyticsUsageOrigin(SettingsRepository.normalizeGameServer(gameServer))
         isProcessing = true
         val startedAt = SystemClock.elapsedRealtime()
         var screenshot: Bitmap? = null
@@ -1597,8 +1592,6 @@ class FgoAccessibilityService : AccessibilityService() {
                 showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_screenshot_failed))
                 return
             }
-
-            reportGameServerPipelineUsed()
 
             val cropBounds = clippedCropBounds(requestedBounds, screenshot.width, screenshot.height)
             if (cropBounds == null) {
@@ -1690,7 +1683,9 @@ class FgoAccessibilityService : AccessibilityService() {
                     targetLocale = translationResult.targetLocale
                 )
             }
-            cropResultOverlay.show(cropBounds, rendered)
+            if (cropResultOverlay.show(cropBounds, rendered)) {
+                appAnalytics.reportTranslationDisplayed(usageOrigin, listOf(translationResult))
+            }
             FgoLogger.info(
                 tag,
                 "Crop pipeline ready: ocr=${ocrDuration}ms, translate=${translationDuration}ms, " +
@@ -1716,13 +1711,6 @@ class FgoAccessibilityService : AccessibilityService() {
             cropped?.recycle()
             screenshot?.recycle()
             isProcessing = false
-        }
-    }
-
-    private fun reportGameServerPipelineUsed() {
-        val normalizedServer = SettingsRepository.normalizeGameServer(gameServer)
-        serviceScope.launch(Dispatchers.IO) {
-            appAnalytics.reportGameServerUsed(normalizedServer)
         }
     }
 
@@ -2022,6 +2010,7 @@ class FgoAccessibilityService : AccessibilityService() {
         server: String
     ) {
         val requestSerial = ++voiceOnlyRequestSerial
+        val usageOrigin = AnalyticsUsageOrigin(server, mode.analyticsMode)
         val masterVoice = aiVoiceMasterVoice
         val speakerName = voiceSpeakerForDialogue(sceneSource.input.name)
         val dialogue = (sceneSource.voiceDialogue ?: sceneSource.input.dialogue)
@@ -2054,7 +2043,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     sourceDialogue = sceneSource.input.dialogue,
                     translatedDialogue = dialogue,
                     voiceHint = voiceHint,
-                    preparedTarget = voiceTarget
+                    preparedTarget = voiceTarget,
+                    usageOrigin = usageOrigin
                 )
             }
             if (choiceText != null) {
@@ -2063,7 +2053,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     speakerName = masterVoiceProfileId(masterVoice),
                     sourceDialogue = choiceText,
                     translatedDialogue = choiceText,
-                    voiceHint = null
+                    voiceHint = null,
+                    usageOrigin = usageOrigin
                 )
             }
         }
@@ -2852,6 +2843,8 @@ class FgoAccessibilityService : AccessibilityService() {
         recognitionDuration: Long,
         frame: StoryFramePixels
     ): Boolean {
+        // Normal translated-story processing is JP-only; other servers use requestVoiceOnlyScene.
+        val usageOrigin = AnalyticsUsageOrigin(SettingsRepository.GAME_SERVER_JP, mode.analyticsMode)
         if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
             TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
         ) return false
@@ -2994,6 +2987,7 @@ class FgoAccessibilityService : AccessibilityService() {
             runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
             return false
         }
+        reportRenderedSceneUsage(usageOrigin, sceneSource, sceneTranslation, instructions)
         rememberRenderedSourceText(mode, sourceFingerprint, sceneSource.stabilityKey)
         clearFailedRenderAttempt(sourceFingerprint)
         if (mode == ProcessingMode.SEMI_AUTO_BACKGROUND) {
@@ -3009,7 +3003,7 @@ class FgoAccessibilityService : AccessibilityService() {
             choices = choiceFrame,
             autoRenderCommitted = mode == ProcessingMode.AUTO_BACKGROUND
         )
-        maybeSpeakRenderedDialogue(sceneSource, sceneTranslation, instructions, voiceTarget)
+        maybeSpeakRenderedDialogue(sceneSource, sceneTranslation, instructions, voiceTarget, usageOrigin)
         val overlayDuration = SystemClock.elapsedRealtime() - overlayStartedAt
         FgoLogger.info(
             tag,
@@ -3021,11 +3015,34 @@ class FgoAccessibilityService : AccessibilityService() {
         return true
     }
 
+    private fun reportRenderedSceneUsage(
+        origin: AnalyticsUsageOrigin,
+        source: SceneSource,
+        translation: SceneTranslateResult,
+        instructions: List<RenderInstruction>
+    ) {
+        val displayedRegions = instructions.map { it.region }.toSet()
+        val displayed = mutableListOf<TranslateResult>()
+        if (source.regions.any { it.region.region == TextRegion.DIALOGUE_BOX && it.region in displayedRegions }) {
+            translation.dialogue?.let(displayed::add)
+        }
+        source.regions.filter { it.region.region == TextRegion.CHOICE_BUTTON }.zip(translation.choices)
+            .filter { (region, _) -> region.region in displayedRegions }
+            .forEach { (_, result) -> displayed.add(result) }
+        // Source-name fallback alone is not a successful translation workflow.
+        if (displayed.none { it.countsAsUsage && !it.isFailure && it.backend != "none" && it.translatedText.isNotBlank() }) return
+        if (instructions.any { it.region.region == TextRegion.NAME_LABEL }) {
+            translation.name?.takeIf { it.translatedText.isNotBlank() }?.let(displayed::add)
+        }
+        appAnalytics.reportTranslationDisplayed(origin, displayed)
+    }
+
     private fun maybeSpeakRenderedDialogue(
         sceneSource: SceneSource,
         sceneTranslation: SceneTranslateResult,
         instructions: List<RenderInstruction>,
-        voiceTarget: PreparedVoiceTarget?
+        voiceTarget: PreparedVoiceTarget?,
+        usageOrigin: AnalyticsUsageOrigin
     ) {
         val renderedDialogue = sceneTranslation.dialogue?.trustedForContext == true &&
             instructions.any {
@@ -3055,7 +3072,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     sourceDialogue = sceneSource.input.dialogue,
                     translatedDialogue = translatedDialogue,
                     voiceHint = sceneTranslation.voiceHint,
-                    preparedTarget = voiceTarget
+                    preparedTarget = voiceTarget,
+                    usageOrigin = usageOrigin
                 )
             }
             if (choiceText != null) {
@@ -3063,7 +3081,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     speakerName = masterVoiceProfileId(aiVoiceMasterVoice),
                     sourceDialogue = sourceChoiceVoiceText(sceneSource),
                     translatedDialogue = choiceText,
-                    voiceHint = null
+                    voiceHint = null,
+                    usageOrigin = usageOrigin
                 )
             }
         }

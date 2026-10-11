@@ -175,3 +175,11 @@ app/src/test/java/com/fgogotran/voice/*
 !app/src/test/java/com/fgogotran/voice/VoiceEmotionStyleTest.kt
 !app/src/test/java/com/fgogotran/voice/VoiceHintWorkflowTest.kt
 !app/src/test/java/com/fgogotran/translation/VoiceHintContractTest.kt
+# Retain focused v2 analytics state/outbox, delivery and lifecycle-wiring regressions.
+!app/src/test/java/com/fgogotran/analytics/
+app/src/test/java/com/fgogotran/analytics/*
+!app/src/test/java/com/fgogotran/analytics/AnalyticsOutboxTest.kt
+!app/src/test/java/com/fgogotran/analytics/AnalyticsUploaderTest.kt
+!app/src/test/java/com/fgogotran/analytics/AnalyticsPhase2WiringTest.kt
+!app/src/test/java/com/fgogotran/analytics/AnalyticsSuccessTest.kt
+!app/src/test/java/com/fgogotran/analytics/AnalyticsPhase3WiringTest.kt

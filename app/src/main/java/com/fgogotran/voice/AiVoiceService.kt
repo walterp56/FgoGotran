@@ -1,19 +1,17 @@
 package com.fgogotran.voice
 
 import com.fgogotran.analytics.AppAnalytics
+import com.fgogotran.analytics.AnalyticsUsageOrigin
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.translation.TextNormalizer
 import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.util.FgoLogger
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -47,7 +45,6 @@ class AiVoiceService @Inject constructor(
     private val tag = "AiVoice"
     private val speakMutex = Mutex()
     private val tempProfileMutex = Mutex()
-    private val analyticsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val voiceRequestLock = Any()
     private val tempProfileFailureRetryAt = mutableMapOf<String, Long>()
     private var latestVoiceRequestId = 0L
@@ -81,7 +78,8 @@ class AiVoiceService @Inject constructor(
         sourceDialogue: String?,
         translatedDialogue: String?,
         voiceHint: VoiceLineHint? = null,
-        preparedTarget: PreparedVoiceTarget? = null
+        preparedTarget: PreparedVoiceTarget? = null,
+        usageOrigin: AnalyticsUsageOrigin? = null
     ) {
         if (!settingsRepository.aiVoiceEnabled.first()) return
         val targetLanguage = settingsRepository.targetLanguage.first()
@@ -187,7 +185,7 @@ class AiVoiceService @Inject constructor(
                     FgoLogger.debug(tag, "AI voice stale skipped after synthesis: speaker=$speaker")
                     return@runCatching
                 }
-                val playbackStarted = withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Main) {
                     if (!isLatestVoiceRequest(requestId)) {
                         FgoLogger.debug(tag, "AI voice stale skipped before playback: speaker=$speaker")
                         return@withContext false
@@ -197,11 +195,8 @@ class AiVoiceService @Inject constructor(
                     } else {
                         playbackEngine.playTogether(audioFiles, voiceVolumePercent)
                     }
-                    started
-                }
-                if (playbackStarted) {
-                    analyticsScope.launch {
-                        appAnalytics.reportVoiceServerUsed(normalizedServer)
+                    if (started && usageOrigin != null) {
+                        appAnalytics.reportVoicePlaybackStarted(usageOrigin)
                     }
                 }
             }.onFailure { e ->

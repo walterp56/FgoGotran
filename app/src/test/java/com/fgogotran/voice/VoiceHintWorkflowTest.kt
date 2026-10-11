@@ -60,7 +60,7 @@ class VoiceHintWorkflowTest {
         val render = function(service, "translateAndRenderScene")
         assertTrue(render.indexOf("prepareKnownVoiceTarget(") < render.indexOf("translateSceneSource("))
         assertTrue(render.contains("translateSceneSource(sceneSource, voiceTarget)"))
-        assertTrue(render.contains("maybeSpeakRenderedDialogue(sceneSource, sceneTranslation, instructions, voiceTarget)"))
+        assertTrue(render.contains("maybeSpeakRenderedDialogue(sceneSource, sceneTranslation, instructions, voiceTarget, usageOrigin)"))
         assertTrue(function(service, "translateSceneSource")
             .contains("translator.translateScene(input, voiceTarget?.hintContext)"))
         assertTrue(function(service, "shouldRequestVoiceHint").contains("!aiVoiceEnabled || !aiVoiceApiHintsEnabled"))

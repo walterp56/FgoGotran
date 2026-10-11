@@ -9,6 +9,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fgogotran.analytics.AnalyticsOutbox
+import com.fgogotran.analytics.AnalyticsOutboxStore
+import com.fgogotran.analytics.AnalyticsProtocol
 import com.fgogotran.network.ApiEndpointPolicy
 import com.fgogotran.terminology.LocalCharacterNameEntity
 import com.fgogotran.terminology.LocalGlossaryDao
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -59,7 +63,7 @@ data class PlayerProfileSettings(
 class SettingsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val localGlossaryDao: LocalGlossaryDao
-) {
+) : AnalyticsOutboxStore {
     companion object {
         val KEY_TRANSLATION_BACKEND = stringPreferencesKey("translation_backend")
         val KEY_API_KEY = stringPreferencesKey("api_key")
@@ -121,8 +125,7 @@ class SettingsRepository @Inject constructor(
         val KEY_FLOATING_BUTTON_SIZE_DP = intPreferencesKey("floating_button_size_dp")
         val KEY_LAST_TRANSLATION_MODE = stringPreferencesKey("last_translation_mode")
         val KEY_ANALYTICS_INSTALL_ID = stringPreferencesKey("analytics_install_id")
-        val KEY_ANALYTICS_FIRST_INSTALL_SENT = booleanPreferencesKey("analytics_first_install_sent")
-        val KEY_ANALYTICS_DAILY_ACTIVE_DATE = stringPreferencesKey("analytics_daily_active_date")
+        val KEY_ANALYTICS_V2_OUTBOX = stringPreferencesKey("analytics_v2_outbox")
         val KEY_QWEN_SITE = stringPreferencesKey("qwen_site")
 
         const val DEFAULT_FLOATING_BUTTON_X = 8
@@ -552,23 +555,6 @@ class SettingsRepository @Inject constructor(
         fun apiTopPEnabledPreferenceKey(backend: String) =
             booleanPreferencesKey("api_top_p_enabled_${normalizeBackend(backend)}")
 
-        private fun analyticsModeDatePreferenceKey(mode: String) =
-            stringPreferencesKey("analytics_mode_${analyticsSafeSegment(mode)}_date")
-
-        private fun analyticsBackendDatePreferenceKey(backend: String) =
-            stringPreferencesKey("analytics_backend_${normalizeBackend(backend)}_date")
-
-        private fun analyticsServerEventDatePreferenceKey(eventType: String, server: String) =
-            stringPreferencesKey(
-                "analytics_${analyticsSafeSegment(eventType)}_${normalizeGameServer(server)}_date"
-            )
-
-        private fun analyticsSafeSegment(value: String): String {
-            return value.lowercase()
-                .replace(Regex("[^a-z0-9_]+"), "_")
-                .trim('_')
-                .ifBlank { "unknown" }
-        }
     }
 
     private val tag = "Settings"
@@ -963,77 +949,35 @@ class SettingsRepository @Inject constructor(
         FgoLogger.debug(tag, "Setting updated: last_translation_mode=$normalizedMode")
     }
 
-    suspend fun getOrCreateAnalyticsInstallId(): String {
-        val existing = context.dataStore.data.map { prefs ->
-            prefs[KEY_ANALYTICS_INSTALL_ID].orEmpty()
-        }.first()
-        if (existing.isNotBlank()) return existing
-
-        val generated = UUID.randomUUID().toString()
-        context.dataStore.edit { prefs ->
-            if (prefs[KEY_ANALYTICS_INSTALL_ID].isNullOrBlank()) {
-                prefs[KEY_ANALYTICS_INSTALL_ID] = generated
-            }
+    override suspend fun readAnalyticsOutbox(): AnalyticsOutbox {
+        val prefs = context.dataStore.data.first()
+        val raw = prefs[KEY_ANALYTICS_V2_OUTBOX] ?: return updateAnalyticsOutbox { it }
+        return AnalyticsProtocol.storageJson.decodeFromString<AnalyticsOutbox>(raw).also {
+            check(it.installId == prefs[KEY_ANALYTICS_INSTALL_ID])
         }
-        return context.dataStore.data.map { prefs ->
-            prefs[KEY_ANALYTICS_INSTALL_ID] ?: generated
-        }.first()
     }
 
-    suspend fun shouldSendAnalyticsFirstInstall(): Boolean {
-        return context.dataStore.data.map { prefs ->
-            prefs[KEY_ANALYTICS_FIRST_INSTALL_SENT] != true
-        }.first()
-    }
-
-    suspend fun markAnalyticsFirstInstallSent() {
-        context.dataStore.edit { it[KEY_ANALYTICS_FIRST_INSTALL_SENT] = true }
-    }
-
-    suspend fun shouldSendAnalyticsDailyActive(date: String): Boolean {
-        return context.dataStore.data.map { prefs ->
-            prefs[KEY_ANALYTICS_DAILY_ACTIVE_DATE] != date
-        }.first()
-    }
-
-    suspend fun markAnalyticsDailyActiveSent(date: String) {
-        context.dataStore.edit { it[KEY_ANALYTICS_DAILY_ACTIVE_DATE] = date }
-    }
-
-    suspend fun shouldSendAnalyticsMode(mode: String, date: String): Boolean {
-        val key = analyticsModeDatePreferenceKey(mode)
-        return context.dataStore.data.map { prefs ->
-            prefs[key] != date
-        }.first()
-    }
-
-    suspend fun markAnalyticsModeSent(mode: String, date: String) {
-        val key = analyticsModeDatePreferenceKey(mode)
-        context.dataStore.edit { it[key] = date }
-    }
-
-    suspend fun shouldSendAnalyticsBackend(backend: String, date: String): Boolean {
-        val key = analyticsBackendDatePreferenceKey(backend)
-        return context.dataStore.data.map { prefs ->
-            prefs[key] != date
-        }.first()
-    }
-
-    suspend fun markAnalyticsBackendSent(backend: String, date: String) {
-        val key = analyticsBackendDatePreferenceKey(backend)
-        context.dataStore.edit { it[key] = date }
-    }
-
-    suspend fun shouldSendAnalyticsServerEvent(eventType: String, server: String, date: String): Boolean {
-        val key = analyticsServerEventDatePreferenceKey(eventType, server)
-        return context.dataStore.data.map { prefs ->
-            prefs[key] != date
-        }.first()
-    }
-
-    suspend fun markAnalyticsServerEventSent(eventType: String, server: String, date: String) {
-        val key = analyticsServerEventDatePreferenceKey(eventType, server)
-        context.dataStore.edit { it[key] = date }
+    override suspend fun updateAnalyticsOutbox(change: (AnalyticsOutbox) -> AnalyticsOutbox): AnalyticsOutbox {
+        lateinit var updated: AnalyticsOutbox
+        context.dataStore.edit { prefs ->
+            val raw = prefs[KEY_ANALYTICS_V2_OUTBOX]
+            val current = if (raw == null) {
+                val installId = prefs[KEY_ANALYTICS_INSTALL_ID]?.takeIf { it.isNotBlank() }
+                    ?: UUID.randomUUID().toString()
+                AnalyticsOutbox(installId)
+            } else {
+                // Fail closed on damaged storage; never reset a revision while reusing an ID.
+                AnalyticsProtocol.storageJson.decodeFromString<AnalyticsOutbox>(raw)
+            }
+            check(prefs[KEY_ANALYTICS_INSTALL_ID].isNullOrBlank() || prefs[KEY_ANALYTICS_INSTALL_ID] == current.installId)
+            updated = change(current)
+            check(updated.installId == current.installId)
+            check((updated.state?.revision ?: -1) >= (current.state?.revision ?: -1))
+            check(updated.state == current.state || (updated.state?.revision ?: -1) > (current.state?.revision ?: -1))
+            prefs[KEY_ANALYTICS_INSTALL_ID] = updated.installId
+            prefs[KEY_ANALYTICS_V2_OUTBOX] = AnalyticsProtocol.storageJson.encodeToString(updated)
+        }
+        return updated
     }
 
     suspend fun getIgnoredAppUpdateVersionCode(): Long {

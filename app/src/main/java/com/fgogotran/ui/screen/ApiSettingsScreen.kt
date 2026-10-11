@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.ui.theme.FgoUiColors
 import com.fgogotran.ui.theme.FgoUiStyle
-import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.network.ApiEndpointPolicy
@@ -144,7 +143,6 @@ private fun localizedApiError(context: Context, message: String): String = when 
 fun ApiSettingsScreen(
     settingsRepository: SettingsRepository,
     translator: Translator,
-    appAnalytics: AppAnalytics,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -367,10 +365,6 @@ fun ApiSettingsScreen(
                 )
                 saveMessage = context.getString(R.string.api_saved)
                 saveMessageIsError = false
-                val savedBackend = selectedBackend
-                scope.launch {
-                    appAnalytics.reportBackendType(savedBackend)
-                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

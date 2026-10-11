@@ -3,6 +3,9 @@ package com.fgogotran.battle
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
+import com.fgogotran.analytics.AppAnalytics
+import com.fgogotran.analytics.AnalyticsUsageOrigin
+import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.overlay.FgoReferenceRect
 import com.fgogotran.translation.BattleHistoryReservation
@@ -31,12 +34,14 @@ internal fun TranslateResult.isDisplayableBattleResponse(): Boolean =
 class BattleSubtitleController @Inject constructor(
     private val ocr: OcrEngine,
     private val translator: Translator,
-    private val battleModeState: BattleModeState
+    private val battleModeState: BattleModeState,
+    private val appAnalytics: AppAnalytics
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val subtitles = BattleSubtitleTracker()
     private val subtitlePixelGate = BattleSubtitlePixelGate()
-    private val delivery = BattleSubtitleDeliveryQueue<TranslateResult>()
+    private class DeliveredTranslation(val result: TranslateResult, var usageReported: Boolean = false)
+    private val delivery = BattleSubtitleDeliveryQueue<DeliveredTranslation>()
     private val requests = mutableMapOf<Long, Job>()
     private val history = mutableMapOf<Long, BattleHistoryReservation>()
 
@@ -234,7 +239,7 @@ class BattleSubtitleController @Inject constructor(
                                     ": " +
                                     event.source
                         )
-                    } else if (delivery.complete(event.id, result)) {
+                    } else if (delivery.complete(event.id, DeliveredTranslation(result))) {
                         if (!result.trustedForContext) {
                             FgoLogger.warn(
                                 "BattleSubtitle",
@@ -295,7 +300,8 @@ class BattleSubtitleController @Inject constructor(
         }
 
         val item = delivery.candidate(now)
-        val result = item?.result
+        val delivered = item?.result
+        val result = delivered?.result
 
         if (item == null || result == null) {
             overlay?.hide()
@@ -317,6 +323,14 @@ class BattleSubtitleController @Inject constructor(
                     SystemClock.elapsedRealtime()
                 )
             ) {
+                // The service permits this workflow only on JP. Resume draws must not
+                // re-credit an older backend after a newer workflow has succeeded.
+                if (!delivered.usageReported) {
+                    delivered.usageReported = true
+                    appAnalytics.reportTranslationDisplayed(
+                        AnalyticsUsageOrigin(SettingsRepository.GAME_SERVER_JP), listOf(result)
+                    )
+                }
                 FgoLogger.debug(
                     "BattleSubtitle",
                     "Rendered " +

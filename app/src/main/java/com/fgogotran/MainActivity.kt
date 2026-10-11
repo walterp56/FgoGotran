@@ -33,7 +33,6 @@ import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.voice.AiVoiceService
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -75,10 +74,6 @@ class MainActivity : ComponentActivity() {
         }
         FgoLogger.info("MainActivity", "MainActivity created")
         enableEdgeToEdge()
-        lifecycleScope.launch(Dispatchers.IO) {
-            appAnalytics.reportAppUsed()
-            appAnalytics.reportCurrentBackendType()
-        }
         setContent {
             val themeMode by settingsRepository.appThemeMode
                 .collectAsStateWithLifecycle<AppThemeMode?>(initialValue = null)
@@ -89,7 +84,6 @@ class MainActivity : ComponentActivity() {
                     settingsRepository,
                     appVersionManager,
                     translator,
-                    appAnalytics,
                     diagnosticEventStore,
                     aiVoiceService,
                     loadedThemeMode
@@ -101,11 +95,13 @@ class MainActivity : ComponentActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         refreshSystemTheme()
+        appAnalytics.reportAppProfile(AppLanguageManager.effectiveLanguageTag(this))
     }
 
     override fun onResume() {
         super.onResume()
         refreshSystemTheme()
+        appAnalytics.reportAppForeground(AppLanguageManager.effectiveLanguageTag(this))
     }
 
     private fun refreshSystemTheme() {
@@ -129,7 +125,6 @@ fun MainScreen(
     settingsRepository: SettingsRepository,
     appVersionManager: AppVersionManager,
     translator: Translator,
-    appAnalytics: AppAnalytics,
     diagnosticEventStore: DiagnosticEventStore,
     aiVoiceService: AiVoiceService,
     themeMode: AppThemeMode
@@ -210,7 +205,6 @@ fun MainScreen(
         Screen.API_SETTINGS -> ApiSettingsScreen(
             settingsRepository = settingsRepository,
             translator = translator,
-            appAnalytics = appAnalytics,
             onBack = { currentScreen = Screen.SETTINGS }
         )
 

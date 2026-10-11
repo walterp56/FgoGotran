@@ -49,10 +49,10 @@ class CropResultOverlay @Inject constructor(
         FgoLogger.info(tag, "Crop result overlay initialized")
     }
 
-    fun show(bounds: Rect, bitmap: Bitmap) {
+    fun show(bounds: Rect, bitmap: Bitmap): Boolean {
         val wm = windowManager ?: run {
             bitmap.recycle()
-            return
+            return false
         }
         val root = rootView
         val image = imageView
@@ -60,7 +60,7 @@ class CropResultOverlay @Inject constructor(
             replaceBitmap(image, bitmap)
             image.layoutParams = imageLayoutParams(bounds)
             image.requestLayout()
-            return
+            return true
         }
 
         val newRoot = FrameLayout(overlayContext).apply {
@@ -89,12 +89,13 @@ class CropResultOverlay @Inject constructor(
             newImage.setImageBitmap(null)
             latestBitmap = null
             FgoLogger.warn(tag, "Failed to show crop result overlay", e)
-            return
+            return false
         }
         rootView = newRoot
         newRoot.setFloatingHandleGestureExclusion(floatingHandleBounds)
         imageView = newImage
         FgoLogger.info(tag, "Crop result shown at ${bounds.flattenToString()}")
+        return true
     }
 
     fun hide() {

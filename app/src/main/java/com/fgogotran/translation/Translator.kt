@@ -93,7 +93,10 @@ data class TranslateResult(
     val cached: Boolean,
     val targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
     val trustedForContext: Boolean = true,
-    val isFailure: Boolean = false
+    val isFailure: Boolean = false,
+    val apiUsage: TranslationApiUsage? = null,
+    // Known status/error output is still rendered as before, but is not successful use.
+    val countsAsUsage: Boolean = true
 )
 
 data class ApiSettingsTestResult(
@@ -2810,7 +2813,8 @@ class Translator @Inject constructor(
             backend = backend,
             cached = cached,
             targetLocale = outputLocale,
-            trustedForContext = trustedForContext
+            trustedForContext = trustedForContext,
+            apiUsage = if (!cached && backend == config.backend) TranslationApiUsage.completed(backend) else null
         )
     }
 
@@ -2828,7 +2832,7 @@ class Translator @Inject constructor(
             cached = false,
             config = config,
             trustedForContext = false
-        )
+        ).copy(countsAsUsage = text.isNotBlank())
     }
 
     private suspend fun getCachedTerms(): List<TermEntity> {
@@ -3121,7 +3125,7 @@ class Translator @Inject constructor(
         } else {
             "character-db+${stateTranslation.backend}"
         }
-        return TranslateResult(composed, backend, stateTranslation.cached)
+        return TranslateResult(composed, backend, stateTranslation.cached, apiUsage = stateTranslation.apiUsage)
     }
 
     /**
@@ -3213,7 +3217,8 @@ class Translator @Inject constructor(
         return TranslateResult(
             translatedText = composed,
             backend = "character-db",
-            cached = resolvedParts.all { it.cached }
+            cached = resolvedParts.all { it.cached },
+            apiUsage = TranslationApiUsage.latest(resolvedParts)
         )
     }
 
@@ -3770,7 +3775,9 @@ class Translator @Inject constructor(
                 backend = result.backend,
                 cached = result.cached,
                 targetLocale = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
-                trustedForContext = result.trustedForContext
+                trustedForContext = result.trustedForContext,
+                apiUsage = result.apiUsage,
+                countsAsUsage = result.countsAsUsage
             )
         }
     }
