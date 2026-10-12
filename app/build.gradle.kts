@@ -82,7 +82,12 @@ android {
 
 dependencies {
     // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    // Must stay on a Compose UI 1.7.x BOM (2024.09.00 or newer): from Compose UI 1.7.0 the
+    // lifecycle-compose LocalLifecycleOwner is provided directly, so lifecycle 2.8.x stops
+    // needing its reflection bridge into Compose UI 1.6.x, which R8 removed in release builds
+    // and which crashed startup with "CompositionLocal LocalLifecycleOwner not present".
+    // Compose 1.7.x requires compileSdk 34, so this needs no SDK bump.
+    val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
     implementation(composeBom)
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
@@ -92,7 +97,8 @@ dependencies {
     // Activity + Navigation
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.navigation:navigation-compose:2.7.7")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
+    // 2.8.0-2.8.2 are the versions where the Compose UI 1.6 reflection bridge was broken by R8.
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 
     // Hilt DI
     implementation("com.google.dagger:hilt-android:2.51.1")
