@@ -84,8 +84,7 @@ object FgoViewportLayout {
     }
 
     fun viewportScaleForScreen(screenWidth: Int, screenHeight: Int): Float {
-        val viewport = calculateViewport(screenWidth, screenHeight)
-        return (viewport.height() / REFERENCE_HEIGHT).coerceIn(0.6f, 1.4f)
+        return FgoViewportGeometry.referenceScale(screenWidth, screenHeight)
     }
 
     private fun choiceSlot(top: Float, bottom: Float): RectF {

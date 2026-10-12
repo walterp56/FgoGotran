@@ -9,16 +9,20 @@ data class FgoReferenceRect(val left: Int, val top: Int, val right: Int, val bot
 }
 
 object FgoViewportGeometry {
+    /** Physical pixels per reference pixel; game rendering must not depend on Android density. */
+    fun referenceScale(width: Int, height: Int): Float =
+        minOf(width.coerceAtLeast(0) / 1920f, height.coerceAtLeast(0) / 1080f)
+
     fun viewport(width: Int, height: Int): FgoReferenceRect {
         if (width <= 0 || height <= 0) return FgoReferenceRect(0, 0, width.coerceAtLeast(0), height.coerceAtLeast(0))
-        val scale = minOf(width / 1920f, height / 1080f)
+        val scale = referenceScale(width, height)
         val left = (width - 1920f * scale) / 2f
         val top = (height - 1080f * scale) / 2f
         return FgoReferenceRect(left.roundToInt(), top.roundToInt(), (width - left).roundToInt(), (height - top).roundToInt())
     }
 
     fun map(rect: FgoReferenceRect, width: Int, height: Int): FgoReferenceRect {
-        val scale = minOf(width.coerceAtLeast(0) / 1920f, height.coerceAtLeast(0) / 1080f)
+        val scale = referenceScale(width, height)
         val left = (width - 1920f * scale) / 2f
         val top = (height - 1080f * scale) / 2f
         return FgoReferenceRect(

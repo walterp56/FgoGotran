@@ -106,6 +106,37 @@ class DialogueRenderGeometryTest {
         assertEquals(clearBox("本文───", 1007f).scaled(), clear)
     }
 
+    @Test
+    fun `four K letterboxing scales dialogue text area and cover together for both targets`() {
+        val scale = FgoViewportGeometry.referenceScale(3840, 2400)
+        val viewport = FgoViewportGeometry.viewport(3840, 2400)
+        // Existing fixtures describe the 2340x1080 phone, whose viewport starts at x=210.
+        fun DialogueRect.toTablet() = DialogueRect(
+            viewport.left + (left - 210f) * scale,
+            viewport.top + top * scale,
+            viewport.left + (right - 210f) * scale,
+            viewport.top + bottom * scale
+        )
+        val tabletPanel = panel.toTablet()
+        val tabletTextArea = DialogueRenderGeometry.textArea(tabletPanel, scale)
+        assertEquals(textArea.toTablet(), tabletTextArea)
+        assertEquals(106f, 53f * scale)
+
+        listOf(false, true).forEach { english ->
+            val clear = DialogueRenderGeometry.clearBox(
+                panel = tabletPanel,
+                textArea = tabletTextArea,
+                originalBounds = source.toTablet(),
+                textWidth = 1007f * scale,
+                textBlockHeight = 53f * scale,
+                hasCountdownTail = false,
+                scale = scale,
+                englishTarget = english
+            )
+            assertEquals(clearBox("本文───", 1007f, english = english).toTablet(), clear)
+        }
+    }
+
     private fun clearBox(
         sourceTail: String,
         translatedWidth: Float,

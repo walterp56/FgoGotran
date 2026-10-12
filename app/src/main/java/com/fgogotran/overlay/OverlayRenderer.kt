@@ -34,7 +34,7 @@ data class RenderInstruction(
  *
  * ## Shadow technique
  * Each text character is drawn twice:
- * - First pass: dark semi-transparent shadow offset by 1px (provides contrast)
+ * - First pass: dark shadow offset by 2 reference pixels, scaled with the FGO viewport
  * - Second pass: the actual text color on top
  * This works with light OR dark backgrounds without needing to detect background brightness.
  *
@@ -235,7 +235,7 @@ class OverlayRenderer @Inject constructor(
         canvas.drawRoundRect(
             clearBox.left, clearBox.top,
             clearBox.right, clearBox.bottom,
-            12f, 12f, dialogueClearPaint
+            12f * scale, 12f * scale, dialogueClearPaint
         )
 
         val textArea = layout.textArea
@@ -332,7 +332,7 @@ class OverlayRenderer @Inject constructor(
         canvas.drawRoundRect(
             layout.clearBox.left, layout.clearBox.top,
             layout.clearBox.right, layout.clearBox.bottom,
-            12f, 12f, dialogueClearPaint
+            12f * scale, 12f * scale, dialogueClearPaint
         )
 
         canvas.save()
@@ -634,7 +634,7 @@ class OverlayRenderer @Inject constructor(
         canvas.drawRoundRect(
             plateLeft, box.top + 8f * scale,
             plateRight, box.bottom - 8f * scale,
-            8f, 8f, nameClearPaint
+            8f * scale, 8f * scale, nameClearPaint
         )
 
         // FGO draws the speaker name inset from the arrow-shaped leading edge.
@@ -774,7 +774,7 @@ class OverlayRenderer @Inject constructor(
         canvas.drawRoundRect(
             box.left + clearInsetX, box.top + 8f * scale,
             box.right - clearInsetX, box.bottom - 8f * scale,
-            10f, 10f, choiceClearPaint
+            10f * scale, 10f * scale, choiceClearPaint
         )
 
         val textArea = RectF(
@@ -863,7 +863,7 @@ class OverlayRenderer @Inject constructor(
         canvas.drawRoundRect(
             box.left + clearInsetX, box.top + 8f * scale,
             box.right - clearInsetX, box.bottom - 8f * scale,
-            10f, 10f, choiceClearPaint
+            10f * scale, 10f * scale, choiceClearPaint
         )
 
         // ── 2. Render CN choice text (center-aligned) ──
@@ -882,7 +882,8 @@ class OverlayRenderer @Inject constructor(
             paint = paint,
             initialTextSize = choiceTextSize(instruction) * scale,
             minimumTextSize = CHOICE_TEXT_MIN_SIZE * scale,
-            maxWidth = textArea.width()
+            maxWidth = textArea.width(),
+            scale = scale
         )
 
         // Center the text horizontally within the button bounding box
@@ -1291,7 +1292,7 @@ class OverlayRenderer @Inject constructor(
             }
 
             if (translationTextSize <= minimumTranslationTextSize) break
-            translationTextSize = (translationTextSize - 2f).coerceAtLeast(minimumTranslationTextSize)
+            translationTextSize = (translationTextSize - 2f * scale).coerceAtLeast(minimumTranslationTextSize)
         }
 
         val fallbackOriginalTextSize = originalTextSizeFor(minimumTranslationTextSize, scale)
@@ -1609,11 +1610,12 @@ class OverlayRenderer @Inject constructor(
         paint: Paint,
         initialTextSize: Float,
         minimumTextSize: Float,
-        maxWidth: Float
+        maxWidth: Float,
+        scale: Float
     ): String {
         paint.textSize = initialTextSize
         while (paint.measureText(text) > maxWidth && paint.textSize > minimumTextSize) {
-            paint.textSize = (paint.textSize - 2f).coerceAtLeast(minimumTextSize)
+            paint.textSize = (paint.textSize - 2f * scale).coerceAtLeast(minimumTextSize)
         }
         return ellipsize(text, paint, maxWidth)
     }
@@ -1751,14 +1753,10 @@ class OverlayRenderer @Inject constructor(
         lineHeight: Float,
         textColor: Int
     ) {
+        val scale = screenScale(canvas)
         for ((index, line) in lines.withIndex()) {
             val y = firstBaseline + index * lineHeight
-            paint.setShadowLayer(2f, shadowOffset, shadowOffset, Color.BLACK)
-            paint.color = textColor
-            canvas.drawText(line, x, y, paint)
-            paint.clearShadowLayer()
-            paint.color = textColor
-            canvas.drawText(line, x, y, paint)
+            drawShadowedText(canvas, paint, line, x, y, textColor, scale)
         }
     }
 
