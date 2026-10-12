@@ -1,7 +1,9 @@
 package com.fgogotran.speech
 
 import android.annotation.SuppressLint
+import android.content.ComponentCallbacks
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -44,7 +46,13 @@ class VoiceSubtitleOverlay @Inject constructor(
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val active = AtomicBoolean(false)
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var callbacksRegistered = false
+
+    private val componentCallbacks = object : ComponentCallbacks {
+        override fun onConfigurationChanged(newConfig: Configuration) = onDisplayChanged()
+        override fun onLowMemory() = Unit
+    }
 
     private var textView: TextView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
@@ -99,15 +107,18 @@ class VoiceSubtitleOverlay @Inject constructor(
         show(text, isFinal = true, isError = isError, timeoutMs = STATUS_TIMEOUT_MS, isStatus = true)
     }
 
-    /** Re-selects and safely clamps the orientation-specific position after rotation/resizing. */
+    /** Refreshes native dp/sp sizing and placement only; does not restart the voice session. */
     fun onDisplayChanged() {
         mainHandler.post {
             val view = textView ?: return@post
             layoutScreen = null
+            applyViewSizing(view)
             updateMaximumWidth(view)
             updateDisplayText(view)
             view.requestLayout()
-            view.post { placeView(view, useConfiguredPosition = true) }
+            view.post {
+                if (textView === view) placeView(view, useConfiguredPosition = true)
+            }
         }
     }
 
@@ -125,6 +136,10 @@ class VoiceSubtitleOverlay @Inject constructor(
     fun destroy() {
         active.set(false)
         mainHandler.post {
+            if (callbacksRegistered) {
+                context.unregisterComponentCallbacks(componentCallbacks)
+                callbacksRegistered = false
+            }
             cancelScheduledHide()
             pendingTimeoutMs = null
             touchActive = false
@@ -181,13 +196,8 @@ class VoiceSubtitleOverlay @Inject constructor(
         }
         val view = TextView(context).apply {
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp.toFloat())
-            setPadding(dp(10), dp(6), dp(10), dp(6))
+            applyViewSizing(this)
             maxLines = MAX_SUBTITLE_LINES
-            background = GradientDrawable().apply {
-                setColor(BACKGROUND_COLOR)
-                cornerRadius = dp(10).toFloat()
-            }
             visibility = View.GONE
             setOnClickListener { }
             setOnTouchListener { touchedView, event -> handleTouch(touchedView, event) }
@@ -209,11 +219,25 @@ class VoiceSubtitleOverlay @Inject constructor(
             textView = view
             layoutParams = params
             layoutScreen = null
+            if (!callbacksRegistered) {
+                context.registerComponentCallbacks(componentCallbacks)
+                callbacksRegistered = true
+            }
             view
         }.onFailure {
             layoutParams = null
             FgoLogger.warn(tag, "Voice subtitle overlay creation failed", it)
         }.getOrNull()
+    }
+
+    private fun applyViewSizing(view: TextView) {
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp.toFloat())
+        view.setPadding(dp(10), dp(6), dp(10), dp(6))
+        view.background = GradientDrawable().apply {
+            setColor(BACKGROUND_COLOR)
+            cornerRadius = dp(10).toFloat()
+        }
+        touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     }
 
     private fun handleTouch(view: View, event: MotionEvent): Boolean {

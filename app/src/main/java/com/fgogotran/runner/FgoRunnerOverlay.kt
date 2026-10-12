@@ -109,12 +109,18 @@ class FgoRunnerOverlay @Inject constructor(
     private var battleModeJob: Job? = null
     private var showRequestVersion = 0
     private var callbacksRegistered = false
-    private var appliedLanguageTag: String? = null
+    private var appliedUiConfiguration: OverlayUiConfiguration? = null
+
+    private data class OverlayUiConfiguration(
+        val languageTag: String,
+        val densityDpi: Int,
+        val fontScale: Float
+    )
 
     private val componentCallbacks = object : ComponentCallbacks {
         override fun onConfigurationChanged(newConfig: Configuration) {
             handleScreenBoundsChanged()
-            refreshHostsForLanguageChange()
+            refreshHostsForConfigurationChange()
         }
 
         override fun onLowMemory() = Unit
@@ -246,7 +252,7 @@ class FgoRunnerOverlay @Inject constructor(
                 }
 
                 refreshButtonMode()
-                appliedLanguageTag = AppLanguageManager.effectiveLanguageTag(context)
+                appliedUiConfiguration = currentUiConfiguration()
                 composeHost = FakeComposeHost(context) {
                     FloatingButtonContent()
                 }
@@ -331,6 +337,7 @@ class FgoRunnerOverlay @Inject constructor(
             callbacksRegistered = false
         }
         windowManager = null
+        appliedUiConfiguration = null
         onCloseRequested = null
         onLiveVoiceTranslationToggleRequested = null
         FgoLogger.info(tag, "Overlay destroyed")
@@ -345,33 +352,37 @@ class FgoRunnerOverlay @Inject constructor(
      * Compose resolves string resources with the locale captured when the ComposeView was
      * created, so the button and arc menu keep the previous language until their host view is
      * recreated. [FgoRunnerService] calls this from the in-app language picker;
-     * [refreshHostsForLanguageChange] covers configuration-driven locale changes.
+     * [refreshHostsForConfigurationChange] also covers system font and density changes.
      */
     fun refreshUiLanguage() {
-        val languageTag = AppLanguageManager.effectiveLanguageTag(context)
-        val previous = appliedLanguageTag
-        appliedLanguageTag = languageTag
-        if (previous == languageTag) return
-        FgoLogger.info(tag, "UI language set to $languageTag")
-        if (!shown) return
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            rebuildHostsForLanguage()
+            refreshHostsForConfigurationChange()
         } else {
-            mainHandler.post { rebuildHostsForLanguage() }
+            mainHandler.post { refreshHostsForConfigurationChange() }
         }
     }
 
-    /** Locale change delivered as a configuration change; older releases go through [refreshUiLanguage]. */
-    private fun refreshHostsForLanguageChange() {
-        val languageTag = AppLanguageManager.effectiveLanguageTag(context)
-        val previous = appliedLanguageTag
-        appliedLanguageTag = languageTag
-        if (previous == null || previous == languageTag || !shown) return
-        FgoLogger.info(tag, "UI language changed $previous -> $languageTag, rebuilding overlay")
-        mainHandler.post { rebuildHostsForLanguage() }
+    private fun currentUiConfiguration(): OverlayUiConfiguration {
+        val configuration = context.resources.configuration
+        return OverlayUiConfiguration(
+            languageTag = AppLanguageManager.effectiveLanguageTag(context),
+            densityDpi = configuration.densityDpi,
+            fontScale = configuration.fontScale
+        )
     }
 
-    private fun rebuildHostsForLanguage() {
+    /** Recreate locale-wrapped hosts only when their Android UI sizing or language changes. */
+    private fun refreshHostsForConfigurationChange() {
+        val configuration = currentUiConfiguration()
+        val previous = appliedUiConfiguration
+        appliedUiConfiguration = configuration
+        if (previous == null || previous == configuration || !shown) return
+        FgoLogger.info(tag, "Overlay UI configuration changed $previous -> $configuration")
+        // Do not call hide/show: that would reset crop/workflow state and reload preferences.
+        rebuildHostsForConfiguration()
+    }
+
+    private fun rebuildHostsForConfiguration() {
         val wm = windowManager ?: return
         if (!shown) return
         if (floatingMenuHost != null) dismissMenu()
@@ -383,13 +394,14 @@ class FgoRunnerOverlay @Inject constructor(
         previousHost.close()
         val host = FakeComposeHost(context) { FloatingButtonContent() }
         try {
+            clampButtonPositionToScreen()
             wm.addView(host.view, btnLayoutParams)
             composeHost = host
             observeControlLayout(host.view)
-            FgoLogger.info(tag, "Floating button rebuilt for UI language")
+            FgoLogger.info(tag, "Floating button rebuilt for Android UI configuration")
         } catch (e: Exception) {
             host.close()
-            FgoLogger.warn(tag, "Failed to rebuild floating button for UI language", e)
+            FgoLogger.warn(tag, "Failed to rebuild floating button for Android UI configuration", e)
         }
     }
 

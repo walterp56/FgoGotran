@@ -178,6 +178,7 @@ app/src/test/java/com/fgogotran/ui/overlay/*
 !app/src/test/java/com/fgogotran/ui/overlay/ArcMenuGeometryTest.kt
 !app/src/test/java/com/fgogotran/ui/overlay/OverlayUiSizingWorkflowTest.kt
 !app/src/test/java/com/fgogotran/ui/overlay/HistoryContentSizingTest.kt
+!app/src/test/java/com/fgogotran/ui/overlay/OverlayConfigurationWorkflowTest.kt
 AWS/
 # Retain the isolated non-JP voice-only story recognition regressions.
 !app/src/test/java/com/fgogotran/story/VoiceOnlyStoryStateTest.kt

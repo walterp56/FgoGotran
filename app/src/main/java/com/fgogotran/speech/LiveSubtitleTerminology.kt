@@ -13,7 +13,7 @@ internal object LiveSubtitleTerminology {
     )
     // Do not replace a title-shaped fragment inside a known non-title compound.
     private val masterTranslations = Regex(
-        "御主|(?<!店)(?:老闆|老板)|店長|店长|主人(?!公|翁)|師父|师父|師傅|师傅|" +
+        "御主|(?<!店)(?:老闆|老板)|店長|店长|主人(?!公|翁)|師父|师父|師傅|师傅|主師|主师|主帥|主帅|" +
             "大師(?!兄|姐)|大师(?!兄|姐)|達人|达人|名人(?!堂)"
     )
     // Unlike Master, Servant remains a valid term in compounds such as グランドサーヴァント.

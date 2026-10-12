@@ -1,10 +1,14 @@
 package com.fgogotran.overlay
 
+import android.content.ComponentCallbacks
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -45,6 +49,15 @@ class TranslationOverlay @Inject constructor(
     private var onOverlayTap: ((Float, Float) -> Unit)? = null
     private var onOverlayTouch: ((MotionEvent) -> Boolean)? = null
     private var floatingHandleBounds: Rect? = null
+    private var callbacksRegistered = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val componentCallbacks = object : ComponentCallbacks {
+        override fun onConfigurationChanged(newConfig: Configuration) {
+            // Window metrics can settle after the configuration notification.
+            mainHandler.post { refreshScreenBounds() }
+        }
+        override fun onLowMemory() = Unit
+    }
 
     private val tag = "Overlay"
 
@@ -119,30 +132,36 @@ class TranslationOverlay @Inject constructor(
         this.onOverlayTouch = onOverlayTouch
         // Must use the service context — Application context has no valid window token
         windowManager = serviceContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        if (!callbacksRegistered) {
+            context.registerComponentCallbacks(componentCallbacks)
+            callbacksRegistered = true
+        }
         FgoLogger.info(tag, "Overlay initialized: ${screenWidth}x${screenHeight}")
     }
 
-    /**
-     * Creates a new full-screen ImageView with the rendered bitmap and adds it to the window.
-     * Removes any previously showing overlay first.
-     */
+    /** Displays a current-sized rendered bitmap, reusing the native window when possible. */
     fun showTranslatedImage(bitmap: Bitmap) {
-        latestTranslatedBitmap = bitmap
         showOrUpdateTranslatedImage(bitmap)
     }
 
     private fun showOrUpdateTranslatedImage(bitmap: Bitmap) {
         val wm = windowManager ?: return
-
-        screenWidth = bitmap.width
-        screenHeight = bitmap.height
+        refreshScreenBounds()
+        // A completed render may belong to the screen size from before a rotation/resize.
+        // Never stretch it or retain it for a later capture restore.
+        if (bitmap.width != screenWidth || bitmap.height != screenHeight) {
+            hideOverlayView(clearBitmap = true)
+            FgoLogger.debug(tag, "Ignoring old-sized translated image: ${bitmap.width}x${bitmap.height}, screen=${screenWidth}x${screenHeight}")
+            return
+        }
 
         overlayView?.let {
+            if (!setTranslatedOverlayTouchable(true)) return
+            latestTranslatedBitmap = bitmap
             it.setImageBitmap(bitmap)
             it.visibility = View.VISIBLE
             it.alpha = 1f
             isOverlayShowing = true
-            setTranslatedOverlayTouchable(true)
             FgoLogger.info(tag, "Showing translated image: ${bitmap.width}x${bitmap.height}")
             return
         }
@@ -187,6 +206,7 @@ class TranslationOverlay @Inject constructor(
             return
         }
         overlayView = imageView
+        latestTranslatedBitmap = bitmap
         isOverlayShowing = true
         overlayTouchable = true
         updateFloatingHandleGestureExclusion()
@@ -198,7 +218,6 @@ class TranslationOverlay @Inject constructor(
      * This is the preferred method — it avoids removing/re-adding the window on every frame.
      */
     fun updateImage(bitmap: Bitmap) {
-        latestTranslatedBitmap = bitmap
         if (overlayView != null) {
             FgoLogger.debug(tag, "Updating overlay image")
             showOrUpdateTranslatedImage(bitmap)
@@ -208,7 +227,7 @@ class TranslationOverlay @Inject constructor(
         }
     }
 
-    /** Removes the translated window during OCR while retaining its last rendered image. */
+    /** Temporarily hides the translated window during OCR, retaining its rendered image. */
     fun hideForCapture() {
         if (isOverlayShowing) {
             FgoLogger.debug(tag, "Temporarily hiding overlay for OCR capture")
@@ -216,28 +235,46 @@ class TranslationOverlay @Inject constructor(
         hideOverlayView(clearBitmap = false)
     }
 
-    fun setTranslatedOverlayTouchable(touchable: Boolean) {
-        val wm = windowManager ?: return
-        val view = overlayView ?: return
-        if (overlayTouchable == touchable) return
+    fun setTranslatedOverlayTouchable(touchable: Boolean): Boolean {
+        val wm = windowManager ?: return false
+        val view = overlayView ?: return false
+        val currentParams = view.layoutParams
+        if (overlayTouchable == touchable && currentParams?.width == screenWidth &&
+            currentParams.height == screenHeight) return true
         val params = if (touchable) overlayParams else overlayPassthroughParams
         try {
             wm.updateViewLayout(view, params)
             overlayTouchable = touchable
             updateFloatingHandleGestureExclusion()
             FgoLogger.debug(tag, "Translated overlay touchable=$touchable")
+            return true
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Failed to update translated overlay touchable=$touchable", e)
+            return false
         }
     }
 
     /** Restores the translated window after an OCR check found no source-text change. */
     fun restoreAfterCapture() {
+        refreshScreenBounds()
         if (isOverlayShowing) return
         latestTranslatedBitmap?.let {
             FgoLogger.debug(tag, "Restoring unchanged translated overlay")
             showOrUpdateTranslatedImage(it)
         }
+    }
+
+    /** Pixel geometry is independent of Android density/font scale. */
+    private fun refreshScreenBounds() {
+        val bounds = windowManager?.currentWindowMetrics?.bounds ?: return
+        val width = bounds.width()
+        val height = bounds.height()
+        if (width <= 0 || height <= 0 || (width == screenWidth && height == screenHeight)) return
+        screenWidth = width
+        screenHeight = height
+        // Also clears the image retained by hideForCapture; old geometry must not return.
+        hideOverlayView(clearBitmap = true)
+        FgoLogger.info(tag, "Translation overlay screen changed: ${width}x${height}")
     }
 
     /** Hides the full-screen overlay. Safe to call even if nothing is showing. */
@@ -290,6 +327,11 @@ class TranslationOverlay @Inject constructor(
 
     /** Removes all overlays and releases the WindowManager reference. */
     fun destroy() {
+        if (callbacksRegistered) {
+            context.unregisterComponentCallbacks(componentCallbacks)
+            callbacksRegistered = false
+        }
+        mainHandler.removeCallbacksAndMessages(null)
         hideAll()
         onOverlayTap = null
         onOverlayTouch = null
