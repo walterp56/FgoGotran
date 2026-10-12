@@ -25,7 +25,6 @@ import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.localization.AppLanguageManager
-import com.fgogotran.overlay.FgoViewportLayout
 import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
@@ -867,7 +866,6 @@ class FgoRunnerOverlay @Inject constructor(
         val buttonSizePx = currentButtonSizePx()
         val centerX = btnX + buttonSizePx / 2
         val centerY = btnY + buttonSizePx / 2
-        val viewportScale = currentViewportScale()
 
         val host = FakeComposeHost(context) {
             FloatingArcMenu(
@@ -877,7 +875,6 @@ class FgoRunnerOverlay @Inject constructor(
                 liveVoiceTranslationEnabled = liveVoiceTranslationEnabled,
                 buttonCenterX = centerX,
                 buttonCenterY = centerY,
-                viewportScale = viewportScale,
                 onDismiss = { dismissMenu() },
                 onTranslationModeChange = { mode ->
                     val accessibility = FgoAccessibilityService.instance
@@ -932,12 +929,6 @@ class FgoRunnerOverlay @Inject constructor(
             return
         }
         FgoLogger.info(tag, "Arc menu shown at ($centerX, $centerY)")
-    }
-
-    private fun currentViewportScale(): Float {
-        val bounds = windowManager?.currentWindowMetrics?.bounds
-            ?: return 1f
-        return FgoViewportLayout.viewportScaleForScreen(bounds.width(), bounds.height())
     }
 
     private fun dismissMenu() {

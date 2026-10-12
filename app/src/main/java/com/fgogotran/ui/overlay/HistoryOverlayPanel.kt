@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -50,17 +51,15 @@ import kotlin.math.roundToInt
 
 private val FGO_CHOICE_HISTORY_RED = AndroidColor.rgb(246, 58, 60)
 private val HISTORY_ORIGINAL_TEXT_COLOR = AndroidColor.rgb(80, 235, 235)
-private const val HISTORY_TEXT_SIZE_SP = 18f
-private const val HISTORY_ORIGINAL_TEXT_SIZE_SP = 14f
-private const val HISTORY_LINE_SPACING_EXTRA_DP = 4
+private const val HISTORY_EMPTY_TEXT_SIZE_SP = 18f
+private const val HISTORY_LINE_SPACING_EXTRA_BASE_DP = 4
 private const val HISTORY_LINE_SPACING_MULTIPLIER = 1.2f
-private const val HISTORY_TEXT_BOTTOM_MARGIN_DP = 3
-private const val HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_DP = 1
-private const val HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP = 6
-private const val HISTORY_SPEAKER_BOTTOM_MARGIN_DP = 10
-private const val HISTORY_DIALOGUE_BOTTOM_MARGIN_DP = 4
+private const val HISTORY_TEXT_BOTTOM_MARGIN_BASE_DP = 3
+private const val HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_BASE_DP = 1
+private const val HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_BASE_DP = 6
+private const val HISTORY_SPEAKER_BOTTOM_MARGIN_BASE_DP = 10
+private const val HISTORY_DIALOGUE_BOTTOM_MARGIN_BASE_DP = 4
 private const val HISTORY_SCROLLBAR_TOUCH_SLOP_DP = 28
-private const val HISTORY_REFERENCE_DENSITY = 3f
 
 private const val HISTORY_DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.7f
 
@@ -68,6 +67,9 @@ private const val HISTORY_DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.7f
 fun HistoryOverlayPanel(onDismiss: () -> Unit) {
     val entries by SessionTranslationHistory.entries.collectAsState()
     val density = LocalDensity.current
+    val configuration = LocalConfiguration.current
+    val uiConfiguration = HistoryUiConfiguration(configuration.densityDpi, configuration.fontScale,
+        configuration.locales.toLanguageTags())
 
     Box(
         modifier = Modifier
@@ -79,7 +81,7 @@ fun HistoryOverlayPanel(onDismiss: () -> Unit) {
             val screenWidthPx = with(density) { maxWidth.toPx().roundToInt() }
             val screenHeightPx = with(density) { maxHeight.toPx().roundToInt() }
             val viewport = FgoViewportLayout.viewportForScreen(screenWidthPx, screenHeightPx)
-            val viewportScale = FgoViewportLayout.viewportScaleForScreen(screenWidthPx, screenHeightPx)
+            val contentSizing = HistoryContentSizing.forScreen(screenWidthPx, screenHeightPx)
             val panelWidth = with(density) {
                 viewport.width().coerceAtLeast(1).toDp()
             }
@@ -98,7 +100,8 @@ fun HistoryOverlayPanel(onDismiss: () -> Unit) {
                 HistoryScrollView(
                     entries = entries,
                     onTap = onDismiss,
-                    viewportScale = viewportScale,
+                    configuration = uiConfiguration,
+                    contentSizing = contentSizing,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -110,7 +113,8 @@ fun HistoryOverlayPanel(onDismiss: () -> Unit) {
 private fun HistoryScrollView(
     entries: List<SessionTranslationEntry>,
     onTap: () -> Unit,
-    viewportScale: Float,
+    configuration: HistoryUiConfiguration,
+    contentSizing: HistoryContentSizing,
     modifier: Modifier = Modifier
 ) {
     AndroidView(
@@ -131,7 +135,8 @@ private fun HistoryScrollView(
                     }
                 }
                 addView(list, FrameLayout.LayoutParams(-1, -1))
-                addView(historyTextView(context, context.getString(R.string.history_empty), historyTypeface(context)).apply {
+                addView(historyTextView(context, context.getString(R.string.history_empty), historyTypeface(context), contentSizing).apply {
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, HISTORY_EMPTY_TEXT_SIZE_SP)
                     gravity = Gravity.CENTER
                     setOnClickListener { onTap() }
                 }, FrameLayout.LayoutParams(-1, -1))
@@ -147,14 +152,10 @@ private fun HistoryScrollView(
         update = { root ->
             val list = root.getChildAt(0) as RecyclerView
             val state = root.tag as HistoryListState
-            root.getChildAt(1).visibility = if (entries.isEmpty()) View.VISIBLE else View.GONE
-            list.setPadding(
-                scaledHistoryDp(root.context, 20, viewportScale),
-                scaledHistoryDp(root.context, 14, viewportScale),
-                scaledHistoryDp(root.context, 28, viewportScale),
-                scaledHistoryDp(root.context, 14, viewportScale)
-            )
-            if (state.entries !== entries || state.scale != viewportScale) {
+            val emptyLabel = root.getChildAt(1) as TextView
+            emptyLabel.visibility = if (entries.isEmpty()) View.VISIBLE else View.GONE
+            emptyLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, HISTORY_EMPTY_TEXT_SIZE_SP)
+            if (state.entries !== entries || state.configuration != configuration || state.contentSizing != contentSizing) {
                 val followTail = !state.initialized ||
                     (!list.canScrollVertically(1) && list.scrollState == RecyclerView.SCROLL_STATE_IDLE)
                 val scrollVersion = state.userScrollVersion
@@ -163,10 +164,17 @@ private fun HistoryScrollView(
                 val firstVisible = manager.findFirstVisibleItemPosition()
                 val anchorId = adapter.currentList.getOrNull(firstVisible)?.entry?.historyId
                 val anchorOffset = manager.findViewByPosition(firstVisible)?.let { it.top - list.paddingTop }
+                list.setPadding(
+                    contentSizing.spacingPx(20),
+                    contentSizing.spacingPx(14),
+                    contentSizing.spacingPx(28),
+                    contentSizing.spacingPx(14)
+                )
                 val updateVersion = ++state.updateVersion
                 state.entries = entries
-                state.scale = viewportScale
-                adapter.submitList(entries.map { HistoryRow(it, viewportScale) }) {
+                state.configuration = configuration
+                state.contentSizing = contentSizing
+                adapter.submitList(entries.map { HistoryRow(it, configuration, contentSizing) }) {
                     if (updateVersion == state.updateVersion) {
                         state.initialized = true
                         if (followTail && scrollVersion == state.userScrollVersion && entries.isNotEmpty()) {
@@ -190,13 +198,20 @@ private fun HistoryScrollView(
 
 private class HistoryListState {
     var entries: List<SessionTranslationEntry>? = null
-    var scale = 0f
+    var configuration: HistoryUiConfiguration? = null
+    var contentSizing: HistoryContentSizing? = null
     var initialized = false
     var userScrollVersion = 0L
     var updateVersion = 0L
 }
 
-private data class HistoryRow(val entry: SessionTranslationEntry, val scale: Float)
+private data class HistoryUiConfiguration(val densityDpi: Int, val fontScale: Float, val locales: String)
+
+private data class HistoryRow(
+    val entry: SessionTranslationEntry,
+    val configuration: HistoryUiConfiguration,
+    val contentSizing: HistoryContentSizing
+)
 
 private class HistoryRowsAdapter : ListAdapter<HistoryRow, HistoryRowsAdapter.Holder>(
     object : DiffUtil.ItemCallback<HistoryRow>() {
@@ -220,10 +235,10 @@ private class HistoryRowsAdapter : ListAdapter<HistoryRow, HistoryRowsAdapter.Ho
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val row = getItem(position)
         holder.container.removeAllViews()
-        holder.container.setPadding(0, 0, 0, scaledHistoryDp(holder.container.context, 12, row.scale))
+        holder.container.setPadding(0, 0, 0, row.contentSizing.spacingPx(12))
         addHistoryEntryViews(
             holder.container, row.entry,
-            historyTypeface(holder.container.context, row.entry.targetLocale), row.scale
+            historyTypeface(holder.container.context, row.entry.targetLocale), row.contentSizing
         )
     }
 }
@@ -232,7 +247,7 @@ private fun addHistoryEntryViews(
     container: LinearLayout,
     entry: SessionTranslationEntry,
     typeface: Typeface,
-    viewportScale: Float
+    contentSizing: HistoryContentSizing,
 ) {
     val speakerName = entry.speakerName?.takeIf { it.isNotBlank() }
     speakerName?.let {
@@ -242,8 +257,8 @@ private fun addHistoryEntryViews(
                 text = it,
                 color = entry.speakerNameColor ?: AndroidColor.WHITE,
                 typeface = typeface,
-                viewportScale = viewportScale,
-                bottomMarginDp = HISTORY_SPEAKER_BOTTOM_MARGIN_DP
+                contentSizing = contentSizing,
+                bottomMarginBaseDp = HISTORY_SPEAKER_BOTTOM_MARGIN_BASE_DP
             )
         )
     }
@@ -258,7 +273,7 @@ private fun addHistoryEntryViews(
                         originalText = originalDialogue,
                         color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                         typeface = typeface,
-                        viewportScale = viewportScale
+                        contentSizing = contentSizing,
                     )
                 )
             } else if (originalDialogue != null) {
@@ -269,7 +284,7 @@ private fun addHistoryEntryViews(
                         originalText = originalDialogue,
                         translationColor = entry.dialogueTextColor ?: AndroidColor.WHITE,
                         typeface = typeface,
-                        viewportScale = viewportScale
+                        contentSizing = contentSizing,
                     )
                 )
             }
@@ -280,7 +295,7 @@ private fun addHistoryEntryViews(
                     text = it,
                     color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                     typeface = typeface,
-                    viewportScale = viewportScale,
+                    contentSizing = contentSizing,
                     useDialogueLineHeight = true
                 )
             )
@@ -299,11 +314,11 @@ private fun addHistoryEntryViews(
                 color = FGO_CHOICE_HISTORY_RED,
                 gravity = Gravity.CENTER,
                 typeface = typeface,
-                viewportScale = viewportScale,
-                bottomMarginDp = if (originalChoice == null) {
-                    HISTORY_TEXT_BOTTOM_MARGIN_DP
+                contentSizing = contentSizing,
+                bottomMarginBaseDp = if (originalChoice == null) {
+                    HISTORY_TEXT_BOTTOM_MARGIN_BASE_DP
                 } else {
-                    HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_DP
+                    HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_BASE_DP
                 }
             )
         )
@@ -314,7 +329,7 @@ private fun addHistoryEntryViews(
                     text = original,
                     gravity = Gravity.CENTER,
                     typeface = typeface,
-                    viewportScale = viewportScale
+                    contentSizing = contentSizing,
                 )
             )
         }
@@ -326,14 +341,13 @@ private fun historySpeakerDialogueView(
     text: String,
     originalText: String?,
     typeface: Typeface,
+    contentSizing: HistoryContentSizing,
     color: Int,
-    viewportScale: Float
 ): LinearLayout {
     val quotedDialogue = HistorySpeakerDialogueFormatter.prepare(text)
     val quoteWidth = historyQuoteIndentPx(
-        context,
         typeface,
-        viewportScale,
+        contentSizing,
         quotedDialogue.openingQuote
     )
     val bodyText = quotedDialogue.body
@@ -345,14 +359,15 @@ private fun historySpeakerDialogueView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            bottomMargin = scaledHistoryDp(context, HISTORY_DIALOGUE_BOTTOM_MARGIN_DP, viewportScale)
+            bottomMargin = contentSizing.spacingPx(HISTORY_DIALOGUE_BOTTOM_MARGIN_BASE_DP)
         }
         addView(
             historyTextView(
                 context = context,
                 text = quotedDialogue.openingQuote,
                 color = AndroidColor.WHITE,
-                typeface = typeface
+                typeface = typeface,
+                contentSizing = contentSizing
             ).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     quoteWidth,
@@ -379,7 +394,7 @@ private fun historySpeakerDialogueView(
                             ),
                             color = color,
                             typeface = typeface,
-                            viewportScale = viewportScale,
+                            contentSizing = contentSizing,
                             useDialogueLineHeight = true
                         )
                     )
@@ -395,7 +410,7 @@ private fun historySpeakerDialogueView(
                         originalLines = historyDisplayLines(originalBodyText),
                         translationColor = color,
                         typeface = typeface,
-                        viewportScale = viewportScale
+                        contentSizing = contentSizing,
                     )
                 }
             }
@@ -409,7 +424,7 @@ private fun historyBilingualLinesView(
     originalText: String,
     translationColor: Int,
     typeface: Typeface,
-    viewportScale: Float
+    contentSizing: HistoryContentSizing,
 ): LinearLayout {
     return LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -417,7 +432,7 @@ private fun historyBilingualLinesView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            bottomMargin = scaledHistoryDp(context, HISTORY_DIALOGUE_BOTTOM_MARGIN_DP, viewportScale)
+            bottomMargin = contentSizing.spacingPx(HISTORY_DIALOGUE_BOTTOM_MARGIN_BASE_DP)
         }
         addHistoryBilingualLinePairs(
             container = this,
@@ -426,7 +441,7 @@ private fun historyBilingualLinesView(
             originalLines = historyDisplayLines(originalText),
             translationColor = translationColor,
             typeface = typeface,
-            viewportScale = viewportScale
+            contentSizing = contentSizing,
         )
     }
 }
@@ -438,7 +453,7 @@ private fun addHistoryBilingualLinePairs(
     originalLines: List<String>,
     translationColor: Int,
     typeface: Typeface,
-    viewportScale: Float
+    contentSizing: HistoryContentSizing,
 ) {
     val pairCount = maxOf(translationLines.size, originalLines.size)
     repeat(pairCount) { index ->
@@ -450,11 +465,11 @@ private fun addHistoryBilingualLinePairs(
                     text = translationLines[index],
                     color = translationColor,
                     typeface = typeface,
-                    viewportScale = viewportScale,
-                    bottomMarginDp = if (hasOriginal) {
-                        HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_DP
+                    contentSizing = contentSizing,
+                    bottomMarginBaseDp = if (hasOriginal) {
+                        HISTORY_TEXT_WITH_ORIGINAL_BOTTOM_MARGIN_BASE_DP
                     } else {
-                        HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP
+                        HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_BASE_DP
                     }
                 )
             )
@@ -465,11 +480,11 @@ private fun addHistoryBilingualLinePairs(
                     context = context,
                     text = originalLines[index],
                     typeface = typeface,
-                    viewportScale = viewportScale,
-                    bottomMarginDp = if (index == pairCount - 1) {
+                    contentSizing = contentSizing,
+                    bottomMarginBaseDp = if (index == pairCount - 1) {
                         0
                     } else {
-                        HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP
+                        HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_BASE_DP
                     }
                 )
             )
@@ -518,13 +533,12 @@ private fun quoteSpeakerDialogueClosing(
 }
 
 private fun historyQuoteIndentPx(
-    context: Context,
     typeface: Typeface,
-    viewportScale: Float,
+    contentSizing: HistoryContentSizing,
     openingQuote: String
 ): Int {
     val quotePaint = TextPaint().apply {
-        textSize = scaledHistoryTextPx(context, HISTORY_TEXT_SIZE_SP, viewportScale)
+        textSize = contentSizing.translationTextSizePx
         this.typeface = typeface
     }
     return quotePaint.measureText(openingQuote).roundToInt().coerceAtLeast(1)
@@ -534,34 +548,34 @@ private fun historyTextView(
     context: Context,
     text: CharSequence,
     typeface: Typeface,
+    contentSizing: HistoryContentSizing,
     color: Int = AndroidColor.WHITE,
     gravity: Int = Gravity.START,
-    textSizeSp: Float = HISTORY_TEXT_SIZE_SP,
-    viewportScale: Float = 1f,
-    bottomMarginDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_DP,
+    textSizePx: Float = contentSizing.translationTextSizePx,
+    bottomMarginBaseDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_BASE_DP,
     useDialogueLineHeight: Boolean = false
 ): TextView {
     return TextView(context).apply {
         this.text = text
         setTextColor(color)
-        val textSizePx = scaledHistoryTextPx(context, textSizeSp, viewportScale)
         setTextSize(TypedValue.COMPLEX_UNIT_PX, textSizePx)
+        val displayedTextSizePx = this.textSize
         this.typeface = typeface
         paint.isFakeBoldText = false
         paint.isSubpixelText = true
         paint.isLinearText = true
         if (useDialogueLineHeight) {
-            setLineHeight((textSizePx * HISTORY_DIALOGUE_LINE_HEIGHT_MULTIPLIER).roundToInt())
+            setLineHeight((displayedTextSizePx * HISTORY_DIALOGUE_LINE_HEIGHT_MULTIPLIER).roundToInt())
         } else {
             setLineSpacing(
-                scaledHistoryDp(context, HISTORY_LINE_SPACING_EXTRA_DP, viewportScale).toFloat(),
+                contentSizing.spacingPx(HISTORY_LINE_SPACING_EXTRA_BASE_DP).toFloat(),
                 HISTORY_LINE_SPACING_MULTIPLIER
             )
             setPadding(
                 0,
                 0,
                 0,
-                scaledHistoryDp(context, 3, viewportScale)
+                contentSizing.spacingPx(3)
             )
         }
         includeFontPadding = false
@@ -570,7 +584,7 @@ private fun historyTextView(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            bottomMargin = scaledHistoryDp(context, bottomMarginDp, viewportScale)
+            bottomMargin = contentSizing.spacingPx(bottomMarginBaseDp)
         }
     }
 }
@@ -579,9 +593,9 @@ private fun historyOriginalTextView(
     context: Context,
     text: String,
     typeface: Typeface,
+    contentSizing: HistoryContentSizing,
     gravity: Int = Gravity.START,
-    viewportScale: Float = 1f,
-    bottomMarginDp: Int = HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_DP
+    bottomMarginBaseDp: Int = HISTORY_ORIGINAL_TEXT_BOTTOM_MARGIN_BASE_DP
 ): TextView {
     return historyTextView(
         context = context,
@@ -589,9 +603,9 @@ private fun historyOriginalTextView(
         color = HISTORY_ORIGINAL_TEXT_COLOR,
         gravity = gravity,
         typeface = typeface,
-        textSizeSp = HISTORY_ORIGINAL_TEXT_SIZE_SP,
-        viewportScale = viewportScale,
-        bottomMarginDp = bottomMarginDp
+        contentSizing = contentSizing,
+        textSizePx = contentSizing.originalTextSizePx,
+        bottomMarginBaseDp = bottomMarginBaseDp
     )
 }
 
@@ -665,26 +679,5 @@ private fun historyTypeface(
     return FgoTypefaceProvider.storyTypeface(context, targetLocale)
 }
 
-private fun dp(context: Context, value: Int): Int {
-    return (value * context.resources.displayMetrics.density).toInt()
-}
-
-private fun scaledHistoryDp(context: Context, value: Int, viewportScale: Float): Int {
-    val currentPx = dp(context, value)
-    val safeScale = viewportScale.coerceIn(0.75f, 1.4f)
-    val targetPx = (value * HISTORY_REFERENCE_DENSITY * safeScale).roundToInt()
-    return maxOf(currentPx, targetPx)
-}
-
-private fun scaledHistoryTextPx(context: Context, valueSp: Float, viewportScale: Float): Float {
-    val currentPx = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_SP,
-        valueSp,
-        context.resources.displayMetrics
-    )
-    val safeScale = viewportScale.coerceIn(0.75f, 1.4f)
-    val targetPx = valueSp * HISTORY_REFERENCE_DENSITY * safeScale
-    return maxOf(currentPx, targetPx)
-}
-
-
+private fun dp(context: Context, value: Int): Int =
+    TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), context.resources.displayMetrics).roundToInt()

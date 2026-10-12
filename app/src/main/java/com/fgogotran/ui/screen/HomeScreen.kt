@@ -604,11 +604,12 @@ private fun StatusActionCard(
                 )
             }
             TextButton(
+                modifier = Modifier.widthIn(max = 160.dp),
                 colors = FgoUiColors.textButtonColors(),
                 onClick = onClick,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text(actionText, maxLines = 1)
+                Text(actionText)
             }
         }
     }

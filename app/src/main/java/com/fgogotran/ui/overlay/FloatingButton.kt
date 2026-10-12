@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -35,15 +36,17 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.max
 
 private const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54f
@@ -334,17 +337,31 @@ fun FloatingActionGlyph(
         FloatingActionIcon.GO,
         FloatingActionIcon.SEMI,
         FloatingActionIcon.AUTO,
-        FloatingActionIcon.BATTLE -> Box(
+        FloatingActionIcon.BATTLE -> BoxWithConstraints(
             modifier = modifier,
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = icon.textLabel(),
-                color = color,
-                fontSize = scaledGlyphFontSize(icon, prominent, contentScale),
+            val density = LocalDensity.current
+            val label = icon.textLabel()
+            val measurer = rememberTextMeasurer()
+            // These are icon glyphs, not menu captions. Keep them fitted to the user's dp button size.
+            val baseSizePx = with(density) { glyphSizeDp(icon, prominent, contentScale).dp.toPx() }
+            val baseStyle = TextStyle(
+                fontSize = with(density) { baseSizePx.toSp() },
                 fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1
+                textAlign = TextAlign.Center
+            )
+            val measured = measurer.measure(label, baseStyle, maxLines = 1, softWrap = false)
+            val fit = with(density) {
+                minOf(1f, maxWidth.toPx() / measured.size.width.coerceAtLeast(1),
+                    maxHeight.toPx() / measured.size.height.coerceAtLeast(1))
+            }
+            Text(
+                text = label,
+                color = color,
+                style = baseStyle.copy(fontSize = with(density) { (baseSizePx * fit).toSp() }),
+                maxLines = 1,
+                softWrap = false
             )
         }
 
@@ -366,7 +383,7 @@ fun FloatingActionGlyph(
     }
 }
 
-private fun scaledGlyphFontSize(
+private fun glyphSizeDp(
     icon: FloatingActionIcon,
     prominent: Boolean,
     contentScale: Float
@@ -379,7 +396,7 @@ private fun scaledGlyphFontSize(
     icon == FloatingActionIcon.BATTLE && prominent -> 21f
     icon == FloatingActionIcon.BATTLE -> 17f
     else -> 13f
-} * contentScale).sp
+} * contentScale)
 
 @Composable
 private fun CropCornerIcon(

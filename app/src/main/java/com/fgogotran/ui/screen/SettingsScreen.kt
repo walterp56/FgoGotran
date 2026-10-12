@@ -948,7 +948,7 @@ private fun TranslationLanguageSelector(
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
+                        maxLines = 2
                     )
                 }
             }
@@ -980,7 +980,7 @@ private fun TranslationLanguageSelector(
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
+                            maxLines = 2,
                             modifier = Modifier.weight(1f)
                         )
                         Text(

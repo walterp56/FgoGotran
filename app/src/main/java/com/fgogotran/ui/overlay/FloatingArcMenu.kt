@@ -8,10 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.fgogotran.localization.LocalizedText as Text
@@ -25,28 +28,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.translation.TranslationMode
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
-private const val ARC_REFERENCE_DENSITY = 3f
-private const val FAN_RADIUS_BASE = 92f
-private const val PILL_WIDTH_BASE = 64f
-private const val PILL_HEIGHT_BASE = 54f
-private const val NAV_SIZE_BASE = 46f
-private const val LABEL_SIZE_BASE = 11f
 private const val SCRIM_ALPHA = 0.18f
 private val MENU_ACCENT_COLOR = Color(0xFF76518F)
 
@@ -58,7 +53,6 @@ fun FloatingArcMenu(
     liveVoiceTranslationEnabled: Boolean,
     buttonCenterX: Int,
     buttonCenterY: Int,
-    viewportScale: Float,
     onDismiss: () -> Unit,
     onTranslationModeChange: (TranslationMode) -> Unit,
     onBattleModeSelect: () -> Unit,
@@ -78,6 +72,24 @@ fun FloatingArcMenu(
     val semiLabel = stringResource(R.string.menu_semi)
     val autoLabel = stringResource(R.string.menu_auto)
     val closeLabel = stringResource(R.string.menu_close)
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = LocalTextStyle.current.copy(
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center
+    )
+    val navigationStyle = TextStyle(fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+    val allSlots = featureSlots(
+        logLabel, areaLabel, battleLabel, liveLabel, battleModeActive, isJapaneseServer,
+        liveVoiceTranslationEnabled, onHistoryClick, onCropTranslateClick, onBattleModeSelect,
+        onLiveVoiceTranslationToggle
+    ) + modeSlots(
+        manualLabel, semiLabel, autoLabel, closeLabel, translationMode, battleModeActive,
+        onTranslationModeChange, onCloseClick
+    )
+    val insets = WindowInsets.safeDrawing
+    val layoutDirection = LocalLayoutDirection.current
 
     BoxWithConstraints(
         modifier = Modifier
@@ -90,78 +102,66 @@ fun FloatingArcMenu(
             ),
         contentAlignment = Alignment.TopStart
     ) {
-        val screenW = maxWidth
-        val screenH = maxHeight
-        val centerX = with(density) { buttonCenterX.toDp() }
-        val centerY = with(density) { buttonCenterY.toDp() }
-
-        val pillWidth = scaledArcDp(PILL_WIDTH_BASE, viewportScale, density)
-        val pillHeight = scaledArcDp(PILL_HEIGHT_BASE, viewportScale, density)
-        val navSize = scaledArcDp(NAV_SIZE_BASE, viewportScale, density)
-
-        val fan = computeFan(centerX, centerY, screenW, screenH, viewportScale, density)
-
-        var page by remember { mutableStateOf(ArcPage.FEATURES) }
-
-        val contentSlots = when (page) {
-            ArcPage.FEATURES -> featureSlots(
-                logLabel = logLabel,
-                areaLabel = areaLabel,
-                battleLabel = battleLabel,
-                liveLabel = liveLabel,
-                battleModeActive = battleModeActive,
-                isJapaneseServer = isJapaneseServer,
-                liveVoiceTranslationEnabled = liveVoiceTranslationEnabled,
-                onHistory = onHistoryClick,
-                onCrop = onCropTranslateClick,
-                onBattleSelect = onBattleModeSelect,
-                onLiveVoiceToggle = onLiveVoiceTranslationToggle
-            )
-            ArcPage.MODES -> modeSlots(
-                manualLabel = manualLabel,
-                semiLabel = semiLabel,
-                autoLabel = autoLabel,
-                closeLabel = closeLabel,
-                translationMode = translationMode,
-                battleModeActive = battleModeActive,
-                onModeChange = onTranslationModeChange,
-                onClose = onCloseClick
+        val bounds = with(density) {
+            ArcMenuRect(
+                insets.getLeft(this, layoutDirection).toDp().value + 8f,
+                insets.getTop(this).toDp().value + 8f,
+                maxWidth.value - insets.getRight(this, layoutDirection).toDp().value - 8f,
+                maxHeight.value - insets.getBottom(this).toDp().value - 8f
             )
         }
+        val labels = allSlots.map { it.label }
+        val pillSize = remember(labels, labelStyle, textMeasurer, density, bounds.width) {
+            // Measure actual localized captions at the current Android font setting, with at most two lines.
+            val widths = (listOf(64f, 80f, 96f, 112f, 128f, 144f) + bounds.width)
+                .map { it.coerceAtMost(bounds.width).coerceAtLeast(1f) }.distinct()
+            fun measureLabels(width: Float) =
+                width to labels.map { label ->
+                    textMeasurer.measure(
+                        text = label,
+                        style = labelStyle,
+                        maxLines = 2,
+                        constraints = Constraints(maxWidth = with(density) { (width - 8f).dp.roundToPx().coerceAtLeast(1) })
+                    )
+                }
+            val (width, measured) = widths.asSequence().map(::measureLabels)
+                .firstOrNull { (_, results) -> results.none { it.hasVisualOverflow } }
+                ?: measureLabels(widths.last())
+            val labelHeight = with(density) { measured.maxOf { it.size.height }.toDp().value }
+            width to maxOf(54f, 20f + 3f + labelHeight + 12f + 2f)
+        }
+        val navMeasurement = textMeasurer.measure("›", navigationStyle)
+        val navSize = maxOf(46f, with(density) { maxOf(navMeasurement.size.width, navMeasurement.size.height).toDp().value } + 12f)
+        val layout = ArcMenuGeometry.layout(
+            bounds, with(density) { buttonCenterX.toDp().value }, with(density) { buttonCenterY.toDp().value },
+            pillSize.first, pillSize.second, navSize
+        ) ?: return@BoxWithConstraints // A window smaller than one action plus navigation cannot host an arc.
+        val pages = ArcMenuGeometry.pageIndices(layout.capacity)
+        var page by remember(layout.capacity) { mutableStateOf(0) }
+        val contentSlots = pages[page].map { allSlots[it] }
 
         contentSlots.forEachIndexed { index, slot ->
-            val center = slotCenter(fan, fan.anglesDeg[index])
+            val rect = layout.actions[index]
             ArcSector(
                 slot = slot,
-                viewportScale = viewportScale,
+                labelStyle = labelStyle,
                 modifier = Modifier
-                    .offset(
-                        x = center.x - pillWidth / 2,
-                        y = center.y - pillHeight / 2
-                    )
-                    .size(pillWidth, pillHeight)
+                    .offset(x = rect.left.dp, y = rect.top.dp)
+                    .size(rect.width.dp, rect.height.dp)
             )
         }
 
-        val navCenter = slotCenter(fan, fan.anglesDeg.last())
+        val nav = layout.navigation
         NavButton(
-            label = if (page == ArcPage.FEATURES) "›" else "‹",
-            viewportScale = viewportScale,
-            onClick = {
-                page = if (page == ArcPage.FEATURES) ArcPage.MODES else ArcPage.FEATURES
-            },
+            label = if (page == pages.lastIndex) "‹" else "›",
+            textStyle = navigationStyle,
+            onClick = { page = (page + 1) % pages.size },
             modifier = Modifier
-                .offset(
-                    x = navCenter.x - navSize / 2,
-                    y = navCenter.y - navSize / 2
-                )
-                .size(navSize)
+                .offset(x = nav.left.dp, y = nav.top.dp)
+                .size(nav.width.dp, nav.height.dp)
         )
     }
 }
-
-private enum class ArcPage { FEATURES, MODES }
-
 private data class ArcSlot(
     val icon: FloatingActionIcon?,
     val label: String,
@@ -253,10 +253,9 @@ private fun modeSlots(
 @Composable
 private fun ArcSector(
     slot: ArcSlot,
-    viewportScale: Float,
+    labelStyle: TextStyle,
     modifier: Modifier
 ) {
-    val density = LocalDensity.current
     val background = when {
         slot.accentDanger -> Color(0xFFFFF1F0)
         slot.selected -> MENU_ACCENT_COLOR
@@ -272,46 +271,44 @@ private fun ArcSector(
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(scaledArcDp(16f, viewportScale, density)))
+            .clip(RoundedCornerShape(16.dp))
             .background(background)
             .clickable(enabled = slot.enabled, onClick = slot.onClick)
             .padding(
-                horizontal = scaledArcDp(4f, viewportScale, density),
-                vertical = scaledArcDp(6f, viewportScale, density)
+                horizontal = 4.dp,
+                vertical = 6.dp
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         if (slot.toggle) {
-            ToggleDot(on = slot.toggleOn, viewportScale = viewportScale)
+            ToggleDot(on = slot.toggleOn)
         } else if (slot.icon != null) {
             FloatingActionGlyph(
                 icon = slot.icon,
                 color = contentColor,
                 contentScale = 1f,
-                modifier = Modifier.size(scaledArcDp(20f, viewportScale, density))
+                modifier = Modifier.size(20.dp)
             )
         }
-        Spacer(modifier = Modifier.size(scaledArcDp(3f, viewportScale, density)))
+        Spacer(modifier = Modifier.size(3.dp))
         Text(
             text = slot.label,
             color = contentColor,
-            fontSize = scaledArcSp(LABEL_SIZE_BASE, viewportScale, density),
+            style = labelStyle,
             fontWeight = if (slot.selected) FontWeight.Bold else FontWeight.Medium,
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Clip
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
 
 @Composable
-private fun ToggleDot(on: Boolean, viewportScale: Float) {
-    val density = LocalDensity.current
-    val size = scaledArcDp(18f, viewportScale, density)
+private fun ToggleDot(on: Boolean) {
     Box(
         modifier = Modifier
-            .size(size)
+            .size(18.dp)
             .clip(CircleShape)
             .background(if (on) MENU_ACCENT_COLOR else Color(0xFFC9CBCE))
     )
@@ -320,11 +317,10 @@ private fun ToggleDot(on: Boolean, viewportScale: Float) {
 @Composable
 private fun NavButton(
     label: String,
-    viewportScale: Float,
+    textStyle: TextStyle,
     onClick: () -> Unit,
     modifier: Modifier
 ) {
-    val density = LocalDensity.current
     Box(
         modifier = modifier
             .clip(CircleShape)
@@ -335,81 +331,8 @@ private fun NavButton(
         Text(
             text = label,
             color = Color(0xFF333333),
-            fontSize = scaledArcSp(20f, viewportScale, density),
+            style = textStyle,
             fontWeight = FontWeight.Bold
         )
     }
-}
-
-private data class DpPoint(val x: Dp, val y: Dp)
-
-private data class FanGeometry(
-    val centerX: Dp,
-    val centerY: Dp,
-    val radius: Dp,
-    val anglesDeg: List<Float>
-)
-
-private fun computeFan(
-    centerX: Dp,
-    centerY: Dp,
-    screenW: Dp,
-    screenH: Dp,
-    viewportScale: Float,
-    density: Density
-): FanGeometry {
-    val radius = scaledArcDp(FAN_RADIUS_BASE, viewportScale, density).coerceAtLeast(56.dp)
-    val pillHalfWidth = scaledArcDp(PILL_WIDTH_BASE, viewportScale, density) / 2
-    val pillHalfHeight = scaledArcDp(PILL_HEIGHT_BASE, viewportScale, density) / 2
-    val edgePad = scaledArcDp(8f, viewportScale, density)
-
-    val freeLeft = centerX
-    val freeRight = screenW - centerX
-    var openRight = freeRight >= freeLeft
-    var chosenRadius = radius
-
-    fun sideClearance(openRight: Boolean): Dp =
-        if (openRight) screenW - centerX else centerX
-
-    val neededSide = radius + pillHalfWidth + edgePad
-    if (sideClearance(openRight) < neededSide) {
-        openRight = !openRight
-        if (sideClearance(openRight) < neededSide) {
-            chosenRadius = (maxOf(freeLeft, freeRight) - pillHalfWidth - edgePad)
-                .coerceAtLeast(44.dp)
-        }
-    }
-
-    val verticalPad = chosenRadius + pillHalfHeight + edgePad
-    val clampedCenterY =
-        if (screenH > verticalPad * 2) centerY.coerceIn(verticalPad, screenH - verticalPad)
-        else screenH / 2
-
-    val angles = if (openRight) {
-        listOf(-90f, -45f, 0f, 45f, 90f)
-    } else {
-        listOf(90f, 135f, 180f, 225f, 270f)
-    }
-
-    return FanGeometry(centerX, clampedCenterY, chosenRadius, angles)
-}
-
-private fun slotCenter(fan: FanGeometry, angleDeg: Float): DpPoint {
-    val radians = angleDeg * PI.toFloat() / 180f
-    return DpPoint(
-        x = fan.centerX + fan.radius * cos(radians),
-        y = fan.centerY + fan.radius * sin(radians)
-    )
-}
-
-private fun scaledArcDp(baseDp: Float, viewportScale: Float, density: Density): Dp {
-    val safeScale = viewportScale.coerceIn(0.75f, 1.4f)
-    val target = with(density) { (baseDp * ARC_REFERENCE_DENSITY * safeScale).toDp() }
-    return if (target.value > baseDp) target else baseDp.dp
-}
-
-private fun scaledArcSp(baseSp: Float, viewportScale: Float, density: Density): TextUnit {
-    val safeScale = viewportScale.coerceIn(0.75f, 1.4f)
-    val target = with(density) { (baseSp * ARC_REFERENCE_DENSITY * safeScale).toSp() }
-    return maxOf(baseSp, target.value).sp
 }
