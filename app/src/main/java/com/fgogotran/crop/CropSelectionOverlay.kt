@@ -8,6 +8,7 @@ import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -91,8 +92,12 @@ private class CropSelectionView(context: Context) : View(context) {
     private var activeDrag = DragTarget.NONE
     private var lastX = 0f
     private var lastY = 0f
-    private var minWidth = 180f
-    private var minHeight = 96f
+    private var minWidth = dp(60f)
+    private var minHeight = dp(32f)
+
+    // Android UI controls, calibrated to the existing 1080p phone at density 3.
+    private fun dp(value: Float): Float =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, resources.displayMetrics)
 
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(110, 0, 0, 0)
@@ -100,12 +105,12 @@ private class CropSelectionView(context: Context) : View(context) {
     }
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        strokeWidth = 4f
+        strokeWidth = dp(4f / 3f)
         style = Paint.Style.STROKE
     }
     private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(80, 220, 255)
-        strokeWidth = 8f
+        strokeWidth = dp(8f / 3f)
         strokeCap = Paint.Cap.ROUND
         style = Paint.Style.STROKE
     }
@@ -115,8 +120,8 @@ private class CropSelectionView(context: Context) : View(context) {
         val viewport = FgoViewportLayout.viewportForScreen(screenWidth, screenHeight)
         val viewportWidth = viewport.width().takeIf { it > 0 } ?: screenWidth
         val viewportHeight = viewport.height().takeIf { it > 0 } ?: screenHeight
-        minWidth = (viewportWidth * 0.16f).coerceAtLeast(180f)
-        minHeight = (viewportHeight * 0.10f).coerceAtLeast(96f)
+        minWidth = (viewportWidth * 0.16f).coerceAtLeast(dp(60f)).coerceAtMost(screenWidth.toFloat())
+        minHeight = (viewportHeight * 0.10f).coerceAtLeast(dp(32f)).coerceAtMost(screenHeight.toFloat())
         val defaultWidth = viewportWidth * 0.58f
         val defaultHeight = viewportHeight * 0.20f
         val left = viewport.left + (viewportWidth - defaultWidth) / 2f
@@ -188,7 +193,8 @@ private class CropSelectionView(context: Context) : View(context) {
 
     private fun drawHandles(canvas: Canvas) {
         val handleLength = (minOf(cropRect.width(), cropRect.height()) * 0.22f)
-            .coerceIn(28f, 56f)
+            .coerceIn(dp(28f / 3f), dp(56f / 3f))
+            .coerceAtMost(minOf(cropRect.width(), cropRect.height()) / 2f)
 
         drawCorner(canvas, cropRect.left, cropRect.top, handleLength, 1f, 1f)
         drawCorner(canvas, cropRect.right, cropRect.top, handleLength, -1f, 1f)
@@ -209,7 +215,7 @@ private class CropSelectionView(context: Context) : View(context) {
     }
 
     private fun dragTargetFor(x: Float, y: Float): DragTarget {
-        val radius = 44f
+        val radius = dp(44f / 3f)
         val nearLeft = abs(x - cropRect.left) <= radius
         val nearRight = abs(x - cropRect.right) <= radius
         val nearTop = abs(y - cropRect.top) <= radius
@@ -279,6 +285,8 @@ private class CropSelectionView(context: Context) : View(context) {
 
     private fun clampRect() {
         if (width <= 0 || height <= 0) return
+        if (cropRect.width() > width) cropRect.right = cropRect.left + width
+        if (cropRect.height() > height) cropRect.bottom = cropRect.top + height
         if (cropRect.left < 0f) cropRect.offset(-cropRect.left, 0f)
         if (cropRect.top < 0f) cropRect.offset(0f, -cropRect.top)
         if (cropRect.right > width) cropRect.offset(width - cropRect.right, 0f)

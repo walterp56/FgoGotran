@@ -15,6 +15,7 @@ import android.graphics.Rect
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.DisplayMetrics
+import android.util.TypedValue
 import android.view.Display
 import android.view.MotionEvent
 import android.view.WindowManager
@@ -33,6 +34,7 @@ import com.fgogotran.crop.CropResultOverlay
 import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.crop.CropTextLine
+import com.fgogotran.crop.cropStatusPanelBounds
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.game.FgoPackages
 import com.fgogotran.game.ForegroundTestOverride
@@ -109,6 +111,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 /**
  * Realtime FGO capture -> OCR -> translation -> overlay pipeline.
@@ -1600,6 +1603,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_area_too_small))
                 return
             }
+            // Font limits follow the full FGO viewport, never the selected crop's dimensions.
+            val cropReferenceScale = FgoViewportLayout.viewportScaleForScreen(screenshot.width, screenshot.height)
 
             val cropBitmap = Bitmap.createBitmap(
                 screenshot,
@@ -1681,6 +1686,7 @@ class FgoAccessibilityService : AccessibilityService() {
                             boundingBox = Rect(it.boundingBox)
                         )
                     },
+                    referenceScale = cropReferenceScale,
                     textColor = cropTextColor ?: FGO_RENDER_WHITE,
                     targetLocale = translationResult.targetLocale
                 )
@@ -1721,11 +1727,27 @@ class FgoAccessibilityService : AccessibilityService() {
         AppLanguageManager.wrap(this).getString(resId)
 
     private fun showCropStatus(bounds: Rect, message: String) {
-        val safeWidth = bounds.width().coerceAtLeast(180)
-        val safeHeight = bounds.height().coerceAtLeast(96)
-        val bitmap = cropResultRenderer.render(safeWidth, safeHeight, message)
+        val screen = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).currentWindowMetrics.bounds
+        if (screen.width() <= 0 || screen.height() <= 0) return
+        val metrics = resources.displayMetrics
+        val panel = cropStatusPanelBounds(
+            requested = FgoReferenceRect(bounds.left, bounds.top, bounds.right, bounds.bottom),
+            screenWidth = screen.width(),
+            screenHeight = screen.height(),
+            minimumWidth = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 60f, metrics).roundToInt(),
+            minimumHeight = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 32f, metrics).roundToInt()
+        )
+        val bitmap = cropResultRenderer.renderStatus(panel.width, panel.height, message, screen.height())
+        // Wrapped Android UI text may need a taller panel; move it rather than stretch the bitmap.
+        val displayBounds = cropStatusPanelBounds(
+            requested = panel,
+            screenWidth = screen.width(),
+            screenHeight = screen.height(),
+            minimumWidth = bitmap.width,
+            minimumHeight = bitmap.height
+        )
         cropResultOverlay.show(
-            Rect(bounds.left, bounds.top, bounds.left + safeWidth, bounds.top + safeHeight),
+            Rect(displayBounds.left, displayBounds.top, displayBounds.right, displayBounds.bottom),
             bitmap
         )
     }
