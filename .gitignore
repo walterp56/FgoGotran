@@ -169,6 +169,8 @@ app/src/test/java/com/fgogotran/ui/theme/*
 !app/src/test/java/com/fgogotran/ui/AppLanguageOptionTest.java
 # Retain Traditional Chinese resource and exact Japanese guide-label regressions.
 !app/src/test/java/com/fgogotran/ui/TraditionalChineseResourcesTest.kt
+# Retain picker scrolling and adaptive settings-action layout regressions.
+!app/src/test/java/com/fgogotran/ui/SettingsDialogOverflowWorkflowTest.kt
 # Retain the focused general-prompt fidelity and version regressions.
 !app/src/test/java/com/fgogotran/translation/PronounFidelityPromptTest.kt
 # Retain the focused floating-button docking and touch-workflow regressions.

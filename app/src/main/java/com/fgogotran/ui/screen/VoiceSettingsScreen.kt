@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,7 +73,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun VoiceSettingsScreen(
     settingsRepository: SettingsRepository,
@@ -543,20 +545,21 @@ fun VoiceSettingsScreen(
                         }
                     )
                 }
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (azureSpeechSaveMessage.isNotBlank()) {
                         Text(
                             azureSpeechSaveMessage,
+                            modifier = Modifier.padding(end = 4.dp).align(Alignment.CenterVertically),
                             style = MaterialTheme.typography.bodySmall,
                             color = FgoUiColors.blueText
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
                     }
                     OutlinedButton(
+                        modifier = Modifier.align(Alignment.CenterVertically),
                         colors = FgoUiColors.outlinedButtonColors(),
                         shape = FgoUiStyle.buttonShape,
                         onClick = { testAzureVoice() },
@@ -564,8 +567,11 @@ fun VoiceSettingsScreen(
                     ) {
                         Text(if (azureSpeechTesting) stringResource(R.string.voice_auto_36) else stringResource(R.string.voice_auto_45))
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(shape = FgoUiStyle.buttonShape, onClick = { saveAzureSpeechSettings() }) {
+                    Button(
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                        shape = FgoUiStyle.buttonShape,
+                        onClick = { saveAzureSpeechSettings() }
+                    ) {
                         Text(stringResource(R.string.voice_auto_20))
                     }
                 }

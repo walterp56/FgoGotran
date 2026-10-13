@@ -491,8 +491,10 @@ private fun ServerChoiceDialog(
 
                 Column(
                     modifier = Modifier
+                        .weight(1f, fill = false)
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
+                        .padding(horizontal = 14.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val serverOptions = listOf(

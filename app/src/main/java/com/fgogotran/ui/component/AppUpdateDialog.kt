@@ -7,7 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -28,6 +29,7 @@ import com.fgogotran.ui.theme.FgoUiColors
 import com.fgogotran.update.AppVersionInfo
 import com.fgogotran.update.AppVersionManager
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppUpdateDialog(
     currentVersionName: String,
@@ -47,9 +49,10 @@ fun AppUpdateDialog(
             )
         },
         confirmButton = {
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 TextButton(colors = FgoUiColors.textButtonColors(), onClick = onDismiss) {
                     Text(stringResource(R.string.update_not_now))
@@ -62,6 +65,7 @@ fun AppUpdateDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AutoAppUpdateDialog(
     currentVersionName: String,
@@ -82,9 +86,10 @@ fun AutoAppUpdateDialog(
             )
         },
         confirmButton = {
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 TextButton(colors = FgoUiColors.textButtonColors(), onClick = onIgnoreVersion) {
                     Text(stringResource(R.string.update_skip_version))

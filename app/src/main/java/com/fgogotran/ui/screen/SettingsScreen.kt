@@ -347,7 +347,9 @@ fun SettingsScreen(
             title = { Text(stringResource(R.string.settings_auto_18)) },
             text = {
                 Column(
-                    modifier = Modifier.selectableGroup(),
+                    modifier = Modifier
+                        .selectableGroup()
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     ocrEngineOptions.forEach { option ->
@@ -1082,7 +1084,11 @@ private fun PlayerGenderSelector(
             onDismissRequest = { showPicker = false },
             title = { Text(stringResource(R.string.settings_auto_41)) },
             text = {
-                Column(modifier = Modifier.selectableGroup()) {
+                Column(
+                    modifier = Modifier
+                        .selectableGroup()
+                        .verticalScroll(rememberScrollState())
+                ) {
                     playerGenderOptions.forEach { option ->
                         val selected = option.gender == normalizedGender
                         Row(
