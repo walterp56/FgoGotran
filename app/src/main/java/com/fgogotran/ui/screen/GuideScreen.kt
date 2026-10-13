@@ -24,7 +24,7 @@ import androidx.compose.material3.Surface
 import com.fgogotran.R
 import com.fgogotran.ui.theme.FgoUiColors
 import com.fgogotran.ui.theme.FgoUiStyle
-import com.fgogotran.localization.LocalizedText as Text
+import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
