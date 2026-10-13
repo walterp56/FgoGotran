@@ -957,5 +957,12 @@
     "en_term": "Cracker",
     "category": "game_term",
     "aliases": ""
+  },
+  {
+    "jp_term": "星の内海",
+    "cn_term": "星之内海",
+    "en_term": "Inner Sea of the Planet",
+    "category": "place",
+    "aliases": ""
   }
 ]

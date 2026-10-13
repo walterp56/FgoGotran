@@ -3588,7 +3588,7 @@
     "cn_name": "塞蕾雪拉·艾尔隆",
     "en_name": "Cerejeira Elron",
     "category": "character",
-    "aliases": "セレシェイラ, セレシェイラ·エルロン, セレシェイラエルロン"
+    "aliases": "セレシェイラエルロン"
   },
   {
     "jp_name": "フォウ",
@@ -3826,7 +3826,7 @@
     "cn_name": "大卫·布鲁布克",
     "en_name": "David Bluebook",
     "category": "character",
-    "aliases": "デイヴィット, デイヴィットブルーブック, ブルーブック"
+    "aliases": "デイヴィットブルーブック"
   },
   {
     "jp_name": "オセロトル",
@@ -4653,5 +4653,19 @@
     "en_name": "Master",
     "category": "character",
     "aliases": "Master, ますたー"
+  },
+  {
+    "jp_name": "AAA",
+    "cn_name": "AAA",
+    "en_name": "AAA",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ワクチャン",
+    "cn_name": "瓦克昌",
+    "en_name": "Wak Chan",
+    "category": "character",
+    "aliases": ""
   }
 ]
