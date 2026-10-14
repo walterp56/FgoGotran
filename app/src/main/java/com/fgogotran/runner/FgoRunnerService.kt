@@ -69,6 +69,9 @@ class FgoRunnerService : Service() {
     private var projectionStopRequested = false
     private var foregroundStarted = false
     private var projectionForegroundActive = false
+    private var runnerToken: Long? = null
+    private var sessionEnded = false
+    @Volatile private var projectionConsentId = 0L
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = Unit
@@ -76,6 +79,7 @@ class FgoRunnerService : Service() {
         override fun onDisplayChanged(displayId: Int) {
             if (displayId != Display.DEFAULT_DISPLAY) return
             mainHandler.post {
+                if (!ownsActiveSession()) return@post
                 realtimeVoiceTranslationController.onDisplayChanged()
             }
         }
@@ -85,11 +89,9 @@ class FgoRunnerService : Service() {
         private val _serviceStarted = mutableStateOf(false)
         val serviceStarted: State<Boolean> = _serviceStarted
 
+        val sessionGate = RunnerSessionGate()
         private var instance: FgoRunnerService? = null
-            set(value) {
-                field = value
-                _serviceStarted.value = value != null
-            }
+        private val consentSerial = java.util.concurrent.atomic.AtomicLong()
 
         /**
          * Starts the runner without asking for MediaProjection consent. OCR reads the screen
@@ -112,6 +114,7 @@ class FgoRunnerService : Service() {
         }
 
         fun stopService(context: Context): Boolean {
+            instance?.endRunnerSession()
             val intent = Intent(context, FgoRunnerService::class.java)
             return context.stopService(intent)
         }
@@ -122,8 +125,16 @@ class FgoRunnerService : Service() {
         }
 
         /** Delivers the consent result collected by [ProjectionConsentActivity]. */
-        fun deliverProjectionConsentResult(resultCode: Int, resultData: Intent?) {
-            instance?.handleProjectionConsentResult(resultCode, resultData)
+        fun isProjectionConsentCurrent(token: Long, requestId: Long): Boolean =
+            sessionGate.isCurrent(token) && instance?.let {
+                it.runnerToken == token && it.projectionConsentInProgress &&
+                    it.projectionConsentId == requestId && it.voiceProjectionRequested
+            } == true
+
+        fun deliverProjectionConsentResult(token: Long, requestId: Long, resultCode: Int, resultData: Intent?) {
+            if (isProjectionConsentCurrent(token, requestId)) {
+                instance?.handleProjectionConsentResult(resultCode, resultData)
+            }
         }
 
         private const val CHANNEL_ID = "fgogotran_runner"
@@ -143,10 +154,13 @@ class FgoRunnerService : Service() {
         super.onCreate()
         watchDebugLogging()
         FgoLogger.info(tag, "Service created")
-        instance = this
         SessionTranslationHistory.clear()
         createNotificationChannel()
         startForegroundCompat()
+        runnerToken = sessionGate.beginSession()
+        instance = this
+        _serviceStarted.value = true
+        FgoAccessibilityService.instance?.startRunnerSession(runnerToken!!)
         displayManager = getSystemService(DisplayManager::class.java)
         watchLiveVoiceTranslation()
         displayManager?.registerDisplayListener(displayListener, mainHandler)
@@ -172,6 +186,7 @@ class FgoRunnerService : Service() {
      * enabled, never at service start.
      */
     private fun acquireVoiceProjection() {
+        if (!ownsActiveSession()) return
         voiceProjectionRequested = true
         val projection = mediaProjection
         if (projection != null) {
@@ -183,6 +198,8 @@ class FgoRunnerService : Service() {
 
     private fun releaseVoiceProjection() {
         voiceProjectionRequested = false
+        projectionConsentInProgress = false
+        projectionConsentId = 0L
         realtimeVoiceTranslationController.stop()
         if (mediaProjection != null) {
             stopProjectionSession()
@@ -190,6 +207,7 @@ class FgoRunnerService : Service() {
     }
 
     private fun requestProjectionConsent() {
+        val token = runnerToken?.takeIf { ownsActiveSession() } ?: return
         val now = SystemClock.elapsedRealtime()
         var staleRequest = false
         val alreadyRequesting = synchronized(projectionConsentLock) {
@@ -212,9 +230,14 @@ class FgoRunnerService : Service() {
             return
         }
         FgoLogger.info(tag, "Requesting MediaProjection consent (live voice)")
+        val requestId = consentSerial.incrementAndGet()
+        projectionConsentId = requestId
         mainHandler.post {
+            if (!isProjectionConsentCurrent(token, requestId)) return@post
             startActivity(
                 Intent(this, ProjectionConsentActivity::class.java)
+                    .putExtra(ProjectionConsentActivity.EXTRA_RUNNER_TOKEN, token)
+                    .putExtra(ProjectionConsentActivity.EXTRA_REQUEST_ID, requestId)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
@@ -274,9 +297,11 @@ class FgoRunnerService : Service() {
     }
 
     private fun startVoiceProjection(projection: MediaProjection) {
+        val token = runnerToken?.takeIf { ownsActiveSession() } ?: return
         serviceScope.launch {
-            if (voiceProjectionRequested && settingsRepository.liveVoiceTranslationEnabled.first()) {
-                realtimeVoiceTranslationController.start(projection)
+            if (settingsRepository.liveVoiceTranslationEnabled.first() && ownsActiveSession() &&
+                sessionGate.isCurrent(token) && voiceProjectionRequested && mediaProjection === projection) {
+                realtimeVoiceTranslationController.start(projection, token)
             }
         }
     }
@@ -302,10 +327,11 @@ class FgoRunnerService : Service() {
     }
 
     private fun mediaProjectionCallbackFor(projection: MediaProjection): MediaProjection.Callback {
+        val token = runnerToken!!
         return object : MediaProjection.Callback() {
             override fun onStop() {
                 mainHandler.post {
-                    if (mediaProjection !== projection) return@post
+                    if (!sessionGate.isCurrent(token) || !ownsActiveSession() || mediaProjection !== projection) return@post
                     val releasedByUs = projectionStopRequested
                     projectionStopRequested = false
                     mediaProjection = null
@@ -328,7 +354,7 @@ class FgoRunnerService : Service() {
             override fun onCapturedContentResize(width: Int, height: Int) {
                 if (width <= 0 || height <= 0 || mediaProjection !== projection) return
                 mainHandler.post {
-                    if (mediaProjection !== projection) return@post
+                    if (!sessionGate.isCurrent(token) || !ownsActiveSession() || mediaProjection !== projection) return@post
                     realtimeVoiceTranslationController.onDisplayChanged()
                 }
             }
@@ -415,16 +441,36 @@ class FgoRunnerService : Service() {
 
     override fun onDestroy() {
         FgoLogger.info(tag, "Service destroyed")
-        FgoAccessibilityService.instance?.stopRunnerSession()
+        endRunnerSession()
+        serviceScope.cancel()
+        displayManager?.unregisterDisplayListener(displayListener)
+        stopProjectionSession()
+        if (instance === this) {
+            realtimeVoiceTranslationController.destroyOverlay()
+            instance = null
+        }
+        super.onDestroy()
+    }
+
+    private fun ownsActiveSession(): Boolean = !sessionEnded && instance === this &&
+        runnerToken?.let(sessionGate::isCurrent) == true
+
+    /** Close authority before cancelling consumers or asking Android to tear down this service. */
+    private fun endRunnerSession() {
+        if (sessionEnded) return
+        sessionEnded = true
+        val token = runnerToken ?: return
+        if (!sessionGate.endSession(token)) return
+        _serviceStarted.value = false
+        voiceProjectionRequested = false
+        projectionConsentInProgress = false
+        projectionConsentId = 0L
+        FgoAccessibilityService.instance?.stopRunnerSession(token)
+        realtimeVoiceTranslationController.stop()
+        stopProjectionSession()
         overlay.destroy()
         SessionTranslationHistory.clear()
         serviceScope.cancel()
-        displayManager?.unregisterDisplayListener(displayListener)
-        realtimeVoiceTranslationController.stop()
-        stopProjectionSession()
-        realtimeVoiceTranslationController.destroyOverlay()
-        instance = null
-        super.onDestroy()
     }
 
     /** Rebuilds the floating overlay views so they pick up a changed UI language. */
@@ -434,10 +480,12 @@ class FgoRunnerService : Service() {
 
     private fun stopFromOverlay() {
         FgoLogger.info(tag, "Stop requested from floating menu")
+        endRunnerSession()
         stopSelf()
     }
 
     private fun setLiveVoiceTranslationEnabled(enabled: Boolean) {
+        if (!ownsActiveSession()) return
         if (!enabled) {
             // Stop immediately; persistence and observers can complete asynchronously.
             realtimeVoiceTranslationController.stop()
@@ -457,6 +505,7 @@ class FgoRunnerService : Service() {
             settingsRepository.liveVoiceTranslationEnabled
                 .distinctUntilChanged()
                 .collectLatest { enabled ->
+                    if (!ownsActiveSession()) return@collectLatest
                     if (enabled) {
                         acquireVoiceProjection()
                     } else {

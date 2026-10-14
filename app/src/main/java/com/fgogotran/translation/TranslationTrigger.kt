@@ -13,29 +13,23 @@ enum class TranslationMode {
  * Bridge between the draggable overlay button and the accessibility pipeline.
  */
 object TranslationTrigger {
-    private val pending = AtomicBoolean(false)
-    private val menuDismissSettleRequired = AtomicBoolean(false)
+    data class PendingRequest(val runnerToken: Long, val afterMenuDismiss: Boolean)
+    private val pending = AtomicReference<PendingRequest?>(null)
     private val translationMode = AtomicReference(TranslationMode.MANUAL)
     private val historyVisible = AtomicBoolean(false)
     private val menuVisible = AtomicBoolean(false)
 
-    fun requestTranslation(afterMenuDismiss: Boolean = false) {
+    fun requestTranslation(runnerToken: Long, afterMenuDismiss: Boolean = false) {
         if (!canUserTapTranslate()) return
-        menuDismissSettleRequired.set(afterMenuDismiss)
-        pending.set(true)
+        pending.set(PendingRequest(runnerToken, afterMenuDismiss))
     }
 
     fun cancelPendingTranslation() {
-        pending.set(false)
-        menuDismissSettleRequired.set(false)
+        pending.set(null)
     }
 
-    fun consumeRequest(): Boolean {
-        return pending.getAndSet(false)
-    }
-
-    fun consumeMenuDismissSettleRequired(): Boolean {
-        return menuDismissSettleRequired.getAndSet(false)
+    fun consumeRequest(runnerToken: Long): PendingRequest? {
+        return pending.getAndSet(null)?.takeIf { it.runnerToken == runnerToken }
     }
 
     fun setTranslationMode(mode: TranslationMode) {

@@ -224,6 +224,8 @@ class FgoRunnerOverlay @Inject constructor(
     /** Shows the floating button on screen. No-op if already showing. */
     fun show() {
         if (shown) return
+        val runnerToken = FgoRunnerService.sessionGate.captureActiveToken() ?: return
+        overlayRunnerToken = runnerToken
 
         if (!Settings.canDrawOverlays(context)) {
             FgoLogger.warn(tag, "Overlay permission not granted, cannot show button")
@@ -237,13 +239,12 @@ class FgoRunnerOverlay @Inject constructor(
         overlayScope.launch {
             try {
                 loadButtonPositionIfNeeded()
-                restoreLastTranslationMode()
                 buttonSizeDp = settingsRepository.getFloatingButtonSizeDp()
                 gameServer = settingsRepository.getGameServer()
                 aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
                 liveVoiceTranslationEnabled = settingsRepository.liveVoiceTranslationEnabled.first()
                 battleModeActive = battleModeState.active.value
-                if (!shown || requestVersion != showRequestVersion) return@launch
+                if (!shown || requestVersion != showRequestVersion || !FgoRunnerService.sessionGate.isCurrent(runnerToken)) return@launch
 
                 val wm = windowManager
                 if (wm == null) {
@@ -267,6 +268,7 @@ class FgoRunnerOverlay @Inject constructor(
                 startBattleModeObserver()
                 FgoLogger.info(tag, "Floating button shown at ($btnX, $btnY)")
             } catch (e: Exception) {
+                if (requestVersion != showRequestVersion || !FgoRunnerService.sessionGate.isCurrent(runnerToken)) return@launch
                 composeHost?.close()
                 composeHost = null
                 shown = false
@@ -275,25 +277,8 @@ class FgoRunnerOverlay @Inject constructor(
         }
     }
 
-    private suspend fun restoreLastTranslationMode() {
-        val mode = runCatching {
-            TranslationMode.valueOf(
-                SettingsRepository.normalizeTranslationMode(settingsRepository.getLastTranslationMode())
-            )
-        }.getOrElse { error ->
-            FgoLogger.warn(tag, "Failed to restore runner translation mode; using manual", error)
-            TranslationMode.MANUAL
-        }
-        val accessibility = FgoAccessibilityService.instance
-        if (accessibility != null) {
-            accessibility.setTranslationMode(mode, persist = false)
-        } else {
-            TranslationTrigger.setTranslationMode(mode)
-            refreshButtonMode()
-        }
-        FgoLogger.debug(tag, "Runner restored translation mode: $mode")
-    }
-
+    private var overlayRunnerToken: Long? = null
+    private fun isRunnerActive(): Boolean = overlayRunnerToken?.let(FgoRunnerService.sessionGate::isCurrent) == true
     /** Hides the floating button and saves its position. */
     fun hide() {
         if (!shown) return
@@ -327,6 +312,7 @@ class FgoRunnerOverlay @Inject constructor(
 
     /** Cleans up everything (button + dialog). Called on service destroy. */
     fun destroy() {
+        overlayRunnerToken = null
         dismissMenu()
         dismissHistoryPanel()
         cancelCropMode()
@@ -446,7 +432,9 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     fun showTranslationFailureFeedback(fromUserTap: Boolean = true) {
+        val token = overlayRunnerToken?.takeIf { isRunnerActive() } ?: return
         mainHandler.post {
+            if (!FgoRunnerService.sessionGate.isCurrent(token)) return@post
             if (!fromUserTap || !TranslationTrigger.canUserTapTranslate() || buttonMode == FloatingButtonMode.AUTO) {
                 showButtonFailureRing = false
                 return@post
@@ -456,7 +444,7 @@ class FgoRunnerOverlay @Inject constructor(
             showButtonFailureRing = true
             mainHandler.postDelayed(
                 {
-                    if (failureFeedbackVersion == version) {
+                    if (failureFeedbackVersion == version && FgoRunnerService.sessionGate.isCurrent(token)) {
                         showButtonFailureRing = false
                     }
                 },
@@ -539,10 +527,7 @@ class FgoRunnerOverlay @Inject constructor(
             reportAccessibilityServiceUnavailable("手动翻译")
             return
         }
-        if (!accessibility.requestManualTranslation()) {
-            FgoLogger.debug(tag, "Manual translation queued by the translation trigger")
-            TranslationTrigger.requestTranslation()
-        }
+        if (isRunnerActive()) accessibility.requestManualTranslation()
     }
 
     /**
@@ -889,6 +874,7 @@ class FgoRunnerOverlay @Inject constructor(
                 buttonCenterY = centerY,
                 onDismiss = { dismissMenu() },
                 onTranslationModeChange = { mode ->
+                    if (!isRunnerActive()) return@FloatingArcMenu
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {
                         accessibility.setBattleModeEnabled(false)
@@ -954,14 +940,13 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun requestClose() {
-        dismissMenu()
-        cancelCropMode()
-        FgoAccessibilityService.instance?.stopRunnerSession()
         FgoLogger.info(tag, "Close requested from floating menu")
+        // Runner closes authority before destroying controls or restoring a crop mode.
         onCloseRequested?.invoke()
     }
 
     private fun armOneShotCropMode() {
+        if (!isRunnerActive()) return
         if (!isJapaneseServer()) return
         setBattleModeEnabled(false)
         if (cropModeState != CropModeState.SELECTING) {
@@ -980,6 +965,7 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun requestOneShotCropTranslation() {
+        if (!isRunnerActive()) return
         val bounds = cropSelectionOverlay.selectedBounds()
         val restoreMode = modeBeforeCrop
         modeBeforeCrop = null
@@ -1015,7 +1001,7 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun restoreModeAfterCropSelection(mode: TranslationMode?) {
-        if (mode == null) return
+        if (mode == null || !isRunnerActive()) return
         FgoAccessibilityService.instance?.setTranslationMode(mode, persist = false)
             ?: TranslationTrigger.setTranslationMode(mode)
     }
@@ -1025,6 +1011,7 @@ class FgoRunnerOverlay @Inject constructor(
     }
 
     private fun setBattleModeEnabled(enabled: Boolean) {
+        if (!isRunnerActive()) return
         val accessibility = FgoAccessibilityService.instance
         if (accessibility != null) {
             accessibility.setBattleModeEnabled(enabled)

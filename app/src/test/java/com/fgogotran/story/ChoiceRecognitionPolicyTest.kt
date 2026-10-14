@@ -32,7 +32,7 @@ class ChoiceRecognitionPolicyTest {
     @Test
     fun `AUTO can recognize choices without a user request`() {
         TranslationTrigger.setTranslationMode(TranslationMode.AUTO)
-        assertFalse(TranslationTrigger.consumeRequest())
+        assertFalse(TranslationTrigger.consumeRequest(1L) != null)
         assertTrue(ChoiceRecognitionPolicy.canRecognize(
             userInitiated = false, fullAuto = TranslationTrigger.isFullAutoEnabled()))
     }
@@ -41,7 +41,7 @@ class ChoiceRecognitionPolicyTest {
     fun `manual choices still require and accept an explicit request`() {
         TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
         assertFalse(canRecognizeRequestedChoices())
-        TranslationTrigger.requestTranslation()
+        TranslationTrigger.requestTranslation(1L)
         assertTrue(canRecognizeRequestedChoices())
         assertFalse(canRecognizeRequestedChoices())
     }
@@ -117,14 +117,14 @@ class ChoiceRecognitionPolicyTest {
             assertFalse(canRecognizeRequestedChoices())
             assertTrue(TranslationTrigger.isSemiAutoEnabled())
         }
-        TranslationTrigger.requestTranslation()
+        TranslationTrigger.requestTranslation(1L)
         assertTrue(canRecognizeRequestedChoices())
         assertFalse(canRecognizeRequestedChoices()) // One request, not continuous AUTO.
         assertTrue(TranslationTrigger.isSemiAutoEnabled())
     }
 
     private fun canRecognizeRequestedChoices() = ChoiceRecognitionPolicy.canRecognize(
-        userInitiated = TranslationTrigger.consumeRequest(),
+        userInitiated = TranslationTrigger.consumeRequest(1L) != null,
         fullAuto = TranslationTrigger.isFullAutoEnabled()
     )
 }

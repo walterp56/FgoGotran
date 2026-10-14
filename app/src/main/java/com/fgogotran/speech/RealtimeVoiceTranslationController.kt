@@ -10,6 +10,7 @@ import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.util.FgoLogger
 import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,6 +32,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
@@ -69,12 +73,19 @@ class RealtimeVoiceTranslationController @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val generation = AtomicLong(0L)
     private val stateLock = Any()
+    private val restartMutex = Mutex()
     private var sessionJob: Job? = null
     private val _state = MutableStateFlow<RealtimeVoiceTranslationState>(RealtimeVoiceTranslationState.Disabled)
     val state: StateFlow<RealtimeVoiceTranslationState> = _state.asStateFlow()
 
-    suspend fun start(projection: MediaProjection?) {
-        val startRequestId = generation.incrementAndGet()
+    @Volatile private var runnerToken: Long? = null
+
+    suspend fun start(projection: MediaProjection?, ownerToken: Long) {
+        val startRequestId = synchronized(stateLock) {
+            if (!FgoRunnerService.sessionGate.isCurrent(ownerToken)) return
+            runnerToken = ownerToken
+            generation.incrementAndGet()
+        }
         if (!settingsRepository.liveVoiceTranslationEnabled.first()) {
             if (isCurrent(startRequestId)) stop()
             return
@@ -133,25 +144,32 @@ class RealtimeVoiceTranslationController @Inject constructor(
             }
         }
 
-        stopAndAwaitForRestart()
-        if (!isCurrent(startRequestId)) return
-        val job = scope.launch(start = CoroutineStart.LAZY) {
-            runReconnectLoop(startRequestId, activeProjection, config)
-        }
-        val accepted = synchronized(stateLock) {
-            if (isCurrent(startRequestId)) {
-                sessionJob = job
-                true
-            } else {
-                false
+        // A cancelled old start must finish native cleanup before a newer start can own capture.
+        restartMutex.withLock {
+            if (!isCurrent(startRequestId)) return@withLock
+            stopAndAwaitForRestart()
+            if (!isCurrent(startRequestId)) return@withLock
+            val job = scope.launch(start = CoroutineStart.LAZY) {
+                runReconnectLoop(startRequestId, activeProjection, config)
             }
+            val accepted = synchronized(stateLock) {
+                if (isCurrent(startRequestId)) {
+                    sessionJob = job
+                    true
+                } else {
+                    false
+                }
+            }
+            if (accepted) job.start() else job.cancel()
         }
-        if (accepted) job.start() else job.cancel()
     }
 
     fun stop() {
-        generation.incrementAndGet()
-        val job = synchronized(stateLock) { sessionJob }
+        val job = synchronized(stateLock) {
+            generation.incrementAndGet()
+            runnerToken = null
+            sessionJob
+        }
         job?.cancel()
         audioCapture.stop()
         subtitleOverlay.hide()
@@ -180,7 +198,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
     }
 
     private fun failConfigurationIfCurrent(requestId: Long, message: String, eventId: String) {
-        if (isCurrent(requestId)) failConfiguration(message, eventId)
+        if (isCurrent(requestId)) runnerToken?.let { failConfiguration(message, eventId, it) }
     }
 
     private suspend fun runReconnectLoop(
@@ -221,7 +239,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
         )
         var writerJob: Job? = null
         _state.value = RealtimeVoiceTranslationState.Starting
-        subtitleOverlay.activate()
+        subtitleOverlay.activate { isCurrent(sessionId) }
         if (!isCurrent(sessionId)) {
             subtitleOverlay.hide()
             _state.value = RealtimeVoiceTranslationState.Disabled
@@ -265,9 +283,10 @@ class RealtimeVoiceTranslationController @Inject constructor(
             }
             if (!isCurrent(sessionId)) return AttemptTerminal.Stopped
 
-            writerJob = scope.launch {
+            writerJob = CoroutineScope(currentCoroutineContext()).launch {
                 try {
                     for (frame in pcmFrames) {
+                        if (!isCurrent(sessionId)) break
                         azureTranslator.get().writePcm(frame)
                     }
                 } catch (e: CancellationException) {
@@ -282,11 +301,12 @@ class RealtimeVoiceTranslationController @Inject constructor(
                     )
                 }
             }
+            if (!isCurrent(sessionId)) return AttemptTerminal.Stopped
             val captureResult = audioCapture.start(
                 projection = projection,
-                onPcmFrame = { frame -> pcmFrames.trySend(frame) },
+                onPcmFrame = { frame -> if (isCurrent(sessionId)) pcmFrames.trySend(frame) },
                 onFailure = { error ->
-                    terminal.complete(
+                    if (isCurrent(sessionId)) terminal.complete(
                         AttemptTerminal.Failed(
                             message = error.message ?: "播放声音捕获失败",
                             errorCode = "audio_capture_failed",
@@ -296,6 +316,7 @@ class RealtimeVoiceTranslationController @Inject constructor(
                 }
             )
             captureResult.exceptionOrNull()?.let { throw it }
+            if (!isCurrent(sessionId)) return AttemptTerminal.Stopped
             _state.value = RealtimeVoiceTranslationState.Listening
             FgoLogger.info(tag, "Realtime voice translation is listening")
             terminal.await()
@@ -318,12 +339,15 @@ class RealtimeVoiceTranslationController @Inject constructor(
         }
     }
 
-    private fun isCurrent(sessionId: Long): Boolean = generation.get() == sessionId
+    private fun isCurrent(sessionId: Long): Boolean = synchronized(stateLock) {
+        generation.get() == sessionId && runnerToken?.let(FgoRunnerService.sessionGate::isCurrent) == true
+    }
 
-    private fun failConfiguration(message: String, eventId: String) {
+    private fun failConfiguration(message: String, eventId: String, ownerToken: Long) {
         stop()
+        if (!FgoRunnerService.sessionGate.isCurrent(ownerToken)) return
         _state.value = RealtimeVoiceTranslationState.Error(message)
-        subtitleOverlay.activate()
+        subtitleOverlay.activate { FgoRunnerService.sessionGate.isCurrent(ownerToken) }
         subtitleOverlay.showStatus(message, isError = true)
         recordFailure(eventId, message, "configuration")
     }

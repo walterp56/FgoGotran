@@ -18,9 +18,20 @@ import com.fgogotran.runner.FgoRunnerService
 class ProjectionConsentActivity : Activity() {
 
     private var consentRequested = false
+    private var runnerToken = 0L
+    private var requestId = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        runnerToken = savedInstanceState?.getLong(EXTRA_RUNNER_TOKEN)
+            ?: intent.getLongExtra(EXTRA_RUNNER_TOKEN, 0L)
+        requestId = savedInstanceState?.getLong(EXTRA_REQUEST_ID)
+            ?: intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
+        consentRequested = savedInstanceState?.getBoolean("consentRequested") ?: false
+        if (!FgoRunnerService.isProjectionConsentCurrent(runnerToken, requestId)) {
+            finish()
+            return
+        }
         if (savedInstanceState != null || consentRequested) {
             return
         }
@@ -55,6 +66,10 @@ class ProjectionConsentActivity : Activity() {
     }
 
     private fun requestProjectionConsent() {
+        if (!FgoRunnerService.isProjectionConsentCurrent(runnerToken, requestId)) {
+            finish()
+            return
+        }
         if (consentRequested) return
         consentRequested = true
         val manager = getSystemService(MediaProjectionManager::class.java)
@@ -64,13 +79,22 @@ class ProjectionConsentActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE) {
-            FgoRunnerService.deliverProjectionConsentResult(resultCode, data)
+            FgoRunnerService.deliverProjectionConsentResult(runnerToken, requestId, resultCode, data)
         }
         finish()
     }
 
     companion object {
+        const val EXTRA_RUNNER_TOKEN = "runner_session_token"
+        const val EXTRA_REQUEST_ID = "projection_consent_request_id"
         private const val REQUEST_CODE = 9001
         private const val REQUEST_AUDIO_PERMISSION = 9002
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putLong(EXTRA_RUNNER_TOKEN, runnerToken)
+        outState.putLong(EXTRA_REQUEST_ID, requestId)
+        outState.putBoolean("consentRequested", consentRequested)
+        super.onSaveInstanceState(outState)
     }
 }

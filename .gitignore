@@ -204,3 +204,9 @@ app/src/test/java/com/fgogotran/analytics/*
 # Retain manual fresh-attempt wiring and same-source history replacement regressions.
 !app/src/test/java/com/fgogotran/translation/ManualTranslationRefreshWorkflowTest.kt
 !app/src/test/java/com/fgogotran/translation/SessionTranslationHistoryTest.kt
+# Retain runner authority, async ownership and in-game voice cancellation regressions.
+!app/src/test/java/com/fgogotran/runner/
+app/src/test/java/com/fgogotran/runner/*
+!app/src/test/java/com/fgogotran/runner/RunnerSessionGateTest.kt
+!app/src/test/java/com/fgogotran/runner/RunnerSessionWiringTest.kt
+!app/src/test/java/com/fgogotran/voice/InGameVoiceRequestGateTest.kt

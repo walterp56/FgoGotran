@@ -25,6 +25,7 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -46,6 +47,8 @@ class VoiceSubtitleOverlay @Inject constructor(
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val active = AtomicBoolean(false)
+    private val displayGeneration = AtomicLong()
+    @Volatile private var sessionCurrent: () -> Boolean = { false }
     private var touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var callbacksRegistered = false
 
@@ -91,8 +94,15 @@ class VoiceSubtitleOverlay @Inject constructor(
         }
     }
 
-    fun activate() {
-        active.set(true)
+    fun activate(stillCurrent: () -> Boolean) {
+        val epoch = displayGeneration.incrementAndGet()
+        sessionCurrent = stillCurrent
+        active.set(stillCurrent())
+        mainHandler.post {
+            if (epoch != displayGeneration.get()) return@post
+            cancelScheduledHide()
+            clearDisplayText()
+        }
     }
 
     fun showPartial(text: String) {
@@ -124,7 +134,9 @@ class VoiceSubtitleOverlay @Inject constructor(
 
     fun hide() {
         active.set(false)
+        val epoch = displayGeneration.incrementAndGet()
         mainHandler.post {
+            if (epoch != displayGeneration.get()) return@post
             cancelScheduledHide()
             pendingTimeoutMs = null
             touchActive = false
@@ -135,7 +147,9 @@ class VoiceSubtitleOverlay @Inject constructor(
 
     fun destroy() {
         active.set(false)
+        val epoch = displayGeneration.incrementAndGet()
         mainHandler.post {
+            if (epoch != displayGeneration.get()) return@post
             if (callbacksRegistered) {
                 context.unregisterComponentCallbacks(componentCallbacks)
                 callbacksRegistered = false
@@ -162,9 +176,11 @@ class VoiceSubtitleOverlay @Inject constructor(
         isStatus: Boolean = false
     ) {
         val safeText = text.trim()
-        if (safeText.isEmpty() || !active.get()) return
+        val epoch = displayGeneration.get()
+        val ownerCurrent = sessionCurrent
+        if (safeText.isEmpty() || !active.get() || !ownerCurrent()) return
         mainHandler.post {
-            if (!active.get()) return@post
+            if (epoch != displayGeneration.get() || !active.get() || !ownerCurrent()) return@post
             val view = ensureView() ?: return@post
             cancelScheduledHide()
             pendingTimeoutMs = timeoutMs
@@ -182,7 +198,9 @@ class VoiceSubtitleOverlay @Inject constructor(
             updateMaximumWidth(view)
             updateDisplayText(view)
             view.requestLayout()
-            view.post { placeView(view, useConfiguredPosition = false) }
+            view.post {
+                if (epoch == displayGeneration.get() && ownerCurrent()) placeView(view, useConfiguredPosition = false)
+            }
             if (!touchActive) timeoutMs?.let(::scheduleHide)
         }
     }
@@ -491,7 +509,9 @@ class VoiceSubtitleOverlay @Inject constructor(
 
     private fun scheduleHide(delayMs: Long) {
         cancelScheduledHide()
+        val epoch = displayGeneration.get()
         val runnable = Runnable {
+            if (epoch != displayGeneration.get()) return@Runnable
             clearDisplayText()
             textView?.visibility = View.GONE
             hideRunnable = null
