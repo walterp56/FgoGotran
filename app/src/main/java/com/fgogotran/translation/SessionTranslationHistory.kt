@@ -26,7 +26,8 @@ data class SessionTranslationEntry(
     val sceneContextGeneration: Long = SessionTranslationHistory.UNSPECIFIED_SCENE_CONTEXT_GENERATION,
     val createdAt: Long = System.currentTimeMillis(),
     val historyId: Long = 0L,
-    val battleOccurrence: Boolean = false
+    val battleOccurrence: Boolean = false,
+    val generalPreparedSourceDialogue: String? = null
 )
 
 /** Reserves source order without putting unfinished/failed translation text in the LOG. */
@@ -67,6 +68,7 @@ object SessionTranslationHistory {
         val originalKey = scopedEntry.contentKey()
         if (originalKey.isBlank()) return
         if (latestEntryInContext?.let { !it.battleOccurrence && it.contentKey() == originalKey } == true) {
+            refreshGeneralPreparedSourceDialogue(currentEntries, latestEntryInContextIndex, scopedEntry)
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
         }
@@ -91,6 +93,7 @@ object SessionTranslationHistory {
             return
         }
         if (latestEntryInContext?.let { !it.battleOccurrence && it.contentKey() == key } == true) {
+            refreshGeneralPreparedSourceDialogue(currentEntries, latestEntryInContextIndex, normalizedEntry)
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
         }
@@ -186,12 +189,27 @@ object SessionTranslationHistory {
                     sourceDialogue = entry.contextSourceDialogue!!.trim(),
                     translatedDialogue = translatedDialogue,
                     targetLocale = SettingsRepository.normalizeTargetLanguage(entry.targetLocale),
-                    dialogueSourceKey = entry.normalizedDialogueSourceKey()
+                    dialogueSourceKey = entry.normalizedDialogueSourceKey(),
+                    generalPreparedSourceDialogue = entry.generalPreparedSourceDialogue
                 )
             }
             .take(safeLimit)
             .toList()
             .asReversed()
+    }
+
+    private fun refreshGeneralPreparedSourceDialogue(
+        currentEntries: List<SessionTranslationEntry>,
+        existingIndex: Int,
+        incoming: SessionTranslationEntry
+    ) {
+        val existing = currentEntries[existingIndex]
+        if (existing.generalPreparedSourceDialogue == incoming.generalPreparedSourceDialogue) return
+        _entries.value = currentEntries.toMutableList().apply {
+            this[existingIndex] = existing.copy(
+                generalPreparedSourceDialogue = incoming.generalPreparedSourceDialogue
+            )
+        }
     }
 
     private fun SessionTranslationEntry.contentKey(): String {
@@ -268,7 +286,8 @@ object SessionTranslationHistory {
             contextTranslatedDialogue = null,
             speakerNameColor = null,
             dialogueTextColor = null,
-            contextDialogueTranslationTrusted = false
+            contextDialogueTranslationTrusted = false,
+            generalPreparedSourceDialogue = null
         )
     }
 

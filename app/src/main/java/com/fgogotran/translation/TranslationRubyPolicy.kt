@@ -14,7 +14,8 @@ object TranslationRubyPolicy {
             previousDialogueContexts = input.previousDialogueContexts.map { context ->
                 context.copy(
                     sourceDialogue = mainTextOnly(context.sourceDialogue),
-                    translatedDialogue = context.translatedDialogue?.let(::mainTextOnly)
+                    translatedDialogue = context.translatedDialogue?.let(::mainTextOnly),
+                    generalPreparedSourceDialogue = context.generalPreparedSourceDialogue?.let(::mainTextOnly)
                 )
             }
         )

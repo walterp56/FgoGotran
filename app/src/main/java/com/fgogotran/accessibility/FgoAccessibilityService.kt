@@ -4932,6 +4932,9 @@ class FgoAccessibilityService : AccessibilityService() {
                     contextTranslatedSpeakerName = contextTranslatedSpeakerName,
                     contextSourceDialogue = contextSourceDialogue,
                     contextTranslatedDialogue = contextTranslatedDialogue,
+                    generalPreparedSourceDialogue = if (dialogueInstruction != null) {
+                        sceneTranslation.generalPreparedSourceDialogue?.trim()?.takeIf { it.isNotBlank() }
+                    } else null,
                     choices = choiceEntries.map { it.first },
                     originalChoices = choiceEntries.map { it.second },
                     speakerNameColor = nameInstruction?.textColor

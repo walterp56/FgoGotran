@@ -155,7 +155,7 @@
     <string name="diagnostic_error">Error</string>
     <string name="diagnostic_note">Warning</string>
     <string name="diagnostic_record">Info</string>
-    <string name="guide_auto_1">My Room → Game Options → Text Display Speed</string>
+    <string name="guide_auto_1">マイルーム → ゲームオプション → テキスト表示速度\nMy Room → Game Options → Text Display Speed</string>
     <string name="guide_auto_2">FgoGotran collects only anonymous usage statistics to understand version, mode, and API-type usage.</string>
     <string name="guide_auto_3">BATTLE subtitle mode: translates only battle subtitles. Long-press the floating button and choose it from the menu.</string>
     <string name="guide_auto_4">Screenshots, game text, translations, API keys, player names, account information, or device identifiers.</string>
@@ -172,14 +172,14 @@
     <string name="guide_auto_15">You do not need to switch modes constantly. Pick one that matches how you read.</string>
     <string name="guide_auto_16">Full-auto is on; tapping the button will not translate manually.</string>
     <string name="guide_auto_17">View the full guide, downloads, and latest information.</string>
-    <string name="guide_auto_18">Punctuation wait: 句読点待ち時間</string>
+    <string name="guide_auto_18">句読点待ち時間 / Punctuation wait</string>
     <string name="guide_auto_19">Semi-auto reading. Tap the button to translate choices.</string>
     <string name="guide_auto_20">Open FgoGotran website</string>
-    <string name="guide_auto_21">Page turn: ページ送り / 表示速度</string>
+    <string name="guide_auto_21">ページ送り / Page turn</string>
     <string name="guide_auto_22">View this session\'s OCR and translation history.</string>
     <string name="guide_auto_23">FgoGotran website</string>
     <string name="guide_auto_24">Set FGO text speed first</string>
-    <string name="guide_auto_25">Text speed: 文字送り / 表示速度</string>
+    <string name="guide_auto_25">文字送り / Text speed</string>
     <string name="guide_auto_26">Tap the button to translate the current screen.</string>
     <string name="guide_auto_27">Choose a reading mode</string>
     <string name="guide_auto_28">Floating button guide</string>

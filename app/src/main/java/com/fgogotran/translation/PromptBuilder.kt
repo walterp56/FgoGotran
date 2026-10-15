@@ -75,6 +75,19 @@ internal fun StringBuilder.appendTranslationGlossarySection(
     )
 }
 
+internal fun StringBuilder.appendGeneralTranslationGlossarySection(
+    entries: List<TranslationGlossaryEntry>
+) {
+    if (entries.isEmpty()) return
+    appendPromptSectionText(
+        "Glossary (exact targets for matching source meanings):\n" +
+            "Use a listed target exactly when the source occurrence has its specified meaning.\n" +
+            "Do not insert an entry merely because it is listed.\n" +
+            "Gender notes apply only to explicit references to that person, never to omitted subjects or possessors.\n" +
+            TranslationGlossaryBuilder.render(TranslationGlossaryBuilder.qualifyGeneral(entries))
+    )
+}
+
 internal fun renderNumberedPromptItems(items: List<String>): String = items
     .mapIndexed { index, item ->
         val normalized = item.trim().replace("\n", "\n   ")
@@ -163,10 +176,10 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v96-plain-layout"
-        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v9-plain-layout"
-        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v4-plain-layout"
-        const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v3-plain-layout"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v97-plain-layout"
+        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v10-plain-layout"
+        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v5-plain-layout"
+        const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v4-plain-layout"
 
         /** Prompt/cache version for the requested target; English has its own block set. */
         fun promptVersionFor(targetLanguage: String, battleSubtitle: Boolean): String {
@@ -240,7 +253,9 @@ class PromptBuilder @Inject constructor() {
             Translate into concise, natural in-game {target_chinese}; keep every meaning, role, relationship, uncertainty, ambiguity, repetition, and ellipsis, and add nothing.
             Keep fragments and interrupted sentences unfinished; never summarize or complete the source.
             Use neutral modern standard written Chinese; keep register and voice only when the Japanese carries them. Use natural Chinese order, not Japanese syntax.
-            Use each listed glossary target exactly (same characters). Never leave kana: translate or transliterate katakana (common loanwords may use compact English).
+            Use glossary targets exactly for their specified source meanings.
+            Preserve configured player names and explicitly protected literals verbatim, including kana.
+            Translate or transliterate all other kana; common loanwords may use compact English.
             Preserve stated references and action roles; use natural Chinese omission when Japanese omits them, and never infer them from speaker identity.
             Keep source sentences aligned; line breaks only when meaningful. Pause dots -> ……; long dashes -> ───; keep !? and other expressive punctuation.
             """.trimIndent()
@@ -250,12 +265,18 @@ class PromptBuilder @Inject constructor() {
             Translate all visible text as one concise, natural {target_chinese} caption, in order; OCR newlines are visual wrapping.
             Preserve meaning, action direction, sentence type, voice, intensity, repetition, and expressive punctuation; fragments stay fragments, never invent text.
             Neutral modern standard Chinese, natural Chinese order, not Japanese syntax; keep register only when the Japanese carries it.
-            Glossary targets exact (same characters). No kana. Pause dots -> ……; long dashes -> ───.
+            Use glossary targets exactly for their specified source meanings.
+            Preserve configured player names and explicitly protected literals verbatim, including kana.
+            Translate or transliterate all other kana; common loanwords may use compact English.
+            Pause dots -> ……; long dashes -> ───.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """
             Translate visible Fate/Grand Order Japanese OCR into natural {target_chinese}, row by row and concise; do not infer text outside the crop.
-            Neutral modern standard Chinese, natural Chinese order; glossary targets exact (same characters); never leave kana.
+            Neutral modern standard Chinese, natural Chinese order.
+            Use glossary targets exactly for their specified source meanings.
+            Preserve configured player names and explicitly protected literals verbatim, including kana.
+            Translate or transliterate all other kana; common loanwords may use compact English.
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT = """
@@ -271,7 +292,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val JSON_ARRAY_OUTPUT_PROMPT = """
-            Return a JSON array only; preserve item count and order.
+            Return only a JSON array containing exactly the requested number of nonempty translation strings, in input order.
+            Never use null, numbers, booleans, objects, or arrays as items.
             """.trimIndent()
 
         private val PLACEHOLDER_PROMPT = """
@@ -326,7 +348,9 @@ class PromptBuilder @Inject constructor() {
             Translate into concise, natural in-game English; keep every meaning, role, relationship, uncertainty, ambiguity, repetition, and ellipsis, and add nothing.
             Keep fragments and interrupted sentences unfinished; never summarize or complete the source.
             Use neutral modern American English; keep register and voice only when the Japanese carries it. Write natural English, not Japanese word order.
-            Use each listed glossary target exactly (spelling and capitalization). Katakana names/terms: official NA spelling when known, otherwise standard romanization; never leave kana.
+            Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
+            Preserve configured player names and explicitly protected literals verbatim, including kana.
+            For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
             Use an explicit subject only when English grammar requires one; preserve natural fragments and imperatives, and never invent a person or relationship. Translate second-person address as "you" (or an English insult when hostile), never a name.
             Convert 「」『』 to "..." (nested quotes use '...'). "…" -> "..."; long dash -> "—"; keep !? and !!. Keep source sentences aligned; line breaks only when meaningful.
             """.trimIndent()
@@ -336,12 +360,18 @@ class PromptBuilder @Inject constructor() {
             Translate all visible text as one concise, natural English caption, in order; OCR newlines are visual wrapping.
             Match FGO NA battle style: short and punchy; fragments stay fragments; keep intensity and expressive punctuation (!?, !!, ...); never add text that is not visible.
             Neutral modern American English, natural English order, not Japanese syntax; keep register only when the Japanese carries it.
-            Glossary targets exact (spelling and capitalization). No kana. "…" -> "..."; long dash -> "—".
+            Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
+            Preserve configured player names and explicitly protected literals verbatim, including kana.
+            For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
+            "…" -> "..."; long dash -> "—".
             """.trimIndent()
 
         private val CROP_BASE_PROMPT_EN = """
             Translate visible Fate/Grand Order Japanese OCR into natural English, row by row and concise; do not infer text outside the crop.
-            Neutral modern American English, natural English order; glossary targets exact (spelling and capitalization); never leave kana.
+            Neutral modern American English, natural English order.
+            Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
+            Preserve configured player names and explicitly protected literals verbatim, including kana.
+            For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT_EN = """
@@ -686,7 +716,7 @@ class PromptBuilder @Inject constructor() {
     ): String {
         val sb = StringBuilder()
 
-        sb.appendTranslationGlossarySection(glossaryEntries)
+        sb.appendGeneralTranslationGlossarySection(glossaryEntries)
         if (choiceTexts.isNotEmpty()) {
             sb.appendPromptSection(
                 "choice_context",
@@ -708,11 +738,11 @@ class PromptBuilder @Inject constructor() {
             .map { it.trim() }
             .filter { it.isNotBlank() }
 
-        sb.appendTranslationGlossarySection(glossaryEntries)
+        sb.appendGeneralTranslationGlossarySection(glossaryEntries)
         sb.appendPromptSection("current_japanese_rows", renderNumberedPromptItems(lines))
         sb.appendPromptSection(
             "required_output",
-            "Return a JSON array of exactly ${lines.size} translated strings, one per OCR row, in the same order."
+            "Return a JSON array of exactly ${lines.size} nonempty translated strings, one per OCR row, in the same order."
         )
 
         FgoLogger.debug(tag, "Crop user prompt: ${sb.length} chars")
@@ -854,8 +884,8 @@ class PromptBuilder @Inject constructor() {
                     HonorificPromptRule.SAMA ->
                         "XX様->Lord/Lady/Sir/Madam by context (王様->the King, 神様->God, " +
                             "お嬢様->milady, 皆様->everyone, 陛下->Your Majesty)"
-                    HonorificPromptRule.TONO -> "XX殿->Lord XX"
-                    HonorificPromptRule.SHI -> "XX氏->Mr. XX"
+                    HonorificPromptRule.TONO -> "殿 expresses formal address"
+                    HonorificPromptRule.SHI -> "氏 expresses respectful reference"
                     HonorificPromptRule.TAN -> "XXたん->XX-tan"
                     HonorificPromptRule.TYA -> "XXてゃ->XX-tya"
                     HonorificPromptRule.CCHI -> "XXっち->little XX"
@@ -866,6 +896,10 @@ class PromptBuilder @Inject constructor() {
                 append("- Names only: ")
                 append(englishMappings)
                 append('.')
+                if (matches.any { it.rule == HonorificPromptRule.SHI || it.rule == HonorificPromptRule.TONO }) {
+                    append("\nPreserve that respect without inferring gender or noble rank from the suffix.")
+                    append("\nUse an English title only when Japanese or explicit context supports it.")
+                }
                 if (englishExceptions.isNotEmpty()) {
                     append(" Current-source exceptions (ordinary/kinship/title, not name suffixes): ")
                     append(englishExceptions.joinToString(", "))

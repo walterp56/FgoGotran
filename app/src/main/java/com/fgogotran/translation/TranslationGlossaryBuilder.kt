@@ -18,6 +18,24 @@ internal data class TranslationGlossaryEntry(
 internal object TranslationGlossaryBuilder {
     private val bilingualSpeakerPattern = Regex("""^(.+?)\s*\(JP:\s*(.+?)\)\s*$""")
     private val maskTokens = listOf("???", "？？？", "■", "□", "▇", "█")
+    private const val GENERAL_MASTER_NOTE =
+        "player title only; for the verb マスターする and its inflections, " +
+            "translate the meaning of mastering or learning instead"
+
+    /** General prompts qualify the player-title sense without changing shared glossary semantics. */
+    fun qualifyGeneral(entries: List<TranslationGlossaryEntry>): List<TranslationGlossaryEntry> =
+        entries.map { entry ->
+            if (entry.source.trim() != "マスター" || entry.target.trim() !in setOf("Master", "御主") ||
+                entry.note.contains(GENERAL_MASTER_NOTE)
+            ) {
+                entry
+            } else {
+                entry.copy(
+                    note = if (entry.note.isBlank()) GENERAL_MASTER_NOTE
+                    else "${entry.note}; $GENERAL_MASTER_NOTE"
+                )
+            }
+        }
 
     fun build(
         sourceText: String,

@@ -3,6 +3,7 @@ package com.fgogotran.translation
 import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -143,5 +144,97 @@ class SessionTranslationHistoryTest {
         )
 
         assertTrue(SessionTranslationHistory.lastSceneDialogueContexts().isEmpty())
+    }
+
+    @Test
+    fun `duplicate refreshes prepared source without changing LOG content or row identity`() {
+        val raw = "おかあさん〈マスター〉、いい？"
+        val original = SessionTranslationEntry(
+            speakerName = "傑克",
+            dialogueText = "媽媽，可以嗎？",
+            originalDialogueText = raw,
+            contextSourceSpeakerName = "ジャック",
+            contextTranslatedSpeakerName = "傑克",
+            contextSourceDialogue = raw,
+            contextTranslatedDialogue = "媽媽，可以嗎？",
+            sourceKey = "raw-scene-key",
+            dialogueSourceKey = "raw-dialogue-key",
+            speakerNameColor = 1,
+            dialogueTextColor = 2,
+            createdAt = 100L
+        )
+        SessionTranslationHistory.add(original)
+        val existing = SessionTranslationHistory.entries.value.single()
+
+        SessionTranslationHistory.add(
+            original.copy(
+                generalPreparedSourceDialogue = "おかあさん、いい？",
+                sourceKey = "incoming-key",
+                speakerNameColor = 3,
+                createdAt = 200L
+            )
+        )
+
+        assertEquals(
+            existing.copy(generalPreparedSourceDialogue = "おかあさん、いい？"),
+            SessionTranslationHistory.entries.value.single()
+        )
+        val context = SessionTranslationHistory.lastSceneDialogueContexts().single()
+        assertEquals(raw, context.sourceDialogue)
+        assertEquals("おかあさん、いい？", context.generalPreparedSourceDialogue)
+        assertEquals("raw-dialogue-key", context.dialogueSourceKey)
+
+        SessionTranslationHistory.add(original)
+
+        assertEquals(existing, SessionTranslationHistory.entries.value.single())
+        assertNull(SessionTranslationHistory.lastSceneDialogueContexts().single().generalPreparedSourceDialogue)
+    }
+
+    @Test
+    fun `early duplicate refresh does not suppress dialogue on an existing choice row`() {
+        val original = SessionTranslationEntry(
+            dialogueText = "媽媽，可以嗎？",
+            originalDialogueText = "おかあさん〈マスター〉、いい？",
+            contextSourceDialogue = "おかあさん〈マスター〉、いい？",
+            contextTranslatedDialogue = "媽媽，可以嗎？",
+            choices = listOf("可以。"),
+            originalChoices = listOf("いいよ。"),
+            sourceKey = "choice-scene",
+            dialogueSourceKey = "choice-dialogue"
+        )
+        SessionTranslationHistory.add(original)
+        val existing = SessionTranslationHistory.entries.value.single()
+
+        SessionTranslationHistory.add(original.copy(generalPreparedSourceDialogue = "おかあさん、いい？"))
+
+        assertEquals(
+            existing.copy(generalPreparedSourceDialogue = "おかあさん、いい？"),
+            SessionTranslationHistory.entries.value.single()
+        )
+        assertEquals("媽媽，可以嗎？", SessionTranslationHistory.entries.value.single().dialogueText)
+    }
+
+    @Test
+    fun `normalized duplicate clears stale prepared source on the existing choice row`() {
+        val dialogue = SessionTranslationEntry(
+            dialogueText = "可以。",
+            contextSourceDialogue = "いいよ。",
+            contextTranslatedDialogue = "可以。",
+            sourceKey = "dialogue-scene",
+            dialogueSourceKey = "same-dialogue",
+            generalPreparedSourceDialogue = "いいよ。"
+        )
+        SessionTranslationHistory.add(dialogue)
+        SessionTranslationHistory.add(dialogue.copy(choices = listOf("继续。"), sourceKey = "first-choice"))
+        val existingChoice = SessionTranslationHistory.entries.value.last()
+        SessionTranslationHistory.add(existingChoice.copy(generalPreparedSourceDialogue = "stale provenance"))
+
+        SessionTranslationHistory.add(
+            dialogue.copy(choices = listOf("继续。"), sourceKey = "other-choice")
+        )
+
+        assertEquals(2, SessionTranslationHistory.entries.value.size)
+        assertEquals(existingChoice, SessionTranslationHistory.entries.value.last())
+        assertNull(SessionTranslationHistory.entries.value.last().generalPreparedSourceDialogue)
     }
 }

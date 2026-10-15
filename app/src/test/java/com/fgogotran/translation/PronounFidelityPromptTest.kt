@@ -124,23 +124,26 @@ class PronounFidelityPromptTest {
             )
 
             assertTrue(
-                prompt.contains("Return a JSON array only; preserve item count and order."),
+                prompt.contains(
+                    "Return only a JSON array containing exactly the requested number of nonempty translation strings, in input order."
+                ),
                 target
             )
+            assertTrue(prompt.contains("Never use null, numbers, booleans, objects, or arrays as items."), target)
         }
     }
 
     @Test
-    fun `general cache versions advance while battle versions remain unchanged`() {
+    fun `general and battle cache versions advance for source sense policy`() {
         for (target in generalTargets.keys) {
             val english = target == "en"
             assertEquals(
-                if (english) "jp-en-fgo-target-v4-plain-layout" else "jp-cn-fgo-target-v96-plain-layout",
+                if (english) "jp-en-fgo-target-v5-plain-layout" else "jp-cn-fgo-target-v97-plain-layout",
                 PromptBuilder.promptVersionFor(target, battleSubtitle = false),
                 target
             )
             assertEquals(
-                if (english) "battle-subtitle-en-v3-plain-layout" else "battle-subtitle-v9-plain-layout",
+                if (english) "battle-subtitle-en-v4-plain-layout" else "battle-subtitle-v10-plain-layout",
                 PromptBuilder.promptVersionFor(target, battleSubtitle = true),
                 target
             )
@@ -184,7 +187,7 @@ class PronounFidelityPromptTest {
         )
 
         assertTrue(prompt.contains("row by row"))
-        assertTrue(prompt.contains("glossary targets exact"))
+        assertTrue(prompt.contains("Use glossary targets exactly for their specified source meanings"))
         assertTrue(prompt.contains("never merge, split, add, omit, or complete text"))
         assertFalse(prompt.contains("never infer them from speaker identity"))
     }
