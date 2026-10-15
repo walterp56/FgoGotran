@@ -249,7 +249,12 @@ class Translator @Inject constructor(
     private var cachedRuntimeConfigAt = 0L
     private var cachedTermRows: List<TermEntity>? = null
     private var cachedTerms: List<TermEntity>? = null
-    private var cachedCharacterNames: List<CharacterNameEntity>? = null
+    private val characterGenderLookup = CharacterGenderLookup(
+        loadCharacters = ::loadCharacterNames,
+        lookupKeys = ::characterLookupKeys,
+        canonicalKey = ::normalizeNameLookup,
+        normalizeGender = ::normalizeCharacterGender
+    )
     private var cachedTermLookup: Map<String, String>? = null
     private var cachedTermLookupEn: Map<String, String>? = null
     private var cachedCharacterNameLookup: Map<String, String>? = null
@@ -557,7 +562,7 @@ class Translator @Inject constructor(
 
     private fun clearCharacterNameCaches() {
         cachedTerms = null
-        cachedCharacterNames = null
+        characterGenderLookup.clear()
         cachedCharacterNameLookup = null
         cachedCharacterNameLookupEn = null
         cachedCharacterNameVariants = null
@@ -926,6 +931,7 @@ class Translator @Inject constructor(
             getCachedTermLookup()
             getCachedCharacterNameVariants()
             getCachedCharacterNameLookup()
+            characterGenderLookup.warmUp()
             characterContextRepository.warmUp()
             FgoLogger.info(tag, "Translator warm-up complete")
         } catch (e: CancellationException) {
@@ -2951,8 +2957,10 @@ class Translator @Inject constructor(
         return loaded
     }
 
-    private suspend fun getCachedCharacterNames(): List<CharacterNameEntity> {
-        cachedCharacterNames?.let { return it }
+    private suspend fun getCachedCharacterNames(): List<CharacterNameEntity> =
+        characterGenderLookup.characters()
+
+    private suspend fun loadCharacterNames(): List<CharacterNameEntity> {
         val downloadedNames = termDao.getAllCharacterNames()
         val downloadedGenderByName = downloadedNames.associate { character ->
             TextNormalizer.normalizeForTranslation(character.jpName) to character.gender
@@ -2969,7 +2977,6 @@ class Translator @Inject constructor(
         }
         val loaded = (localNames + downloadedNames)
             .distinctBy { TextNormalizer.normalizeForTranslation(it.jpName) }
-        cachedCharacterNames = loaded
         FgoLogger.debug(tag, "Character names cached: ${loaded.size} (local=${localNames.size})")
         return loaded
     }
@@ -3074,16 +3081,7 @@ class Translator @Inject constructor(
         val lookupKey = normalizeNameLookup(TextNormalizer.stripRubyAnnotations(sourceName))
         if (lookupKey.isBlank()) return ""
 
-        val matches = getCachedCharacterNames()
-            .asSequence()
-            .filter { normalizeCharacterGender(it.gender).isNotBlank() }
-            .filter { character -> lookupKey in characterLookupKeys(character) }
-            .distinctBy { character -> normalizeNameLookup(character.jpName) }
-            .toList()
-        return matches.singleOrNull()
-            ?.gender
-            ?.let(::normalizeCharacterGender)
-            .orEmpty()
+        return characterGenderLookup.find(lookupKey)
     }
 
     private fun normalizeCharacterGender(gender: String): String = when (gender.trim()) {

@@ -220,3 +220,4 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/translation/BattleSubtitlePromptTest.kt
 !app/src/test/java/com/fgogotran/translation/DialogueRubyHistoryTest.kt
 !app/src/test/java/com/fgogotran/translation/TranslationRubyPolicyTest.java
+!app/src/test/java/com/fgogotran/translation/CharacterGenderLookupTest.kt
