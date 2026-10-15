@@ -83,7 +83,6 @@ class FgoRunnerOverlay @Inject constructor(
     private var shown = false
     private var cropModeState = CropModeState.IDLE
     private var cropLoadingJob: Job? = null
-    private var modeBeforeCrop: TranslationMode? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val overlayScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var buttonMode by mutableStateOf(FloatingButtonMode.MANUAL)
@@ -512,6 +511,7 @@ class FgoRunnerOverlay @Inject constructor(
             requestOneShotCropTranslation()
             return
         }
+        if (cropLoadingJob?.isCompleted == false) return
 
         if (battleModeState.active.value) {
             return
@@ -875,6 +875,7 @@ class FgoRunnerOverlay @Inject constructor(
                 onDismiss = { dismissMenu() },
                 onTranslationModeChange = { mode ->
                     if (!isRunnerActive()) return@FloatingArcMenu
+                    cancelCropMode()
                     val accessibility = FgoAccessibilityService.instance
                     if (accessibility != null) {
                         accessibility.setBattleModeEnabled(false)
@@ -941,69 +942,67 @@ class FgoRunnerOverlay @Inject constructor(
 
     private fun requestClose() {
         FgoLogger.info(tag, "Close requested from floating menu")
-        // Runner closes authority before destroying controls or restoring a crop mode.
+        // Runner closes authority before destroying controls.
         onCloseRequested?.invoke()
     }
 
     private fun armOneShotCropMode() {
         if (!isRunnerActive()) return
         if (!isJapaneseServer()) return
-        setBattleModeEnabled(false)
-        if (cropModeState != CropModeState.SELECTING) {
-            modeBeforeCrop = TranslationTrigger.translationMode()
+        val accessibility = FgoAccessibilityService.instance
+        if (accessibility == null) {
+            reportAccessibilityServiceUnavailable("区域翻译")
+            return
         }
-        FgoAccessibilityService.instance?.setTranslationMode(TranslationMode.MANUAL, persist = false)
-            ?: TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
-        FgoAccessibilityService.instance?.clearCropTranslationOverlay()
-        TranslationTrigger.cancelPendingTranslation()
+        if (!accessibility.prepareForCropSelection()) return
 
-        cropModeState = CropModeState.SELECTING
         cropSelectionOverlay.show()
+        cropModeState = if (cropSelectionOverlay.isShowing()) CropModeState.SELECTING else CropModeState.IDLE
         refreshButtonMode()
-        bringFloatingButtonToFront()
-        FgoLogger.info(tag, "One-shot crop mode armed")
+        if (cropModeState == CropModeState.SELECTING) {
+            bringFloatingButtonToFront()
+            FgoLogger.info(tag, "One-shot crop mode armed; selected workflow unchanged")
+        }
     }
 
     private fun requestOneShotCropTranslation() {
         if (!isRunnerActive()) return
         val bounds = cropSelectionOverlay.selectedBounds()
-        val restoreMode = modeBeforeCrop
-        modeBeforeCrop = null
-        cropSelectionOverlay.hide()
-        cropModeState = CropModeState.IDLE
-        refreshButtonMode()
 
         if (bounds == null || bounds.width() <= 0 || bounds.height() <= 0) {
-            restoreModeAfterCropSelection(restoreMode)
+            cancelCropMode()
             FgoLogger.warn(tag, "Crop translation requested without valid bounds")
             return
         }
 
         val accessibility = FgoAccessibilityService.instance
         if (accessibility == null) {
-            restoreModeAfterCropSelection(restoreMode)
+            cancelCropMode()
             reportAccessibilityServiceUnavailable("区域翻译")
             return
         }
-        if (!accessibility.requestCropTranslation(Rect(bounds), restoreMode)) {
-            restoreModeAfterCropSelection(restoreMode)
+        // The accepted job owns OCR before the selector disappears. No scan may
+        // slip into the selection -> processing handoff.
+        if (!accessibility.requestCropTranslation(Rect(bounds))) {
+            cancelCropMode()
             FgoLogger.warn(tag, "Crop translation rejected by the accessibility service")
+            return
         }
-    }
-
-    private fun cancelCropMode() {
-        cropModeState = CropModeState.IDLE
-        cropLoadingJob = null
         cropSelectionOverlay.hide()
-        restoreModeAfterCropSelection(modeBeforeCrop)
-        modeBeforeCrop = null
+        cropModeState = CropModeState.IDLE
         refreshButtonMode()
     }
 
-    private fun restoreModeAfterCropSelection(mode: TranslationMode?) {
-        if (mode == null || !isRunnerActive()) return
-        FgoAccessibilityService.instance?.setTranslationMode(mode, persist = false)
-            ?: TranslationTrigger.setTranslationMode(mode)
+    private fun cancelCropMode() {
+        FgoAccessibilityService.instance?.clearCropTranslationOverlay() ?: clearCropSelectionUi()
+    }
+
+    /** UI-only cleanup: the service may call this without recursively cancelling work. */
+    fun clearCropSelectionUi() {
+        cropModeState = CropModeState.IDLE
+        cropLoadingJob = null
+        cropSelectionOverlay.hide()
+        refreshButtonMode()
     }
 
     private fun isJapaneseServer(): Boolean {

@@ -35,6 +35,7 @@ import com.fgogotran.crop.CropResultRenderer
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.crop.CropTextLine
 import com.fgogotran.crop.cropStatusPanelBounds
+import com.fgogotran.crop.cropBlocksBackgroundOcr
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.game.FgoPackages
 import com.fgogotran.game.ForegroundTestOverride
@@ -865,7 +866,8 @@ class FgoAccessibilityService : AccessibilityService() {
         if (externalPackage == null || testTargetChanged || wasFgoForeground) {
             stopBattleMonitoring(resetSession = false)
         }
-        if (foregroundTestOverrideEnabled && (testTargetChanged || wasFgoForeground)) {
+        if ((foregroundTestOverrideEnabled && (testTargetChanged || wasFgoForeground)) ||
+            ((externalPackage == null || testTargetChanged || wasFgoForeground) && isCropBlockingOcr())) {
             cancelCurrentTranslation()
         }
         cancelTransientForegroundLoss()
@@ -951,7 +953,7 @@ class FgoAccessibilityService : AccessibilityService() {
     /** Switches between the mutually exclusive story and manually selected battle OCR pipelines. */
     fun setBattleModeEnabled(enabled: Boolean) {
         if (enabled && activeRunnerContext() == null) return
-        if (battleModeState.active.value == enabled) return
+        if (battleModeState.active.value == enabled && !isCropBlockingOcr() && !isForwardingOverlayTap) return
 
         cancelCurrentTranslation()
         stopBattleMonitoring()
@@ -993,6 +995,10 @@ class FgoAccessibilityService : AccessibilityService() {
 
     fun requestManualTranslation(afterMenuDismiss: Boolean = false): Boolean {
         val session = activeRunnerContext() ?: return false
+        if (cropSelectionOverlay.isShowing() || cropTranslationJob?.isCompleted == false) {
+            FgoLogger.debug(tag, "Manual translation ignored while Crop owns OCR")
+            return false
+        }
         if (battleModeState.active.value) {
             nextBattleScanAt = 0L
             return true
@@ -1020,12 +1026,19 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun canStartScreenTranslationNow(): Boolean {
         return activeRunnerContext() != null && !isProcessing &&
+                translationJob?.isCompleted != false &&
                 !battleFrameBusy &&
-                cropTranslationJob?.isActive != true &&
+                !isCropBlockingOcr() &&
                 !tapAdvancePolling &&
                 !isForwardingOverlayTap &&
                 !TranslationTrigger.isUiBlockingOcr()
     }
+
+    private fun isCropBlockingOcr(): Boolean = cropBlocksBackgroundOcr(
+        selectorVisible = cropSelectionOverlay.isShowing(),
+        cropJob = cropTranslationJob,
+        resultVisible = cropResultOverlay.isShowing()
+    )
 
     private fun onDialogueAdvanceObserved() {
         voiceOnlyStoryState.onAdvanceObserved()
@@ -1063,7 +1076,17 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    fun requestCropTranslation(bounds: Rect, restoreMode: TranslationMode? = null): Boolean {
+    /** Pause work, not the selected workflow. Keep cancelled owners available for join(). */
+    fun prepareForCropSelection(): Boolean {
+        if (activeRunnerContext() == null || !isJapaneseServer() ||
+            !isEffectiveFgoForeground || TranslationTrigger.isUiBlockingOcr()) return false
+        cancelCurrentTranslation()
+        battleSubtitles.pause()
+        battleScanJob?.cancel()
+        return true
+    }
+
+    fun requestCropTranslation(bounds: Rect): Boolean {
         if (activeRunnerContext() == null) return false
         if (!isJapaneseServer()) {
             FgoLogger.debug(tag, "Crop translation rejected outside JP server mode")
@@ -1077,58 +1100,38 @@ class FgoAccessibilityService : AccessibilityService() {
         val interruptedTranslation = translationJob
         val interruptedCropTranslation = cropTranslationJob
         val interruptedBattleScan = battleScanJob
-        TranslationTrigger.setTranslationMode(TranslationMode.MANUAL)
-        cancelCurrentTranslation()
+        cancelCurrentTranslation(preserveCropSelection = true)
         battleSubtitles.pause()
         interruptedBattleScan?.cancel()
         val cropVersion = stopVersion
         cropTranslationJob = launchRunnerWork {
-            var shouldRestoreMode = false
-            try {
-                if (interruptedTranslation?.isCompleted == false ||
-                    interruptedCropTranslation?.isCompleted == false ||
-                    interruptedBattleScan?.isCompleted == false) {
-                    FgoLogger.debug(
-                        tag,
-                        "Crop translation waiting for interrupted pipeline: " +
-                            "processing=$isProcessing, battle=$battleFrameBusy"
-                    )
-                }
-                // Crop is explicit user work. Wait for cancelled OCR owners to release
-                // OcrEngine's mutex instead of dropping the request after a short timeout.
-                interruptedTranslation?.join()
-                interruptedCropTranslation?.join()
-                interruptedBattleScan?.join()
-                ensureRunnerWorkCurrent()
-                if (battleScanJob === interruptedBattleScan) battleScanJob = null
-                processCropTranslation(Rect(bounds))
-                shouldRestoreMode = true
-            } finally {
-                if (shouldRestoreMode && cropVersion == stopVersion && isRunnerWorkCurrent()) {
-                    restoreModeAfterCrop(restoreMode)
-                }
+            if (interruptedTranslation?.isCompleted == false ||
+                interruptedCropTranslation?.isCompleted == false ||
+                interruptedBattleScan?.isCompleted == false) {
+                FgoLogger.debug(
+                    tag,
+                    "Crop translation waiting for interrupted pipeline: " +
+                        "processing=$isProcessing, battle=$battleFrameBusy"
+                )
             }
+            // Cancel is not completion: native OCR and its bitmap cleanup still own
+            // the engine. Re-Crop also waits for the original retained story owner.
+            interruptedTranslation?.join()
+            interruptedCropTranslation?.join()
+            interruptedBattleScan?.join()
+            ensureRunnerWorkCurrent()
+            if (cropVersion != stopVersion || !isEffectiveFgoForeground) return@launchRunnerWork
+            if (battleScanJob === interruptedBattleScan) battleScanJob = null
+            processCropTranslation(Rect(bounds), cropVersion)
         }
         cropTranslationJob?.let { runnerOverlay.showCropTranslationLoading(it) }
-        return true
-    }
-
-    private fun restoreModeAfterCrop(mode: TranslationMode?) {
-        if (mode == null) return
-        TranslationTrigger.setTranslationMode(mode)
-        if (mode != TranslationMode.MANUAL) {
-            autoScanReadyAt = SystemClock.elapsedRealtime() + MANUAL_MENU_DISMISS_SETTLE_DELAY
-        } else {
-            autoScanReadyAt = 0L
-        }
-        runnerOverlay.refreshButtonMode()
-        FgoLogger.debug(tag, "Restored translation mode after crop: $mode")
+        return cropTranslationJob != null
     }
 
     fun clearCropTranslationOverlay() {
         cropTranslationJob?.cancel()
-        cropTranslationJob = null
         cropResultOverlay.hide()
+        runnerOverlay.clearCropSelectionUi()
     }
 
     fun stopRunnerSession(expectedToken: Long? = runnerContext?.token) {
@@ -1150,15 +1153,15 @@ class FgoAccessibilityService : AccessibilityService() {
         cropResultOverlay.hide()
     }
 
-    private fun cancelCurrentTranslation() {
+    private fun cancelCurrentTranslation(preserveCropSelection: Boolean = false) {
         stopVersion++
         resetVoiceOnlyStoryState()
         storyTapHandoff.clear()
         TranslationTrigger.cancelPendingTranslation()
         translationJob?.cancel()
         cropTranslationJob?.cancel()
-        translationJob = null
-        cropTranslationJob = null
+        // Retain the last owner until completion, just like battleScanJob. A new
+        // Crop must be able to join cancelled work across selection/confirmation.
         lastManualRenderedSourceText = ""
         lastSemiAutoRenderedSourceText = ""
         lastSemiAutoChoiceRenderedSourceText = ""
@@ -1177,6 +1180,7 @@ class FgoAccessibilityService : AccessibilityService() {
         emptyChoiceOcrCooldown.reset()
         translationOverlay.hide()
         cropResultOverlay.hide()
+        if (!preserveCropSelection) runnerOverlay.clearCropSelectionUi()
     }
 
     private fun resetVoiceOnlyStoryState() {
@@ -1310,8 +1314,7 @@ class FgoAccessibilityService : AccessibilityService() {
             return
         }
         battleMonitoring = true
-        if (TranslationTrigger.isUiBlockingOcr() || translationOverlay.isShowing() || cropResultOverlay.isShowing() ||
-            cropSelectionOverlay.isShowing() || cropTranslationJob?.isActive == true ||
+        if (TranslationTrigger.isUiBlockingOcr() || translationOverlay.isShowing() || isCropBlockingOcr() ||
             tapAdvancePolling || isForwardingOverlayTap) {
             battleSubtitles.pause()
             return
@@ -1488,6 +1491,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun processScreen(mode: ProcessingMode) {
         ensureRunnerWorkCurrent()
+        if (isCropBlockingOcr()) return
         if (battleModeState.active.value) return
         if (!mode.userInitiated && !isEffectiveFgoForeground) return
         if (isProcessing || battleFrameBusy) return
@@ -1668,8 +1672,9 @@ class FgoAccessibilityService : AccessibilityService() {
         }
     }
 
-    private suspend fun processCropTranslation(requestedBounds: Rect) {
+    private suspend fun processCropTranslation(requestedBounds: Rect, processingVersion: Long) {
         ensureRunnerWorkCurrent()
+        if (processingVersion != stopVersion || !isEffectiveFgoForeground) return
         if (isProcessing) return
         val usageOrigin = AnalyticsUsageOrigin(SettingsRepository.normalizeGameServer(gameServer))
         isProcessing = true
@@ -1685,13 +1690,13 @@ class FgoAccessibilityService : AccessibilityService() {
 
             screenshot = takeScreenshotCompat()
             if (screenshot == null) {
-                showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_screenshot_failed))
+                showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_screenshot_failed), processingVersion)
                 return
             }
 
             val cropBounds = clippedCropBounds(requestedBounds, screenshot.width, screenshot.height)
             if (cropBounds == null) {
-                showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_area_too_small))
+                showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_area_too_small), processingVersion)
                 return
             }
             // Font limits follow the full FGO viewport, never the selected crop's dimensions.
@@ -1738,12 +1743,14 @@ class FgoAccessibilityService : AccessibilityService() {
             logTranslationDebugText("Crop source text", sourceText)
 
             if (sourceText.isBlank()) {
-                showCropStatus(cropBounds, cropStatusText(R.string.crop_status_no_text))
+                showCropStatus(cropBounds, cropStatusText(R.string.crop_status_no_text), processingVersion)
                 FgoLogger.info(tag, "Crop OCR found no text in ${ocrDuration}ms")
                 return
             }
 
             val translationStartedAt = SystemClock.elapsedRealtime()
+            ensureRunnerWorkCurrent()
+            if (processingVersion != stopVersion || !isEffectiveFgoForeground) return
             val translationResult = withRunnerContext(Dispatchers.IO) {
                 translator.translate(
                     sourceText,
@@ -1782,6 +1789,10 @@ class FgoAccessibilityService : AccessibilityService() {
                     targetLocale = translationResult.targetLocale
                 )
             }
+            if (processingVersion != stopVersion || !isEffectiveFgoForeground) {
+                rendered.recycle()
+                return
+            }
             if (cropResultOverlay.show(cropBounds, rendered)) {
                 appAnalytics.reportTranslationDisplayed(usageOrigin, listOf(translationResult))
             }
@@ -1805,7 +1816,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 mode = "CROP"
             )
             FgoLogger.error(tag, "Crop translation failed", e)
-            showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_translate_failed))
+            showCropStatus(requestedBounds, cropStatusText(R.string.crop_status_translate_failed), processingVersion)
         } finally {
             scaledForOcr?.recycle()
             cropped?.recycle()
@@ -1818,8 +1829,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private fun cropStatusText(resId: Int): String =
         AppLanguageManager.wrap(this).getString(resId)
 
-    private fun showCropStatus(bounds: Rect, message: String) {
-        if (!isRunnerWorkCurrent()) return
+    private fun showCropStatus(bounds: Rect, message: String, processingVersion: Long) {
+        if (!isRunnerWorkCurrent() || processingVersion != stopVersion || !isEffectiveFgoForeground) return
         val screen = (getSystemService(Context.WINDOW_SERVICE) as WindowManager).currentWindowMetrics.bounds
         if (screen.width() <= 0 || screen.height() <= 0) return
         val metrics = resources.displayMetrics
@@ -6438,16 +6449,20 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun handleCropResultTap(x: Float, y: Float) {
         if (activeRunnerContext() == null) return
-        if (isForwardingOverlayTap) {
+        if (isForwardingOverlayTap || translationJob?.isCompleted == false || cropTranslationJob?.isCompleted == false) {
             FgoLogger.debug(tag, "Ignoring crop result tap while replay is active")
             return
         }
 
         val tapVersion = stopVersion
-        launchRunnerWork {
-            isForwardingOverlayTap = true
-            cropResultOverlay.hide()
+        fun replayContextCurrent(): Boolean = tapVersion == stopVersion &&
+            isRunnerWorkCurrent() && isEffectiveFgoForeground
+        // Reserve before dispatching the coroutine, including duplicate touch callbacks.
+        isForwardingOverlayTap = true
+        translationJob = launchRunnerWork {
             try {
+                if (!replayContextCurrent()) return@launchRunnerWork
+                cropResultOverlay.hide()
                 if (!canPerformGestures()) {
                     FgoLogger.warn(tag, "Gesture injection is not granted; crop tap will only hide overlay")
                     diagnosticEventStore.record(
@@ -6461,6 +6476,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     return@launchRunnerWork
                 }
                 delay(TAP_PASSTHROUGH_SETTLE_DELAY)
+                if (!replayContextCurrent()) return@launchRunnerWork
                 FgoLogger.debug(tag, "Crop result tapped; forwarding to FGO at $x,$y")
                 withTimeoutOrNull(TAP_REPLAY_TIMEOUT) {
                     dispatchTapToFgo(x, y)
@@ -6474,6 +6490,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 if (tapVersion == stopVersion) isForwardingOverlayTap = false
             }
         }
+        if (translationJob == null && tapVersion == stopVersion) isForwardingOverlayTap = false
     }
 
     private fun handleTranslatedOverlayTap(x: Float, y: Float) {
@@ -6487,7 +6504,7 @@ class FgoAccessibilityService : AccessibilityService() {
             FgoLogger.debug(tag, "Ignoring duplicate translated overlay tap while replay is active")
             return
         }
-        if (isProcessing) {
+        if (isProcessing || translationJob?.isCompleted == false) {
             FgoLogger.debug(tag, "Ignoring translated overlay tap while processing")
             return
         }
@@ -6504,7 +6521,9 @@ class FgoAccessibilityService : AccessibilityService() {
 
         // Reserve replay before launch so a second callback cannot start another gesture.
         isForwardingOverlayTap = true
-        launchRunnerWork {
+        // AUTO handoff may run OCR inside this replay; retain the same story owner
+        // so mode changes and Crop can cancel and join it, not just its old flags.
+        translationJob = launchRunnerWork {
             try {
                 if (!replayContextCurrent()) return@launchRunnerWork
                 if (!canPerformGestures()) {
@@ -6593,6 +6612,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
             }
         }
+        if (translationJob == null && tapProcessingVersion == stopVersion) isForwardingOverlayTap = false
     }
 
     private fun isOverlayTapContextCurrent(version: Long, mode: TranslationMode): Boolean =

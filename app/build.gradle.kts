@@ -31,8 +31,8 @@ android {
         applicationId = "com.fgogotran"
         minSdk = 30
         targetSdk = 34
-        versionCode = 16
-        versionName = "4.1.0"
+        versionCode = 17
+        versionName = "4.1.1"
 
         // Run/Debug and release share the owner's local choice and both APK markers.
         val analyticsEnabled = ownerAnalyticsEnabled.toString()

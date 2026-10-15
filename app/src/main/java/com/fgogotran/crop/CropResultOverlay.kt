@@ -88,6 +88,7 @@ class CropResultOverlay @Inject constructor(
         } catch (e: Exception) {
             newImage.setImageBitmap(null)
             latestBitmap = null
+            bitmap.recycle()
             FgoLogger.warn(tag, "Failed to show crop result overlay", e)
             return false
         }

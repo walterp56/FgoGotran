@@ -102,7 +102,7 @@ class RunnerSessionWiringTest {
 
     @Test fun `late overlays history and success analytics cannot escape ended work`() {
         val service = source("accessibility/FgoAccessibilityService.kt")
-        val stop = section(service, "fun stopRunnerSession(", "private fun cancelCurrentTranslation()")
+        val stop = section(service, "fun stopRunnerSession(", "private fun cancelCurrentTranslation(")
         assertTrue(stop.contains("runnerScope?.cancel()"))
         assertTrue(stop.contains("aiVoiceService.stopRunnerSession(ended.token)"))
         assertTrue(stop.contains("stopBattleMonitoring()"))
@@ -112,7 +112,8 @@ class RunnerSessionWiringTest {
         val overlay = source("runner/FgoRunnerOverlay.kt")
         assertFalse(overlay.contains("restoreLastTranslationMode"))
         assertTrue(overlay.contains("requestVersion != showRequestVersion || !FgoRunnerService.sessionGate.isCurrent(runnerToken)"))
-        assertTrue(section(overlay, "private fun restoreModeAfterCropSelection(", "private fun isJapaneseServer()")
+        assertFalse(overlay.contains("restoreModeAfterCropSelection"))
+        assertTrue(section(overlay, "private fun armOneShotCropMode()", "private fun requestOneShotCropTranslation()")
             .contains("!isRunnerActive()"))
     }
 

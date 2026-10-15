@@ -221,3 +221,7 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/translation/DialogueRubyHistoryTest.kt
 !app/src/test/java/com/fgogotran/translation/TranslationRubyPolicyTest.java
 !app/src/test/java/com/fgogotran/translation/CharacterGenderLookupTest.kt
+!app/src/test/java/com/fgogotran/ocr/PaddleBatchFallbackTest.kt
+!app/src/test/java/com/fgogotran/ocr/PaddleCancellationWiringTest.kt
+!app/src/test/java/com/fgogotran/crop/CropOcrPausePolicyTest.kt
+!app/src/test/java/com/fgogotran/crop/CropWorkflowWiringTest.kt
