@@ -320,7 +320,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val SEMI_AUTO_SCREENSHOT_FAIL_MAX_COOLDOWN = 1_000L
         private const val AUTO_SCREENSHOT_FAIL_BASE_COOLDOWN = 250L
         private const val AUTO_SCREENSHOT_FAIL_MAX_COOLDOWN = 1_000L
-        private const val FRESHNESS_CHECK_TRANSLATION_DELAY = 800L
+        private const val FRESHNESS_CHECK_SOURCE_AGE_MS = 800L
         private const val UNSUPPORTED_FGO_PACKAGE_LOG_COOLDOWN_MS = 10L * 60L * 1000L
         private const val VISUAL_FINGERPRINT_STEP = 3
         private const val VISUAL_FINGERPRINT_MAX_DIFF_RATIO = 0.035f
@@ -1552,6 +1552,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 return
             }
             val source = screenshot
+            val sourceCapturedAtElapsedMs = SystemClock.elapsedRealtime()
             val frame = StoryFramePixels(source.framePixels())
             framePixels = frame
             val currentScreenWidth = source.width
@@ -1600,6 +1601,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 ProcessingMode.MANUAL_TAP -> {
                     processManualScreen(
                         source = source,
+                        sourceCapturedAtElapsedMs = sourceCapturedAtElapsedMs,
                         screenRegions = screenRegions,
                         currentScreenWidth = currentScreenWidth,
                         currentScreenHeight = currentScreenHeight,
@@ -1611,6 +1613,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 }
                 ProcessingMode.SEMI_AUTO_CHOICE_TAP -> processSemiAutoChoiceScreen(
                     source = source,
+                    sourceCapturedAtElapsedMs = sourceCapturedAtElapsedMs,
                     screenRegions = screenRegions,
                     processStartedAt = processStartedAt,
                     processingVersion = processingVersion,
@@ -1620,6 +1623,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 ProcessingMode.SEMI_AUTO_BACKGROUND -> {
                     processSemiAutoStoryScreen(
                         source = source,
+                        sourceCapturedAtElapsedMs = sourceCapturedAtElapsedMs,
                         screenRegions = screenRegions,
                         currentScreenWidth = currentScreenWidth,
                         currentScreenHeight = currentScreenHeight,
@@ -1634,6 +1638,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 ProcessingMode.AUTO_BACKGROUND -> {
                     processAutoScreen(
                         source = source,
+                        sourceCapturedAtElapsedMs = sourceCapturedAtElapsedMs,
                         screenRegions = screenRegions,
                         currentScreenWidth = currentScreenWidth,
                         currentScreenHeight = currentScreenHeight,
@@ -2251,6 +2256,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun processManualScreen(
         source: Bitmap,
+        sourceCapturedAtElapsedMs: Long,
         screenRegions: FgoScreenRegions,
         currentScreenWidth: Int,
         currentScreenHeight: Int,
@@ -2278,6 +2284,7 @@ class FgoAccessibilityService : AccessibilityService() {
         translateAndRenderScene(
             mode = ProcessingMode.MANUAL_TAP,
             source = source,
+            sourceCapturedAtElapsedMs = sourceCapturedAtElapsedMs,
             currentScreenWidth = currentScreenWidth,
             currentScreenHeight = currentScreenHeight,
             processStartedAt = processStartedAt,
@@ -2290,6 +2297,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun processSemiAutoChoiceScreen(
         source: Bitmap,
+        sourceCapturedAtElapsedMs: Long,
         screenRegions: FgoScreenRegions,
         processStartedAt: Long,
         processingVersion: Long,
@@ -2300,6 +2308,7 @@ class FgoAccessibilityService : AccessibilityService() {
         // processScreen still owns and recycles the original screenshot.
         val frames = ChoiceRetrySource(source, Bitmap::recycle)
         var recognitionFrame = frame
+        var recognitionCapturedAtElapsedMs = sourceCapturedAtElapsedMs
         return try {
             var choiceRecognition = recognizeChoiceRegions(
                 source = source,
@@ -2312,6 +2321,7 @@ class FgoAccessibilityService : AccessibilityService() {
                 delay(SEMI_AUTO_CHOICE_RETRY_DELAY_MS)
                 val retryScreenshot = takeScreenshotCompat(timingLabel = "SEMI_AUTO_CHOICE_RETRY")
                 if (retryScreenshot != null) {
+                    recognitionCapturedAtElapsedMs = SystemClock.elapsedRealtime()
                     frames.useRetry(retryScreenshot)
                     recognitionFrame = StoryFramePixels(retryScreenshot.framePixels())
                     val retryScreenRegions = FgoViewportLayout.regionsForScreen(
@@ -2376,6 +2386,7 @@ class FgoAccessibilityService : AccessibilityService() {
             val rendered = translateAndRenderScene(
                 mode = ProcessingMode.SEMI_AUTO_CHOICE_TAP,
                 source = recognitionSource,
+                sourceCapturedAtElapsedMs = recognitionCapturedAtElapsedMs,
                 currentScreenWidth = recognitionSource.width,
                 currentScreenHeight = recognitionSource.height,
                 processStartedAt = processStartedAt,
@@ -2433,6 +2444,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun processSemiAutoStoryScreen(
         source: Bitmap,
+        sourceCapturedAtElapsedMs: Long,
         screenRegions: FgoScreenRegions,
         currentScreenWidth: Int,
         currentScreenHeight: Int,
@@ -2480,6 +2492,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     accepted = translateAndRenderScene(
                         mode = ProcessingMode.SEMI_AUTO_BACKGROUND,
                         source = source,
+                        sourceCapturedAtElapsedMs = sourceCapturedAtElapsedMs,
                         currentScreenWidth = currentScreenWidth,
                         currentScreenHeight = currentScreenHeight,
                         processStartedAt = processStartedAt,
@@ -2591,6 +2604,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private suspend fun processAutoScreen(
         source: Bitmap,
+        sourceCapturedAtElapsedMs: Long,
         screenRegions: FgoScreenRegions,
         currentScreenWidth: Int,
         currentScreenHeight: Int,
@@ -2662,6 +2676,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     accepted = translateAndRenderScene(
                         mode = ProcessingMode.AUTO_BACKGROUND,
                         source = source,
+                        sourceCapturedAtElapsedMs = sourceCapturedAtElapsedMs,
                         currentScreenWidth = currentScreenWidth,
                         currentScreenHeight = currentScreenHeight,
                         processStartedAt = processStartedAt,
@@ -2948,6 +2963,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private suspend fun translateAndRenderScene(
         mode: ProcessingMode,
         source: Bitmap,
+        sourceCapturedAtElapsedMs: Long,
         currentScreenWidth: Int,
         currentScreenHeight: Int,
         processStartedAt: Long,
@@ -3011,10 +3027,18 @@ class FgoAccessibilityService : AccessibilityService() {
             translationOverlay.hide()
             return false
         }
-        val resultBuildDuration = translationDuration + layoutDuration
+        // Judge the source frame, not just API speed: OCR and layout also age it.
+        // A choice retry supplies its own capture time rather than the original's.
+        val sourceAgeMs = SystemClock.elapsedRealtime() - sourceCapturedAtElapsedMs
         val forceVisualFreshness = mode == ProcessingMode.AUTO_BACKGROUND && isAutoTapHandoffActive()
+        val shouldCheckFreshness = sourceAgeMs >= FRESHNESS_CHECK_SOURCE_AGE_MS || forceVisualFreshness
+        FgoLogger.debug(
+            tag,
+            "Freshness decision ($mode): sourceAge=${sourceAgeMs}ms, " +
+                "threshold=${FRESHNESS_CHECK_SOURCE_AGE_MS}ms, forced=$forceVisualFreshness, check=$shouldCheckFreshness"
+        )
         var freshnessDuration = 0L
-        if (resultBuildDuration >= FRESHNESS_CHECK_TRANSLATION_DELAY || forceVisualFreshness) {
+        if (shouldCheckFreshness) {
             val freshnessStartedAt = SystemClock.elapsedRealtime()
             val maskStartedAt = SystemClock.elapsedRealtime()
             val sourceVisualFingerprint = visualFingerprintFor(source, sceneSource.regions.map { it.region }, frame.pixels)
@@ -3026,10 +3050,10 @@ class FgoAccessibilityService : AccessibilityService() {
                 return false
             }
         }
-        if (resultBuildDuration < FRESHNESS_CHECK_TRANSLATION_DELAY && !forceVisualFreshness) {
+        if (!shouldCheckFreshness) {
             FgoLogger.debug(
                 tag,
-                "Fast translation (${translationDuration}ms + layout ${layoutDuration}ms); rendering without OCR recheck"
+                "Fresh source (${sourceAgeMs}ms); rendering without visual freshness check"
             )
         } else if (forceVisualFreshness) {
             FgoLogger.debug(tag, "Auto tap handoff visual freshness check passed")

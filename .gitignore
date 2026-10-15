@@ -225,3 +225,5 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/ocr/PaddleCancellationWiringTest.kt
 !app/src/test/java/com/fgogotran/crop/CropOcrPausePolicyTest.kt
 !app/src/test/java/com/fgogotran/crop/CropWorkflowWiringTest.kt
+# Retain screenshot-age freshness and choice-retry timestamp wiring regressions.
+!app/src/test/java/com/fgogotran/story/StoryFreshnessWiringTest.kt
