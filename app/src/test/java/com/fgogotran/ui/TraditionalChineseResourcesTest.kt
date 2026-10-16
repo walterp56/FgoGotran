@@ -21,8 +21,27 @@ class TraditionalChineseResourcesTest {
         assertEquals(defaults.filterValues { it.translatable }.keys, traditional.keys)
         assertFalse(traditional.containsKey("settings_ruby_example_annotation"))
         assertFalse(traditional.containsKey("settings_ruby_example_base"))
-        assertEquals("シリウスライト", defaults.getValue("settings_ruby_example_annotation").text)
-        assertEquals("大令呪", defaults.getValue("settings_ruby_example_base").text)
+        assertEquals("アヴァロン", defaults.getValue("settings_ruby_example_annotation").text)
+        assertEquals("全て遠き理想郷", defaults.getValue("settings_ruby_example_base").text)
+    }
+
+    @Test
+    fun `ruby example uses Avalon in all three interface languages with a shared Japanese sample`() {
+        val expectedExamples = mapOf(
+            "values" to "开启：遗世独立的理想乡〈阿瓦隆〉\\n关闭：遗世独立的理想乡\\n以〈〉表示游戏中正文上方的小字。",
+            "values-b+zh+Hant" to "開啟：遺世獨立的理想鄉〈阿瓦隆〉\\n關閉：遺世獨立的理想鄉\\n以〈〉表示遊戲中正文上方的小字。",
+            "values-en" to "ON: The Everdistant Utopia〈Avalon〉\\nOFF: The Everdistant Utopia\\n〈〉 represents the small text above the main text in the game."
+        )
+        expectedExamples.forEach { (folder, expected) ->
+            val strings = resources(folder)
+            assertEquals(expected, strings.getValue("settings_ruby_example_meaning").text, folder)
+            if (folder != "values") {
+                assertFalse(strings.containsKey("settings_ruby_example_annotation"), folder)
+                assertFalse(strings.containsKey("settings_ruby_example_base"), folder)
+            }
+        }
+        assertFalse(defaults.getValue("settings_ruby_example_annotation").translatable)
+        assertFalse(defaults.getValue("settings_ruby_example_base").translatable)
     }
 
     @Test

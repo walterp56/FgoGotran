@@ -207,9 +207,9 @@
     <string name="settings_auto_6">选择适合的 OCR（光学字元识别）引擎</string>
     <string name="settings_auto_7">翻译时包含上方小字</string>
     <string name="settings_ruby_example_label">游戏中的例子</string>
-    <string name="settings_ruby_example_annotation" translatable="false">シリウスライト</string>
-    <string name="settings_ruby_example_base" translatable="false">大令呪</string>
-    <string name="settings_ruby_example_meaning">开启：大令咒〈Sirius Light〉\n关闭：大令咒\n以〈〉表示游戏中正文上方的小字。</string>
+    <string name="settings_ruby_example_annotation" translatable="false">アヴァロン</string>
+    <string name="settings_ruby_example_base" translatable="false">全て遠き理想郷</string>
+    <string name="settings_ruby_example_meaning">开启：遗世独立的理想乡〈阿瓦隆〉\n关闭：遗世独立的理想乡\n以〈〉表示游戏中正文上方的小字。</string>
     <string name="settings_auto_8">Sakura：本机规则</string>
     <string name="settings_auto_9">用于调试和排查问题。</string>
     <string name="settings_auto_10">前台检测已恢复正常</string>
