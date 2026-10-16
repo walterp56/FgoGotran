@@ -381,6 +381,8 @@
     <string name="app_theme_dark">Dark</string>
     <string name="app_theme_system_description">Use your phone’s light or dark setting.</string>
     <string name="app_theme_close">Close</string>
+    <string name="home_chapter_title">Chapter Translation (experimental) →</string>
+    <string name="home_chapter_summary">Separate from OCR. JP story browsing and experimental asset backup/restore tests.</string>
 </resources>
 
 

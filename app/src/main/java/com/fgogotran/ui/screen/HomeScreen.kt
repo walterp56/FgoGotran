@@ -69,7 +69,8 @@ fun HomeScreen(
     settingsRepository: SettingsRepository,
     diagnosticEventStore: DiagnosticEventStore,
     onGuide: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onChapter: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -340,6 +341,19 @@ fun HomeScreen(
                 actionText = stringResource(R.string.home_action_settings),
                 onClick = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
             )
+
+            Card(
+                onClick = onChapter,
+                modifier = Modifier.fillMaxWidth(),
+                border = FgoUiStyle.cardBorder,
+                colors = FgoUiColors.cardColors()
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.home_chapter_title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.home_chapter_summary), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
