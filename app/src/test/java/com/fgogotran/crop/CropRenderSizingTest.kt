@@ -4,6 +4,7 @@ import com.fgogotran.overlay.FgoReferenceRect
 import com.fgogotran.overlay.FgoViewportGeometry
 import java.io.File
 import kotlin.math.roundToInt
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -128,6 +129,195 @@ class CropRenderSizingTest {
     }
 
     @Test
+    fun `dense Chinese rows fit measured glyphs and shadows into separated bands`() {
+        val sizing = CropRenderSizing(1f)
+        val sources = listOf(
+            CropRenderRect(100f, 50f, 300f, 90f),
+            CropRenderRect(100f, 90f, 300f, 130f)
+        )
+        val areas = sources.map { sizing.textArea(it, 600, 200) }
+        val metrics = areas.map { area -> { size: Float -> chineseMetrics(area, size) } }
+        val preferred = 44f
+        val geometry = sources.indices.map { index ->
+            val measured = metrics[index](preferred)
+            val painted = sizing.paintedBounds(measured.inkBounds, areas[index].left, measured.preferredBaseline, 2f)
+            CropRowGeometry(sources[index], areas[index].union(painted), painted)
+        }
+        assertTrue(geometry[0].paintedBounds.bottom > geometry[1].paintedBounds.top)
+        val safe = sizing.safeRowAreas(geometry, 600, 200)
+        assertEquals(2f, safe[1].top - safe[0].bottom, 0.0002f)
+        val fitted = sources.indices.map { index ->
+            checkNotNull(sizing.fitRow(safe[index], areas[index].left, preferred, metrics[index]))
+        }
+        assertTrue(fitted.any { it.textSize < preferred })
+        fitted.forEachIndexed { index, fit ->
+            assertTrue(fit.textSize > 0f && fit.textSize <= preferred)
+            assertContained(fit.paintedBounds, safe[index])
+        }
+        assertTrue(fitted[0].paintedBounds.bottom + 2f <= fitted[1].paintedBounds.top + 0.0002f)
+    }
+
+    @Test
+    fun `already separated English retains its size and baseline`() {
+        val sizing = CropRenderSizing(1f)
+        val geometry = listOf(
+            CropRowGeometry(CropRenderRect(20f, 30f, 200f, 70f), CropRenderRect(0f, 20f, 400f, 80f), CropRenderRect(20f, 25f, 200f, 65f)),
+            CropRowGeometry(CropRenderRect(20f, 74f, 200f, 114f), CropRenderRect(0f, 64f, 400f, 124f), CropRenderRect(20f, 69f, 200f, 109f))
+        )
+        val safe = sizing.safeRowAreas(geometry, 400, 160)
+        val metrics = CropRowMetrics(CropRenderRect(0f, -25f, 170f, 6f), 55f)
+        val fitted = checkNotNull(sizing.fitRow(safe[0], 20f, 35f) { metrics })
+        assertEquals(35f, fitted.textSize)
+        assertEquals(55f, fitted.baseline)
+        assertContained(fitted.paintedBounds, safe[0])
+    }
+
+    @Test
+    fun `separate columns and same baseline fields are not mistaken for stacked rows`() {
+        val sizing = CropRenderSizing(1f)
+        val first = CropRowGeometry(CropRenderRect(10f, 20f, 100f, 60f), CropRenderRect(0f, 10f, 150f, 70f), CropRenderRect(10f, 10f, 100f, 70f))
+        val otherColumn = CropRowGeometry(CropRenderRect(220f, 45f, 350f, 85f), CropRenderRect(200f, 35f, 400f, 95f), CropRenderRect(220f, 35f, 350f, 95f))
+        val sameBaseline = otherColumn.copy(
+            source = CropRenderRect(220f, 22f, 350f, 62f),
+            area = CropRenderRect(200f, 12f, 400f, 72f),
+            paintedBounds = CropRenderRect(80f, 12f, 350f, 72f)
+        )
+        for (other in listOf(otherColumn, sameBaseline)) {
+            val safe = sizing.safeRowAreas(listOf(first, other), 400, 160)
+            assertEquals(first.area.top, safe[0].top)
+            assertEquals(first.area.bottom, safe[0].bottom)
+            assertEquals(other.area.top, safe[1].top)
+            assertEquals(other.area.bottom, safe[1].bottom)
+        }
+    }
+
+    @Test
+    fun `large titles and indented paragraphs preserve anchors and paragraph gaps`() {
+        val sizing = CropRenderSizing(1f)
+        val rows = listOf(
+            CropRowGeometry(CropRenderRect(100f, 20f, 300f, 80f), CropRenderRect(0f, 10f, 500f, 100f), CropRenderRect(100f, 15f, 300f, 90f)),
+            CropRowGeometry(CropRenderRect(120f, 80f, 280f, 110f), CropRenderRect(0f, 70f, 500f, 125f), CropRenderRect(120f, 75f, 280f, 115f)),
+            CropRowGeometry(CropRenderRect(120f, 200f, 450f, 230f), CropRenderRect(0f, 190f, 500f, 245f), CropRenderRect(120f, 195f, 450f, 235f))
+        )
+        val safe = sizing.safeRowAreas(rows, 500, 300)
+        assertEquals(2f, safe[1].top - safe[0].bottom, 0.0002f)
+        assertEquals(rows[1].area.bottom, safe[1].bottom)
+        assertEquals(rows[2].area.top, safe[2].top)
+        assertEquals(listOf(100f, 120f, 120f), rows.map { it.source.left })
+    }
+
+    @Test
+    fun `actual mixed Chinese and Latin descenders override the nominal font height`() {
+        val sizing = CropRenderSizing(1f)
+        val area = CropRenderRect(0f, 0f, 600f, 40f)
+        // Traditional font glyph union including Chinese ascenders and the g in 53kg.
+        val fit = checkNotNull(sizing.fitRow(area, 10f, 44f) { size ->
+            CropRowMetrics(CropRenderRect(0f, -0.855f * size, 5f * size, 0.271f * size), 0.88f * size)
+        })
+        assertTrue(fit.textSize < 32.8f) // Even the old 82%-of-source minimum is too large.
+        assertContained(fit.paintedBounds, area)
+        assertTrue(fit.baseline + fit.inkBounds.bottom < area.bottom)
+    }
+
+    @Test
+    fun `minimum preference cannot exceed the upper bound of a tiny row`() {
+        val sizing = CropRenderSizing(1f)
+        assertEquals(3f, sizing.minimumSourceTextSize(40f, 3f))
+        val fit = checkNotNull(sizing.fitRow(CropRenderRect(0f, 0f, 20f, 3f), 2f, 3f) { size ->
+            CropRowMetrics(CropRenderRect(0f, -size, size, size / 4f), size)
+        })
+        assertTrue(fit.textSize > 0f && fit.textSize < 3f)
+        assertContained(fit.paintedBounds, CropRenderRect(0f, 0f, 20f, 3f))
+        assertEquals(null, sizing.fitRow(CropRenderRect(0f, 0f, 1f, 0f), 0f, 20f) {
+            error("Invalid geometry must not run font measurement")
+        })
+    }
+
+    @Test
+    fun `neighbour bands and glyph fitting scale with FGO pixels not Android density`() {
+        val first = CropRowGeometry(CropRenderRect(20f, 20f, 180f, 60f), CropRenderRect(0f, 10f, 400f, 75f), CropRenderRect(20f, 15f, 180f, 70f))
+        val second = first.copy(source = CropRenderRect(20f, 60f, 180f, 100f), area = CropRenderRect(0f, 50f, 400f, 115f), paintedBounds = CropRenderRect(20f, 55f, 180f, 110f))
+        val rows = listOf(first, second)
+        val original = CropRenderSizing(1f).safeRowAreas(rows, 400, 160)
+        for (scale in listOf(0.5f, 2f / 3f, 1f, 2f, 4f)) {
+            val sizing = CropRenderSizing(scale)
+            val scaled = rows.map { CropRowGeometry(it.source.scaled(scale), it.area.scaled(scale), it.paintedBounds.scaled(scale)) }
+            val safe = sizing.safeRowAreas(scaled, (400 * scale).roundToInt(), (160 * scale).roundToInt())
+            for (index in rows.indices) {
+                assertEquals(original[index].top * scale, safe[index].top, 0.0002f)
+                assertEquals(original[index].bottom * scale, safe[index].bottom, 0.0002f)
+                val fit = checkNotNull(sizing.fitRow(safe[index], 20f * scale, 44f * scale) { size ->
+                    CropRowMetrics(CropRenderRect(0f, -size * 0.855f, size * 3f, size * 0.1f), safe[index].centerY)
+                })
+                assertContained(fit.paintedBounds, safe[index])
+            }
+        }
+    }
+
+    @Test
+    fun `crop edge rows get positive separated bands without losing an OCR row`() {
+        for ((width, height) in listOf(1 to 2, 2 to 3, 32 to 32)) {
+            val first = CropRenderRect(0f, 0f, width.toFloat(), 1f)
+            val last = CropRenderRect(0f, height - 1f, width.toFloat(), height.toFloat())
+            val safe = CropRenderSizing(1f).safeRowAreas(listOf(
+                CropRowGeometry(first, first, first), CropRowGeometry(last, last, last)
+            ), width, height)
+            assertEquals(2, safe.size)
+            safe.forEach { assertInside(it, width, height) }
+            assertTrue(safe[0].bottom < safe[1].top)
+        }
+    }
+
+    @Test
+    fun `mixed height stacks keep every measured row inside non overlapping bands`() {
+        val random = Random(17)
+        val sizing = CropRenderSizing(1f)
+        repeat(60) {
+            val sources = (0 until 6).map { index ->
+                val center = 40f + index * 35f
+                val height = random.nextInt(22, 56).toFloat()
+                CropRenderRect(40f, center - height / 2f, 300f, center + height / 2f)
+            }
+            val areas = sources.map { sizing.textArea(it, 400, 280) }
+            val preferred = sources.map { sizing.sourceTextSize(it.height) }
+            val geometry = sources.indices.map { index ->
+                val measured = chineseMetrics(areas[index], preferred[index])
+                val painted = sizing.paintedBounds(measured.inkBounds, areas[index].left, measured.preferredBaseline, 2f)
+                CropRowGeometry(sources[index], areas[index].union(painted), painted)
+            }
+            val safe = sizing.safeRowAreas(geometry, 400, 280)
+            val fitted = sources.indices.map { index ->
+                assertInside(safe[index], 400, 280)
+                checkNotNull(sizing.fitRow(safe[index], areas[index].left, preferred[index]) { size ->
+                    chineseMetrics(areas[index], size)
+                }).also { fit ->
+                    assertContained(fit.paintedBounds, safe[index])
+                    assertTrue(fit.textSize <= preferred[index])
+                }
+            }
+            fitted.zipWithNext().forEach { (above, below) ->
+                assertTrue(above.paintedBounds.bottom + 2f <= below.paintedBounds.top + 0.0002f)
+            }
+        }
+    }
+
+    @Test
+    fun `both row layout paths share measured fits and drawing uses the stored baseline`() {
+        val renderer = source("crop/CropResultRenderer.kt")
+        val overlay = renderer.substringAfter("fun renderOverlay(").substringBefore("fun renderStatus(")
+        assertTrue(overlay.contains("val layouts = fitTranslatedRows("))
+        assertTrue(overlay.contains("sizing.safeRowAreas(geometry, bitmapWidth, bitmapHeight)"))
+        assertTrue(overlay.contains("sizing.fitRow(safeArea, layout.textArea.left, layout.textSize)"))
+        assertTrue(overlay.contains("textPaint.textSize = row.fit.textSize"))
+        assertTrue(overlay.contains("row.fit.baseline, textColor, row.fit.shadowPx"))
+        assertTrue(overlay.contains("canvas.clipRect(row.safeArea)"))
+        assertFalse(overlay.contains("val baseline = rowBaseline("))
+        assertTrue(renderer.substringAfter("private fun measureRow(").contains("textPaint.getTextBounds(layout.text"))
+        assertTrue(overlay.indexOf("canvas.drawRoundRect(") < overlay.indexOf("drawTranslatedLine("))
+        assertTrue(overlay.indexOf("sizing.fitRow(") < overlay.indexOf("Bitmap.createBitmap("))
+    }
+
+    @Test
     fun `invalid reference scales are rejected rather than silently using device density`() {
         for (scale in listOf(0f, -1f, Float.NaN, Float.POSITIVE_INFINITY)) {
             assertFailsWith<IllegalArgumentException> { CropRenderSizing(scale) }
@@ -227,6 +417,16 @@ class CropRenderSizingTest {
         assertTrue(rect.right <= width && rect.bottom <= height, rect.toString())
         assertTrue(rect.width > 0f && rect.height > 0f, rect.toString())
     }
+
+    private fun assertContained(inner: CropRenderRect, outer: CropRenderRect) {
+        assertTrue(inner.left >= outer.left - 0.0002f && inner.right <= outer.right + 0.0002f, "$inner in $outer")
+        assertTrue(inner.top >= outer.top - 0.0002f && inner.bottom <= outer.bottom + 0.0002f, "$inner in $outer")
+    }
+
+    private fun chineseMetrics(area: CropRenderRect, size: Float): CropRowMetrics = CropRowMetrics(
+        CropRenderRect(0f, -0.855f * size, size * 4f, 0.088f * size),
+        area.top + ((area.height - size) / 2f).coerceAtLeast(0f) + 0.88f * size
+    )
 
     private fun assertRect(expected: CropRenderRect, actual: CropRenderRect) {
         assertEquals(expected.left, actual.left, 0.0002f)
