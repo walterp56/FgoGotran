@@ -124,11 +124,10 @@ data class HonorificPromptMatch(
 )
 
 data class NamePluralPromptUsage(
-    val inNameField: Boolean = false,
     val inOtherText: Boolean = false
 ) {
     val isPresent: Boolean
-        get() = inNameField || inOtherText
+        get() = inOtherText
 }
 
 data class PromptContext(
@@ -324,8 +323,11 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val NAME_PROMPT = """
-            - Unknown names/proper nouns -> concise FGO/TYPE-MOON-style Chinese transliteration; never leave Japanese or substitute another character.
-            - Name-box: preserve every visible title, suffix, annotation/state, ?, A/B, bracket, and ruby.
+            - Name-box: translate the complete visible speaker label as a concise in-game label; preserve descriptive or expressive wording without expanding it into dialogue or explanation.
+            - Use glossary spellings for matching proper-name parts. Translate roles/descriptions by meaning; transliterate only unknown proper names in FGO/TYPE-MOON style. Never infer a hidden identity.
+            - Preserve group meaning, titles/familiar address, states, uncertainty, letters/numbers, brackets, separators, and ruby; follow the shared honorific/ruby rules.
+            - Interpret endings by function, not spelling alone; endings inside proper names are not automatically group or address suffixes.
+            - For named groups, prefer the translated name plus {name_plural}; do not expand it into a name plus a gendered pronoun. Preserve source pronouns and explicit group descriptions without inventing gender, relationships, or group members.
             """.trimIndent()
 
         private val RUBY_PROMPT = """
@@ -398,9 +400,11 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val NAME_PROMPT_EN = """
-            - Unknown names/proper nouns -> FGO NA-style romanization; never leave Japanese kana and never substitute another character.
-            - Use the official NA spelling when known; keep Japanese name order for Japanese figures (Okita Souji) and Western order for Western figures (Mash Kyrielight). Keep titles (Dr., Miss, Lord) and name-box states (Alter).
-            - Name-box: preserve every visible title, suffix, annotation/state, ?, A/B, bracket, and ruby.
+            - Name-box: translate the complete visible speaker label as a concise in-game label; preserve descriptive or expressive wording without expanding it into dialogue or explanation.
+            - Use glossary spellings for matching proper-name parts, otherwise established FGO NA spelling or standard romanization for unknown proper names. Translate roles/descriptions by meaning; keep appropriate Japanese or Western name order. Never infer a hidden identity.
+            - Preserve group meaning, titles/familiar address, states, uncertainty, letters/numbers, brackets, separators, and ruby; follow the shared honorific/ruby rules.
+            - Interpret endings by function, not spelling alone; endings inside proper names are not automatically group or address suffixes.
+            - Express groups naturally as plurals or a person with associates, according to the source and explicit context; do not assume multiple versions of one character. Preserve source pronouns and explicit group descriptions without inventing gender, relationships, or group members.
             """.trimIndent()
 
         private val RUBY_PROMPT_EN = """
@@ -466,7 +470,12 @@ class PromptBuilder @Inject constructor() {
         val relevantChoiceTexts = choiceTexts.takeUnless { isBattleSubtitle }.orEmpty()
         val primarySourceText = listOfNotNull(cleanNameText, sourceText.takeIf { it.isNotBlank() })
             .joinToString("\n")
-        val otherText = (listOf(sourceText) + relevantChoiceTexts).joinToString("\n")
+        // Standalone name requests also pass their label as sourceText. Do not
+        // mistake that duplicate field for dialogue and add a second group rule.
+        val otherSourceText = sourceText.takeUnless {
+            hasName && !isDialogue && it == cleanNameText
+        }.orEmpty()
+        val otherText = (listOf(otherSourceText) + relevantChoiceTexts).joinToString("\n")
         val combinedText = (listOf(primarySourceText) + relevantChoiceTexts).joinToString("\n")
         val playerRuleText = playerReferenceText.trim().ifBlank { combinedText }
         val cleanPlayerName = playerName.trim()
@@ -501,7 +510,6 @@ class PromptBuilder @Inject constructor() {
             hasRuby = !isBattleSubtitle && !isCropMode && (forceRuby || containsRuby(combinedText)),
             honorificMatches = detectHonorificPromptMatches(combinedText),
             namePluralUsage = detectNamePluralPromptUsage(
-                nameText = cleanNameText,
                 otherText = otherText,
                 enabled = !isCropMode
             ),
@@ -669,7 +677,7 @@ class PromptBuilder @Inject constructor() {
                 add("choices" to if (english) CHOICE_PROMPT_EN else CHOICE_PROMPT)
             }
             if (!isBattleSubtitle && context.hasName) {
-                add("name" to if (english) NAME_PROMPT_EN else NAME_PROMPT)
+                add("name" to buildNamePrompt(context.targetLanguage))
             }
             if (context.namePluralUsage.isPresent) {
                 add(
@@ -800,13 +808,11 @@ class PromptBuilder @Inject constructor() {
     }
 
     private fun detectNamePluralPromptUsage(
-        nameText: String?,
         otherText: String,
         enabled: Boolean
     ): NamePluralPromptUsage {
         if (!enabled) return NamePluralPromptUsage()
         return NamePluralPromptUsage(
-            inNameField = nameText?.let(namePluralZuCandidatePattern::containsMatchIn) == true,
             inOtherText = namePluralZuCandidatePattern.containsMatchIn(otherText)
         )
     }
@@ -835,38 +841,32 @@ class PromptBuilder @Inject constructor() {
         else -> ""
     }
 
+    private fun buildNamePrompt(targetLanguage: String): String =
+        when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> NAME_PROMPT_EN
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> NAME_PROMPT.replace("{name_plural}", "們")
+            else -> NAME_PROMPT.replace("{name_plural}", "们")
+        }
+
     internal fun buildNamePluralPrompt(
         usage: NamePluralPromptUsage,
         targetLanguage: String
     ): String {
+        // Name-field groups are handled only by the name card. Keep the existing
+        // context-sensitive guidance for dialogue/choices, never a mechanical name rule.
+        if (!usage.inOtherText) return ""
         val normalizedTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage)
         if (normalizedTarget == SettingsRepository.TARGET_LANGUAGE_ENGLISH) {
-            return when {
-                usage.inNameField && usage.inOtherText ->
-                    "- Name-group suffix: in the name field, Xズ->the Xs. Elsewhere, use \"the Xs\" only " +
-                        "when Xズ clearly denotes a character/name group; otherwise ズ is part of the word."
-                usage.inNameField -> "- Name-group suffix in the name field: Xズ->the Xs."
-                usage.inOtherText ->
-                    "- If Xズ clearly denotes a character/name group, use \"the Xs\"; otherwise treat ズ as " +
-                        "part of the ordinary word."
-                else -> ""
-            }
+            return "- If Xズ clearly denotes a character/name group, use \"the Xs\"; otherwise treat ズ as " +
+                "part of the ordinary word."
         }
         val plural = if (normalizedTarget == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL) {
             "們"
         } else {
             "们"
         }
-        return when {
-            usage.inNameField && usage.inOtherText ->
-                "- Name-group suffix: in the name field, Xズ->X$plural. Elsewhere, use X$plural only " +
-                    "when Xズ clearly denotes a character/name group; otherwise ズ is part of the word."
-            usage.inNameField -> "- Name-group suffix in the name field: Xズ->X$plural."
-            usage.inOtherText ->
-                "- If Xズ clearly denotes a character/name group, use X$plural; otherwise treat ズ as " +
-                    "part of the ordinary word."
-            else -> ""
-        }
+        return "- If Xズ clearly denotes a character/name group, use X$plural; otherwise treat ズ as " +
+            "part of the ordinary word."
     }
 
     private fun buildHonorificPrompt(
