@@ -207,7 +207,7 @@
     <string name="settings_auto_6">Choose the OCR engine</string>
     <string name="settings_auto_7">Include small text above words</string>
     <string name="settings_ruby_example_label">In-game example</string>
-    <string name="settings_ruby_example_meaning">ON: The Everdistant Utopia〈Avalon〉\nOFF: The Everdistant Utopia\n〈〉 represents the small text above the main text in the game.</string>
+    <string name="settings_ruby_example_meaning">ON: Observatory〈Chaldea〉\nOFF: Observatory\n〈〉 represents the small text above the main text in the game.</string>
     <string name="settings_auto_8">Sakura: local rules</string>
     <string name="settings_auto_9">For debugging and troubleshooting.</string>
     <string name="settings_auto_10">Foreground detection restored</string>

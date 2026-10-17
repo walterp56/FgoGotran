@@ -208,7 +208,7 @@
     <string name="settings_auto_6">選擇適合的 OCR（光學字元辨識）引擎</string>
     <string name="settings_auto_7">翻譯時包含上方小字</string>
     <string name="settings_ruby_example_label">遊戲中的例子</string>
-    <string name="settings_ruby_example_meaning">開啟：遺世獨立的理想鄉〈阿瓦隆〉\n關閉：遺世獨立的理想鄉\n以〈〉表示遊戲中正文上方的小字。</string>
+    <string name="settings_ruby_example_meaning">開啟：觀星臺〈迦勒底〉\n關閉：觀星臺\n以〈〉表示遊戲中正文上方的小字。</string>
     <string name="settings_auto_8">Sakura：本機規則</string>
     <string name="settings_auto_9">用於除錯和排查問題。</string>
     <string name="settings_auto_10">前景偵測已恢復正常</string>
