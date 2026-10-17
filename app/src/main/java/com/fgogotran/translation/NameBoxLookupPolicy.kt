@@ -10,8 +10,8 @@ import kotlinx.serialization.json.jsonArray
 /** Whole visible labels may use the DB; partial names belong only in API glossary guidance. */
 internal object NameBoxLookupPolicy {
     // Keep scene-name and standalone-name requests separate, and bypass pre-policy API caches.
-    const val SCENE_CACHE_POLICY = "scene-name-label-v2"
-    const val SINGLE_CACHE_POLICY = "name-only-label-v3"
+    const val SCENE_CACHE_POLICY = "scene-name-label-v3"
+    const val SINGLE_CACHE_POLICY = "name-only-label-v4"
 
     private val repeatedWhitespace = Regex("""\s+""")
 

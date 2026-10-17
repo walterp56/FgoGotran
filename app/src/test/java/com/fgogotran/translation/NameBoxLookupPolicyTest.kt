@@ -179,6 +179,8 @@ class NameBoxLookupPolicyTest {
         assertNotEquals("name-only-v1", NameBoxLookupPolicy.SINGLE_CACHE_POLICY)
         assertNotEquals("scene-name-whole-label-v1", NameBoxLookupPolicy.SCENE_CACHE_POLICY)
         assertNotEquals("name-only-whole-label-v2", NameBoxLookupPolicy.SINGLE_CACHE_POLICY)
+        assertNotEquals("scene-name-label-v2", NameBoxLookupPolicy.SCENE_CACHE_POLICY)
+        assertNotEquals("name-only-label-v3", NameBoxLookupPolicy.SINGLE_CACHE_POLICY)
         assertNotEquals(NameBoxLookupPolicy.SCENE_CACHE_POLICY, NameBoxLookupPolicy.SINGLE_CACHE_POLICY)
         val translator = translatorSource()
         val scene = function(translator, "translateScene")

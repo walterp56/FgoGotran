@@ -323,11 +323,10 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val NAME_PROMPT = """
-            - Name-box: translate the complete visible speaker label as a concise in-game label; preserve descriptive or expressive wording without expanding it into dialogue or explanation.
-            - Use glossary spellings for matching proper-name parts. Translate roles/descriptions by meaning; transliterate only unknown proper names in FGO/TYPE-MOON style. Never infer a hidden identity.
-            - Preserve group meaning, titles/familiar address, states, uncertainty, letters/numbers, brackets, separators, and ruby; follow the shared honorific/ruby rules.
-            - Interpret endings by function, not spelling alone; endings inside proper names are not automatically group or address suffixes.
-            - For named groups, prefer the translated name plus {name_plural}; do not expand it into a name plus a gendered pronoun. Preserve source pronouns and explicit group descriptions without inventing gender, relationships, or group members.
+            - Name-box: translate the complete visible label as a concise in-game label, not dialogue or explanation; never infer a hidden identity.
+            - Use glossary spellings for name parts. Translate roles/descriptions by meaning; transliterate only unknown proper names in FGO/TYPE-MOON style.
+            - Preserve titles/familiar address, groups, states, uncertainty, letters/numbers, brackets, separators and ruby. Interpret endings by meaning, not spelling alone.
+            - Named groups: prefer the translated name plus {name_plural}, not a name plus a gendered pronoun; retain explicit source pronouns and group descriptions.
             """.trimIndent()
 
         private val RUBY_PROMPT = """
@@ -400,11 +399,10 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val NAME_PROMPT_EN = """
-            - Name-box: translate the complete visible speaker label as a concise in-game label; preserve descriptive or expressive wording without expanding it into dialogue or explanation.
-            - Use glossary spellings for matching proper-name parts, otherwise established FGO NA spelling or standard romanization for unknown proper names. Translate roles/descriptions by meaning; keep appropriate Japanese or Western name order. Never infer a hidden identity.
-            - Preserve group meaning, titles/familiar address, states, uncertainty, letters/numbers, brackets, separators, and ruby; follow the shared honorific/ruby rules.
-            - Interpret endings by function, not spelling alone; endings inside proper names are not automatically group or address suffixes.
-            - Express groups naturally as plurals or a person with associates, according to the source and explicit context; do not assume multiple versions of one character. Preserve source pronouns and explicit group descriptions without inventing gender, relationships, or group members.
+            - Name-box: translate the complete visible label as a concise in-game label, not dialogue or explanation; never infer a hidden identity.
+            - Use glossary spellings for name parts. Translate roles/descriptions by meaning; keep appropriate Japanese or Western name order.
+            - Preserve titles/familiar address, groups, states, uncertainty, letters/numbers, brackets, separators and ruby. Interpret endings by meaning, not spelling alone.
+            - Express groups as plurals or a person with associates, according to the source and explicit context; do not assume multiple versions of one character. Retain explicit source pronouns and group descriptions without adding gender or members.
             """.trimIndent()
 
         private val RUBY_PROMPT_EN = """

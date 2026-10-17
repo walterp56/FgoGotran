@@ -25,16 +25,14 @@ class NameBoxLabelPolicyTest {
         for (target in targets) {
             val prompt = builder.buildSystemPrompt(nameContext(target, "エリザベートたち"))
             for (rule in listOf(
-                "translate the complete visible speaker label as a concise in-game label",
-                "preserve descriptive or expressive wording",
-                "without expanding it into dialogue or explanation",
-                "glossary spellings for matching proper-name parts",
+                "translate the complete visible label as a concise in-game label",
+                "not dialogue or explanation",
+                "glossary spellings for name parts",
                 "Translate roles/descriptions by meaning",
-                "Never infer a hidden identity",
-                "Preserve group meaning, titles/familiar address, states, uncertainty, letters/numbers, brackets, separators, and ruby",
-                "follow the shared honorific/ruby rules",
-                "Interpret endings by function, not spelling alone",
-                "Preserve source pronouns and explicit group descriptions without inventing gender, relationships, or group members"
+                "never infer a hidden identity",
+                "Preserve titles/familiar address, groups, states, uncertainty, letters/numbers, brackets, separators and ruby",
+                "Interpret endings by meaning, not spelling alone",
+                "explicit source pronouns and group descriptions"
             )) assertTrue(prompt.contains(rule), "$target: $rule")
             for (example in corpusLabels) assertFalse(prompt.contains(example), "$target: $example")
             assertFalse(prompt.contains("in the name field, Xズ->"))
@@ -43,24 +41,50 @@ class NameBoxLabelPolicyTest {
     }
 
     @Test
+    fun `name cards stay compact while shared fidelity and spelling rules remain available`() {
+        for (target in targets) {
+            val prompt = builder.buildSystemPrompt(nameContext(target, "ネモたち"))
+            val cardLines = prompt.lineSequence()
+                .dropWhile { !it.startsWith("- Name-box:") }
+                .takeWhile { it.isNotBlank() }
+                .toList()
+            val card = cardLines.joinToString("\n")
+            assertEquals(4, cardLines.size, target)
+            assertTrue(card.length <= if (target == "en") 700 else 600, "$target: ${card.length}")
+            assertTrue(prompt.contains("Use glossary targets exactly for their specified source meanings"), target)
+            assertTrue(prompt.contains("never summarize or complete the source."), target)
+            assertFalse(card.contains("base〈ruby〉"), target)
+            if (target == "en") {
+                assertTrue(prompt.contains("use official NA spelling when known"))
+                assertTrue(prompt.contains("otherwise an appropriate translation or standard romanization"))
+                assertFalse(card.contains("official NA spelling"))
+                assertFalse(card.contains("standard romanization"))
+            } else {
+                assertTrue(card.contains("transliterate only unknown proper names in FGO/TYPE-MOON style"))
+            }
+        }
+    }
+
+    @Test
     fun `Chinese named groups prefer compact locale-appropriate markers without gendered expansion`() {
         for ((target, plural) in listOf("zh-Hans" to "们", "zh-Hant" to "們")) {
             val prompt = builder.buildSystemPrompt(nameContext(target, "ネモたち"))
-            assertTrue(prompt.contains("For named groups, prefer the translated name plus $plural;"))
-            assertTrue(prompt.contains("do not expand it into a name plus a gendered pronoun"))
+            assertTrue(prompt.contains("Named groups: prefer the translated name plus $plural,"))
+            assertTrue(prompt.contains("not a name plus a gendered pronoun"))
+            assertTrue(prompt.contains("retain explicit source pronouns and group descriptions"))
             assertFalse(prompt.contains("{name_plural}"))
-            assertFalse(prompt.contains("the translated name plus ${if (plural == "们") "們" else "们"};"))
+            assertFalse(prompt.contains("the translated name plus ${if (plural == "们") "們" else "们"},"))
         }
     }
 
     @Test
     fun `English uses contextual group meaning not forced plural names or Chinese markers`() {
         val prompt = builder.buildSystemPrompt(nameContext("en", "ネモたち"))
-        assertTrue(prompt.contains("established FGO NA spelling or standard romanization for unknown proper names"))
         assertTrue(prompt.contains("keep appropriate Japanese or Western name order"))
         assertTrue(prompt.contains("plurals or a person with associates, according to the source and explicit context"))
         assertTrue(prompt.contains("do not assume multiple versions of one character"))
-        assertFalse(prompt.contains("For named groups, prefer the translated name plus"))
+        assertTrue(prompt.contains("Retain explicit source pronouns and group descriptions without adding gender or members"))
+        assertFalse(prompt.contains("Named groups: prefer the translated name plus"))
         assertFalse(prompt.contains("{name_plural}"))
     }
 
@@ -70,7 +94,7 @@ class NameBoxLabelPolicyTest {
             for (label in corpusLabels) {
                 val context = nameContext(target, label)
                 val prompt = builder.buildSystemPrompt(context)
-                assertTrue(prompt.contains("Name-box: translate the complete visible speaker label"), "$target: $label")
+                assertTrue(prompt.contains("Name-box: translate the complete visible label"), "$target: $label")
                 assertFalse(context.namePluralUsage.isPresent, "$target: $label")
                 assertEquals(
                     "Current Japanese:\n$label",
@@ -145,7 +169,7 @@ class NameBoxLabelPolicyTest {
                     promptProfile = TranslationPromptProfile.BATTLE_SUBTITLE
                 )
             )) {
-                assertFalse(builder.buildSystemPrompt(context).contains("Name-box: translate the complete visible speaker label"))
+                assertFalse(builder.buildSystemPrompt(context).contains("Name-box: translate the complete visible label"))
             }
             assertEquals(
                 if (target == "en") "jp-en-fgo-target-v5-plain-layout" else "jp-cn-fgo-target-v97-plain-layout",
@@ -163,13 +187,17 @@ class NameBoxLabelPolicyTest {
         for (target in targets) {
             val plain = builder.buildSystemPrompt(nameContext(target, "ホームズ"))
             assertFalse(plain.contains("base〈ruby〉"))
+            assertFalse(plain.contains("XXちゃん->"))
             val ruby = builder.buildSystemPrompt(nameContext(target, "遺分體〈エレメンツ〉"))
             assertTrue(ruby.contains("base〈ruby〉"))
-            assertTrue(ruby.contains("follow the shared honorific/ruby rules"))
-            assertTrue(builder.buildPromptContext(
-                PromptOutputFormat.PLAIN_TEXT, sourceText = "", targetLanguage = target,
-                hasName = true, nameText = "ダ・ヴィンチちゃん", isDialogue = false
-            ).honorificMatches.any { it.rule == HonorificPromptRule.CHAN })
+            val familiarName = nameContext(target, "ダ・ヴィンチちゃん")
+            assertTrue(familiarName.honorificMatches.any { it.rule == HonorificPromptRule.CHAN })
+            val expected = when (target) {
+                "en" -> "XXちゃん->XX-chan"
+                "zh-Hant" -> "XXちゃん->XX醬"
+                else -> "XXちゃん->XX酱"
+            }
+            assertTrue(builder.buildSystemPrompt(familiarName).contains(expected), target)
         }
     }
 
