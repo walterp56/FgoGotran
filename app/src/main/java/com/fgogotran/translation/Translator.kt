@@ -145,9 +145,39 @@ internal fun buildPreviousSceneBilingualContextPrompt(
 }
 
 /**
- * Maximum rendered length for a combined speaker name such as `マシュ＆ダ・ヴィンチ`.
+ * Shared bound for descriptive and combined name-box labels such as `マシュ＆ダ・ヴィンチ`.
  */
-private const val COMBINED_NAME_MAX_TRANSLATED_LENGTH = 48
+internal const val NAME_BOX_MAX_TRANSLATED_LENGTH = 48
+
+private const val COMBINED_NAME_MAX_TRANSLATED_LENGTH = NAME_BOX_MAX_TRANSLATED_LENGTH
+
+private val nameBoxUncertaintyPattern = Regex("""\(\s*\?\s*\)""")
+
+/** The existing name punctuation allowance, including source-supported parenthesized uncertainty. */
+internal fun hasAllowedVisibleNamePunctuation(sourceText: String, translatedText: String): Boolean {
+    val translated = translatedText.trim()
+    if (translated.none { it in "\n\r。！？!?" }) return true
+    if (translated.any { it in "\n\r。" }) return false
+
+    val source = Normalizer.normalize(TextNormalizer.normalizeForTranslation(sourceText), Normalizer.Form.NFKC)
+    val target = Normalizer.normalize(translated, Normalizer.Form.NFKC)
+    val sourceUncertaintyCount = nameBoxUncertaintyPattern.findAll(source).count()
+    val targetUncertaintyCount = nameBoxUncertaintyPattern.findAll(target).count()
+    if (sourceUncertaintyCount != targetUncertaintyCount) return false
+
+    // Remove matching uncertainty markers only from the validation view, never from rendered text.
+    val sourceCore = nameBoxUncertaintyPattern.replace(source, "").trim()
+    val targetCore = nameBoxUncertaintyPattern.replace(target, "").trim()
+    if (targetCore.isBlank()) return false
+    if (targetCore.none { it in "!?" }) return targetUncertaintyCount > 0
+
+    // Preserve the previous single trailing !/? allowance, with width differences normalized.
+    val sourceMark = sourceCore.lastOrNull()?.takeIf { it in "!?…" } ?: return false
+    val targetMark = targetCore.lastOrNull()?.takeIf { it in "!?…" } ?: return false
+    return sourceMark == targetMark && targetCore.dropLast(1).let { core ->
+        core.isNotBlank() && core.none { it in "!?" }
+    }
+}
 
 /**
  * Joins resolved combined-name parts with the separator of the target language.
@@ -716,7 +746,7 @@ class Translator @Inject constructor(
         private const val PLAYER_NAME_OCR_MAX_LOOKUP_LENGTH = 16
         private const val NAME_STATE_MAX_SOURCE_LENGTH = 24
         private const val NAME_STATE_MAX_TRANSLATED_LENGTH = 18
-        private const val NAME_WITH_STATE_MAX_TRANSLATED_LENGTH = 32
+        private const val NAME_WITH_STATE_MAX_TRANSLATED_LENGTH = NAME_BOX_MAX_TRANSLATED_LENGTH
         private const val COMBINED_NAME_MAX_PARTS = 4
         private const val VOICE_HINT_NULL_EXAMPLE =
             """{"voice_hint":null}"""
@@ -1007,35 +1037,46 @@ class Translator @Inject constructor(
                 .forTargetLocale(config, punctuationSourceText)
         }
 
-        if (!forceFreshTranslation) translationMemory.lookupNormalized(normalizedText)?.let {
-            FgoLogger.info(tag, "Official CN memory HIT")
-            return TranslateResult(
-                sanitizeCacheTranslation(normalizedText, it, config.targetLanguage),
-                "official-cn",
-                true
-            ).forTargetLocale(config, punctuationSourceText)
-        }
-
-        if (!forceFreshTranslation) findCharacterNameTranslation(
-            normalizedText,
-            allowAmbiguousDialogueName = false,
-            targetLanguage = config.targetLanguage
-        )?.let {
-            if (!TextNormalizer.hasRubyAnnotations(normalizedText)) {
-                FgoLogger.info(tag, "Character exact HIT")
-                return TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
-                    .forTargetLocale(config, punctuationSourceText)
+        if (translateAsName) {
+            // Name-only fallbacks must obey the same whole-label rule as translateScene.
+            if (!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)) {
+                findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage)?.let {
+                    FgoLogger.info(tag, "Character TSV HIT exact visible name")
+                    return TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
+                        .forTargetLocale(config, punctuationSourceText)
+                }
             }
-        }
-
-        if (!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)) {
-            findTermTranslation(normalizedText, targetLanguage = config.targetLanguage)?.let {
-                FgoLogger.info(tag, "Glossary exact HIT")
+        } else {
+            if (!forceFreshTranslation) translationMemory.lookupNormalized(normalizedText)?.let {
+                FgoLogger.info(tag, "Official CN memory HIT")
                 return TranslateResult(
                     sanitizeCacheTranslation(normalizedText, it, config.targetLanguage),
-                    "glossary",
+                    "official-cn",
                     true
                 ).forTargetLocale(config, punctuationSourceText)
+            }
+
+            if (!forceFreshTranslation) findCharacterNameTranslation(
+                normalizedText,
+                allowAmbiguousDialogueName = false,
+                targetLanguage = config.targetLanguage
+            )?.let {
+                if (!TextNormalizer.hasRubyAnnotations(normalizedText)) {
+                    FgoLogger.info(tag, "Character exact HIT")
+                    return TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
+                        .forTargetLocale(config, punctuationSourceText)
+                }
+            }
+
+            if (!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)) {
+                findTermTranslation(normalizedText, targetLanguage = config.targetLanguage)?.let {
+                    FgoLogger.info(tag, "Glossary exact HIT")
+                    return TranslateResult(
+                        sanitizeCacheTranslation(normalizedText, it, config.targetLanguage),
+                        "glossary",
+                        true
+                    ).forTargetLocale(config, punctuationSourceText)
+                }
             }
         }
 
@@ -1086,7 +1127,7 @@ class Translator @Inject constructor(
             isBattleSubtitle ->
                 PromptBuilder.promptVersionFor(config.targetLanguage, battleSubtitle = true)
             cropMode -> if (useSakuraPrompt) "crop-screen-v2" else "crop-screen-v3"
-            translateAsName -> "name-only-v1"
+            translateAsName -> NameBoxLookupPolicy.SINGLE_CACHE_POLICY
             preserveRubyMeaning -> "ruby-angle-v4"
             else -> ""
         }
@@ -1873,50 +1914,20 @@ class Translator @Inject constructor(
         }
         normalizedName?.let { normalized ->
             if (nameResult != null) return@let
-            if (shouldPreserveFullNameBoxText(normalized)) {
-                if (!TextNormalizer.hasRubyAnnotations(normalized)) {
-                    findExactVisibleCharacterNameTranslation(
-                        normalized,
-                        targetLanguage = config.targetLanguage
-                    )?.let {
-                        FgoLogger.info(tag, "Character TSV HIT exact visible name")
-                        nameResult = TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
-                    }
-                }
-                if (nameResult == null) {
-                    if (nameForLlm != null) {
-                        FgoLogger.info(tag, "Character TSV MISS exact visible name; will ask LLM")
-                    } else {
-                        FgoLogger.info(tag, "Character TSV MISS exact visible name; skipping player/plain name API")
-                    }
-                }
-            } else {
-                resolveCharacterNameWithState(
+            if (!TextNormalizer.hasRubyAnnotations(normalized)) {
+                findExactVisibleCharacterNameTranslation(
                     normalized,
                     targetLanguage = config.targetLanguage
                 )?.let {
-                    FgoLogger.info(tag, "Character TSV HIT name state")
-                    nameResult = it
+                    FgoLogger.info(tag, "Character TSV HIT exact visible name")
+                    nameResult = TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
                 }
-                if (nameResult != null) return@let
-                resolveCombinedCharacterNames(normalized, playerName, config.targetLanguage)?.let {
-                    FgoLogger.info(tag, "Character TSV HIT combined name")
-                    nameResult = it
-                }
-                if (nameResult != null) return@let
-                findCharacterNameTranslation(
-                    normalized,
-                    allowOcrWrappedMatch = true,
-                    targetLanguage = config.targetLanguage
-                )?.let {
-                    FgoLogger.info(tag, "Character TSV HIT name")
-                    nameResult = TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
-                } ?: run {
-                    if (nameForLlm != null) {
-                        FgoLogger.info(tag, "Character TSV MISS name; will ask LLM")
-                    } else {
-                        FgoLogger.info(tag, "Character TSV MISS name; skipping player/plain name API")
-                    }
+            }
+            if (nameResult == null) {
+                if (nameForLlm != null) {
+                    FgoLogger.info(tag, "Character TSV MISS exact visible name; will ask LLM with full label")
+                } else {
+                    FgoLogger.info(tag, "Character TSV MISS exact visible name; skipping player/plain name API")
                 }
             }
         }
@@ -2011,6 +2022,7 @@ class Translator @Inject constructor(
                 normalizedText = it,
                 choiceTexts = emptyList(),
                 config = config,
+                promptPolicyKey = NameBoxLookupPolicy.SCENE_CACHE_POLICY,
                 glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage)
             )
         }
@@ -3056,19 +3068,11 @@ class Translator @Inject constructor(
     private suspend fun findExactVisibleCharacterNameTranslation(
         normalizedText: String,
         targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
-    ): String? {
-        val lookupKey = visibleNameBoxLookupKey(normalizedText)
-        if (lookupKey.isBlank()) return null
-        val english = isEnglishTarget(targetLanguage)
-        return getCachedCharacterNames()
-            .asSequence()
-            .flatMap { characterNameVariants(it).asSequence() }
-            .firstOrNull { variant ->
-                val target = if (english) variant.enName else variant.cnName
-                target.isNotBlank() && visibleNameBoxLookupKey(variant.jpName) == lookupKey
-            }
-            ?.let { if (english) it.enName else it.cnName }
-    }
+    ): String? = NameBoxLookupPolicy.findTranslation(
+        sourceText = normalizedText,
+        characters = getCachedCharacterNames(),
+        english = isEnglishTarget(targetLanguage)
+    )
 
     /**
      * Gender is prompt metadata, so only an exact variant that identifies one
@@ -3711,14 +3715,6 @@ class Translator @Inject constructor(
             normalized.lastOrNull()?.isVisibleNameBoxTrailingMark() == true
     }
 
-    private fun visibleNameBoxLookupKey(text: String): String {
-        return Normalizer.normalize(
-            TextNormalizer.normalizeForTranslation(text),
-            Normalizer.Form.NFKC
-        )
-            .replace(Regex("""[\s　]+"""), "")
-    }
-
     private fun String.hasPairedNameBoxBrackets(open: Char, close: Char): Boolean {
         val openIndex = indexOf(open)
         val closeIndex = lastIndexOf(close)
@@ -3898,7 +3894,7 @@ class Translator @Inject constructor(
         if (TextNormalizer.isQuestionMaskOnly(sourceText)) return false
         val translated = translatedText.trim()
         if (translated.isBlank()) return true
-        if (translated.length > 32) return true
+        if (translated.length > NAME_BOX_MAX_TRANSLATED_LENGTH) return true
         if (translated.any(::isJapaneseKana)) return true
         if (isEnglishTarget(targetLanguage) &&
             (EnglishNameValidation.containsCjkOrKana(translated) ||
@@ -3906,11 +3902,7 @@ class Translator @Inject constructor(
         ) {
             return true
         }
-        if (translated.any { it in setOf('\n', '\r', '。', '！', '？', '!', '?') } &&
-            !hasAllowedVisibleNameTrailingMark(sourceText, translated)
-        ) {
-            return true
-        }
+        if (!hasAllowedVisibleNamePunctuation(sourceText, translated)) return true
         if (normalizeNameLookup(sourceText) == normalizeNameLookup(translated)) return true
 
         val normalizedPlayerName = TextNormalizer.normalizeForTranslation(playerName)
@@ -3939,28 +3931,6 @@ class Translator @Inject constructor(
             }
         return matchingTranslatedNames.isNotEmpty() &&
             matchingTranslatedNames.none { variant -> variant.lookupKey == sourceKey }
-    }
-
-    private fun hasAllowedVisibleNameTrailingMark(sourceText: String, translatedText: String): Boolean {
-        val sourceMark = TextNormalizer.normalizeForTranslation(sourceText)
-            .lastOrNull()
-            ?.takeIf { it.isVisibleNameBoxTrailingMark() }
-            ?: return false
-        val translated = translatedText.trim()
-        val translatedMark = translated.lastOrNull()
-            ?.takeIf { it.isVisibleNameBoxTrailingMark() }
-            ?: return false
-        if (!sourceMark.isCompatibleVisibleNameTrailingMark(translatedMark)) return false
-        val core = translated.dropLast(1)
-        return core.isNotBlank() && core.none { it in setOf('\n', '\r', '。', '！', '？', '!', '?') }
-    }
-
-    private fun Char.isCompatibleVisibleNameTrailingMark(translatedMark: Char): Boolean {
-        return when (this) {
-            '?', '？' -> translatedMark == '?' || translatedMark == '？'
-            '!', '！' -> translatedMark == '!' || translatedMark == '！'
-            else -> translatedMark == this
-        }
     }
 
     private fun isShortKanaOnlyName(lookupText: String): Boolean {

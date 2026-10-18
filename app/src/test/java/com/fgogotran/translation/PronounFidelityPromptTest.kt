@@ -69,7 +69,7 @@ class PronounFidelityPromptTest {
             val baseline = PromptContext(targetLanguage = target)
             val cards = listOf(
                 "Choices are Master/player replies" to baseline.copy(hasChoices = true),
-                "Name-box: preserve every visible title" to baseline.copy(hasName = true),
+                "Name-box: translate the complete visible label" to baseline.copy(hasName = true),
                 "base〈ruby〉" to baseline.copy(hasRuby = true),
                 "preserve action direction and possession from Japanese syntax" to
                     baseline.copy(hasBenefactivePassiveCausative = true)

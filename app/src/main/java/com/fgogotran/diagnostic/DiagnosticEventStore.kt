@@ -2,6 +2,7 @@ package com.fgogotran.diagnostic
 
 import android.content.Context
 import android.os.Build
+import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -165,18 +166,16 @@ class DiagnosticEventStore @Inject constructor(
     }
 
     private fun writeEventsLocked(events: List<DiagnosticEvent>) {
-        eventsFile.parentFile?.mkdirs()
-        val tempFile = File(eventsFile.parentFile, "${eventsFile.name}.tmp")
-        tempFile.bufferedWriter(Charsets.UTF_8).use { writer ->
+        val failure = writeDiagnosticFile(eventsFile) { writer ->
             writer.appendLine(HEADER)
             events.sortedBy { it.timestampMs }.forEach { event ->
                 writer.appendLine(event.toTsvLine())
             }
         }
-        if (eventsFile.exists()) {
-            eventsFile.delete()
+        if (failure != null) {
+            // Do not record this in the store: that would retry the failing write recursively.
+            FgoLogger.warn("Diagnostics", "Could not persist diagnostic events; keeping in-memory events", failure)
         }
-        tempFile.renameTo(eventsFile)
     }
 
     private fun pruneEvents(events: List<DiagnosticEvent>): List<DiagnosticEvent> {

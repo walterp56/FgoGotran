@@ -36,7 +36,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 メフィストフェレス	梅菲斯托费勒斯	Mephistopheles		男性	
 ヴォルフガング・アマデウス・モーツァルト	沃尔夫冈·阿马德乌斯·莫扎特	Wolfgang Amadeus Mozart		男性	ヴォルフガングアマデウスモーツァルト
 諸葛孔明	诸葛孔明	Zhuge Liang		男性	
-エルメロイⅡ世	埃尔梅罗Ⅱ世	Lord El-Melloi II		男性	エルメロイ1世,エルメロイII世,エルメロイI世,エルメロイ11世
+エルメロイⅡ世	埃尔梅罗Ⅱ世	Lord El-Melloi II		男性	エルメロイ1世,エルメロイII世,エルメロイI世,エルメロイ11世,エルメロイ川世
 佐々木小次郎	佐佐木小次郎	Sasaki Kojirou		男性	
 呪腕のハサン	咒腕哈桑	Hassan of the Cursed Arm		男性	
 ステンノ	斯忒诺	Stheno		女性	
@@ -373,6 +373,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 スペース・ファンタズムーンＶ	Space PhantasmoonⅤ	Space Phantasmoon V	ファンタズムーンＶ=Phantasmoon V	女性	スペースファンタズムーンV
 サンタズムーン	Santasmoon	Santa's Moon		女性	
 リチャードⅠ世	理查一世	Richard I		男性	リチャードI世
+リチャード	理查	Richard		男性	
 ビショーネ	比肖内	Biscione		女性	
 黒姫	黑姬	Kurohime		女性	
 小野小町	小野小町	Ono-no-Komachi		女性	
@@ -662,7 +663,7 @@ Dr.ロマン	Dr.罗曼	Dr. Roman		男性
 超絶神託ちゃん	超绝神谕酱	Super Oracle-chan		女性	
 ナウクラテー2号機	瑙克拉特二号机	Naucrate Mk.II		女性	
 フシアナ	伏西亞娜	Hussianna		女性	
-ヤン・ジシュカ	扬·杰式卡	Jan Žižka	ヤン=Jan;ジシュカ=Žižka	男性	
+ヤン・ジシュカ	扬·杰式卡	Jan Žižka	ヤン=Jan;ジシュカ=Žižka	男性	ヤンジシュカ
 マスター	御主	Master			ますたー
 AAA	AAA	AAA		女性	
 ワクチャン	瓦克昌	Wak Chan		男性	

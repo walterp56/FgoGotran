@@ -145,7 +145,7 @@ fun SettingsScreen(
         initial = SettingsRepository.DEFAULT_AI_VOICE_LANGUAGE
     )
     val foregroundTestOverrideEnabled by settingsRepository.foregroundTestOverrideEnabled.collectAsState(
-        initial = false
+        initial = SettingsRepository.DEFAULT_FOREGROUND_TEST_OVERRIDE_ENABLED
     )
     val liveVoiceTranslationEnabled by settingsRepository.liveVoiceTranslationEnabled.collectAsState(
         initial = false

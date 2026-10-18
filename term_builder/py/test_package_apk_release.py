@@ -107,6 +107,34 @@ class AnalyticsApkGuardTest(unittest.TestCase):
         self.assertIn("exit $LASTEXITCODE", invocation)
         self.assertNotIn("SkipVerify", invocation)
 
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell release entry point")
+    def test_powershell_preserves_commas_inside_each_changelog_bullet(self):
+        script_path = str(release.REPO_ROOT / "scripts/release-app.ps1").replace("'", "''")
+        # Load only the actual normalizer, never execute packaging or publishing.
+        command = (
+            "$ErrorActionPreference = 'Stop'; "
+            "$ast = [System.Management.Automation.Language.Parser]::ParseFile("
+            f"'{script_path}', [ref]$null, [ref]$null); "
+            "$functionAst = $ast.Find({param($node) "
+            "$node -is [System.Management.Automation.Language.FunctionDefinitionAst] "
+            "-and $node.Name -eq 'Normalize-Changelog'}, $true); "
+            "if ($null -eq $functionAst) { throw 'Missing changelog normalizer' }; "
+            "Invoke-Expression $functionAst.Extent.Text; "
+            "@{ bullets = @(Normalize-Changelog -Items @(' first, with comma ', '', 'second, too')); "
+            "optional = @(Normalize-Changelog -Items @(' ', '') -Optional); "
+            "fallback = @(Normalize-Changelog -Items @(' ', '')) } | ConvertTo-Json -Compress"
+        )
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+            capture_output=True, encoding="utf-8", errors="replace", timeout=30,
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual({
+            "bullets": ["first, with comma", "second, too"],
+            "optional": [],
+            "fallback": ["Signed release APK"],
+        }, json.loads(result.stdout))
+
     @staticmethod
     def fixture(root: Path):
         apk_dir = root / "input"

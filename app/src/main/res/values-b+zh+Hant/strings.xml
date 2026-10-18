@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FgoGotran</string>
-    <string name="accessibility_summary">在用戶啟動服務後辨識 FGO 劇情文字並顯示翻譯覆蓋層。</string>
-    <string name="accessibility_description">FgoGotran 不是無障礙輔助工具。它使用無障礙服務在用戶啟動服務後偵測 FGO 視窗和點擊、截取目前 FGO 畫面進行 OCR，並可將用戶對翻譯覆蓋層的點擊轉發給 FGO。</string>
+    <string name="accessibility_summary">啟動翻譯後截圖辨識並顯示覆蓋層；預設也可在其他前景應用程式上執行。</string>
+    <string name="accessibility_description">FgoGotran 不是無障礙輔助工具，專為 FGO 翻譯設計。它偵測視窗和點擊，在您啟動翻譯後截取目前畫面進行 OCR，並可將覆蓋層點擊轉發給目前前景應用程式。預設相容設定也允許在其他前景應用程式上執行；開啟敏感應用程式前請先停止翻譯。使用線上介面時，待翻譯文字會傳送到您選擇或設定的服務。</string>
     <string name="accessibility_disclosure_title">無障礙服務用途說明</string>
-    <string name="accessibility_disclosure_message">FgoGotran 不是無障礙輔助工具。開啟後，它只用於 FGO 翻譯功能：\n\n• 偵測 FGO 視窗變化和點擊，用於判斷何時重新整理劇情翻譯\n• 在您啟動服務後截取目前 FGO 畫面，用 OCR 辨識劇情文字\n• 在 FGO 上方顯示翻譯覆蓋層\n• 當您點擊翻譯覆蓋層時，將該點擊轉發給 FGO\n\n如果使用線上翻譯介面，辨識出的待翻譯文字會傳送到您選擇或設定的翻譯服務。FgoGotran 不會讀取聯絡人、簡訊、密碼、銀行應用程式內容，也不會在未啟動服務時自動控制其他應用程式。\n\n如果 Android 已顯示此服務開啟，但 FgoGotran 仍顯示未連線，請在系統設定中先關閉該服務，再重新開啟。\n\n繼續表示您理解並同意上述用途。</string>
+    <string name="accessibility_disclosure_message">FgoGotran 不是無障礙輔助工具，專為 FGO 翻譯設計。它使用無障礙服務：\n\n• 偵測視窗變化和點擊，用於判斷何時重新整理翻譯\n• 僅在您啟動翻譯後截取目前畫面，用 OCR 辨識文字\n• 顯示翻譯覆蓋層，並可將覆蓋層點擊轉發給目前前景應用程式\n\n預設相容設定允許在其他前景應用程式上執行，不限於 FGO。因此，翻譯執行期間也可能截取其他應用程式的畫面及其中的敏感內容。開啟敏感應用程式前，請先停止翻譯。未啟動翻譯時，不會進行翻譯截圖或轉發覆蓋層點擊。\n\n如果使用線上翻譯介面，辨識出的待翻譯文字會傳送到您選擇或設定的翻譯服務。\n\n如果 Android 已顯示此服務開啟，但 FgoGotran 仍顯示未連線，請先關閉該無障礙服務，等待 2–3 秒，再重新開啟。\n\n繼續表示您理解並同意上述用途。</string>
     <string name="accessibility_not_connected_title">無障礙服務未連線</string>
-    <string name="accessibility_not_connected_message">即使系統設定顯示「已啟用」，FgoGotran 仍可能沒有收到服務連線。\n\n目前無法啟動翻譯。請在系統設定中檢查 FgoGotran 無障礙服務：\n\n• 如果開關已開啟：先關閉，等待 2–3 秒，再重新開啟。\n• 如果開關已關閉：直接開啟。\n• 返回 FgoGotran，確認狀態變為「已連線」後啟動懸浮服務。\n\n如果仍無法連線，請完整重新啟動模擬器後再試。</string>
+    <string name="accessibility_not_connected_message">即使系統設定顯示「已啟用」，FgoGotran 仍可能沒有收到服務連線。\n\n目前無法啟動翻譯。請在系統設定中檢查 FgoGotran 無障礙服務：\n\n• 如果開關已開啟：先關閉，等待 2–3 秒，再重新開啟。\n• 如果開關已關閉：直接開啟。\n• 返回 FgoGotran，確認狀態變為「已連線」後啟動懸浮服務。\n\n如果仍無法連線，請完整關閉電腦上的模擬器，再重新開啟模擬器及 FGO。不是只重開遊戲，也不需要重新啟動電腦。</string>
     <string name="overlay_permission_title">懸浮視窗權限用途說明</string>
-    <string name="overlay_permission_message">FgoGotran 需要「顯示在其他應用程式上層」權限，才能在 FGO 上顯示翻譯按鈕、選單和翻譯結果。\n\n該權限只用於 FGO 翻譯覆蓋層。您可以隨時在系統設定中關閉此權限；關閉後翻譯按鈕和覆蓋層將無法顯示。\n\n繼續表示您理解並同意上述用途。</string>
+    <string name="overlay_permission_message">FgoGotran 需要「顯示在其他應用程式上層」權限，才能顯示翻譯按鈕、選單和翻譯結果。\n\n覆蓋層專為 FGO 翻譯設計；預設相容設定下，也可能顯示在其他前景應用程式上。您可以隨時停止翻譯，或在系統設定中關閉此權限；關閉權限後翻譯按鈕和覆蓋層將無法顯示。\n\n繼續表示您理解並同意上述用途。</string>
     <string name="api_title">API介面</string>
     <string name="api_back">返回</string>
     <string name="api_provider">服務商</string>
@@ -162,8 +162,9 @@
     <string name="guide_auto_4">截圖、遊戲文字、譯文、API Key、玩家名、帳號資訊或裝置識別碼。</string>
     <string name="guide_auto_5">FGO 遊戲內即時畫面、劇情、選項，以及裁切模式框選的畫面區域。</string>
     <string name="guide_auto_6">適合劇情閱讀。對話自動重新整理；遇到選項時，再點懸浮按鈕翻譯選項。</string>
-    <string name="guide_auto_7">FgoGotran 的翻譯只在正在執行的 FGO 畫面上生效。</string>
-    <string name="guide_auto_8">圖片、截圖、螢幕錄影、影片來源，或其他應用程式裡的 FGO 素材翻譯。</string>
+    <string name="guide_auto_7">FgoGotran 專為 FGO 即時畫面設計。預設也允許在其他前景應用程式上執行；啟動翻譯期間可能讀取這些應用程式的畫面，開啟敏感應用程式前請先停止翻譯。</string>
+    <string name="guide_auto_8">圖片、截圖、螢幕錄影、影片來源及其他應用程式的排版未專門適配，不保證辨識和翻譯效果。</string>
+    <string name="guide_capture_recovery">截圖異常排查：如果遊戲正常顯示，但反覆截到黑畫面或無法辨識，先停止翻譯，將 FgoGotran 無障礙服務關閉，等待 2–3 秒後重新開啟，再返回 FGO 啟動翻譯。\n如果仍失敗，請完整關閉電腦上的模擬器，再重新開啟模擬器及 FGO。不是只重開遊戲，也不需要重新啟動電腦。\n仍有問題時，可嘗試模擬器提供的其他圖形渲染器，並完整關閉、重新開啟模擬器。可選渲染器因版本而異，沒有通用最佳選擇；遊戲本身處於黑場時，請先等待畫面恢復。</string>
     <string name="guide_auto_9">手動或半自動點擊後，本次辨識/翻譯未成功，可再點一次。</string>
     <string name="guide_auto_10">適合想完全掌控節奏的你。點 GO 後翻譯目前畫面。</string>
     <string name="guide_auto_11">適合想輕鬆閱讀的你。應用程式會盡量自動重新整理對話和選項。</string>
@@ -192,7 +193,7 @@
     <string name="guide_auto_34">使用範圍</string>
     <string name="guide_auto_35">半自動</string>
     <string name="guide_auto_36">全自動</string>
-    <string name="guide_auto_37">不支援</string>
+    <string name="guide_auto_37">未專門適配</string>
     <string name="guide_auto_38">返回</string>
     <string name="guide_auto_39">手動</string>
     <string name="guide_auto_40">裁切</string>
@@ -208,7 +209,7 @@
     <string name="settings_auto_6">選擇適合的 OCR（光學字元辨識）引擎</string>
     <string name="settings_auto_7">翻譯時包含上方小字</string>
     <string name="settings_ruby_example_label">遊戲中的例子</string>
-    <string name="settings_ruby_example_meaning">開啟：大令咒〈Sirius Light〉\n關閉：大令咒\n以〈〉表示遊戲中正文上方的小字。</string>
+    <string name="settings_ruby_example_meaning">開啟：觀星臺〈迦勒底〉\n關閉：觀星臺\n以〈〉表示遊戲中正文上方的小字。</string>
     <string name="settings_auto_8">Sakura：本機規則</string>
     <string name="settings_auto_9">用於除錯和排查問題。</string>
     <string name="settings_auto_10">前景偵測已恢復正常</string>

@@ -418,6 +418,12 @@ internal object EnglishUiText {
     )
 
     private val diagnosticDetails = mapOf(
+        "截图疑似全黑" to "Screenshot may be all black",
+        "截图采样点几乎全黑，可能是游戏黑场，也可能是截屏异常" to "Screenshot samples are almost black; this may be a dark game transition or a capture problem",
+        "请先停止翻译，关闭 FgoGotran 无障碍服务，等待 2–3 秒后重新开启，再返回 FGO 启动翻译。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）。" to "Stop translation. Turn FgoGotran accessibility off, wait 2–3 seconds, then turn it on. Return to FGO and start translation. If a PC emulator still fails, fully exit and reopen the emulator and FGO—not only the game, and not Windows.",
+        "请先停止翻译并重新开启无障碍服务，再返回 FGO 重试。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）；仍有问题可切换其他可用渲染器后完整重开模拟器。" to "Stop translation, reconnect accessibility, then return to FGO and retry. If a PC emulator still fails, fully exit and reopen the emulator and FGO—not only the game, and not Windows. If needed, try another available renderer and fully reopen the emulator.",
+        "若游戏本身处于黑场，请等画面恢复；若游戏正常但截图持续全黑，请先停止翻译并重新开启无障碍服务。电脑模拟器可完整退出再打开（不是只重开游戏，也不是重启电脑）；仍有问题可切换其他可用渲染器后完整重开模拟器。" to "If the game itself is in a dark transition, wait for the picture to return. If the game looks normal but captures stay black, stop translation and reconnect accessibility. Fully exit and reopen the PC emulator—not only the game, and not Windows. If needed, try another available renderer and fully reopen it.",
+        "截屏请求超时，可能是图形层或系统繁忙。手动模式请再次点击翻译；半自动/全自动模式会稍后重试。若持续出现，请先停止翻译并重新开启无障碍服务；电脑模拟器可完整退出再打开，或切换可用渲染器后完整重开。" to "Screenshot request timed out; the graphics layer or system may be busy. In manual mode, tap Translate again; semi-auto and auto modes retry later. If it persists, stop translation and reconnect accessibility. Fully exit and reopen the PC emulator, or try another available renderer and fully reopen it.",
         "无障碍服务不可用" to "Accessibility service unavailable",
         "未知截屏失败。请确认游戏画面没有黑屏，FgoGotran 无障碍服务仍开启，并尝试重启游戏或模拟器。" to "Unknown screenshot failure. Make sure the game screen is not black, the FgoGotran accessibility service is still on, and try restarting the game or emulator.",
         "关闭无障碍服务，等待 2–3 秒后重新开启，然后回到 FGO 重试" to "Turn off the accessibility service, wait 2–3 seconds, turn it back on, then return to FGO and try again.",
