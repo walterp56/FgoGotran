@@ -1,0 +1,3 @@
+# Authorized originals and matching manifests stay local, never in source control.
+/local-fixtures/
+/local-output/

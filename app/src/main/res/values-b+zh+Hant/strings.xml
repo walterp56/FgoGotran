@@ -383,6 +383,8 @@
     <string name="app_theme_dark">深色</string>
     <string name="app_theme_system_description">使用手機的淺色或深色設定。</string>
     <string name="app_theme_close">關閉</string>
+    <string name="home_chapter_title">章節翻譯（實驗） →</string>
+    <string name="home_chapter_summary">獨立於 OCR。日服原文瀏覽與實驗性資源備份、還原測試。</string>
 </resources>
 
 
