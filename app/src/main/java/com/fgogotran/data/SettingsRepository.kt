@@ -134,6 +134,7 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_FLOATING_BUTTON_SIZE_DP = 54
         const val MAX_FLOATING_BUTTON_SIZE_DP = 72
         const val DEFAULT_TRANSLATION_MODE = "MANUAL"
+        const val DEFAULT_FOREGROUND_TEST_OVERRIDE_ENABLED = true
         const val DEFAULT_TRANSLATION_CONTEXT_ENABLED = true
         /** Ruby readings are removed before translation unless the user opts in. */
         const val DEFAULT_TRANSLATION_INCLUDE_RUBY = true
@@ -706,9 +707,9 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_TRANSLATION_INCLUDE_RUBY] ?: DEFAULT_TRANSLATION_INCLUDE_RUBY
     }
 
-    /** Hidden test override for treating the current external app as the FGO foreground target. */
+    /** Default-on external-app override; the hidden ten-tap toggle preserves an explicit choice. */
     val foregroundTestOverrideEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[KEY_FOREGROUND_TEST_OVERRIDE_ENABLED] ?: false
+        prefs[KEY_FOREGROUND_TEST_OVERRIDE_ENABLED] ?: DEFAULT_FOREGROUND_TEST_OVERRIDE_ENABLED
     }
 
     suspend fun setForegroundTestOverrideEnabled(enabled: Boolean) {

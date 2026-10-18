@@ -232,3 +232,7 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/translation/NameBoxLookupPolicyTest.kt
 # Retain corpus-based name-label prompt and existing validation allowance regressions.
 !app/src/test/java/com/fgogotran/translation/NameBoxLabelPolicyTest.kt
+# Retain foreground-override default and hidden-toggle regressions.
+!app/src/test/java/com/fgogotran/game/
+app/src/test/java/com/fgogotran/game/*
+!app/src/test/java/com/fgogotran/game/ForegroundTestOverrideTest.kt
