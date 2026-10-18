@@ -25,16 +25,12 @@ class CropResultRenderer @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(190, 0, 0, 0)
-        style = Paint.Style.FILL
-    }
-    private val overlayClearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(235, 27, 51, 85)
+        color = CROP_BACKGROUND_COLOR
         style = Paint.Style.FILL
     }
 
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = FGO_TEXT_COLOR
+        color = CROP_TEXT_COLOR
         typeface = FgoTypefaceProvider.storyTypeface(context)
         textAlign = Paint.Align.LEFT
         isFakeBoldText = false
@@ -47,7 +43,6 @@ class CropResultRenderer @Inject constructor(
         height: Int,
         text: String,
         referenceScale: Float,
-        textColor: Int = FGO_TEXT_COLOR,
         targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Bitmap {
         val bitmapWidth = width.coerceAtLeast(1)
@@ -81,7 +76,7 @@ class CropResultRenderer @Inject constructor(
             text = fitted.lines.firstOrNull().orEmpty()
         )
         fitted.lines.forEach { line ->
-            drawTranslatedLine(canvas, line, padding, baseline, textColor, sizing.px(2f))
+            drawTranslatedLine(canvas, line, padding, baseline, sizing.px(2f))
             baseline += fitted.lineHeight
         }
         return bitmap
@@ -93,7 +88,6 @@ class CropResultRenderer @Inject constructor(
         text: String,
         sourceLines: List<CropTextLine>,
         referenceScale: Float,
-        textColor: Int = FGO_TEXT_COLOR,
         targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     ): Bitmap {
         val bitmapWidth = width.coerceAtLeast(1)
@@ -102,7 +96,7 @@ class CropResultRenderer @Inject constructor(
         val cropBounds = Rect(0, 0, bitmapWidth, bitmapHeight)
         val lineBounds = sourceLines.mapNotNull { clippedLineBounds(it.boundingBox, cropBounds) }
         if (lineBounds.isEmpty()) {
-            return render(bitmapWidth, bitmapHeight, text, referenceScale, textColor, targetLocale)
+            return render(bitmapWidth, bitmapHeight, text, referenceScale, targetLocale)
         }
 
         textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, targetLocale)
@@ -115,7 +109,7 @@ class CropResultRenderer @Inject constructor(
             bitmapHeight = bitmapHeight,
             sizing = sizing
         )
-        if (layouts.isEmpty()) return render(bitmapWidth, bitmapHeight, text, referenceScale, textColor, targetLocale)
+        if (layouts.isEmpty()) return render(bitmapWidth, bitmapHeight, text, referenceScale, targetLocale)
         val geometry = layouts.map { layout ->
             val metrics = measureRow(layout, layout.textSize, targetLocale)
             val painted = sizing.paintedBounds(metrics.inkBounds, layout.textArea.left, metrics.preferredBaseline, sizing.px(2f))
@@ -139,7 +133,7 @@ class CropResultRenderer @Inject constructor(
                 // Pass the full translation to the existing panel fallback, never drop one row
                 // or accept a known-oversized minimum when geometry cannot accommodate it.
                 FgoLogger.warn("CropResultRenderer", "Crop row cannot fit its bounds; using crop panel")
-                return render(bitmapWidth, bitmapHeight, text, referenceScale, textColor, targetLocale)
+                return render(bitmapWidth, bitmapHeight, text, referenceScale, targetLocale)
             }
             textPaint.textSize = fit.textSize
             val clear = sizing.clearBox(
@@ -166,7 +160,7 @@ class CropResultRenderer @Inject constructor(
         renderedRows.forEach { row ->
             val clearBox = row.clearBox
             val radius = sizing.cornerRadius(clearBox.width(), clearBox.height())
-            canvas.drawRoundRect(clearBox, radius, radius, overlayClearPaint)
+            canvas.drawRoundRect(clearBox, radius, radius, backgroundPaint)
         }
         renderedRows.forEach { row ->
             val layout = row.layout
@@ -175,7 +169,7 @@ class CropResultRenderer @Inject constructor(
                 canvas.save()
                 canvas.clipRect(row.clearBox)
                 canvas.clipRect(row.safeArea)
-                drawTranslatedLine(canvas, layout.text, layout.textArea.left, row.fit.baseline, textColor, row.fit.shadowPx)
+                drawTranslatedLine(canvas, layout.text, layout.textArea.left, row.fit.baseline, row.fit.shadowPx)
                 canvas.restore()
             }
         }
@@ -207,7 +201,7 @@ class CropResultRenderer @Inject constructor(
         val shadowPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 2f / 3f, metrics)
         var baseline = top - textPaint.fontMetrics.ascent
         lines.forEach { line ->
-            drawTranslatedLine(canvas, line, padding, baseline, FGO_TEXT_COLOR, shadowPx)
+            drawTranslatedLine(canvas, line, padding, baseline, shadowPx)
             baseline += lineHeight
         }
         return bitmap
@@ -218,14 +212,13 @@ class CropResultRenderer @Inject constructor(
         line: String,
         x: Float,
         baseline: Float,
-        textColor: Int,
         shadowPx: Float
     ) {
         textPaint.setShadowLayer(shadowPx, shadowPx, shadowPx, Color.BLACK)
-        textPaint.color = textColor
+        textPaint.color = CROP_TEXT_COLOR
         canvas.drawText(line, x, baseline, textPaint)
         textPaint.clearShadowLayer()
-        textPaint.color = textColor
+        textPaint.color = CROP_TEXT_COLOR
         canvas.drawText(line, x, baseline, textPaint)
     }
 
@@ -640,7 +633,9 @@ class CropResultRenderer @Inject constructor(
     )
 
     private companion object {
-        private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
+        // Crop uses a fixed, opaque palette independently of the screenshot and app theme.
+        private val CROP_TEXT_COLOR = Color.rgb(245, 245, 240)
+        private val CROP_BACKGROUND_COLOR = Color.rgb(27, 51, 85)
         private val ROW_BREAK_CHARS = setOf(
             '，', '。', '！', '？', '、', '；', '：',
             ',', '.', '!', '?', ';', ':', ' '

@@ -309,7 +309,7 @@ class CropRenderSizingTest {
         assertTrue(overlay.contains("sizing.safeRowAreas(geometry, bitmapWidth, bitmapHeight)"))
         assertTrue(overlay.contains("sizing.fitRow(safeArea, layout.textArea.left, layout.textSize)"))
         assertTrue(overlay.contains("textPaint.textSize = row.fit.textSize"))
-        assertTrue(overlay.contains("row.fit.baseline, textColor, row.fit.shadowPx"))
+        assertTrue(overlay.contains("row.fit.baseline, row.fit.shadowPx"))
         assertTrue(overlay.contains("canvas.clipRect(row.safeArea)"))
         assertFalse(overlay.contains("val baseline = rowBaseline("))
         assertTrue(renderer.substringAfter("private fun measureRow(").contains("textPaint.getTextBounds(layout.text"))
@@ -373,7 +373,7 @@ class CropRenderSizingTest {
     @Test
     fun `no bounds fallback retains full screenshot scale and source bounds are not rescaled`() {
         val renderer = source("crop/CropResultRenderer.kt")
-        assertTrue(renderer.contains("render(bitmapWidth, bitmapHeight, text, referenceScale, textColor, targetLocale)"))
+        assertTrue(renderer.contains("render(bitmapWidth, bitmapHeight, text, referenceScale, targetLocale)"))
         assertTrue(renderer.contains("val sourceHeight = row.sourceBounds.height().coerceAtLeast(1).toFloat()"))
         assertTrue(renderer.contains("val targetSize = sizing.sourceTextSize(sourceHeight)"))
         val gameRender = renderer.substringBefore("fun renderStatus(")

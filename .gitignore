@@ -134,6 +134,7 @@ app/src/test/java/com/fgogotran/overlay/*
 !app/src/test/java/com/fgogotran/crop/
 app/src/test/java/com/fgogotran/crop/*
 !app/src/test/java/com/fgogotran/crop/CropRenderSizingTest.kt
+!app/src/test/java/com/fgogotran/crop/CropRenderColorPolicyTest.kt
 # Retain the focused semi-auto tap-handoff regressions.
 !app/src/test/java/com/fgogotran/story/
 app/src/test/java/com/fgogotran/story/*

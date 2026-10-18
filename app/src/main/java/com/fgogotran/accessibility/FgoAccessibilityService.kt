@@ -1774,10 +1774,6 @@ class FgoAccessibilityService : AccessibilityService() {
             )
             val translationDuration = SystemClock.elapsedRealtime() - translationStartedAt
 
-            val cropTextColor = sampleCropOriginalTextColor(
-                crop = cropBitmap,
-                lines = cropLines
-            )
             val rendered = withRunnerContext(Dispatchers.Default) {
                 cropResultRenderer.renderOverlay(
                     width = cropBounds.width(),
@@ -1790,7 +1786,6 @@ class FgoAccessibilityService : AccessibilityService() {
                         )
                     },
                     referenceScale = cropReferenceScale,
-                    textColor = cropTextColor ?: FGO_RENDER_WHITE,
                     targetLocale = translationResult.targetLocale
                 )
             }
@@ -4877,22 +4872,6 @@ class FgoAccessibilityService : AccessibilityService() {
             }
         }
         return false
-    }
-
-    private fun sampleCropOriginalTextColor(
-        crop: Bitmap,
-        lines: List<OcrTextLine>
-    ): Int? {
-        if (lines.isEmpty()) return null
-        return sampleOriginalTextColor(
-            source = crop,
-            region = ClassifiedRegion(
-                region = TextRegion.DIALOGUE_BOX,
-                lines = lines,
-                boundingBox = Rect(0, 0, crop.width, crop.height),
-                ocrEngine = OcrEngineId.UNKNOWN
-            )
-        )
     }
 
     private fun addHistoryEntry(
