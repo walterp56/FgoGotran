@@ -6,7 +6,7 @@
     <string name="accessibility_disclosure_title">无障碍服务用途说明</string>
     <string name="accessibility_disclosure_message">FgoGotran 不是无障碍辅助工具，专为 FGO 翻译设计。它使用无障碍服务：\n\n• 检测窗口变化和点击，用于判断何时刷新翻译\n• 仅在您启动翻译后截取当前画面，用 OCR 识别文字\n• 显示翻译覆盖层，并可将覆盖层点击转发给当前前台应用\n\n默认兼容设置允许在其他前台应用上运行，不限于 FGO。因此，翻译运行期间也可能截取其他应用的画面及其中的敏感内容。打开敏感应用前，请先停止翻译。未启动翻译时，不会进行翻译截屏或转发覆盖层点击。\n\n如果使用在线翻译接口，识别出的待翻译文字会发送到您选择或配置的翻译服务。\n\n如果 Android 已显示此服务开启，但 FgoGotran 仍显示未连接，请先关闭该无障碍服务，等待 2–3 秒，再重新开启。\n\n继续表示您理解并同意上述用途。</string>
     <string name="accessibility_not_connected_title">无障碍服务未连接</string>
-    <string name="accessibility_not_connected_message">即使系统设置显示"已启用"，FgoGotran 仍可能没有收到服务连接。\n\n目前无法启动翻译。请在系统设置中检查 FgoGotran 无障碍服务：\n\n• 如果开关已开启：先关闭，等待 2–3 秒，再重新开启。\n• 如果开关已关闭：直接开启。\n• 返回 FgoGotran，确认状态变为"已连接"后启动悬浮服务。\n\n如果仍无法连接，请完整关闭电脑上的 Android 模拟器（例如 MuMu），再重新打开模拟器及 FGO。不是只重开游戏，也不需要重启电脑。</string>
+    <string name="accessibility_not_connected_message">即使系统设置显示"已启用"，FgoGotran 仍可能没有收到服务连接。\n\n目前无法启动翻译。请在系统设置中检查 FgoGotran 无障碍服务：\n\n• 如果开关已开启：先关闭，等待 2–3 秒，再重新开启。\n• 如果开关已关闭：直接开启。\n• 返回 FgoGotran，确认状态变为"已连接"后启动悬浮服务。\n\n如果仍无法连接，请完整关闭电脑上的模拟器，再重新打开模拟器及 FGO。不是只重开游戏，也不需要重启电脑。</string>
     <string name="overlay_permission_title">悬浮窗权限用途说明</string>
     <string name="overlay_permission_message">FgoGotran 需要“显示在其他应用上层”权限，才能显示翻译按钮、菜单和翻译结果。\n\n覆盖层专为 FGO 翻译设计；默认兼容设置下，也可能显示在其他前台应用上。您可以随时停止翻译，或在系统设置中关闭此权限；关闭权限后翻译按钮和覆盖层将无法显示。\n\n继续表示您理解并同意上述用途。</string>    <string name="api_title">API接口</string>
     <string name="api_back">返回</string>
@@ -163,7 +163,7 @@
     <string name="guide_auto_6">适合剧情阅读。对话自动刷新；遇到选项时，再点悬浮按钮翻译选项。</string>
     <string name="guide_auto_7">FgoGotran 专为 FGO 实时画面设计。默认也允许在其他前台应用上运行；启动翻译期间可能读取这些应用的画面，打开敏感应用前请先停止翻译。</string>
     <string name="guide_auto_8">图片、截图、录屏、视频源及其他应用的排版未专门适配，不保证识别和翻译效果。</string>
-    <string name="guide_capture_recovery">截图异常排查：如果游戏正常显示，但反复截到黑屏或无法识别，先停止翻译，将 FgoGotran 无障碍服务关闭，等待 2–3 秒后重新开启，再返回 FGO 启动翻译。\n如果仍失败，请完整关闭电脑上的 Android 模拟器（例如 MuMu），再重新打开模拟器及 FGO。不是只重开游戏，也不需要重启电脑。\n仍有问题时，可尝试模拟器提供的其他图形渲染器，并完整关闭、重新打开模拟器。可选渲染器因版本而异，没有通用最佳选择；游戏本身处于黑场时，请先等待画面恢复。</string>
+    <string name="guide_capture_recovery">截图异常排查：如果游戏正常显示，但反复截到黑屏或无法识别，先停止翻译，将 FgoGotran 无障碍服务关闭，等待 2–3 秒后重新开启，再返回 FGO 启动翻译。\n如果仍失败，请完整关闭电脑上的模拟器，再重新打开模拟器及 FGO。不是只重开游戏，也不需要重启电脑。\n仍有问题时，可尝试模拟器提供的其他图形渲染器，并完整关闭、重新打开模拟器。可选渲染器因版本而异，没有通用最佳选择；游戏本身处于黑场时，请先等待画面恢复。</string>
     <string name="guide_auto_9">手动或半自动点击后，本次识别/翻译未成功，可再点一次。</string>
     <string name="guide_auto_10">适合想完全掌控节奏的你。点 GO 后翻译当前画面。</string>
     <string name="guide_auto_11">适合想轻松阅读的你。应用会尽量自动刷新对话和选项。</string>

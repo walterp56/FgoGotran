@@ -44,13 +44,15 @@ class EnglishGuideResourcesTest {
         for ((directory, emulator, pc) in listOf(
             Triple("values", "模拟器", "不需要重启电脑"),
             Triple("values-b+zh+Hant", "模擬器", "不需要重新啟動電腦"),
-            Triple("values-en", "emulator", "do not need to restart Windows")
+            Triple("values-en", "emulator", "do not need to restart your computer")
         )) {
             val strings = resources(directory)
             val guide = strings.getValue("guide_capture_recovery")
             val connection = strings.getValue("accessibility_not_connected_message")
             for (text in listOf(guide, connection)) {
-                assertTrue(text.contains("MuMu"), directory)
+                for (name in listOf("MuMu", "Android", "Windows")) {
+                    assertFalse(text.contains(name, ignoreCase = true), "$directory contains $name")
+                }
                 assertTrue(text.contains("2–3"), directory)
                 assertTrue(text.contains(emulator), directory)
                 assertTrue(text.contains(pc), directory)
@@ -62,6 +64,17 @@ class EnglishGuideResourcesTest {
             .substringBefore("private fun GuideWebsiteCard(")
         assertTrue(guide.contains("stringResource(R.string.guide_capture_recovery)"))
         assertFalse(guide.contains("AlertDialog"))
+    }
+
+    @Test
+    fun `guide copy stays free of third party software names`() {
+        for (directory in listOf("values", "values-b+zh+Hant", "values-en")) {
+            resources(directory).filterKeys { it.startsWith("guide_") }.forEach { (key, text) ->
+                for (name in listOf("MuMu", "Android", "Windows")) {
+                    assertFalse(text.contains(name, ignoreCase = true), "$directory $key contains $name")
+                }
+            }
+        }
     }
 
     @Test
