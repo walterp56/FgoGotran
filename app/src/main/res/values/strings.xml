@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FgoGotran</string>
-    <string name="accessibility_summary">在用户启动服务后识别 FGO 剧情文字并显示翻译覆盖层。</string>
-    <string name="accessibility_description">FgoGotran 不是无障碍辅助工具。它使用无障碍服务在用户启动服务后检测 FGO 窗口和点击、截取当前 FGO 画面进行 OCR，并可将用户对翻译覆盖层的点击转发给 FGO。</string>
+    <string name="accessibility_summary">启动翻译后截屏识别并显示覆盖层；默认也可在其他前台应用上运行。</string>
+    <string name="accessibility_description">FgoGotran 不是无障碍辅助工具，专为 FGO 翻译设计。它检测窗口和点击，在您启动翻译后截取当前画面进行 OCR，并可将覆盖层点击转发给当前前台应用。默认兼容设置也允许在其他前台应用上运行；打开敏感应用前请先停止翻译。使用在线接口时，待翻译文字会发送到您选择或配置的服务。</string>
     <string name="accessibility_disclosure_title">无障碍服务用途说明</string>
-    <string name="accessibility_disclosure_message">FgoGotran 不是无障碍辅助工具。开启后，它只用于 FGO 翻译功能：\n\n• 检测 FGO 窗口变化和点击，用于判断何时刷新剧情翻译\n• 在您启动服务后截取当前 FGO 画面，用 OCR 识别剧情文字\n• 在 FGO 上方显示翻译覆盖层\n• 当您点击翻译覆盖层时，将该点击转发给 FGO\n\n如果使用在线翻译接口，识别出的待翻译文字会发送到您选择或配置的翻译服务。FgoGotran 不会读取联系人、短信、密码、银行应用内容，也不会在未启动服务时自动控制其他应用。\n\n如果 Android 已显示此服务开启，但 FgoGotran 仍显示未连接，请在系统设置中先关闭该服务，再重新开启。\n\n继续表示您理解并同意上述用途。</string>
+    <string name="accessibility_disclosure_message">FgoGotran 不是无障碍辅助工具，专为 FGO 翻译设计。它使用无障碍服务：\n\n• 检测窗口变化和点击，用于判断何时刷新翻译\n• 仅在您启动翻译后截取当前画面，用 OCR 识别文字\n• 显示翻译覆盖层，并可将覆盖层点击转发给当前前台应用\n\n默认兼容设置允许在其他前台应用上运行，不限于 FGO。因此，翻译运行期间也可能截取其他应用的画面及其中的敏感内容。打开敏感应用前，请先停止翻译。未启动翻译时，不会进行翻译截屏或转发覆盖层点击。\n\n如果使用在线翻译接口，识别出的待翻译文字会发送到您选择或配置的翻译服务。\n\n如果 Android 已显示此服务开启，但 FgoGotran 仍显示未连接，请先关闭该无障碍服务，等待 2–3 秒，再重新开启。\n\n继续表示您理解并同意上述用途。</string>
     <string name="accessibility_not_connected_title">无障碍服务未连接</string>
-    <string name="accessibility_not_connected_message">即使系统设置显示"已启用"，FgoGotran 仍可能没有收到服务连接。\n\n目前无法启动翻译。请在系统设置中检查 FgoGotran 无障碍服务：\n\n• 如果开关已开启：先关闭，等待 2–3 秒，再重新开启。\n• 如果开关已关闭：直接开启。\n• 返回 FgoGotran，确认状态变为"已连接"后启动悬浮服务。\n\n如果仍无法连接，请完整重启模拟器后重试。</string>
+    <string name="accessibility_not_connected_message">即使系统设置显示"已启用"，FgoGotran 仍可能没有收到服务连接。\n\n目前无法启动翻译。请在系统设置中检查 FgoGotran 无障碍服务：\n\n• 如果开关已开启：先关闭，等待 2–3 秒，再重新开启。\n• 如果开关已关闭：直接开启。\n• 返回 FgoGotran，确认状态变为"已连接"后启动悬浮服务。\n\n如果仍无法连接，请完整关闭电脑上的 Android 模拟器（例如 MuMu），再重新打开模拟器及 FGO。不是只重开游戏，也不需要重启电脑。</string>
     <string name="overlay_permission_title">悬浮窗权限用途说明</string>
-    <string name="overlay_permission_message">FgoGotran 需要“显示在其他应用上层”权限，才能在 FGO 上显示翻译按钮、菜单和翻译结果。\n\n该权限只用于 FGO 翻译覆盖层。您可以随时在系统设置中关闭此权限；关闭后翻译按钮和覆盖层将无法显示。\n\n继续表示您理解并同意上述用途。</string>    <string name="api_title">API接口</string>
+    <string name="overlay_permission_message">FgoGotran 需要“显示在其他应用上层”权限，才能显示翻译按钮、菜单和翻译结果。\n\n覆盖层专为 FGO 翻译设计；默认兼容设置下，也可能显示在其他前台应用上。您可以随时停止翻译，或在系统设置中关闭此权限；关闭权限后翻译按钮和覆盖层将无法显示。\n\n继续表示您理解并同意上述用途。</string>    <string name="api_title">API接口</string>
     <string name="api_back">返回</string>
     <string name="api_provider">服务商</string>
     <string name="api_request_settings">请求设置</string>
@@ -161,8 +161,9 @@
     <string name="guide_auto_4">截图、游戏文本、译文、API Key、玩家名、账号信息或设备识别码。</string>
     <string name="guide_auto_5">FGO 游戏内实时画面、剧情、选项，以及裁剪模式框选的画面区域。</string>
     <string name="guide_auto_6">适合剧情阅读。对话自动刷新；遇到选项时，再点悬浮按钮翻译选项。</string>
-    <string name="guide_auto_7">FgoGotran 的翻译只在正在运行的 FGO 画面上生效。</string>
-    <string name="guide_auto_8">图片、截图、录屏、视频源，或其他应用里的 FGO 素材翻译。</string>
+    <string name="guide_auto_7">FgoGotran 专为 FGO 实时画面设计。默认也允许在其他前台应用上运行；启动翻译期间可能读取这些应用的画面，打开敏感应用前请先停止翻译。</string>
+    <string name="guide_auto_8">图片、截图、录屏、视频源及其他应用的排版未专门适配，不保证识别和翻译效果。</string>
+    <string name="guide_capture_recovery">截图异常排查：如果游戏正常显示，但反复截到黑屏或无法识别，先停止翻译，将 FgoGotran 无障碍服务关闭，等待 2–3 秒后重新开启，再返回 FGO 启动翻译。\n如果仍失败，请完整关闭电脑上的 Android 模拟器（例如 MuMu），再重新打开模拟器及 FGO。不是只重开游戏，也不需要重启电脑。\n仍有问题时，可尝试模拟器提供的其他图形渲染器，并完整关闭、重新打开模拟器。可选渲染器因版本而异，没有通用最佳选择；游戏本身处于黑场时，请先等待画面恢复。</string>
     <string name="guide_auto_9">手动或半自动点击后，本次识别/翻译未成功，可再点一次。</string>
     <string name="guide_auto_10">适合想完全掌控节奏的你。点 GO 后翻译当前画面。</string>
     <string name="guide_auto_11">适合想轻松阅读的你。应用会尽量自动刷新对话和选项。</string>
@@ -191,7 +192,7 @@
     <string name="guide_auto_34">使用范围</string>
     <string name="guide_auto_35">半自动</string>
     <string name="guide_auto_36">全自动</string>
-    <string name="guide_auto_37">不支持</string>
+    <string name="guide_auto_37">未专门适配</string>
     <string name="guide_auto_38">返回</string>
     <string name="guide_auto_39">手动</string>
     <string name="guide_auto_40">裁剪</string>

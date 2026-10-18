@@ -236,3 +236,8 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/game/
 app/src/test/java/com/fgogotran/game/*
 !app/src/test/java/com/fgogotran/game/ForegroundTestOverrideTest.kt
+# Retain capture-resource cleanup and diagnostic persistence regressions.
+!app/src/test/java/com/fgogotran/accessibility/ScreenshotResourceWiringTest.kt
+!app/src/test/java/com/fgogotran/diagnostic/
+app/src/test/java/com/fgogotran/diagnostic/*
+!app/src/test/java/com/fgogotran/diagnostic/DiagnosticFilePersistenceTest.kt

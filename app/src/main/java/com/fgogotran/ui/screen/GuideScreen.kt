@@ -159,6 +159,11 @@ private fun GuideScopeCard() {
             )
             GuideInfoRow(label = stringResource(R.string.guide_auto_41), text = stringResource(R.string.guide_auto_5))
             GuideInfoRow(label = stringResource(R.string.guide_auto_37), text = stringResource(R.string.guide_auto_8))
+            Text(
+                stringResource(R.string.guide_capture_recovery),
+                style = MaterialTheme.typography.bodySmall,
+                color = FgoUiColors.text(darkAlpha = 0.65f, secondary = true)
+            )
         }
     }
 }

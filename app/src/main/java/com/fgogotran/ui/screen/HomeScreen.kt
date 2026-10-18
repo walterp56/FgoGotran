@@ -706,7 +706,7 @@ private fun ensureAccessibilityConnected(
                 eventId = "accessibility_service_not_connected",
                 title = "无障碍服务未连接",
                 message = "启动服务被阻止：FgoGotran 没有收到无障碍服务连接",
-                detail = "关闭 FgoGotran 无障碍服务 → 等 2–3 秒 → 重新开启；若仍失败请重启模拟器"
+                detail = "请先停止翻译，关闭 FgoGotran 无障碍服务，等待 2–3 秒后重新开启，再返回 FGO 启动翻译。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）。"
             )
             showAccessibilityNotConnectedDialog(context, dialogTheme)
             false

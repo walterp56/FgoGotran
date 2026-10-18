@@ -6284,16 +6284,23 @@ class FgoAccessibilityService : AccessibilityService() {
                     mainExecutor,
                     object : TakeScreenshotCallback {
                         override fun onSuccess(result: ScreenshotResult) {
+                            var hardwareBitmap: Bitmap? = null
                             val converted = try {
-                                Bitmap.wrapHardwareBuffer(
+                                hardwareBitmap = Bitmap.wrapHardwareBuffer(
                                     result.hardwareBuffer,
                                     result.colorSpace
-                                )?.copy(Bitmap.Config.ARGB_8888, false)
+                                )
+                                hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
                             } catch (e: Exception) {
                                 FgoLogger.warn(tag, "Screenshot bitmap conversion failed", e)
                                 null
                             } finally {
-                                result.hardwareBuffer.close()
+                                // Only the independent software copy leaves this callback.
+                                try {
+                                    hardwareBitmap?.recycle()
+                                } finally {
+                                    result.hardwareBuffer.close()
+                                }
                             }
                             attemptErrorCode = if (converted == null) {
                                 SCREENSHOT_ERROR_BITMAP_UNAVAILABLE
@@ -6331,7 +6338,7 @@ class FgoAccessibilityService : AccessibilityService() {
             eventId = "accessibility_service_not_connected",
             title = "无障碍服务已开启但未连接",
             message = "系统仍标记服务为已启用，但 FgoGotran 没有收到连接",
-            detail = "请关闭无障碍服务，等待 2–3 秒后重新开启；刚切换模拟器图形模式时请完整重启模拟器"
+            detail = "请先停止翻译，关闭 FgoGotran 无障碍服务，等待 2–3 秒后重新开启，再返回 FGO 启动翻译。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）。"
         )
     }
 
@@ -6340,9 +6347,8 @@ class FgoAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * An all-black accessibility screenshot (emulator GPU glitch, protected surface)
-     * reaches OCR as "no text". Recording it keeps that failure diagnosable instead of
-     * surfacing only as "未识别到文字".
+     * Sparse dark samples can indicate a capture issue or a legitimate game transition.
+     * Record a qualified hint only; this does not reject frames or change OCR/retries.
      */
     private fun reportBlankAccessibilityFrameIfNeeded(frame: Bitmap) {
         if (hasVisiblePixels(frame)) return
@@ -6350,10 +6356,10 @@ class FgoAccessibilityService : AccessibilityService() {
             level = DiagnosticEventStore.LEVEL_WARNING,
             category = DiagnosticEventStore.CATEGORY_APP_ERROR,
             eventId = "screenshot_blank_frame",
-            title = "截图内容为空（全黑）",
-            message = "无障碍截图返回了全黑画面，OCR 无法识别文字",
+            title = "截图疑似全黑",
+            message = "截图采样点几乎全黑，可能是游戏黑场，也可能是截屏异常",
             server = gameServer,
-            detail = "多见于模拟器图形渲染异常：请完整重启模拟器，或切换图形渲染模式后再试"
+            detail = "若游戏本身处于黑场，请等画面恢复；若游戏正常但截图持续全黑，请先停止翻译并重新开启无障碍服务。电脑模拟器可完整退出再打开（不是只重开游戏，也不是重启电脑）；仍有问题可切换其他可用渲染器后完整重开模拟器。"
         )
     }
 
@@ -6385,7 +6391,7 @@ class FgoAccessibilityService : AccessibilityService() {
             title = "无障碍截屏权限失效",
             message = "服务仍显示已连接，但系统拒绝了截屏请求",
             server = gameServer,
-            detail = "请关闭并重新开启 FgoGotran 无障碍服务；模拟器切换图形模式后需完整重启模拟器"
+            detail = "请先停止翻译，关闭 FgoGotran 无障碍服务，等待 2–3 秒后重新开启，再返回 FGO 启动翻译。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）。"
         )
     }
 
@@ -6404,7 +6410,7 @@ class FgoAccessibilityService : AccessibilityService() {
         return when (errorCode) {
             AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR -> ScreenshotFailureInfo(
                 reason = "Android 内部截屏失败",
-                detail = "多见于模拟器、系统图形层或当前画面状态异常。可尝试重启游戏、重启模拟器，或切换模拟器图形渲染模式。",
+                detail = "请先停止翻译并重新开启无障碍服务，再返回 FGO 重试。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）；仍有问题可切换其他可用渲染器后完整重开模拟器。",
                 code = errorCode.toString()
             )
             AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS -> ScreenshotFailureInfo(
@@ -6424,7 +6430,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
             AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_WINDOW -> ScreenshotFailureInfo(
                 reason = "当前窗口无效",
-                detail = "Android 无法读取当前窗口画面。请回到 FGO 主画面后再试，或重启游戏/模拟器。",
+                detail = "请先停止翻译并重新开启无障碍服务，再返回 FGO 重试。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）；仍有问题可切换其他可用渲染器后完整重开模拟器。",
                 code = errorCode.toString()
             )
             AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW -> ScreenshotFailureInfo(
@@ -6434,17 +6440,17 @@ class FgoAccessibilityService : AccessibilityService() {
             )
             SCREENSHOT_ERROR_TIMEOUT -> ScreenshotFailureInfo(
                 reason = "Android 没有在限定时间内返回截图",
-                detail = "截屏请求超时，通常是模拟器图形层或系统繁忙。稍后会自动重试；若持续出现可重启游戏或切换模拟器渲染模式。",
+                detail = "截屏请求超时，可能是图形层或系统繁忙。手动模式请再次点击翻译；半自动/全自动模式会稍后重试。若持续出现，请先停止翻译并重新开启无障碍服务；电脑模拟器可完整退出再打开，或切换可用渲染器后完整重开。",
                 code = "timeout"
             )
             SCREENSHOT_ERROR_BITMAP_UNAVAILABLE -> ScreenshotFailureInfo(
                 reason = "模拟器返回了截图对象，但无法转换成图片",
-                detail = "多见于模拟器图形兼容问题。可尝试切换 DirectX/OpenGL/Vulkan 渲染模式、更新模拟器，或改用 64 位实例。",
+                detail = "请先停止翻译并重新开启无障碍服务，再返回 FGO 重试。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）；仍有问题可切换其他可用渲染器后完整重开模拟器。",
                 code = "bitmap_null"
             )
             else -> ScreenshotFailureInfo(
                 reason = "Android/模拟器没有返回截图",
-                detail = "未知截屏失败。请确认游戏画面没有黑屏，FgoGotran 无障碍服务仍开启，并尝试重启游戏或模拟器。",
+                detail = "请先停止翻译并重新开启无障碍服务，再返回 FGO 重试。使用电脑模拟器且仍失败时，请完整退出并重新打开模拟器及 FGO（不是只重开游戏，也不是重启电脑）；仍有问题可切换其他可用渲染器后完整重开模拟器。",
                 code = errorCode.takeIf { it != 0 }?.toString().orEmpty()
             )
         }
