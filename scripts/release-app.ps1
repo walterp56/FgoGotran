@@ -83,12 +83,8 @@ function Normalize-Changelog {
     $Normalized = @()
     foreach ($Item in $Items) {
         if (-not [string]::IsNullOrWhiteSpace($Item)) {
-            foreach ($Part in ($Item -split '\s*,\s*')) {
-                $Trimmed = $Part.Trim()
-                if ($Trimmed) {
-                    $Normalized += $Trimmed
-                }
-            }
+            # Each array element is one bullet; commas are part of its wording.
+            $Normalized += $Item.Trim()
         }
     }
 
