@@ -81,8 +81,6 @@ android {
 }
 
 dependencies {
-    // One-way host edge; Chapter owns its UI, access and native codecs independently.
-    implementation(project(":chapter"))
     // Compose BOM
     // Must stay on a Compose UI 1.7.x BOM (2024.09.00 or newer): from Compose UI 1.7.0 the
     // lifecycle-compose LocalLifecycleOwner is provided directly, so lifecycle 2.8.x stops

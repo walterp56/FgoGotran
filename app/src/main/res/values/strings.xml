@@ -384,8 +384,6 @@
     <string name="app_theme_dark">深色</string>
     <string name="app_theme_system_description">使用手机的浅色或深色设置。</string>
     <string name="app_theme_close">关闭</string>
-    <string name="home_chapter_title">章节翻译（实验） →</string>
-    <string name="home_chapter_summary">独立于 OCR。日服原文浏览与实验性资源备份、恢复测试。</string>
 </resources>
 
 

@@ -1,7 +1,6 @@
 package com.fgogotran
 
 import android.content.Context
-import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -38,8 +37,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Main Activity hosting the existing OCR feature UI via Jetpack Compose navigation.
- * The isolated Chapter feature has its own presentation-only Activity.
+ * Single Activity hosting all app UI via Jetpack Compose navigation.
  *
  * ## Screen navigation
  * Uses a simple `when` block on [Screen] enum rather than Navigation Compose —
@@ -183,11 +181,7 @@ fun MainScreen(
             settingsRepository = settingsRepository,
             diagnosticEventStore = diagnosticEventStore,
             onGuide = { currentScreen = Screen.GUIDE },
-            onSettings = { currentScreen = Screen.SETTINGS },
-            onChapter = {
-                context.startActivity(Intent(context, ChapterHostActivity::class.java)
-                    .putExtra(ChapterHostActivity.EXTRA_THEME, themeMode.preferenceValue))
-            }
+            onSettings = { currentScreen = Screen.SETTINGS }
         )
 
         Screen.GUIDE -> GuideScreen(
