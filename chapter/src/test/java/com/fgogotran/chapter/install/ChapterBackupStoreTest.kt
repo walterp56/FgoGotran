@@ -50,6 +50,22 @@ class ChapterBackupStoreTest {
         assertFailsWith<IllegalStateException> { store.create(InstallSamples.game, InstallSamples.replacementBundle, InstallSamples.replacementManifest) }
         assertEquals(record, store.load()); assertContentEquals(InstallSamples.bundle, store.original(record, true))
     }
+    @Test fun `legacy unused exported baseline can start a new job without changing old protocol or originals`() {
+        val root = temporary.newFolder(); val store = store(root)
+        val current = store.create(InstallSamples.game, InstallSamples.bundle, InstallSamples.manifest)
+        val legacyJson = ChapterInstallRecordCodec.encode(current.copy(exportSha256 = "e".repeat(64)))
+            .replace("\"schema\":2", "\"schema\":1").replace(",\"writeProtocol\":\"IN_PLACE_V1\"", "")
+        File(root, "${current.id}/record.json").writeText(legacyJson)
+        val legacy = requireNotNull(store.load())
+        assertEquals(ChapterWriteProtocol.LEGACY_RENAME, legacy.writeProtocol)
+        assertFails { store.replace(legacy, legacy.copy(writeProtocol = ChapterWriteProtocol.IN_PLACE_V1)) }
+        assertFails { store.savePrepared(legacy, ChapterRebuildMode.UNCHANGED, InstallSamples.replacementBundle, InstallSamples.replacementManifest) }
+        val fresh = store.create(InstallSamples.game, InstallSamples.bundle, InstallSamples.manifest)
+        assertEquals(ChapterWriteProtocol.IN_PLACE_V1, fresh.writeProtocol)
+        assertNull(fresh.exportSha256); assertNotEquals(legacy.id, fresh.id)
+        assertEquals(legacyJson, File(root, "${current.id}/record.json").readText())
+        assertContentEquals(InstallSamples.manifest, store.original(legacy, false))
+    }
     @Test fun `prepared data cannot replace original backups`() {
         val store = store(temporary.newFolder()); val record = store.create(InstallSamples.game, InstallSamples.bundle, InstallSamples.manifest)
         val prepared = store.savePrepared(record, ChapterRebuildMode.UNCHANGED, InstallSamples.replacementBundle, InstallSamples.replacementManifest)

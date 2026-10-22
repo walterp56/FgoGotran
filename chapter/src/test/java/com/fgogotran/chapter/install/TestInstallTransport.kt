@@ -3,10 +3,13 @@ package com.fgogotran.chapter.install
 internal class TestInstallTransport(
     val files: TestChapterInstallFiles,
     private val store: ChapterBackupStore,
-    validator: (ByteArray, ByteArray) -> Unit = InstallSamples::validate
+    private val validator: (ByteArray, ByteArray) -> Unit = InstallSamples::validate,
+    private val nativeRecovery: Boolean = false
 ) : ChapterInstallTransport {
     var game = ChapterGameStatus(InstallSamples.game, true)
-    val engine = ChapterTransactionEngine(files, { game }, validator)
+    val engine get() = ChapterTransactionEngine(files, { game }, validator, if (nativeRecovery) store.load()?.takeIf {
+        it.mode != null && it.writeProtocol == ChapterWriteProtocol.IN_PLACE_V1
+    }?.let { ChapterManifestRecovery(it, store.original(it, false), store.prepared(it, false)) } else null)
     var stages = 0
     var commits = 0
     var restores = 0

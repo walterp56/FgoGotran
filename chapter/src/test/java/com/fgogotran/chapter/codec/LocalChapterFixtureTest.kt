@@ -6,7 +6,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
 import java.io.File
 import java.nio.ByteBuffer
-import java.util.Properties
 import kotlin.test.*
 
 /** Opt-in authentic fixture proof. No device/network calls and no install operation. */
@@ -16,9 +15,7 @@ class LocalChapterFixtureTest {
         val directory = System.getProperty("chapter.localCapture", "").orEmpty()
         assumeTrue("Local native fixtures are opt-in", directory.isNotEmpty())
         val module = File(requireNotNull(System.getProperty("chapter.projectDir"))).canonicalFile
-        val root = File(module, "local-fixtures").canonicalFile
-        val capture = File(directory).canonicalFile
-        require(capture.toPath().startsWith(root.toPath()) && capture != root)
+        val capture = LocalChapterPaths.capture(module, directory)
         val record = Json.parseToJsonElement(File(capture, "capture.json").readText()).jsonObject
         require(record.getValue("schema_version").jsonPrimitive.int == 1)
         require(record.getValue("package").jsonPrimitive.content == "com.aniplex.fategrandorder")
@@ -33,18 +30,10 @@ class LocalChapterFixtureTest {
             assertEquals(obj.getValue("size_bytes").jsonPrimitive.long, original.fingerprint.sizeBytes)
             path.value to original
         }
-        val profile = Properties().apply { File(root, "jp-envelope.properties").inputStream().use { load(it) } }
-        fun envelope(prefix: String): RijndaelEnvelope {
-            fun hex(name: String): AssetBytes {
-                val value = requireNotNull(profile.getProperty(name))
-                require(value.matches(Regex("[0-9a-f]{64}")))
-                return AssetBytes.copyOf(value.chunked(2).map { it.toInt(16).toByte() }.toByteArray())
-            }
-            return RijndaelEnvelope(hex("${prefix}_key"), hex("${prefix}_iv"))
-        }
-        val manifestCodec = FgoInstalledManifestCodec(envelope("stage"))
-        val containerCodec = FgoJpContainerCodec(envelope("asset"))
-        val scriptCodec = FgoNativeScriptCodec(envelope("stage"))
+        // Same reviewed public format profile as the APK; no ignored properties file needed.
+        val manifestCodec = FgoJpFormatProfile.manifestCodec()
+        val containerCodec = FgoJpFormatProfile.containerCodec()
+        val scriptCodec = FgoJpFormatProfile.scriptCodec()
         val manifest = originals.getValue("cfb1d36393fd67385e046b084b7cf7ed")
         assertEquals(record.getValue("manifest_sha256").jsonPrimitive.content, manifest.fingerprint.sha256.hex)
         val decodedManifest = manifestCodec.decode(manifest).valueOrThrow()
@@ -53,8 +42,6 @@ class LocalChapterFixtureTest {
         val asset = originals.getValue(entry.assetPath.value)
         manifestCodec.verifyAsset(manifest, asset).valueOrThrow()
         val container = containerCodec.decode(asset).valueOrThrow()
-        // The Android path uses its packaged public profile, not this desktop properties file.
-        assertEquals(manifestCodec.entries(manifest).valueOrThrow(), FgoJpFormatProfile.manifestCodec().entries(manifest).valueOrThrow())
         val reads = mutableListOf<GameAssetPath>()
         val browser = ChapterBrowser(object : ChapterOriginalStorage {
             override suspend fun capability() = ChapterStorageCapability.ReadOnly("test-capture")
@@ -91,6 +78,18 @@ class LocalChapterFixtureTest {
         val noOpOriginal = OriginalAsset.capture(asset.fingerprint.path, noOpAsset.toByteArray())
         val noOpDecoded = containerCodec.decode(noOpOriginal).valueOrThrow()
         assertEquals(container.scripts.map { it.binding to it.payload }, noOpDecoded.scripts.map { it.binding to it.payload })
+        val originalUnity = containerCodec.decodeUnity(asset.bytes).valueOrThrow().toByteArray()
+        val noOpUnity = containerCodec.decodeUnity(noOpAsset).valueOrThrow().toByteArray()
+        val originalArchive = UnityFsArchive.decode(originalUnity)
+        val noOpArchive = UnityFsArchive.decode(noOpUnity)
+        assertContentEquals(originalArchive.data, noOpArchive.data)
+        assertEquals(originalArchive.nodes, noOpArchive.nodes)
+        val originalPacking = NativeAcceptanceDiagnostics.unity(originalUnity)
+        val noOpPacking = NativeAcceptanceDiagnostics.unity(noOpUnity)
+        assertEquals(originalPacking.getValue("flags"), noOpPacking.getValue("flags"))
+        assertEquals(originalPacking.getValue("info_compression"), noOpPacking.getValue("info_compression"))
+        assertEquals(originalPacking.getValue("blocks").jsonArray.map { it.jsonObject.getValue("flags") },
+            noOpPacking.getValue("blocks").jsonArray.map { it.jsonObject.getValue("flags") })
         val noOpManifest = manifestCodec.replaceAsset(manifest, asset, noOpAsset).valueOrThrow()
         manifestCodec.verifyAsset(OriginalAsset.capture(manifest.fingerprint.path, noOpManifest.toByteArray()), noOpOriginal).valueOrThrow()
         val document = scriptCodec.decode(source).valueOrThrow()
@@ -126,12 +125,16 @@ class LocalChapterFixtureTest {
         oldEntries.zip(newEntries).forEach { (old, new) ->
             assertEquals(if (old.assetPath == asset.fingerprint.path) old.copy(size = patchedAsset.size.toLong(), crc32 = crc32(patchedAsset.toByteArray())) else old, new)
         }
-        val output = File(module, "local-output/${capture.name}/proof").apply { mkdirs() }
+        val output = LocalChapterPaths.proofOutput(module, capture)
+        println("Offline proof output: $output")
         File(output, asset.fingerprint.path.value).writeBytes(patchedAsset.toByteArray())
         File(output, manifest.fingerprint.path.value).writeBytes(patchedManifest.toByteArray())
         File(output, "original.unity").writeBytes(containerCodec.decodeUnity(asset.bytes).valueOrThrow().toByteArray())
         File(output, "patched.unity").writeBytes(containerCodec.decodeUnity(patchedAsset).valueOrThrow().toByteArray())
         File(output, "no-op.unity").writeBytes(containerCodec.decodeUnity(noOpAsset).valueOrThrow().toByteArray())
+        File(output, "packing.json").writeText(buildJsonObject {
+            put("original", originalPacking); put("no_op", noOpPacking)
+        }.toString())
         val noOpOutput = File(output, "no-op").apply { mkdirs() }
         File(noOpOutput, asset.fingerprint.path.value).writeBytes(noOpAsset.toByteArray())
         File(noOpOutput, manifest.fingerprint.path.value).writeBytes(noOpManifest.toByteArray())
@@ -152,7 +155,7 @@ class LocalChapterFixtureTest {
             Replacement: ${patch.replacement}
             Exactly one script field changed; all other script payloads identical.
             Manifest size/CRC and body CRC validated.
-            Changed Unity bundle uses uncompressed blocks for proof, not production optimisation.
+            Changed Unity bundle preserves the captured single-block compression kinds and flags; compressed bytes need not match.
             Android non-root bridge, native playback and restore: NOT TESTED.
         """.trimIndent() + "\n")
     }

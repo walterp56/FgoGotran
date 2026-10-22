@@ -23,7 +23,7 @@ class ChapterTransactionEngineTest {
         assertEquals(ChapterPairState.ORIGINAL, engine.inspect(record))
         engine.commit()
         assertEquals(ChapterPairState.REPLACEMENT, engine.inspect(record))
-        assertEquals(listOf(ChapterInstallPolicy.BUNDLE, ChapterInstallPolicy.MANIFEST), files.writes.takeLast(2))
+        assertEquals(listOf(ChapterInstallPolicy.BUNDLE, ChapterInstallPolicy.MANIFEST), files.writes.filter { it in listOf(ChapterInstallPolicy.BUNDLE, ChapterInstallPolicy.MANIFEST) })
         engine.restore()
         assertEquals(ChapterPairState.ORIGINAL, engine.inspect(record))
     }
@@ -60,7 +60,7 @@ class ChapterTransactionEngineTest {
         val engine = engine(); files.denyStage = true
         assertFails { engine.stage() }; assertEquals(ChapterPairState.ORIGINAL, engine.inspect(record))
     }
-    @Test fun `shell owned staging is refused and cleaned before any live replacement`() {
+    @Test fun `unsupported live write access is refused and staging cleaned before replacement`() {
         val engine = engine(); files.denyReplacementAccess = true
         assertFailsWith<IllegalStateException> { engine.stage() }
         assertEquals(0, files.replacements)
@@ -84,9 +84,9 @@ class ChapterTransactionEngineTest {
         assertFails { engine.commit() }; assertEquals(ChapterPairState.MIXED, engine.inspect(record))
         files.failAfterReplace = 0; engine.restore(); assertEquals(ChapterPairState.ORIGINAL, engine.inspect(record))
     }
-    @Test fun `failure after manifest replacement is recognised as complete replacement pair`() {
+    @Test fun `matching replacement bytes without durable completion remain interrupted`() {
         val engine = engine(); engine.stage(); files.failAfterReplace = 2
-        assertFails { engine.commit() }; assertEquals(ChapterPairState.REPLACEMENT, engine.inspect(record))
+        assertFails { engine.commit() }; assertEquals(ChapterPairState.INTERRUPTED, engine.inspect(record))
         files.failAfterReplace = 0; engine.restore(); assertEquals(ChapterPairState.ORIGINAL, engine.inspect(record))
     }
     @Test fun `interrupted restoration can be retried from mixed hashes`() {
@@ -111,10 +111,8 @@ class ChapterTransactionEngineTest {
     }
     @Test fun `identity running state is checked again before manifest replacement`() {
         val delegate = TestChapterInstallFiles(temporary.newFolder()).also { it.putOriginals(InstallSamples.bundle, InstallSamples.manifest) }
-        val wrapped = object : ChapterInstallFiles by delegate {
-            override fun replace(stage: String, live: String) { delegate.replace(stage, live); status = status.copy(stopped = false) }
-        }
-        val engine = ChapterTransactionEngine(wrapped, { status }, InstallSamples::validate)
+        delegate.onLiveSynced = { status = status.copy(stopped = false) }
+        val engine = ChapterTransactionEngine(delegate, { status }, InstallSamples::validate)
         engine.stage(); assertFailsWith<IllegalStateException> { engine.commit() }
         assertEquals(1, delegate.replacements); assertEquals(ChapterPairState.MIXED, engine.inspect(record))
     }

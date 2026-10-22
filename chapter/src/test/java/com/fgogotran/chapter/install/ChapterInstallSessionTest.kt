@@ -61,12 +61,14 @@ class ChapterInstallSessionTest {
         assertEquals(ChapterPairState.ORIGINAL, transport.engine.inspect(requireNotNull(store.load())))
         assertFalse(requireNotNull(store.load()).unchangedVerified)
     }
-    @Test fun `post second replacement failure is reconciled from actual hashes`() = runBlocking {
+    @Test fun `post second write failure still needs restore without completion receipt`() = runBlocking {
         setup(); files.failAfterReplace = 2
         val session = ChapterInstallSession(store, transport); session.install(true)
         assertEquals(ChapterInstallState.RECOVERY_REQUIRED, store.load()?.state)
         session.inspect()
-        assertEquals(ChapterInstallState.INSTALLED, store.load()?.state); assertFalse(session.state.value.needsInspection)
+        assertEquals(ChapterInstallState.RECOVERY_REQUIRED, store.load()?.state); assertTrue(session.state.value.needsInspection)
+        files.failAfterReplace = 0; session.restore(true)
+        assertEquals(ChapterInstallState.RESTORED, store.load()?.state)
     }
     @Test fun `fresh session does no remote work until inspection is explicitly requested`() = runBlocking {
         var record = setup()
@@ -78,6 +80,19 @@ class ChapterInstallSessionTest {
         assertTrue(session.state.value.needsInspection); assertEquals(0, transport.inspections)
         session.inspect(); assertEquals(ChapterInstallState.RECOVERY_REQUIRED, store.load()?.state)
         session.restore(true); assertEquals(ChapterInstallState.RESTORED, store.load()?.state)
+    }
+    @Test fun `fresh session restores a partial live write using persisted file evidence`() = runBlocking {
+        setup(); files.failDuringWrite = 1
+        ChapterInstallSession(store, transport).install(true)
+        assertEquals(ChapterInstallState.RECOVERY_REQUIRED, store.load()?.state)
+        files.failDuringWrite = 0
+        val reopened = ChapterInstallSession(ChapterBackupStore(root, TestChapterDurableFiles()), transport)
+        reopened.reload(); assertTrue(reopened.state.value.needsInspection)
+        reopened.inspect(); assertEquals(ChapterInstallState.RECOVERY_REQUIRED, store.load()?.state)
+        reopened.restore(true)
+        assertEquals(ChapterInstallState.RESTORED, store.load()?.state)
+        assertFalse(requireNotNull(store.load()).unchangedVerified)
+        assertNull(reopened.state.value.error)
     }
     @Test fun `unexpected files block restore without erasing backups`() = runBlocking<Unit> {
         setup(); val session = ChapterInstallSession(store, transport); session.install(true)

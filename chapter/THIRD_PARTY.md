@@ -67,16 +67,3 @@ Official release/licence: https://tukaani.org/xz/java.html
 Official release: https://commons.apache.org/proper/commons-compress/
 Licence text: https://www.apache.org/licenses/LICENSE-2.0
 Transitive Commons libraries retain their dependency-provided licences/notices.
-
-Unity format cross-reference and independent **desktop-only** verification:
-https://github.com/K0lb3/UnityPy (MIT). UnityPy 1.25.4 is not an Android dependency;
-its optional local installation and authentic inputs are Git-ignored. No source
-files from UnityPy were vendored into this module.
-
-https://github.com/hexstr/FGOAssetsModifyTool
-
-This reference identifies candidate wrappers, installed-vs-server manifest formats
-and physical-name transforms. Its licence was not established. No source files or
-compiled binaries from that project are redistributed here. Independent bounded
-parsing/encoding is tested against owner-authorised local fixtures; unsupported
-formats must fail closed. No account/session data or private service is used.

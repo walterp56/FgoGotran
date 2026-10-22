@@ -15,6 +15,10 @@ class ChapterInstallModelsTest {
         assertFailsWith<IllegalArgumentException> { ChapterInstallPolicy.requireOriginals(updated.copy(game = old.game)) }
         assertEquals(old, ChapterInstallRecordCodec.decode(ChapterInstallRecordCodec.encode(old)))
         assertEquals(updated, ChapterInstallRecordCodec.decode(ChapterInstallRecordCodec.encode(updated)))
+        val fresh = updated.copy(originalManifest = InstallFileHash(ChapterInstallPolicy.CAPTURED_MANIFEST_SHA256, 741423))
+        ChapterInstallPolicy.requireOriginals(fresh)
+        assertFailsWith<IllegalArgumentException> { ChapterInstallPolicy.requireOriginals(fresh.copy(game = old.game)) }
+        assertFailsWith<IllegalArgumentException> { ChapterInstallPolicy.requireOriginals(fresh.copy(originalManifest = InstallFileHash("f".repeat(64), 741423))) }
     }
     @Test fun `versioned record round trips without losing baseline or intent`() {
         val record = InstallSamples.record().copy(state = ChapterInstallState.COMMITTING)
@@ -22,10 +26,17 @@ class ChapterInstallModelsTest {
     }
     @Test fun `record rejects a different root package filename or schema`() {
         val json = ChapterInstallRecordCodec.encode(InstallSamples.record())
-        listOf(json.replace("\"schema\":1", "\"schema\":2"), json.replace(ChapterInstallPolicy.ROOT_ID, "other-root"),
+        listOf(json.replace("\"schema\":2", "\"schema\":3"), json.replace(ChapterInstallPolicy.ROOT_ID, "other-root"),
             json.replace(ChapterInstallPolicy.BUNDLE, "other.bin"), json.replace("com.aniplex.fategrandorder", "other.game")).forEach {
             assertFailsWith<IllegalArgumentException> { ChapterInstallRecordCodec.decode(it) }
         }
+    }
+    @Test fun `schema one journals remain legacy and cannot silently adopt the new protocol`() {
+        val current = ChapterInstallRecordCodec.encode(InstallSamples.record())
+        val old = current.replace("\"schema\":2", "\"schema\":1").replace(",\"writeProtocol\":\"IN_PLACE_V1\"", "")
+        val decoded = ChapterInstallRecordCodec.decode(old)
+        assertEquals(ChapterWriteProtocol.LEGACY_RENAME, decoded.writeProtocol)
+        assertEquals(decoded, ChapterInstallRecordCodec.decode(ChapterInstallRecordCodec.encode(decoded)))
     }
     @Test fun `record rejects traversal oversized metadata and unsupported game versions`() {
         assertFailsWith<IllegalArgumentException> { InstallSamples.record().copy(id = "../bad") }

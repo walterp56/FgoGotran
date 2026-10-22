@@ -90,6 +90,13 @@ class NativeCodecTest {
         assertIs<NativeCodecResult.Invalid>(manifestCodec.verifyAsset(original, OriginalAsset.capture(assetPath, byteArrayOf(1))))
         assertIs<NativeCodecResult.Unsupported>(manifestCodec.decode(manifest("@FgoDataVersion0066,x,y\n1,DATA0,1,9,ScriptActionEncrypt/01,extra-key\n")))
     }
+    @Test fun `index-only reencoding retains complete decoded rows including opaque fields`() {
+        val original = manifest("@FgoDataVersion0066,synthetic,baseline\n1,opaque-token,80,17,ScriptActionEncrypt/01\n0,another-token,4,5,Other/Fake\n")
+        val changed = OriginalAsset.capture(original.fingerprint.path, manifestCodec.reencodeEquivalentForIndexControl(original).valueOrThrow().toByteArray())
+        assertEquals(manifestCodec.diagnosticLayers(original).valueOrThrow().decodedText,
+            manifestCodec.diagnosticLayers(changed).valueOrThrow().decodedText)
+        assertEquals(manifestCodec.entries(original).valueOrThrow(), manifestCodec.entries(changed).valueOrThrow())
+    }
     @Test fun `unknown native payload is not reported as a decoded container`() {
         val original = OriginalAsset.capture(assetPath, ByteArray(32))
         assertIs<NativeCodecResult.Invalid>(containerCodec.decode(original))
@@ -128,18 +135,64 @@ class NativeCodecTest {
         }
     }
 
-    private fun syntheticArchive(serialized: ByteArray): ByteArray {
+    private fun syntheticArchive(serialized: ByteArray, infoKind: Int = 0, dataKind: Int = 0, blockCount: Int = 1): ByteArray {
+        val parts = if (blockCount == 1) listOf(serialized) else listOf(serialized.copyOfRange(0, serialized.size / 2), serialized.copyOfRange(serialized.size / 2, serialized.size))
+        val packed = parts.map { UnityFsArchive.compress(it, dataKind, byteArrayOf(0x5d, 0, 0, 8, 0)) }
         val info = binary {
-            write(ByteArray(16)); writeInt(1); writeInt(serialized.size); writeInt(serialized.size); writeShort(0x40)
+            write(ByteArray(16)); writeInt(parts.size)
+            parts.indices.forEach { writeInt(parts[it].size); writeInt(packed[it].size); writeShort(0x40 or dataKind) }
             writeInt(1); writeLong(0); writeLong(serialized.size.toLong()); writeInt(4); write("CAB-synthetic\u0000".toByteArray())
         }
+        val packedInfo = UnityFsArchive.compress(info, infoKind)
         val output = ByteArrayOutputStream().apply {
-            write(binary { write("UnityFS\u0000".toByteArray()); writeInt(8); write("5.x.x\u00006000.0.68f1\u0000".toByteArray()); writeLong(0); writeInt(info.size); writeInt(info.size); writeInt(0x240) })
+            write(binary { write("UnityFS\u0000".toByteArray()); writeInt(8); write("5.x.x\u00006000.0.68f1\u0000".toByteArray()); writeLong(0); writeInt(packedInfo.size); writeInt(info.size); writeInt(0x240 or infoKind) })
             while (size() % 16 != 0) write(0)
-            write(info); while (size() % 16 != 0) write(0); write(serialized)
+            write(packedInfo); while (size() % 16 != 0) write(0); packed.forEach { write(it) }
         }.toByteArray()
         ByteBuffer.wrap(output).putLong(30, output.size.toLong())
         return output
+    }
+    @Test fun `rebuild retains compression flags LZMA properties and exact unchanged raw data`() {
+        val serialized = syntheticSerialized(encodedScript().toByteArray())
+        for ((infoKind, dataKind) in listOf(0 to 0, 3 to 1, 2 to 2, 3 to 3)) {
+            val original = syntheticArchive(serialized, infoKind, dataKind)
+            val archive = UnityFsArchive.decode(original)
+            for (replacement in listOf(serialized, serialized + byteArrayOf(1, 2, 3))) {
+                val rebuilt = archive.replaceNode(0, replacement)
+                val next = UnityFsArchive.decode(rebuilt)
+                assertContentEquals(replacement, next.data)
+                val input = Cursor(rebuilt)
+                input.skip(38)
+                val packedInfoSize = input.i32(); val infoSize = input.i32()
+                assertEquals(0x240 or infoKind, input.i32())
+                input.align(16)
+                val info = Cursor(UnityFsArchive.decompress(input.take(packedInfoSize), infoSize, infoKind))
+                info.skip(16); assertEquals(1, info.i32())
+                assertEquals(replacement.size, info.i32()); val packedSize = info.i32()
+                assertEquals(0x40 or dataKind, info.u16())
+                input.align(16)
+                if (dataKind == 1) assertContentEquals(byteArrayOf(0x5d, 0, 0, 8, 0), input.bytes.copyOfRange(input.pos, input.pos + 5))
+                assertEquals(rebuilt.size - input.pos, packedSize)
+            }
+        }
+    }
+    @Test fun `compression validates parameters and observes cancellation between batches`() {
+        assertFails { UnityFsArchive.compress(byteArrayOf(1), 1) }
+        assertFails { UnityFsArchive.compress(byteArrayOf(1), 1, ByteArray(5)) }
+        assertFails { UnityFsArchive.compress(byteArrayOf(1), 4) }
+        var checks = 0
+        assertFailsWith<java.util.concurrent.CancellationException> {
+            UnityFsArchive.compress(ByteArray(200000), 1, byteArrayOf(0x5d, 0, 0, 8, 0)) {
+                if (++checks == 3) throw java.util.concurrent.CancellationException()
+            }
+        }
+        assertEquals(3, checks)
+    }
+    @Test fun `multi-block archives remain readable but cannot silently change packing on rebuild`() {
+        val serialized = syntheticSerialized(encodedScript().toByteArray())
+        val archive = UnityFsArchive.decode(syntheticArchive(serialized, 3, 1, 2))
+        assertContentEquals(serialized, archive.data)
+        assertFailsWith<UnsupportedNative> { archive.replaceNode(0, serialized) }
     }
     @Test fun `serialized and archive resizing preserve other object bytes and identities`() {
         val payload = encodedScript().toByteArray()

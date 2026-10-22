@@ -43,6 +43,18 @@ class ChapterInstallSession(private val store: ChapterBackupStore, private val t
             ChapterInstallState.RESTORING, ChapterInstallState.RECOVERY_REQUIRED))
     }
     suspend fun backup(storage: ChapterOriginalStorage) = operation {
+        val (environment, bundle, manifest) = captureBaseline(storage)
+        publish(store.create(environment.identity, bundle, manifest), false)
+    }
+    suspend fun reviewLegacyBaseline(storage: ChapterOriginalStorage, operatorApproved: Boolean) = operation {
+        check(operatorApproved) { "Explicit disposable-device and PC-backup confirmation is required" }
+        val old = record()
+        check(ChapterLegacyBaselineReview.eligible(old)) { "This failed test operation has not been reviewed" }
+        val (environment, bundle, manifest) = captureBaseline(storage)
+        publish(store.reviewLegacyBaseline(old, environment.identity, bundle, manifest, operatorApproved), false)
+        mutableState.value = mutableState.value.copy(preview = null)
+    }
+    private suspend fun captureBaseline(storage: ChapterOriginalStorage): Triple<ChapterGameStatus, ByteArray, ByteArray> {
         val environment = transport.environment()
         check(environment.stopped) { "Force stop JP FGO before creating the baseline" }
         suspend fun read(name: String): ByteArray = when (val result = storage.readOriginal(GameAssetPath.parse(name))) {
@@ -56,7 +68,7 @@ class ChapterInstallSession(private val store: ChapterBackupStore, private val t
         ChapterInstallPolicy.requireOriginals(candidate)
         check(transport.environment() == environment && transport.inspect(candidate) == ChapterPairState.ORIGINAL) { "Originals changed during capture" }
         currentCoroutineContext().ensureActive()
-        publish(store.create(environment.identity, bundle, manifest), false)
+        return Triple(environment, bundle, manifest)
     }
     suspend fun prepare(mode: ChapterRebuildMode) = operation {
         val record = record()
@@ -129,7 +141,7 @@ class ChapterInstallSession(private val store: ChapterBackupStore, private val t
                     publish(store.replace(record, record.copy(state = ChapterInstallState.INSTALLED)), false)
                 else publish(store.replace(record, record.copy(state = ChapterInstallState.RECOVERY_REQUIRED)), true)
             }
-            ChapterPairState.MIXED -> publish(store.replace(record, record.copy(state = ChapterInstallState.RECOVERY_REQUIRED)), true)
+            ChapterPairState.MIXED, ChapterPairState.INTERRUPTED -> publish(store.replace(record, record.copy(state = ChapterInstallState.RECOVERY_REQUIRED)), true)
             ChapterPairState.UNKNOWN -> {
                 publish(if (record.mode != null) store.replace(record, record.copy(state = ChapterInstallState.RECOVERY_REQUIRED)) else record, true)
                 error("Unexpected files or game update; do not overwrite them automatically")
@@ -138,6 +150,7 @@ class ChapterInstallSession(private val store: ChapterBackupStore, private val t
     }
     suspend fun confirmPlayback() = operation {
         val record = record()
+        check(record.writeProtocol == ChapterWriteProtocol.IN_PLACE_V1) { "New write-back validation requires a fresh baseline" }
         check(!mutableState.value.needsInspection && record.state == ChapterInstallState.INSTALLED && record.mode == ChapterRebuildMode.UNCHANGED)
         check(transport.inspect(record) == ChapterPairState.REPLACEMENT)
         publish(store.replace(record, record.copy(playbackConfirmed = true)))

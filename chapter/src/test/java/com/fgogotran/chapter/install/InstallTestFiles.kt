@@ -3,7 +3,9 @@ package com.fgogotran.chapter.install
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 
@@ -32,6 +34,13 @@ internal class TestChapterInstallFiles(private val root: File) : ChapterInstallF
     var unsupportedProbe = false
     var failAfterReplace = 0
     var failBeforeReplace = 0
+    var failDuringWrite = 0
+    var partialBytes = 1
+    var failBeforeTruncate = 0
+    var failStagePart: String? = null
+    var failAfterStagePart: String? = null
+    var onLiveSynced: (String) -> Unit = {}
+    val accessOverrides = mutableMapOf<String, ChapterFileIdentity>()
     var replacements = 0
     var lockCount = 0
     val writes = mutableListOf<String>()
@@ -43,20 +52,54 @@ internal class TestChapterInstallFiles(private val root: File) : ChapterInstallF
     override fun probe(id: String) { ChapterInstallPolicy.transactionId(id); if (unsupportedProbe) throw IOException("unsupported sync/rename") }
     override fun stage(name: String, bytes: ByteArray) {
         if (denyStage) throw IOException("permission denied")
+        if (failStagePart?.let(name::endsWith) == true) throw IOException("before staging $name")
         writes += name
         val file = path(name)
         if (file.exists()) check(file.readBytes().contentEquals(bytes)) else Files.write(file.toPath(), bytes, StandardOpenOption.CREATE_NEW)
+        if (failAfterStagePart?.let(name::endsWith) == true) throw IOException("after staging $name")
     }
     override fun verifyReplacementAccess(stage: String, live: String, gameUid: Int) {
         check(exists(stage) && exists(live) && gameUid == 10075)
         check(!denyReplacementAccess) { "Cannot preserve FGO ownership" }
     }
-    override fun replace(stage: String, live: String) {
-        replacements++
-        if (failBeforeReplace == replacements) throw IOException("before replacement $replacements")
-        Files.move(path(stage).toPath(), path(live).toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-        writes += live
-        if (failAfterReplace == replacements) throw IOException("after replacement $replacements")
+    override fun identity(name: String): ChapterFileIdentity = accessOverrides[name] ?: run {
+        val attributes = Files.readAttributes(path(name).toPath(), BasicFileAttributes::class.java)
+        // Windows' JDK may expose no fileKey. This is a model, not Android inode proof.
+        val key = attributes.fileKey()?.toString() ?: (path(name).canonicalPath + ":" + attributes.creationTime())
+        val inode = com.fgogotran.chapter.Sha256Digest.compute(key.toString().toByteArray()).hex.take(15).toLong(16) + 1
+        ChapterFileIdentity(1, inode, 10075, 10075, 432)
+    }
+    override fun openLive(name: String, gameUid: Int): ChapterLiveFile {
+        check(!denyReplacementAccess) { "Cannot write an existing game-owned inode" }
+        val expected = identity(name).also { it.requireGameAccess(gameUid) }
+        val file = RandomAccessFile(path(name), "rw")
+        return object : ChapterLiveFile {
+            override val identity = expected
+            private var started = false
+            override fun verifyIdentity() { check(this@TestChapterInstallFiles.identity(name) == expected) { "Live identity changed" } }
+            override fun read(): ByteArray { verifyIdentity(); return path(name).readBytes() }
+            override fun write(offset: Int, bytes: ByteArray, count: Int) {
+                verifyIdentity()
+                if (!started) {
+                    started = true; replacements++
+                    if (failBeforeReplace == replacements) throw IOException("before replacement $replacements")
+                    writes += name
+                }
+                val length = if (failDuringWrite == replacements) minOf(partialBytes, count) else count
+                file.seek(offset.toLong()); file.write(bytes, offset, length)
+                if (failDuringWrite == replacements) throw IOException("partial replacement $replacements")
+            }
+            override fun truncate(size: Int) {
+                verifyIdentity()
+                if (failBeforeTruncate == replacements) throw IOException("before final truncate")
+                file.setLength(size.toLong())
+            }
+            override fun sync() {
+                file.fd.sync(); onLiveSynced(name)
+                if (failAfterReplace == replacements) throw IOException("after replacement $replacements")
+            }
+            override fun close() = file.close()
+        }
     }
     override fun deleteStage(name: String) {
         require(name.startsWith(".fgogotran-"))

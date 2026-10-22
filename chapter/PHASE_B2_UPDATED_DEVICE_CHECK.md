@@ -22,7 +22,7 @@ flow recorded `RESTORED`. The unchanged rebuilt bundle did **not** pass playback
 - The native offline proof passed with the new manifest: all 717 scripts
   round-tripped, unchanged reconstruction preserved every script, and the marker
   changed only field `dialogue:691` in script `0100000011`.
-- Independent UnityPy 1.25.4 verified all 718 objects and 717 mappings. Every
+- Independent Offline verification confirmed all 718 objects and 717 mappings. Every
   unchanged object body was identical; only the selected TextAsset changed in
   the marker build. This is not native-playback acceptance.
 - Version policy ties each of 2.139.3/code 501 and 2.139.5/code 502 to its own

@@ -123,7 +123,7 @@ class ChapterIsolationTest {
     fun `installer is separate restricted IPC without arbitrary paths commands or fault injection`() {
         val aidl = File(moduleDirectory, "src/main/aidl/com/fgogotran/chapter/storage/IChapterInstallService.aidl").readText()
         val methods = Regex("""\b(?:String|void)\s+(\w+)\(""").findAll(aidl).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("environment", "inspect", "stage", "commit", "restore", "destroy"), methods)
+        assertEquals(listOf("environment", "inspect", "stage", "commit", "restore", "inspectKnown", "restoreKnown", "destroy"), methods)
         assertFalse(aidl.contains("String path")); assertFalse(aidl.contains("String command"))
         assertFalse(aidl.contains("crash", ignoreCase = true))
         val service = File(moduleDirectory, "src/main/java/com/fgogotran/chapter/storage/ChapterInstallService.kt").readText()
@@ -131,14 +131,24 @@ class ChapterIsolationTest {
         assertTrue(service.contains("OsConstants.O_NOFOLLOW")); assertTrue(service.contains("OsConstants.O_EXCL"))
         assertTrue(service.contains("ProcessBuilder(\"/system/bin/ps\", \"-A\", \"-n\", \"-o\", \"UID,PID,NAME\")"))
         listOf("/system/bin/sh", "Runtime.getRuntime", "force-stop", "failAfterReplace", "failBeforeReplace").forEach { assertFalse(service.contains(it)) }
-        assertEquals(3, Regex("ChapterInstallPolicy::requireOriginals").findAll(service).count())
-        assertTrue(service.contains("staged.st_uid == target.st_uid && staged.st_gid == target.st_gid"))
-        assertTrue(service.contains("target.st_uid == gameUid"))
+        assertEquals(5, Regex("ChapterInstallPolicy::requireOriginals").findAll(service).count())
+        assertTrue(aidl.contains("in ParcelFileDescriptor originalManifest"))
+        assertTrue(aidl.contains("in ParcelFileDescriptor preparedManifest"))
+        assertTrue(clientUsesOnlyReadOnlyReferences())
+        assertTrue(service.contains("OsConstants.O_RDWR or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 0"))
+        assertTrue(service.contains("Os.fstat(fd).identity() == expected && Os.lstat(target.path).identity() == expected"))
+        assertTrue(service.contains("it.requireGameAccess(gameUid)"))
+        assertTrue(service.contains("Os.pwrite(fd")); assertTrue(service.contains("Os.ftruncate(fd"))
+        assertFalse(service.contains("Os.rename")); assertFalse(service.contains("Os.fchmod"))
         assertFalse(service.contains("Os.chown")); assertFalse(service.contains("Os.fchown"))
         val client = File(moduleDirectory, "src/main/java/com/fgogotran/chapter/storage/ShizukuChapterInstaller.kt").readText()
         assertTrue(client.contains(".daemon(false)")); assertFalse(client.contains(".daemon(true)"))
         val detach = client.indexOf("Shizuku.unbindUserService(args, it, false)")
         val destroy = client.indexOf("Shizuku.unbindUserService(args, it, true)")
         assertTrue(detach >= 0 && destroy > detach, "Clear Shizuku's cached callbacks before destroying the service")
+    }
+    private fun clientUsesOnlyReadOnlyReferences(): Boolean {
+        val client = File(moduleDirectory, "src/main/java/com/fgogotran/chapter/storage/ShizukuChapterInstaller.kt").readText()
+        return client.contains("ParcelFileDescriptor.MODE_READ_ONLY") && !client.contains("ParcelFileDescriptor.MODE_WRITE")
     }
 }

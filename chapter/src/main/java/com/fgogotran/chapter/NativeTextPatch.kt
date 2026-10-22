@@ -19,3 +19,11 @@ data class NativeTextPatch(
         }) { "Replacement contains an unpaired surrogate" }
     }
 }
+
+/** Internal compiler output: one exact original field, never a caller-supplied byte range. */
+internal data class NativeFieldReplacement(
+    val fieldId: NativeElementId,
+    val kind: NativeTextKind,
+    val expectedTextSha256: Sha256Digest,
+    val replacement: String
+)

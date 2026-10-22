@@ -75,6 +75,8 @@ showcase/
 term_builder/voice_tuning/
 helper/
 atlas_cache/
+# Local Atlas sources, authorised JP captures, offline builds and playback evidence.
+/story_assets/
 video/
 # Keep legacy local tests ignored, but retain the battle-subtitle regression suite.
 app/src/test/**
@@ -241,3 +243,17 @@ app/src/test/java/com/fgogotran/game/*
 !app/src/test/java/com/fgogotran/diagnostic/
 app/src/test/java/com/fgogotran/diagnostic/*
 !app/src/test/java/com/fgogotran/diagnostic/DiagnosticFilePersistenceTest.kt
+
+# Internal device/verification notes (local evidence only)
+chapter/*_DEVICE_CHECK_*.md
+chapter/NATIVE_*.md
+chapter/STORY_*.md
+chapter/PHASE_2_INSTALLER.md
+chapter/R2_ATLAS_PREPARATION_*.md
+chapter/LANGUAGE_PACK_DEVICE_CHECK_*.md
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
+*.tmp

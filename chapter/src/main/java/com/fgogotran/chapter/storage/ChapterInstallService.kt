@@ -5,6 +5,7 @@ import android.os.Binder
 import android.os.ParcelFileDescriptor
 import android.system.Os
 import android.system.OsConstants
+import android.system.StructStat
 import androidx.annotation.Keep
 import com.fgogotran.chapter.codec.FgoJpFormatProfile
 import com.fgogotran.chapter.install.*
@@ -44,6 +45,13 @@ class ChapterInstallService @Keep constructor(private val context: Context) : IC
         }.toString()
     }
     override fun inspect(record: String): String { enforceOwner(); return engine().inspect(ChapterInstallRecordCodec.decode(record)).name }
+    override fun inspectKnown(record: String, originalManifest: ParcelFileDescriptor, preparedManifest: ParcelFileDescriptor): String {
+        enforceOwner()
+        val references = descriptors(originalManifest, preparedManifest)
+        val plan = ChapterInstallRecordCodec.decode(record).also(ChapterInstallPolicy::requireOriginals)
+        return ChapterTransactionEngine(AndroidChapterInstallFiles(), ::status,
+            manifestRecovery = ChapterManifestRecovery(plan, references.first, references.second)).inspect(plan).name
+    }
     override fun stage(record: String, bundle: ParcelFileDescriptor, manifest: ParcelFileDescriptor) {
         enforceOwner()
         val bytes = descriptors(bundle, manifest)
@@ -57,6 +65,19 @@ class ChapterInstallService @Keep constructor(private val context: Context) : IC
         val plan = ChapterInstallRecordCodec.decode(record).also(ChapterInstallPolicy::requireOriginals)
         engine().restore(plan, bytes.first, bytes.second)
     }
+    override fun restoreKnown(record: String, bundle: ParcelFileDescriptor, manifest: ParcelFileDescriptor, preparedManifest: ParcelFileDescriptor) {
+        enforceOwner()
+        // Consume/close every received descriptor even if validation fails.
+        ParcelFileDescriptor.AutoCloseInputStream(preparedManifest).use { prepared ->
+            val bytes = descriptors(bundle, manifest)
+            val stat = Os.fstat(preparedManifest.fileDescriptor)
+            check(OsConstants.S_ISREG(stat.st_mode) && stat.st_size in 1..ChapterInstallPolicy.MAX_FILE.toLong())
+            val replacement = readBounded(prepared, ChapterInstallPolicy.MAX_FILE)
+            val plan = ChapterInstallRecordCodec.decode(record).also(ChapterInstallPolicy::requireOriginals)
+            ChapterTransactionEngine(AndroidChapterInstallFiles(), ::status,
+                manifestRecovery = ChapterManifestRecovery(plan, bytes.second, replacement)).restore(plan, bytes.first, bytes.second)
+        }
+    }
     private fun descriptors(bundle: ParcelFileDescriptor, manifest: ParcelFileDescriptor): Pair<ByteArray, ByteArray> =
         ParcelFileDescriptor.AutoCloseInputStream(bundle).use { a ->
             ParcelFileDescriptor.AutoCloseInputStream(manifest).use { b ->
@@ -67,6 +88,17 @@ class ChapterInstallService @Keep constructor(private val context: Context) : IC
                 readBounded(a, ChapterInstallPolicy.MAX_FILE) to readBounded(b, ChapterInstallPolicy.MAX_FILE)
             }
         }
+    override fun writeAsset(filename: String, bytes: ParcelFileDescriptor) {
+        enforceOwner()
+        val name = ChapterAssetPolicy.requireFilename(filename)
+        val data = ParcelFileDescriptor.AutoCloseInputStream(bytes).use { readBounded(it, ChapterAssetPolicy.MAX_BYTES) }
+        val target = File(ChapterAssetPolicy.ROOT, name)
+        check(target.isFile) { "Target asset is missing" }
+        java.io.FileOutputStream(target, false).use { out ->
+            out.write(data)
+            out.fd.sync()
+        }
+    }
     override fun destroy() {
         check(Binder.getCallingUid() in listOf(ownerUid, 2000, 0))
         kotlin.system.exitProcess(0)
@@ -84,7 +116,7 @@ private fun readBounded(input: java.io.InputStream, max: Int): ByteArray {
     return output.toByteArray()
 }
 
-/** Every write is a confined, fixed-role operation. Live originals are never truncated. */
+/** Fixed-role operations only. Live game-owned inodes are never renamed/deleted/recreated. */
 internal class AndroidChapterInstallFiles : ChapterInstallFiles {
     private fun root(): File = File(ChapterAssetPolicy.ROOT).also {
         check(it.canonicalPath == ChapterAssetPolicy.ROOT && it.isDirectory)
@@ -114,7 +146,7 @@ internal class AndroidChapterInstallFiles : ChapterInstallFiles {
         val fd = Os.open(path(name).path, OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 0)
         val pfd = try {
             val stat = Os.fstat(fd)
-            check(OsConstants.S_ISREG(stat.st_mode) && stat.st_size in 1..ChapterInstallPolicy.MAX_FILE.toLong())
+            check(OsConstants.S_ISREG(stat.st_mode) && stat.st_size in 0..ChapterInstallPolicy.MAX_FILE.toLong())
             ParcelFileDescriptor.dup(fd)
         } finally { Os.close(fd) }
         return ParcelFileDescriptor.AutoCloseInputStream(pfd).use { readBounded(it, ChapterInstallPolicy.MAX_FILE) }
@@ -127,51 +159,98 @@ internal class AndroidChapterInstallFiles : ChapterInstallFiles {
     }
     private fun syncDirectory() = AndroidChapterDurableFiles().syncDirectory(root())
     override fun stage(name: String, bytes: ByteArray) {
-        require(name.endsWith(".new") || name.endsWith(".restore") || name.endsWith("-probe.a"))
+        require(name.matches(Regex("\\.fgogotran-[0-9a-f]{32}-(?:(bundle|manifest)\\.(new|restore)(?:\\.(before|intent|done))?|probe\\.a)")))
         require(bytes.size in 1..ChapterInstallPolicy.MAX_FILE)
         val file = path(name)
-        if (file.exists()) { check(read(name).contentEquals(bytes)) { "Existing staging file differs; recover first" }; return }
+        if (file.exists()) {
+            val fd = Os.open(file.path, OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 0)
+            try {
+                val stat = Os.fstat(fd)
+                check(OsConstants.S_ISREG(stat.st_mode) && stat.st_uid == Os.getuid() && stat.st_mode and 511 == 384) { "Foreign or non-private staging file" }
+                check(read(name).contentEquals(bytes)) { "Existing staging file differs; recover first" }
+                Os.fsync(fd); syncDirectory()
+            } finally { Os.close(fd) }
+            return
+        }
         val fd = Os.open(file.path, OsConstants.O_WRONLY or OsConstants.O_CREAT or OsConstants.O_EXCL or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 384)
         try {
-            check(OsConstants.S_ISREG(Os.fstat(fd).st_mode))
+            val stat = Os.fstat(fd)
+            check(OsConstants.S_ISREG(stat.st_mode) && stat.st_uid == Os.getuid() && stat.st_mode and 511 == 384) { "Private staging is unsupported" }
             ParcelFileDescriptor.AutoCloseOutputStream(ParcelFileDescriptor.dup(fd)).use { output -> output.write(bytes); output.fd.sync() }
         } finally { Os.close(fd) }
         syncDirectory()
     }
-    override fun replace(stage: String, live: String) {
-        require(live in listOf(ChapterInstallPolicy.BUNDLE, ChapterInstallPolicy.MANIFEST))
-        val role = if (live == ChapterInstallPolicy.BUNDLE) "bundle" else "manifest"
-        require(stage.matches(Regex("\\.fgogotran-[0-9a-f]{32}-$role\\.(new|restore)")))
-        val source = path(stage); val target = path(live)
-        check(OsConstants.S_ISREG(Os.lstat(source.path).st_mode) && OsConstants.S_ISREG(Os.lstat(target.path).st_mode))
-        Os.rename(source.path, target.path)
-        syncDirectory()
+    private fun StructStat.identity(): ChapterFileIdentity {
+        check(OsConstants.S_ISREG(st_mode)) { "Live target must be a regular file" }
+        return ChapterFileIdentity(st_dev, st_ino, st_uid, st_gid, st_mode and 511)
+    }
+    override fun identity(name: String): ChapterFileIdentity {
+        require(name in listOf(ChapterInstallPolicy.BUNDLE, ChapterInstallPolicy.MANIFEST))
+        return Os.lstat(path(name).path).identity()
+    }
+    override fun openLive(name: String, gameUid: Int): ChapterLiveFile {
+        require(name in listOf(ChapterInstallPolicy.BUNDLE, ChapterInstallPolicy.MANIFEST))
+        val target = path(name)
+        val expected = Os.lstat(target.path).identity().also { it.requireGameAccess(gameUid) }
+        // Opening is a capability check, not a write. No CREATE/TRUNCATE fallback is permitted.
+        val fd = Os.open(target.path, OsConstants.O_RDWR or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 0)
+        try {
+            check(Os.fstat(fd).identity() == expected)
+            return object : ChapterLiveFile {
+                override val identity = expected
+                override fun verifyIdentity() {
+                    check(Os.fstat(fd).identity() == expected && Os.lstat(target.path).identity() == expected) { "Live inode/access changed" }
+                }
+                override fun read(): ByteArray {
+                    verifyIdentity()
+                    val size = Os.fstat(fd).st_size.also { check(it in 0..ChapterInstallPolicy.MAX_FILE.toLong()) }
+                    val bytes = ByteArray(size.toInt())
+                    var offset = 0
+                    while (offset < bytes.size) {
+                        val count = Os.pread(fd, bytes, offset, bytes.size - offset, offset.toLong())
+                        check(count > 0) { "Short live read" }; offset += count
+                    }
+                    verifyIdentity(); check(Os.fstat(fd).st_size == size) { "Live size changed during read" }
+                    return bytes
+                }
+                override fun write(offset: Int, bytes: ByteArray, count: Int) {
+                    require(offset >= 0 && count > 0 && offset.toLong() + count <= bytes.size && bytes.size <= ChapterInstallPolicy.MAX_FILE)
+                    var written = 0
+                    while (written < count) {
+                        verifyIdentity()
+                        val length = Os.pwrite(fd, bytes, offset + written, count - written, (offset + written).toLong())
+                        check(length > 0) { "Short live write" }; written += length
+                    }
+                }
+                override fun truncate(size: Int) {
+                    require(size in 1..ChapterInstallPolicy.MAX_FILE)
+                    verifyIdentity(); Os.ftruncate(fd, size.toLong())
+                }
+                override fun sync() { verifyIdentity(); Os.fsync(fd) }
+                override fun close() = Os.close(fd)
+            }.also { it.verifyIdentity() }
+        } catch (failure: Exception) { Os.close(fd); throw failure }
     }
     override fun verifyReplacementAccess(stage: String, live: String, gameUid: Int) {
         require(live in listOf(ChapterInstallPolicy.BUNDLE, ChapterInstallPolicy.MANIFEST))
-        val target = Os.lstat(path(live).path)
+        val role = if (live == ChapterInstallPolicy.BUNDLE) "bundle" else "manifest"
+        require(stage.matches(Regex("\\.fgogotran-[0-9a-f]{32}-$role\\.(new|restore)")))
         val fd = Os.open(path(stage).path, OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 0)
         try {
             val staged = Os.fstat(fd)
-            check(OsConstants.S_ISREG(target.st_mode) && OsConstants.S_ISREG(staged.st_mode))
-            // A shell-owned 0600 rename passes byte hashes but makes FGO lose access.
-            // Never substitute world-readable/writable modes or elevate to root as a fix.
-            check(target.st_uid == gameUid && staged.st_uid == target.st_uid && staged.st_gid == target.st_gid) {
-                "This storage backend cannot preserve FGO ownership on rename; originals were not replaced"
-            }
-            val mode = target.st_mode and 511
-            check(mode and 384 == 384) { "FGO original must remain owner-readable and writable" }
-            if ((staged.st_mode and 511) != mode) { Os.fchmod(fd, mode); Os.fsync(fd) }
-            val actual = Os.fstat(fd)
-            check(actual.st_uid == target.st_uid && actual.st_gid == target.st_gid && (actual.st_mode and 511) == mode) {
-                "Cannot preserve FGO file access; originals were not replaced"
-            }
+            check(OsConstants.S_ISREG(staged.st_mode) && staged.st_uid == Os.getuid() && staged.st_size in 1..ChapterInstallPolicy.MAX_FILE.toLong())
         } finally { Os.close(fd) }
+        // The shell owns only temporary bytes. FGO keeps its existing inode/UID/GID/mode.
+        openLive(live, gameUid).use { it.verifyIdentity() }
     }
     override fun deleteStage(name: String) {
         require(name.startsWith(".fgogotran-") && name != ".fgogotran-install.lock")
         val file = path(name)
-        if (file.exists()) { check(OsConstants.S_ISREG(Os.lstat(file.path).st_mode)); Os.remove(file.path); syncDirectory() }
+        if (file.exists()) {
+            val stat = Os.lstat(file.path)
+            check(OsConstants.S_ISREG(stat.st_mode) && stat.st_uid == Os.getuid()) { "Foreign recovery artifact" }
+            Os.remove(file.path); syncDirectory()
+        }
     }
     override fun probe(id: String) {
         ChapterInstallPolicy.transactionId(id)
@@ -180,8 +259,7 @@ internal class AndroidChapterInstallFiles : ChapterInstallFiles {
         val bytes = "FgoGotran staging probe $id".toByteArray(Charsets.UTF_8)
         try {
             stage(a, bytes)
-            Os.rename(path(a).path, path(b).path); syncDirectory()
-            check(read(b).contentEquals(bytes)) { "Staging rename/read-back unsupported" }
+            check(read(a).contentEquals(bytes)) { "Staging sync/read-back unsupported" }
         } finally { deleteStage(a); deleteStage(b) }
     }
 }

@@ -154,7 +154,7 @@ between replacements. No account files are targeted.
   prepares/previews one marker, runs a second local install/restore and verifies
   the exact original bytes. All 717 script identities and unchanged payloads are
   compared. Its simulated observation is **not** a device-playback result.
-- Independent UnityPy 1.25.4 verification of the regenerated native proof passed:
+- Independent offline verification of the regenerated native proof passed:
   718 objects, all 717 container mappings preserved, unchanged reconstruction has
   identical object bytes, and the marker changes only the selected TextAsset.
   This remains desktop verification, not FGO playback.

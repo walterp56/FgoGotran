@@ -33,19 +33,27 @@ class ChapterBackupStore(private val root: File, private val durable: ChapterDur
     private fun loadUnlocked(): ChapterInstallRecord? {
         val active = durable.read(child(root, "active"), 64)?.toString(Charsets.UTF_8) ?: return null
         val text = requireNotNull(durable.read(child(job(active), "record.json"), ChapterInstallPolicy.MAX_RECORD)) { "Backup journal is missing; do not start a new installation" }
-        return ChapterInstallRecordCodec.decode(text.toString(Charsets.UTF_8)).also { check(it.id == active) }
+        return ChapterInstallRecordCodec.decode(text.toString(Charsets.UTF_8)).also {
+            check(it.id == active && it.mode != ChapterRebuildMode.LANGUAGE_PACK) { "Language-pack operations do not belong in the asset-test store" }
+        }
     }
     fun load(): ChapterInstallRecord? = locked { loadUnlocked() }
     fun create(game: ChapterGameIdentity, bundle: ByteArray, manifest: ByteArray): ChapterInstallRecord = locked {
         val previous = loadUnlocked()
         // An exported baseline that was NEVER prepared/staged/installed has no game
         // writes to recover. A game-version update may start a new, separately verified
-        // baseline; retain its old folder and originals, never reinterpret them as new.
+        // baseline, as may an exported unused legacy-protocol backup. Retain the old
+        // folder and originals; never reinterpret an in-flight job as the new protocol.
         check(previous == null || previous.state == ChapterInstallState.RESTORED ||
             (previous.state == ChapterInstallState.BACKED_UP && previous.mode == null &&
-                previous.exportSha256 != null && previous.game.versionName != game.versionName)) {
+                previous.exportSha256 != null && (previous.game.versionName != game.versionName || previous.writeProtocol == ChapterWriteProtocol.LEGACY_RENAME))) {
             "Finish or recover the existing operation first"
         }
+        val record = saveBaseline(game, bundle, manifest)
+        durable.write(child(root, "active"), record.id.toByteArray(Charsets.UTF_8))
+        record
+    }
+    private fun saveBaseline(game: ChapterGameIdentity, bundle: ByteArray, manifest: ByteArray): ChapterInstallRecord {
         val record = ChapterInstallRecord(UUID.randomUUID().toString().replace("-", ""), game, InstallFileHash.of(bundle), InstallFileHash.of(manifest))
         val folder = job(record.id)
         check(folder.mkdir())
@@ -61,12 +69,46 @@ class ChapterBackupStore(private val root: File, private val durable: ChapterDur
         durable.syncDirectory(folder)
         durable.write(child(folder, "record.json"), ChapterInstallRecordCodec.encode(record).toByteArray(Charsets.UTF_8))
         durable.syncDirectory(root)
-        durable.write(child(root, "active"), record.id.toByteArray(Charsets.UTF_8))
-        record
+        return record
+    }
+    /** App-private publication only. Does not restore, stage or write any game file. */
+    fun reviewLegacyBaseline(expected: ChapterInstallRecord, game: ChapterGameIdentity, bundle: ByteArray,
+        manifest: ByteArray, operatorApproved: Boolean): ChapterInstallRecord = locked {
+        check(operatorApproved) { "Explicit disposable-device and PC-backup confirmation is required" }
+        check(loadUnlocked() == expected) { "Journal changed; reload the operation" }
+        val raw = requireNotNull(durable.read(child(job(expected.id), "record.json"), ChapterInstallPolicy.MAX_RECORD))
+        val candidate = ChapterInstallRecord("0".repeat(32), game, InstallFileHash.of(bundle), InstallFileHash.of(manifest))
+        ChapterLegacyBaselineReview.requireReviewed(expected, raw, candidate)
+        readVerified(expected, "original-bundle", expected.originalBundle)
+        readVerified(expected, "original-manifest", expected.originalManifest)
+        validateNativeInstallPair(bundle, manifest)
+        ChapterInstallPolicy.requireOriginals(candidate)
+        val receiptFile = child(root, "reviewed-legacy-${expected.id}.json")
+        val previousReceipt = durable.read(receiptFile, 2048)
+        val fresh = if (previousReceipt == null) {
+            saveBaseline(game, bundle, manifest).also {
+                durable.write(receiptFile, ChapterLegacyBaselineReview.receipt(expected, it))
+                durable.syncDirectory(root)
+            }
+        } else {
+            val id = ChapterLegacyBaselineReview.receiptTarget(previousReceipt, expected)
+            val record = ChapterInstallRecordCodec.decode(requireNotNull(durable.read(child(job(id), "record.json"), ChapterInstallPolicy.MAX_RECORD)).toString(Charsets.UTF_8))
+            check(record.id == id && previousReceipt.contentEquals(ChapterLegacyBaselineReview.receipt(expected, record))) { "Reviewed receipt changed" }
+            ChapterLegacyBaselineReview.requireReviewed(expected, raw, record)
+            check(readVerified(record, "original-bundle", record.originalBundle).contentEquals(bundle))
+            check(readVerified(record, "original-manifest", record.originalManifest).contentEquals(manifest))
+            record
+        }
+        // Keep the legacy journal and originals byte-for-byte. A new independent
+        // export and real unchanged playback/restore are still mandatory.
+        durable.write(child(root, "active"), fresh.id.toByteArray(Charsets.UTF_8))
+        fresh
     }
     fun replace(expected: ChapterInstallRecord, updated: ChapterInstallRecord): ChapterInstallRecord = locked {
         check(loadUnlocked() == expected && expected.id == updated.id) { "Journal changed; reload the operation" }
+        require(updated.mode != ChapterRebuildMode.LANGUAGE_PACK)
         require(expected.game == updated.game && expected.originalBundle == updated.originalBundle && expected.originalManifest == updated.originalManifest)
+        require(expected.writeProtocol == updated.writeProtocol) { "Never reinterpret an existing write protocol" }
         durable.write(child(job(updated.id), "record.json"), ChapterInstallRecordCodec.encode(updated).toByteArray(Charsets.UTF_8))
         updated
     }
@@ -80,8 +122,10 @@ class ChapterBackupStore(private val root: File, private val durable: ChapterDur
         requireNotNull(durable.read(child(job(record.id), name), ChapterInstallPolicy.MAX_FILE)) { "Saved file is missing" }.also(hash::verify)
 
     fun savePrepared(expected: ChapterInstallRecord, mode: ChapterRebuildMode, bundle: ByteArray, manifest: ByteArray): ChapterInstallRecord = locked {
+        require(mode != ChapterRebuildMode.LANGUAGE_PACK) { "Use the separate language-pack journal" }
         check(loadUnlocked() == expected)
         require(expected.state in listOf(ChapterInstallState.BACKED_UP, ChapterInstallState.PREPARED, ChapterInstallState.RESTORED))
+        require(expected.writeProtocol == ChapterWriteProtocol.IN_PLACE_V1) { "Restore the legacy job, then capture a new baseline before preparing" }
         require(mode != ChapterRebuildMode.MARKER || expected.unchangedVerified)
         val bundleHash = InstallFileHash.of(bundle)
         val manifestHash = InstallFileHash.of(manifest)

@@ -2,6 +2,7 @@ package com.fgogotran.chapter.codec
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.io.ByteArrayOutputStream
 
 internal data class UnityTextAsset(val pathId: Long, val name: String, val payload: ByteArray)
 private data class ObjectEntry(val id: Long, val start: Int, val size: Int, val classId: Int, val tablePosition: Int)
@@ -13,40 +14,65 @@ internal class UnityTextAssets private constructor(
     private val objects: List<ObjectEntry>,
     val texts: List<UnityTextAsset>
 ) {
-    fun replaceText(pathId: Long, expected: ByteArray, replacement: ByteArray): ByteArray {
-        require(replacement.size <= MAX_NATIVE_BYTES)
-        val entry = objects.single { it.id == pathId && it.classId == 49 }
-        val text = texts.single { it.pathId == pathId }
-        require(text.payload.contentEquals(expected)) { "TextAsset baseline mismatch" }
-        val oldObject = original.copyOfRange(dataOffset + entry.start, dataOffset + entry.start + entry.size)
-        val cursor = Cursor(oldObject, order = ByteOrder.LITTLE_ENDIAN)
-        cursor.skip(cursor.count(4096)); cursor.align(4)
-        val lengthPosition = cursor.pos
-        val oldLength = cursor.count(MAX_NATIVE_BYTES)
-        cursor.skip(oldLength)
-        // Tail is alignment only for the observed TextAsset schema. Never drop unknown fields.
-        require(oldObject.size - cursor.pos in 0..3 && oldObject.copyOfRange(cursor.pos, oldObject.size).all { it == 0.toByte() })
-        val newObjectSize = (lengthPosition + 4 + replacement.size + 3) and 3.inv()
-        val newObject = ByteArray(newObjectSize)
-        oldObject.copyInto(newObject, endIndex = lengthPosition)
-        ByteBuffer.wrap(newObject).order(ByteOrder.LITTLE_ENDIAN).putInt(lengthPosition, replacement.size)
-        replacement.copyInto(newObject, lengthPosition + 4)
-        // Keep every following object's original alignment and preserve all intervening bytes.
-        val difference = newObject.size - entry.size
-        val alignmentPadding = ((16 - difference % 16) % 16)
-        val delta = difference + alignmentPadding
-        require(original.size.toLong() + delta in 0..MAX_NATIVE_BYTES.toLong())
-        val start = dataOffset + entry.start
-        val result = original.copyOfRange(0, start) + newObject + ByteArray(alignmentPadding) +
-            original.copyOfRange(start + entry.size, original.size)
+    fun replaceText(pathId: Long, expected: ByteArray, replacement: ByteArray): ByteArray =
+        replaceTexts(mapOf(pathId to (expected to replacement)))
+
+    /** Resolve all original object identities before changing lengths; serialize the node once. */
+    fun replaceTexts(replacements: Map<Long, Pair<ByteArray, ByteArray>>, checkCancelled: () -> Unit = {}): ByteArray {
+        require(replacements.isNotEmpty() && replacements.size <= objects.size)
+        data class Edit(val entry: ObjectEntry, val bytes: ByteArray, val padding: Int) {
+            val delta: Int get() = bytes.size + padding - entry.size
+        }
+        val edits = replacements.map { (pathId, pair) ->
+            checkCancelled()
+            val (expected, replacement) = pair
+            require(replacement.size <= MAX_NATIVE_BYTES)
+            val entry = objects.single { it.id == pathId && it.classId == 49 }
+            require(texts.single { it.pathId == pathId }.payload.contentEquals(expected)) { "TextAsset baseline mismatch" }
+            val oldObject = original.copyOfRange(dataOffset + entry.start, dataOffset + entry.start + entry.size)
+            val cursor = Cursor(oldObject, order = ByteOrder.LITTLE_ENDIAN)
+            cursor.skip(cursor.count(4096)); cursor.align(4)
+            val lengthPosition = cursor.pos
+            cursor.skip(cursor.count(MAX_NATIVE_BYTES))
+            require(oldObject.size - cursor.pos in 0..3 && oldObject.copyOfRange(cursor.pos, oldObject.size).all { it == 0.toByte() })
+            val newSize = (lengthPosition.toLong() + 4 + replacement.size + 3) and 3L.inv()
+            require(newSize <= MAX_NATIVE_BYTES)
+            val bytes = ByteArray(newSize.toInt())
+            oldObject.copyInto(bytes, endIndex = lengthPosition)
+            ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putInt(lengthPosition, replacement.size)
+            replacement.copyInto(bytes, lengthPosition + 4)
+            val difference = bytes.size - entry.size
+            Edit(entry, bytes, ((16 - difference % 16) % 16))
+        }.sortedBy { it.entry.start }
+        val size = original.size.toLong() + edits.sumOf { it.delta.toLong() }
+        require(size in 0..MAX_NATIVE_BYTES.toLong())
+        val output = ByteArrayOutputStream(size.toInt())
+        var cursor = 0
+        edits.forEach { edit ->
+            checkCancelled()
+            val start = dataOffset + edit.entry.start
+            require(start >= cursor)
+            output.write(original, cursor, start - cursor)
+            output.write(edit.bytes); output.write(ByteArray(edit.padding))
+            cursor = start + edit.entry.size
+        }
+        output.write(original, cursor, original.size - cursor)
+        val result = output.toByteArray()
+        check(result.size.toLong() == size)
         ByteBuffer.wrap(result).order(ByteOrder.BIG_ENDIAN).putLong(24, result.size.toLong())
         val metadata = ByteBuffer.wrap(result).order(ByteOrder.LITTLE_ENDIAN)
-        objects.forEach { obj ->
-            when {
-                obj.id == pathId -> metadata.putInt(obj.tablePosition + 8, newObject.size)
-                obj.start >= entry.start + entry.size -> metadata.putLong(obj.tablePosition, (obj.start + delta).toLong())
+        val byId = edits.associateBy { it.entry.id }
+        var editIndex = 0
+        var delta = 0
+        objects.sortedBy { it.start }.forEach { obj ->
+            checkCancelled()
+            while (editIndex < edits.size && edits[editIndex].entry.start + edits[editIndex].entry.size <= obj.start) {
+                delta += edits[editIndex++].delta
             }
+            if (delta != 0) metadata.putLong(obj.tablePosition, obj.start.toLong() + delta)
+            byId[obj.id]?.let { metadata.putInt(obj.tablePosition + 8, it.bytes.size) }
         }
+        checkCancelled()
         return result
     }
 
