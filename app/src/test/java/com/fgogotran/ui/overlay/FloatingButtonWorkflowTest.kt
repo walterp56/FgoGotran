@@ -31,7 +31,7 @@ class FloatingButtonWorkflowTest {
         assertFalse(reveal.contains("requestOneShotCropTranslation"))
         assertFalse(reveal.contains("requestManualTranslation"))
         assertFalse(reveal.contains("TranslationTrigger.requestTranslation"))
-        assertTrue(click.indexOf("restoreDockedButton()") < click.indexOf("battleModeState.active.value"))
+        assertTrue(click.indexOf("restoreDockedButton()") < click.indexOf("ocrWorkflowState.isSubtitle"))
         assertTrue(click.indexOf("restoreDockedButton()") < click.indexOf("TranslationTrigger.canUserTapTranslate()"))
     }
 

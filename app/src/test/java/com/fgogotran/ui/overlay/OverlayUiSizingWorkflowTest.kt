@@ -20,7 +20,7 @@ class OverlayUiSizingWorkflowTest {
         assertTrue(menu.contains("results.none { it.hasVisualOverflow }"))
         assertTrue(menu.contains("WindowInsets.safeDrawing"))
         assertTrue(menu.contains("ArcMenuGeometry.layout("))
-        assertTrue(menu.contains("ArcMenuGeometry.pageIndices(layout.capacity)"))
+        assertTrue(menu.contains("ArcMenuGeometry.pageIndices(layout.capacity, listOf(features.size, modes.size))"))
         assertTrue(menu.contains("page = (page + 1) % pages.size"))
         assertFalse(menu.contains("fontScale *"))
     }

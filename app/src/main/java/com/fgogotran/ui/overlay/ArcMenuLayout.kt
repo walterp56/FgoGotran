@@ -84,9 +84,13 @@ internal object ArcMenuGeometry {
         return ArcMenuLayout(angles.size - 1, placed.dropLast(1), placed.last())
     }
 
-    /** Keep the two existing groups separate, even if their last subpage is not full. */
-    fun pageIndices(capacity: Int): List<List<Int>> {
+    /** Paginate actual group sizes; a new action must not disappear behind eight hard-coded slots. */
+    fun pageIndices(capacity: Int, groupSizes: List<Int> = listOf(4, 4)): List<List<Int>> {
         require(capacity in 1..4)
-        return (0..3).toList().chunked(capacity) + (4..7).toList().chunked(capacity)
+        require(groupSizes.isNotEmpty() && groupSizes.all { it > 0 })
+        var offset = 0
+        return groupSizes.flatMap { size ->
+            (offset until offset + size).toList().chunked(capacity).also { offset += size }
+        }
     }
 }

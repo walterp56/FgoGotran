@@ -8,6 +8,17 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ArcMenuGeometryTest {
+    @Test fun `new dialogue action is included for every capacity without mixing action groups`() {
+        for (capacity in 1..4) {
+            val pages = ArcMenuGeometry.pageIndices(capacity, listOf(5, 4))
+            assertEquals((0..8).toList(), pages.flatten())
+            assertTrue(pages.all { it.size in 1..capacity })
+            assertTrue(pages.all { page -> page.all { it < 5 } || page.all { it >= 5 } })
+        }
+        assertEquals(listOf(listOf(0, 1, 2, 3), listOf(4), listOf(5, 6, 7, 8)),
+            ArcMenuGeometry.pageIndices(4, listOf(5, 4)))
+    }
+
     @Test
     fun `normal phone and high resolution emulator retain four actions per page`() {
         for (bounds in listOf(ArcMenuRect(8f, 8f, 772f, 352f), ArcMenuRect(8f, 8f, 952f, 592f))) {

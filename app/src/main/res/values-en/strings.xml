@@ -118,6 +118,13 @@
     <string name="menu_log">Log</string>
     <string name="menu_area">Crop</string>
     <string name="menu_battle">Battle</string>
+    <string name="menu_dialogue_subtitles">Dialogue subtitles</string>
+    <string name="guide_mode_dialogue_text">For automatically advancing character conversations, such as summons and voice replays. Reads the dialogue panel and displays translations in order; slower backends can cause delay. Currently optimized for the JP bottom two-row dialogue panel, not battle subtitles.</string>
+    <string name="guide_mode_dialogue_button">Dialogue subtitles: reads automatically; no tap needed. Long-press to switch modes. Captured lines are displayed in order.</string>
+    <string name="dialogue_subtitle_backlog">Too many captions are waiting. New capture is paused while captured captions continue displaying.</string>
+    <string name="dialogue_subtitle_failed">[Dialogue translation failed: original retained in LOG]</string>
+    <string name="mode_glyph_dialogue">D</string>
+    <string name="mode_desc_dialogue">Dialogue subtitles. Automatically translates character dialogue in order. Long-press to switch modes.</string>
     <string name="menu_live">Live</string>
     <string name="menu_manual">Manual</string>
     <string name="menu_semi">Semi</string>

@@ -989,7 +989,8 @@ class Translator @Inject constructor(
         promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL,
         translateAsName: Boolean = false,
         nameHints: List<NameTranslationHint> = emptyList(),
-        forceFreshTranslation: Boolean = false
+        forceFreshTranslation: Boolean = false,
+        subtitleReferenceJapanese: List<String> = emptyList()
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -1012,7 +1013,9 @@ class Translator @Inject constructor(
         }
         val normalizedText = correctPlayerNameOcr(normalizedSourceText, playerName, "TEXT")
         val isBattleSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
-        val normalizedChoices = if (isBattleSubtitle) {
+        val isSpokenSubtitle = promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
+        val subtitleReferences = if (isSpokenSubtitle) prepareDialogueSubtitleReferences(subtitleReferenceJapanese) else emptyList()
+        val normalizedChoices = if (isBattleSubtitle || isSpokenSubtitle) {
             emptyList()
         } else {
             choiceTexts.mapIndexedNotNull { index, choice ->
@@ -1081,12 +1084,12 @@ class Translator @Inject constructor(
         }
 
         val useSakuraPrompt = usesSakuraPrompt(config)
-        val activePreviousDialogueContexts = if (cropMode || isBattleSubtitle || translateAsName) {
+        val activePreviousDialogueContexts = if (cropMode || isBattleSubtitle || isSpokenSubtitle || translateAsName) {
             emptyList()
         } else {
             sceneDialogueContextsForPrompt(previousDialogueContexts, promptTargetLanguage(config), general = !useSakuraPrompt)
         }
-        val activeCurrentSpeaker = if (cropMode || isBattleSubtitle || translateAsName) {
+        val activeCurrentSpeaker = if (cropMode || isBattleSubtitle || isSpokenSubtitle || translateAsName) {
             ""
         } else {
             normalizeCurrentSpeakerContext(currentSpeaker)
@@ -1099,7 +1102,7 @@ class Translator @Inject constructor(
         } else {
             normalizeCharacterGender(currentSpeakerGender)
         }
-        val currentSpeakerCacheIdentity = if (isBattleSubtitle) {
+        val currentSpeakerCacheIdentity = if (isBattleSubtitle || isSpokenSubtitle) {
             ""
         } else {
             normalizeCurrentSpeakerContext(currentSpeakerSourceName)
@@ -1122,8 +1125,11 @@ class Translator @Inject constructor(
                 isSakuraModel = useSakuraPrompt
             )
             .orEmpty()
-        val sceneContextPolicyKey = sceneContextCachePolicyKey(activePreviousDialogueContexts, general = !useSakuraPrompt)
+        val sceneContextPolicyKey = if (isSpokenSubtitle && !useSakuraPrompt && subtitleReferences.isNotEmpty()) {
+            "dialogue-source-context-v1:" + hashText(buildDialogueSubtitleReferencePrompt(subtitleReferences))
+        } else sceneContextCachePolicyKey(activePreviousDialogueContexts, general = !useSakuraPrompt)
         val promptPolicyKey = when {
+            isSpokenSubtitle -> PromptBuilder.dialogueSubtitlePromptVersion(config.targetLanguage)
             isBattleSubtitle ->
                 PromptBuilder.promptVersionFor(config.targetLanguage, battleSubtitle = true)
             cropMode -> if (useSakuraPrompt) "crop-screen-v2" else "crop-screen-v3"
@@ -1270,7 +1276,12 @@ class Translator @Inject constructor(
         } else {
             null
         }
-        val userPrompt = if (cropMode) {
+        val userPrompt = if (isSpokenSubtitle && !useSakuraPrompt) {
+            buildString {
+                appendPromptSectionText(buildDialogueSubtitleReferencePrompt(subtitleReferences))
+                appendPromptSectionText(promptBuilder.buildUserPrompt(protectedInput.text, emptyList(), promptGlossaryEntries))
+            }
+        } else if (cropMode) {
             if (useSakuraPrompt) {
                 SakuraPromptBuilder.buildCropUserPrompt(
                     japaneseText = protectedInput.text,
@@ -1314,6 +1325,7 @@ class Translator @Inject constructor(
                     messages = messages,
                     maxTokens = maxTokens,
                     promptKind = when {
+                        isSpokenSubtitle -> "dialogue_subtitle"
                         isBattleSubtitle -> "battle"
                         cropMode -> "crop"
                         else -> "single"

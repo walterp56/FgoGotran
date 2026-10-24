@@ -103,7 +103,8 @@ enum class PromptOutputFormat(val logName: String) {
 
 enum class TranslationPromptProfile {
     GENERAL,
-    BATTLE_SUBTITLE
+    BATTLE_SUBTITLE,
+    DIALOGUE_SUBTITLE
 }
 
 enum class HonorificPromptRule(val sourceSuffix: String) {
@@ -179,6 +180,12 @@ class PromptBuilder @Inject constructor() {
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v10-plain-layout"
         const val PROMPT_VERSION_EN = "jp-en-fgo-target-v5-plain-layout"
         const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v4-plain-layout"
+        const val DIALOGUE_SUBTITLE_PROMPT_VERSION = "dialogue-subtitle-v1"
+        const val DIALOGUE_SUBTITLE_PROMPT_VERSION_EN = "dialogue-subtitle-en-v1"
+
+        fun dialogueSubtitlePromptVersion(targetLanguage: String): String =
+            if (SettingsRepository.normalizeTargetLanguage(targetLanguage) == SettingsRepository.TARGET_LANGUAGE_ENGLISH)
+                DIALOGUE_SUBTITLE_PROMPT_VERSION_EN else DIALOGUE_SUBTITLE_PROMPT_VERSION
 
         /** Prompt/cache version for the requested target; English has its own block set. */
         fun promptVersionFor(targetLanguage: String, battleSubtitle: Boolean): String {
@@ -302,6 +309,9 @@ class PromptBuilder @Inject constructor() {
         private val UNATTRIBUTED_DIALOGUE_PROMPT = """
             - No speaker detected: use current and previous Japanese to distinguish narration, inner thought, or an unidentified voice; never assume the previous speaker.
             """.trimIndent()
+
+        private const val SPOKEN_DIALOGUE_PROMPT =
+            "These are spoken character lines, even without a name box. Translate as dialogue, not narration; do not guess the speaker."
 
         private val PARTICIPANT_DIRECTION_PROMPT = """
             - For benefactives, causatives, and 〜(ら)れる, preserve action direction and possession from Japanese syntax; do not default to passive.
@@ -462,6 +472,7 @@ class PromptBuilder @Inject constructor() {
         promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL
     ): PromptContext {
         val isBattleSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
+        val isSpokenSubtitle = promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
         val cleanNameText = nameText
             ?.takeIf { it.isNotBlank() }
             ?.takeUnless { isBattleSubtitle }
@@ -493,12 +504,12 @@ class PromptBuilder @Inject constructor() {
             promptProfile = promptProfile,
             isCropMode = isCropMode,
             isDialogue = isDialogue,
-            isUnattributedDialogue = !isBattleSubtitle &&
+            isUnattributedDialogue = !isBattleSubtitle && !isSpokenSubtitle &&
                 !isCropMode &&
                 isDialogue &&
                 !isChoiceBatch &&
                 currentSpeaker.isBlank(),
-            requestVoiceHint = requestVoiceHint && !isBattleSubtitle,
+            requestVoiceHint = requestVoiceHint && !isBattleSubtitle && !isSpokenSubtitle,
             hasPlaceholders = containsPlaceholder(combinedText),
             hasMasks = containsMask(combinedText),
             hasMasterWord = hasMasterWord,
@@ -545,6 +556,7 @@ class PromptBuilder @Inject constructor() {
             SettingsRepository.TARGET_LANGUAGE_ENGLISH
         val isBattleSubtitle =
             context.promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
+        val isSpokenSubtitle = context.promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
         val basePrompt = when {
             context.isCropMode -> if (isEnglish) CROP_BASE_PROMPT_EN else CROP_BASE_PROMPT
             isBattleSubtitle ->
@@ -558,6 +570,9 @@ class PromptBuilder @Inject constructor() {
         }
         sb.append(applyTargetLanguage(basePrompt, targetLanguageLabel))
         blockNames += baseBlockName
+        if (isSpokenSubtitle) {
+            appendPromptBlock(rules, blockNames, "spoken_dialogue", SPOKEN_DIALOGUE_PROMPT)
+        }
         if (context.hasPlaceholders) {
             appendPromptBlock(rules, blockNames, "placeholder", PLACEHOLDER_PROMPT)
         }
@@ -578,7 +593,7 @@ class PromptBuilder @Inject constructor() {
                         buildCharacterContextPrompt(context.characterContextPrompt)
                     )
                 }
-                if (context.isUnattributedDialogue) {
+                if (context.isUnattributedDialogue && !isSpokenSubtitle) {
                     appendPromptBlock(
                         rules,
                         blockNames,
@@ -596,7 +611,7 @@ class PromptBuilder @Inject constructor() {
                 )
             }
         }
-        if (!isBattleSubtitle && context.requestVoiceHint) {
+        if (!isBattleSubtitle && !isSpokenSubtitle && context.requestVoiceHint) {
             appendPromptBlock(rules, blockNames, "voice_hint", VOICE_HINT_PROMPT)
         }
         featurePromptBlocks(context).forEach { (name, block) ->

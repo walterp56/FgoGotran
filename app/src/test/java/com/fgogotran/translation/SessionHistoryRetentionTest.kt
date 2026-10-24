@@ -3,6 +3,20 @@ package com.fgogotran.translation
 import kotlin.test.*
 
 class SessionHistoryRetentionTest {
+    @Test fun `dialogue subtitles preserve occurrence order without entering story context`() {
+        val first = SessionTranslationHistory.reserveDialogueSubtitleEntry("dialogue:1", "なんだっけ？")
+        val second = SessionTranslationHistory.reserveDialogueSubtitleEntry("dialogue:2", "なんだっけ？")
+        assertTrue(SessionTranslationHistory.completeDialogueSubtitleEntry(second, "又是什麼來著？", "zh-Hant"))
+        assertTrue(SessionTranslationHistory.completeDialogueSubtitleEntry(first, "是什麼來著？", "zh-Hant"))
+        val entries = SessionTranslationHistory.entries.value
+        assertEquals(listOf("是什麼來著？", "又是什麼來著？"), entries.map { it.dialogueText })
+        assertTrue(entries.all { it.dialogueSubtitleOccurrence && !it.battleOccurrence })
+        assertTrue(SessionTranslationHistory.lastSceneDialogueContexts().isEmpty())
+        assertFalse(SessionTranslationHistory.completeDialogueSubtitleEntry(first, "重複", "zh-Hant"))
+        SessionTranslationHistory.clear()
+        assertFalse(SessionTranslationHistory.completeDialogueSubtitleEntry(first, "舊結果", "zh-Hant"))
+    }
+
     @BeforeTest fun setUp() { SessionTranslationHistory.clear() }
     @AfterTest fun tearDown() { SessionTranslationHistory.clear() }
 

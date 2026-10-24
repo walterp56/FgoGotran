@@ -108,6 +108,10 @@ fun GuideScreen(
                     text = stringResource(R.string.guide_mode_battle_text)
                 )
                 GuideModeRow(
+                    mode = stringResource(R.string.menu_dialogue_subtitles),
+                    text = stringResource(R.string.guide_mode_dialogue_text)
+                )
+                GuideModeRow(
                     mode = stringResource(R.string.guide_auto_40),
                     text = stringResource(R.string.guide_auto_13)
                 )
@@ -122,6 +126,7 @@ fun GuideScreen(
                 GuideBadgeRow(label = stringResource(R.string.guide_auto_42), text = stringResource(R.string.guide_auto_19))
                 GuideBadgeRow(label = stringResource(R.string.guide_auto_43), text = stringResource(R.string.guide_auto_16))
                 GuideBadgeRow(label = stringResource(R.string.guide_auto_44), text = stringResource(R.string.guide_auto_3))
+                GuideBadgeRow(label = stringResource(R.string.mode_glyph_dialogue), text = stringResource(R.string.guide_mode_dialogue_button))
                 GuideBadgeRow(label = stringResource(R.string.guide_auto_32), text = stringResource(R.string.guide_auto_9))
                 GuideBadgeRow(label = "LOG", text = stringResource(R.string.guide_auto_22))
             }

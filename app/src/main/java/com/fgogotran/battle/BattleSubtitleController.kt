@@ -7,6 +7,7 @@ import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.analytics.AnalyticsUsageOrigin
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ocr.OcrEngine
+import com.fgogotran.subtitle.ScreenOcrWorkflowState
 import com.fgogotran.overlay.FgoReferenceRect
 import com.fgogotran.translation.BattleHistoryReservation
 import com.fgogotran.translation.SessionTranslationHistory
@@ -34,7 +35,7 @@ internal fun TranslateResult.isDisplayableBattleResponse(): Boolean =
 class BattleSubtitleController @Inject constructor(
     private val ocr: OcrEngine,
     private val translator: Translator,
-    private val battleModeState: BattleModeState,
+    private val ocrWorkflowState: ScreenOcrWorkflowState,
     private val appAnalytics: AppAnalytics
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -69,7 +70,7 @@ class BattleSubtitleController @Inject constructor(
         source: Bitmap,
         capturedAt: Long
     ) {
-        if (paused || !battleModeState.active.value) return
+        if (paused || !ocrWorkflowState.isBattle) return
 
         if (source.width < source.height || source.height < 240) {
             suspendObservation()
@@ -105,7 +106,7 @@ class BattleSubtitleController @Inject constructor(
             BattleLayout.subtitle
         )
 
-        if (version != generation || paused || !battleModeState.active.value) {
+        if (version != generation || paused || !ocrWorkflowState.isBattle) {
             return
         }
 

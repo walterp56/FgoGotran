@@ -19,7 +19,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import com.fgogotran.accessibility.FgoAccessibilityService
-import com.fgogotran.battle.BattleModeState
+import com.fgogotran.subtitle.ScreenOcrWorkflowState
+import com.fgogotran.subtitle.ScreenOcrWorkflow
 import com.fgogotran.crop.CropModeState
 import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.data.SettingsRepository
@@ -34,7 +35,7 @@ import com.fgogotran.ui.overlay.FloatingControlBounds
 import com.fgogotran.ui.overlay.FloatingDockSide
 import com.fgogotran.ui.overlay.HistoryOverlayPanel
 import com.fgogotran.ui.overlay.FloatingArcMenu
-import com.fgogotran.ui.overlay.withBattleIndicator
+import com.fgogotran.ui.overlay.withSubtitleIndicator
 import com.fgogotran.util.FakeComposeHost
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.overlayType
@@ -71,7 +72,7 @@ class FgoRunnerOverlay @Inject constructor(
     @ApplicationContext private val context: Context,
     private val cropSelectionOverlay: CropSelectionOverlay,
     private val settingsRepository: SettingsRepository,
-    private val battleModeState: BattleModeState,
+    private val ocrWorkflowState: ScreenOcrWorkflowState,
     private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private var windowManager: WindowManager? = null
@@ -95,7 +96,9 @@ class FgoRunnerOverlay @Inject constructor(
     private var gameServer by mutableStateOf(SettingsRepository.DEFAULT_GAME_SERVER)
     private var aiVoiceEnabled by mutableStateOf(false)
     private var liveVoiceTranslationEnabled by mutableStateOf(false)
-    private var battleModeActive by mutableStateOf(false)
+    private var selectedWorkflow by mutableStateOf(ScreenOcrWorkflow.STORY)
+    private val battleModeActive get() = selectedWorkflow == ScreenOcrWorkflow.BATTLE_SUBTITLE
+    private val dialogueModeActive get() = selectedWorkflow == ScreenOcrWorkflow.DIALOGUE_SUBTITLE
     private var showButtonFailureRing by mutableStateOf(false)
     private var failureFeedbackVersion = 0
     private var buttonPositionScreen: ButtonScreen? = null
@@ -242,7 +245,7 @@ class FgoRunnerOverlay @Inject constructor(
                 gameServer = settingsRepository.getGameServer()
                 aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
                 liveVoiceTranslationEnabled = settingsRepository.liveVoiceTranslationEnabled.first()
-                battleModeActive = battleModeState.active.value
+                selectedWorkflow = ocrWorkflowState.selected.value
                 if (!shown || requestVersion != showRequestVersion || !FgoRunnerService.sessionGate.isCurrent(runnerToken)) return@launch
 
                 val wm = windowManager
@@ -398,7 +401,8 @@ class FgoRunnerOverlay @Inject constructor(
             dockedSide = dockedSide,
             showFailureRing = showButtonFailureRing &&
                 buttonMode != FloatingButtonMode.AUTO &&
-                buttonMode != FloatingButtonMode.BATTLE,
+                buttonMode != FloatingButtonMode.BATTLE &&
+                buttonMode != FloatingButtonMode.DIALOGUE,
             onClick = { onButtonClick() },
             onLongClick = { onButtonLongClick() },
             onDragStart = { x, y -> beginButtonDrag(x, y) },
@@ -513,7 +517,7 @@ class FgoRunnerOverlay @Inject constructor(
         }
         if (cropLoadingJob?.isCompleted == false) return
 
-        if (battleModeState.active.value) {
+        if (ocrWorkflowState.isSubtitle) {
             return
         }
 
@@ -761,9 +765,9 @@ class FgoRunnerOverlay @Inject constructor(
     private fun startBattleModeObserver() {
         battleModeJob?.cancel()
         battleModeJob = overlayScope.launch {
-            battleModeState.active.collect { active ->
-                if (active == battleModeActive) return@collect
-                battleModeActive = active
+            ocrWorkflowState.selected.collect { selected ->
+                if (selected == selectedWorkflow) return@collect
+                selectedWorkflow = selected
                 refreshButtonMode()
             }
         }
@@ -868,6 +872,7 @@ class FgoRunnerOverlay @Inject constructor(
             FloatingArcMenu(
                 translationMode = TranslationTrigger.translationMode(),
                 battleModeActive = battleModeActive,
+                dialogueModeActive = dialogueModeActive,
                 gameServer = gameServer,
                 liveVoiceTranslationEnabled = liveVoiceTranslationEnabled,
                 buttonCenterX = centerX,
@@ -881,7 +886,7 @@ class FgoRunnerOverlay @Inject constructor(
                         accessibility.setBattleModeEnabled(false)
                         accessibility.setTranslationMode(mode)
                     } else {
-                        battleModeState.setEnabled(false)
+                        ocrWorkflowState.select(ScreenOcrWorkflow.STORY)
                         TranslationTrigger.setTranslationMode(mode)
                         overlayScope.launch(Dispatchers.IO) {
                             settingsRepository.setLastTranslationMode(mode.name)
@@ -894,6 +899,15 @@ class FgoRunnerOverlay @Inject constructor(
                     if (isJapaneseServer()) {
                         cancelCropMode()
                         setBattleModeEnabled(true)
+                        dismissMenu()
+                    }
+                },
+                onDialogueModeSelect = {
+                    if (isJapaneseServer() && isRunnerActive()) {
+                        cancelCropMode()
+                        val accessibility = FgoAccessibilityService.instance
+                        if (accessibility != null) accessibility.setDialogueSubtitleModeEnabled(true)
+                        else ocrWorkflowState.select(ScreenOcrWorkflow.DIALOGUE_SUBTITLE)
                         dismissMenu()
                     }
                 },
@@ -1015,7 +1029,7 @@ class FgoRunnerOverlay @Inject constructor(
         if (accessibility != null) {
             accessibility.setBattleModeEnabled(enabled)
         } else {
-            battleModeState.setEnabled(enabled)
+            ocrWorkflowState.select(if (enabled) ScreenOcrWorkflow.BATTLE_SUBTITLE else ScreenOcrWorkflow.STORY)
             refreshButtonMode()
         }
     }
@@ -1030,10 +1044,10 @@ class FgoRunnerOverlay @Inject constructor(
             translationMode == TranslationMode.AUTO -> FloatingButtonMode.AUTO
             else -> FloatingButtonMode.MANUAL
         }
-        val newMode = normalMode.withBattleIndicator(battleModeActive)
+        val newMode = normalMode.withSubtitleIndicator(selectedWorkflow)
         if (buttonMode != newMode) buttonDrag = null
         buttonMode = newMode
-        if (translationMode == TranslationMode.AUTO || buttonMode == FloatingButtonMode.BATTLE) {
+        if (translationMode == TranslationMode.AUTO || buttonMode == FloatingButtonMode.BATTLE || buttonMode == FloatingButtonMode.DIALOGUE) {
             showButtonFailureRing = false
         }
     }

@@ -245,6 +245,16 @@ app/src/test/java/com/fgogotran/diagnostic/*
 !app/src/test/java/com/fgogotran/diagnostic/DiagnosticFilePersistenceTest.kt
 
 # Internal device/verification notes (local evidence only)
+# Retain independent voiced-dialogue subtitles, workflow selection and history regressions.
+!app/src/test/java/com/fgogotran/dialoguesubtitle/
+!app/src/test/java/com/fgogotran/dialoguesubtitle/*.kt
+!app/src/test/java/com/fgogotran/translation/DialogueSubtitlePromptTest.kt
+!app/src/test/java/com/fgogotran/translation/SessionHistoryRetentionTest.kt
+!app/src/test/java/com/fgogotran/battle/
+app/src/test/java/com/fgogotran/battle/*
+!app/src/test/java/com/fgogotran/battle/BattleModeStateTest.kt
+!app/src/test/java/com/fgogotran/ui/overlay/FloatingButtonModeTest.kt
+
 chapter/*_DEVICE_CHECK_*.md
 chapter/NATIVE_*.md
 chapter/STORY_*.md

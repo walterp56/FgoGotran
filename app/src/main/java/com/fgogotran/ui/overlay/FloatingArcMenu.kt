@@ -49,6 +49,7 @@ private val MENU_ACCENT_COLOR = Color(0xFF76518F)
 fun FloatingArcMenu(
     translationMode: TranslationMode,
     battleModeActive: Boolean,
+    dialogueModeActive: Boolean,
     gameServer: String,
     liveVoiceTranslationEnabled: Boolean,
     buttonCenterX: Int,
@@ -56,6 +57,7 @@ fun FloatingArcMenu(
     onDismiss: () -> Unit,
     onTranslationModeChange: (TranslationMode) -> Unit,
     onBattleModeSelect: () -> Unit,
+    onDialogueModeSelect: () -> Unit,
     onLiveVoiceTranslationToggle: (Boolean) -> Unit,
     onCropTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
@@ -67,6 +69,7 @@ fun FloatingArcMenu(
     val logLabel = stringResource(R.string.menu_log)
     val areaLabel = stringResource(R.string.menu_area)
     val battleLabel = stringResource(R.string.menu_battle)
+    val dialogueLabel = stringResource(R.string.menu_dialogue_subtitles)
     val liveLabel = stringResource(R.string.menu_live)
     val manualLabel = stringResource(R.string.menu_manual)
     val semiLabel = stringResource(R.string.menu_semi)
@@ -80,14 +83,19 @@ fun FloatingArcMenu(
         textAlign = TextAlign.Center
     )
     val navigationStyle = TextStyle(fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
-    val allSlots = featureSlots(
+    val features = featureSlots(
         logLabel, areaLabel, battleLabel, liveLabel, battleModeActive, isJapaneseServer,
         liveVoiceTranslationEnabled, onHistoryClick, onCropTranslateClick, onBattleModeSelect,
         onLiveVoiceTranslationToggle
-    ) + modeSlots(
-        manualLabel, semiLabel, autoLabel, closeLabel, translationMode, battleModeActive,
+    ).toMutableList().apply {
+        add(3, ArcSlot(FloatingActionIcon.DIALOGUE, dialogueLabel,
+            selected = dialogueModeActive, enabled = isJapaneseServer, onClick = onDialogueModeSelect))
+    }
+    val modes = modeSlots(
+        manualLabel, semiLabel, autoLabel, closeLabel, translationMode, battleModeActive || dialogueModeActive,
         onTranslationModeChange, onCloseClick
     )
+    val allSlots = features + modes
     val insets = WindowInsets.safeDrawing
     val layoutDirection = LocalLayoutDirection.current
 
@@ -136,7 +144,7 @@ fun FloatingArcMenu(
             bounds, with(density) { buttonCenterX.toDp().value }, with(density) { buttonCenterY.toDp().value },
             pillSize.first, pillSize.second, navSize
         ) ?: return@BoxWithConstraints // A window smaller than one action plus navigation cannot host an arc.
-        val pages = ArcMenuGeometry.pageIndices(layout.capacity)
+        val pages = ArcMenuGeometry.pageIndices(layout.capacity, listOf(features.size, modes.size))
         var page by remember(layout.capacity) { mutableStateOf(0) }
         val contentSlots = pages[page].map { allSlots[it] }
 

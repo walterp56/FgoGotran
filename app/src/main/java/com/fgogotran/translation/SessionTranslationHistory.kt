@@ -27,8 +27,11 @@ data class SessionTranslationEntry(
     val createdAt: Long = System.currentTimeMillis(),
     val historyId: Long = 0L,
     val battleOccurrence: Boolean = false,
-    val generalPreparedSourceDialogue: String? = null
-)
+    val generalPreparedSourceDialogue: String? = null,
+    val dialogueSubtitleOccurrence: Boolean = false
+) {
+    val subtitleOccurrence: Boolean get() = battleOccurrence || dialogueSubtitleOccurrence
+}
 
 /** Reserves source order without putting unfinished/failed translation text in the LOG. */
 data class BattleHistoryReservation internal constructor(
@@ -67,7 +70,7 @@ object SessionTranslationHistory {
         val latestEntryInContext = currentEntries.getOrNull(latestEntryInContextIndex)
         val originalKey = scopedEntry.contentKey()
         if (originalKey.isBlank()) return
-        if (latestEntryInContext?.let { !it.battleOccurrence && it.contentKey() == originalKey } == true) {
+        if (latestEntryInContext?.let { !it.subtitleOccurrence && it.contentKey() == originalKey } == true) {
             refreshGeneralPreparedSourceDialogue(currentEntries, latestEntryInContextIndex, scopedEntry)
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
@@ -76,7 +79,7 @@ object SessionTranslationHistory {
         val previousDialogueEntry = currentEntries
             .asReversed()
             .firstOrNull {
-                !it.battleOccurrence &&
+                !it.subtitleOccurrence &&
                     it.sceneContextGeneration == scopedEntry.sceneContextGeneration &&
                     it.dialogueKey().isNotBlank()
             }
@@ -92,7 +95,7 @@ object SessionTranslationHistory {
             }
             return
         }
-        if (latestEntryInContext?.let { !it.battleOccurrence && it.contentKey() == key } == true) {
+        if (latestEntryInContext?.let { !it.subtitleOccurrence && it.contentKey() == key } == true) {
             refreshGeneralPreparedSourceDialogue(currentEntries, latestEntryInContextIndex, normalizedEntry)
             FgoLogger.debug(TAG, "History duplicate skipped")
             return
@@ -106,6 +109,18 @@ object SessionTranslationHistory {
 
     @Synchronized
     fun completeBattleEntry(reservation: BattleHistoryReservation, translation: String, targetLocale: String): Boolean {
+        return completeSubtitleEntry(reservation, translation, targetLocale, battle = true)
+    }
+
+    @Synchronized
+    fun reserveDialogueSubtitleEntry(sourceKey: String, original: String): BattleHistoryReservation =
+        BattleHistoryReservation(session, ++nextOrder, sourceKey, original, System.currentTimeMillis())
+
+    @Synchronized
+    fun completeDialogueSubtitleEntry(reservation: BattleHistoryReservation, translation: String, targetLocale: String): Boolean =
+        completeSubtitleEntry(reservation, translation, targetLocale, battle = false)
+
+    private fun completeSubtitleEntry(reservation: BattleHistoryReservation, translation: String, targetLocale: String, battle: Boolean): Boolean {
         if (reservation.session != session || translation.isBlank()) return false
         val current = _entries.value
         if (current.any { it.historyId == reservation.order }) return false
@@ -116,7 +131,8 @@ object SessionTranslationHistory {
             sourceKey = reservation.sourceKey,
             createdAt = reservation.createdAt,
             historyId = reservation.order,
-            battleOccurrence = true
+            battleOccurrence = battle,
+            dialogueSubtitleOccurrence = !battle
         )
         // API B may finish before A. Insert by reserved occurrence order, including among story entries.
         val index = current.binarySearchBy(reservation.order) { it.historyId }.let { if (it < 0) -it - 1 else it }
@@ -153,7 +169,7 @@ object SessionTranslationHistory {
             .asReversed()
             .asSequence()
             .filter { entry ->
-                !entry.battleOccurrence && entry.sceneContextGeneration == sceneContextGeneration
+                !entry.subtitleOccurrence && entry.sceneContextGeneration == sceneContextGeneration
             }
             .filter { entry ->
                 val sourceDialogue = entry.contextSourceDialogue?.trim()
@@ -252,7 +268,7 @@ object SessionTranslationHistory {
         previous: SessionTranslationEntry?
     ): Boolean {
         if (previous == null) return false
-        if (previous.battleOccurrence) return false
+        if (previous.subtitleOccurrence) return false
         if (choices.isNotEmpty() != previous.choices.isNotEmpty()) return false
         if (choices.isEmpty() && (dialogueText.isNullOrBlank() || previous.dialogueText.isNullOrBlank())) {
             return false
