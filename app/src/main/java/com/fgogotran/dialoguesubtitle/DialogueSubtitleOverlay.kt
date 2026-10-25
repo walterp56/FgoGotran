@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
@@ -14,6 +15,8 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import androidx.core.view.doOnPreDraw
+import com.fgogotran.data.SettingsRepository
+import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.util.FgoLogger
 
 /** Main-thread-only, touch-transparent source-row captions outside the source OCR band. */
@@ -32,13 +35,14 @@ class DialogueSubtitleOverlay(private val context: Context) {
     fun show(rows: List<DialogueSubtitleRenderRow>, screenWidth: Int, screenHeight: Int, onVisible: () -> Unit): Boolean {
         if (screenWidth <= 0 || screenHeight <= 0 || rows.isEmpty() || rows.size > 2 ||
             rows.any { it.slot !in 0..1 } || rows.map { it.slot }.distinct().size != rows.size) return false
+        val normalizedRows = rows.map { it.copy(targetLocale = SettingsRepository.normalizeTargetLanguage(it.targetLocale)) }
         val geometry = DialogueSubtitleStyle.geometry(screenWidth, screenHeight)
         val source = DialogueSubtitleLayout.map(DialogueSubtitleLayout.text, screenWidth, screenHeight)
         if (geometry.contentWidth <= 0 || geometry.bounds.height <= 0 ||
             geometry.bounds.top < 0 || geometry.bounds.bottom >= source.top) return false
         val label = view ?: CaptionView(context).also { view = it }
         this.onVisible = onVisible
-        val sameContent = lastRows == rows && lastWidth == screenWidth && lastHeight == screenHeight
+        val sameContent = lastRows == normalizedRows && lastWidth == screenWidth && lastHeight == screenHeight
         if (sameContent && label.visibility == View.VISIBLE && params != null) {
             if (drawn) onVisible()
             return true
@@ -46,14 +50,14 @@ class DialogueSubtitleOverlay(private val context: Context) {
         val version = ++drawVersion
         drawn = false
         if (!sameContent && !label.prepare(
-                rows, geometry,
+                normalizedRows, geometry,
                 DialogueSubtitleStyle.textSizePx(screenWidth, screenHeight)
             )) {
             hide()
             FgoLogger.warn("DialogueSubtitle", "Cannot fit complete source-row captions")
             return false
         }
-        lastRows = rows.toList()
+        lastRows = normalizedRows
         lastWidth = screenWidth
         lastHeight = screenHeight
         val bounds = geometry.bounds
@@ -119,6 +123,7 @@ class DialogueSubtitleOverlay(private val context: Context) {
     private class CaptionView(context: Context) : View(context) {
         private data class CaptionLayout(
             val text: String,
+            val targetLocale: String,
             val layout: StaticLayout,
             val ink: DialogueSubtitleLineMetrics,
             val fullTextCovered: Boolean
@@ -133,15 +138,17 @@ class DialogueSubtitleOverlay(private val context: Context) {
             for (row in rows) {
                 val text = DialogueSubtitleStyle.displayText(row.text)
                 if (text.isBlank()) return false
-                val previous = measured[row.id]?.takeIf { this.geometry == geometry && it.text == text }
+                val previous = measured[row.id]?.takeIf {
+                    this.geometry == geometry && it.text == text && it.targetLocale == row.targetLocale
+                }
                 val fitted = previous ?: run {
                     val size = DialogueSubtitleStyle.fitTextSize(preferredSize) {
-                        val candidate = buildLayout(text, it, geometry)
+                        val candidate = buildLayout(text, it, geometry, row.targetLocale)
                         // Measure both slots so moving the same row upward keeps the same font size.
                         (0..1).all { slot -> DialogueSubtitleStyle.rowPlate(geometry, slot, candidate.ink,
                             candidate.fullTextCovered) != null }
                     } ?: return false
-                    buildLayout(text, size, geometry)
+                    buildLayout(text, size, geometry, row.targetLocale)
                 }
                 next[row.id] = fitted
             }
@@ -152,10 +159,12 @@ class DialogueSubtitleOverlay(private val context: Context) {
             return true
         }
 
-        private fun buildLayout(text: String, size: Float, geometry: DialogueSubtitleRenderGeometry): CaptionLayout {
+        private fun buildLayout(text: String, size: Float, geometry: DialogueSubtitleRenderGeometry, targetLocale: String): CaptionLayout {
             val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.WHITE
                 textSize = size
+                typeface = FgoTypefaceProvider.storyTypeface(context, targetLocale)
+                isFakeBoldText = false
                 setShadowLayer(geometry.shadowPx, 0f, 0f, Color.BLACK)
             }
             val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, geometry.contentWidth)
@@ -165,10 +174,18 @@ class DialogueSubtitleOverlay(private val context: Context) {
                 .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
                 .build()
             // No maxLines/ellipsis: a wrapped or clipped row must fail fitting, never lose text.
-            val font = paint.fontMetricsInt
-            val ink = DialogueSubtitleLineMetrics(layout.getLineLeft(0), layout.getLineRight(0),
-                minOf(layout.getLineAscent(0), font.top), maxOf(layout.getLineDescent(0), font.bottom), 0)
-            return CaptionLayout(text, layout, ink, layout.lineCount == 1 && layout.getLineEnd(0) == text.length)
+            // Font-wide top/bottom include glyphs absent from this caption. Some bundled CJK
+            // fonts have very tall global bounds, so fit the actual shaped caption ink instead.
+            val bounds = Rect()
+            paint.getTextBounds(text, 0, text.length, bounds)
+            val lineLeft = layout.getLineLeft(0)
+            val ink = DialogueSubtitleLineMetrics(
+                minOf(lineLeft, lineLeft + bounds.left),
+                maxOf(layout.getLineRight(0), lineLeft + bounds.right),
+                bounds.top, bounds.bottom, 0
+            )
+            return CaptionLayout(text, targetLocale, layout, ink,
+                !bounds.isEmpty && layout.lineCount == 1 && layout.getLineEnd(0) == text.length)
         }
 
         override fun onDraw(canvas: Canvas) {

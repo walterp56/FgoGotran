@@ -130,13 +130,14 @@ class DialogueSubtitleController @Inject constructor(
             else {
                 val events = assembler.observe(rows, panel, capturedAt)
                 // Start a blank tail when confirmation reaches the UI, not at an old capture time.
-                presentation.observe(assembler.visibleSnapshot, SystemClock.elapsedRealtime(), assembler.observedSnapshot)
+                presentation.observe(assembler.visibleSnapshot, SystemClock.elapsedRealtime(),
+                    assembler.observedSnapshot, assembler.endingSnapshot)
                 accept(events)
             }
             if (assembler.playbackEnded) {
                 referenceSources.clear()
                 pixels.reset()
-                FgoLogger.debug(TAG, "Dialogue panel ended; pending translations complete into LOG")
+                FgoLogger.debug(TAG, "Dialogue panel ended; final source window has a short render grace; other late results remain in LOG")
             }
         }
         refreshCaption()
@@ -187,7 +188,7 @@ class DialogueSubtitleController @Inject constructor(
                     val started = SystemClock.elapsedRealtime()
                     val result = if (DialogueSubtitleText.isExpressivePunctuationOnly(input.source)) {
                         TranslateResult(input.source, "source-punctuation", true,
-                            targetLocale = currentTargetLocale, trustedForContext = false, countsAsUsage = false,
+                            targetLocale = input.targetLocale, trustedForContext = false, countsAsUsage = false,
                             dialogueSubtitleRows = input.rows)
                     } else withContext(Dispatchers.IO) {
                         translator.translate(input.source, maxTokens = 512,
@@ -205,7 +206,7 @@ class DialogueSubtitleController @Inject constructor(
                         }
                         SessionTranslationHistory.completeDialogueSubtitleEntry(input.history, result.translatedText, result.targetLocale)
                         if (translatedRows.size == event.rows.size && translatedRows.all(String::isNotBlank)) {
-                            presentation.complete(event, translatedRows, Delivered(result, event))
+                            presentation.complete(event, translatedRows, Delivered(result, event), SystemClock.elapsedRealtime())
                         } else FgoLogger.warn(TAG, "Row alignment unavailable for ${event.id}; translation retained in LOG")
                         FgoLogger.debug(TAG, "Translation ready ${event.id}: ${SystemClock.elapsedRealtime() - started}ms, cache=${result.cached}")
                     }
@@ -234,7 +235,7 @@ class DialogueSubtitleController @Inject constructor(
         val rows = presentation.candidate(now)
         if (rows.isEmpty()) { overlay?.hide(); return }
         val version = generation
-        overlay?.show(rows.map { DialogueSubtitleRenderRow(it.id, it.slot, it.text) }, width, height) {
+        overlay?.show(rows.map { DialogueSubtitleRenderRow(it.id, it.slot, it.text, it.value.result.targetLocale) }, width, height) {
             if (!paused && workflow.isDialogue && !TranslationTrigger.isUiBlockingOcr() &&
                 version == generation && presentation.markDrawn(rows, SystemClock.elapsedRealtime())) {
                 for (delivered in rows.map { it.value }.distinct()) {

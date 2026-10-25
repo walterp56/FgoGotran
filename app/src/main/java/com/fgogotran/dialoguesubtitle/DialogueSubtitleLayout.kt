@@ -41,6 +41,8 @@ object DialogueSubtitleStyle {
         // Reserve room for 52 px CJK fallback font bounds, padding and shadows in both slots.
         // This frame stays transparent; only the snug per-row plates are painted.
         val panelHeight = ceil(200f * scale).toInt()
+        val rowPitch = ceil(86f * scale).toInt()
+        val lowerBaseline = ceil(172f * scale).toInt()
         val horizontalPadding = ceil(12f * scale).toInt()
         val shadow = 1.5f * scale
         val textStart = DialogueSubtitleLayout.map(
@@ -51,7 +53,7 @@ object DialogueSubtitleStyle {
         val renderLeft = textStart - horizontalPadding - ceil(shadow).toInt()
         return DialogueSubtitleRenderGeometry(
             FgoReferenceRect(renderLeft, bottom - panelHeight, source.right, bottom),
-            horizontalPadding, ceil(76f * scale).toInt(), ceil(96f * scale).toInt(),
+            horizontalPadding, lowerBaseline - rowPitch, rowPitch,
             shadow, 4f * scale
         )
     }
@@ -60,9 +62,20 @@ object DialogueSubtitleStyle {
     fun fitTextSize(preferredSize: Float, fits: (Float) -> Boolean): Float? {
         if (!preferredSize.isFinite() || preferredSize <= 0f) return null
         if (fits(preferredSize)) return preferredSize
-        var low = preferredSize / 128f
         var high = preferredSize
-        if (!fits(low)) return null
+        var low = preferredSize / 2f
+        var found = false
+        // Tiny glyphs can round to empty bounds. Find a real fitting size before refining;
+        // failure at a subpixel size does not mean ordinary smaller text cannot fit.
+        for (attempt in 0 until 7) {
+            if (fits(low)) {
+                found = true
+                break
+            }
+            high = low
+            low /= 2f
+        }
+        if (!found) return null
         repeat(14) {
             val size = (low + high) / 2f
             if (fits(size)) low = size else high = size
@@ -93,7 +106,7 @@ data class DialogueSubtitleLineMetrics(
 )
 
 data class DialogueSubtitlePlate(val left: Float, val top: Float, val right: Float, val bottom: Float)
-data class DialogueSubtitleRenderRow(val id: Long, val slot: Int, val text: String)
+data class DialogueSubtitleRenderRow(val id: Long, val slot: Int, val text: String, val targetLocale: String)
 
 data class DialogueSubtitleRenderGeometry(
     val bounds: FgoReferenceRect,

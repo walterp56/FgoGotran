@@ -1,12 +1,47 @@
 package com.fgogotran.ui.overlay
 
+import com.fgogotran.speech.SubtitleOverlayGeometry
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Menu Android-sizing and history game-content wiring, alongside pure geometry/sizing tests. */
 class OverlayUiSizingWorkflowTest {
+    @Test
+    fun `voice window grows beyond the phone dialog width then shrinks to shorter rows`() {
+        val widths = listOf(200.1f, 1_400.2f, 400.1f).map {
+            SubtitleOverlayGeometry.fittedWindowWidth(it, 30, 30, 2_152)
+        }
+        assertEquals(listOf(261, 1_461, 461), widths)
+        assertTrue(widths[1] > 960) // Recorded 320 dp preferred-dialog width at density 3.
+        assertTrue(widths.all { it < 2_152 })
+    }
+
+    @Test
+    fun `voice content width rounds up for the last glyph and never exceeds the safe cap`() {
+        assertEquals(2_152, SubtitleOverlayGeometry.fittedWindowWidth(2_091.5f, 30, 30, 2_152))
+        assertEquals(2_152, SubtitleOverlayGeometry.fittedWindowWidth(3_000f, 30, 30, 2_152))
+        assertEquals(60, SubtitleOverlayGeometry.fittedWindowWidth(0f, 30, 30, 2_152))
+        assertEquals(1, SubtitleOverlayGeometry.fittedWindowWidth(0f, 30, 30, 1))
+    }
+
+    @Test
+    fun `voice window supplies measured pixel width instead of native dialog wrap sizing`() {
+        val voice = source("speech/VoiceSubtitleOverlay.kt")
+        val window = voice.substringAfter("val params = WindowManager.LayoutParams(").substringBefore("return runCatching")
+        assertTrue(window.trimStart().startsWith("1,"))
+        assertTrue(window.contains("WindowManager.LayoutParams.WRAP_CONTENT")) // Height stays automatic.
+        val sizing = voice.substringAfter("private fun updateWindowWidth(").substringBefore("private fun clearDisplayText")
+        assertTrue(sizing.contains("Layout.getDesiredWidth(view.text, view.paint)"))
+        assertTrue(sizing.contains("SubtitleOverlayGeometry.fittedWindowWidth("))
+        assertTrue(sizing.contains("params.width = width"))
+        assertTrue(sizing.contains("windowManager.updateViewLayout(view, params)"))
+        val display = voice.substringAfter("private fun updateDisplayText(").substringBefore("private fun updateWindowWidth")
+        assertTrue(display.contains("updateWindowWidth(view)"))
+    }
+
     @Test
     fun `arc measures localized sp captions instead of multiplying by the FGO scale`() {
         val menu = source("ui/overlay/FloatingArcMenu.kt")

@@ -7,7 +7,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DialogueSubtitleRenderSizingTest {
-    private val ink = DialogueSubtitleLineMetrics(0f, 400f, -61, 16, 0)
+    private val ink = DialogueSubtitleLineMetrics(0f, 400f, -45, 11, 0)
 
     @Test fun `transparent window and both row plates stay above OCR at supported scales`() {
         for ((width, height, textStart) in listOf(Triple(1920, 1080, 135f), Triple(2340, 1080, 345f),
@@ -15,8 +15,8 @@ class DialogueSubtitleRenderSizingTest {
             val geometry = DialogueSubtitleStyle.geometry(width, height)
             val source = DialogueSubtitleLayout.map(DialogueSubtitleLayout.text, width, height)
             val scale = height / 1080f
-            val scaledInk = ink.copy(right = 400f * scale, ascent = -ceil(61f * scale).toInt(),
-                descent = ceil(16f * scale).toInt())
+            val scaledInk = ink.copy(right = 400f * scale, ascent = -ceil(45f * scale).toInt(),
+                descent = ceil(11f * scale).toInt())
             val top = DialogueSubtitleStyle.rowPlate(geometry, 0, scaledInk, true)!!
             val bottom = DialogueSubtitleStyle.rowPlate(geometry, 1, scaledInk, true)!!
             assertTrue(geometry.bounds.top >= 0 && geometry.bounds.bottom < source.top)
@@ -43,8 +43,9 @@ class DialogueSubtitleRenderSizingTest {
         val top = DialogueSubtitleStyle.rowPlate(geometry, 0, ink, true)!!
         val bottom = DialogueSubtitleStyle.rowPlate(geometry, 1, ink, true)!!
         assertEquals(331, geometry.bounds.left)
-        assertEquals(699, geometry.bounds.top + geometry.baseline(0))
+        assertEquals(709, geometry.bounds.top + geometry.baseline(0))
         assertEquals(795, geometry.bounds.top + geometry.baseline(1))
+        assertEquals(86, geometry.rowPitch)
         assertEquals(top.left, bottom.left)
         assertEquals(top.right, bottom.right)
         assertEquals(geometry.rowPitch.toFloat(), bottom.top - top.top)
@@ -69,8 +70,37 @@ class DialogueSubtitleRenderSizingTest {
         assertNull(DialogueSubtitleStyle.fitTextSize(0f) { true })
     }
 
-    @Test fun `short captions keep the larger preferred size with room for fallback font bounds`() {
-        // Conservative metric fixtures exercise vertical fitting; actual Android fonts need device QA.
+    @Test fun `a failed subpixel measurement does not hide an ordinary fitting caption`() {
+        val tried = mutableListOf<Float>()
+        val fitted = DialogueSubtitleStyle.fitTextSize(52f) {
+            tried += it
+            // Real font measurements may be empty below a pixel, but a readable size fits.
+            it >= 1f && it <= 32f
+        }!!
+        assertTrue(fitted <= 32f && fitted > 31.99f)
+        assertTrue(tried.all { it >= 1f })
+        assertTrue(tried.size <= 22)
+    }
+
+    @Test fun `no drawable size returns failure after bounded measurement work`() {
+        var calls = 0
+        assertNull(DialogueSubtitleStyle.fitTextSize(52f) { calls++; false })
+        assertTrue(calls <= 8)
+    }
+
+    @Test fun `normal Traditional caption ink fits without reserving the fonts tallest unused glyph`() {
+        val geometry = DialogueSubtitleStyle.geometry(2340, 1080)
+        // Bundled Traditional font global bbox at 52 px is about -106..29; ordinary
+        // three-character CJK caption ink is about -44..5. Device QA checks actual metrics.
+        val actualInk = DialogueSubtitleLineMetrics(0f, 156f, -44, 5, 0)
+        for (slot in 0..1) {
+            assertTrue(DialogueSubtitleStyle.rowPlate(geometry, slot, actualInk, true) != null)
+            assertNull(DialogueSubtitleStyle.rowPlate(geometry, slot, actualInk.copy(ascent = -106, descent = 29), true))
+        }
+    }
+
+    @Test fun `short captions keep the larger preferred size with actual caption ink bounds`() {
+        // Conservative actual-ink fixtures from the bundled fonts; Android device QA remains separate.
         for ((width, height) in listOf(1920 to 1080, 2340 to 1080, 1280 to 720, 2560 to 1440)) {
             val geometry = DialogueSubtitleStyle.geometry(width, height)
             val preferred = DialogueSubtitleStyle.textSizePx(width, height)
@@ -80,7 +110,7 @@ class DialogueSubtitleRenderSizingTest {
                 fun plates(size: Float): List<DialogueSubtitlePlate?> {
                     val measuredWidth = text.length * size * ratio
                     val rowInk = DialogueSubtitleLineMetrics(0f, measuredWidth,
-                        -ceil(1.17f * size).toInt(), ceil(0.30f * size).toInt(), 0)
+                        -ceil(0.90f * size).toInt(), ceil(0.24f * size).toInt(), 0)
                     return (0..1).map { DialogueSubtitleStyle.rowPlate(geometry, it, rowInk,
                         measuredWidth <= geometry.contentWidth) }
                 }
@@ -108,5 +138,19 @@ class DialogueSubtitleRenderSizingTest {
             val size = DialogueSubtitleStyle.fitTextSize(preferred, ::fits)!!
             assertTrue(size < preferred && fits(size))
         }
+    }
+
+    @Test fun `unusually tall actual ink still shrinks to keep both row backgrounds separate`() {
+        val geometry = DialogueSubtitleStyle.geometry(2340, 1080)
+        fun plates(size: Float) = (0..1).map { slot ->
+            DialogueSubtitleStyle.rowPlate(geometry, slot, DialogueSubtitleLineMetrics(
+                0f, 5 * size, -ceil(size * 1.3f).toInt(), ceil(size * 0.3f).toInt(), 0), true)
+        }
+        assertTrue(plates(52f).all { it == null })
+        val size = DialogueSubtitleStyle.fitTextSize(52f) { plates(it).all { plate -> plate != null } }!!
+        assertTrue(size < 52f)
+        val (upper, lower) = plates(size).map { it!! }
+        assertTrue(upper.bottom < lower.top)
+        assertTrue(lower.bottom <= geometry.bounds.height)
     }
 }

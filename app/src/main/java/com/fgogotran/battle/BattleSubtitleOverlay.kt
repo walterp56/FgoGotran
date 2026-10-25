@@ -13,6 +13,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.core.view.doOnPreDraw
+import com.fgogotran.data.SettingsRepository
+import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.overlay.FgoViewportGeometry
 import com.fgogotran.util.FgoLogger
 
@@ -22,6 +24,7 @@ class BattleSubtitleOverlay(private val context: Context) {
     private var view: TextView? = null
     private var params: WindowManager.LayoutParams? = null
     private var lastText = ""
+    private var lastTargetLocale: String? = null
     private var lastWidth = 0
     private var lastHeight = 0
     private var drawVersion = 0L
@@ -29,7 +32,8 @@ class BattleSubtitleOverlay(private val context: Context) {
     private var onVisible: (() -> Unit)? = null
 
     @SuppressLint("RtlHardcoded") // x/y are physical screenshot coordinates, not reading-direction offsets.
-    fun show(text: String, screenWidth: Int, screenHeight: Int, onVisible: () -> Unit): Boolean {
+    fun show(text: String, targetLocale: String, screenWidth: Int, screenHeight: Int, onVisible: () -> Unit): Boolean {
+        val normalizedLocale = SettingsRepository.normalizeTargetLanguage(targetLocale)
         val subtitle = BattleLayout.map(BattleLayout.subtitle, screenWidth, screenHeight)
         val viewport = FgoViewportGeometry.viewport(screenWidth, screenHeight)
         val scale = viewport.height / 1080f
@@ -45,7 +49,8 @@ class BattleSubtitleOverlay(private val context: Context) {
             background = GradientDrawable().apply { setColor(0x8C000000.toInt()); cornerRadius = 8f * scale }
         }.also { view = it }
         this.onVisible = onVisible
-        if (lastText == text && lastWidth == screenWidth && lastHeight == screenHeight &&
+        if (lastText == text && lastTargetLocale == normalizedLocale &&
+            lastWidth == screenWidth && lastHeight == screenHeight &&
             label.visibility == View.VISIBLE && params != null) {
             if (drawn) onVisible()
             return true
@@ -53,10 +58,13 @@ class BattleSubtitleOverlay(private val context: Context) {
         val version = ++drawVersion
         drawn = false
         lastText = text
+        lastTargetLocale = normalizedLocale
         lastWidth = screenWidth
         lastHeight = screenHeight
         val displayText = BattleSubtitleStyle.displayText(text)
         label.text = displayText
+        label.typeface = FgoTypefaceProvider.storyTypeface(context, normalizedLocale)
+        label.paint.isFakeBoldText = false
         label.alpha = 1f
         // FGO renders its subtitle glyphs at about 44 px on the 1920x1080 reference
         // canvas. Keep that physical relationship on every viewport and wrap long
@@ -119,6 +127,7 @@ class BattleSubtitleOverlay(private val context: Context) {
     fun hide() {
         view?.visibility = View.GONE
         lastText = ""
+        lastTargetLocale = null
         drawn = false
         onVisible = null
         drawVersion++

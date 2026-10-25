@@ -35,6 +35,9 @@ class DialogueSubtitleAssembler {
         private set
     var observedSnapshot: List<DialogueSubtitleVisibleRow> = emptyList()
         private set
+    /** One-shot last source window at confirmed disappearance, before its identities are cleared. */
+    var endingSnapshot: List<DialogueSubtitleVisibleRow>? = null
+        private set
     val needsConfirmation: Boolean get() = pending.isNotEmpty() || absenceAt != null ||
         (blankAt != null && visibleSnapshot?.isEmpty() != true) || candidateWindow != null || visibleSnapshot == null
     var playbackEnded = false
@@ -42,14 +45,17 @@ class DialogueSubtitleAssembler {
 
     fun observe(rows: List<DialogueSubtitleRow>, panelPresent: Boolean, now: Long): List<DialogueSubtitleEvent> {
         playbackEnded = false
+        endingSnapshot = null
         if (!panelPresent) {
             val absent = absenceAt
             if (absent == null) { absenceAt = now; return emptyList() }
             if (now - absent < ABSENCE_MS) return emptyList()
             val hadPlayback = visible.isNotEmpty() || pending.isNotEmpty()
+            val ending = observedSnapshot.ifEmpty { visibleSnapshot.orEmpty() }.toList()
             val events = emitReady(now, boundary = true)
             clear()
             visibleSnapshot = emptyList()
+            endingSnapshot = ending.takeIf { it.isNotEmpty() }
             playbackEnded = hadPlayback
             return events
         }
@@ -57,6 +63,8 @@ class DialogueSubtitleAssembler {
         if (rows.isEmpty()) {
             if (blankAt == null) blankAt = now
             if (now - blankAt!! >= ABSENCE_MS) {
+                endingSnapshot = observedSnapshot.ifEmpty { visibleSnapshot.orEmpty() }.toList()
+                    .takeIf { it.isNotEmpty() }
                 visible = emptyList()
                 visibleSnapshot = emptyList()
                 observedSnapshot = emptyList()
@@ -158,7 +166,7 @@ class DialogueSubtitleAssembler {
     fun observationUnavailable() { absenceAt = null; blankAt = null; candidateWindow = null }
 
     /** Keep occurrence identities across a pause, but don't redisplay without fresh observations. */
-    fun requireFreshSnapshot() { observationUnavailable(); visibleSnapshot = null }
+    fun requireFreshSnapshot() { observationUnavailable(); visibleSnapshot = null; endingSnapshot = null }
 
     private fun event(rows: List<Row>) = DialogueSubtitleEvent(
         rows.first().id, rows.joinToString("") { it.text }, rows.first().startedAt,
@@ -172,6 +180,7 @@ class DialogueSubtitleAssembler {
     fun clear() {
         pending.clear(); visible = emptyList(); absenceAt = null; blankAt = null
         candidateWindow = null; visibleSnapshot = null; observedSnapshot = emptyList()
+        endingSnapshot = null
         playbackEnded = false
     }
 

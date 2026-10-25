@@ -53,7 +53,7 @@ class DialogueSubtitleWorkflowTest {
         val success = controller.substringAfter("val translatedRows = result.dialogueSubtitleRows.ifEmpty")
             .substringBefore("catch (error: CancellationException)")
         assertTrue(success.contains("completeDialogueSubtitleEntry(input.history, result.translatedText, result.targetLocale)"))
-        assertTrue(success.contains("presentation.complete(event, translatedRows, Delivered(result, event))"))
+        assertTrue(success.contains("presentation.complete(event, translatedRows, Delivered(result, event), SystemClock.elapsedRealtime())"))
         assertFalse(success.contains("if (SessionTranslationHistory.completeDialogueSubtitleEntry"))
     }
 
@@ -61,8 +61,8 @@ class DialogueSubtitleWorkflowTest {
         val controller = source("dialoguesubtitle/DialogueSubtitleController.kt")
         val overlay = source("dialoguesubtitle/DialogueSubtitleOverlay.kt")
         assertTrue(controller.contains("presentation.observe(assembler.visibleSnapshot"))
-        assertTrue(controller.contains("DialogueSubtitleRenderRow(it.id, it.slot, it.text)"))
-        assertTrue(overlay.contains("lastRows == rows"))
+        assertTrue(controller.contains("DialogueSubtitleRenderRow(it.id, it.slot, it.text, it.value.result.targetLocale)"))
+        assertTrue(overlay.contains("lastRows == normalizedRows"))
         assertTrue(overlay.contains("version == drawVersion"))
         assertTrue(overlay.contains("geometry.baseline(row.slot) - caption.layout.getLineBaseline(0)"))
         assertTrue(overlay.contains("layout.lineCount == 1 && layout.getLineEnd(0) == text.length"))

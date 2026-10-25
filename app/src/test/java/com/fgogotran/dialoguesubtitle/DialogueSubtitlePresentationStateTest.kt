@@ -9,8 +9,8 @@ class DialogueSubtitlePresentationStateTest {
     private fun window(vararg ids: Long) = ids.mapIndexed { slot, id -> DialogueSubtitleVisibleRow(id, slot) }
     private fun event(vararg ids: Long) = DialogueSubtitleEvent(ids.first(), "JP", 0,
         ids.map { DialogueSubtitleSourceRow(it, "JP$it") })
-    private fun DialogueSubtitlePresentationState<String>.ready(vararg ids: Long) =
-        complete(event(*ids), ids.map { "T$it" }, "owner${ids.first()}")
+    private fun DialogueSubtitlePresentationState<String>.ready(vararg ids: Long, now: Long = 0) =
+        complete(event(*ids), ids.map { "T$it" }, "owner${ids.first()}", now)
 
     @Test fun `fast result for a tentative row waits for confirmation without being discarded`() {
         val state = DialogueSubtitlePresentationState<String>()
@@ -39,8 +39,8 @@ class DialogueSubtitlePresentationStateTest {
                 top.takeIf(String::isNotEmpty)?.let { DialogueSubtitleRow(it, 50f, 92f, 0.97f) },
                 bottom.takeIf(String::isNotEmpty)?.let { DialogueSubtitleRow(it, 130f, 172f, 0.97f) })
             val events = assembler.observe(observed, panel, at)
-            state.observe(assembler.visibleSnapshot, at, assembler.observedSnapshot)
-            for (event in events) state.complete(event, event.rows.map { "T:${it.text}" }, "owner${event.id}")
+            state.observe(assembler.visibleSnapshot, at, assembler.observedSnapshot, assembler.endingSnapshot)
+            for (event in events) state.complete(event, event.rows.map { "T:${it.text}" }, "owner${event.id}", at)
             val displayed = state.candidate(at)
             state.markDrawn(displayed, at)
             return displayed.map { it.text.removePrefix("T:") }
@@ -136,17 +136,17 @@ class DialogueSubtitlePresentationStateTest {
     @Test fun `identical text on a new occurrence does not inherit the old result`() {
         val state = DialogueSubtitlePresentationState<String>()
         state.observe(window(1), 0)
-        state.complete(event(1), listOf("はい"), "one")
+        state.complete(event(1), listOf("はい"), "one", 0)
         state.observe(window(2), 100)
         assertTrue(state.candidate(100).isEmpty())
-        state.complete(event(2), listOf("はい"), "two")
+        state.complete(event(2), listOf("はい"), "two", 101)
         assertEquals(2L, state.candidate(101).single().id)
     }
 
     @Test fun `one wrapped utterance maps only its currently visible source fragments`() {
         val state = DialogueSubtitlePresentationState<String>()
         state.observe(window(2, 3), 0)
-        state.complete(event(1, 2), listOf("first", "continuation"), "sentence")
+        state.complete(event(1, 2), listOf("first", "continuation"), "sentence", 0)
         assertEquals(listOf("continuation"), state.candidate(0).map { it.text })
     }
 
@@ -170,5 +170,173 @@ class DialogueSubtitlePresentationStateTest {
         assertTrue(state.candidate(1).isEmpty())
         state.observe(window(1), 10)
         assertEquals("T1", state.candidate(10).single().text)
+    }
+
+    @Test fun `final cached result 81ms after panel exit gets reading time from actual draw`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(41), 0)
+        state.observe(emptyList(), 1_000, endingRows = window(41))
+        assertTrue(state.candidate(1_000).isEmpty())
+        state.observe(emptyList(), 1_080)
+        assertTrue(state.candidate(1_080).isEmpty())
+        state.ready(41, now = 1_081)
+        val final = state.candidate(1_081)
+        assertEquals("T41", final.single().text)
+        assertTrue(state.markDrawn(final, 1_120))
+        assertEquals(final, state.candidate(3_119))
+        assertTrue(state.candidate(3_120).isEmpty())
+    }
+
+    @Test fun `boundary-only wrapped final event survives ID clearing and slow screenshot delivery`() {
+        val assembler = DialogueSubtitleAssembler()
+        val state = DialogueSubtitlePresentationState<String>()
+        val rows = listOf(DialogueSubtitleRow("絶対私は忘れない。キミは、", 50f, 92f, 0.97f),
+            DialogueSubtitleRow("どうだい？", 130f, 172f, 0.97f))
+        assertTrue(assembler.observe(rows, true, 0).isEmpty())
+        state.observe(assembler.visibleSnapshot, 300, assembler.observedSnapshot, assembler.endingSnapshot)
+        assembler.observe(emptyList(), false, 400)
+        val events = assembler.observe(emptyList(), false, 1_000)
+        // Confirmation arrived on the UI later than the screenshot used for OCR.
+        state.observe(assembler.visibleSnapshot, 2_000, assembler.observedSnapshot, assembler.endingSnapshot)
+        assertTrue(state.candidate(2_000).isEmpty())
+        assertEquals(1, events.size)
+        assertEquals(rows.map { it.text }, events.flatMap { it.rows }.map { it.text })
+        for (event in events) state.complete(event, event.rows.map { "T:${it.text}" }, "cached", 2_081)
+        val final = state.candidate(2_081)
+        assertEquals(listOf(0, 1), final.map { it.slot })
+        assertEquals(rows.map { "T:${it.text}" }, final.map { it.text })
+        assertTrue(state.markDrawn(final, 2_120))
+        assertEquals(final, state.candidate(4_119))
+        assertTrue(state.candidate(4_120).isEmpty())
+    }
+
+    @Test fun `latest tentative final window preserves an already ready but never drawn result`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(1), 0); state.ready(1)
+        state.observe(window(1), 100, window(2, 3)); state.ready(2, 3, now = 100)
+        state.observe(emptyList(), 200, endingRows = window(2, 3))
+        val final = state.candidate(200)
+        assertEquals(listOf(2L, 3L), final.map { it.id })
+        assertTrue(state.markDrawn(final, 250))
+        assertEquals(final, state.candidate(2_249))
+        assertTrue(state.candidate(2_250).isEmpty())
+    }
+
+    @Test fun `result wait rejects the exact deadline even without intervening refresh`() {
+        for (completionAt in listOf(3_000L, 3_001L, 20_000L)) {
+            val state = DialogueSubtitlePresentationState<String>()
+            state.observe(window(1), 0)
+            state.observe(emptyList(), 1_000, endingRows = window(1))
+            state.ready(1, now = completionAt)
+            assertTrue(state.candidate(completionAt).isEmpty())
+            state.observe(emptyList(), completionAt + 1, endingRows = window(1))
+            state.ready(1, now = completionAt + 1)
+            assertTrue(state.candidate(completionAt + 1).isEmpty())
+        }
+    }
+
+    @Test fun `last accepted result can get its first draw after wait but never past hard limit`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(1), 0)
+        state.observe(emptyList(), 1_000, endingRows = window(1))
+        state.ready(1, now = 2_999)
+        val final = state.candidate(3_500)
+        assertEquals("T1", final.single().text)
+        assertTrue(state.markDrawn(final, 3_500))
+        assertEquals(final, state.candidate(4_999))
+        assertTrue(state.candidate(5_000).isEmpty())
+        assertFalse(state.markDrawn(final, 5_001))
+    }
+
+    @Test fun `ready final result without a draw callback still expires at hard limit`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(1), 0); state.ready(1)
+        state.observe(emptyList(), 1_000, endingRows = window(1))
+        assertEquals("T1", state.candidate(4_999).single().text)
+        assertTrue(state.candidate(5_000).isEmpty())
+    }
+
+    @Test fun `repeated blanks and duplicate draw callbacks cannot extend final read time`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(1, 2), 0)
+        state.observe(emptyList(), 1_000, endingRows = window(1, 2))
+        state.ready(1, 2, now = 1_100)
+        val final = state.candidate(1_120)
+        assertTrue(state.markDrawn(final, 1_120))
+        state.observe(emptyList(), 3_000, endingRows = window(1, 2))
+        assertTrue(state.markDrawn(final, 3_119))
+        assertTrue(state.candidate(3_120).isEmpty())
+        state.observe(emptyList(), 3_121, endingRows = window(1, 2))
+        assertTrue(state.candidate(3_121).isEmpty())
+    }
+
+    @Test fun `already drawn final window keeps its original disappearance tail`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(1, 2), 0); state.ready(1, 2)
+        val drawn = state.candidate(10)
+        assertTrue(state.markDrawn(drawn, 10))
+        state.observe(emptyList(), 1_000, endingRows = window(1, 2))
+        assertTrue(state.markDrawn(state.candidate(2_999), 2_999))
+        assertTrue(state.candidate(3_000).isEmpty())
+    }
+
+    @Test fun `separate final rows keep slots and each first draw extends reading once within cap`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(1, 2), 0)
+        state.observe(emptyList(), 1_000, endingRows = window(1, 2))
+        state.ready(2, now = 1_500)
+        val lower = state.candidate(1_500)
+        assertEquals(listOf(2L to 1), lower.map { it.id to it.slot })
+        assertTrue(state.markDrawn(lower, 1_600))
+        state.ready(1, now = 2_999)
+        val both = state.candidate(3_100)
+        assertEquals(listOf(1L to 0, 2L to 1), both.map { it.id to it.slot })
+        assertTrue(state.markDrawn(both, 3_100))
+        assertTrue(state.markDrawn(both, 4_999))
+        assertTrue(state.candidate(5_000).isEmpty())
+    }
+
+    @Test fun `unrelated late results stay excluded while final window is waiting`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(1, 2), 0)
+        state.observe(window(3, 4), 100)
+        state.observe(emptyList(), 200, endingRows = window(3, 4))
+        state.ready(1, 2, now = 300)
+        assertTrue(state.candidate(300).isEmpty())
+        state.ready(4, now = 400)
+        assertEquals(listOf(4L to 1), state.candidate(400).map { it.id to it.slot })
+    }
+
+    @Test fun `first new source observation preempts final grace without displaying unconfirmed text`() {
+        val state = DialogueSubtitlePresentationState<String>()
+        state.observe(window(1), 0)
+        state.observe(emptyList(), 100, endingRows = window(1))
+        state.ready(1, now = 181)
+        val old = state.candidate(181)
+        assertTrue(state.markDrawn(old, 200))
+        state.observe(emptyList(), 300, window(2))
+        state.ready(1, 2, now = 301)
+        assertTrue(state.candidate(301).isEmpty())
+        assertFalse(state.markDrawn(old, 301))
+        state.observe(window(2), 400)
+        assertEquals("T2", state.candidate(400).single().text)
+    }
+
+    @Test fun `pause and reset cancel ending grace and reject its pending or old draw callbacks`() {
+        for (reset in listOf(false, true)) {
+            val state = DialogueSubtitlePresentationState<String>()
+            state.observe(window(1, 2), 0)
+            state.observe(emptyList(), 100, endingRows = window(1, 2))
+            state.ready(1, now = 181)
+            val old = state.candidate(181)
+            if (reset) state.clear() else state.pause()
+            state.ready(2, now = 200)
+            assertTrue(state.candidate(200).isEmpty())
+            assertFalse(state.markDrawn(old, 200))
+            state.observe(emptyList(), 300)
+            assertTrue(state.candidate(300).isEmpty())
+            state.observe(window(3), 400); state.ready(3, now = 400)
+            assertEquals("T3", state.candidate(400).single().text)
+        }
     }
 }

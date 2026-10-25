@@ -119,6 +119,92 @@ class ArcMenuGeometryTest {
     @Test
     fun `a window smaller than one action is rejected without a clamp exception`() {
         assertNull(ArcMenuGeometry.layout(ArcMenuRect(0f, 0f, 30f, 30f), 0f, 0f, 64f, 54f, 46f))
+        assertNull(ArcMenuGeometry.layout(ArcMenuRect(0f, 0f, 30f, 30f), 0f, 0f, 64f, 48f, 48f,
+            allowFlattening = true))
+    }
+
+    @Test fun `compact decoration preserves two line labels and minimum touch targets`() {
+        for (labelHeight in listOf(14f, 28f, 42f, 56f)) {
+            val style = ArcMenuItemStyle.COMPACT
+            val height = style.heightDp(labelHeight)
+            assertTrue(height >= 48f)
+            assertTrue(height >= style.iconSizeDp + style.labelGapDp + labelHeight + 2f * style.verticalPaddingDp)
+            assertTrue(height < ArcMenuItemStyle.STANDARD.heightDp(labelHeight))
+        }
+    }
+
+    @Test fun `allowing an oval does not change a circular layout that already fits`() {
+        val bounds = ArcMenuRect(8f, 8f, 772f, 352f)
+        for (anchor in anchors(bounds)) {
+            val normal = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, 65f, 48f))
+            val adaptive = ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, 65f, 48f,
+                allowFlattening = true)
+            assertEquals(5, normal.capacity)
+            assertEquals(normal, adaptive)
+        }
+    }
+
+    @Test fun `short landscape keeps all five two line features by using a flatter arc`() {
+        val bounds = ArcMenuRect(8f, 8f, 772f, 272f)
+        val height = ArcMenuItemStyle.COMPACT.heightDp(28f)
+        for (anchor in anchors(bounds)) {
+            val circular = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, height, 48f))
+            val oval = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, height, 48f,
+                allowFlattening = true))
+            assertTrue(circular.capacity < 5)
+            assertEquals(5, oval.capacity)
+            oval.actions.forEach { assertEquals(64f, it.width, EPSILON); assertEquals(height, it.height, EPSILON) }
+            assertEquals(48f, oval.navigation.width, EPSILON)
+            assertSafe(bounds, oval)
+            assertEquals(2, ArcMenuGeometry.pageIndices(oval.capacity, listOf(5, 4)).size)
+            val rects = oval.actions + oval.navigation
+            assertTrue(rects.maxOf { it.bottom } - rects.minOf { it.top } < 256f)
+        }
+    }
+
+    @Test fun `single line labels fit five full touch targets in a 240dp landscape window`() {
+        val bounds = ArcMenuRect(8f, 8f, 772f, 232f)
+        for (anchor in anchors(bounds)) {
+            val layout = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second,
+                64f, ArcMenuItemStyle.COMPACT.heightDp(14f), 48f, allowFlattening = true))
+            assertEquals(5, layout.capacity)
+            assertSafe(bounds, layout)
+        }
+    }
+
+    @Test fun `a narrow window uses available height before giving up an oval action slot`() {
+        val bounds = ArcMenuRect(8f, 8f, 472f, 352f)
+        val height = ArcMenuItemStyle.COMPACT.heightDp(56f)
+        for (anchor in anchors(bounds)) {
+            val layout = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second,
+                112f, height, 64f, allowFlattening = true))
+            assertEquals(4, layout.capacity)
+            assertSafe(bounds, layout)
+        }
+    }
+
+    @Test fun `oval layouts paginate large labels without clipping or overlapping touch targets`() {
+        for (width in listOf(320f, 360f, 640f, 780f)) for (height in listOf(180f, 240f, 280f, 320f, 360f)) {
+            val bounds = ArcMenuRect(8f, 8f, width - 8f, height - 8f)
+            for ((pillWidth, pillHeight, navSize) in listOf(Triple(64f, 48f, 48f), Triple(64f, 58f, 48f),
+                Triple(112f, ArcMenuItemStyle.COMPACT.heightDp(56f), 64f), Triple(144f, 140f, 72f))) {
+                for (anchor in anchors(bounds) + listOf(-100f to -100f, 1_000f to 1_000f)) {
+                    val circular = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second,
+                        pillWidth, pillHeight, navSize))
+                    val oval = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second,
+                        pillWidth, pillHeight, navSize, allowFlattening = true))
+                    assertTrue(oval.capacity >= circular.capacity)
+                    oval.actions.forEach {
+                        assertEquals(pillWidth, it.width, EPSILON)
+                        assertEquals(pillHeight, it.height, EPSILON)
+                    }
+                    assertSafe(bounds, oval)
+                    val pages = ArcMenuGeometry.pageIndices(oval.capacity, listOf(5, 4))
+                    assertEquals((0..8).toList(), pages.flatten())
+                    assertTrue(pages.all { page -> page.all { it < 5 } || page.all { it >= 5 } })
+                }
+            }
+        }
     }
 
     @Test

@@ -138,7 +138,7 @@ class OverlayConfigurationWorkflowTest {
         assertTrue(sizing.contains("setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp.toFloat())"))
         assertTrue(sizing.contains("setPadding(dp(10), dp(6), dp(10), dp(6))"))
         assertTrue(sizing.contains("cornerRadius = dp(10).toFloat()"))
-        assertTrue(sizing.contains("ViewConfiguration.get(context).scaledTouchSlop"))
+        assertTrue(sizing.contains("ViewConfiguration.get(view.context).scaledTouchSlop"))
         assertTrue(function(voice, "ensureView").contains("applyViewSizing(this)"))
     }
 
@@ -146,8 +146,13 @@ class OverlayConfigurationWorkflowTest {
     fun `subtitle configuration refresh neither reconnects voice nor adds OCR or API work`() {
         val voice = source("speech/VoiceSubtitleOverlay.kt")
         assertTrue(voice.contains("override fun onConfigurationChanged(newConfig: Configuration) = onDisplayChanged()"))
-        assertTrue(function(voice, "ensureView").contains("context.registerComponentCallbacks(componentCallbacks)"))
-        assertTrue(function(voice, "destroy").contains("context.unregisterComponentCallbacks(componentCallbacks)"))
+        assertTrue(function(voice, "ensureView").contains("windowContext.registerComponentCallbacks(componentCallbacks)"))
+        assertTrue(function(voice, "destroy").contains("windowContext.unregisterComponentCallbacks(componentCallbacks)"))
+        assertTrue(voice.contains("private val windowContext: Context by lazy"))
+        assertTrue(voice.contains("private val windowManager by lazy { windowContext.getSystemService(WindowManager::class.java) }"))
+        assertTrue(voice.contains(".createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null)"))
+        assertTrue(function(voice, "ensureView").contains("TextView(captionContext)"))
+        assertTrue(function(voice, "dp").contains("windowContext.resources.displayMetrics.density"))
         val controller = function(source("speech/RealtimeVoiceTranslationController.kt"), "onDisplayChanged")
         assertTrue(controller.contains("subtitleOverlay.onDisplayChanged()"))
         assertFalse(controller.contains("start("))

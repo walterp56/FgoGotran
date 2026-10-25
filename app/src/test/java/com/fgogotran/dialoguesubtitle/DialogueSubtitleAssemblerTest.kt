@@ -179,4 +179,71 @@ class DialogueSubtitleAssemblerTest {
         assembler.observe(listOf(row("はい。")), true, 2_000)
         assertEquals(listOf("はい。"), assembler.observe(listOf(row("はい。")), true, 2_800).map { it.source })
     }
+
+    @Test fun `panel exit emits ending identities once including a not yet confirmed final row`() {
+        val assembler = DialogueSubtitleAssembler()
+        assembler.observe(listOf(row("最初。")), true, 0)
+        assembler.observe(listOf(row("最初。")), true, 800)
+        assembler.observe(listOf(row("最後。", true)), true, 1_000)
+        val final = assembler.observedSnapshot
+        assertTrue(final != assembler.visibleSnapshot)
+        assertEquals(1, final.single().slot)
+        assembler.observe(emptyList(), false, 1_200)
+        assertNull(assembler.endingSnapshot)
+        val events = assembler.observe(emptyList(), false, 1_800)
+        assertEquals(final, assembler.endingSnapshot)
+        assertEquals(final.map { it.id }, events.flatMap { it.rows }.map { it.id })
+        assertEquals(emptyList(), assembler.visibleSnapshot)
+        assertTrue(assembler.observedSnapshot.isEmpty())
+        assembler.observe(emptyList(), false, 2_400)
+        assertNull(assembler.endingSnapshot)
+        assembler.observe(emptyList(), false, 3_000)
+        assertNull(assembler.endingSnapshot)
+    }
+
+    @Test fun `confirmed blank captures ending once and later panel exit does not restart it`() {
+        val assembler = DialogueSubtitleAssembler()
+        assembler.observe(listOf(row("はい。")), true, 0)
+        assembler.observe(listOf(row("はい。")), true, 800)
+        val final = assembler.visibleSnapshot
+        assembler.observe(emptyList(), true, 1_000)
+        assertNull(assembler.endingSnapshot)
+        assembler.observe(emptyList(), true, 1_600)
+        assertEquals(final, assembler.endingSnapshot)
+        assembler.observe(emptyList(), true, 1_800)
+        assertNull(assembler.endingSnapshot)
+        assembler.observe(emptyList(), false, 2_000)
+        assembler.observe(emptyList(), false, 2_600)
+        assertNull(assembler.endingSnapshot)
+    }
+
+    @Test fun `ending metadata does not promote weak OCR or add translation requests`() {
+        val assembler = DialogueSubtitleAssembler()
+        assembler.observe(listOf(row("不確か。").copy(confidence = 0.6f)), true, 0)
+        val final = assembler.observedSnapshot
+        assembler.observe(emptyList(), false, 400)
+        assertTrue(assembler.observe(emptyList(), false, 1_000).isEmpty())
+        assertEquals(final, assembler.endingSnapshot)
+        assembler.observe(emptyList(), false, 1_600)
+        assertTrue(assembler.observe(emptyList(), false, 2_200).isEmpty())
+        assertNull(assembler.endingSnapshot)
+    }
+
+    @Test fun `unknown observations never declare an ending and clear removes old ending identities`() {
+        val assembler = DialogueSubtitleAssembler()
+        assembler.observe(listOf(row("はい。")), true, 0)
+        assembler.observe(listOf(row("はい。")), true, 800)
+        val first = assembler.observedSnapshot.single().id
+        assembler.observationUnavailable()
+        assertNull(assembler.endingSnapshot)
+        assembler.observe(emptyList(), false, 1_000)
+        assembler.observe(emptyList(), false, 1_600)
+        assertEquals(first, assembler.endingSnapshot!!.single().id)
+        assembler.requireFreshSnapshot()
+        assertNull(assembler.endingSnapshot)
+        assembler.clear()
+        assertNull(assembler.endingSnapshot)
+        assembler.observe(listOf(row("はい。")), true, 2_000)
+        assertTrue(assembler.observedSnapshot.single().id > first)
+    }
 }

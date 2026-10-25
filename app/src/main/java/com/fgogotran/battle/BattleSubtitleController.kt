@@ -313,6 +313,7 @@ class BattleSubtitleController @Inject constructor(
 
         val shown = overlay?.show(
             result.translatedText,
+            result.targetLocale,
             screenWidth,
             screenHeight
         ) {

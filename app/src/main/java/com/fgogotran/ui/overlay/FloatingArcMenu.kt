@@ -119,7 +119,7 @@ fun FloatingArcMenu(
             )
         }
         val labels = allSlots.map { it.label }
-        val pillSize = remember(labels, labelStyle, textMeasurer, density, bounds.width) {
+        val labelSize = remember(labels, labelStyle, textMeasurer, density, bounds.width) {
             // Measure actual localized captions at the current Android font setting, with at most two lines.
             val widths = (listOf(64f, 80f, 96f, 112f, 128f, 144f) + bounds.width)
                 .map { it.coerceAtMost(bounds.width).coerceAtLeast(1f) }.distinct()
@@ -136,14 +136,22 @@ fun FloatingArcMenu(
                 .firstOrNull { (_, results) -> results.none { it.hasVisualOverflow } }
                 ?: measureLabels(widths.last())
             val labelHeight = with(density) { measured.maxOf { it.size.height }.toDp().value }
-            width to maxOf(54f, 20f + 3f + labelHeight + 12f + 2f)
+            width to labelHeight
         }
         val navMeasurement = textMeasurer.measure("›", navigationStyle)
-        val navSize = maxOf(46f, with(density) { maxOf(navMeasurement.size.width, navMeasurement.size.height).toDp().value } + 12f)
-        val layout = ArcMenuGeometry.layout(
-            bounds, with(density) { buttonCenterX.toDp().value }, with(density) { buttonCenterY.toDp().value },
-            pillSize.first, pillSize.second, navSize
-        ) ?: return@BoxWithConstraints // A window smaller than one action plus navigation cannot host an arc.
+        val navSize = maxOf(48f, with(density) { maxOf(navMeasurement.size.width, navMeasurement.size.height).toDp().value } + 12f)
+        val anchorX = with(density) { buttonCenterX.toDp().value }
+        val anchorY = with(density) { buttonCenterY.toDp().value }
+        val standardLayout = ArcMenuGeometry.layout(
+            bounds, anchorX, anchorY, labelSize.first, ArcMenuItemStyle.STANDARD.heightDp(labelSize.second), navSize)
+        // Preserve the normal arc when all features fit; compact before adding overflow pages.
+        val itemStyle = if (standardLayout?.capacity == features.size)
+            ArcMenuItemStyle.STANDARD else ArcMenuItemStyle.COMPACT
+        val layout = if (itemStyle == ArcMenuItemStyle.STANDARD) standardLayout else ArcMenuGeometry.layout(
+            bounds, anchorX, anchorY, labelSize.first, itemStyle.heightDp(labelSize.second), navSize,
+            allowFlattening = true
+        )
+        if (layout == null) return@BoxWithConstraints // Even one action plus navigation cannot fit.
         val groupSizes = listOf(features.size, modes.size)
         val pages = ArcMenuGeometry.pageIndices(layout.capacity, groupSizes)
         var page by remember(layout.capacity, groupSizes) { mutableStateOf(0) }
@@ -154,6 +162,7 @@ fun FloatingArcMenu(
             ArcSector(
                 slot = slot,
                 labelStyle = labelStyle,
+                itemStyle = itemStyle,
                 modifier = Modifier
                     .offset(x = rect.left.dp, y = rect.top.dp)
                     .size(rect.width.dp, rect.height.dp)
@@ -263,6 +272,7 @@ private fun modeSlots(
 private fun ArcSector(
     slot: ArcSlot,
     labelStyle: TextStyle,
+    itemStyle: ArcMenuItemStyle,
     modifier: Modifier
 ) {
     val background = when {
@@ -285,7 +295,7 @@ private fun ArcSector(
             .clickable(enabled = slot.enabled, onClick = slot.onClick)
             .padding(
                 horizontal = 4.dp,
-                vertical = 6.dp
+                vertical = itemStyle.verticalPaddingDp.dp
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -297,10 +307,10 @@ private fun ArcSector(
                 icon = slot.icon,
                 color = contentColor,
                 contentScale = 1f,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(itemStyle.iconSizeDp.dp)
             )
         }
-        Spacer(modifier = Modifier.size(3.dp))
+        Spacer(modifier = Modifier.size(itemStyle.labelGapDp.dp))
         Text(
             text = slot.label,
             color = contentColor,
