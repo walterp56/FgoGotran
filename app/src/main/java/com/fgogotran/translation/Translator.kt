@@ -96,7 +96,8 @@ data class TranslateResult(
     val isFailure: Boolean = false,
     val apiUsage: TranslationApiUsage? = null,
     // Known status/error output is still rendered as before, but is not successful use.
-    val countsAsUsage: Boolean = true
+    val countsAsUsage: Boolean = true,
+    val dialogueSubtitleRows: List<String> = emptyList()
 )
 
 data class ApiSettingsTestResult(
@@ -990,7 +991,8 @@ class Translator @Inject constructor(
         translateAsName: Boolean = false,
         nameHints: List<NameTranslationHint> = emptyList(),
         forceFreshTranslation: Boolean = false,
-        subtitleReferenceJapanese: List<String> = emptyList()
+        subtitleReferenceJapanese: List<String> = emptyList(),
+        subtitleRowCount: Int = 0
     ): TranslateResult {
         val rawNormalizedText = TextNormalizer.normalizeForTranslation(japaneseText)
         if (rawNormalizedText.isBlank()) {
@@ -1014,6 +1016,10 @@ class Translator @Inject constructor(
         val normalizedText = correctPlayerNameOcr(normalizedSourceText, playerName, "TEXT")
         val isBattleSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
         val isSpokenSubtitle = promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
+        require(subtitleRowCount >= 0 &&
+            (subtitleRowCount == 0 || (isSpokenSubtitle && !cropMode && !translateAsName && !translateAsChoices)))
+        val alignedSubtitleRows = subtitleRowCount.takeIf { it > 1 } ?: 0
+        require(alignedSubtitleRows == 0 || normalizedText.lines().size == alignedSubtitleRows)
         val subtitleReferences = if (isSpokenSubtitle) prepareDialogueSubtitleReferences(subtitleReferenceJapanese) else emptyList()
         val normalizedChoices = if (isBattleSubtitle || isSpokenSubtitle) {
             emptyList()
@@ -1024,14 +1030,14 @@ class Translator @Inject constructor(
                     ?.let { correctPlayerNameOcr(it, playerName, "CHOICE[$index]") }
             }
         }
-        val punctuationSourceText = normalizedText.takeIf { restoreSourcePunctuation }
+        val punctuationSourceText = normalizedText.takeIf { restoreSourcePunctuation && alignedSubtitleRows == 0 }
         if (!cropMode && !translateAsChoices && !translateAsName &&
-            TextNormalizer.isPunctuationOnlyDialogue(normalizedText)
+            alignedSubtitleRows == 0 && TextNormalizer.isPunctuationOnlyDialogue(normalizedText)
         ) {
             return TranslateResult(normalizedText, "source-punctuation", true, trustedForContext = false)
                 .forTargetLocale(config, punctuationSourceText)
         }
-        maskedSourceFallback(normalizedText)?.let {
+        maskedSourceFallback(normalizedText)?.takeIf { alignedSubtitleRows == 0 }?.let {
             return it.forTargetLocale(config, punctuationSourceText)
         }
         if (!TextNormalizer.hasTranslatableContent(normalizedText)) {
@@ -1049,7 +1055,7 @@ class Translator @Inject constructor(
                         .forTargetLocale(config, punctuationSourceText)
                 }
             }
-        } else {
+        } else if (alignedSubtitleRows == 0) {
             if (!forceFreshTranslation) translationMemory.lookupNormalized(normalizedText)?.let {
                 FgoLogger.info(tag, "Official CN memory HIT")
                 return TranslateResult(
@@ -1129,7 +1135,8 @@ class Translator @Inject constructor(
             "dialogue-source-context-v1:" + hashText(buildDialogueSubtitleReferencePrompt(subtitleReferences))
         } else sceneContextCachePolicyKey(activePreviousDialogueContexts, general = !useSakuraPrompt)
         val promptPolicyKey = when {
-            isSpokenSubtitle -> PromptBuilder.dialogueSubtitlePromptVersion(config.targetLanguage)
+            isSpokenSubtitle -> PromptBuilder.dialogueSubtitlePromptVersion(config.targetLanguage) +
+                ":rows=$subtitleRowCount"
             isBattleSubtitle ->
                 PromptBuilder.promptVersionFor(config.targetLanguage, battleSubtitle = true)
             cropMode -> if (useSakuraPrompt) "crop-screen-v2" else "crop-screen-v3"
@@ -1188,9 +1195,12 @@ class Translator @Inject constructor(
         logSceneContext("single", activePreviousDialogueContexts)
 
         if (cacheReadEnabled) {
-            lookupCachedTranslation(hash, normalizedText, playerName, "Cache", cacheKeyInfo.parts, targetLanguage = config.targetLanguage, general = !useSakuraPrompt)?.let { cached ->
+            lookupCachedTranslation(hash, normalizedText, playerName, "Cache", cacheKeyInfo.parts,
+                targetLanguage = config.targetLanguage, general = !useSakuraPrompt,
+                subtitleRowCount = alignedSubtitleRows)?.let { cached ->
                 return TranslateResult(cached, "cache", true)
                     .forTargetLocale(config, punctuationSourceText)
+                    .withDialogueSubtitleRows(subtitleRowCount)
             }
         } else {
             logCacheMiss(
@@ -1225,7 +1235,7 @@ class Translator @Inject constructor(
             targetLanguage = promptTargetLanguage(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
-            outputFormat = if (cropMode) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
+            outputFormat = if (cropMode || alignedSubtitleRows > 0) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
             sourceText = protectedInput.text,
             choiceTexts = protectedChoiceTexts,
             targetLanguage = promptTargetLanguage(config),
@@ -1279,7 +1289,9 @@ class Translator @Inject constructor(
         val userPrompt = if (isSpokenSubtitle && !useSakuraPrompt) {
             buildString {
                 appendPromptSectionText(buildDialogueSubtitleReferencePrompt(subtitleReferences))
-                appendPromptSectionText(promptBuilder.buildUserPrompt(protectedInput.text, emptyList(), promptGlossaryEntries))
+                appendPromptSectionText(if (alignedSubtitleRows > 0) {
+                    promptBuilder.buildDialogueSubtitleRowsPrompt(protectedInput.text.lines(), promptGlossaryEntries)
+                } else promptBuilder.buildUserPrompt(protectedInput.text, emptyList(), promptGlossaryEntries))
             }
         } else if (cropMode) {
             if (useSakuraPrompt) {
@@ -1383,7 +1395,8 @@ class Translator @Inject constructor(
                 it,
                 config,
                 cropMode,
-                allowPlainLineResult = useSakuraPrompt
+                allowPlainLineResult = useSakuraPrompt,
+                subtitleRowCount = alignedSubtitleRows
             )
         }.orEmpty()
         simplifiedResult = enforceMaskedTranslationPolicy(normalizedText, simplifiedResult)
@@ -1442,7 +1455,8 @@ class Translator @Inject constructor(
                     translateAsName = translateAsName,
                     retryStage = attempt - attemptsUsed,
                     glossaryEntries = matchedGlossaryEntries,
-                    generalInitialMessages = messages.takeUnless { useSakuraPrompt }
+                    generalInitialMessages = messages.takeUnless { useSakuraPrompt },
+                    subtitleRowCount = alignedSubtitleRows
                 ) ?: continue
                 val retryText = enforceMaskedTranslationPolicy(normalizedText, retryResult.text)
                 if (retryText.isBlank()) continue
@@ -1501,7 +1515,8 @@ class Translator @Inject constructor(
                 playerName,
                 promptVersion = translationPromptVersion(config),
                 targetLanguage = config.targetLanguage,
-                general = !useSakuraPrompt
+                general = !useSakuraPrompt,
+                subtitleRowCount = alignedSubtitleRows
             )
         }
 
@@ -1512,7 +1527,7 @@ class Translator @Inject constructor(
             cached = false,
             config = config,
             trustedForContext = canCacheResult
-        ).forTargetLocale(config, punctuationSourceText)
+        ).forTargetLocale(config, punctuationSourceText).withDialogueSubtitleRows(subtitleRowCount)
     }
 
     suspend fun translateBatch(
@@ -2857,6 +2872,13 @@ class Translator @Inject constructor(
         }
     }
 
+    private fun TranslateResult.withDialogueSubtitleRows(count: Int): TranslateResult {
+        if (count <= 0 || isFailure) return this
+        val rows = dialogueSubtitleTranslatedRows(translatedText, count)
+            ?: return copy(isFailure = true, trustedForContext = false, countsAsUsage = false)
+        return copy(translatedText = rows.joinToString("\n"), dialogueSubtitleRows = rows)
+    }
+
     private fun List<TranslateResult?>.completeForTargetLocale(
         config: RuntimeConfig,
         sourceTexts: List<String>
@@ -4019,11 +4041,12 @@ class Translator @Inject constructor(
         label: String,
         keyParts: String = "",
         targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
-        general: Boolean = false
+        general: Boolean = false,
+        subtitleRowCount: Int = 0
     ): String? {
         var rejectedFromMemory = false
         getMemoryCachedTranslation(hash)?.let { cached ->
-            validateCachedTranslation(hash, sourceText, cached, playerName, targetLanguage, general)?.let { validCached ->
+            validateCachedTranslation(hash, sourceText, cached, playerName, targetLanguage, general, subtitleRowCount)?.let { validCached ->
                 FgoLogger.info(tag, "$label memory HIT, hash=${hash.take(8)}...")
                 return validCached
             }
@@ -4044,7 +4067,7 @@ class Translator @Inject constructor(
             logCacheMiss(label, CACHE_MISS_CACHED_EMPTY, hash, keyParts)
             return null
         }
-        val validCached = validateCachedTranslation(hash, sourceText, cached, playerName, targetLanguage, general)
+        val validCached = validateCachedTranslation(hash, sourceText, cached, playerName, targetLanguage, general, subtitleRowCount)
         if (validCached == null) {
             logCacheMiss(label, CACHE_MISS_CACHED_UNSAFE, hash, keyParts)
             return null
@@ -4088,9 +4111,17 @@ class Translator @Inject constructor(
         cachedText: String,
         playerName: String,
         targetLanguage: String,
-        general: Boolean = false
+        general: Boolean = false,
+        subtitleRowCount: Int = 0
     ): String? {
-        val simplified = sanitizeCacheTranslation(sourceText, cachedText, targetLanguage)
+        val simplified = if (subtitleRowCount > 1) {
+            sanitizeDialogueSubtitleCacheRows(sourceText, cachedText, targetLanguage, subtitleRowCount)
+        } else sanitizeCacheTranslation(sourceText, cachedText, targetLanguage)
+        if (subtitleRowCount > 1 && simplified.isBlank()) {
+            removeMemoryCachedTranslation(hash)
+            cacheDao.deleteByHash(hash)
+            return null
+        }
         val maskedSafe = enforceMaskedTranslationPolicy(sourceText, simplified)
         if (general && maskedSafe.isBlank()) {
             removeMemoryCachedTranslation(hash)
@@ -4431,6 +4462,17 @@ class Translator @Inject constructor(
         }
     }
 
+    private fun sanitizeDialogueSubtitleCacheRows(
+        source: String, translated: String, target: String, count: Int
+    ): String {
+        val sources = source.lines()
+        val rows = dialogueSubtitleTranslatedRows(translated, count) ?: return ""
+        if (sources.size != count) return ""
+        return rows.mapIndexed { index, row ->
+            sanitizeCacheTranslation(sources[index], row, target).asSingleCropRow()
+        }.takeIf { it.all(String::isNotBlank) }?.joinToString("\n").orEmpty()
+    }
+
     private fun sanitizeEnglishModelTranslation(sourceText: String, translatedText: String): String {
         val lineBreakNormalized = normalizeEscapedTranslationLineBreaks(sourceText, translatedText)
         if (lineBreakNormalized != translatedText) {
@@ -4460,8 +4502,20 @@ class Translator @Inject constructor(
         translatedText: String,
         config: RuntimeConfig,
         cropMode: Boolean,
-        allowPlainLineResult: Boolean = false
+        allowPlainLineResult: Boolean = false,
+        subtitleRowCount: Int = 0
     ): String {
+        if (subtitleRowCount > 1) {
+            val sourceRows = sourceText.lines()
+            if (sourceRows.size != subtitleRowCount) return ""
+            val rows = if (allowPlainLineResult) {
+                // Sakura's official template stays intact; only exact multiline output is aligned.
+                dialogueSubtitleTranslatedRows(translatedText, subtitleRowCount)
+            } else parseCropTranslationResult(translatedText, subtitleRowCount, strictGeneral = true)
+            return rows?.mapIndexed { index, row ->
+                sanitizeModelTranslation(sourceRows[index], row, config).asSingleCropRow()
+            }?.takeIf { it.all(String::isNotBlank) }?.joinToString("\n").orEmpty()
+        }
         if (!cropMode) return sanitizeModelTranslation(sourceText, translatedText, config)
         val sourceLines = cropTranslationSourceLines(sourceText)
         val translatedLines = parseCropTranslationResult(
@@ -5549,9 +5603,13 @@ class Translator @Inject constructor(
         playerName: String,
         promptVersion: String,
         targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
-        general: Boolean = false
+        general: Boolean = false,
+        subtitleRowCount: Int = 0
     ) {
-        val simplified = sanitizeCacheTranslation(normalizedText, translatedText, targetLanguage)
+        val simplified = if (subtitleRowCount > 1) {
+            sanitizeDialogueSubtitleCacheRows(normalizedText, translatedText, targetLanguage, subtitleRowCount)
+        } else sanitizeCacheTranslation(normalizedText, translatedText, targetLanguage)
+        if (subtitleRowCount > 1 && simplified.isBlank()) return
         if (general && simplified.isBlank()) return
         val safety = classifyTranslationSafety(normalizedText, simplified, playerName)
         if (safety.status != TranslationSafetyStatus.OK) {
@@ -5845,7 +5903,8 @@ class Translator @Inject constructor(
         translateAsName: Boolean = false,
         retryStage: Int = 1,
         glossaryEntries: List<TranslationGlossaryEntry> = emptyList(),
-        generalInitialMessages: List<ChatMessage>? = null
+        generalInitialMessages: List<ChatMessage>? = null,
+        subtitleRowCount: Int = 0
     ): TranslationRepairResult? {
         val useSakuraPrompt = usesSakuraPrompt(config)
         val retryMessages = if (useSakuraPrompt) {
@@ -5922,7 +5981,8 @@ class Translator @Inject constructor(
             retryRestored,
             config,
             cropMode,
-            allowPlainLineResult = useSakuraPrompt
+            allowPlainLineResult = useSakuraPrompt,
+            subtitleRowCount = subtitleRowCount
         )
         if (retrySimplified.isBlank()) return null
         if (looksUntranslated(normalizedText, retrySimplified, playerName)) {

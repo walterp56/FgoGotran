@@ -2,7 +2,12 @@ package com.fgogotran.dialoguesubtitle
 
 import kotlin.math.abs
 
-data class DialogueSubtitleEvent(val id: Long, val source: String, val startedAt: Long)
+data class DialogueSubtitleSourceRow(val id: Long, val text: String)
+data class DialogueSubtitleVisibleRow(val id: Long, val slot: Int)
+data class DialogueSubtitleEvent(
+    val id: Long, val source: String, val startedAt: Long,
+    val rows: List<DialogueSubtitleSourceRow> = listOf(DialogueSubtitleSourceRow(id, source))
+)
 
 /**
  * Tracks row occurrences through typewriter growth and lower-to-upper scrolling.
@@ -24,7 +29,14 @@ class DialogueSubtitleAssembler {
     private var visible = emptyList<Row>()
     private var absenceAt: Long? = null
     private var blankAt: Long? = null
-    val needsConfirmation: Boolean get() = pending.isNotEmpty() || absenceAt != null
+    private var candidateWindow: List<DialogueSubtitleVisibleRow>? = null
+    /** Null means observation is not yet confirmed; empty means confirmed blank/absent. */
+    var visibleSnapshot: List<DialogueSubtitleVisibleRow>? = null
+        private set
+    var observedSnapshot: List<DialogueSubtitleVisibleRow> = emptyList()
+        private set
+    val needsConfirmation: Boolean get() = pending.isNotEmpty() || absenceAt != null ||
+        (blankAt != null && visibleSnapshot?.isEmpty() != true) || candidateWindow != null || visibleSnapshot == null
     var playbackEnded = false
         private set
 
@@ -34,15 +46,22 @@ class DialogueSubtitleAssembler {
             val absent = absenceAt
             if (absent == null) { absenceAt = now; return emptyList() }
             if (now - absent < ABSENCE_MS) return emptyList()
+            val hadPlayback = visible.isNotEmpty() || pending.isNotEmpty()
             val events = emitReady(now, boundary = true)
             clear()
-            playbackEnded = true
+            visibleSnapshot = emptyList()
+            playbackEnded = hadPlayback
             return events
         }
         absenceAt = null
         if (rows.isEmpty()) {
             if (blankAt == null) blankAt = now
-            if (now - blankAt!! >= ABSENCE_MS) visible = emptyList()
+            if (now - blankAt!! >= ABSENCE_MS) {
+                visible = emptyList()
+                visibleSnapshot = emptyList()
+                observedSnapshot = emptyList()
+                candidateWindow = null
+            }
             return emitReady(now)
         }
         blankAt = null
@@ -84,6 +103,17 @@ class DialogueSubtitleAssembler {
             next += row
         }
         visible = next
+        val window = next.mapIndexed { index, row ->
+            val slot = if (next.size == 2) index else
+                if ((row.top + row.bottom) / 2 < DialogueSubtitleLayout.text.height / 2f) 0 else 1
+            DialogueSubtitleVisibleRow(row.id, slot)
+        }
+        observedSnapshot = window
+        // Confirm row membership independently of typewriter growth/translation readiness.
+        if (window == visibleSnapshot || window == candidateWindow) {
+            visibleSnapshot = window
+            candidateWindow = null
+        } else candidateWindow = window
         return emitReady(now)
     }
 
@@ -109,7 +139,7 @@ class DialogueSubtitleAssembler {
                     // An uncertain trailing row must not erase an already confirmed leading fragment.
                     val prefix = rows.takeWhile { it.reads >= 2 }
                     if (prefix.isNotEmpty()) {
-                        output += DialogueSubtitleEvent(prefix.first().id, prefix.joinToString("") { it.text }, prefix.first().startedAt)
+                        output += event(prefix)
                         prefix.forEach { it.committed = true }
                         pending.subList(0, prefix.size).clear()
                     } else pending.removeAt(0) // Weak one-frame noise is not a captured utterance.
@@ -117,8 +147,7 @@ class DialogueSubtitleAssembler {
                 }
                 break
             }
-            val source = rows.joinToString("") { it.text }
-            output += DialogueSubtitleEvent(rows.first().id, source, rows.first().startedAt)
+            output += event(rows)
             rows.forEach { it.committed = true }
             pending.subList(0, rows.size).clear()
         }
@@ -126,7 +155,15 @@ class DialogueSubtitleAssembler {
     }
 
     /** Failed captures are unknown, not proof that playback ended. */
-    fun observationUnavailable() { absenceAt = null; blankAt = null }
+    fun observationUnavailable() { absenceAt = null; blankAt = null; candidateWindow = null }
+
+    /** Keep occurrence identities across a pause, but don't redisplay without fresh observations. */
+    fun requireFreshSnapshot() { observationUnavailable(); visibleSnapshot = null }
+
+    private fun event(rows: List<Row>) = DialogueSubtitleEvent(
+        rows.first().id, rows.joinToString("") { it.text }, rows.first().startedAt,
+        rows.map { DialogueSubtitleSourceRow(it.id, it.text) }
+    )
 
     /** An explicit observation gap must not join a later unrelated row onto an old fragment. */
     fun suspendContinuations(now: Long): List<DialogueSubtitleEvent> = emitReady(now, boundary = true)
@@ -134,6 +171,7 @@ class DialogueSubtitleAssembler {
     /** Don't reset IDs: an old asynchronous callback must never identify a new occurrence. */
     fun clear() {
         pending.clear(); visible = emptyList(); absenceAt = null; blankAt = null
+        candidateWindow = null; visibleSnapshot = null; observedSnapshot = emptyList()
         playbackEnded = false
     }
 

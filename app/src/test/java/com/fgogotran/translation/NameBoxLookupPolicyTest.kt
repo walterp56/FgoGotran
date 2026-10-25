@@ -160,12 +160,14 @@ class NameBoxLookupPolicyTest {
     fun `name-only fallback cannot reenter general memory term or fuzzy shortcuts`() {
         val single = function(translatorSource(), "translate")
         val admission = single.substringAfter("if (translateAsName) {").substringBefore("val useSakuraPrompt")
-        val names = admission.substringBefore("} else {")
+        val nonNameBranch = "} else if (alignedSubtitleRows == 0) {"
+        assertTrue(admission.contains(nonNameBranch))
+        val names = admission.substringBefore(nonNameBranch)
         assertTrue(names.contains("findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage)"))
         assertTrue(names.contains("!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)"))
         for (lookup in listOf("translationMemory.lookupNormalized", "findCharacterNameTranslation(", "findTermTranslation(")) {
             assertFalse(names.contains(lookup), lookup)
-            assertTrue(admission.substringAfter("} else {").contains(lookup), lookup)
+            assertTrue(admission.substringAfter(nonNameBranch).contains(lookup), lookup)
         }
         val exact = function(translatorSource(), "findExactVisibleCharacterNameTranslation")
         assertTrue(exact.contains("NameBoxLookupPolicy.findTranslation("))

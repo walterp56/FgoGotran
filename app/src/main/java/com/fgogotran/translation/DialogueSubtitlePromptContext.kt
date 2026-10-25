@@ -18,3 +18,12 @@ internal fun buildDialogueSubtitleReferencePrompt(sources: List<String>): String
         "Previous Japanese from this playback is reference only; translate only the current Japanese. " +
             "Do not assume the same speaker.\n" + sources.joinToString("\n")
     )
+
+/** Canonical cached/output rows. Never invent alignment by splitting a translated sentence. */
+internal fun dialogueSubtitleTranslatedRows(text: String, expectedCount: Int): List<String>? {
+    if (expectedCount <= 0) return null
+    if (expectedCount == 1) return listOf(text.lineSequence().map(String::trim)
+        .filter(String::isNotEmpty).joinToString(" ")).takeIf { it.single().isNotBlank() }
+    return text.replace("\r\n", "\n").replace('\r', '\n').trim().lines().map(String::trim)
+        .takeIf { it.size == expectedCount && it.all(String::isNotBlank) }
+}

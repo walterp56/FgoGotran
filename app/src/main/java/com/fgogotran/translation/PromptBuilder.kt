@@ -180,8 +180,8 @@ class PromptBuilder @Inject constructor() {
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v10-plain-layout"
         const val PROMPT_VERSION_EN = "jp-en-fgo-target-v5-plain-layout"
         const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v4-plain-layout"
-        const val DIALOGUE_SUBTITLE_PROMPT_VERSION = "dialogue-subtitle-v1"
-        const val DIALOGUE_SUBTITLE_PROMPT_VERSION_EN = "dialogue-subtitle-en-v1"
+        const val DIALOGUE_SUBTITLE_PROMPT_VERSION = "dialogue-subtitle-v3-source-repetition"
+        const val DIALOGUE_SUBTITLE_PROMPT_VERSION_EN = "dialogue-subtitle-en-v3-source-repetition"
 
         fun dialogueSubtitlePromptVersion(targetLanguage: String): String =
             if (SettingsRepository.normalizeTargetLanguage(targetLanguage) == SettingsRepository.TARGET_LANGUAGE_ENGLISH)
@@ -768,6 +768,18 @@ class PromptBuilder @Inject constructor() {
 
         FgoLogger.debug(tag, "Crop user prompt: ${sb.length} chars")
         return sb.toString()
+    }
+
+    internal fun buildDialogueSubtitleRowsPrompt(
+        rows: List<String>, glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
+    ): String = buildString {
+        appendGeneralTranslationGlossarySection(glossaryEntries)
+        appendPromptSection("current_japanese_rows", renderNumberedPromptItems(rows))
+        appendPromptSection("required_output",
+            "Read all rows as connected speech, not separate sentences. Return a JSON array of exactly " +
+                "${rows.size} nonempty translation strings in source-row order, one corresponding fragment per row. " +
+                "Preserve the full meaning across row boundaries, including repetition present in the source. " +
+                "Do not introduce duplicate content.")
     }
 
     private fun containsRuby(text: String): Boolean {

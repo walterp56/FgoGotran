@@ -144,8 +144,9 @@ fun FloatingArcMenu(
             bounds, with(density) { buttonCenterX.toDp().value }, with(density) { buttonCenterY.toDp().value },
             pillSize.first, pillSize.second, navSize
         ) ?: return@BoxWithConstraints // A window smaller than one action plus navigation cannot host an arc.
-        val pages = ArcMenuGeometry.pageIndices(layout.capacity, listOf(features.size, modes.size))
-        var page by remember(layout.capacity) { mutableStateOf(0) }
+        val groupSizes = listOf(features.size, modes.size)
+        val pages = ArcMenuGeometry.pageIndices(layout.capacity, groupSizes)
+        var page by remember(layout.capacity, groupSizes) { mutableStateOf(0) }
         val contentSlots = pages[page].map { allSlots[it] }
 
         contentSlots.forEachIndexed { index, slot ->

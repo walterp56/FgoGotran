@@ -2,9 +2,75 @@ package com.fgogotran.dialoguesubtitle
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DialogueSubtitleAssemblerTest {
+    @Test fun `confirmed visible snapshots carry IDs upward and fully replace unrelated rows`() {
+        val assembler = DialogueSubtitleAssembler()
+        assembler.observe(listOf(row("一。"), row("二。", true)), true, 0)
+        assertNull(assembler.visibleSnapshot)
+        val events = assembler.observe(listOf(row("一。"), row("二。", true)), true, 800)
+        val first = assembler.visibleSnapshot!!
+        assertEquals(events.map { it.rows.single().id }, first.map { it.id })
+        assembler.observe(listOf(row("二。"), row("三。", true)), true, 1_000)
+        assertEquals(first, assembler.visibleSnapshot)
+        assembler.observe(listOf(row("二。"), row("三。", true)), true, 1_800)
+        val carried = assembler.visibleSnapshot!!
+        assertEquals(first.last().id, carried.first().id)
+        assertEquals(0, carried.first().slot)
+        assembler.observe(listOf(row("四。"), row("五。", true)), true, 2_000)
+        assembler.observe(listOf(row("四。"), row("五。", true)), true, 2_800)
+        assertTrue(assembler.visibleSnapshot!!.none { it.id in carried.map { r -> r.id } })
+    }
+
+    @Test fun `wrapped sentence retains original row boundaries and occurrence IDs`() {
+        val assembler = DialogueSubtitleAssembler()
+        val rows = listOf(row("貴方たちの文化を学ばせて"), row("いただきます♡", true))
+        assembler.observe(rows, true, 0)
+        val event = assembler.observe(rows, true, 800).single()
+        assertEquals(rows.map { it.text }, event.rows.map { it.text })
+        assertEquals(assembler.visibleSnapshot!!.map { it.id }, event.rows.map { it.id })
+        assertEquals(rows.joinToString("") { it.text }, event.source)
+    }
+
+    @Test fun `typing membership confirms independently and pause requires two fresh observations`() {
+        val assembler = DialogueSubtitleAssembler()
+        assembler.observe(listOf(row("私")), true, 0)
+        assembler.observe(listOf(row("私は")), true, 400)
+        val window = assembler.visibleSnapshot!!
+        assembler.requireFreshSnapshot()
+        assertNull(assembler.visibleSnapshot)
+        assembler.observe(listOf(row("私はククルカン。")), true, 800)
+        assertNull(assembler.visibleSnapshot)
+        assembler.observe(listOf(row("私はククルカン。")), true, 1_600)
+        assertEquals(window, assembler.visibleSnapshot)
+    }
+
+    @Test fun `only confirmed absence empties source snapshot and bad OCR remains unknown`() {
+        val assembler = DialogueSubtitleAssembler()
+        assembler.observe(listOf(row("はい。")), true, 0)
+        assembler.observe(listOf(row("はい。")), true, 800)
+        val window = assembler.visibleSnapshot
+        assembler.observe(emptyList(), false, 1_000)
+        assembler.observationUnavailable()
+        assembler.observe(emptyList(), false, 2_000)
+        assertEquals(window, assembler.visibleSnapshot)
+        assembler.observe(emptyList(), false, 2_600)
+        assertEquals(emptyList(), assembler.visibleSnapshot)
+    }
+
+    @Test fun `confirmed blank does not force continuous OCR confirmations`() {
+        val assembler = DialogueSubtitleAssembler()
+        assembler.observe(listOf(row("はい。")), true, 0)
+        assembler.observe(listOf(row("はい。")), true, 800)
+        assembler.observe(emptyList(), true, 1_000)
+        assertTrue(assembler.needsConfirmation)
+        assembler.observe(emptyList(), true, 1_600)
+        assertEquals(emptyList(), assembler.visibleSnapshot)
+        assertTrue(!assembler.needsConfirmation)
+    }
+
     @Test fun `uncertain trailing row cannot erase a confirmed leading fragment at panel exit`() {
         val assembler = DialogueSubtitleAssembler()
         assembler.observe(listOf(row("続きを待って")), true, 0)

@@ -33,14 +33,18 @@ data class SessionTranslationEntry(
     val subtitleOccurrence: Boolean get() = battleOccurrence || dialogueSubtitleOccurrence
 }
 
-/** Reserves source order without putting unfinished/failed translation text in the LOG. */
+/** Reserves source order before a translation or explicit failure record completes. */
 data class BattleHistoryReservation internal constructor(
     internal val session: Long,
     internal val order: Long,
     internal val sourceKey: String,
     internal val original: String,
-    internal val createdAt: Long
-)
+    internal val createdAt: Long,
+    internal val dialogueTargetLocale: String? = null
+) {
+    // Request-local completion identity; duplicate LOG rows must not require retaining every ID.
+    internal var dialogueLogCompleted = false
+}
 
 /**
  * In-memory history for the current service run only.
@@ -55,6 +59,20 @@ object SessionTranslationHistory {
     private var session = 0L
     private var nextOrder = 0L
     private var sceneContextGeneration = 0L
+    private data class DialogueLogKey(val original: String, val targetLocale: String)
+    private enum class DialogueLogStatus { PENDING, FAILED, SUCCEEDED }
+    private class DialogueLogSlot(val first: BattleHistoryReservation) {
+        var status = DialogueLogStatus.PENDING
+    }
+    private val dialogueLogSlots = mutableMapOf<DialogueLogKey, DialogueLogSlot>()
+    private val dialogueLogSpaces = Regex("[\\p{Zs}\\t]+")
+
+    private fun dialogueLogKey(original: String, targetLocale: String): DialogueLogKey {
+        val normalized = original.replace("\r\n", "\n").replace('\r', '\n')
+            .lineSequence().map(String::trim).joinToString("")
+            .replace(dialogueLogSpaces, " ").trim()
+        return DialogueLogKey(normalized, SettingsRepository.normalizeTargetLanguage(targetLocale))
+    }
 
     @Synchronized
     fun add(entry: SessionTranslationEntry) {
@@ -113,12 +131,47 @@ object SessionTranslationHistory {
     }
 
     @Synchronized
-    fun reserveDialogueSubtitleEntry(sourceKey: String, original: String): BattleHistoryReservation =
-        BattleHistoryReservation(session, ++nextOrder, sourceKey, original, System.currentTimeMillis())
+    fun reserveDialogueSubtitleEntry(sourceKey: String, original: String, targetLocale: String): BattleHistoryReservation {
+        val key = dialogueLogKey(original, targetLocale)
+        val reservation = BattleHistoryReservation(session, ++nextOrder, sourceKey, original,
+            System.currentTimeMillis(), dialogueTargetLocale = key.targetLocale)
+        if (key.original.isNotBlank()) dialogueLogSlots.getOrPut(key) { DialogueLogSlot(reservation) }
+        return reservation
+    }
 
     @Synchronized
-    fun completeDialogueSubtitleEntry(reservation: BattleHistoryReservation, translation: String, targetLocale: String): Boolean =
-        completeSubtitleEntry(reservation, translation, targetLocale, battle = false)
+    fun completeDialogueSubtitleEntry(
+        reservation: BattleHistoryReservation, translation: String, targetLocale: String, isFailure: Boolean = false
+    ): Boolean {
+        if (reservation.session != session || reservation.dialogueLogCompleted || translation.isBlank()) return false
+        val key = dialogueLogKey(reservation.original, targetLocale)
+        if (reservation.dialogueTargetLocale != key.targetLocale) return false
+        val slot = dialogueLogSlots[key] ?: return false
+        reservation.dialogueLogCompleted = true
+        if (slot.status == DialogueLogStatus.SUCCEEDED || (isFailure && slot.status == DialogueLogStatus.FAILED)) {
+            FgoLogger.debug(TAG, "Summon LOG duplicate skipped")
+            return false
+        }
+        val first = slot.first
+        val entry = SessionTranslationEntry(
+            dialogueText = translation,
+            originalDialogueText = first.original,
+            targetLocale = key.targetLocale,
+            sourceKey = first.sourceKey,
+            createdAt = first.createdAt,
+            historyId = first.order,
+            dialogueSubtitleOccurrence = true
+        )
+        val current = _entries.value
+        val index = current.binarySearchBy(first.order) { it.historyId }
+        slot.status = if (isFailure) DialogueLogStatus.FAILED else DialogueLogStatus.SUCCEEDED
+        // A later duplicate may finish first. Its LOG row still belongs at the first capture's
+        // position; a recovered failure keeps that same ID/timestamp and the user's scroll anchor.
+        _entries.value = current.toMutableList().apply {
+            if (index >= 0) this[index] = entry else add(-index - 1, entry)
+        }
+        return true
+    }
 
     private fun completeSubtitleEntry(reservation: BattleHistoryReservation, translation: String, targetLocale: String, battle: Boolean): Boolean {
         if (reservation.session != session || translation.isBlank()) return false
@@ -144,6 +197,7 @@ object SessionTranslationHistory {
     fun clear() {
         session++ // Invalidate reservations even if an old network callback survives cancellation.
         sceneContextGeneration++
+        dialogueLogSlots.clear()
         _entries.value = emptyList()
     }
 

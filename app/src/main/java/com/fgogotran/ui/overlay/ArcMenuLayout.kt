@@ -17,6 +17,7 @@ internal data class ArcMenuLayout(
 )
 
 internal object ArcMenuGeometry {
+    private const val MAX_CAPACITY = 5
     private const val GAP_DP = 4f
     private const val PREFERRED_RADIUS_DP = 92f
 
@@ -29,7 +30,7 @@ internal object ArcMenuGeometry {
         navigationSize: Float
     ): ArcMenuLayout? {
         val openRight = bounds.right - anchorX >= anchorX - bounds.left
-        for (capacity in 4 downTo 1) {
+        for (capacity in MAX_CAPACITY downTo 1) {
             val angles = if (capacity == 1) listOf(-45f, 45f) else
                 List(capacity + 1) { -90f + it * 180f / capacity }
             val directedAngles = angles.map { if (openRight) it else it + 180f }
@@ -84,13 +85,19 @@ internal object ArcMenuGeometry {
         return ArcMenuLayout(angles.size - 1, placed.dropLast(1), placed.last())
     }
 
-    /** Paginate actual group sizes; a new action must not disappear behind eight hard-coded slots. */
+    /** Preserve group/action order while balancing overflow (five at capacity four becomes 3 + 2). */
     fun pageIndices(capacity: Int, groupSizes: List<Int> = listOf(4, 4)): List<List<Int>> {
-        require(capacity in 1..4)
+        require(capacity in 1..MAX_CAPACITY)
         require(groupSizes.isNotEmpty() && groupSizes.all { it > 0 })
         var offset = 0
         return groupSizes.flatMap { size ->
-            (offset until offset + size).toList().chunked(capacity).also { offset += size }
+            val pageCount = (size - 1) / capacity + 1
+            val smallerPageSize = size / pageCount
+            val largerPages = size % pageCount
+            List(pageCount) { page ->
+                val pageSize = smallerPageSize + if (page < largerPages) 1 else 0
+                List(pageSize) { offset++ }
+            }
         }
     }
 }
