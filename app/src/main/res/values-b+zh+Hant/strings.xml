@@ -221,7 +221,7 @@
     <string name="settings_auto_9">用於除錯和排查問題。</string>
     <string name="settings_auto_10">前景偵測已恢復正常</string>
     <string name="settings_auto_11">參考前文</string>
-    <string name="settings_auto_12">同時顯示原文與譯文</string>
+    <string name="settings_auto_12">同時顯示日文原文與譯文</string>
     <string name="settings_auto_13">除錯日誌已開啟</string>
     <string name="settings_auto_14">除錯日誌已關閉</string>
     <string name="settings_auto_15">前景測試已開啟</string>

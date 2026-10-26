@@ -220,7 +220,7 @@
     <string name="settings_auto_9">For debugging and troubleshooting.</string>
     <string name="settings_auto_10">Foreground detection restored</string>
     <string name="settings_auto_11">Use story context</string>
-    <string name="settings_auto_12">Show source text alongside the translation.</string>
+    <string name="settings_auto_12">Show Japanese text alongside the translation.</string>
     <string name="settings_auto_13">Debug logging enabled</string>
     <string name="settings_auto_14">Debug logging disabled</string>
     <string name="settings_auto_15">Foreground test enabled</string>
