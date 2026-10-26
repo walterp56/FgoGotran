@@ -4,7 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-/** Preference values describe a choice, so they do not use readiness or warning colours. */
+/** Neutral colours for saved values and supporting text; summary states may override these. */
 internal object FgoSettingsColors {
     val value: Color
         @Composable get() = MaterialTheme.colorScheme.onSurface

@@ -164,9 +164,11 @@ class VoiceHintWorkflowTest {
         val unsupported = value.indexOf("!apiVoiceHintsSupported ->")
         val on = value.indexOf("else -> stringResource(R.string.settings_auto_53)")
         assertTrue(inactive >= 0 && off > inactive && unsupported > off && on > unsupported)
-        assertTrue(row.contains("valueColor = FgoSettingsColors.value"))
-        assertFalse(row.contains("FgoUiColors.success"))
-        assertFalse(row.contains("FgoUiColors.warning"))
+        val color = row.substringAfter("valueColor = when {")
+        assertTrue(color.indexOf("!aiVoiceActive -> FgoSettingsColors.value") >= 0)
+        assertTrue(color.indexOf("apiVoiceHintsSupported && aiVoiceApiHintsEnabled -> FgoUiColors.success") >
+            color.indexOf("!aiVoiceActive ->"))
+        assertTrue(color.contains("else -> FgoUiColors.warning"))
         assertFalse(row.contains("setAiVoiceApiHintsEnabled"))
     }
 

@@ -442,7 +442,8 @@ fun SettingsScreen(
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_29),
-                    value = stringResource(if (showOriginalGameText) R.string.settings_auto_44 else R.string.settings_auto_45)
+                    value = stringResource(if (showOriginalGameText) R.string.settings_auto_44 else R.string.settings_auto_45),
+                    valueColor = if (showOriginalGameText) FgoUiColors.success else FgoUiColors.warning
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_11),
@@ -450,11 +451,13 @@ fun SettingsScreen(
                         stringResource(R.string.settings_translation_context_summary, translationContextSceneCount)
                     } else {
                         stringResource(R.string.settings_auto_45)
-                    }
+                    },
+                    valueColor = if (translationContextEnabled) FgoUiColors.success else FgoUiColors.warning
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_7),
-                    value = stringResource(if (translationIncludeRuby) R.string.settings_auto_44 else R.string.settings_auto_45)
+                    value = stringResource(if (translationIncludeRuby) R.string.settings_auto_44 else R.string.settings_auto_45),
+                    valueColor = if (translationIncludeRuby) FgoUiColors.success else FgoUiColors.warning
                 )
                 HorizontalDivider()
                 SettingsInfoRow(
@@ -499,11 +502,13 @@ fun SettingsScreen(
             ) {
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_20),
-                    value = if (liveVoiceTranslationEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45)
+                    value = if (liveVoiceTranslationEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45),
+                    valueColor = if (liveVoiceTranslationEnabled) FgoUiColors.success else FgoUiColors.warning
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_31),
-                    value = if (aiVoiceEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45)
+                    value = if (aiVoiceEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45),
+                    valueColor = if (aiVoiceEnabled) FgoUiColors.success else FgoUiColors.warning
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_32),
@@ -526,7 +531,11 @@ fun SettingsScreen(
                         !apiVoiceHintsSupported -> stringResource(R.string.settings_auto_8)
                         else -> stringResource(R.string.settings_auto_53)
                     },
-                    valueColor = FgoSettingsColors.value
+                    valueColor = when {
+                        !aiVoiceActive -> FgoSettingsColors.value
+                        apiVoiceHintsSupported && aiVoiceApiHintsEnabled -> FgoUiColors.success
+                        else -> FgoUiColors.warning
+                    }
                 )
                 Button(
                     shape = FgoUiStyle.buttonShape,
