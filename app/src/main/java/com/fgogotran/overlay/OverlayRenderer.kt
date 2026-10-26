@@ -220,7 +220,7 @@ class OverlayRenderer @Inject constructor(
         FgoLogger.debug(
             tag,
             "Dialogue render lines: count=${layout.lines.size}, " +
-                "widths=${layout.lines.map { paint.measureText(it).toInt() }}, " +
+                "widths=${layout.lines.map { paint.measureRenderText(it).toInt() }}, " +
                 "maxWidth=${layout.textArea.width().toInt()}, textSize=${paint.textSize}, " +
                 "lines=${layout.lines.joinToString(" ⏎ ")}"
         )
@@ -243,11 +243,11 @@ class OverlayRenderer @Inject constructor(
             paint = paint,
             top = textArea.top,
             targetLanguage = instruction.targetLocale,
-            text = layout.lines.firstOrNull().orEmpty()
+            text = RubyRenderText.body(layout.lines.firstOrNull().orEmpty())
         )
 
         canvas.save()
-        canvas.clipRect(textArea)
+        clipTextAndRuby(canvas, textArea, clearBox, layout.lines)
         drawLines(
             canvas = canvas,
             paint = paint,
@@ -336,7 +336,7 @@ class OverlayRenderer @Inject constructor(
         )
 
         canvas.save()
-        canvas.clipRect(layout.textArea)
+        clipTextAndRuby(canvas, layout.textArea, layout.clearBox, layout.translationLines + layout.originalLines)
         drawBilingualLinePairs(
             canvas = canvas,
             paint = paint,
@@ -467,7 +467,7 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): RectF {
         val originalBounds = originalTextBounds(instruction)?.let(::RectF)
-        val textWidth = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
+        val textWidth = lines.maxOfOrNull { paint.measureRenderText(it) } ?: 0f
         val textBlockHeight = VisualTextMetrics.blockHeight(
             paint = paint,
             lineHeight = lineHeight,
@@ -541,7 +541,7 @@ class OverlayRenderer @Inject constructor(
     ): Float {
         val previousTextSize = paint.textSize
         paint.textSize = textSize
-        val width = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
+        val width = lines.maxOfOrNull { paint.measureRenderText(it) } ?: 0f
         paint.textSize = previousTextSize
         return width
     }
@@ -621,7 +621,7 @@ class OverlayRenderer @Inject constructor(
         val plateRight = NameRenderGeometry.plateRight(
             basePlateRight = basePlateRight,
             textLeft = textLeft,
-            textWidth = paint.measureText(name),
+            textWidth = paint.measureRenderText(name),
             rightInset = NAME_TEXT_RIGHT_INSET * scale,
             maxRight = canvas.width.toFloat()
         )
@@ -646,7 +646,7 @@ class OverlayRenderer @Inject constructor(
         )
         val nameBaseline = VisualTextMetrics.baselineForName(
             paint = paint,
-            text = name,
+            text = RubyRenderText.body(name),
             area = textArea,
             legacyOffset = NAME_TEXT_BASELINE_OFFSET * scale,
             targetLanguage = instruction.targetLocale
@@ -656,7 +656,7 @@ class OverlayRenderer @Inject constructor(
             "Name plate: name=$name, box=$box, sourceName=$originalNameBounds, " +
                 "detectedPlate=${detectedPlate.flattenToString()}, " +
                 "plate=${plateLeft.toInt()}..${plateRight.toInt()}, " +
-                "textWidth=${paint.measureText(name).toInt()}, " +
+                "textWidth=${paint.measureRenderText(name).toInt()}, " +
                 "textSize=${paint.textSize.toInt()}, baseline=${nameBaseline.toInt()}"
         )
 
@@ -800,22 +800,22 @@ class OverlayRenderer @Inject constructor(
         var currentTop = textArea.centerY() - totalHeight / 2f + 8f * scale
 
         canvas.save()
-        canvas.clipRect(textArea)
+        clipTextAndRuby(canvas, textArea,
+            RectF(box.left + clearInsetX, box.top + 8f * scale, box.right - clearInsetX, box.bottom - 8f * scale),
+            listOf(layout.translationText, layout.originalText))
         paint.textSize = layout.translationTextSize
+        val translationBaseline = VisualTextMetrics.baselineForTop(paint, currentTop, instruction.targetLocale,
+            RubyRenderText.body(layout.translationText))
         drawShadowedText(
             canvas = canvas,
             paint = paint,
             text = layout.translationText,
-            x = textArea.centerX() - paint.measureText(layout.translationText) / 2f,
-            y = VisualTextMetrics.baselineForTop(
-                paint = paint,
-                top = currentTop,
-                targetLanguage = instruction.targetLocale,
-                text = layout.translationText
-            ),
+            x = textArea.centerX() - paint.measureRenderText(layout.translationText) / 2f,
+            y = translationBaseline,
             textColor = textColor,
             scale = scale
         )
+        val originalRubyTop = RubyTextPainter.bodyBottom(paint, layout.translationText, translationBaseline) + scale
         currentTop += layout.translationLineHeight
 
         paint.textSize = layout.originalTextSize
@@ -823,15 +823,16 @@ class OverlayRenderer @Inject constructor(
             canvas = canvas,
             paint = paint,
             text = layout.originalText,
-            x = textArea.centerX() - paint.measureText(layout.originalText) / 2f,
+            x = textArea.centerX() - paint.measureRenderText(layout.originalText) / 2f,
             y = VisualTextMetrics.baselineForTop(
                 paint = paint,
                 top = currentTop,
                 targetLanguage = instruction.targetLocale,
-                text = layout.originalText
+                text = RubyRenderText.body(layout.originalText)
             ),
             textColor = ORIGINAL_TEXT_COLOR,
-            scale = scale
+            scale = scale,
+            minimumRubyTop = originalRubyTop
         )
         canvas.restore()
     }
@@ -887,17 +888,15 @@ class OverlayRenderer @Inject constructor(
         )
 
         // Center the text horizontally within the button bounding box
-        val textWidth = paint.measureText(text)
+        val textWidth = paint.measureRenderText(text)
         val x = box.centerX() - textWidth / 2f
         val y = box.centerY() + paint.textSize / 3f + 4f * scale
 
         canvas.save()
-        canvas.clipRect(textArea)
-        paint.setShadowLayer(2f * scale, shadowOffset * scale, shadowOffset * scale, Color.BLACK)
-        canvas.drawText(text, x, y, paint)
-        paint.clearShadowLayer()
-        paint.color = textColor
-        canvas.drawText(text, x, y, paint)
+        clipTextAndRuby(canvas, textArea,
+            RectF(box.left + clearInsetX, box.top + 8f * scale, box.right - clearInsetX, box.bottom - 8f * scale),
+            listOf(text))
+        drawShadowedText(canvas, paint, text, x, y, textColor, scale)
         canvas.restore()
     }
 
@@ -1003,6 +1002,10 @@ class OverlayRenderer @Inject constructor(
         maxWidth: Float,
         wordWrap: Boolean = false
     ): List<String> {
+        val ruby = RubyRenderText.parse(text)
+        if (ruby.annotations.isNotEmpty()) {
+            return ruby.annotateLines(wrapRubyBody(ruby, paint, maxWidth, wordWrap))
+        }
         val wrapped = mutableListOf<String>()
         text.lines().filter { it.isNotBlank() }.forEach { paragraph ->
             if (wordWrap) {
@@ -1029,14 +1032,14 @@ class OverlayRenderer @Inject constructor(
         var current = ""
         words.forEach { word ->
             val candidate = if (current.isBlank()) word else "$current $word"
-            if (paint.measureText(candidate) <= maxWidth || (current.isBlank() && paint.measureText(word) <= maxWidth)) {
+            if (paint.measureRenderText(candidate) <= maxWidth || (current.isBlank() && paint.measureRenderText(word) <= maxWidth)) {
                 current = candidate
             } else {
                 if (current.isNotBlank()) {
                     lines += current
                     current = ""
                 }
-                if (paint.measureText(word) <= maxWidth) {
+                if (paint.measureRenderText(word) <= maxWidth) {
                     current = word
                 } else {
                     var remaining = word
@@ -1276,9 +1279,9 @@ class OverlayRenderer @Inject constructor(
             val originalLineHeight = originalTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
 
             paint.textSize = translationTextSize
-            val translationFits = paint.measureText(cleanTranslationText) <= maxWidth
+            val translationFits = paint.measureRenderText(cleanTranslationText) <= maxWidth
             paint.textSize = originalTextSize
-            val originalFits = paint.measureText(cleanOriginalText) <= maxWidth
+            val originalFits = paint.measureRenderText(cleanOriginalText) <= maxWidth
 
             if (translationFits && originalFits && translationLineHeight + originalLineHeight <= maxHeight) {
                 return BilingualSingleLineLayout(
@@ -1420,16 +1423,17 @@ class OverlayRenderer @Inject constructor(
         // Normalise the whole text once, before splitting it into lines: a quote opened on one line
         // and closed on the next has to pair up, otherwise the per-line bracket-noise repair deletes
         // the closing quote and the drawn text silently loses its last character.
-        val normalizedLines = canonicalText
-            .normalizeDialogueSymbolsAndSpacing(targetLocale)
+        val normalizedLines = RubyRenderText.transform(canonicalText) {
+            it.normalizeDialogueSymbolsAndSpacing(targetLocale)
+        }
             .lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
         val preserveExplicitLineBreaks = normalizedLines.size >= DIALOGUE_MAX_LINES
-        val planned = DialogueLinePlanner.plan(
+        val planned = planRubyLines(
             lines = normalizedLines,
             maxWidth = maxWidth,
-            measureText = paint::measureText,
+            measureText = { paint.measureRenderText(it) },
             wordBoundaryMode = isEnglishTarget()
         )
         if (normalizedLines.size > DIALOGUE_MAX_LINES) {
@@ -1449,9 +1453,9 @@ class OverlayRenderer @Inject constructor(
         val compact = if (englishTarget) {
             flattened
         } else {
-            flattened
-                .replace(Regex("[\\s$WIDE_RENDER_SPACE]+"), "")
-                .trim()
+            RubyRenderText.transform(flattened) {
+                it.replace(Regex("[\\s$WIDE_RENDER_SPACE]+"), "").trim()
+            }
         }
 
         val preferred = buildList {
@@ -1489,10 +1493,10 @@ class OverlayRenderer @Inject constructor(
             .lines()
             .map { it.replace(Regex("[ \\t]+"), " ").trim() }
             .filter { it.isNotBlank() }
-        val planned = DialogueLinePlanner.plan(
+        val planned = planRubyLines(
             lines = normalizedLines,
             maxWidth = maxWidth,
-            measureText = paint::measureText
+            measureText = { paint.measureRenderText(it) }
         )
         val linePreserved = normalizedLines.joinToString("\n").trim()
         val flattened = normalizedLines.joinToString(WIDE_RENDER_SPACE)
@@ -1528,9 +1532,9 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun RenderInstruction.toChoiceRenderText(): String {
-        val normalized = translatedText.trim()
-            .normalizeDialogueSymbolsAndSpacing(targetLocale)
-            .replace(Regex("[ \\t]+"), " ")
+        val normalized = RubyRenderText.transform(translatedText.trim()) {
+            it.normalizeDialogueSymbolsAndSpacing(targetLocale).replace(Regex("[ \\t]+"), " ")
+        }
         return if (wideTextSpacing) normalized.toFgoWideRenderText() else normalized
     }
 
@@ -1542,6 +1546,7 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun String.toFgoWideRenderText(): String {
+        if (RubyRenderText.hasRuby(this)) return RubyRenderText.transform(this) { it.toFgoWideRenderText() }
         return lines().joinToString("\n") { line ->
             line.spaceCjkRunsForFgo()
         }
@@ -1614,7 +1619,7 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): String {
         paint.textSize = initialTextSize
-        while (paint.measureText(text) > maxWidth && paint.textSize > minimumTextSize) {
+        while (paint.measureRenderText(text) > maxWidth && paint.textSize > minimumTextSize) {
             paint.textSize = (paint.textSize - 2f * scale).coerceAtLeast(minimumTextSize)
         }
         return ellipsize(text, paint, maxWidth)
@@ -1645,7 +1650,12 @@ class OverlayRenderer @Inject constructor(
         terminalSourceText: String = text,
         forceTruncationMarker: Boolean = false
     ): String {
-        if (!forceTruncationMarker && paint.measureText(text) <= maxWidth) return text
+        val ruby = RubyRenderText.parse(text)
+        if (ruby.annotations.isNotEmpty()) {
+            return ruby.annotate(ellipsize(ruby.body, paint, maxWidth,
+                RubyRenderText.body(terminalSourceText), forceTruncationMarker))
+        }
+        if (!forceTruncationMarker && paint.measureRenderText(text) <= maxWidth) return text
         val terminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(terminalSourceText)
         val suffix = if (terminalSuffix.startsWith('…')) {
             terminalSuffix
@@ -1661,7 +1671,7 @@ class OverlayRenderer @Inject constructor(
         val count = paint.breakText(
             body,
             true,
-            (maxWidth - paint.measureText(suffix)).coerceAtLeast(1f),
+            (maxWidth - paint.measureRenderText(suffix)).coerceAtLeast(1f),
             null
         )
         return body.take(count).trimEnd() + suffix
@@ -1674,14 +1684,21 @@ class OverlayRenderer @Inject constructor(
         x: Float,
         y: Float,
         textColor: Int,
-        scale: Float
+        scale: Float,
+        minimumRubyTop: Float? = null
     ) {
+        val ruby = RubyRenderText.parse(text)
         paint.setShadowLayer(2f * scale, shadowOffset * scale, shadowOffset * scale, Color.BLACK)
         paint.color = textColor
-        canvas.drawText(text, x, y, paint)
+        canvas.drawText(ruby.body, x, y, paint)
         paint.clearShadowLayer()
         paint.color = textColor
-        canvas.drawText(text, x, y, paint)
+        canvas.drawText(ruby.body, x, y, paint)
+        if (ruby.annotations.isNotEmpty()) {
+            val clip = RectF(canvas.clipBounds)
+            RubyTextPainter.drawAnnotations(canvas, paint, ruby, x, y, textColor, clip,
+                minimumRubyTop ?: clip.top, scale)
+        }
     }
 
     private fun drawBilingualLinePairs(
@@ -1700,11 +1717,12 @@ class OverlayRenderer @Inject constructor(
         translationColor: Int
     ) {
         var currentTop = top
+        var minimumRubyTop = canvas.clipBounds.top.toFloat()
         val pairCount = maxOf(translationLines.size, originalLines.size)
         repeat(pairCount) { index ->
             if (index < translationLines.size) {
                 paint.textSize = translationTextSize
-                drawLines(
+                minimumRubyTop = drawLines(
                     canvas = canvas,
                     paint = paint,
                     lines = listOf(translationLines[index]),
@@ -1713,16 +1731,17 @@ class OverlayRenderer @Inject constructor(
                         paint = paint,
                         top = currentTop,
                         targetLanguage = targetLanguage,
-                        text = translationLines[index]
+                        text = RubyRenderText.body(translationLines[index])
                     ),
                     lineHeight = translationLineHeight,
-                    textColor = translationColor
+                    textColor = translationColor,
+                    minimumRubyTop = minimumRubyTop
                 )
                 currentTop += translationLineHeight
             }
             if (index < originalLines.size) {
                 paint.textSize = originalTextSize
-                drawLines(
+                minimumRubyTop = drawLines(
                     canvas = canvas,
                     paint = paint,
                     lines = listOf(originalLines[index]),
@@ -1731,10 +1750,11 @@ class OverlayRenderer @Inject constructor(
                         paint = paint,
                         top = currentTop,
                         targetLanguage = targetLanguage,
-                        text = originalLines[index]
+                        text = RubyRenderText.body(originalLines[index])
                     ),
                     lineHeight = originalLineHeight,
-                    textColor = ORIGINAL_TEXT_COLOR
+                    textColor = ORIGINAL_TEXT_COLOR,
+                    minimumRubyTop = minimumRubyTop
                 )
                 currentTop += originalLineHeight
             }
@@ -1751,13 +1771,66 @@ class OverlayRenderer @Inject constructor(
         x: Float,
         firstBaseline: Float,
         lineHeight: Float,
-        textColor: Int
-    ) {
+        textColor: Int,
+        minimumRubyTop: Float = canvas.clipBounds.top.toFloat()
+    ): Float {
         val scale = screenScale(canvas)
+        var nextRubyTop = minimumRubyTop
         for ((index, line) in lines.withIndex()) {
             val y = firstBaseline + index * lineHeight
-            drawShadowedText(canvas, paint, line, x, y, textColor, scale)
+            drawShadowedText(canvas, paint, line, x, y, textColor, scale, nextRubyTop)
+            nextRubyTop = RubyTextPainter.bodyBottom(paint, line, y) + scale
         }
+        return nextRubyTop
+    }
+
+    private fun Paint.measureRenderText(text: String): Float = measureText(RubyRenderText.body(text))
+
+    private fun clipTextAndRuby(canvas: Canvas, textArea: RectF, clearBox: RectF, lines: List<String>) {
+        if (lines.none(RubyRenderText::hasRuby)) {
+            canvas.clipRect(textArea)
+        } else {
+            // Admit annotations into the already covered space; never move the body baseline.
+            canvas.clipRect(RectF(clearBox.left, clearBox.top, maxOf(textArea.right, clearBox.right), textArea.bottom))
+        }
+    }
+
+    private fun planRubyLines(
+        lines: List<String>, maxWidth: Float, measureText: (String) -> Float, wordBoundaryMode: Boolean = false
+    ): List<String> {
+        val ruby = RubyRenderText.parse(lines.joinToString("\n"))
+        val planned = DialogueLinePlanner.plan(ruby.body.lines(), maxWidth, measureText, wordBoundaryMode)
+        return if (ruby.annotations.isEmpty()) planned else planned.map(ruby::annotate)
+    }
+
+    private fun wrapRubyBody(ruby: RubyRenderText.Text, paint: Paint, maxWidth: Float, wordWrap: Boolean): List<String> {
+        val result = mutableListOf<String>()
+        var paragraphOffset = 0
+        ruby.body.split('\n').forEach { paragraph ->
+            var start = 0
+            while (start < paragraph.length) {
+                while (start < paragraph.length && paragraph[start].isWhitespace()) start++
+                if (start >= paragraph.length) break
+                val remaining = paragraph.substring(start)
+                var count = adjustBreakForLatinToken(remaining,
+                    paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1))
+                if (wordWrap && count < remaining.length) {
+                    val space = remaining.substring(0, count).indexOfLast(Char::isWhitespace)
+                    if (space > 0) count = space
+                }
+                val offset = paragraphOffset + start + count
+                ruby.annotations.firstOrNull { offset > it.start && offset < it.end }?.let { annotation ->
+                    if (annotation.start > paragraphOffset + start &&
+                        paint.measureText(ruby.body.substring(annotation.start, annotation.end)) <= maxWidth) {
+                        count = annotation.start - paragraphOffset - start
+                    }
+                }
+                result += remaining.take(count)
+                start += count
+            }
+            paragraphOffset += paragraph.length + 1
+        }
+        return result
     }
 
     private fun screenScale(canvas: Canvas): Float {

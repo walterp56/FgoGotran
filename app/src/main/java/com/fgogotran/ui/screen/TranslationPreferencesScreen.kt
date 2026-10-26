@@ -58,6 +58,7 @@ import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.localization.LocalizedText as Text
+import com.fgogotran.overlay.RubyTextPainter
 import com.fgogotran.ui.component.FgoSettingsSlider
 import com.fgogotran.ui.theme.FgoUiColors
 import com.fgogotran.ui.theme.FgoSettingsColors
@@ -610,7 +611,9 @@ private fun TranslationRubyExample() {
             // Preserve the Japanese game text instead of converting it as Chinese UI text.
             androidx.compose.material3.Text(
                 text = stringResource(R.string.settings_ruby_example_annotation),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = MaterialTheme.typography.titleLarge.fontSize * RubyTextPainter.SIZE_RATIO
+                ),
                 color = annotationColor
             )
             androidx.compose.material3.Text(

@@ -44,6 +44,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.overlay.FgoViewportLayout
+import com.fgogotran.overlay.RubyRenderText
+import com.fgogotran.overlay.RubyTextView
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
 import kotlin.math.abs
@@ -555,8 +557,9 @@ private fun historyTextView(
     bottomMarginBaseDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_BASE_DP,
     useDialogueLineHeight: Boolean = false
 ): TextView {
-    return TextView(context).apply {
-        this.text = text
+    val view = if (RubyRenderText.hasRuby(text.toString())) RubyTextView(context) else TextView(context)
+    return view.apply {
+        if (this is RubyTextView) setRubyText(text) else this.text = text
         setTextColor(color)
         setTextSize(TypedValue.COMPLEX_UNIT_PX, textSizePx)
         val displayedTextSizePx = this.textSize

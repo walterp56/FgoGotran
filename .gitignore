@@ -132,6 +132,7 @@ app/src/test/java/com/fgogotran/overlay/*
 !app/src/test/java/com/fgogotran/overlay/DialogueRenderGeometryTest.kt
 # Retain the focused resolution-independent game-render regressions.
 !app/src/test/java/com/fgogotran/overlay/FgoViewportGeometryTest.kt
+!app/src/test/java/com/fgogotran/overlay/RubyRenderTextTest.kt
 # Retain focused crop scaling and Android UI-boundary regressions.
 !app/src/test/java/com/fgogotran/crop/
 app/src/test/java/com/fgogotran/crop/*
