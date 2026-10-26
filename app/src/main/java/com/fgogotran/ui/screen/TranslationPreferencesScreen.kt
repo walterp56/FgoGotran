@@ -297,60 +297,93 @@ private fun TranslationLanguageSelector(
 ) {
     val normalizedLocale = SettingsRepository.normalizeTargetLanguage(selectedLocale)
     var expanded by remember { mutableStateOf(false) }
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             stringResource(R.string.settings_auto_23),
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
             color = FgoUiColors.text(darkAlpha = 0.82f)
         )
-        Box(modifier = Modifier.weight(1.2f)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .clickable(role = Role.Button) { expanded = true },
+                    .weight(0.34f)
+                    .heightIn(min = 48.dp),
                 shape = MaterialTheme.shapes.small,
-                color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
+                color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)),
                 border = BorderStroke(
                     1.dp,
-                    FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.34f))
+                    FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.24f))
                 )
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Box(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        translationLanguageLabel(normalizedLocale),
-                        modifier = Modifier.weight(1f),
+                        stringResource(R.string.settings_source_japanese),
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        color = FgoSettingsColors.value,
+                        textAlign = TextAlign.Center
                     )
-                    Text("▾", style = MaterialTheme.typography.bodyLarge)
                 }
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                targetLanguageOptions.forEach { option ->
-                    val selected = option.locale == normalizedLocale
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                stringResource(option.labelRes),
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selected) FgoUiColors.blueText else MaterialTheme.colorScheme.onSurface
-                            )
-                        },
-                        onClick = {
-                            expanded = false
-                            onSelect(option.locale)
-                        }
+            Text(
+                "→",
+                style = MaterialTheme.typography.bodyLarge,
+                color = FgoSettingsColors.supporting
+            )
+            Box(modifier = Modifier.weight(0.66f)) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .clickable(role = Role.Button) { expanded = true },
+                    shape = MaterialTheme.shapes.small,
+                    color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
+                    border = BorderStroke(
+                        1.dp,
+                        FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.34f))
                     )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            translationLanguageLabel(normalizedLocale),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text("▾", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    targetLanguageOptions.forEach { option ->
+                        val selected = option.locale == normalizedLocale
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(option.labelRes),
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (selected) FgoUiColors.blueText else MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            onClick = {
+                                expanded = false
+                                onSelect(option.locale)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -487,7 +520,7 @@ private fun TranslationContextSceneCountSelector(
                 stringResource(R.string.settings_context_scenes, safeCount),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = FgoSettingsColors.value(enabled)
+                color = if (enabled) FgoUiColors.blueText else FgoSettingsColors.value(enabled = false)
             )
         }
         Row(
@@ -561,6 +594,7 @@ private fun PreferenceSwitchRow(
 
 @Composable
 private fun TranslationRubyExample() {
+    val annotationColor = FgoUiColors.blueText
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -577,7 +611,7 @@ private fun TranslationRubyExample() {
             androidx.compose.material3.Text(
                 text = stringResource(R.string.settings_ruby_example_annotation),
                 style = MaterialTheme.typography.labelSmall,
-                color = FgoSettingsColors.supporting
+                color = annotationColor
             )
             androidx.compose.material3.Text(
                 text = stringResource(R.string.settings_ruby_example_base),
