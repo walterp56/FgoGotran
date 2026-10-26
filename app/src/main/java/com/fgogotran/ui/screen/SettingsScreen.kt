@@ -4,6 +4,7 @@ import android.os.SystemClock
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -27,17 +27,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import com.fgogotran.localization.LocalizedText as Text
@@ -50,7 +46,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,12 +65,14 @@ import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AppUpdateDialog
 import com.fgogotran.ui.component.BackendProviderLabel
+import com.fgogotran.ui.component.FgoSettingsSlider
 import com.fgogotran.ui.component.LanguagePickerDialog
 import com.fgogotran.ui.component.appLanguageLabel
 import com.fgogotran.ui.component.ThemePickerDialog
 import com.fgogotran.ui.component.themeLabelRes
 import com.fgogotran.ui.component.openAppDownloadPage
 import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoSettingsColors
 import com.fgogotran.ui.theme.FgoUiStyle
 import com.fgogotran.ui.theme.LocalFgoDarkTheme
 import com.fgogotran.update.AppVersionCheckResult
@@ -126,13 +123,14 @@ fun SettingsScreen(
     onThemeChange: (AppThemeMode) -> Unit,
     onClearTranslationCache: suspend () -> Int,
     onApiSettings: () -> Unit,
+    onTranslationPreferences: () -> Unit,
     onVoiceSettings: () -> Unit,
     onDiagnosticLog: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    scrollState: ScrollState = rememberScrollState()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val scrollState = rememberScrollState()
     val appVersionStatus by appVersionManager.status.collectAsState()
     val translationBackend by settingsRepository.translationBackend.collectAsState(
         initial = SettingsRepository.BACKEND_DEEPSEEK
@@ -157,30 +155,25 @@ fun SettingsScreen(
     val targetLanguage by settingsRepository.targetLanguage.collectAsState(
         initial = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     )
+    val playerProfile by settingsRepository.playerProfile.collectAsState(initial = null)
     val aiVoiceActive = aiVoiceEnabled && SettingsRepository.readTextAvailableFor(targetLanguage)
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
-    var playerName by rememberSaveable { mutableStateOf("") }
-    var playerGender by rememberSaveable {
-        mutableStateOf(SettingsRepository.DEFAULT_PLAYER_GENDER)
-    }
-    var playerProfileLoaded by rememberSaveable { mutableStateOf(false) }
-    var playerNameSaveMessage by remember { mutableStateOf("") }
     var floatingButtonSizeDp by remember {
         mutableStateOf(SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP)
     }
-    var showOriginalGameText by remember { mutableStateOf(false) }
+    val showOriginalGameText by settingsRepository.showOriginalGameText.collectAsState(initial = false)
     var ocrEngine by remember { mutableStateOf(SettingsRepository.DEFAULT_OCR_ENGINE) }
     var cacheEnabled by remember { mutableStateOf(true) }
-    var translationContextEnabled by remember {
-        mutableStateOf(SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_ENABLED)
-    }
-    var translationContextSceneCount by remember {
-        mutableStateOf(SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT)
-    }
-    var translationIncludeRuby by remember {
-        mutableStateOf(SettingsRepository.DEFAULT_TRANSLATION_INCLUDE_RUBY)
-    }
+    val translationContextEnabled by settingsRepository.translationContextEnabled.collectAsState(
+        initial = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_ENABLED
+    )
+    val translationContextSceneCount by settingsRepository.translationContextSceneCount.collectAsState(
+        initial = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_SCENE_COUNT
+    )
+    val translationIncludeRuby by settingsRepository.translationIncludeRuby.collectAsState(
+        initial = SettingsRepository.DEFAULT_TRANSLATION_INCLUDE_RUBY
+    )
     var debugLoggingEnabled by remember { mutableStateOf(false) }
     var debugLogTapCount by remember { mutableStateOf(0) }
     var debugLogTapWindowStartedAt by remember { mutableStateOf(0L) }
@@ -197,27 +190,10 @@ fun SettingsScreen(
     var appLanguage by remember { mutableStateOf(AppLanguageManager.getLanguage(context)) }
 
     LaunchedEffect(Unit) {
-        // A language refresh must not overwrite a restored, unsaved player-profile edit.
-        if (!playerProfileLoaded) {
-            playerName = settingsRepository.playerName.first()
-            playerGender = settingsRepository.playerGender.first()
-            playerProfileLoaded = true
-        }
         floatingButtonSizeDp = settingsRepository.getFloatingButtonSizeDp()
-        showOriginalGameText = settingsRepository.showOriginalGameText.first()
         ocrEngine = settingsRepository.getOcrEngine()
         cacheEnabled = settingsRepository.cacheEnabled.first()
-        translationContextEnabled = settingsRepository.translationContextEnabled.first()
-        translationContextSceneCount = settingsRepository.translationContextSceneCount.first()
-        translationIncludeRuby = settingsRepository.translationIncludeRuby.first()
         debugLoggingEnabled = settingsRepository.debugLoggingEnabled.first()
-    }
-
-    fun savePlayerName() {
-        scope.launch {
-            settingsRepository.setPlayerProfile(playerName, playerGender)
-            playerNameSaveMessage = AppLanguageManager.localizedString(context, R.string.settings_auto_42)
-        }
     }
 
     fun checkAppVersion() {
@@ -413,7 +389,10 @@ fun SettingsScreen(
                         BackendProviderLabel(
                             backend = translationBackend,
                             label = SettingsRepository.backendDisplayName(translationBackend),
-                            textStyle = MaterialTheme.typography.bodyMedium,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                color = FgoSettingsColors.value,
+                                fontWeight = FontWeight.Medium
+                            ),
                             horizontalArrangement = Arrangement.End
                         )
                     }
@@ -457,131 +436,59 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_auto_27),
                 body = ""
             ) {
-                TranslationLanguageSelector(
-                    selectedLocale = targetLanguage,
-                    onSelect = { locale ->
-                        scope.launch {
-                            settingsRepository.setTargetLanguage(locale)
-                        }
+                SettingsInfoRow(
+                    label = stringResource(R.string.settings_auto_23),
+                    value = translationLanguageLabel(targetLanguage)
+                )
+                SettingsInfoRow(
+                    label = stringResource(R.string.settings_auto_29),
+                    value = stringResource(if (showOriginalGameText) R.string.settings_auto_44 else R.string.settings_auto_45)
+                )
+                SettingsInfoRow(
+                    label = stringResource(R.string.settings_auto_11),
+                    value = if (translationContextEnabled) {
+                        stringResource(R.string.settings_translation_context_summary, translationContextSceneCount)
+                    } else {
+                        stringResource(R.string.settings_auto_45)
                     }
                 )
-                PreferenceSwitchRow(
-                    title = stringResource(R.string.settings_auto_29),
-                    subtitle = stringResource(R.string.settings_auto_12),
-                    checked = showOriginalGameText,
-                    onCheckedChange = {
-                        showOriginalGameText = it
-                        scope.launch { settingsRepository.setShowOriginalGameText(it) }
-                    }
-                )
-                HorizontalDivider()
-                PreferenceSwitchRow(
-                    title = stringResource(R.string.settings_auto_11),
-                    subtitle = stringResource(R.string.settings_auto_1),
-                    checked = translationContextEnabled,
-                    onCheckedChange = { enabled ->
-                        translationContextEnabled = enabled
-                        scope.launch {
-                            settingsRepository.setTranslationContextEnabled(enabled)
-                        }
-                    }
-                )
-                TranslationContextSceneCountSelector(
-                    sceneCount = translationContextSceneCount,
-                    enabled = translationContextEnabled,
-                    onSceneCountChange = { sceneCount ->
-                        translationContextSceneCount = sceneCount
-                        scope.launch {
-                            settingsRepository.setTranslationContextSceneCount(sceneCount)
-                        }
-                    }
+                SettingsInfoRow(
+                    label = stringResource(R.string.settings_auto_7),
+                    value = stringResource(if (translationIncludeRuby) R.string.settings_auto_44 else R.string.settings_auto_45)
                 )
                 HorizontalDivider()
-                PreferenceSwitchRow(
-                    title = stringResource(R.string.settings_auto_7),
-                    subtitle = stringResource(R.string.settings_auto_2),
-                    checked = translationIncludeRuby,
-                    onCheckedChange = { enabled ->
-                        translationIncludeRuby = enabled
-                        scope.launch { settingsRepository.setTranslationIncludeRuby(enabled) }
-                    }
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_ruby_example_label),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
-                    )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // Preserve the Japanese game text instead of converting it as Chinese UI text.
+                SettingsInfoRow(
+                    label = stringResource(R.string.settings_auto_28),
+                    valueContent = {
+                        val savedName = playerProfile?.name
+                        // Preserve the saved name's script instead of applying UI-language conversion.
                         androidx.compose.material3.Text(
-                            text = stringResource(R.string.settings_ruby_example_annotation),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = FgoUiColors.blueText
-                        )
-                        androidx.compose.material3.Text(
-                            text = stringResource(R.string.settings_ruby_example_base),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = when {
+                                savedName == null -> "—"
+                                savedName.isBlank() -> stringResource(R.string.settings_master_name_not_set)
+                                else -> savedName
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = FgoSettingsColors.value,
+                            textAlign = TextAlign.End
                         )
                     }
-                }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                )
+                SettingsInfoRow(
+                    label = stringResource(R.string.settings_auto_41),
+                    value = when (playerProfile?.gender) {
+                        null -> "—"
+                        SettingsRepository.PLAYER_GENDER_FEMALE -> stringResource(R.string.settings_gender_female)
+                        else -> stringResource(R.string.settings_gender_male)
+                    }
+                )
+                Button(
+                    shape = FgoUiStyle.buttonShape,
+                    onClick = onTranslationPreferences,
+                    modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text(
-                        text = stringResource(R.string.settings_ruby_example_meaning),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = FgoUiColors.text(darkAlpha = 0.82f)
-                    )
-                }
-                HorizontalDivider()
-                Text(
-                    text = stringResource(R.string.settings_master_profile_title),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                OutlinedTextField(
-                    colors = FgoUiColors.outlinedTextFieldColors(),
-                    value = playerName,
-                    onValueChange = {
-                        playerName = it
-                        playerNameSaveMessage = ""
-                    },
-                    label = { Text(stringResource(R.string.settings_auto_28)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.settings_auto_19)) },
-                    singleLine = true
-                )
-                PlayerGenderSelector(
-                    selectedGender = playerGender,
-                    onSelect = { gender ->
-                        playerGender = gender
-                        playerNameSaveMessage = ""
-                    }
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (playerNameSaveMessage.isNotBlank()) {
-                        Text(
-                            playerNameSaveMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = FgoUiColors.blueText
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                    }
-                    Button(shape = FgoUiStyle.buttonShape, onClick = { savePlayerName() }) {
-                        Text(stringResource(R.string.settings_auto_51))
-                    }
+                    Text(stringResource(R.string.settings_open_translation_preferences))
                 }
             }
 
@@ -592,13 +499,11 @@ fun SettingsScreen(
             ) {
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_20),
-                    value = if (liveVoiceTranslationEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45),
-                    valueColor = if (liveVoiceTranslationEnabled) FgoUiColors.success else FgoUiColors.warning
+                    value = if (liveVoiceTranslationEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45)
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_31),
-                    value = if (aiVoiceEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45),
-                    valueColor = if (aiVoiceEnabled) FgoUiColors.success else FgoUiColors.warning
+                    value = if (aiVoiceEnabled) stringResource(R.string.settings_auto_44) else stringResource(R.string.settings_auto_45)
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_32),
@@ -621,11 +526,7 @@ fun SettingsScreen(
                         !apiVoiceHintsSupported -> stringResource(R.string.settings_auto_8)
                         else -> stringResource(R.string.settings_auto_53)
                     },
-                    valueColor = when {
-                        !aiVoiceActive -> MaterialTheme.colorScheme.onSurfaceVariant
-                        apiVoiceHintsSupported && aiVoiceApiHintsEnabled -> FgoUiColors.success
-                        else -> FgoUiColors.warning
-                    }
+                    valueColor = FgoSettingsColors.value
                 )
                 Button(
                     shape = FgoUiStyle.buttonShape,
@@ -653,7 +554,8 @@ fun SettingsScreen(
                                 text = appLanguageLabel(appLanguage, stringResource(R.string.ui_language_system)),
                                 modifier = Modifier.weight(1f, fill = false),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = FgoUiColors.text(darkAlpha = 0.82f),
+                                color = FgoSettingsColors.value,
+                                fontWeight = FontWeight.Medium,
                                 textAlign = TextAlign.End
                             )
                             Icon(
@@ -680,7 +582,8 @@ fun SettingsScreen(
                                 text = stringResource(themeLabelRes(themeMode)),
                                 modifier = Modifier.weight(1f, fill = false),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = FgoUiColors.text(darkAlpha = 0.82f),
+                                color = FgoSettingsColors.value,
+                                fontWeight = FontWeight.Medium,
                                 textAlign = TextAlign.End
                             )
                             Icon(
@@ -702,11 +605,8 @@ fun SettingsScreen(
                         Text(
                             text = floatingButtonSizeLabel(floatingButtonSizeDp),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (floatingButtonSizeDp == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                FgoUiColors.blueText
-                            },
+                            color = FgoSettingsColors.value,
+                            fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.End
                         )
                     }
@@ -718,9 +618,9 @@ fun SettingsScreen(
                     Text(
                         stringResource(R.string.settings_auto_62),
                         style = MaterialTheme.typography.bodySmall,
-                        color = FgoUiColors.blueText
+                        color = FgoSettingsColors.supporting
                     )
-                    Slider(
+                    FgoSettingsSlider(
                         value = floatingButtonSizeDp.toFloat(),
                         onValueChange = { rawValue ->
                             val roundedSize = roundFloatingButtonSize(rawValue)
@@ -741,7 +641,7 @@ fun SettingsScreen(
                     Text(
                         stringResource(R.string.settings_auto_63),
                         style = MaterialTheme.typography.bodySmall,
-                        color = FgoUiColors.blueText
+                        color = FgoSettingsColors.supporting
                     )
                 }
             }
@@ -757,8 +657,7 @@ fun SettingsScreen(
                     modifier = Modifier.clickable { handleVersionRowTap() }
                 )
                 HiddenToggleNotice(
-                    text = debugLogMessage,
-                    enabled = debugLoggingEnabled
+                    text = debugLogMessage
                 )
                 SettingsInfoRow(
                     label = stringResource(R.string.settings_auto_57),
@@ -766,8 +665,7 @@ fun SettingsScreen(
                     modifier = Modifier.clickable { handleStatusRowTap() }
                 )
                 HiddenToggleNotice(
-                    text = foregroundTestMessage,
-                    enabled = foregroundTestOverrideEnabled
+                    text = foregroundTestMessage
                 )
                 OutlinedButton(
                     colors = FgoUiColors.outlinedButtonColors(),
@@ -869,262 +767,6 @@ fun SettingsScreen(
     }
 }
 
-private val targetLanguageOptions = listOf(
-    TargetLanguageOption(
-        locale = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
-        labelRes = R.string.settings_target_simplified
-    ),
-    TargetLanguageOption(
-        locale = SettingsRepository.TARGET_LANGUAGE_TRADITIONAL,
-        labelRes = R.string.settings_target_traditional
-    ),
-    TargetLanguageOption(
-        locale = SettingsRepository.TARGET_LANGUAGE_ENGLISH,
-        labelRes = R.string.settings_target_english
-    )
-)
-
-private data class TargetLanguageOption(
-    val locale: String,
-    @StringRes val labelRes: Int
-)
-
-private val playerGenderOptions = listOf(
-    PlayerGenderOption(
-        gender = SettingsRepository.PLAYER_GENDER_MALE,
-        labelRes = R.string.settings_gender_male
-    ),
-    PlayerGenderOption(
-        gender = SettingsRepository.PLAYER_GENDER_FEMALE,
-        labelRes = R.string.settings_gender_female
-    )
-)
-
-private data class PlayerGenderOption(
-    val gender: String,
-    @StringRes val labelRes: Int
-)
-
-@Composable
-private fun TranslationLanguageSelector(
-    selectedLocale: String,
-    onSelect: (String) -> Unit
-) {
-    val normalizedLocale = SettingsRepository.normalizeTargetLanguage(selectedLocale)
-    val selectedOption = targetLanguageOptions.firstOrNull { it.locale == normalizedLocale }
-        ?: targetLanguageOptions.first()
-    var expanded by remember { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            stringResource(R.string.settings_auto_23),
-            style = MaterialTheme.typography.bodyMedium,
-            color = FgoUiColors.text(darkAlpha = 0.72f, secondary = true),
-            fontWeight = FontWeight.SemiBold
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.weight(0.34f),
-                shape = MaterialTheme.shapes.small,
-                color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.24f))
-                )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        stringResource(R.string.settings_source_japanese),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2
-                    )
-                }
-            }
-            Text(
-                text = "→",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Box(modifier = Modifier.weight(0.66f)) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { expanded = true },
-                    shape = MaterialTheme.shapes.small,
-                    color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.34f))
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(selectedOption.labelRes),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 2,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = "▾",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                }
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    targetLanguageOptions.forEach { option ->
-                        val selected = option.locale == normalizedLocale
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    stringResource(option.labelRes),
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (selected) {
-                                        FgoUiColors.blueText
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    }
-                                )
-                            },
-                            onClick = {
-                                expanded = false
-                                onSelect(option.locale)
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlayerGenderSelector(
-    selectedGender: String,
-    onSelect: (String) -> Unit
-) {
-    val normalizedGender = SettingsRepository.normalizePlayerGender(selectedGender)
-    val selectedOption = playerGenderOptions.first { it.gender == normalizedGender }
-    var showPicker by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clickable(role = Role.Button) { showPicker = true },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(R.string.settings_auto_41),
-            style = MaterialTheme.typography.bodyMedium,
-            color = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-            Surface(
-                modifier = Modifier.widthIn(min = 96.dp).heightIn(min = 48.dp),
-                shape = MaterialTheme.shapes.small,
-                color = FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = FgoUiColors.controlOutline(MaterialTheme.colorScheme.outline.copy(alpha = 0.34f))
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                ) {
-                    Text(
-                        text = stringResource(selectedOption.labelRes),
-                        modifier = Modifier.weight(1f, fill = false),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center
-                    )
-                    Icon(
-                        painter = painterResource(R.drawable.ic_settings_chevron_right),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-
-    if (showPicker) {
-        AlertDialog(
-            onDismissRequest = { showPicker = false },
-            title = { Text(stringResource(R.string.settings_auto_41)) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .selectableGroup()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    playerGenderOptions.forEach { option ->
-                        val selected = option.gender == normalizedGender
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .selectable(selected = selected, role = Role.RadioButton) {
-                                    showPicker = false
-                                    onSelect(option.gender)
-                                }
-                                .padding(horizontal = 4.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            RadioButton(selected = selected, onClick = null)
-                            Text(
-                                text = stringResource(option.labelRes),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    colors = FgoUiColors.textButtonColors(),
-                    onClick = { showPicker = false }
-                ) {
-                    Text(stringResource(R.string.home_cancel))
-                }
-            }
-        )
-    }
-}
-
 @Composable
 private fun OcrEngineRow(
     option: OcrEngineOption,
@@ -1191,109 +833,11 @@ private fun floatingButtonSizeSteps(): Int {
 private fun floatingButtonSizeLabel(sizeDp: Int): String {
     val safeSize = SettingsRepository.normalizeFloatingButtonSizeDp(sizeDp)
     return when {
+        safeSize == SettingsRepository.MIN_FLOATING_BUTTON_SIZE_DP -> stringResource(R.string.settings_floating_button_size_minimum)
         safeSize < SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> stringResource(R.string.settings_auto_58)
         safeSize == SettingsRepository.DEFAULT_FLOATING_BUTTON_SIZE_DP -> stringResource(R.string.settings_auto_59)
         safeSize < SettingsRepository.MAX_FLOATING_BUTTON_SIZE_DP -> stringResource(R.string.settings_auto_60)
         else -> stringResource(R.string.settings_auto_61)
-    }
-}
-
-@Composable
-private fun TranslationContextSceneCountSelector(
-    sceneCount: Int,
-    enabled: Boolean,
-    onSceneCountChange: (Int) -> Unit
-) {
-    val safeCount = SettingsRepository.normalizeTranslationContextSceneCount(sceneCount)
-    val contentColor = FgoUiColors.text(
-        MaterialTheme.colorScheme.onSurface.copy(
-            alpha = if (enabled) 0.82f else 0.38f
-        ),
-        enabled = enabled
-    )
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                stringResource(R.string.settings_auto_25),
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor
-            )
-            Text(
-                stringResource(R.string.settings_context_scenes, safeCount),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (enabled) FgoUiColors.blueText else contentColor
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                SettingsRepository.MIN_TRANSLATION_CONTEXT_SCENE_COUNT.toString(),
-                style = MaterialTheme.typography.bodySmall,
-                color = contentColor
-            )
-            Slider(
-                value = safeCount.toFloat(),
-                onValueChange = { rawValue ->
-                    val normalizedCount = SettingsRepository.normalizeTranslationContextSceneCount(
-                        rawValue.roundToInt()
-                    )
-                    if (normalizedCount != safeCount) {
-                        onSceneCountChange(normalizedCount)
-                    }
-                },
-                enabled = enabled,
-                valueRange = SettingsRepository.MIN_TRANSLATION_CONTEXT_SCENE_COUNT.toFloat()..
-                    SettingsRepository.MAX_TRANSLATION_CONTEXT_SCENE_COUNT.toFloat(),
-                steps = SettingsRepository.MAX_TRANSLATION_CONTEXT_SCENE_COUNT -
-                    SettingsRepository.MIN_TRANSLATION_CONTEXT_SCENE_COUNT - 1,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-            )
-            Text(
-                SettingsRepository.MAX_TRANSLATION_CONTEXT_SCENE_COUNT.toString(),
-                style = MaterialTheme.typography.bodySmall,
-                color = contentColor
-            )
-        }
-    }
-}
-
-@Composable
-private fun PreferenceSwitchRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = FgoUiColors.text(darkAlpha = 0.82f)
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange
-        )
     }
 }
 
@@ -1351,28 +895,14 @@ private fun SettingsIconBadge(@DrawableRes iconRes: Int) {
 }
 
 @Composable
-private fun HiddenToggleNotice(
-    text: String,
-    enabled: Boolean
-) {
+private fun HiddenToggleNotice(text: String) {
     if (text.isBlank()) return
-
-    val containerColor = if (enabled) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.primaryContainer
-    }
-    val contentColor = if (enabled) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
-        color = containerColor,
-        contentColor = contentColor
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = FgoSettingsColors.value
     ) {
         Text(
             text = text,
@@ -1389,7 +919,7 @@ private fun SettingsInfoRow(
     label: String,
     value: String = "",
     valueContent: (@Composable () -> Unit)? = null,
-    valueColor: Color = FgoUiColors.text(darkAlpha = 0.82f),
+    valueColor: Color = FgoSettingsColors.value,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -1399,6 +929,7 @@ private fun SettingsInfoRow(
     ) {
         Text(
             label,
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
             color = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
         )
@@ -1413,6 +944,7 @@ private fun SettingsInfoRow(
                 Text(
                     value,
                     style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
                     color = valueColor,
                     textAlign = TextAlign.End
                 )

@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +28,7 @@ import com.fgogotran.ui.screen.DiagnosticLogScreen
 import com.fgogotran.ui.screen.GuideScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
+import com.fgogotran.ui.screen.TranslationPreferencesScreen
 import com.fgogotran.ui.screen.VoiceSettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
 import com.fgogotran.update.AppVersionCheckResult
@@ -117,7 +119,7 @@ class MainActivity : ComponentActivity() {
 /**
  * Top-level navigation state and routing.
  */
-enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS, VOICE_SETTINGS, DIAGNOSTIC_LOG }
+enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS, TRANSLATION_PREFERENCES, VOICE_SETTINGS, DIAGNOSTIC_LOG }
 
 /**
  * Root composable managing top-level navigation.
@@ -134,6 +136,7 @@ fun MainScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var currentScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
+    val settingsScrollState = rememberScrollState()
     var pendingAutoUpdate by remember { mutableStateOf<AppVersionInfo?>(null) }
     val currentVersionName = remember(appVersionManager) { appVersionManager.currentVersionName() }
 
@@ -172,6 +175,7 @@ fun MainScreen(
     BackHandler(enabled = currentScreen != Screen.HOME) {
         currentScreen = when (currentScreen) {
             Screen.API_SETTINGS,
+            Screen.TRANSLATION_PREFERENCES,
             Screen.VOICE_SETTINGS,
             Screen.DIAGNOSTIC_LOG -> Screen.SETTINGS
             else -> Screen.HOME
@@ -203,14 +207,21 @@ fun MainScreen(
             },
             onClearTranslationCache = { translator.clearTranslationCache() },
             onApiSettings = { currentScreen = Screen.API_SETTINGS },
+            onTranslationPreferences = { currentScreen = Screen.TRANSLATION_PREFERENCES },
             onVoiceSettings = { currentScreen = Screen.VOICE_SETTINGS },
             onDiagnosticLog = { currentScreen = Screen.DIAGNOSTIC_LOG },
-            onBack = { currentScreen = Screen.HOME }
+            onBack = { currentScreen = Screen.HOME },
+            scrollState = settingsScrollState
         )
 
         Screen.API_SETTINGS -> ApiSettingsScreen(
             settingsRepository = settingsRepository,
             translator = translator,
+            onBack = { currentScreen = Screen.SETTINGS }
+        )
+
+        Screen.TRANSLATION_PREFERENCES -> TranslationPreferencesScreen(
+            settingsRepository = settingsRepository,
             onBack = { currentScreen = Screen.SETTINGS }
         )
 

@@ -18,6 +18,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoSettingsColors
 import com.fgogotran.ui.theme.FgoUiStyle
 import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
@@ -778,7 +779,7 @@ fun ApiSettingsScreen(
                             color = if (saveMessageIsError) {
                                 MaterialTheme.colorScheme.error
                             } else {
-                                FgoUiColors.blueText
+                                FgoSettingsColors.value
                             },
                             style = MaterialTheme.typography.bodySmall
                         )

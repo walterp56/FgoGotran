@@ -222,7 +222,7 @@
     <string name="settings_auto_9">用于调试和排查问题。</string>
     <string name="settings_auto_10">前台检测已恢复正常</string>
     <string name="settings_auto_11">参考前文</string>
-    <string name="settings_auto_12">同时显示日文原文与译文</string>
+    <string name="settings_auto_12">同时显示原文与译文</string>
     <string name="settings_auto_13">调试日志已开启</string>
     <string name="settings_auto_14">调试日志已关闭</string>
     <string name="settings_auto_15">前台测试已开启</string>
@@ -238,8 +238,14 @@
     <string name="settings_auto_25">参考场景数</string>
     <string name="settings_auto_26">管理接口</string>
     <string name="settings_auto_27">翻译偏好</string>
+    <string name="settings_open_translation_preferences">打开翻译偏好</string>
+    <string name="settings_translation_language_display">语言与显示</string>
+    <string name="settings_translation_processing">翻译处理</string>
+    <string name="settings_translation_context_summary">开启 · %1$d 幕</string>
+    <string name="settings_translation_context_disabled_hint">开启“参考前文”后可调整</string>
     <string name="settings_auto_28">御主名称</string>
     <string name="settings_master_profile_title">御主资料</string>
+    <string name="settings_master_name_not_set">未设置</string>
     <string name="settings_auto_29">双语显示</string>
     <string name="settings_auto_30">语音设置</string>
     <string name="settings_auto_31">语音朗读</string>
@@ -345,7 +351,7 @@
     <string name="settings_context_scenes">%1$d 幕</string>
     <string name="voice_read_chinese">中文</string>
     <string name="voice_read_english">英文</string>
-    <string name="voice_read_text_invalid_hint">需与译文语言一致</string>
+    <string name="voice_read_text_follows_translation">跟随翻译语言</string>
     <string name="ui_language_system">跟随系统</string>
     <string name="ui_language_follow_system">使用手机的语言。</string>
     <string name="ui_language_title">界面语言</string>
@@ -385,6 +391,7 @@
     <string name="voice_ai_expression_inactive">未生效</string>
     <string name="app_appearance_title">外观</string>
     <string name="settings_floating_button_size">悬浮按钮大小</string>
+    <string name="settings_floating_button_size_minimum">最小</string>
     <string name="app_theme_title">主题</string>
     <string name="app_theme_system">跟随系统</string>
     <string name="app_theme_light">浅色</string>

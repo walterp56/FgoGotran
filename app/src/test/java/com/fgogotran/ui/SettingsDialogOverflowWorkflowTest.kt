@@ -58,7 +58,7 @@ class SettingsDialogOverflowWorkflowTest {
 
     @Test
     fun `gender picker has its own scroll state and keeps both selection callbacks`() {
-        val settings = source("ui/screen/SettingsScreen.kt")
+        val settings = source("ui/screen/TranslationPreferencesScreen.kt")
         val picker = function(settings, "PlayerGenderSelector")
         assertScrollableBody(picker)
         assertTrue(dialogBody(picker).contains("showPicker = false"))
@@ -129,7 +129,7 @@ class SettingsDialogOverflowWorkflowTest {
             source("ui/component/ThemePickerDialog.kt"),
             function(source("ui/screen/HomeScreen.kt"), "ServerChoiceDialog"),
             source("ui/screen/SettingsScreen.kt").substringAfter("if (showOcrPicker) {").substringBefore("\n    Scaffold("),
-            function(source("ui/screen/SettingsScreen.kt"), "PlayerGenderSelector")
+            function(source("ui/screen/TranslationPreferencesScreen.kt"), "PlayerGenderSelector")
         )
         for (picker in pickers) {
             for (override in listOf("fontSize =", "fontScale", "LocalDensity", "2560", "1440", "maxLines =")) {

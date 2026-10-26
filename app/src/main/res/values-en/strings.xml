@@ -220,7 +220,7 @@
     <string name="settings_auto_9">For debugging and troubleshooting.</string>
     <string name="settings_auto_10">Foreground detection restored</string>
     <string name="settings_auto_11">Use story context</string>
-    <string name="settings_auto_12">Show Japanese text alongside the translation.</string>
+    <string name="settings_auto_12">Show source text alongside the translation.</string>
     <string name="settings_auto_13">Debug logging enabled</string>
     <string name="settings_auto_14">Debug logging disabled</string>
     <string name="settings_auto_15">Foreground test enabled</string>
@@ -236,8 +236,14 @@
     <string name="settings_auto_25">Context scenes</string>
     <string name="settings_auto_26">Manage API</string>
     <string name="settings_auto_27">Translation preferences</string>
+    <string name="settings_open_translation_preferences">Open translation preferences</string>
+    <string name="settings_translation_language_display">Language and display</string>
+    <string name="settings_translation_processing">Translation processing</string>
+    <string name="settings_translation_context_summary">On · %1$d scenes</string>
+    <string name="settings_translation_context_disabled_hint">Turn on story context to adjust this value.</string>
     <string name="settings_auto_28">Master name</string>
     <string name="settings_master_profile_title">Master details</string>
+    <string name="settings_master_name_not_set">Not set</string>
     <string name="settings_auto_29">Bilingual display</string>
     <string name="settings_auto_30">Voice settings</string>
     <string name="settings_auto_31">Voice playback</string>
@@ -343,7 +349,7 @@
     <string name="settings_context_scenes">%1$d scenes</string>
     <string name="voice_read_chinese">Chinese</string>
     <string name="voice_read_english">English</string>
-    <string name="voice_read_text_invalid_hint">Must match the translation language.</string>
+    <string name="voice_read_text_follows_translation">Follows translation language</string>
     <string name="ui_language_system">Follow system</string>
     <string name="ui_language_follow_system">Use your phone’s language.</string>
     <string name="ui_language_title">App language</string>
@@ -383,6 +389,7 @@
     <string name="voice_ai_expression_inactive">Inactive</string>
     <string name="app_appearance_title">Appearance</string>
     <string name="settings_floating_button_size">Floating button size</string>
+    <string name="settings_floating_button_size_minimum">Min</string>
     <string name="app_theme_title">Theme</string>
     <string name="app_theme_system">Follow system</string>
     <string name="app_theme_light">Light</string>

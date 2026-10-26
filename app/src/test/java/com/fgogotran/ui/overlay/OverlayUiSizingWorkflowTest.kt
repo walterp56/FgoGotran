@@ -134,7 +134,7 @@ class OverlayUiSizingWorkflowTest {
 
     @Test
     fun `large app page labels can wrap without a page redesign`() {
-        val settings = source("ui/screen/SettingsScreen.kt").substringAfter("private fun TranslationLanguageSelector(")
+        val settings = source("ui/screen/TranslationPreferencesScreen.kt").substringAfter("private fun TranslationLanguageSelector(")
             .substringBefore("\n@Composable")
         assertFalse(settings.contains("maxLines = 1"))
         val home = source("ui/screen/HomeScreen.kt").substringAfter("private fun StatusActionCard(")
