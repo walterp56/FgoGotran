@@ -136,6 +136,8 @@ app/src/test/java/com/fgogotran/overlay/*
 !app/src/test/java/com/fgogotran/overlay/RubyEndAlignmentTest.kt
 !app/src/test/java/com/fgogotran/overlay/HistoryRubyViewportTest.kt
 !app/src/test/java/com/fgogotran/overlay/BilingualDialogueGeometryTest.kt
+!app/src/test/java/com/fgogotran/overlay/BilingualChoiceGeometryTest.kt
+!app/src/test/java/com/fgogotran/overlay/BilingualOriginalTextTest.kt
 !app/src/test/java/com/fgogotran/overlay/ProportionalDialogueFitTest.kt
 !app/src/test/java/com/fgogotran/overlay/RubySpanSpacingTest.kt
 # Retain focused crop scaling and Android UI-boundary regressions.

@@ -730,38 +730,47 @@ class OverlayRenderer @Inject constructor(
         )
 
         val totalHeight = layout.translationLineHeight + layout.originalLineHeight
-        var currentTop = textArea.centerY() - totalHeight / 2f + 8f * scale
+        val currentTop = textArea.centerY() - totalHeight / 2f + 8f * scale
+        val ink = Rect()
+        val translationBody = RubyRenderText.body(layout.translationText)
+        paint.textSize = layout.translationTextSize
+        val translationBaseline = VisualTextMetrics.baselineForTop(paint, currentTop, instruction.targetLocale,
+            translationBody)
+        paint.getTextBounds(translationBody, 0, translationBody.length, ink)
+        val translationBottom = translationBaseline + ink.bottom
+        paint.textSize = layout.originalTextSize
+        val originalBaseline = VisualTextMetrics.baselineForTop(paint,
+            currentTop + layout.translationLineHeight, instruction.targetLocale, layout.originalText)
+        paint.getTextBounds(layout.originalText, 0, layout.originalText.length, ink)
+        // Use the same offset with or without ruby. The existing plane and inter-row gap stay fixed.
+        val downwardShift = BilingualChoiceGeometry.downwardShift(
+            inkBottom = maxOf(translationBottom, originalBaseline + ink.bottom),
+            planeBottom = textArea.bottom,
+            shadowPadding = (2f + shadowOffset) * scale,
+            viewportScale = scale
+        )
 
         canvas.save()
         clipTextAndRuby(canvas, textArea,
             RectF(box.left + clearInsetX, box.top + 8f * scale, box.right - clearInsetX, box.bottom - 8f * scale),
             listOf(layout.translationText))
         paint.textSize = layout.translationTextSize
-        val translationBaseline = VisualTextMetrics.baselineForTop(paint, currentTop, instruction.targetLocale,
-            RubyRenderText.body(layout.translationText))
         drawShadowedText(
             canvas = canvas,
             paint = paint,
             text = layout.translationText,
             x = textArea.centerX() - paint.measureRenderText(layout.translationText) / 2f,
-            y = translationBaseline,
+            y = translationBaseline + downwardShift,
             textColor = textColor,
             scale = scale
         )
-        currentTop += layout.translationLineHeight
-
         paint.textSize = layout.originalTextSize
         drawShadowedText(
             canvas = canvas,
             paint = paint,
             text = layout.originalText,
             x = textArea.centerX() - paint.measureRenderText(layout.originalText, RubyRenderText.Mode.INLINE) / 2f,
-            y = VisualTextMetrics.baselineForTop(
-                paint = paint,
-                top = currentTop,
-                targetLanguage = instruction.targetLocale,
-                text = layout.originalText
-            ),
+            y = originalBaseline + downwardShift,
             textColor = ORIGINAL_TEXT_COLOR,
             scale = scale,
             rubyMode = RubyRenderText.Mode.INLINE
@@ -1132,10 +1141,11 @@ class OverlayRenderer @Inject constructor(
         val preferred = BILINGUAL_TRANSLATION_TEXT_SIZE * scale
         paint.textSize = preferred
         val translations = distinctDialogueCandidates(instruction.dialogueRenderCandidates(paint, textArea.width()).all)
-        paint.textSize = BILINGUAL_ORIGINAL_MAX_TEXT_SIZE * scale
+        paint.textSize = BilingualOriginalText.PREFERRED_TEXT_SIZE * scale
         val originals = distinctOriginalCandidates(instruction.originalRenderCandidates(paint, textArea.width()).all)
-        val fit = ProportionalDialogueFit.largest(preferred, BILINGUAL_ORIGINAL_MAX_TEXT_SIZE * scale, scale) { sizes ->
-            fitBilingualLinePairsAtSizeOrNull(translations, originals, paint, sizes, textArea, panelBox, instruction.targetLocale)
+        val fit = ProportionalDialogueFit.largest(preferred, viewportScale = scale) { sizes ->
+            fitBilingualLinePairsAtSizeOrNull(translations, originals, paint, sizes, textArea, panelBox,
+                instruction.targetLocale, scale)
         }
         if (fit == null) FgoLogger.warn(tag, "Bilingual dialogue has no complete fit at the physical ruby pixel limit")
         return fit?.value
@@ -1143,35 +1153,43 @@ class OverlayRenderer @Inject constructor(
 
     private fun fitBilingualLinePairsAtSizeOrNull(
         translationCandidates: List<String>, originalCandidates: List<String>, paint: Paint,
-        sizes: ProportionalDialogueFit.Sizes, area: RectF, panel: RectF, targetLanguage: String
+        sizes: ProportionalDialogueFit.Sizes, area: RectF, panel: RectF, targetLanguage: String,
+        viewportScale: Float
     ): BilingualLinePairFit? {
         for (translationCandidate in translationCandidates) {
             paint.textSize = sizes.body
             for (translationLines in completeDialogueLineCandidates(translationCandidate, paint, area.width(),
                 VisualTextMetrics.isEnglishTarget(targetLanguage), panel.left - area.left)) {
                 if (translationLines.isEmpty() || translationLines.size > DIALOGUE_MAX_LINES) continue
-                for (originalCandidate in originalCandidates) {
-                    paint.textSize = sizes.original
-                    val originalLines = wrapText(originalCandidate, paint, area.width(), false, RubyRenderText.Mode.INLINE)
-                    if (originalLines.isEmpty() || originalLines.size > DIALOGUE_MAX_LINES) continue
-                    val metrics = bilingualMetrics(paint, sizes.body, sizes.original, sizes.drawingScale,
-                        targetLanguage, translationLines, originalLines)
-                    val rows = BilingualDialogueGeometry.layout(translationLines.size, originalLines.size,
-                        metrics, panel.top - area.top)
-                    if (rows.bottom > area.height()) continue
-                    val planned = mutableListOf<PlannedDialogueRow>()
-                    for (row in rows.rows) {
-                        val raw = if (row.original) originalLines[row.lineIndex] else translationLines[row.lineIndex]
-                        val prepared = planDialogueRow(paint, raw, row.original,
-                            if (row.original) sizes.original else sizes.body, area.left, area.top + row.baseline,
-                            area.width(), panel, area.top + row.minimumRubyTop,
-                            metrics.rubyGap, sizes.drawingScale) ?: break
-                        planned += prepared
+                // Keep the current body/ruby size while fitting the smaller Japanese independently.
+                val originalFit = BilingualOriginalText.largestFitting(viewportScale) { originalSize ->
+                    var fitted: BilingualLinePairFit? = null
+                    for (originalCandidate in originalCandidates) {
+                        paint.textSize = originalSize
+                        val originalLines = wrapText(originalCandidate, paint, area.width(), false, RubyRenderText.Mode.INLINE)
+                        if (originalLines.isEmpty() || originalLines.size > DIALOGUE_MAX_LINES) continue
+                        val metrics = bilingualMetrics(paint, sizes.body, originalSize, sizes.drawingScale,
+                            targetLanguage, translationLines, originalLines)
+                        val rows = BilingualDialogueGeometry.layout(translationLines.size, originalLines.size,
+                            metrics, panel.top - area.top)
+                        if (rows.bottom > area.height()) continue
+                        val planned = mutableListOf<PlannedDialogueRow>()
+                        for (row in rows.rows) {
+                            val raw = if (row.original) originalLines[row.lineIndex] else translationLines[row.lineIndex]
+                            val prepared = planDialogueRow(paint, raw, row.original,
+                                if (row.original) originalSize else sizes.body, area.left, area.top + row.baseline,
+                                area.width(), panel, area.top + row.minimumRubyTop,
+                                metrics.rubyGap, sizes.drawingScale) ?: break
+                            planned += prepared
+                        }
+                        if (planned.size != rows.rows.size) continue
+                        fitted = BilingualLinePairFit(translationLines, originalLines, rows,
+                            sizes.body, originalSize, planned, sizes.drawingScale)
+                        break
                     }
-                    if (planned.size != rows.rows.size) continue
-                    return BilingualLinePairFit(translationLines, originalLines, rows,
-                        sizes.body, sizes.original, planned, sizes.drawingScale)
+                    fitted
                 }
+                if (originalFit != null) return originalFit.value
                 // Resuming the lazy translation-wrapper sequence must use the body paint.
                 paint.textSize = sizes.body
             }
@@ -1254,7 +1272,7 @@ class OverlayRenderer @Inject constructor(
 
     private fun originalTextSizeFor(translationTextSize: Float, scale: Float): Float {
         return (translationTextSize * ORIGINAL_TEXT_SIZE_RATIO)
-            .coerceAtMost(BILINGUAL_ORIGINAL_MAX_TEXT_SIZE * scale)
+            .coerceAtMost(BilingualOriginalText.PREFERRED_TEXT_SIZE * scale)
             .coerceAtLeast(BILINGUAL_ORIGINAL_MIN_TEXT_SIZE * scale)
     }
 
@@ -1395,37 +1413,17 @@ class OverlayRenderer @Inject constructor(
         paint: Paint,
         maxWidth: Float
     ): OriginalRenderCandidates {
-        val normalizedLines = sourceText
-            .replace("\r\n", "\n")
-            .replace('\r', '\n')
-            .lines()
-            .map { it.replace(Regex("[ \\t]+"), " ").trim() }
-            .filter { it.isNotBlank() }
-        val planned = planRubyLines(
-            lines = normalizedLines,
-            maxWidth = maxWidth,
-            measureText = { paint.measureRenderText(it, RubyRenderText.Mode.INLINE) },
-            rubyMode = RubyRenderText.Mode.INLINE
-        )
-        val linePreserved = normalizedLines.joinToString("\n").trim()
-        val flattened = normalizedLines.joinToString(WIDE_RENDER_SPACE)
-            .replace(Regex("[ \\t]+"), " ")
-            .trim()
-        val candidates = if (normalizedLines.size > DIALOGUE_MAX_LINES) {
-            planned
-        } else {
-            listOf(linePreserved, flattened)
+        val candidates = BilingualOriginalText.candidates(sourceText, DIALOGUE_MAX_LINES) { lines ->
+            planRubyLines(
+                lines = lines,
+                maxWidth = maxWidth,
+                measureText = { paint.measureRenderText(it, RubyRenderText.Mode.INLINE) },
+                rubyMode = RubyRenderText.Mode.INLINE
+            )
         }
         return OriginalRenderCandidates(
-            all = candidates
-                .filter { it.isNotBlank() }
-                .distinct()
-                .ifEmpty { listOf(sourceText.trim()) },
-            finalFallback = if (normalizedLines.size > DIALOGUE_MAX_LINES) {
-                planned.firstOrNull().orEmpty()
-            } else {
-                flattened
-            }.ifBlank { sourceText.trim() }
+            all = candidates,
+            finalFallback = candidates.firstOrNull().orEmpty()
         )
     }
 
