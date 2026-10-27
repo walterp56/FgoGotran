@@ -185,6 +185,31 @@ class AutoChoiceHandoffTest {
         assertEquals(1L, handoff.autoRenderGeneration)
     }
 
+    @Test
+    fun `skipped symbol scene ends old ownership without a render and permits the next identical source`() {
+        for (kind in StoryTapHandoff.Kind.entries) {
+            for (replayed in listOf(false, true)) {
+                handoff.clear()
+                render(kind)
+                val old = tap()
+                val generation = handoff.autoRenderGeneration
+                if (replayed) assertTrue(handoff.beginAfterReplay(old, 100L))
+
+                // The accepted symbol-only scene calls this cleanup without onSceneRendered.
+                handoff.clear()
+                assertFalse(handoff.ownsScene(old))
+                assertFalse(handoff.isPending(200L))
+                assertFalse(handoff.beginAfterReplay(old, 200L))
+                assertNull(tapOrNull())
+                assertEquals(generation, handoff.autoRenderGeneration)
+
+                render(kind) // A later scene is allowed to repeat the pre-skip text/options.
+                assertEquals(generation + 1L, handoff.autoRenderGeneration)
+                assertEquals(old.fingerprint, tap().fingerprint)
+            }
+        }
+    }
+
     private fun render(kind: StoryTapHandoff.Kind, bits: Long = 1L) = handoff.onSceneRendered(
         fingerprint = "same source", width = 1920, height = 1080, kind = kind,
         choiceHitBounds = if (kind == StoryTapHandoff.Kind.CHOICES) buttons else emptyList(),

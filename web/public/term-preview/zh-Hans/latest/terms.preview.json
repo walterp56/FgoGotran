@@ -964,5 +964,12 @@
     "en_term": "Inner Sea of the Planet",
     "category": "place",
     "aliases": ""
+  },
+  {
+    "jp_term": "タマモ",
+    "cn_term": "玉藻",
+    "en_term": "Tamamo",
+    "category": "game_term",
+    "aliases": ""
   }
 ]

@@ -238,6 +238,8 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/crop/CropWorkflowWiringTest.kt
 # Retain screenshot-age freshness and choice-retry timestamp wiring regressions.
 !app/src/test/java/com/fgogotran/story/StoryFreshnessWiringTest.kt
+!app/src/test/java/com/fgogotran/story/StoryTranslationContentPolicyTest.kt
+!app/src/test/java/com/fgogotran/story/StoryTranslationContentWorkflowTest.kt
 # Retain whole-label name lookup, fallback, RAG and name-cache policy regressions.
 !app/src/test/java/com/fgogotran/translation/NameBoxLookupPolicyTest.kt
 # Retain corpus-based name-label prompt and existing validation allowance regressions.

@@ -12,3 +12,4 @@ state/
 llama.cpp/
 *.log
 tests/
+models/
