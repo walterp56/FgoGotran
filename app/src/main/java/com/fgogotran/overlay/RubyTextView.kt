@@ -7,6 +7,7 @@ import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.text.SpannableStringBuilder
+import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
@@ -16,6 +17,16 @@ internal class RubyTextView(context: Context) : TextView(context) {
     private var ruby = RubyRenderText.Text("")
     private var decoration: Drawable? = null
     private var decorationHost: ViewGroup? = null
+    private val ownerPosition = IntArray(2)
+    private val hostPosition = IntArray(2)
+    private val hostLayoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+        updateDecorationBounds()
+    }
+    private val hostScrollListener = object : RecyclerView.OnScrollListener() {
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            decoration?.invalidateSelf()
+        }
+    }
     var annotationColor: Int? = null
 
     fun setRubyText(value: CharSequence) {
@@ -28,24 +39,21 @@ internal class RubyTextView(context: Context) : TextView(context) {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        var host = parent as? ViewGroup ?: return
-        while (host.parent is ViewGroup && host.parent !is RecyclerView) {
-            val ancestor = host.parent
-            if (ancestor !is android.widget.LinearLayout && ancestor !is android.widget.FrameLayout) break
-            host = ancestor
-        }
+        val host = findDecorationHost() ?: return
         decorationHost = host
         decoration = object : Drawable() {
             override fun draw(canvas: Canvas) {
                 if (!isShown) return
-                val ownerPosition = IntArray(2)
-                val hostPosition = IntArray(2)
                 getLocationInWindow(ownerPosition)
                 host.getLocationInWindow(hostPosition)
+                val textOriginX = (ownerPosition[0] - hostPosition[0] + totalPaddingLeft - scrollX).toFloat()
+                val textOriginY = (ownerPosition[1] - hostPosition[1] + extendedPaddingTop - scrollY).toFloat()
                 canvas.save()
-                canvas.translate((ownerPosition[0] - hostPosition[0]).toFloat(),
-                    (ownerPosition[1] - hostPosition[1]).toFloat())
-                drawRuby(canvas)
+                canvas.clipRect(0, 0, host.width, host.height)
+                canvas.translate(textOriginX, textOriginY)
+                val bounds = HistoryRubyViewport.textBounds(host.width, host.height, textOriginX, textOriginY,
+                    paint.textSize * (RubyTextPainter.SIZE_RATIO + RubyTextPainter.GAP_RATIO))
+                drawRuby(canvas, RectF(bounds.left, bounds.top, bounds.right, bounds.bottom))
                 canvas.restore()
             }
             override fun setAlpha(alpha: Int) = Unit
@@ -56,10 +64,14 @@ internal class RubyTextView(context: Context) : TextView(context) {
             it.setBounds(0, 0, host.width, host.height)
             host.overlay.add(it)
         }
+        host.addOnLayoutChangeListener(hostLayoutListener)
+        (host as? RecyclerView)?.addOnScrollListener(hostScrollListener)
     }
 
     override fun onDetachedFromWindow() {
         decoration?.let { decorationHost?.overlay?.remove(it) }
+        decorationHost?.removeOnLayoutChangeListener(hostLayoutListener)
+        (decorationHost as? RecyclerView)?.removeOnScrollListener(hostScrollListener)
         decoration = null
         decorationHost = null
         super.onDetachedFromWindow()
@@ -72,18 +84,29 @@ internal class RubyTextView(context: Context) : TextView(context) {
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
+        updateDecorationBounds()
+    }
+
+    private fun updateDecorationBounds() {
         decorationHost?.let { decoration?.setBounds(0, 0, it.width, it.height) }
         decoration?.invalidateSelf()
     }
 
-    private fun drawRuby(canvas: Canvas) {
+    private fun findDecorationHost(): ViewGroup? {
+        val fallback = parent as? ViewGroup
+        var ancestor = fallback
+        while (ancestor != null) {
+            // A choice-only item has no header above its first text line. Drawing on the list
+            // lets ruby use the existing inter-item/top padding without changing row geometry.
+            if (ancestor is RecyclerView) return ancestor
+            ancestor = ancestor.parent as? ViewGroup
+        }
+        return fallback
+    }
+
+    private fun drawRuby(canvas: Canvas, bounds: RectF) {
         val nativeLayout = layout ?: return
         if (ruby.annotations.isEmpty()) return
-        canvas.save()
-        canvas.translate((totalPaddingLeft - scrollX).toFloat(), (extendedPaddingTop - scrollY).toFloat())
-        val bounds = RectF(canvas.clipBounds).apply {
-            top = maxOf(top, -paint.textSize * (RubyTextPainter.SIZE_RATIO + RubyTextPainter.GAP_RATIO))
-        }
         val decorationPaint = Paint(paint).apply { color = annotationColor ?: currentTextColor }
         ruby.annotations.groupBy { nativeLayout.getLineForOffset(it.end - 1) }.forEach { (line, annotations) ->
             val start = nativeLayout.getLineStart(line)
@@ -104,7 +127,6 @@ internal class RubyTextView(context: Context) : TextView(context) {
                 nativeLayout.getLineLeft(line), nativeLayout.getLineBaseline(line).toFloat(),
                 decorationPaint.color, bounds, minimumTop)
         }
-        canvas.restore()
     }
 
     private fun previousSiblingBodyBottom(default: Float): Float {
@@ -116,7 +138,10 @@ internal class RubyTextView(context: Context) : TextView(context) {
         if (last < 0) return default
         val text = previous.text.subSequence(previousLayout.getLineStart(last), previousLayout.getLineVisibleEnd(last)).toString()
         return maxOf(default, previous.top + previous.extendedPaddingTop +
-            RubyTextPainter.bodyBottom(previous.paint, text, previousLayout.getLineBaseline(last).toFloat()) -
+            // Native TextView.text already contains exactly the visible glyphs, including
+            // inline Japanese readings on the previous bilingual source row.
+            RubyTextPainter.bodyBottom(previous.paint, text, previousLayout.getLineBaseline(last).toFloat(),
+                RubyRenderText.Mode.INLINE) -
             top - extendedPaddingTop + 1f)
     }
 }

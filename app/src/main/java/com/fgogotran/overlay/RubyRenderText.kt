@@ -5,6 +5,9 @@ import java.util.Locale
 
 /** Display-only interpretation of the existing API/history notation. Never changes stored text. */
 internal object RubyRenderText {
+    /** Bilingual source text keeps the notation inline; translation decorates the base. */
+    enum class Mode { ABOVE_BASE, INLINE }
+
     data class Annotation(val start: Int, val end: Int, val reading: String)
     data class Marker(val start: Int, val end: Int)
 
@@ -43,13 +46,25 @@ internal object RubyRenderText {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Text>?): Boolean = size > 128
     }
 
-    fun parse(value: String): Text {
+    fun parse(value: String, mode: Mode = Mode.ABOVE_BASE): Text {
+        if (mode == Mode.INLINE) return Text(value)
         if ('〈' !in value || '〉' !in value) return Text(value)
         return synchronized(cache) { cache.getOrPut(value) { parseUncached(value) } }
     }
 
-    fun body(value: String): String = parse(value).body
+    fun body(value: String, mode: Mode = Mode.ABOVE_BASE): String = parse(value, mode).body
     fun hasRuby(value: String): Boolean = parse(value).annotations.isNotEmpty()
+
+    /** Ellipsis may drop a reading, but must not leave half of its inline notation. */
+    fun inlinePrefix(value: String, maximumCharacters: Int): String {
+        var end = maximumCharacters.coerceIn(0, value.length)
+        parse(value).markers.firstOrNull { end > it.start && end < it.end }?.let { end = it.start }
+        if (end > 0 && end < value.length &&
+            Character.isHighSurrogate(value[end - 1]) && Character.isLowSurrogate(value[end])) {
+            end--
+        }
+        return value.take(end)
+    }
 
     /** Keep annotations out of punctuation/word-spacing transformations, then restore their text. */
     fun transform(value: String, transformBody: (String) -> String): String {

@@ -26,15 +26,16 @@ class TraditionalChineseResourcesTest {
     }
 
     @Test
-    fun `ruby example uses Chaldea in all three interface languages with a shared Japanese sample`() {
+    fun `ruby card keeps a short above-base explanation and localized examples in every UI language`() {
         val expectedExamples = mapOf(
-            "values" to "开启：观星台〈迦勒底〉\\n关闭：观星台\\n以〈〉表示游戏中正文上方的小字。",
-            "values-b+zh+Hant" to "開啟：觀星臺〈迦勒底〉\\n關閉：觀星臺\\n以〈〉表示遊戲中正文上方的小字。",
-            "values-en" to "ON: Observatory〈Chaldea〉\\nOFF: Observatory\\n〈〉 represents the small text above the main text in the game."
+            "values" to "译文的小字显示在对应正文上方。",
+            "values-b+zh+Hant" to "譯文的小字顯示在對應正文上方。",
+            "values-en" to "Translated small text appears above the matching text."
         )
         expectedExamples.forEach { (folder, expected) ->
             val strings = resources(folder)
             assertEquals(expected, strings.getValue("settings_ruby_example_meaning").text, folder)
+            assertFalse(strings.containsKey("settings_ruby_example_original_label"), folder)
             if (folder != "values") {
                 assertFalse(strings.containsKey("settings_ruby_example_annotation"), folder)
                 assertFalse(strings.containsKey("settings_ruby_example_base"), folder)
@@ -42,6 +43,16 @@ class TraditionalChineseResourcesTest {
         }
         assertFalse(defaults.getValue("settings_ruby_example_annotation").translatable)
         assertFalse(defaults.getValue("settings_ruby_example_base").translatable)
+        val translatedSamples = mapOf(
+            "values" to ("观星台" to "迦勒底"),
+            "values-b+zh+Hant" to ("觀星臺" to "迦勒底"),
+            "values-en" to ("Observatory" to "Chaldea")
+        )
+        translatedSamples.forEach { (folder, sample) ->
+            val strings = resources(folder)
+            assertEquals(sample.first, strings.getValue("settings_ruby_example_translated_base").text, folder)
+            assertEquals(sample.second, strings.getValue("settings_ruby_example_translated_annotation").text, folder)
+        }
     }
 
     @Test

@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,11 +49,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
@@ -595,6 +601,10 @@ private fun PreferenceSwitchRow(
 
 @Composable
 private fun TranslationRubyExample() {
+    val japaneseBase = stringResource(R.string.settings_ruby_example_base)
+    val japaneseRuby = stringResource(R.string.settings_ruby_example_annotation)
+    val translatedBase = stringResource(R.string.settings_ruby_example_translated_base)
+    val translatedRuby = stringResource(R.string.settings_ruby_example_translated_annotation)
     val annotationColor = FgoUiColors.blueText
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -607,30 +617,82 @@ private fun TranslationRubyExample() {
             style = MaterialTheme.typography.bodySmall,
             color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
         )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // Preserve the Japanese game text instead of converting it as Chinese UI text.
-            androidx.compose.material3.Text(
-                text = stringResource(R.string.settings_ruby_example_annotation),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = MaterialTheme.typography.titleLarge.fontSize * RubyTextPainter.SIZE_RATIO
-                ),
-                color = annotationColor
-            )
-            androidx.compose.material3.Text(
-                text = stringResource(R.string.settings_ruby_example_base),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+        Box(modifier = Modifier.weight(1f)) {
+            RubyPreviewText(japaneseBase, japaneseRuby, annotationColor = annotationColor)
         }
     }
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Text(
-            text = stringResource(R.string.settings_ruby_example_meaning),
-            style = MaterialTheme.typography.bodySmall,
-            color = FgoUiColors.text(darkAlpha = 0.82f)
-        )
+        for (enabled in listOf(true, false)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = stringResource(if (enabled) R.string.settings_ruby_example_on else R.string.settings_ruby_example_off),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                RubyPreviewText(translatedBase, translatedRuby.takeIf { enabled },
+                    annotationColor = annotationColor,
+                    contentAlignment = Alignment.TopCenter)
+            }
+        }
+    }
+    Text(
+        text = stringResource(R.string.settings_ruby_example_meaning),
+        style = MaterialTheme.typography.bodySmall,
+        color = FgoUiColors.text(darkAlpha = 0.82f)
+    )
+}
+
+/** A compact preview with ruby centered over its base and both sizes sharing one width scale. */
+@Composable
+private fun RubyPreviewText(
+    base: String,
+    annotation: String?,
+    annotationColor: Color = MaterialTheme.colorScheme.onSurface,
+    contentAlignment: Alignment = Alignment.TopEnd
+) {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val bodyStyle = MaterialTheme.typography.titleLarge.copy(platformStyle = PlatformTextStyle(includeFontPadding = false))
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth(), contentAlignment = contentAlignment) {
+        val preferredRubyStyle = bodyStyle.copy(fontSize = bodyStyle.fontSize * RubyTextPainter.SIZE_RATIO)
+        val width = maxOf(
+            measurer.measure(base, bodyStyle, softWrap = false, maxLines = 1).size.width,
+            annotation?.let { measurer.measure(it, preferredRubyStyle, softWrap = false, maxLines = 1).size.width } ?: 0
+        ).coerceAtLeast(1)
+        val factor = minOf(1f, with(density) { maxWidth.toPx() } / width).coerceAtLeast(0.01f)
+        val bodySize = bodyStyle.fontSize * factor
+        val rubySize = bodySize * RubyTextPainter.SIZE_RATIO
+        val rubyLineHeight = rubySize * 1.2f
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Box(
+                modifier = Modifier.height(with(density) { rubyLineHeight.toDp() }),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                if (annotation != null) {
+                    androidx.compose.material3.Text(
+                        text = annotation,
+                        style = bodyStyle.copy(fontSize = rubySize, lineHeight = rubyLineHeight),
+                        color = annotationColor,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+            androidx.compose.material3.Text(
+                text = base,
+                style = bodyStyle.copy(fontSize = bodySize, lineHeight = bodySize * 1.2f),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
     }
 }

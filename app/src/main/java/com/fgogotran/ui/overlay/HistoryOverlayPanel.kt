@@ -555,9 +555,14 @@ private fun historyTextView(
     gravity: Int = Gravity.START,
     textSizePx: Float = contentSizing.translationTextSizePx,
     bottomMarginBaseDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_BASE_DP,
-    useDialogueLineHeight: Boolean = false
+    useDialogueLineHeight: Boolean = false,
+    rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
 ): TextView {
-    val view = if (RubyRenderText.hasRuby(text.toString())) RubyTextView(context) else TextView(context)
+    val view = if (RubyRenderText.parse(text.toString(), rubyMode).annotations.isNotEmpty()) {
+        RubyTextView(context)
+    } else {
+        TextView(context)
+    }
     return view.apply {
         if (this is RubyTextView) setRubyText(text) else this.text = text
         setTextColor(color)
@@ -608,7 +613,8 @@ private fun historyOriginalTextView(
         typeface = typeface,
         contentSizing = contentSizing,
         textSizePx = contentSizing.originalTextSizePx,
-        bottomMarginBaseDp = bottomMarginBaseDp
+        bottomMarginBaseDp = bottomMarginBaseDp,
+        rubyMode = RubyRenderText.Mode.INLINE
     )
 }
 

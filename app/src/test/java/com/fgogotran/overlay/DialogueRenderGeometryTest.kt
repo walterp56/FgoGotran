@@ -84,6 +84,40 @@ class DialogueRenderGeometryTest {
     }
 
     @Test
+    fun `upper headroom extends only the cover top for both language layouts`() {
+        for (english in listOf(false, true)) {
+            val cover = clearBox("普通の本文", 1007f, english = english)
+            val expanded = DialogueRenderGeometry.withUpperHeadroom(cover, panel, 1f)
+            assertEquals(cover.copy(top = cover.top - 8f), expanded)
+            assertEquals(DialogueRect(345f, 878f, 1986f, 1040f), DialogueRenderGeometry.textArea(panel, 1f))
+        }
+    }
+
+    @Test
+    fun `upper headroom stops at the safe panel edge without reaching the name plate`() {
+        for (top in listOf(panel.top, panel.top + 3f)) {
+            val cover = DialogueRect(331f, top, 1376f, 950f)
+            val expanded = DialogueRenderGeometry.withUpperHeadroom(cover, panel, 1f)
+            assertEquals(cover.copy(top = panel.top), expanded)
+            assertTrue(expanded.top >= 828f) // Existing name-render band's lower edge.
+        }
+    }
+
+    @Test
+    fun `upper headroom scales with a letterboxed game viewport and preserves other edges`() {
+        val scale = FgoViewportGeometry.referenceScale(3840, 2400)
+        val viewport = FgoViewportGeometry.viewport(3840, 2400)
+        fun DialogueRect.toTablet() = DialogueRect(
+            viewport.left + (left - 210f) * scale, viewport.top + top * scale,
+            viewport.left + (right - 210f) * scale, viewport.top + bottom * scale)
+        for (english in listOf(false, true)) {
+            val cover = clearBox("普通の本文", 1007f, english = english)
+            val expected = DialogueRenderGeometry.withUpperHeadroom(cover, panel, 1f).toTablet()
+            assertEquals(expected, DialogueRenderGeometry.withUpperHeadroom(cover.toTablet(), panel.toTablet(), scale))
+        }
+    }
+
+    @Test
     fun `no source bounds still covers all translated glyphs`() {
         assertEquals(1376f, clearBox("本文───", 1007f, original = null).right)
     }

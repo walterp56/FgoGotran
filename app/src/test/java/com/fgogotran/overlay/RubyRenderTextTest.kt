@@ -6,6 +6,64 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RubyRenderTextTest {
+    @Test fun `bilingual Japanese original keeps full inline text and no above-base annotations`() {
+        val original = "これは私の原型〈アロイハート・オリジナル〉です。"
+        val inline = RubyRenderText.parse(original, RubyRenderText.Mode.INLINE)
+        assertEquals(original, inline.body)
+        assertTrue(inline.annotations.isEmpty())
+        assertTrue(inline.markers.isEmpty())
+        assertEquals(original, RubyRenderText.body(original, RubyRenderText.Mode.INLINE))
+    }
+
+    @Test fun `same notation can be original inline and translated above base without cache leakage`() {
+        val text = "異聞帶〈Lostbelt〉。"
+        repeat(2) {
+            assertEquals("異聞帶。", RubyRenderText.body(text))
+            assertEquals(text, RubyRenderText.body(text, RubyRenderText.Mode.INLINE))
+            val translation = RubyRenderText.parse(text)
+            assertEquals("Lostbelt", translation.annotations.single().reading)
+            assertEquals(text, translation.annotate(translation.body))
+        }
+    }
+
+    @Test fun `inline readings contribute all glyphs to layout and survive wrapped history lines`() {
+        val source = "私〈わたくし〉と\n私の原型〈アロイハート・オリジナル〉"
+        val inline = RubyRenderText.parse(source, RubyRenderText.Mode.INLINE)
+        val above = RubyRenderText.parse(source)
+        assertTrue(inline.body.length > above.body.length)
+        assertEquals(source.lines(), inline.annotateLines(source.lines()))
+        assertEquals(2, above.annotations.size)
+    }
+
+    @Test fun `inline mode preserves plain malformed and story bracket text literally`() {
+        listOf("これは普通の台詞です。", "マシュ《ナレーター》", "本文〈〉", "本文〈外〈內〉〉", "本文〈讀音", "").forEach {
+            val inline = RubyRenderText.parse(it, RubyRenderText.Mode.INLINE)
+            assertEquals(it, inline.body)
+            assertTrue(inline.annotations.isEmpty())
+        }
+    }
+
+    @Test fun `inline ellipsis keeps complete readings and drops partially visible readings`() {
+        val source = "私〈わたくし〉と原型〈オリジナル〉。"
+        val first = source.indexOf('〈')
+        val end = source.indexOf('〉') + 1
+        for (cut in first + 1 until end) {
+            assertEquals("私", RubyRenderText.inlinePrefix(source, cut))
+        }
+        assertEquals("私〈わたくし〉", RubyRenderText.inlinePrefix(source, end))
+        val second = source.lastIndexOf('〈')
+        assertEquals(source.take(second), RubyRenderText.inlinePrefix(source, second + 3))
+        assertEquals(source, RubyRenderText.inlinePrefix(source, source.length))
+    }
+
+    @Test fun `inline truncation keeps UTF16 boundaries and leaves malformed notation literal`() {
+        assertEquals("", RubyRenderText.inlinePrefix("𠮷〈よし〉", 1))
+        assertEquals("𠮷", RubyRenderText.inlinePrefix("𠮷〈よし〉", 2))
+        assertEquals("本文〈讀", RubyRenderText.inlinePrefix("本文〈讀音", 4))
+        assertEquals("", RubyRenderText.inlinePrefix("本文", -1))
+        assertEquals("本文", RubyRenderText.inlinePrefix("本文", 100))
+    }
+
     @Test fun `plain dialogue and original story brackets are unchanged`() {
         listOf("これは普通の台詞です。", "マシュ《ナレーター》", "……───", "").forEach {
             assertEquals(it, RubyRenderText.body(it))
