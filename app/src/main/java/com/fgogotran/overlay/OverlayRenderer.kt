@@ -65,8 +65,8 @@ class OverlayRenderer @Inject constructor(
     }
 
     companion object {
-        private val DIALOGUE_BACKGROUND = Color.rgb(27, 51, 85)
-        private val NAME_BACKGROUND = Color.rgb(52, 89, 138)
+        private val DIALOGUE_BACKGROUND = Color.rgb(27, 48, 78)
+        private val NAME_BACKGROUND = Color.rgb(36, 84, 132)
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private val ORIGINAL_TEXT_COLOR = Color.rgb(80, 235, 235)

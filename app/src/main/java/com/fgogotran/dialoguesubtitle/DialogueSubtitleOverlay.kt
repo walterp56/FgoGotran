@@ -131,7 +131,7 @@ class DialogueSubtitleOverlay(private val context: Context) {
         private var measured = emptyMap<Long, CaptionLayout>()
         private var rows = emptyList<DialogueSubtitleRenderRow>()
         private var geometry: DialogueSubtitleRenderGeometry? = null
-        private val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x8C000000.toInt() }
+        private val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(217, 7, 27, 61) }
 
         fun prepare(rows: List<DialogueSubtitleRenderRow>, geometry: DialogueSubtitleRenderGeometry, preferredSize: Float): Boolean {
             val next = mutableMapOf<Long, CaptionLayout>()
