@@ -34,7 +34,8 @@ internal fun FgoSettingsSlider(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    steps: Int = 0
+    steps: Int = 0,
+    onValueChangeFinished: (() -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val colors = SliderDefaults.colors(
@@ -44,6 +45,7 @@ internal fun FgoSettingsSlider(
     Slider(
         value = value,
         onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished,
         modifier = modifier,
         enabled = enabled,
         valueRange = valueRange,

@@ -134,6 +134,29 @@ class OverlayRenderer @Inject constructor(
         instructions: List<RenderInstruction>,
         screenWidth: Int,
         screenHeight: Int
+    ): Bitmap = renderInternal(bitmap, instructions, null)
+
+    /** Owns its final bitmap and small dialogue patches; no mutable renderer buffer escapes. */
+    internal fun prepareDialoguePlayback(
+        bitmap: Bitmap, instructions: List<RenderInstruction>, settings: DialoguePlaybackSettings
+    ): DialoguePlaybackFrame {
+        val panels = mutableListOf<DialoguePlaybackFrame.Panel>()
+        var owned: Bitmap? = null
+        try {
+            val rendered = renderInternal(bitmap, instructions, panels)
+            owned = checkNotNull(rendered.copy(Bitmap.Config.ARGB_8888, false))
+            return DialoguePlaybackFrame(owned, panels,
+                instructions.filter { it.region.region != TextRegion.DIALOGUE_BOX }
+                    .map { Rect(it.region.boundingBox) }, settings)
+        } catch (error: Throwable) {
+            owned?.takeUnless { it.isRecycled }?.recycle()
+            panels.forEach(DialoguePlaybackFrame::releasePanel)
+            throw error
+        }
+    }
+
+    private fun renderInternal(
+        bitmap: Bitmap, instructions: List<RenderInstruction>, panels: MutableList<DialoguePlaybackFrame.Panel>?
     ): Bitmap {
         FgoLogger.info(tag, "Rendering ${instructions.size} instructions onto ${bitmap.width}x${bitmap.height}")
 
@@ -152,7 +175,7 @@ class OverlayRenderer @Inject constructor(
         for (instruction in instructions) {
             textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             when (instruction.region.region) {
-                TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction)
+                TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction, panels)
                 TextRegion.NAME_LABEL -> renderNameLabel(reusableCanvas, textPaint, instruction)
                 TextRegion.CHOICE_BUTTON -> renderChoiceButton(reusableCanvas, textPaint, instruction)
             }
@@ -192,16 +215,24 @@ class OverlayRenderer @Inject constructor(
         }
     }
 
+    /** Used by the independent settings preview renderer, never the production renderer. */
+    internal fun releaseBuffers() {
+        reusableCanvas.setBitmap(null)
+        reusableBitmap?.takeUnless { it.isRecycled }?.recycle()
+        reusableBitmap = null
+    }
+
     /**
      * Renders the dialogue box: clears the area, then paints multi-line CN text.
      */
     private fun renderDialogueBox(
         canvas: Canvas,
         paint: Paint,
-        instruction: RenderInstruction
+        instruction: RenderInstruction,
+        panels: MutableList<DialoguePlaybackFrame.Panel>? = null
     ) {
         if (instruction.shouldRenderOriginalText()) {
-            renderBilingualDialogueBox(canvas, paint, instruction)
+            renderBilingualDialogueBox(canvas, paint, instruction, panels)
             return
         }
 
@@ -237,6 +268,8 @@ class OverlayRenderer @Inject constructor(
         canvas.clipRect(clearBox)
         drawPlannedDialogueRows(canvas, paint, layout.plannedRows, textArea.left, textColor, layout.drawingScale)
         canvas.restore()
+        panels?.add(captureDialoguePlayback(clearBox, instruction.region.boundingBox, layout.plannedRows,
+            textArea.left, textColor, layout.drawingScale, paint, 12f * scale))
     }
 
     private data class DialogueTextLayout(
@@ -254,7 +287,8 @@ class OverlayRenderer @Inject constructor(
         val baseline: Float,
         val original: Boolean,
         val ink: RectF,
-        val ruby: List<RubyTextPainter.PlannedAnnotation>
+        val ruby: List<RubyTextPainter.PlannedAnnotation>,
+        val rubyEnds: List<Int>
     )
 
     private data class BilingualDialogueTextLayout(
@@ -313,7 +347,8 @@ class OverlayRenderer @Inject constructor(
     private fun renderBilingualDialogueBox(
         canvas: Canvas,
         paint: Paint,
-        instruction: RenderInstruction
+        instruction: RenderInstruction,
+        panels: MutableList<DialoguePlaybackFrame.Panel>? = null
     ) {
         val scale = screenScale(canvas)
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
@@ -331,6 +366,8 @@ class OverlayRenderer @Inject constructor(
         drawPlannedDialogueRows(canvas, paint, layout.plannedRows, layout.textArea.left,
             textColor, layout.drawingScale)
         canvas.restore()
+        panels?.add(captureDialoguePlayback(layout.clearBox, instruction.region.boundingBox, layout.plannedRows,
+            layout.textArea.left, textColor, layout.drawingScale, paint, 12f * scale))
     }
 
     private fun layoutBilingualDialogueText(
@@ -1113,7 +1150,7 @@ class OverlayRenderer @Inject constructor(
             bodyInk.right + shadow > panel.right || bodyInk.bottom + shadow > panel.bottom) return null
         val ruby = RubyTextPainter.planExact(paint, parsed, x, baseline, panel, minimumRubyTop, rubyGap) ?: return null
         if (ruby.any { it.right + shadow * RubyTextPainter.SIZE_RATIO > panel.right }) return null
-        return PlannedDialogueRow(parsed.body, textSize, baseline, original, bodyInk, ruby)
+        return PlannedDialogueRow(parsed.body, textSize, baseline, original, bodyInk, ruby, parsed.annotations.map { it.end })
     }
 
     private fun coverPlannedRows(
@@ -1596,6 +1633,59 @@ class OverlayRenderer @Inject constructor(
             val clip = RectF(canvas.clipBounds)
             RubyTextPainter.drawAnnotations(canvas, paint, ruby, x, y, textColor, clip,
                 minimumRubyTop ?: clip.top, scale, rubyGap)
+        }
+    }
+
+    /** Rasterize once in full-frame coordinates, then retain only the affected pixel rectangles. */
+    private fun captureDialoguePlayback(
+        clearBox: RectF, hitBounds: Rect, rows: List<PlannedDialogueRow>, x: Float,
+        textColor: Int, drawingScale: Float, sourcePaint: Paint, cornerRadius: Float
+    ): DialoguePlaybackFrame.Panel {
+        val panelBounds = Rect().also(clearBox::roundOut)
+        val allocated = mutableListOf<Bitmap>()
+        val paint = Paint(sourcePaint)
+        fun layer(bounds: RectF, draw: (Canvas) -> Unit): DialoguePlaybackFrame.Layer {
+            val clipped = RectF(bounds)
+            check(clipped.intersect(clearBox))
+            val pixels = Rect().also(clipped::roundOut)
+            val image = Bitmap.createBitmap(pixels.width().coerceAtLeast(1), pixels.height().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            allocated += image
+            val canvas = Canvas(image)
+            canvas.translate(-pixels.left.toFloat(), -pixels.top.toFloat())
+            canvas.clipRect(clearBox)
+            draw(canvas)
+            return DialoguePlaybackFrame.Layer(image, pixels.left, pixels.top)
+        }
+        try {
+            val blank = layer(clearBox) { canvas ->
+                canvas.drawRoundRect(clearBox, cornerRadius, cornerRadius, dialogueClearPaint)
+                drawPlannedDialogueRows(canvas, paint, rows.filter { it.original }, x, textColor, drawingScale)
+            }
+            val body = rows.filterNot { it.original }.map { row ->
+                val bounds = RectF(row.ink).apply { inset(-8f * drawingScale, -8f * drawingScale) }
+                val bodyLayer = layer(bounds) { canvas ->
+                    drawPlannedDialogueRows(canvas, paint, listOf(row.copy(ruby = emptyList(), rubyEnds = emptyList())),
+                        x, textColor, drawingScale)
+                }
+                paint.textSize = row.textSize
+                val ends = DialoguePlaybackCharacters.ends(row.body)
+                val advances = FloatArray(ends.size) { index ->
+                    paint.getRunAdvance(row.body, 0, row.body.length, 0, row.body.length, false, ends[index])
+                }
+                val readings = row.ruby.mapIndexed { index, annotation ->
+                    val boundsWithShadow = RectF(annotation.left, annotation.top, annotation.right, annotation.bottom)
+                        .apply { inset(-8f * drawingScale, -8f * drawingScale) }
+                    DialoguePlaybackFrame.Reading(row.rubyEnds[index], layer(boundsWithShadow) { canvas ->
+                        paint.textSize = row.textSize
+                        RubyTextPainter.drawPlanned(canvas, paint, listOf(annotation), textColor, drawingScale)
+                    })
+                }
+                DialoguePlaybackFrame.Row(row.body, x, ends, advances, bodyLayer, readings)
+            }
+            return DialoguePlaybackFrame.Panel(panelBounds, Rect(hitBounds), blank, body)
+        } catch (error: Throwable) {
+            allocated.forEach { if (!it.isRecycled) it.recycle() }
+            throw error
         }
     }
 

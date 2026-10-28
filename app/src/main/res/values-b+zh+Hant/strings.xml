@@ -403,6 +403,22 @@
     <string name="app_theme_close">關閉</string>
     <string name="home_chapter_title">劇情翻譯 →</string>
     <string name="home_chapter_summary">安裝英語、簡中或繁中語言包，譯文直接顯示在 FGO 內。</string>
+    <string name="dialogue_playback_title">對話播放</string>
+    <string name="dialogue_playback_speed">文字顯示速度</string>
+    <string name="dialogue_playback_pause">標點停頓</string>
+    <string name="dialogue_playback_slow">慢</string>
+    <string name="dialogue_playback_instant">最快 MAX</string>
+    <string name="dialogue_playback_hint">遊戲中點一下顯示全文，再點一下繼續。</string>
+    <string name="dialogue_playback_reset">恢復預設</string>
+    <string name="dialogue_playback_replay">重播</string>
+    <string name="dialogue_playback_preview">播放預覽</string>
+    <string name="dialogue_playback_next_scene">設定套用於下一幕對話。</string>
+    <string name="dialogue_playback_max_hint">MAX 也會套用標點停頓。</string>
+    <string name="dialogue_playback_pause_none">無</string>
+    <string name="dialogue_playback_pause_short">短</string>
+    <string name="dialogue_playback_pause_medium">中</string>
+    <string name="dialogue_playback_pause_long">較長</string>
+    <string name="dialogue_playback_pause_value">%1$d · %2$s</string>
 </resources>
 
 

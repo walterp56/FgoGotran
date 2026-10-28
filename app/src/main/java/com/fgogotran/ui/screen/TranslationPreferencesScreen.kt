@@ -65,6 +65,8 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.localization.LocalizedText as Text
 import com.fgogotran.overlay.RubyTextPainter
+import com.fgogotran.overlay.DialoguePlaybackSettings
+import com.fgogotran.ui.component.DialoguePlaybackPreferences
 import com.fgogotran.ui.component.FgoSettingsSlider
 import com.fgogotran.ui.theme.FgoUiColors
 import com.fgogotran.ui.theme.FgoSettingsColors
@@ -86,6 +88,7 @@ fun TranslationPreferencesScreen(
         initial = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     )
     val showOriginalGameText by settingsRepository.showOriginalGameText.collectAsState(initial = false)
+    val dialoguePlayback by settingsRepository.dialoguePlaybackSettings.collectAsState(initial = DialoguePlaybackSettings())
     val translationContextEnabled by settingsRepository.translationContextEnabled.collectAsState(
         initial = SettingsRepository.DEFAULT_TRANSLATION_CONTEXT_ENABLED
     )
@@ -156,6 +159,16 @@ fun TranslationPreferencesScreen(
                         scope.launch { settingsRepository.setShowOriginalGameText(enabled) }
                     }
                 )
+            }
+
+            TranslationPreferenceCard(title = stringResource(R.string.dialogue_playback_title), headerAction = {
+                TextButton(onClick = { scope.launch { settingsRepository.resetDialoguePlayback() } }) {
+                    Text(stringResource(R.string.dialogue_playback_reset))
+                }
+            }) {
+                DialoguePlaybackPreferences(dialoguePlayback, targetLanguage, showOriginalGameText,
+                    onSpeed = { scope.launch { settingsRepository.setDialogueTextSpeed(it) } },
+                    onPause = { scope.launch { settingsRepository.setDialoguePunctuationPause(it) } })
             }
 
             TranslationPreferenceCard(title = stringResource(R.string.settings_translation_processing)) {
@@ -238,7 +251,9 @@ fun TranslationPreferencesScreen(
 }
 
 @Composable
-private fun TranslationPreferenceCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun TranslationPreferenceCard(
+    title: String, headerAction: (@Composable () -> Unit)? = null, content: @Composable ColumnScope.() -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         border = FgoUiStyle.cardBorder,
@@ -248,7 +263,12 @@ private fun TranslationPreferenceCard(title: String, content: @Composable Column
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (headerAction == null) Text(title, style = MaterialTheme.typography.titleMedium)
+            else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                headerAction()
+            }
             content()
         }
     }

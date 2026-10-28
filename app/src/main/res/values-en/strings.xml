@@ -402,6 +402,22 @@
     <string name="app_theme_close">Close</string>
     <string name="home_chapter_title">Story translation →</string>
     <string name="home_chapter_summary">Install an English, Simplified Chinese or Traditional Chinese pack to read it inside FGO.</string>
+    <string name="dialogue_playback_title">Dialogue playback</string>
+    <string name="dialogue_playback_speed">Text speed</string>
+    <string name="dialogue_playback_pause">Punctuation pause</string>
+    <string name="dialogue_playback_slow">Slow</string>
+    <string name="dialogue_playback_instant">Fastest MAX</string>
+    <string name="dialogue_playback_hint">In-game, tap once to reveal all text, then tap again to continue.</string>
+    <string name="dialogue_playback_reset">Restore defaults</string>
+    <string name="dialogue_playback_replay">Replay</string>
+    <string name="dialogue_playback_preview">Playback preview</string>
+    <string name="dialogue_playback_next_scene">Changes apply to the next dialogue scene.</string>
+    <string name="dialogue_playback_max_hint">Punctuation pauses also apply at MAX.</string>
+    <string name="dialogue_playback_pause_none">None</string>
+    <string name="dialogue_playback_pause_short">Short</string>
+    <string name="dialogue_playback_pause_medium">Medium</string>
+    <string name="dialogue_playback_pause_long">Longer</string>
+    <string name="dialogue_playback_pause_value">%1$d · %2$s</string>
 </resources>
 
 

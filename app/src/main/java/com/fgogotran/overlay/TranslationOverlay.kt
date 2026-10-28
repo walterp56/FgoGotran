@@ -40,7 +40,7 @@ class TranslationOverlay @Inject constructor(
     private val diagnosticEventStore: DiagnosticEventStore
 ) {
     private var windowManager: WindowManager? = null
-    private var overlayView: ImageView? = null
+    private var overlayView: DialoguePlaybackView? = null
     private var isOverlayShowing = false
     private var overlayTouchable = true
     private var screenWidth = 0
@@ -141,8 +141,21 @@ class TranslationOverlay @Inject constructor(
 
     /** Displays a current-sized rendered bitmap, reusing the native window when possible. */
     fun showTranslatedImage(bitmap: Bitmap) {
+        overlayView?.clearPlayback()
         showOrUpdateTranslatedImage(bitmap)
     }
+
+    /** Ownership transfers only after successful presentation. Caller closes rejected frames. */
+    internal fun updatePlayback(frame: DialoguePlaybackFrame): Boolean {
+        hideOverlayView(clearBitmap = true)
+        showOrUpdateTranslatedImage(frame.bitmap)
+        if (!isOverlayShowing || latestTranslatedBitmap !== frame.bitmap) return false
+        overlayView?.startPlayback(frame)
+        return true
+    }
+
+    internal fun handleDialoguePlaybackTouch(event: MotionEvent): Boolean =
+        isOverlayShowing && overlayTouchable && overlayView?.handlePlaybackTouch(event) == true
 
     private fun showOrUpdateTranslatedImage(bitmap: Bitmap) {
         val wm = windowManager ?: return
@@ -162,11 +175,12 @@ class TranslationOverlay @Inject constructor(
             it.visibility = View.VISIBLE
             it.alpha = 1f
             isOverlayShowing = true
+            it.resumePlayback()
             FgoLogger.info(tag, "Showing translated image: ${bitmap.width}x${bitmap.height}")
             return
         }
 
-        val imageView = ImageView(context).apply {
+        val imageView = DialoguePlaybackView(context).apply {
             addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateFloatingHandleGestureExclusion() }
             setImageBitmap(bitmap)
             alpha = 1f
@@ -218,6 +232,7 @@ class TranslationOverlay @Inject constructor(
      * This is the preferred method — it avoids removing/re-adding the window on every frame.
      */
     fun updateImage(bitmap: Bitmap) {
+        overlayView?.clearPlayback()
         if (overlayView != null) {
             FgoLogger.debug(tag, "Updating overlay image")
             showOrUpdateTranslatedImage(bitmap)
@@ -245,6 +260,7 @@ class TranslationOverlay @Inject constructor(
         try {
             wm.updateViewLayout(view, params)
             overlayTouchable = touchable
+            if (!touchable) view.pausePlayback() else if (isOverlayShowing) view.resumePlayback()
             updateFloatingHandleGestureExclusion()
             FgoLogger.debug(tag, "Translated overlay touchable=$touchable")
             return true
@@ -284,9 +300,11 @@ class TranslationOverlay @Inject constructor(
 
     private fun hideOverlayView(clearBitmap: Boolean) {
         overlayView?.let {
+            it.pausePlayback()
             it.alpha = 0f
             if (clearBitmap) {
                 it.setImageBitmap(null)
+                it.clearPlayback()
             }
             FgoLogger.info(tag, "Overlay hidden")
         }
@@ -301,6 +319,7 @@ class TranslationOverlay @Inject constructor(
         val wm = windowManager ?: return
         overlayView?.let {
             try {
+                it.clearPlayback()
                 it.setFloatingHandleGestureExclusion(null)
                 wm.removeView(it)
                 FgoLogger.info(tag, "Overlay hidden")

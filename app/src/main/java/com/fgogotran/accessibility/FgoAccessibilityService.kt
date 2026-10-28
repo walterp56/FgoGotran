@@ -63,6 +63,8 @@ import com.fgogotran.overlay.OverlayRenderer
 import com.fgogotran.overlay.RenderInstruction
 import com.fgogotran.overlay.TextRegion
 import com.fgogotran.overlay.TranslationOverlay
+import com.fgogotran.overlay.DialoguePlaybackFrame
+import com.fgogotran.overlay.DialoguePlaybackSettings
 import com.fgogotran.runner.FgoRunnerOverlay
 import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.runner.RunnerSessionContext
@@ -267,6 +269,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private var overlayButtonLongPressJob: Job? = null
     private var currentPlayerName = ""
     private var showOriginalGameText = false
+    private var dialoguePlaybackSettings = DialoguePlaybackSettings()
 
     @Volatile
     private var translationIncludeRuby = SettingsRepository.DEFAULT_TRANSLATION_INCLUDE_RUBY
@@ -586,6 +589,9 @@ class FgoAccessibilityService : AccessibilityService() {
         watchGameServer()
         watchPlayerName()
         watchOriginalTextDisplay()
+        serviceScope.launch {
+            settingsRepository.dialoguePlaybackSettings.collect { dialoguePlaybackSettings = it }
+        }
         watchTranslationIncludeRuby()
         watchTranslationContext()
         watchVoiceReadScope()
@@ -3169,35 +3175,47 @@ class FgoAccessibilityService : AccessibilityService() {
             TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
         ) return false
         val renderStartedAt = SystemClock.elapsedRealtime()
-        val rendered = withRunnerContext(Dispatchers.Default) {
-            overlayRenderer.render(
-                bitmap = source,
-                instructions = instructions,
-                screenWidth = currentScreenWidth,
-                screenHeight = currentScreenHeight
-            )
-        }
-        val renderDuration = SystemClock.elapsedRealtime() - renderStartedAt
-        if (processingVersion != stopVersion) {
-            FgoLogger.debug(tag, "Translation was stopped during render; discarding rendered bitmap")
-            rendered.recycle()
-            return false
-        }
-        if (!isProcessingModeEnabled(mode) || TranslationTrigger.isUiBlockingOcr() ||
-            (!mode.userInitiated && !isEffectiveFgoForeground)
-        ) {
-            FgoLogger.debug(tag, "Translation context changed during render; discarding rendered bitmap")
-            rendered.recycle()
-            return false
-        }
-        val overlayStartedAt = SystemClock.elapsedRealtime()
-        restoreFgoForegroundAfterCapture(mode.name)
-        translationOverlay.updateImage(rendered)
-        if (!translationOverlay.isShowing()) {
-            FgoLogger.warn(tag, "Overlay display failed; keeping scene retryable without a render commit")
-            rememberFailedRenderAttempt(mode, sourceFingerprint)
-            runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
-            return false
+        val playbackSettings = dialoguePlaybackSettings // One immutable preference snapshot per scene.
+        var pendingPlayback: DialoguePlaybackFrame? = null
+        var renderDuration: Long
+        var overlayStartedAt: Long
+        try {
+            val rendered = withRunnerContext(Dispatchers.Default) {
+                if (playbackSettings.requiresPlayback &&
+                    instructions.any { it.region.region == TextRegion.DIALOGUE_BOX }) {
+                    overlayRenderer.prepareDialoguePlayback(source, instructions, playbackSettings)
+                        .also { pendingPlayback = it }.bitmap
+                } else overlayRenderer.render(source, instructions, currentScreenWidth, currentScreenHeight)
+            }
+            renderDuration = SystemClock.elapsedRealtime() - renderStartedAt
+            if (processingVersion != stopVersion) {
+                FgoLogger.debug(tag, "Translation was stopped during render; discarding rendered bitmap")
+                rendered.recycle()
+                return false
+            }
+            if (!isProcessingModeEnabled(mode) || TranslationTrigger.isUiBlockingOcr() ||
+                (!mode.userInitiated && !isEffectiveFgoForeground)
+            ) {
+                FgoLogger.debug(tag, "Translation context changed during render; discarding rendered bitmap")
+                rendered.recycle()
+                return false
+            }
+            overlayStartedAt = SystemClock.elapsedRealtime()
+            restoreFgoForegroundAfterCapture(mode.name)
+            val presented = pendingPlayback?.let { translationOverlay.updatePlayback(it) } ?: run {
+                translationOverlay.updateImage(rendered)
+                translationOverlay.isShowing()
+            }
+            if (!presented) {
+                FgoLogger.warn(tag, "Overlay display failed; keeping scene retryable without a render commit")
+                rememberFailedRenderAttempt(mode, sourceFingerprint)
+                runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
+                return false
+            }
+            pendingPlayback = null // The visible overlay now owns all playback resources.
+        } finally {
+            // withRunnerContext reclaims Bitmap on cancellation, but not the cropped text layers.
+            pendingPlayback?.close()
         }
         reportRenderedSceneUsage(usageOrigin, sceneSource, sceneTranslation, instructions)
         rememberRenderedSourceText(mode, sourceFingerprint, sceneSource.stabilityKey)
@@ -6715,7 +6733,10 @@ class FgoAccessibilityService : AccessibilityService() {
             translationOverlay.hide()
         }
         if (consumed) storyTapHandoff.cancelTouch()
-        return consumed
+        val playbackConsumed = !consumed && activeRunnerContext() != null &&
+            translationOverlay.handleDialoguePlaybackTouch(event)
+        if (playbackConsumed) storyTapHandoff.cancelTouch()
+        return consumed || playbackConsumed
     }
 
     private fun handleCropResultOverlayTouch(event: MotionEvent): Boolean {

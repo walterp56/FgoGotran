@@ -13,6 +13,8 @@ import com.fgogotran.analytics.AnalyticsOutbox
 import com.fgogotran.analytics.AnalyticsOutboxStore
 import com.fgogotran.analytics.AnalyticsProtocol
 import com.fgogotran.network.ApiEndpointPolicy
+import com.fgogotran.overlay.DialoguePlaybackSettings
+import com.fgogotran.overlay.DialogueTextSpeed
 import com.fgogotran.terminology.LocalCharacterNameEntity
 import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.LocalGlossaryDatabase
@@ -75,6 +77,8 @@ class SettingsRepository @Inject constructor(
         val KEY_TRANSLATION_CONTEXT_ENABLED = booleanPreferencesKey("translation_context_enabled")
         val KEY_TRANSLATION_CONTEXT_SCENE_COUNT = intPreferencesKey("translation_context_scene_count")
         val KEY_SHOW_ORIGINAL_GAME_TEXT = booleanPreferencesKey("show_original_game_text")
+        private val KEY_DIALOGUE_TEXT_SPEED = stringPreferencesKey("dialogue_text_speed")
+        private val KEY_DIALOGUE_PUNCTUATION_PAUSE = intPreferencesKey("dialogue_punctuation_pause")
         val KEY_TRANSLATION_INCLUDE_RUBY = booleanPreferencesKey("translation_include_ruby")
         val KEY_AI_VOICE_ENABLED = booleanPreferencesKey("ai_voice_enabled")
         val KEY_AI_VOICE_LANGUAGE = stringPreferencesKey("ai_voice_language")
@@ -699,6 +703,14 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_SHOW_ORIGINAL_GAME_TEXT] ?: false
     }
 
+    /** Visual playback only; independent of OCR, prompt context and translation caching. */
+    val dialoguePlaybackSettings: Flow<DialoguePlaybackSettings> = context.dataStore.data.map { prefs ->
+        DialoguePlaybackSettings(
+            DialogueTextSpeed.fromStored(prefs[KEY_DIALOGUE_TEXT_SPEED]),
+            (prefs[KEY_DIALOGUE_PUNCTUATION_PAUSE] ?: 0).coerceIn(0, 3)
+        )
+    }
+
     /**
      * Whether detected 〈…〉 ruby annotations are included in translation requests. Included by
      * default; an explicitly saved preference is preserved. OCR detection is always unchanged.
@@ -1103,6 +1115,21 @@ class SettingsRepository @Inject constructor(
     suspend fun setShowOriginalGameText(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SHOW_ORIGINAL_GAME_TEXT] = enabled }
         FgoLogger.debug(tag, "Setting updated: show_original_game_text=$enabled")
+    }
+
+    suspend fun setDialogueTextSpeed(speed: DialogueTextSpeed) {
+        context.dataStore.edit { it[KEY_DIALOGUE_TEXT_SPEED] = speed.storedValue }
+    }
+
+    suspend fun setDialoguePunctuationPause(level: Int) {
+        context.dataStore.edit { it[KEY_DIALOGUE_PUNCTUATION_PAUSE] = level.coerceIn(0, 3) }
+    }
+
+    suspend fun resetDialoguePlayback() {
+        context.dataStore.edit {
+            it.remove(KEY_DIALOGUE_TEXT_SPEED)
+            it.remove(KEY_DIALOGUE_PUNCTUATION_PAUSE)
+        }
     }
 
     suspend fun setTranslationIncludeRuby(enabled: Boolean) {

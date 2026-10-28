@@ -33,6 +33,7 @@ android {
         targetSdk = 34
         versionCode = 18
         versionName = "5.0.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Run/Debug and release share the owner's local choice and both APK markers.
         val analyticsEnabled = ownerAnalyticsEnabled.toString()
@@ -145,5 +146,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     testImplementation(kotlin("test"))
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("junit:junit:4.13.2")
 
 }

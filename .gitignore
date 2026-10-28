@@ -282,6 +282,7 @@ chapter/LANGUAGE_PACK_DEVICE_CHECK_*.md
 !app/src/test/java/com/fgogotran/translation/GeneralEvaluatedPromptPolicyTest.kt
 
 # OS / editor noise
+!app/src/test/java/com/fgogotran/overlay/DialoguePlaybackTest.kt
 .DS_Store
 Thumbs.db
 *.log
