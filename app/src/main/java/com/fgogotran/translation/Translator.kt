@@ -209,16 +209,25 @@ data class SceneTranslateResult(
     val generalPreparedSourceDialogue: String? = null
 )
 
-/** Extend general keys without changing even a separator in legacy hash material. */
+internal const val GENERAL_HANT_REFERENCE_POLICY_VERSION = "general-hant-reference-v1"
+
+/** Preserve legacy, Hans, and English keys; Hant references get their own versioned namespace. */
 internal fun extendGeneralPromptCacheMaterial(
     legacyMaterial: List<String>,
     general: Boolean,
     resolvedSpeaker: String = "",
-    speakerGender: String = ""
-): List<String> = if (general) {
-    legacyMaterial + listOf("general-response-contract-v1", resolvedSpeaker, speakerGender)
-} else {
-    legacyMaterial
+    speakerGender: String = "",
+    targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+): List<String> {
+    if (!general) return legacyMaterial
+    val material = legacyMaterial + listOf("general-response-contract-v1", resolvedSpeaker, speakerGender)
+    return if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+        SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
+    ) {
+        material + listOf("target=zh-Hant", GENERAL_HANT_REFERENCE_POLICY_VERSION)
+    } else {
+        material
+    }
 }
 
 data class VoiceLineHint(
@@ -395,6 +404,7 @@ class Translator @Inject constructor(
             currentSpeaker = "",
             includeCurrentSpeaker = false
         )
+        logGeneralPromptGlossary(config, promptGlossaryEntries)
         val messages = listOf(
                 ChatMessage(
                     "system",
@@ -1119,18 +1129,15 @@ class Translator @Inject constructor(
                 cropMode || isBattleSubtitle || translateAsChoices || translateAsName ||
                     activeCurrentSpeaker.isBlank()
             }
-        val activeCharacterContextPrompt = activeCharacterContext
-            ?.promptFor(
-                targetLanguage = promptTargetLanguage(config),
-                isSakuraModel = useSakuraPrompt
-            )
-            .orEmpty()
-        val activeCharacterContextCacheIdentity = activeCharacterContext
-            ?.cacheIdentityFor(
-                targetLanguage = promptTargetLanguage(config),
-                isSakuraModel = useSakuraPrompt
-            )
-            .orEmpty()
+        val preparedGeneralCharacterContext = activeCharacterContext?.takeUnless { useSakuraPrompt }?.let {
+            characterContextRepository.prepareGeneralContext(it, normalizedText, promptTargetLanguage(config))
+        }
+        val activeCharacterContextPrompt = if (useSakuraPrompt) {
+            activeCharacterContext?.promptFor(promptTargetLanguage(config), isSakuraModel = true).orEmpty()
+        } else preparedGeneralCharacterContext?.prompt.orEmpty()
+        val activeCharacterContextCacheIdentity = if (useSakuraPrompt) {
+            activeCharacterContext?.cacheIdentityFor(promptTargetLanguage(config), isSakuraModel = true).orEmpty()
+        } else preparedGeneralCharacterContext?.cacheIdentity.orEmpty()
         val sceneContextPolicyKey = if (isSpokenSubtitle && !useSakuraPrompt && subtitleReferences.isNotEmpty()) {
             "dialogue-source-context-v1:" + hashText(buildDialogueSubtitleReferencePrompt(subtitleReferences))
         } else sceneContextCachePolicyKey(activePreviousDialogueContexts, general = !useSakuraPrompt)
@@ -1268,6 +1275,7 @@ class Translator @Inject constructor(
             }
             (hintEntries + builtGlossaryEntries).distinctBy { it.source }
         }
+        logGeneralPromptGlossary(config, promptGlossaryEntries)
         val systemPrompt = if (useSakuraPrompt) {
             SakuraPromptBuilder.buildSystemPrompt()
         } else {
@@ -1728,6 +1736,7 @@ class Translator @Inject constructor(
             currentSpeaker = activeCurrentSpeaker,
             includeCurrentSpeaker = false
         )
+        logGeneralPromptGlossary(config, promptGlossaryEntries)
 
         val messages = listOf(
             ChatMessage(
@@ -2090,18 +2099,15 @@ class Translator @Inject constructor(
         val characterContext = normalizedDialogue?.let {
             characterContextRepository.resolveProfileOrNull(normalizedName)
         }
-        val characterContextPrompt = characterContext
-            ?.promptFor(
-                targetLanguage = promptTargetLanguage(config),
-                isSakuraModel = useSakuraPrompt
-            )
-            .orEmpty()
-        val characterContextCacheIdentity = characterContext
-            ?.cacheIdentityFor(
-                targetLanguage = promptTargetLanguage(config),
-                isSakuraModel = useSakuraPrompt
-            )
-            .orEmpty()
+        val preparedGeneralCharacterContext = characterContext?.takeUnless { useSakuraPrompt }?.let {
+            characterContextRepository.prepareGeneralContext(it, normalizedDialogue.orEmpty(), promptTargetLanguage(config))
+        }
+        val characterContextPrompt = if (useSakuraPrompt) {
+            characterContext?.promptFor(promptTargetLanguage(config), isSakuraModel = true).orEmpty()
+        } else preparedGeneralCharacterContext?.prompt.orEmpty()
+        val characterContextCacheIdentity = if (useSakuraPrompt) {
+            characterContext?.cacheIdentityFor(promptTargetLanguage(config), isSakuraModel = true).orEmpty()
+        } else preparedGeneralCharacterContext?.cacheIdentity.orEmpty()
         val dialogueKey = normalizedDialogue?.let {
             cacheKey(
                 normalizedText = it,
@@ -2448,6 +2454,7 @@ class Translator @Inject constructor(
             currentSpeaker = currentSpeaker,
             includeCurrentSpeaker = false
         )
+        logGeneralPromptGlossary(config, promptGlossaryEntries)
         val useCompactDialogueVoiceHintPrompt =
             requestVoiceHint && !needsName && needsDialogue && neededChoiceIndices.isEmpty()
         val sceneUserPrompt = if (useCompactDialogueVoiceHintPrompt) {
@@ -5390,10 +5397,14 @@ class Translator @Inject constructor(
             SettingsRepository.TARGET_LANGUAGE_ENGLISH
     }
 
-    private fun targetTermText(term: TermEntity, targetLanguage: String): String {
-        if (isEnglishTarget(targetLanguage)) return term.enTerm.trim()
-        return targetOfficialChinese(term.cnTerm, targetLanguage)
+    private fun logGeneralPromptGlossary(config: RuntimeConfig, entries: List<TranslationGlossaryEntry>) {
+        if (!usesSakuraPrompt(config)) {
+            FgoLogger.debug(tag, formatGeneralPromptGlossaryLog(entries, config.targetLanguage))
+        }
     }
+
+    private fun targetTermText(term: TermEntity, targetLanguage: String): String =
+        selectPromptGlossaryTarget(term.cnTerm, term.enTerm, targetLanguage, ::targetOfficialChinese)
 
     private fun targetOfficialChinese(text: String, targetLanguage: String): String {
         if (isEnglishTarget(targetLanguage)) return text.trim()
@@ -6647,12 +6658,13 @@ class Translator @Inject constructor(
             hashMaterial,
             general = !usesSakuraPrompt(config),
             resolvedSpeaker = normalizeCurrentSpeakerContext(generalSpeakerContext),
-            speakerGender = normalizeCharacterGender(generalSpeakerGender)
+            speakerGender = normalizeCharacterGender(generalSpeakerGender),
+            targetLanguage = normalizedTargetLanguage
         )
         val hash = hashText(effectiveHashMaterial.joinToString("\u001F"))
         // Diagnostic only: two miss lines for the same text can be diffed on "parts" to see which
         // key field changed (prompt / model / speaker / glossary / ...).
-        val parts = listOf(
+        val parts = (listOf(
             "prompt=$promptVersion",
             "lang=$normalizedTargetLanguage",
             "backend=$backend",
@@ -6668,7 +6680,11 @@ class Translator @Inject constructor(
             "player=${shortKeyDigest(playerIdentity)}",
             "gender=${genderIdentity.ifBlank { "-" }}",
             "text=${hashText(normalizedText).take(6)}/${normalizedText.length}"
-        ).joinToString(",")
+        ) + if (GENERAL_HANT_REFERENCE_POLICY_VERSION in effectiveHashMaterial) {
+            listOf("refs=$GENERAL_HANT_REFERENCE_POLICY_VERSION")
+        } else {
+            emptyList()
+        }).joinToString(",")
         return CacheKeyInfo(hash, parts)
     }
 

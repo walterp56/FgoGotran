@@ -97,6 +97,28 @@ class GeneralSceneContextTest {
     }
 
     @Test
+    fun `Hant references convert target fields while prepared Japanese ruby stays verbatim`() {
+        val japanese = "身体〈からだ〉の魔術。"
+        val original = context(source = japanese, preparedSource = japanese,
+            translation = "魔术。", speaker = "魔術師", translatedSpeaker = "魔术师")
+        val convertedFields = mutableListOf<String>()
+        val selected = select(listOf(original), hant) { text, target ->
+            assertEquals(hant, target)
+            convertedFields += text
+            text.replace("术", "術").replace("师", "師")
+        }.single()
+        assertEquals(listOf("魔术。", "魔术师"), convertedFields)
+        assertEquals(japanese, selected.sourceDialogue)
+        assertEquals("魔術師", selected.sourceSpeakerName)
+        val prompt = buildGeneralPreviousSceneContextPrompt(listOf(selected))
+        assertTrue(prompt.contains("JP: $japanese"))
+        assertTrue(prompt.contains("Speaker Traditional Chinese: 魔術師"))
+        assertTrue(prompt.contains("Traditional Chinese: 魔術。"))
+        assertFalse(prompt.contains("魔术"))
+        assertEquals("魔术。", original.translatedDialogue)
+    }
+
+    @Test
     fun `prepared source wins over raw history and retains source key`() {
         val original = context(
             source = "おかあさん〈マスター〉、いい？",

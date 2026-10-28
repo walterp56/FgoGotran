@@ -19,6 +19,10 @@ local-ai-studio/state/
 # Python virtual environments
 .venv/
 venv/
+# Bytecode caches from Python utilities, including translation evaluation.
+__pycache__/
+*.pyc
+*.pyo
 term_builder/.venv/
 term_builder/venv
 term_builder/venv/
@@ -224,6 +228,7 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/voice/InGameVoiceRequestGateTest.kt
 # Retain general prompt/context/response-contract and ruby provenance regressions.
 !app/src/test/java/com/fgogotran/translation/GeneralGlossaryPolicyTest.kt
+!app/src/test/java/com/fgogotran/translation/PromptGlossaryTargetPolicyTest.kt
 !app/src/test/java/com/fgogotran/translation/GeneralPromptRequestsTest.kt
 !app/src/test/java/com/fgogotran/translation/GeneralSceneContextTest.kt
 !app/src/test/java/com/fgogotran/translation/GeneralTranslationResponseContractTest.kt
@@ -271,6 +276,10 @@ chapter/STORY_*.md
 chapter/PHASE_2_INSTALLER.md
 chapter/R2_ATLAS_PREPARATION_*.md
 chapter/LANGUAGE_PACK_DEVICE_CHECK_*.md
+
+# Retain the offline general-only translation evaluation fixture exporter.
+!app/src/test/java/com/fgogotran/translation/GeneralPromptEvaluationFixtureTest.kt
+!app/src/test/java/com/fgogotran/translation/GeneralEvaluatedPromptPolicyTest.kt
 
 # OS / editor noise
 .DS_Store

@@ -86,6 +86,13 @@ internal fun StringBuilder.appendGeneralTranslationGlossarySection(
             "Gender notes apply only to explicit references to that person, never to omitted subjects or possessors.\n" +
             TranslationGlossaryBuilder.render(TranslationGlossaryBuilder.qualifyGeneral(entries))
     )
+    val playerNames = TranslationGlossaryBuilder.protectedPlayerNameTargets(entries)
+    if (playerNames.isNotEmpty()) {
+        appendPromptSectionText(
+            "Protected player names (copy exactly; never translate, transliterate or romanize):\n" +
+                playerNames.joinToString("\n")
+        )
+    }
 }
 
 internal fun renderNumberedPromptItems(items: List<String>): String = items
@@ -176,9 +183,9 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v97-plain-layout"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v98-source-voice-literals"
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v10-plain-layout"
-        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v5-plain-layout"
+        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v6-source-voice-literals"
         const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v4-plain-layout"
         const val DIALOGUE_SUBTITLE_PROMPT_VERSION = "dialogue-subtitle-v3-source-repetition"
         const val DIALOGUE_SUBTITLE_PROMPT_VERSION_EN = "dialogue-subtitle-en-v3-source-repetition"
@@ -287,6 +294,10 @@ class PromptBuilder @Inject constructor() {
 
         private val PLAIN_OUTPUT_PROMPT = """
             Return only the Chinese translation, without notes, labels, wrappers, or source text.
+            """.trimIndent()
+
+        private val TRADITIONAL_PLAIN_OUTPUT_PROMPT = """
+            Return only the 繁體中文 translation, without notes, labels, wrappers, or source text.
             """.trimIndent()
 
         private val BATTLE_PLAIN_OUTPUT_PROMPT = """
@@ -557,6 +568,8 @@ class PromptBuilder @Inject constructor() {
         val isBattleSubtitle =
             context.promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
         val isSpokenSubtitle = context.promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
+        val generalTraditional = context.promptProfile == TranslationPromptProfile.GENERAL && !context.isCropMode &&
+            SettingsRepository.normalizeTargetLanguage(context.targetLanguage) == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         val basePrompt = when {
             context.isCropMode -> if (isEnglish) CROP_BASE_PROMPT_EN else CROP_BASE_PROMPT
             isBattleSubtitle ->
@@ -568,7 +581,7 @@ class PromptBuilder @Inject constructor() {
             isBattleSubtitle -> "battle_base"
             else -> "base"
         }
-        sb.append(applyTargetLanguage(basePrompt, targetLanguageLabel))
+        sb.append(applyTargetLanguage(basePrompt, if (generalTraditional) "繁體中文 (Traditional Chinese)" else targetLanguageLabel))
         blockNames += baseBlockName
         if (isSpokenSubtitle) {
             appendPromptBlock(rules, blockNames, "spoken_dialogue", SPOKEN_DIALOGUE_PROMPT)
@@ -622,6 +635,7 @@ class PromptBuilder @Inject constructor() {
         val outputPrompt = when {
             useBattlePlainOutput && isEnglish -> BATTLE_PLAIN_OUTPUT_PROMPT_EN
             useBattlePlainOutput -> BATTLE_PLAIN_OUTPUT_PROMPT
+            generalTraditional && context.outputFormat == PromptOutputFormat.PLAIN_TEXT -> TRADITIONAL_PLAIN_OUTPUT_PROMPT
             else -> outputPromptBlock(context.outputFormat, isEnglish)
         }
         sb.appendPromptSectionText(outputPrompt)
@@ -1010,12 +1024,12 @@ class PromptBuilder @Inject constructor() {
 
         FgoLogger.debug(tag, "Term matching: ${matches.size} of ${terms.size} terms matched")
         if (matches.isNotEmpty()) {
-            // Debug output follows the active target so EN runs log EN glossary hits.
+            // These are raw database values; Translator logs the prepared API glossary separately.
             val englishTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
                 SettingsRepository.TARGET_LANGUAGE_ENGLISH
             FgoLogger.debug(
                 tag,
-                "Matched terms (${if (englishTarget) "en" else "zh"}): ${
+                "RAG DB raw (${if (englishTarget) "en" else "zh"}): ${
                     matches.joinToString(limit = MAX_RAG_TERMS) { term ->
                         val target = if (englishTarget) {
                             term.enTerm.trim().ifBlank { term.cnTerm }

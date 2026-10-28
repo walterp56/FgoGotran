@@ -41,6 +41,16 @@ class CharacterContextRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val index by lazy(LazyThreadSafetyMode.SYNCHRONIZED, ::loadIndex)
+    private val generalRules by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        runCatching {
+            context.assets.open("translation/general_character_context_rules.tsv").bufferedReader(Charsets.UTF_8)
+                .use { parseGeneralCharacterContextRules(it.lineSequence()) }
+        }.onFailure { FgoLogger.warn(TAG, "Failed to load general character rules", it) }.getOrDefault(emptyMap())
+    }
+
+    internal fun prepareGeneralContext(
+        profile: CharacterContextProfile, japaneseSource: String, targetLanguage: String
+    ): PreparedGeneralCharacterContext = prepareGeneralCharacterContext(profile, japaneseSource, targetLanguage, generalRules)
 
     fun warmUp() {
         index

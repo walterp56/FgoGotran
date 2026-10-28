@@ -17,7 +17,8 @@ class PronounFidelityPromptTest {
     fun `general core preserves uncertainty repetition and unfinished source for every target`() {
         for ((target, label) in generalTargets) {
             val prompt = promptBuilder.buildSystemPrompt(PromptContext(targetLanguage = target))
-            val fidelityLine = "Translate into concise, natural in-game $label; keep every " +
+            val coreLabel = if (target == "zh-Hant") "繁體中文 (Traditional Chinese)" else label
+            val fidelityLine = "Translate into concise, natural in-game $coreLabel; keep every " +
                 "meaning, role, relationship, uncertainty, ambiguity, repetition, and ellipsis, " +
                 "and add nothing."
 
@@ -134,11 +135,11 @@ class PronounFidelityPromptTest {
     }
 
     @Test
-    fun `general and battle cache versions advance for source sense policy`() {
+    fun `general versions include evaluated policies while battle versions stay fixed`() {
         for (target in generalTargets.keys) {
             val english = target == "en"
             assertEquals(
-                if (english) "jp-en-fgo-target-v5-plain-layout" else "jp-cn-fgo-target-v97-plain-layout",
+                if (english) "jp-en-fgo-target-v6-source-voice-literals" else "jp-cn-fgo-target-v98-source-voice-literals",
                 PromptBuilder.promptVersionFor(target, battleSubtitle = false),
                 target
             )

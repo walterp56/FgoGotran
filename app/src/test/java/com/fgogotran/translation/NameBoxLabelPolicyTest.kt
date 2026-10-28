@@ -149,7 +149,7 @@ class NameBoxLabelPolicyTest {
     }
 
     @Test
-    fun `ordinary dialogue crop and battle receive no new name instructions or version changes`() {
+    fun `ordinary dialogue crop and battle receive no new name instructions`() {
         for (target in targets) {
             val dialogue = builder.buildPromptContext(
                 outputFormat = PromptOutputFormat.PLAIN_TEXT, sourceText = "タマモーズが来た。", targetLanguage = target
@@ -172,7 +172,7 @@ class NameBoxLabelPolicyTest {
                 assertFalse(builder.buildSystemPrompt(context).contains("Name-box: translate the complete visible label"))
             }
             assertEquals(
-                if (target == "en") "jp-en-fgo-target-v5-plain-layout" else "jp-cn-fgo-target-v97-plain-layout",
+                if (target == "en") "jp-en-fgo-target-v6-source-voice-literals" else "jp-cn-fgo-target-v98-source-voice-literals",
                 PromptBuilder.promptVersionFor(target, battleSubtitle = false)
             )
             assertEquals(

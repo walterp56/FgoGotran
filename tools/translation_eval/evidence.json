@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "scope": "general_non_sakura",
+  "policy": "Offline review ledger only. Entries do not change prompts, glossary data or character matching.",
+  "delivery_policy_evaluation": {
+    "date": "2026-10-28",
+    "report": "tools/translation_eval/RESULTS_2026-10-28.md",
+    "scope": "General-only delivery and instruction selection; no new character facts, glossary entries or Sakura changes.",
+    "implemented": ["Explicit Traditional Chinese script anchor", "Separate exact player-name instruction", "Retain existing base voice and send existing tic guidance only for possible current-source tic forms"],
+    "not_adopted": ["Generic politeness-guard rewrite", "English ruby rewrite", "New character profiles or shared glossary edits"],
+    "limits": "DeepSeek Flash first-response tests and assisted review only. Existing character lore still needs independent source verification; kana player names retain an observed failure."
+  },
+  "required_for_approval": ["Original Japanese evidence with source URL and locator", "Verified visible identity or applicable meaning", "Target language and current versus proposed value", "Positive example and counterexample", "Shared glossary and Sakura compatibility impact", "Reviewer and decision"],
+  "items": [
+    {
+      "id": "existing_beni_enma_voice",
+      "kind": "character",
+      "status": "needs_source_verification",
+      "current_artifact": "app/src/main/assets/translation/character_context_prompts.tsv",
+      "key": "紅閻魔",
+      "targets": ["zh-Hans", "zh-Hant", "en"],
+      "source_evidence": [],
+      "applicability": "Current visible speaker resolves unambiguously to 紅閻魔; tic guidance requires the current Japanese to contain that tic.",
+      "positive_case_ids": ["conditional_tic_on"],
+      "counterexample_case_ids": ["conditional_tic_off", "choice_and_order", "new_speaker_after_tic"],
+      "current_value": "Existing conditional general/English voice guidance; see the tracked asset.",
+      "proposed_value": null,
+      "shared_impact": "The asset also contains a Sakura column. No column, row, alias or runtime data is changed by this ledger.",
+      "reviewer": null,
+      "decision": null
+    }
+  ]
+}

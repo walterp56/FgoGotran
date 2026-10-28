@@ -31,4 +31,32 @@ class GeneralPromptCachePolicyTest {
         assertNotEquals(original, extendGeneralPromptCacheMaterial(legacy, true, "old target (JP: 名前)", "male"))
         assertEquals(original, extendGeneralPromptCacheMaterial(legacy, true, "old target (JP: 名前)", "female"))
     }
+
+    @Test
+    fun `Hant requests cannot reuse Hans or pre-policy cache entries even without speaker or glossary`() {
+        val hans = extendGeneralPromptCacheMaterial(legacy, true, targetLanguage = "zh-Hans")
+        val hant = extendGeneralPromptCacheMaterial(legacy, true, targetLanguage = "zh-Hant")
+        assertNotEquals(hans, hant)
+        assertEquals(listOf("target=zh-Hant", GENERAL_HANT_REFERENCE_POLICY_VERSION), hant.takeLast(2))
+        assertEquals(hans, hant.dropLast(2))
+        for (alias in listOf("zh-Hant-TW", "zh-Hant-HK")) {
+            assertEquals(hant, extendGeneralPromptCacheMaterial(legacy, true, targetLanguage = alias))
+        }
+    }
+
+    @Test
+    fun `Hans and English retain their exact general hash material`() {
+        val previous = legacy + listOf("general-response-contract-v1", "speaker", "female")
+        for (target in listOf("zh-Hans", "zh-CN", "en", "en-US")) {
+            assertEquals(previous.joinToString("\u001F"),
+                extendGeneralPromptCacheMaterial(legacy, true, "speaker", "female", target).joinToString("\u001F"))
+        }
+    }
+
+    @Test
+    fun `legacy routing bypasses the Hant reference namespace for every target`() {
+        for (target in listOf("zh-Hans", "zh-Hant", "zh-Hant-HK", "en")) {
+            assertSame(legacy, extendGeneralPromptCacheMaterial(legacy, false, "speaker", "female", target))
+        }
+    }
 }
