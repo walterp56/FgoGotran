@@ -209,9 +209,9 @@
     <string name="guide_auto_44">战</string>
     <string name="settings_auto_1">提供最近场景的日文与译文对照；模型误译前文时可关闭；会增加Token消耗(云端API)</string>
     <string name="settings_auto_2">一并翻译游戏中已有的读音或别名。</string>
-    <string name="settings_auto_3">默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。</string>
+    <string name="settings_auto_3">启动快，耗电低。由 Google ML Kit 在本机识别。</string>
     <string name="settings_auto_4">相同原文可直接使用上次翻译，速度更快；\n遇到旧译文时可以清除缓存。</string>
-    <string name="settings_auto_5">进阶引擎。准确度高，识别范围广。依赖 CPU 算力。</string>
+    <string name="settings_auto_5">默认引擎。准确度高，识别范围广。依赖 CPU 算力。</string>
     <string name="settings_auto_6">选择适合的 OCR（光学字元识别）引擎</string>
     <string name="settings_auto_7">翻译时包含上方小字</string>
     <string name="settings_ruby_example_label">游戏中的例子</string>
@@ -249,6 +249,14 @@
     <string name="settings_translation_context_disabled_hint">开启“参考前文”后可调整</string>
     <string name="settings_auto_28">御主名称</string>
     <string name="settings_master_profile_title">御主资料</string>
+    <string name="settings_master_profile_save_hint">其他选项会自动保存；名称与性别请按下方按钮保存。</string>
+    <string name="settings_master_profile_unsaved">尚未保存</string>
+    <string name="settings_master_profile_saving">正在保存…</string>
+    <string name="settings_master_profile_save_failed">保存失败，请重试。</string>
+    <string name="settings_master_profile_unsaved_title">御主资料尚未保存</string>
+    <string name="settings_master_profile_unsaved_message">名称或性别的更改尚未保存。要放弃更改并返回吗？</string>
+    <string name="settings_master_profile_discard">放弃并返回</string>
+    <string name="settings_master_profile_keep_editing">继续编辑</string>
     <string name="settings_master_name_not_set">未设置</string>
     <string name="settings_auto_29">双语显示</string>
     <string name="settings_auto_30">语音设置</string>
@@ -409,7 +417,7 @@
     <string name="dialogue_playback_pause">标点停顿</string>
     <string name="dialogue_playback_slow">慢</string>
     <string name="dialogue_playback_instant">最快 MAX</string>
-    <string name="dialogue_playback_hint">游戏中点一下显示全文，再点一下继续。</string>
+    <string name="dialogue_playback_hint">游戏对话播放或停顿期间，点一下显示全文；全文显示后，点一下继续。</string>
     <string name="dialogue_playback_reset">恢复默认</string>
     <string name="dialogue_playback_replay">重播</string>
     <string name="dialogue_playback_preview">播放预览</string>

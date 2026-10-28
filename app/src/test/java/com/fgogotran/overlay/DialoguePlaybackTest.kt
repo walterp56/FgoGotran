@@ -138,18 +138,23 @@ class DialoguePlaybackTest {
         assertEquals(3, DialoguePlaybackSettings(punctuationPause = 9).pauseLevel)
     }
 
-    @Test fun `preview targets share the same punctuation rhythm and paired Japanese rows`() {
+    @Test fun `preview uses paired Mash rows and excludes ruby from playback timing`() {
         for (locale in listOf("zh-Hans", "zh-Hant", "en")) {
             val sample = DialoguePlaybackExample.forTarget(locale)
             assertEquals(2, sample.lines.size)
             assertEquals(sample.lines.size, sample.originalLines.size)
             assertEquals(sample.lines[0].length + 1, sample.starts[1])
             assertEquals(sample.lines[1], sample.text.substring(sample.starts[1]))
-            assertFalse(sample.text.contains('〈')) // Ruby has its own settings example.
+            assertTrue(RubyRenderText.hasRuby(sample.renderText(true)))
+            assertFalse(RubyRenderText.hasRuby(sample.renderText(false)))
+            assertEquals(sample.text, RubyRenderText.body(sample.renderText(true)))
+            assertEquals("霊基外骨骼〈オルテナウス〉起動。\n行きます！", sample.originalText)
             val t = timeline(sample.text, DialogueTextSpeed.INSTANT, 3)
-            assertEquals(600_000_000L, t.durationNanos, locale)
+            // English has a comma before 'activate'; the Chinese line has a single sentence stop.
+            val pauseCount = if (locale == "en") 2 else 1
+            assertEquals(pauseCount * 300_000_000L, t.durationNanos, locale)
             assertTrue(t.visibleEndAt(0) < sample.starts[1], locale)
-            assertEquals(sample.lines[0].length, t.visibleEndAt(300_000_000), locale)
+            assertEquals(sample.lines[0].length, t.visibleEndAt((pauseCount - 1) * 300_000_000L), locale)
         }
     }
 }

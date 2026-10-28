@@ -178,7 +178,7 @@ class SettingsRepository @Inject constructor(
         const val OCR_ENGINE_MLKIT = "mlkit"
         const val OCR_ENGINE_MLKIT_CHINESE = "mlkit_chinese"
         const val OCR_ENGINE_PADDLE = "paddle"
-        const val DEFAULT_OCR_ENGINE = OCR_ENGINE_MLKIT
+        const val DEFAULT_OCR_ENGINE = OCR_ENGINE_PADDLE
 
         /** DeepSeek Chat API (default). */
         const val BACKEND_DEEPSEEK = "deepseek"

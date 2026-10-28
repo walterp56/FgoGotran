@@ -1,5 +1,7 @@
 package com.fgogotran.ui.screen
 
+import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -51,10 +53,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -62,7 +67,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
-import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.localization.LocalizedText as Text
 import com.fgogotran.overlay.RubyTextPainter
 import com.fgogotran.overlay.DialoguePlaybackSettings
@@ -73,7 +77,11 @@ import com.fgogotran.ui.theme.FgoSettingsColors
 import com.fgogotran.ui.theme.FgoUiStyle
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import java.util.Locale
 import kotlin.math.roundToInt
+
+private enum class MasterProfileSaveState { IDLE, SAVING, SAVED, FAILED }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +89,6 @@ fun TranslationPreferencesScreen(
     settingsRepository: SettingsRepository,
     onBack: () -> Unit
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val targetLanguage by settingsRepository.targetLanguage.collectAsState(
@@ -103,26 +110,70 @@ fun TranslationPreferencesScreen(
         mutableStateOf(SettingsRepository.DEFAULT_PLAYER_GENDER)
     }
     var playerProfileLoaded by rememberSaveable { mutableStateOf(false) }
-    var playerNameSaveMessage by remember { mutableStateOf("") }
+    var savedPlayerName by rememberSaveable { mutableStateOf("") }
+    var savedPlayerGender by rememberSaveable { mutableStateOf(SettingsRepository.DEFAULT_PLAYER_GENDER) }
+    var profileSaveState by remember { mutableStateOf(MasterProfileSaveState.IDLE) }
+    var showDiscardConfirmation by rememberSaveable { mutableStateOf(false) }
+    val profileDirty = playerProfileLoaded &&
+        (playerName.trim() != savedPlayerName || playerGender != savedPlayerGender)
+    val profileSaving = profileSaveState == MasterProfileSaveState.SAVING
+    val contextTitle = stringResource(R.string.settings_auto_11)
 
     LaunchedEffect(Unit) {
         // A configuration change must not replace an unsaved Master-profile draft.
         if (!playerProfileLoaded) {
-            playerName = settingsRepository.playerName.first()
-            playerGender = settingsRepository.playerGender.first()
+            val profile = settingsRepository.playerProfile.first()
+            playerName = profile.name
+            playerGender = profile.gender
+            savedPlayerName = profile.name.trim()
+            savedPlayerGender = profile.gender
             playerProfileLoaded = true
         }
     }
 
     fun savePlayerProfile() {
-        val nameToSave = playerName
+        if (!playerProfileLoaded || profileSaveState == MasterProfileSaveState.SAVING) return
+        val nameToSave = playerName.trim()
         val genderToSave = playerGender
+        profileSaveState = MasterProfileSaveState.SAVING
         scope.launch {
-            settingsRepository.setPlayerProfile(nameToSave, genderToSave)
-            if (playerName == nameToSave && playerGender == genderToSave) {
-                playerNameSaveMessage = AppLanguageManager.localizedString(context, R.string.settings_auto_42)
+            try {
+                settingsRepository.setPlayerProfile(nameToSave, genderToSave)
+                savedPlayerName = nameToSave
+                savedPlayerGender = genderToSave
+                playerName = nameToSave
+                profileSaveState = MasterProfileSaveState.SAVED
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                profileSaveState = MasterProfileSaveState.FAILED
             }
         }
+    }
+
+    fun requestBack() {
+        if (profileSaveState == MasterProfileSaveState.SAVING) return
+        if (profileDirty) showDiscardConfirmation = true else onBack()
+    }
+
+    // Registered inside the page, after the host's navigation handler, for system back too.
+    BackHandler { requestBack() }
+    if (showDiscardConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmation = false },
+            title = { Text(stringResource(R.string.settings_master_profile_unsaved_title)) },
+            text = { Text(stringResource(R.string.settings_master_profile_unsaved_message)) },
+            confirmButton = {
+                TextButton(onClick = { showDiscardConfirmation = false; onBack() }) {
+                    Text(stringResource(R.string.settings_master_profile_discard))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardConfirmation = false }) {
+                    Text(stringResource(R.string.settings_master_profile_keep_editing))
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -131,7 +182,7 @@ fun TranslationPreferencesScreen(
                 colors = FgoUiColors.topAppBarColors(),
                 title = { Text(stringResource(R.string.settings_auto_27)) },
                 navigationIcon = {
-                    TextButton(colors = FgoUiColors.textButtonColors(), onClick = onBack) {
+                    TextButton(colors = FgoUiColors.textButtonColors(), enabled = !profileSaving, onClick = ::requestBack) {
                         Text(stringResource(R.string.settings_auto_49), color = FgoUiColors.blueText)
                     }
                 }
@@ -159,6 +210,16 @@ fun TranslationPreferencesScreen(
                         scope.launch { settingsRepository.setShowOriginalGameText(enabled) }
                     }
                 )
+                HorizontalDivider()
+                PreferenceSwitchRow(
+                    title = stringResource(R.string.settings_auto_7),
+                    subtitle = stringResource(R.string.settings_auto_2),
+                    checked = translationIncludeRuby,
+                    onCheckedChange = { enabled ->
+                        scope.launch { settingsRepository.setTranslationIncludeRuby(enabled) }
+                    }
+                )
+                TranslationRubyExample(targetLanguage)
             }
 
             TranslationPreferenceCard(title = stringResource(R.string.dialogue_playback_title), headerAction = {
@@ -166,20 +227,22 @@ fun TranslationPreferencesScreen(
                     Text(stringResource(R.string.dialogue_playback_reset))
                 }
             }) {
-                DialoguePlaybackPreferences(dialoguePlayback, targetLanguage, showOriginalGameText,
+                DialoguePlaybackPreferences(dialoguePlayback, targetLanguage, showOriginalGameText, translationIncludeRuby,
                     onSpeed = { scope.launch { settingsRepository.setDialogueTextSpeed(it) } },
                     onPause = { scope.launch { settingsRepository.setDialoguePunctuationPause(it) } })
             }
 
-            TranslationPreferenceCard(title = stringResource(R.string.settings_translation_processing)) {
-                PreferenceSwitchRow(
-                    title = stringResource(R.string.settings_auto_11),
-                    subtitle = stringResource(R.string.settings_auto_1),
+            TranslationPreferenceCard(title = contextTitle, headerAction = {
+                Switch(
+                    modifier = Modifier.semantics { contentDescription = contextTitle },
                     checked = translationContextEnabled,
                     onCheckedChange = { enabled ->
                         scope.launch { settingsRepository.setTranslationContextEnabled(enabled) }
                     }
                 )
+            }) {
+                Text(stringResource(R.string.settings_auto_1), style = MaterialTheme.typography.bodySmall,
+                    color = FgoSettingsColors.supporting)
                 TranslationContextSceneCountSelector(
                     sceneCount = translationContextSceneCount,
                     enabled = translationContextEnabled,
@@ -194,52 +257,56 @@ fun TranslationPreferencesScreen(
                         color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
                     )
                 }
-                HorizontalDivider()
-                PreferenceSwitchRow(
-                    title = stringResource(R.string.settings_auto_7),
-                    subtitle = stringResource(R.string.settings_auto_2),
-                    checked = translationIncludeRuby,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsRepository.setTranslationIncludeRuby(enabled) }
-                    }
-                )
-                TranslationRubyExample()
             }
 
             TranslationPreferenceCard(title = stringResource(R.string.settings_master_profile_title)) {
+                Text(stringResource(R.string.settings_master_profile_save_hint),
+                    style = MaterialTheme.typography.bodySmall, color = FgoSettingsColors.supporting)
                 OutlinedTextField(
                     colors = FgoUiColors.outlinedTextFieldColors(),
                     value = playerName,
                     onValueChange = {
                         playerName = it
-                        playerNameSaveMessage = ""
+                        profileSaveState = MasterProfileSaveState.IDLE
                     },
                     label = { Text(stringResource(R.string.settings_auto_28)) },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text(stringResource(R.string.settings_auto_19)) },
                     singleLine = true,
-                    enabled = playerProfileLoaded
+                    enabled = playerProfileLoaded && !profileSaving
                 )
                 if (playerProfileLoaded) {
                     PlayerGenderSelector(
                         selectedGender = playerGender,
+                        enabled = !profileSaving,
                         onSelect = { gender ->
                             playerGender = gender
-                            playerNameSaveMessage = ""
+                            profileSaveState = MasterProfileSaveState.IDLE
                         }
                     )
                 }
-                if (playerNameSaveMessage.isNotBlank()) {
+                val profileStatus = when {
+                    profileSaving -> R.string.settings_master_profile_saving
+                    profileSaveState == MasterProfileSaveState.FAILED -> R.string.settings_master_profile_save_failed
+                    profileDirty -> R.string.settings_master_profile_unsaved
+                    profileSaveState == MasterProfileSaveState.SAVED -> R.string.settings_auto_42
+                    else -> null
+                }
+                if (profileStatus != null) {
                     Text(
-                        playerNameSaveMessage,
+                        stringResource(profileStatus),
                         style = MaterialTheme.typography.bodySmall,
-                        color = FgoSettingsColors.value,
+                        color = when {
+                            profileSaveState == MasterProfileSaveState.FAILED -> MaterialTheme.colorScheme.error
+                            profileDirty && !profileSaving -> FgoUiColors.warning
+                            else -> FgoSettingsColors.value
+                        },
                         modifier = Modifier.align(Alignment.End)
                     )
                 }
                 Button(
                     shape = FgoUiStyle.buttonShape,
-                    enabled = playerProfileLoaded,
+                    enabled = playerProfileLoaded && !profileSaving,
                     onClick = { savePlayerProfile() },
                     modifier = Modifier.align(Alignment.End)
                 ) {
@@ -420,6 +487,7 @@ private fun TranslationLanguageSelector(
 @Composable
 private fun PlayerGenderSelector(
     selectedGender: String,
+    enabled: Boolean,
     onSelect: (String) -> Unit
 ) {
     val normalizedGender = SettingsRepository.normalizePlayerGender(selectedGender)
@@ -430,7 +498,7 @@ private fun PlayerGenderSelector(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .clickable(role = Role.Button) { showPicker = true },
+            .clickable(enabled = enabled, role = Role.Button) { showPicker = true },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -613,6 +681,7 @@ private fun PreferenceSwitchRow(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Switch(
+            modifier = Modifier.semantics { contentDescription = title },
             checked = checked,
             onCheckedChange = onCheckedChange
         )
@@ -620,11 +689,19 @@ private fun PreferenceSwitchRow(
 }
 
 @Composable
-private fun TranslationRubyExample() {
+private fun TranslationRubyExample(targetLanguage: String) {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val locale = SettingsRepository.normalizeTargetLanguage(targetLanguage)
+    val targetResources = remember(context, configuration, locale) {
+        context.createConfigurationContext(Configuration(configuration).apply {
+            setLocale(Locale.forLanguageTag(locale))
+        }).resources
+    }
     val japaneseBase = stringResource(R.string.settings_ruby_example_base)
     val japaneseRuby = stringResource(R.string.settings_ruby_example_annotation)
-    val translatedBase = stringResource(R.string.settings_ruby_example_translated_base)
-    val translatedRuby = stringResource(R.string.settings_ruby_example_translated_annotation)
+    val translatedBase = targetResources.getString(R.string.settings_ruby_example_translated_base)
+    val translatedRuby = targetResources.getString(R.string.settings_ruby_example_translated_annotation)
     val annotationColor = FgoUiColors.blueText
     Row(
         modifier = Modifier.fillMaxWidth(),

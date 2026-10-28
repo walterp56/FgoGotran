@@ -1659,16 +1659,15 @@ class OverlayRenderer @Inject constructor(
         try {
             val blank = layer(clearBox) { canvas ->
                 canvas.drawRoundRect(clearBox, cornerRadius, cornerRadius, dialogueClearPaint)
-                drawPlannedDialogueRows(canvas, paint, rows.filter { it.original }, x, textColor, drawingScale)
             }
-            val body = rows.filterNot { it.original }.map { row ->
+            fun captureRow(row: PlannedDialogueRow): DialoguePlaybackFrame.Row {
                 val bounds = RectF(row.ink).apply { inset(-8f * drawingScale, -8f * drawingScale) }
                 val bodyLayer = layer(bounds) { canvas ->
                     drawPlannedDialogueRows(canvas, paint, listOf(row.copy(ruby = emptyList(), rubyEnds = emptyList())),
                         x, textColor, drawingScale)
                 }
                 paint.textSize = row.textSize
-                val ends = DialoguePlaybackCharacters.ends(row.body)
+                val ends = DialoguePlaybackCharacters.ends(row.body, inlineRuby = row.original)
                 val advances = FloatArray(ends.size) { index ->
                     paint.getRunAdvance(row.body, 0, row.body.length, 0, row.body.length, false, ends[index])
                 }
@@ -1680,9 +1679,11 @@ class OverlayRenderer @Inject constructor(
                         RubyTextPainter.drawPlanned(canvas, paint, listOf(annotation), textColor, drawingScale)
                     })
                 }
-                DialoguePlaybackFrame.Row(row.body, x, ends, advances, bodyLayer, readings)
+                return DialoguePlaybackFrame.Row(row.body, x, ends, advances, bodyLayer, readings)
             }
-            return DialoguePlaybackFrame.Panel(panelBounds, Rect(hitBounds), blank, body)
+            val body = rows.filterNot { it.original }.map(::captureRow)
+            val original = rows.filter { it.original }.map(::captureRow)
+            return DialoguePlaybackFrame.Panel(panelBounds, Rect(hitBounds), blank, body, original)
         } catch (error: Throwable) {
             allocated.forEach { if (!it.isRecycled) it.recycle() }
             throw error

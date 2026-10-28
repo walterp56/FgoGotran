@@ -67,7 +67,7 @@ class DialoguePlaybackRenderTest {
         } finally { source.recycle(); renderer.releaseBuffers() }
     }
 
-    @Test fun rubyAppearsOnlyAfterItsBaseAndJapaneseStaysComplete() {
+    @Test fun rubyAndJapaneseFollowDialogueReveal() {
         val source = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
         val renderer = OverlayRenderer(context)
         val frame = renderer.prepareDialoguePlayback(source, instructions("zh-Hant", true), DialoguePlaybackSettings(DialogueTextSpeed.HALF))
@@ -75,16 +75,30 @@ class DialoguePlaybackRenderTest {
         val partial = frame.bitmap.copy(Bitmap.Config.ARGB_8888, true)
         try {
             frame.drawReveal(Canvas(blank), 0)
-            frame.drawReveal(Canvas(partial), 1)
+            frame.drawReveal(Canvas(partial), 2)
             var cyan = 0
+            var blankCyan = 0
+            var partialCyan = 0
             for (y in 830 until 1055) for (x in 35 until 1805) {
                 val p = frame.bitmap.getPixel(x, y)
                 if ((p ushr 24) == 255 && (p shr 16 and 255) < 120 && (p shr 8 and 255) > 210 && (p and 255) > 210) {
                     cyan++
-                    assertEquals("Japanese is static", p, partial.getPixel(x, y))
                 }
+                if (isCyan(blank.getPixel(x, y))) blankCyan++
+                if (isCyan(partial.getPixel(x, y))) partialCyan++
             }
             assertTrue("original text present", cyan > 10)
+            assertEquals("Japanese starts hidden", 0, blankCyan)
+            assertTrue("Japanese is partially revealed with translation", partialCyan in 1 until cyan)
+            val panel = frame.panels.single()
+            assertEquals(2, panel.originalRows.size)
+            val pairComplete = frame.bitmap.copy(Bitmap.Config.ARGB_8888, true)
+            try {
+                frame.drawReveal(Canvas(pairComplete), panel.rows.first().text.length)
+                assertSourceLayerVisible(pairComplete, panel.originalRows[0].layer)
+                assertEquals("second Japanese row waits for its translation", 0,
+                    cyanInLayer(pairComplete, panel.originalRows[1].layer))
+            } finally { pairComplete.recycle() }
             val row = frame.panels.flatMap { it.rows }.first { it.readings.isNotEmpty() }
             val reading = row.readings.first()
             var hiddenPixels = 0
@@ -101,8 +115,70 @@ class DialoguePlaybackRenderTest {
         } finally { blank.recycle(); partial.recycle(); frame.close(); source.recycle(); renderer.releaseBuffers() }
     }
 
+    @Test fun previousJapaneseRowCannotDarkenSecondRowRuby() {
+        val source = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+        val renderer = OverlayRenderer(context)
+        val input = instructions("zh-Hant", true).first().copy(
+            translatedText = "準備好了。\n觀星臺〈迦勒底〉就在前方。",
+            sourceText = "ここで待っていてください。\n星見台〈カルデア〉は前方です。")
+        val frame = renderer.prepareDialoguePlayback(source, listOf(input), DialoguePlaybackSettings(DialogueTextSpeed.HALF))
+        val partial = frame.bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        try {
+            val row = frame.panels.single().rows.last()
+            val reading = row.readings.single()
+            frame.drawReveal(Canvas(partial), row.start + reading.end)
+            var solid = 0
+            for (y in 0 until reading.layer.bitmap.height) for (x in 0 until reading.layer.bitmap.width) {
+                val pixel = reading.layer.bitmap.getPixel(x, y)
+                if ((pixel ushr 24) == 255 && (pixel shr 16 and 255) > 235 && (pixel shr 8 and 255) > 235) {
+                    solid++
+                    assertEquals("ruby remains above the previous row's shadow", pixel,
+                        partial.getPixel(reading.layer.left + x, reading.layer.top + y))
+                }
+            }
+            assertTrue(solid > 0)
+        } finally { partial.recycle(); frame.close(); source.recycle(); renderer.releaseBuffers() }
+    }
+
+    @Test fun unequalBilingualWrappingStillRevealsEveryJapaneseRow() {
+        val source = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+        val renderer = OverlayRenderer(context)
+        val cases = listOf(
+            "We can head back now." to "星見台〈カルデア〉に戻ろう。\nここから物語が始まる。",
+            "Ready.\nLet’s go." to "先輩、準備はいいですか？"
+        )
+        try {
+            for ((translated, japanese) in cases) {
+                val input = instructions("en", true).first().copy(translatedText = translated, sourceText = japanese)
+                val frame = renderer.prepareDialoguePlayback(source, listOf(input), DialoguePlaybackSettings(DialogueTextSpeed.HALF, 3))
+                val partial = frame.bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                try {
+                    val panel = frame.panels.single()
+                    assertEquals(translated.lines().size, panel.rows.size)
+                    assertEquals(japanese.lines().size, panel.originalRows.size)
+                    assertEquals(panel.rows.joinToString("\n") { it.text }, frame.timeline.text)
+                    if (panel.rows.size == 2) {
+                        frame.drawReveal(Canvas(partial), panel.rows.first().text.length)
+                        val original = panel.originalRows.single().layer
+                        assertTrue("Japanese spans both translated rows", cyanInLayer(partial, original) in
+                            1 until cyanInLayer(frame.bitmap, original))
+                    } else {
+                        frame.drawReveal(Canvas(partial), frame.timeline.text.length - 1)
+                        assertTrue("second Japanese row is not omitted", cyanInLayer(partial, panel.originalRows.last().layer) > 0)
+                    }
+                } finally { partial.recycle(); frame.close() }
+            }
+        } finally { source.recycle(); renderer.releaseBuffers() }
+    }
+
     @Test fun actualUnicodeBoundariesAndDialogueOnlyTapCompletion() {
         assertArrayEquals(intArrayOf(1, 6, 8, 9), DialoguePlaybackCharacters.ends("A👩‍🚀e\u0301Z"))
+        val inline = "星見台〈カルデア〉へ👩‍🚀。"
+        val markerStart = inline.indexOf('〈')
+        val markerEnd = inline.indexOf('〉') + 1
+        val ends = DialoguePlaybackCharacters.ends(inline, inlineRuby = true)
+        assertFalse("inline ruby never reveals half a bracket", ends.any { it in (markerStart + 1) until markerEnd })
+        assertTrue(ends.contains(markerEnd))
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val renderer = OverlayRenderer(context)
             val source = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
@@ -171,5 +247,35 @@ class DialoguePlaybackRenderTest {
         a.getPixels(left, 0, box.width(), box.left, box.top, box.width(), box.height())
         b.getPixels(right, 0, box.width(), box.left, box.top, box.width(), box.height())
         assertArrayEquals(left, right)
+    }
+
+    private fun isCyan(pixel: Int): Boolean = (pixel ushr 24) == 255 &&
+        (pixel shr 16 and 255) < 120 && (pixel shr 8 and 255) > 210 && (pixel and 255) > 210
+
+    private fun cyanInLayer(bitmap: Bitmap, layer: DialoguePlaybackFrame.Layer): Int {
+        var count = 0
+        for (y in layer.top until layer.top + layer.bitmap.height) {
+            for (x in layer.left until layer.left + layer.bitmap.width) {
+                if (isCyan(bitmap.getPixel(x, y))) count++
+            }
+        }
+        return count
+    }
+
+    private fun assertSourceLayerVisible(actual: Bitmap, layer: DialoguePlaybackFrame.Layer) {
+        var solidPixels = 0
+        for (y in 0 until layer.bitmap.height) {
+            for (x in 0 until layer.bitmap.width) {
+                val expected = layer.bitmap.getPixel(x, y)
+                // Check the actual cached glyph cores, without comparing independently rasterized
+                // antialiased edges or the neighbouring translated row's shadow.
+                if (isCyan(expected)) {
+                    solidPixels++
+                    assertEquals("completed Japanese glyph at $x,$y", expected,
+                        actual.getPixel(layer.left + x, layer.top + y))
+                }
+            }
+        }
+        assertTrue(solidPixels > 10)
     }
 }

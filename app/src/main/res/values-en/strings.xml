@@ -209,9 +209,9 @@
     <string name="guide_auto_44">B</string>
     <string name="settings_auto_1">Provides recent scene context using Japanese text and its translation; disable if the model misreads earlier text; increases token usage on cloud APIs.</string>
     <string name="settings_auto_2">Translate the readings or alternate names already shown in the game.</string>
-    <string name="settings_auto_3">Default engine. Fast startup and low power use. Recognizes on-device with Google ML Kit.</string>
+    <string name="settings_auto_3">Fast startup and low power use. Recognizes on-device with Google ML Kit.</string>
     <string name="settings_auto_4">Identical source text reuses the previous translation for speed.\nClear the cache if you see stale translations.</string>
-    <string name="settings_auto_5">Advanced engine. High accuracy and broad recognition, but CPU-intensive.</string>
+    <string name="settings_auto_5">Default engine. High accuracy and broad recognition, but CPU-intensive.</string>
     <string name="settings_auto_6">Choose the OCR engine</string>
     <string name="settings_auto_7">Include small text above words</string>
     <string name="settings_ruby_example_label">In-game example</string>
@@ -247,6 +247,14 @@
     <string name="settings_translation_context_disabled_hint">Turn on story context to adjust this value.</string>
     <string name="settings_auto_28">Master name</string>
     <string name="settings_master_profile_title">Master details</string>
+    <string name="settings_master_profile_save_hint">Other options save automatically. Use the button below to save the name and gender.</string>
+    <string name="settings_master_profile_unsaved">Unsaved changes</string>
+    <string name="settings_master_profile_saving">Saving…</string>
+    <string name="settings_master_profile_save_failed">Could not save. Please try again.</string>
+    <string name="settings_master_profile_unsaved_title">Unsaved Master details</string>
+    <string name="settings_master_profile_unsaved_message">Changes to the name or gender have not been saved. Discard them and go back?</string>
+    <string name="settings_master_profile_discard">Discard and go back</string>
+    <string name="settings_master_profile_keep_editing">Keep editing</string>
     <string name="settings_master_name_not_set">Not set</string>
     <string name="settings_auto_29">Bilingual display</string>
     <string name="settings_auto_30">Voice settings</string>
@@ -407,7 +415,7 @@
     <string name="dialogue_playback_pause">Punctuation pause</string>
     <string name="dialogue_playback_slow">Slow</string>
     <string name="dialogue_playback_instant">Fastest MAX</string>
-    <string name="dialogue_playback_hint">In-game, tap once to reveal all text, then tap again to continue.</string>
+    <string name="dialogue_playback_hint">In-game, tap during playback or a pause to reveal all text. Once all text is visible, tap to continue.</string>
     <string name="dialogue_playback_reset">Restore defaults</string>
     <string name="dialogue_playback_replay">Replay</string>
     <string name="dialogue_playback_preview">Playback preview</string>
