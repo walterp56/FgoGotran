@@ -280,6 +280,8 @@ chapter/LANGUAGE_PACK_DEVICE_CHECK_*.md
 # Retain the offline general-only translation evaluation fixture exporter.
 !app/src/test/java/com/fgogotran/translation/GeneralPromptEvaluationFixtureTest.kt
 !app/src/test/java/com/fgogotran/translation/GeneralEvaluatedPromptPolicyTest.kt
+!app/src/test/java/com/fgogotran/translation/GeneralForeignLanguagePromptTest.kt
+!app/src/test/java/com/fgogotran/translation/RubyMarkupRepresentationTest.kt
 
 # OS / editor noise
 !app/src/test/java/com/fgogotran/overlay/DialoguePlaybackTest.kt

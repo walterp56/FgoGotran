@@ -4,11 +4,17 @@
 
 2026-10-28 已完成授權的 DeepSeek 實測及三項小幅實作，結果、未採用方案及限制見 [RESULTS_2026-10-28.md](RESULTS_2026-10-28.md)。不要把候選改寫、原始回應和已採用的編譯後 prompt 混為一談。
 
+同日較早的強外語保留專項見 [RESULTS_FOREIGN_EXPRESSIONS_2026-10-28.md](RESULTS_FOREIGN_EXPRESSIONS_2026-10-28.md)，共 300 次授權請求。其保留率是當時政策的符合率，不是全面翻譯品質評分。
+
+後續依使用者澄清，外語改採語境、翻譯品質及可讀性的取捨，保留與意譯都可成立。新版與上述強保留版的比較見 [RESULTS_CONTEXTUAL_FOREIGN_2026-10-29.md](RESULTS_CONTEXTUAL_FOREIGN_2026-10-29.md)；兩輪案例與評分準則不同，不能直接比較通過率。最終語境版與基準分段採集，延遲比較有此限制。
+
 這個目錄提供案例、正式組裝函式的匯出、人工盲評和結果統計。`evaluate.py` 與單元測試完全離線；另有需要明確授權才執行的 `run_deepseek.py` 實測收集器。收集器用隱藏輸入讀取金鑰，只留在記憶體，不寫入參數、檔案或報告。這些工具本身不會修改 App prompt、詞庫、角色卡或 Sakura 行為。
 
 ## 檔案與已知邊界
 
 - `cases.json`：15 個人工編寫的合成案例 × 簡中／繁中／英文，共 45 個一般請求。不是官方劇情引文，也不是已量測的模型結果。
+- `foreign_language_cases.json`：12 個外語保留與反例 × 簡中／繁中／英文，共 36 個一般請求。Atlas JP/CN 劇本只提供法文／西班牙文／德文表達的來源依據；周邊句子、ruby 與選項排列是人工案例，來源與驗收要求寫在檔案內。涵蓋外語正文／小字、既有重音符號、普通借詞、角色國籍、人名詞庫及不完整片假名。它不取代原有案例集。
+- `contextual_foreign_cases.json`：目前的語境取捨專項，12 個人工案例 × 3 目標。一般問候可保留或意譯；詞語解釋及語言／詞形對比則必須保住關鍵字。另檢查普通借詞、角色國籍、詞庫譯名、ruby 資訊與選項契約。歷史強保留案例留作紀錄，不作本輪品質判分標準。
 - `evidence.json`：離線詞庫／角色指引審核紀錄。目前只登記現有紅閻魔指引待核實，沒有已批准的詞條修改。`proposed` 或 `approved` 必須有可定位的日文證據、來源 URL、正例和反例；`approved` 另外需要審核者及決定。
 - `evaluate.py`：只使用 Python 標準函式庫，驗證資料、產生盲評包、比較 prompt 長度及整理結果。輸出不會覆寫既有檔案。
 - `test_evaluate.py`、`test_run_deepseek.py`：統計、資料完整性及收集器的合成測試，不會連線，也不是模型翻譯品質測試。
@@ -59,6 +65,8 @@ Remove-Item Env:FGO_TRANSLATION_EVAL_VARIANT, Env:FGO_TRANSLATION_EVAL_EXPORT
 這會執行 45 組 × A/B × 2 次，共 180 次付費請求。金鑰在提示後隱藏輸入，不能放在命令列。每組 A/B 相鄰且順序隨機，單一請求串行執行，逐筆 checkpoint；不會重跑已存在的結果檔。`--case-ids` 可先挑小批案例。收集器測量的是固定訊息的**首次回應**，不模擬 App 的修復／取樣回退／快取／OCR，也不宣稱 App 端到端速度。HTTP 成功仍可能違反輸出契約或翻錯，必須繼續驗證與評分。
 
 額外案例可用 `FGO_TRANSLATION_EVAL_CASES` 指定 JSON 路徑匯出及驗證；不同案例集的 hash 不同，應分開比較。合成案例中的 `notes`、`speaker_targets` 是明示準備好的註記與姓名目標，不是實機 DB 檢索結果。已補齊御主的性別／玩家名註記及 Avalon 的現有詞庫參考；早期缺少這些資料的探索性試跑不可與補齊後的 A/B 混用。
+
+外語案例集使用 `$env:FGO_TRANSLATION_EVAL_CASES="$PWD\tools\translation_eval\foreign_language_cases.json"` 匯出修改前／後版本，再使用相同環境變數驗證回應。36 組 × A/B × 2 次為 144 次請求，收集時明確指定 `--trials 2 --max-calls 144`。完成後移除這個環境變數，避免把原有案例集與外語專項混用。這批只覆蓋一般純文字與選項陣列；戰鬥／截圖等 profile 的提示詞覆蓋由 `GeneralForeignLanguagePromptTest` 離線檢查，不能將本批後端結果當成所有 App 路徑的實機驗證。
 
 同一組案例／目標、backend、model、有效參數和 trial 配對比較。輪替 A/B 次序、固定快取條件並記錄失敗及所有修復，不能只挑成功輸出。記錄實際 system/user 請求的 `prompt_sha256`；雜湊格式為 UTF-8 的 `system + U+001F + system內容 + U+001E + user + U+001F + user內容`。
 

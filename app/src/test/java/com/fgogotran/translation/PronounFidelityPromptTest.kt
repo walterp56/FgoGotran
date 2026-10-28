@@ -139,7 +139,7 @@ class PronounFidelityPromptTest {
         for (target in generalTargets.keys) {
             val english = target == "en"
             assertEquals(
-                if (english) "jp-en-fgo-target-v6-source-voice-literals" else "jp-cn-fgo-target-v98-source-voice-literals",
+                if (english) "jp-en-fgo-target-v8-contextual-foreign" else "jp-cn-fgo-target-v100-contextual-foreign",
                 PromptBuilder.promptVersionFor(target, battleSubtitle = false),
                 target
             )

@@ -172,7 +172,7 @@ class NameBoxLabelPolicyTest {
                 assertFalse(builder.buildSystemPrompt(context).contains("Name-box: translate the complete visible label"))
             }
             assertEquals(
-                if (target == "en") "jp-en-fgo-target-v6-source-voice-literals" else "jp-cn-fgo-target-v98-source-voice-literals",
+                if (target == "en") "jp-en-fgo-target-v8-contextual-foreign" else "jp-cn-fgo-target-v100-contextual-foreign",
                 PromptBuilder.promptVersionFor(target, battleSubtitle = false)
             )
             assertEquals(

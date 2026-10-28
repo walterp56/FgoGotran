@@ -183,9 +183,9 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v98-source-voice-literals"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v100-contextual-foreign"
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v10-plain-layout"
-        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v6-source-voice-literals"
+        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v8-contextual-foreign"
         const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v4-plain-layout"
         const val DIALOGUE_SUBTITLE_PROMPT_VERSION = "dialogue-subtitle-v3-source-repetition"
         const val DIALOGUE_SUBTITLE_PROMPT_VERSION_EN = "dialogue-subtitle-en-v3-source-repetition"
@@ -260,6 +260,14 @@ class PromptBuilder @Inject constructor() {
          * Keeping rare rules conditional lowers prompt noise while preserving the
          * safety rules that must apply to every request.
          */
+        // One policy for every general target/profile; keep the trained Sakura prompt independent.
+        private const val FOREIGN_EXPRESSION_PROMPT =
+            "For foreign expressions, choose retention or natural target-language translation by context, voice and readability. " +
+                "Keep or restore the foreign word itself when discussing its language, word forms or wordplay. " +
+                "When retaining, restore clear katakana to established foreign spelling and preserve diacritics; " +
+                "if unsure, translate the meaning. メルシー is French Merci, not English mercy. " +
+                "Never invent foreign wording."
+
         // ─── Chinese (Simplified/Traditional) prompt set ───────────────────────────
         private val BASE_TRANSLATION_PROMPT = """
             You are an expert Japanese-to-Chinese localizer for Fate/Grand Order.
@@ -269,6 +277,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             Translate or transliterate all other kana; common loanwords may use compact English.
+            $FOREIGN_EXPRESSION_PROMPT
             Preserve stated references and action roles; use natural Chinese omission when Japanese omits them, and never infer them from speaker identity.
             Keep source sentences aligned; line breaks only when meaningful. Pause dots -> ……; long dashes -> ───; keep !? and other expressive punctuation.
             """.trimIndent()
@@ -281,6 +290,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             Translate or transliterate all other kana; common loanwords may use compact English.
+            $FOREIGN_EXPRESSION_PROMPT
             Pause dots -> ……; long dashes -> ───.
             """.trimIndent()
 
@@ -290,6 +300,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             Translate or transliterate all other kana; common loanwords may use compact English.
+            $FOREIGN_EXPRESSION_PROMPT
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT = """
@@ -351,8 +362,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val RUBY_PROMPT = """
-            - base〈ruby〉 -> Chinese base〈ruby〉; translate both naturally and never omit ruby.
-            - English-style ruby may stay English; use 〈〉 only.
+            - base〈ruby〉: preserve both meanings and their base/ruby roles; apply the target-language and foreign-expression rules to both. Use 〈〉 only.
+            - Never omit source ruby or invent annotations.
             - If the translated ruby is identical to the translated base, output the base only (no 〈〉 marker).
             """.trimIndent()
 
@@ -373,6 +384,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
+            $FOREIGN_EXPRESSION_PROMPT
             Use an explicit subject only when English grammar requires one; preserve natural fragments and imperatives, and never invent a person or relationship. Translate second-person address as "you" (or an English insult when hostile), never a name.
             Convert 「」『』 to "..." (nested quotes use '...'). "…" -> "..."; long dash -> "—"; keep !? and !!. Keep source sentences aligned; line breaks only when meaningful.
             """.trimIndent()
@@ -385,6 +397,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
+            $FOREIGN_EXPRESSION_PROMPT
             "…" -> "..."; long dash -> "—".
             """.trimIndent()
 
@@ -394,6 +407,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
+            $FOREIGN_EXPRESSION_PROMPT
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT_EN = """
@@ -427,7 +441,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val RUBY_PROMPT_EN = """
-            - base〈ruby〉 -> English base〈English ruby〉; translate both naturally and never omit ruby.
+            - base〈ruby〉: preserve both meanings and their base/ruby roles; apply the target-language and foreign-expression rules to both. Use 〈〉 only.
+            - Never omit source ruby or invent annotations.
             - If the translated ruby is identical to the translated base, output the base only (no 〈〉 marker).
             - Never output 〈〉 for anything except ruby.
             """.trimIndent()

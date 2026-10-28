@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "scope": "general_non_sakura",
+  "provenance": "Authored context-sensitive fixtures, not official FGO quotations. The approved priority is contextual fidelity, character voice and natural target-language readability. Retention and meaning-based translation are both valid for ordinary expressions; word identity must survive when the source discusses or contrasts the actual words. These criteria replace retention-rate scoring for this evaluation only; historical foreign_language_cases.json results remain separate.",
+  "targets": ["zh-Hans", "zh-Hant", "en"],
+  "cases": [
+    {
+      "id": "context_casual_merci", "mode": "dialogue", "source": "メルシー、マスター。",
+      "checks": ["Both Merci and a natural target-language thank-you are valid; do not reward retention for its own sake.", "Keep the Master address and source politeness without an added explanation, ruby, participant or relationship."]
+    },
+    {
+      "id": "context_casual_adios", "mode": "dialogue", "source": "アディオス・アミーゴ！",
+      "checks": ["Either a natural farewell to a friend or Adios/Adiós amigo is valid if tone and meaning survive.", "Keep the friendly address and exclamation; do not turn this into a permanent or hostile farewell without support."]
+    },
+    {
+      "id": "context_word_explanation", "mode": "dialogue", "source": "「メルシー」はフランス語で「ありがとう」という意味だ。",
+      "checks": ["Keep or restore Merci as the French word being explained, and translate its thank-you meaning into the target language.", "Do not flatten this into a claim that a Chinese or English word is French; retain both the named word and its meaning."]
+    },
+    {
+      "id": "context_language_contrast", "mode": "dialogue", "source": "ボンジュールはフランス語、グーテンタークはドイツ語の挨拶だ。",
+      "checks": ["Preserve the identifiable words Bonjour and Guten Tag and correctly assign French and German, respectively.", "Do not replace both named greetings with target-language greetings; language contrast is the subject of this sentence."]
+    },
+    {
+      "id": "context_literal_word_contrast", "mode": "dialogue", "source": "彼は「señorita」ではなく「señora」と言った。その違いが気になった。",
+      "checks": ["Keep señorita and señora with their source spelling/diacritics; he said señora rather than señorita, not the reverse.", "Retain the concern about the difference without explaining or inventing what that difference means."]
+    },
+    {
+      "id": "context_ordinary_loanwords", "mode": "dialogue", "source": "パンとパソコンを買った。",
+      "checks": ["Use natural target-language bread and computer; do not restore donor-language words or transliterate パソコン as foreign dialogue.", "Do not narrow computer to laptop or invent an actor where natural omission is available."]
+    },
+    {
+      "id": "context_speaker_not_permission", "mode": "dialogue", "source": "ありがとう。ここで待っていてください。", "speaker": "マリー・アントワネット",
+      "speaker_targets": {"zh-Hans": "玛丽·安托瓦内特", "zh-Hant": "瑪麗·安托瓦內特", "en": "Marie Antoinette"},
+      "checks": ["Translate the ordinary Japanese thank-you and request to wait here into the target language.", "The French speaker's identity is not permission to replace ありがとう with Merci, or add any foreign expression absent from the source."]
+    },
+    {
+      "id": "context_casual_existing_spelling", "mode": "dialogue", "source": "Très bien, señorita. ここで待ってください。",
+      "checks": ["Both preserving the foreign expression and translating it naturally are valid in this ordinary exchange; preserve the request to wait here.", "If retaining foreign words, preserve their spelling/diacritics; do not add a translation note or change the form of address to a different person."]
+    },
+    {
+      "id": "context_glossary_names", "mode": "dialogue", "source": "メルシー、マリー。カルデアへ戻ろう。",
+      "glossary": [
+        {"source": "マリー", "targets": {"zh-Hans": "玛丽", "zh-Hant": "瑪麗", "en": "Marie"}},
+        {"source": "カルデア", "targets": {"zh-Hans": "迦勒底", "zh-Hant": "迦勒底", "en": "Chaldea"}}
+      ],
+      "checks": ["Merci or a natural thank-you are both valid; use exact glossary spellings for Marie and Chaldea in the requested target.", "Keep the suggestion to return without inventing participants, possession or another destination."]
+    },
+    {
+      "id": "context_ruby_meanings", "mode": "dialogue", "source": "Merci〈ありがとう〉、マスター。",
+      "checks": ["If retaining Merci as the base, keep its target-language thank-you reading in 〈〉 and preserve the Master address.", "If translating both base and ruby to the same target phrase, the existing identical-ruby rule may collapse them to one thank-you. Either route is valid; do not swap base/ruby roles or drop a distinct reading."]
+    },
+    {
+      "id": "context_choices", "mode": "choices", "rows": ["メルシー！", "アディオス！", "ここで待とう。"],
+      "checks": ["Return exactly three nonempty JSON strings in input order.", "Retention or meaning-based translation is valid in each of the first two ordinary replies; the third must remain a suggestion to wait here without invented foreign wording."]
+    },
+    {
+      "id": "context_uncertain_fragment", "mode": "dialogue", "source": "ブ……ボン……。まだ言葉が出ない。",
+      "checks": ["Preserve unfinished sounds and inability to speak without guessing a completed foreign greeting.", "Do not introduce he/she or an invented speaker, copy unprotected Japanese kana into the target result, or replace the sounds with an invented first-person statement."]
+    }
+  ]
+}

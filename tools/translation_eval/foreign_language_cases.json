@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "scope": "general_non_sakura",
+  "provenance": "Authored boundary fixtures, not complete official dialogue quotations. French, Spanish and German expression spellings are grounded in Atlas JP/CN scripts 0200020110, 0200010921 and 0300020220; all surrounding sentences and ruby/choice arrangements below are synthetic. Expected behavior follows the approved preservation policy, not a claim that every output matches an official localization.",
+  "targets": ["zh-Hans", "zh-Hant", "en"],
+  "reference_urls": [
+    "https://static.atlasacademy.io/JP/Script/02/0200020110.txt",
+    "https://static.atlasacademy.io/CN/Script/02/0200020110.txt",
+    "https://static.atlasacademy.io/JP/Script/02/0200010921.txt",
+    "https://static.atlasacademy.io/CN/Script/02/0200010921.txt",
+    "https://static.atlasacademy.io/JP/Script/03/0300020220.txt",
+    "https://static.atlasacademy.io/CN/Script/03/0300020220.txt"
+  ],
+  "cases": [
+    {
+      "id": "foreign_french_greeting", "mode": "dialogue", "source": "メルシー、マスター。",
+      "checks": ["Restore Merci as the deliberate French expression for every target; translate the Master address normally.", "Do not add a gloss, ruby, explanation or inferred relationship."]
+    },
+    {
+      "id": "foreign_spanish_farewell", "mode": "dialogue", "source": "アディオス・アミーゴ！",
+      "checks": ["Restore the established Spanish expression Adios/Adiós amigo, rather than replacing it with a target-language farewell.", "Retain the exclamation and do not add an explanation."]
+    },
+    {
+      "id": "foreign_multilingual_greetings", "mode": "dialogue", "source": "ボンジュール。グーテンターク。",
+      "checks": ["Retain the switch between French Bonjour and German Guten Tag, in source order.", "Do not flatten both greetings into Chinese or English, or add another greeting."]
+    },
+    {
+      "id": "foreign_literal_diacritics", "mode": "dialogue", "source": "Très bien, señorita. ここで待ってください。",
+      "checks": ["Copy the existing foreign spelling and diacritics in Très bien, señorita. without translating that expression.", "Translate the Japanese request to wait here; do not leave it untranslated or add notes."]
+    },
+    {
+      "id": "foreign_ordinary_loanwords", "mode": "dialogue", "source": "パンとパソコンを買った。",
+      "checks": ["Translate ordinary loanwords as bread and computer, or their natural Chinese equivalents.", "Do not restore a donor language such as French pain or Portuguese pão, or romanize パソコン as foreign dialogue."]
+    },
+    {
+      "id": "foreign_speaker_is_not_trigger", "mode": "dialogue", "source": "ここで待っていてください。", "speaker": "マリー・アントワネット",
+      "speaker_targets": {"zh-Hans": "玛丽·安托瓦内特", "zh-Hant": "瑪麗·安托瓦內特", "en": "Marie Antoinette"},
+      "checks": ["Translate the ordinary Japanese request naturally into the requested target.", "Do not insert Bonjour, Merci or any other foreign expression merely because the speaker is French."]
+    },
+    {
+      "id": "foreign_glossary_names", "mode": "dialogue", "source": "メルシー、マリー。カルデアへ戻ろう。",
+      "glossary": [
+        {"source": "マリー", "targets": {"zh-Hans": "玛丽", "zh-Hant": "瑪麗", "en": "Marie"}},
+        {"source": "カルデア", "targets": {"zh-Hans": "迦勒底", "zh-Hant": "迦勒底", "en": "Chaldea"}}
+      ],
+      "checks": ["Retain Merci and use the exact glossary spellings for Marie and Chaldea in each target.", "Translate the return suggestion without adding participants or changing destination."]
+    },
+    {
+      "id": "foreign_ruby_reading", "mode": "dialogue", "source": "別れの挨拶〈アディオス〉だ。",
+      "checks": ["Translate the base meaning as a farewell/greeting of parting and restore the Spanish ruby to Adios/Adiós.", "Keep base〈ruby〉 roles and the existing annotation; do not replace Spanish ruby with goodbye or 再见/再見."]
+    },
+    {
+      "id": "foreign_ruby_base", "mode": "dialogue", "source": "Merci〈ありがとう〉、マスター。",
+      "checks": ["Keep Merci as the base and translate the Japanese ruby meaning into the requested target, such as 谢谢/謝謝/thank you.", "Do not swap base and ruby, erase the annotation, or add explanatory text; translate the Master address normally."]
+    },
+    {
+      "id": "foreign_choices", "mode": "choices", "rows": ["メルシー！", "アディオス！", "ここで待とう。"],
+      "checks": ["Return exactly three nonempty JSON strings in input order.", "Restore Merci and Adios/Adiós in the first two choices; translate the third choice normally without adding foreign wording."]
+    },
+    {
+      "id": "foreign_uncertain_fragment", "mode": "dialogue", "source": "ブ……ボン……。まだ言葉が出ない。",
+      "checks": ["Keep the interrupted fragments and translate the inability to speak without completing them.", "Do not guess Bonjour, Buenos días or another full foreign expression from incomplete sounds."]
+    },
+    {
+      "id": "foreign_expression_only", "mode": "dialogue", "source": "メルシー！",
+      "checks": ["Return Merci with the source exclamation, even when no Chinese or English explanatory words are needed.", "Do not add a target-script filler, notes, ruby or untranslated katakana."]
+    }
+  ]
+}
