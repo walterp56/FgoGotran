@@ -133,4 +133,12 @@ Remove-Item Env:FGO_TRANSLATION_EVAL_RESPONSES
 
 所有結果保存在忽略的 `temp/` 或 `app/build/`。不要提交個人遊戲記錄、API key 或原始驗證標頭。這批工具不更改 prompt 版本、不清除快取、不更新或發布 DB；日後每項執行期修改需有自己的證據與回歸驗收。
 
-已採用的執行期變更由 App 程式負責：一般中／英文 prompt 版本已更新，角色提示快取使用實際選取的內容。`general_character_context_rules.tsv` 是一般模型專用的規則表，只作用於已由原有姓名／別名索引解析出的角色；不加入身分猜測。其來源形式判斷是保守的提示選擇，不是完整日文口癖分析器，也不授權模型自行添加口癖。既有 `character_context_prompts.tsv`、Sakura 模板、Sakura 版本及共用詞庫保持原樣。
+已採用的執行期變更由 App 程式負責：一般中／英文 prompt 版本已更新，角色提示快取使用實際選取的內容。角色語氣設定統一維護於 `app/src/main/assets/translation/character_context_prompts.tsv`，欄位如下：
+
+```tsv
+speaker_id	aliases	base_general	base_english	source_pattern	conditional_general	conditional_english	prompt_sakura
+```
+
+姓名／別名索引先解析出角色，一般模型才按當前日文的 `source_pattern` 選擇基本語氣或「基本語氣＋條件指引」，不加入身分猜測。沒有條件規則的角色，將 `source_pattern` 及兩個 `conditional_*` 欄位一併留空。來源形式判斷是保守的提示選擇，不是完整日文口癖分析器，也不授權模型自行添加口癖。
+
+`prompt_sakura` 獨立保留原有文字；一般模型的條件篩選不作用於 Sakura。原有完整中／英文角色提示由基本語氣與條件指引組合，維持合併前的目標語言選擇、實際提示文字及快取識別。Sakura 模板、Sakura 版本及共用詞庫不變。此 TSV 隨 APK 發佈，不需要重建詞庫 DB。

@@ -247,6 +247,8 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/story/StoryTranslationContentWorkflowTest.kt
 # Retain whole-label name lookup, fallback, RAG and name-cache policy regressions.
 !app/src/test/java/com/fgogotran/translation/NameBoxLookupPolicyTest.kt
+# Retain the focused Traditional Chinese glossary override regressions.
+!app/src/test/java/com/fgogotran/translation/TraditionalGlossaryOverridesTest.kt
 # Retain corpus-based name-label prompt and existing validation allowance regressions.
 !app/src/test/java/com/fgogotran/translation/NameBoxLabelPolicyTest.kt
 # Retain foreground-override default and hidden-toggle regressions.

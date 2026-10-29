@@ -13,7 +13,8 @@ data class CharacterContextProfile internal constructor(
     val aliases: List<String>,
     val generalPrompt: String,
     val sakuraPrompt: String,
-    val englishPrompt: String
+    val englishPrompt: String,
+    internal val generalRule: GeneralCharacterContextRule? = null
 ) {
     internal fun promptFor(targetLanguage: String, isSakuraModel: Boolean): String =
         when (promptVariantFor(targetLanguage, isSakuraModel)) {
@@ -41,16 +42,9 @@ class CharacterContextRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val index by lazy(LazyThreadSafetyMode.SYNCHRONIZED, ::loadIndex)
-    private val generalRules by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        runCatching {
-            context.assets.open("translation/general_character_context_rules.tsv").bufferedReader(Charsets.UTF_8)
-                .use { parseGeneralCharacterContextRules(it.lineSequence()) }
-        }.onFailure { FgoLogger.warn(TAG, "Failed to load general character rules", it) }.getOrDefault(emptyMap())
-    }
-
     internal fun prepareGeneralContext(
         profile: CharacterContextProfile, japaneseSource: String, targetLanguage: String
-    ): PreparedGeneralCharacterContext = prepareGeneralCharacterContext(profile, japaneseSource, targetLanguage, generalRules)
+    ): PreparedGeneralCharacterContext = prepareGeneralCharacterContext(profile, japaneseSource, targetLanguage)
 
     fun warmUp() {
         index
@@ -119,18 +113,32 @@ internal fun parseCharacterContextProfiles(
             .map(String::trim)
             .filter(String::isNotBlank)
             .distinct()
-        val generalPrompt = columns[2].normalizeCharacterContextPrompt()
-        val sakuraPrompt = columns[3].normalizeCharacterContextPrompt()
-        val englishPrompt = columns[4].normalizeCharacterContextPrompt()
+        val baseGeneral = columns[2].normalizeCharacterContextPrompt()
+        val baseEnglish = columns[3].normalizeCharacterContextPrompt()
+        val sourcePattern = columns[4].trim()
+        val conditionalGeneral = columns[5].normalizeCharacterContextPrompt()
+        val conditionalEnglish = columns[6].normalizeCharacterContextPrompt()
+        val sakuraPrompt = columns[7].normalizeCharacterContextPrompt()
+        val conditionalFields = listOf(sourcePattern, conditionalGeneral, conditionalEnglish)
+        require(conditionalFields.all(String::isBlank) || conditionalFields.all(String::isNotBlank)) {
+            "Character context source_pattern and both conditional prompts must be supplied together at line $lineNumber"
+        }
+        require(sourcePattern.length <= 160) { "Character context source_pattern is too long at line $lineNumber" }
+        val generalRule = if (sourcePattern.isBlank()) null else GeneralCharacterContextRule(
+            Regex(sourcePattern), baseGeneral, baseEnglish, conditionalGeneral, conditionalEnglish
+        )
+        // Compose the legacy full variants once, without storing a second copy in another TSV.
+        val generalPrompt = listOf(baseGeneral, conditionalGeneral).filter(String::isNotBlank).joinToString(" ")
+        val englishPrompt = listOf(baseEnglish, conditionalEnglish).filter(String::isNotBlank).joinToString(" ")
         require(speakerId.isNotBlank()) { "Blank speaker_id at character context TSV line $lineNumber" }
-        require(generalPrompt.isNotBlank()) {
-            "Blank prompt_general at character context TSV line $lineNumber"
+        require(baseGeneral.isNotBlank()) {
+            "Blank base_general at character context TSV line $lineNumber"
         }
         require(sakuraPrompt.isNotBlank()) {
             "Blank prompt_sakura at character context TSV line $lineNumber"
         }
-        require(englishPrompt.isNotBlank()) {
-            "Blank prompt_english at character context TSV line $lineNumber"
+        require(baseEnglish.isNotBlank()) {
+            "Blank base_english at character context TSV line $lineNumber"
         }
         require(generalPrompt.length <= CHARACTER_CONTEXT_PROMPT_MAX_CHARS) {
             "Character context prompt_general is too long at line $lineNumber: ${generalPrompt.length} chars"
@@ -146,7 +154,8 @@ internal fun parseCharacterContextProfiles(
             aliases = aliases,
             generalPrompt = generalPrompt,
             sakuraPrompt = sakuraPrompt,
-            englishPrompt = englishPrompt
+            englishPrompt = englishPrompt,
+            generalRule = generalRule
         )
     }
 }
@@ -200,5 +209,6 @@ private fun String.normalizeCharacterContextPrompt(): String =
     replace(Regex("\\s+"), " ").trim()
 
 private val CHARACTER_CONTEXT_HEADER =
-    listOf("speaker_id", "aliases", "prompt_general", "prompt_sakura", "prompt_english")
+    listOf("speaker_id", "aliases", "base_general", "base_english", "source_pattern",
+        "conditional_general", "conditional_english", "prompt_sakura")
 private const val CHARACTER_CONTEXT_PROMPT_MAX_CHARS = 800

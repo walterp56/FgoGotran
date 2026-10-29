@@ -13,33 +13,12 @@ internal data class GeneralCharacterContextRule(
 
 internal data class PreparedGeneralCharacterContext(val prompt: String, val cacheIdentity: String)
 
-/** A separate general-only asset; legacy profile aliases and model variants remain untouched. */
-internal fun parseGeneralCharacterContextRules(lines: Sequence<String>): Map<String, GeneralCharacterContextRule> {
-    val rows = lines.map { it.trimEnd('\r', '\n') }.filter { it.isNotBlank() && !it.startsWith('#') }.toList()
-    if (rows.isEmpty()) return emptyMap()
-    require(rows.first().removePrefix("\uFEFF").split('\t') == listOf(
-        "speaker_id", "source_pattern", "base_general", "base_english", "conditional_general", "conditional_english"
-    )) { "Invalid general character rules header" }
-    val rules = linkedMapOf<String, GeneralCharacterContextRule>()
-    rows.drop(1).forEachIndexed { index, line ->
-        val columns = line.split('\t').map(String::trim)
-        require(columns.size == 6 && columns.all(String::isNotBlank)) { "Invalid general character rule at ${index + 2}" }
-        require(columns.drop(2).all { it.length <= 800 } && columns[1].length <= 160) { "General character rule too long" }
-        require(columns[0] !in rules) { "Duplicate general character rule: ${columns[0]}" }
-        rules[columns[0]] = GeneralCharacterContextRule(
-            Regex(columns[1]), columns[2], columns[3], columns[4], columns[5]
-        )
-    }
-    return rules
-}
-
 internal fun prepareGeneralCharacterContext(
     profile: CharacterContextProfile,
     japaneseSource: String,
-    targetLanguage: String,
-    rules: Map<String, GeneralCharacterContextRule>
+    targetLanguage: String
 ): PreparedGeneralCharacterContext {
-    val rule = rules[profile.speakerId] ?: return PreparedGeneralCharacterContext(
+    val rule = profile.generalRule ?: return PreparedGeneralCharacterContext(
         profile.promptFor(targetLanguage, isSakuraModel = false),
         profile.cacheIdentityFor(targetLanguage, isSakuraModel = false)
     )

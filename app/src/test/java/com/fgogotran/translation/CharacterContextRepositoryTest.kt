@@ -6,6 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CharacterContextRepositoryTest {
@@ -103,18 +104,56 @@ class CharacterContextRepositoryTest {
     }
 
     @Test
-    fun `parser rejects an old header missing the English column`() {
+    fun `parser rejects the old separate-profile header`() {
         assertFailsWith<IllegalArgumentException> {
-            parseCharacterContextProfiles(sequenceOf(HEADER.substringBeforeLast('\t')))
+            parseCharacterContextProfiles(sequenceOf("speaker_id\taliases\tprompt_general\tprompt_sakura\tprompt_english"))
         }
     }
 
     @Test
-    fun `parser requires exactly five columns`() {
+    fun `parser requires exactly eight columns`() {
         for (invalidRow in listOf(row().substringBeforeLast('\t'), row() + "\textra")) {
             assertFailsWith<IllegalArgumentException> {
                 parseCharacterContextProfiles(sequenceOf(HEADER, invalidRow))
             }
+        }
+    }
+
+    @Test
+    fun `base-only profiles need no conditional rule and keep their original prompt identity`() {
+        val profile = parseCharacterContextProfiles(sequenceOf(HEADER, row())).single()
+        assertNull(profile.generalRule)
+        for (target in listOf("zh-Hans", "zh-Hant", "en")) {
+            val prepared = prepareGeneralCharacterContext(profile, "待つのでち。", target)
+            assertEquals(profile.promptFor(target, false), prepared.prompt)
+            assertEquals(profile.cacheIdentityFor(target, false), prepared.cacheIdentity)
+        }
+    }
+
+    @Test
+    fun `conditional fields require a complete group with a bounded valid pattern`() {
+        val valid = row().split('\t').toMutableList().apply {
+            this[4] = "でち"
+            this[5] = "Use 啾 only when present."
+            this[6] = "Use chirp only when present."
+        }
+        for (column in 4..6) {
+            val incomplete = valid.toMutableList().apply { this[column] = "" }
+            assertFailsWith<IllegalArgumentException> {
+                parseCharacterContextProfiles(sequenceOf(HEADER, incomplete.joinToString("\t")))
+            }
+        }
+        for (pattern in listOf("[", "x".repeat(161))) {
+            assertFailsWith<IllegalArgumentException> {
+                parseCharacterContextProfiles(sequenceOf(HEADER, valid.toMutableList().apply {
+                    this[4] = pattern
+                }.joinToString("\t")))
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            parseCharacterContextProfiles(sequenceOf(HEADER, valid.toMutableList().apply {
+                this[6] = "x".repeat(800)
+            }.joinToString("\t")))
         }
     }
 
@@ -149,10 +188,10 @@ class CharacterContextRepositoryTest {
     }
 
     private fun row(englishPrompt: String = "Use chirp."): String =
-        listOf("紅閻魔", "紅閻魔", "General 啾.", "Sakura 啾.", englishPrompt).joinToString("\t")
+        listOf("紅閻魔", "紅閻魔", "General 啾.", englishPrompt, "", "", "", "Sakura 啾.").joinToString("\t")
 
     private companion object {
-        const val HEADER = "speaker_id\taliases\tprompt_general\tprompt_sakura\tprompt_english"
+        const val HEADER = "speaker_id\taliases\tbase_general\tbase_english\tsource_pattern\tconditional_general\tconditional_english\tprompt_sakura"
     }
 }
 

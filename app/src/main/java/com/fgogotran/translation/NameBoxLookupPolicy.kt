@@ -18,7 +18,8 @@ internal object NameBoxLookupPolicy {
     fun findTranslation(
         sourceText: String,
         characters: List<CharacterNameEntity>,
-        english: Boolean
+        english: Boolean,
+        selectTarget: ((CharacterNameEntity, String) -> String)? = null
     ): String? {
         val sourceKey = lookupKey(sourceText)
         if (sourceKey.isBlank()) return null
@@ -29,7 +30,7 @@ internal object NameBoxLookupPolicy {
             if (lookupKey(character.jpName) == sourceKey ||
                 storedAliases(character.aliases).any { lookupKey(it) == sourceKey }
             ) {
-                return target
+                return selectTarget?.invoke(character, target) ?: target
             }
         }
         return null

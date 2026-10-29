@@ -21,8 +21,6 @@ class GeneralPromptEvaluationFixtureTest {
     private val builder = PromptBuilder()
     private val profileIndex = File(root, "app/src/main/assets/translation/character_context_prompts.tsv")
         .useLines(Charsets.UTF_8) { buildCharacterContextIndex(parseCharacterContextProfiles(it)) }
-    private val generalRules = File(root, "app/src/main/assets/translation/general_character_context_rules.tsv")
-        .useLines(Charsets.UTF_8) { parseGeneralCharacterContextRules(it) }
 
     @Test
     fun `export production general prompt pairs for every fixture and target`() {
@@ -49,7 +47,6 @@ class GeneralPromptEvaluationFixtureTest {
                     "app/src/main/java/com/fgogotran/translation/CharacterContextRepository.kt",
                     "app/src/main/java/com/fgogotran/translation/GeneralCharacterContext.kt",
                     "app/src/main/assets/translation/character_context_prompts.tsv",
-                    "app/src/main/assets/translation/general_character_context_rules.tsv",
                     "term_builder/term.tsv", "term_builder/character_names.tsv"
                 )) put(relative, sha256(File(root, relative).readBytes()))
             })
@@ -79,7 +76,7 @@ class GeneralPromptEvaluationFixtureTest {
         val dialogue = !nameOnly && !choicesOnly
         val profile = profileIndex.profilesByAlias[normalizeCharacterContextSpeakerName(speakerSource)]
             .takeIf { dialogue }
-        val characterPrompt = profile?.let { prepareGeneralCharacterContext(it, source, target, generalRules).prompt }.orEmpty()
+        val characterPrompt = profile?.let { prepareGeneralCharacterContext(it, source, target).prompt }.orEmpty()
         val context = builder.buildPromptContext(
             outputFormat = if (arrayOutput) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
             sourceText = source,

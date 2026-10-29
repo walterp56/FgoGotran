@@ -12,7 +12,8 @@ internal fun prepareGeneralSceneDialogueContexts(
     targetLanguage: String,
     normalizeSpeaker: (String) -> String,
     normalizeDialogue: (String) -> String,
-    toTargetText: (String, String) -> String
+    toTargetText: (String, String) -> String,
+    selectSpeakerTarget: ((String, String, String) -> String)? = null
 ): List<SceneDialogueContext> {
     val targetLocale = SettingsRepository.normalizeTargetLanguage(targetLanguage)
     val englishTarget = targetLocale == SettingsRepository.TARGET_LANGUAGE_ENGLISH
@@ -38,6 +39,10 @@ internal fun prepareGeneralSceneDialogueContexts(
                 ?.takeIf(String::isNotBlank)
             val translatedSpeakerName = context.translatedSpeakerName
                 ?.takeUnless(String::isGeneralSceneContextErrorText)
+                ?.let { text ->
+                    if (sourceSpeakerName == null || englishTarget) text
+                    else selectSpeakerTarget?.invoke(sourceSpeakerName, text, targetLocale) ?: text
+                }
                 ?.let { if (englishTarget) it else toTargetText(it, targetLocale) }
                 ?.let(normalizeSpeaker)
                 ?.takeIf(String::isNotBlank)

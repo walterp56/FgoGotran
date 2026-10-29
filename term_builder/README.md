@@ -117,6 +117,37 @@ organization
 
 `build_db.py` can also add component records for separator-based terms when the Japanese and Chinese text split into the same number of parts. Curated TSV rows still win over generated component rows.
 
+## Traditional Chinese character and term exceptions
+
+The existing glossary DB remains shared. General-model Traditional Chinese requests
+can select a reviewed character name or term from
+`app/src/main/assets/translation/traditional_glossary_overrides.tsv` instead of
+relying on character conversion alone. Its only columns are `jp_source`, `cn_reference`,
+and `zh_hant`. The original Chinese reference must still match the current glossary.
+This covers character names and glossary terms, including places, organizations,
+skills, and Noble Phantasms; no `kind` column is needed. Add only differences that
+the existing character conversion cannot reliably express, rather than copying
+every glossary entry. Reviewed names use the app's middle-dot separator style.
+Matched exception targets retain their reviewed spelling in RAG and exact-term
+lookups; other entries continue to use the existing character conversion.
+Aliases use the existing glossary; local player names and Sakura requests bypass
+the exception selector. Update the APK to distribute changes to this small table.
+
+Run the read-only audit from the repo root:
+
+```powershell
+python -B term_builder/py/check_traditional_glossary.py --check
+```
+
+It reads both `character_names.tsv` and `term.tsv`, the existing Atlas cache, and
+the speaker-name map without network access. Cached Servant names, skill names,
+and Noble Phantasm names are paired by the same entity ID and field. Other terms
+can be added after manual verification. Candidates require review: the fallback
+character map used for screening is not a measurement of Android ICU, and speaker-map alignments can be
+ambiguous. No candidate is automatically added to the exception table.
+`--report PATH` explicitly writes a report; by default output is stdout only.
+No DB rebuild, schema migration, or CDN publication is needed for this table.
+
 ## Build
 
 From the repo root:

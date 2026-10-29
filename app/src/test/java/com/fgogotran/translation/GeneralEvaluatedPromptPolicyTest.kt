@@ -1,6 +1,5 @@
 package com.fgogotran.translation
 
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,16 +9,12 @@ import kotlin.test.assertTrue
 class GeneralEvaluatedPromptPolicyTest {
     private val builder = PromptBuilder()
     private val profile = loadBeniEnmaCharacterContextForTest()
-    private val rules = sequenceOf(
-        File("src/main/assets/translation/general_character_context_rules.tsv"),
-        File("app/src/main/assets/translation/general_character_context_rules.tsv")
-    ).first(File::isFile).useLines(Charsets.UTF_8) { parseGeneralCharacterContextRules(it) }
 
     @Test
     fun `no tic source keeps base voice without priming unused tic examples`() {
         for (target in listOf("zh-Hans", "zh-Hant", "en")) {
             for (source in listOf("ここで待っていてください。", "こちらで待っていてください。", "落ち着いてください。……動くな！")) {
-                val selected = prepareGeneralCharacterContext(profile, source, target, rules)
+                val selected = prepareGeneralCharacterContext(profile, source, target)
                 assertTrue(selected.prompt.contains("polite, earnest"))
                 assertFalse(selected.prompt.contains("chirp"))
                 assertFalse(selected.prompt.contains("啾"))
@@ -33,22 +28,38 @@ class GeneralEvaluatedPromptPolicyTest {
     fun `possible source tic retains the complete existing general guidance`() {
         for (source in listOf("我慢するのでち……！", "まだ食べてはいけまちぇん。", "待つのでちゅ。", "わたくち。", "ﾃﾞﾁ")) {
             for (target in listOf("zh-Hans", "zh-Hant", "en")) {
-                assertEquals(profile.promptFor(target, false), prepareGeneralCharacterContext(profile, source, target, rules).prompt)
+                assertEquals(profile.promptFor(target, false), prepareGeneralCharacterContext(profile, source, target).prompt)
             }
         }
     }
 
     @Test
     fun `selected hint content controls cache identity and unrelated profiles use the legacy fallback`() {
-        val plain = prepareGeneralCharacterContext(profile, "待ってください。", "en", rules)
-        val tic = prepareGeneralCharacterContext(profile, "待つのでち。", "en", rules)
+        val plain = prepareGeneralCharacterContext(profile, "待ってください。", "en")
+        val tic = prepareGeneralCharacterContext(profile, "待つのでち。", "en")
         assertNotEquals(plain.cacheIdentity, tic.cacheIdentity)
-        val changed = rules.mapValues { (_, rule) -> rule.copy(baseEnglish = "Revised base voice.") }
-        assertNotEquals(plain.cacheIdentity, prepareGeneralCharacterContext(profile, "待ってください。", "en", changed).cacheIdentity)
-        val other = profile.copy(speakerId = "Other")
-        val fallback = prepareGeneralCharacterContext(other, "待つのでち。", "en", rules)
+        val changed = profile.copy(generalRule = requireNotNull(profile.generalRule).copy(baseEnglish = "Revised base voice."))
+        assertNotEquals(plain.cacheIdentity, prepareGeneralCharacterContext(changed, "待ってください。", "en").cacheIdentity)
+        val other = profile.copy(speakerId = "Other", generalRule = null)
+        val fallback = prepareGeneralCharacterContext(other, "待つのでち。", "en")
         assertEquals(other.promptFor("en", false), fallback.prompt)
         assertEquals(other.cacheIdentityFor("en", false), fallback.cacheIdentity)
+    }
+
+    @Test
+    fun `merged conditional hints keep the existing cache namespace and prompt material`() {
+        val rule = requireNotNull(profile.generalRule)
+        for (target in listOf("zh-Hans", "zh-Hant", "en")) {
+            val english = target == "en"
+            for (source in listOf("待ってください。", "待つのでち。")) {
+                val selected = prepareGeneralCharacterContext(profile, source, target)
+                val expected = if (source.contains("でち")) profile.promptFor(target, false)
+                    else if (english) rule.baseEnglish else rule.baseGeneral
+                assertEquals(expected, selected.prompt)
+                assertEquals(listOf(profile.speakerId, "general-source-voice-v1",
+                    if (english) "english" else "general", expected).joinToString("\u001D"), selected.cacheIdentity)
+            }
+        }
     }
 
     @Test

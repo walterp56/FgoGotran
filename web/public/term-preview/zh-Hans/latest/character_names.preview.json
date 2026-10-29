@@ -3578,7 +3578,7 @@
   },
   {
     "jp_name": "シオン・エルトナム・ソカリス",
-    "cn_name": "紫苑·艾尔特纳姆·索卡里斯",
+    "cn_name": "希翁·艾尔特纳姆·索卡里斯",
     "en_name": "Sion Eltnam Sokaris",
     "category": "character",
     "aliases": "シオン·エルトナム·ソカリス, シオンエルトナムソカリス"
@@ -4716,5 +4716,40 @@
     "en_name": "Tamamo Aria",
     "category": "character",
     "aliases": ""
+  },
+  {
+    "jp_name": "シェヘラザード",
+    "cn_name": "山鲁佐德",
+    "en_name": "Scheherazade",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ペンテシレイア",
+    "cn_name": "彭忒西勒亚",
+    "en_name": "Penthesilea",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "キルケー",
+    "cn_name": "喀耳刻",
+    "en_name": "Circe",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "燕青",
+    "cn_name": "燕青",
+    "en_name": "Yan Qing",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ヘシアン・ロボ",
+    "cn_name": "黑森·罗伯",
+    "en_name": "Hessian Lobo",
+    "category": "character",
+    "aliases": "ヘシアンロボ"
   }
 ]

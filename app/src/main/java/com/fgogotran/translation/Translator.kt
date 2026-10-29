@@ -217,14 +217,16 @@ internal fun extendGeneralPromptCacheMaterial(
     general: Boolean,
     resolvedSpeaker: String = "",
     speakerGender: String = "",
-    targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+    targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
+    traditionalGlossaryIdentity: String = ""
 ): List<String> {
     if (!general) return legacyMaterial
     val material = legacyMaterial + listOf("general-response-contract-v1", resolvedSpeaker, speakerGender)
     return if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
         SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
     ) {
-        material + listOf("target=zh-Hant", GENERAL_HANT_REFERENCE_POLICY_VERSION)
+        material + listOf("target=zh-Hant", GENERAL_HANT_REFERENCE_POLICY_VERSION) +
+            listOf(traditionalGlossaryIdentity).filter(String::isNotBlank)
     } else {
         material
     }
@@ -295,6 +297,17 @@ class Translator @Inject constructor(
         canonicalKey = ::normalizeNameLookup,
         normalizeGender = ::normalizeCharacterGender
     )
+    private var cachedTermSourceLookup: Map<String, String> = emptyMap()
+    private var cachedCharacterSourceLookup: Map<String, String> = emptyMap()
+    @Volatile private var localCharacterOverrideKeys: Set<String> = emptySet()
+    private val traditionalGlossary by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        runCatching {
+            context.assets.open(TRADITIONAL_GLOSSARY_ASSET).bufferedReader(Charsets.UTF_8).use { reader ->
+                TraditionalGlossaryOverrides.parse(reader.lineSequence(), ::normalizeNameLookup)
+            }
+        }.onFailure { FgoLogger.warn(tag, "Failed to load traditional glossary overrides", it) }
+            .getOrDefault(TraditionalGlossaryOverrides.EMPTY)
+    }
     private var cachedTermLookup: Map<String, String>? = null
     private var cachedTermLookupEn: Map<String, String>? = null
     private var cachedCharacterNameLookup: Map<String, String>? = null
@@ -312,6 +325,7 @@ class Translator @Inject constructor(
         cachedRuntimeConfigAt = 0L
         cachedTermRows = null
         cachedTermLookup = null
+        cachedTermSourceLookup = emptyMap()
         cachedTermLookupEn = null
         clearCharacterNameCaches()
         FgoLogger.info(tag, "Glossary and memory translation cache cleared")
@@ -387,7 +401,8 @@ class Translator @Inject constructor(
             matchedTerms = matchedTerms,
             playerName = config.playerName,
             playerGender = config.playerGender,
-            targetLanguage = promptTargetLanguage(config)
+            targetLanguage = promptTargetLanguage(config),
+            useTraditionalOverrides = usesTraditionalOverrides(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.PLAIN_TEXT,
@@ -605,6 +620,8 @@ class Translator @Inject constructor(
         cachedTerms = null
         characterGenderLookup.clear()
         cachedCharacterNameLookup = null
+        cachedCharacterSourceLookup = emptyMap()
+        localCharacterOverrideKeys = emptySet()
         cachedCharacterNameLookupEn = null
         cachedCharacterNameVariants = null
         synchronized(memoryCacheLock) {
@@ -663,7 +680,8 @@ class Translator @Inject constructor(
     private data class CharacterNameVariant(
         val jpName: String,
         val cnName: String,
-        val enName: String = ""
+        val enName: String = "",
+        val canonicalSource: String = jpName
     )
 
     private data class NormalizedCharacterNameVariant(
@@ -672,7 +690,8 @@ class Translator @Inject constructor(
         val enName: String,
         val lookupKey: String,
         val cnLookupKey: String,
-        val enLookupKey: String
+        val enLookupKey: String,
+        val canonicalSource: String
     )
 
     private data class CharacterNameState(
@@ -1059,7 +1078,7 @@ class Translator @Inject constructor(
         if (translateAsName) {
             // Name-only fallbacks must obey the same whole-label rule as translateScene.
             if (!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)) {
-                findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage)?.let {
+                findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage, useTraditionalOverrides = usesTraditionalOverrides(config))?.let {
                     FgoLogger.info(tag, "Character TSV HIT exact visible name")
                     return TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
                         .forTargetLocale(config, punctuationSourceText)
@@ -1078,7 +1097,8 @@ class Translator @Inject constructor(
             if (!forceFreshTranslation) findCharacterNameTranslation(
                 normalizedText,
                 allowAmbiguousDialogueName = false,
-                targetLanguage = config.targetLanguage
+                targetLanguage = config.targetLanguage,
+                useTraditionalOverrides = usesTraditionalOverrides(config)
             )?.let {
                 if (!TextNormalizer.hasRubyAnnotations(normalizedText)) {
                     FgoLogger.info(tag, "Character exact HIT")
@@ -1088,10 +1108,10 @@ class Translator @Inject constructor(
             }
 
             if (!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)) {
-                findTermTranslation(normalizedText, targetLanguage = config.targetLanguage)?.let {
+                findTermTranslation(normalizedText, targetLanguage = config.targetLanguage, useTraditionalOverrides = usesTraditionalOverrides(config))?.let {
                     FgoLogger.info(tag, "Glossary exact HIT")
                     return TranslateResult(
-                        sanitizeCacheTranslation(normalizedText, it, config.targetLanguage),
+                        sanitizeExactGlossaryTranslation(normalizedText, it, config),
                         "glossary",
                         true
                     ).forTargetLocale(config, punctuationSourceText)
@@ -1239,7 +1259,8 @@ class Translator @Inject constructor(
             matchedTerms = matchedTerms,
             playerName = playerName,
             playerGender = config.playerGender,
-            targetLanguage = promptTargetLanguage(config)
+            targetLanguage = promptTargetLanguage(config),
+            useTraditionalOverrides = usesTraditionalOverrides(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = if (cropMode || alignedSubtitleRows > 0) PromptOutputFormat.JSON_ARRAY else PromptOutputFormat.PLAIN_TEXT,
@@ -1635,7 +1656,8 @@ class Translator @Inject constructor(
             val characterTranslation = if (forceFreshTranslation || hasRuby) null else findCharacterNameTranslation(
                 normalizedText,
                 allowAmbiguousDialogueName = false,
-                targetLanguage = config.targetLanguage
+                targetLanguage = config.targetLanguage,
+                useTraditionalOverrides = usesTraditionalOverrides(config)
             )
             if (characterTranslation != null) {
                 FgoLogger.info(tag, "Batch character exact HIT[$index]")
@@ -1645,12 +1667,13 @@ class Translator @Inject constructor(
 
             val termTranslation = if (forceFreshTranslation || hasRuby) null else findTermTranslation(
                 normalizedText,
-                targetLanguage = config.targetLanguage
+                targetLanguage = config.targetLanguage,
+                useTraditionalOverrides = usesTraditionalOverrides(config)
             )
             if (termTranslation != null) {
                 FgoLogger.info(tag, "Batch term exact HIT[$index]")
                 results[index] = TranslateResult(
-                    sanitizeCacheTranslation(normalizedText, termTranslation, config.targetLanguage),
+                    sanitizeExactGlossaryTranslation(normalizedText, termTranslation, config),
                     "glossary",
                     true
                 )
@@ -1717,7 +1740,8 @@ class Translator @Inject constructor(
             matchedTerms = matchedTerms,
             playerName = playerName,
             playerGender = config.playerGender,
-            targetLanguage = promptTargetLanguage(config)
+            targetLanguage = promptTargetLanguage(config),
+            useTraditionalOverrides = usesTraditionalOverrides(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_ARRAY,
@@ -1953,7 +1977,8 @@ class Translator @Inject constructor(
             if (!TextNormalizer.hasRubyAnnotations(normalized)) {
                 findExactVisibleCharacterNameTranslation(
                     normalized,
-                    targetLanguage = config.targetLanguage
+                    targetLanguage = config.targetLanguage,
+                    useTraditionalOverrides = usesTraditionalOverrides(config)
                 )?.let {
                     FgoLogger.info(tag, "Character TSV HIT exact visible name")
                     nameResult = TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
@@ -1990,10 +2015,10 @@ class Translator @Inject constructor(
                 )
             }
             if (!forceFreshTranslation && dialogueResult == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
-                findTermTranslation(normalized, targetLanguage = config.targetLanguage)?.let {
+                findTermTranslation(normalized, targetLanguage = config.targetLanguage, useTraditionalOverrides = usesTraditionalOverrides(config))?.let {
                     FgoLogger.info(tag, "Term exact HIT dialogue")
                     dialogueResult = TranslateResult(
-                        sanitizeCacheTranslation(normalized, it, config.targetLanguage),
+                        sanitizeExactGlossaryTranslation(normalized, it, config),
                         "glossary",
                         true
                     )
@@ -2020,10 +2045,10 @@ class Translator @Inject constructor(
                 )
             }
             if (!forceFreshTranslation && choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
-                findTermTranslation(normalized, targetLanguage = config.targetLanguage)?.let {
+                findTermTranslation(normalized, targetLanguage = config.targetLanguage, useTraditionalOverrides = usesTraditionalOverrides(config))?.let {
                     FgoLogger.info(tag, "Term exact HIT choice[$index]")
                     choiceResults[index] = TranslateResult(
-                        sanitizeCacheTranslation(normalized, it, config.targetLanguage),
+                        sanitizeExactGlossaryTranslation(normalized, it, config),
                         "glossary",
                         true
                     )
@@ -2033,7 +2058,8 @@ class Translator @Inject constructor(
                 findCharacterNameTranslation(
                     normalized,
                     allowAmbiguousDialogueName = false,
-                    targetLanguage = config.targetLanguage
+                    targetLanguage = config.targetLanguage,
+                    useTraditionalOverrides = usesTraditionalOverrides(config)
                 )?.let {
                     FgoLogger.info(tag, "Character exact HIT choice[$index]")
                     choiceResults[index] = TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
@@ -2084,7 +2110,8 @@ class Translator @Inject constructor(
         val currentSpeaker = buildCurrentSpeakerContext(
             sourceName = normalizedName,
             resolvedName = nameResult?.translatedText,
-            targetLanguage = promptTargetLanguage(config)
+            targetLanguage = promptTargetLanguage(config),
+            general = !useSakuraPrompt
         )
         val currentSpeakerSourceName = normalizeCurrentSpeakerContext(normalizedName.orEmpty())
         val currentSpeakerGender = if (normalizedDialogue != null) {
@@ -2320,7 +2347,8 @@ class Translator @Inject constructor(
             val sakuraCurrentSpeaker = buildCurrentSpeakerContext(
                 sourceName = normalizedName,
                 resolvedName = nameResult?.translatedText,
-                targetLanguage = promptTargetLanguage(config)
+                targetLanguage = promptTargetLanguage(config),
+                general = !useSakuraPrompt
             )
             if (needsDialogue) {
                 dialogueResult = translate(
@@ -2425,7 +2453,8 @@ class Translator @Inject constructor(
             matchedTerms = matchedTerms,
             playerName = playerName,
             playerGender = config.playerGender,
-            targetLanguage = promptTargetLanguage(config)
+            targetLanguage = promptTargetLanguage(config),
+            useTraditionalOverrides = usesTraditionalOverrides(config)
         )
         val promptContext = promptBuilder.buildPromptContext(
             outputFormat = PromptOutputFormat.JSON_OBJECT,
@@ -3028,6 +3057,7 @@ class Translator @Inject constructor(
                 aliases = localName.aliases
             )
         }
+        localCharacterOverrideKeys = localNames.flatMap(::characterLookupKeys).toSet()
         val loaded = (localNames + downloadedNames)
             .distinctBy { TextNormalizer.normalizeForTranslation(it.jpName) }
         FgoLogger.debug(tag, "Character names cached: ${loaded.size} (local=${localNames.size})")
@@ -3041,6 +3071,7 @@ class Translator @Inject constructor(
         val cached = if (english) cachedTermLookupEn else cachedTermLookup
         cached?.let { return it }
         val loaded = LinkedHashMap<String, String>()
+        val sources = LinkedHashMap<String, String>()
         getCachedTermRows().forEach { term ->
             val target = if (english) term.enTerm else term.cnTerm
             if (target.isBlank()) return@forEach
@@ -3049,10 +3080,14 @@ class Translator @Inject constructor(
                 val normalizedKey = TextNormalizer.normalizeForTranslation(key)
                 if (normalizedKey.isNotBlank()) {
                     loaded.putIfAbsent(normalizedKey, target)
+                    sources.putIfAbsent(normalizedKey, term.jpTerm)
                 }
             }
         }
-        if (english) cachedTermLookupEn = loaded else cachedTermLookup = loaded
+        if (english) cachedTermLookupEn = loaded else {
+            cachedTermSourceLookup = sources
+            cachedTermLookup = loaded
+        }
         FgoLogger.debug(tag, "Term lookup cached (${if (english) "en" else "zh"}): ${loaded.size}")
         return loaded
     }
@@ -3064,13 +3099,18 @@ class Translator @Inject constructor(
         val cached = if (english) cachedCharacterNameLookupEn else cachedCharacterNameLookup
         cached?.let { return it }
         val loaded = LinkedHashMap<String, String>()
+        val sources = LinkedHashMap<String, String>()
         getCachedCharacterNameVariants().forEach { variant ->
             val target = if (english) variant.enName else variant.cnName
             if (variant.lookupKey.isNotBlank() && target.isNotBlank()) {
                 loaded.putIfAbsent(variant.lookupKey, target)
+                sources.putIfAbsent(variant.lookupKey, variant.canonicalSource)
             }
         }
-        if (english) cachedCharacterNameLookupEn = loaded else cachedCharacterNameLookup = loaded
+        if (english) cachedCharacterNameLookupEn = loaded else {
+            cachedCharacterSourceLookup = sources
+            cachedCharacterNameLookup = loaded
+        }
         FgoLogger.debug(tag, "Character name lookup cached (${if (english) "en" else "zh"}): ${loaded.size}")
         return loaded
     }
@@ -3096,7 +3136,8 @@ class Translator @Inject constructor(
                         enName = variant.enName,
                         lookupKey = lookupKey,
                         cnLookupKey = cnLookupKey,
-                        enLookupKey = enLookupKey
+                        enLookupKey = enLookupKey,
+                        canonicalSource = variant.canonicalSource
                     )
                 }
             }
@@ -3108,11 +3149,15 @@ class Translator @Inject constructor(
 
     private suspend fun findExactVisibleCharacterNameTranslation(
         normalizedText: String,
-        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
+        useTraditionalOverrides: Boolean = false
     ): String? = NameBoxLookupPolicy.findTranslation(
         sourceText = normalizedText,
         characters = getCachedCharacterNames(),
-        english = isEnglishTarget(targetLanguage)
+        english = isEnglishTarget(targetLanguage),
+        selectTarget = if (!useTraditionalOverrides) null else { character, target ->
+            preferredTraditionalTarget(character.jpName, target, true)
+        }
     )
 
     /**
@@ -3167,7 +3212,8 @@ class Translator @Inject constructor(
         normalizedText: String,
         allowOcrWrappedMatch: Boolean = false,
         allowAmbiguousDialogueName: Boolean = true,
-        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
+        useTraditionalOverrides: Boolean = false
     ): String? {
         val lookupCandidates = exactLookupCandidates(normalizedText)
             .map { normalizeNameLookup(TextNormalizer.stripRubyAnnotations(it)) }
@@ -3180,17 +3226,20 @@ class Translator @Inject constructor(
         val english = isEnglishTarget(targetLanguage)
         val nameLookup = getCachedCharacterNameLookup(targetLanguage)
         for (candidate in lookupCandidates) {
-            nameLookup[candidate]?.let { return it }
+            nameLookup[candidate]?.let { target ->
+                return preferredTraditionalTarget(candidate, target, useTraditionalOverrides,
+                    canonicalSource = cachedCharacterSourceLookup[candidate].orEmpty())
+            }
         }
 
         val lookupText = lookupCandidates.firstOrNull() ?: return null
         val variants = getCachedCharacterNameVariants()
 
         if (allowOcrWrappedMatch) {
-            findOcrWrappedCharacterNameTranslation(lookupText, variants, targetLanguage)?.let { return it }
+            findOcrWrappedCharacterNameTranslation(lookupText, variants, targetLanguage, useTraditionalOverrides)?.let { return it }
         }
 
-        translateCharacterNameComponents(normalizedText, variants, targetLanguage)?.let { return it }
+        translateCharacterNameComponents(normalizedText, variants, targetLanguage, useTraditionalOverrides)?.let { return it }
 
         if (isShortKanaOnlyName(lookupText)) {
             FgoLogger.info(tag, "Character fuzzy skipped for short kana name: $normalizedText")
@@ -3208,7 +3257,8 @@ class Translator @Inject constructor(
             isLikelyOcrNameMatch(lookupText, variant.lookupKey)
         }
             ?.let {
-                val target = if (english) it.enName else it.cnName
+                val target = if (english) it.enName else preferredTraditionalTarget(
+                    it.jpName, it.cnName, useTraditionalOverrides, it.canonicalSource)
                 if (target.isNotBlank()) {
                     FgoLogger.info(tag, "Character fuzzy HIT: $normalizedText -> ${it.jpName}")
                     return target
@@ -3557,7 +3607,8 @@ class Translator @Inject constructor(
     private fun findOcrWrappedCharacterNameTranslation(
         lookupText: String,
         variants: List<NormalizedCharacterNameVariant>,
-        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
+        useTraditionalOverrides: Boolean = false
     ): String? {
         val english = isEnglishTarget(targetLanguage)
         return variants.asSequence()
@@ -3566,7 +3617,8 @@ class Translator @Inject constructor(
             ?.also { variant ->
                 FgoLogger.info(tag, "Character OCR-wrapped HIT: $lookupText -> ${variant.jpName}")
             }
-            ?.let { if (english) it.enName else it.cnName }
+            ?.let { if (english) it.enName else preferredTraditionalTarget(
+                    it.jpName, it.cnName, useTraditionalOverrides, it.canonicalSource) }
             ?.takeIf(String::isNotBlank)
     }
 
@@ -3587,7 +3639,8 @@ class Translator @Inject constructor(
     private fun translateCharacterNameComponents(
         normalizedText: String,
         variants: List<NormalizedCharacterNameVariant>,
-        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
+        useTraditionalOverrides: Boolean = false
     ): String? {
         val parts = splitNameComponents(TextNormalizer.stripRubyAnnotations(normalizedText))
         if (parts.size < 2) return null
@@ -3596,7 +3649,8 @@ class Translator @Inject constructor(
         val translatedParts = parts.map { part ->
             val lookupPart = normalizeNameLookup(part)
             val target = variants.firstOrNull { variant -> lookupPart == variant.lookupKey }
-                ?.let { if (english) it.enName else it.cnName }
+                ?.let { if (english) it.enName else preferredTraditionalTarget(
+                    it.jpName, it.cnName, useTraditionalOverrides, it.canonicalSource) }
                 .orEmpty()
             target.ifBlank { return null }
         }
@@ -3605,14 +3659,20 @@ class Translator @Inject constructor(
 
     private suspend fun findTermTranslation(
         normalizedText: String,
-        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
+        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
+        useTraditionalOverrides: Boolean = false
     ): String? {
         val lookupCandidates = exactLookupCandidates(normalizedText)
             .map(TextNormalizer::normalizeForTranslation)
             .filter { it.isNotBlank() }
             .distinct()
         val termLookup = getCachedTermLookup(targetLanguage)
-        return lookupCandidates.firstNotNullOfOrNull { termLookup[it] }
+        return lookupCandidates.firstNotNullOfOrNull { candidate ->
+            termLookup[candidate]?.let { target ->
+                preferredTraditionalTarget(candidate, target, useTraditionalOverrides,
+                    canonicalSource = cachedTermSourceLookup[candidate].orEmpty())
+            }
+        }
     }
 
     private fun exactLookupCandidates(normalizedText: String): List<String> {
@@ -3663,7 +3723,7 @@ class Translator @Inject constructor(
             add(CharacterNameVariant(character.jpName, character.cnName, character.enName))
             addAll(characterNameComponents(character.jpName, character.cnName, character.enName))
             aliases(character.aliases).forEach { alias ->
-                add(CharacterNameVariant(alias, character.cnName, character.enName))
+                add(CharacterNameVariant(alias, character.cnName, character.enName, character.jpName))
             }
         }
             .filter { it.jpName.isNotBlank() && (it.cnName.isNotBlank() || it.enName.isNotBlank()) }
@@ -4457,6 +4517,17 @@ class Translator @Inject constructor(
         return preserveSourcePunctuation(sourceText, firstPersonAdjusted)
     }
 
+    private fun sanitizeExactGlossaryTranslation(
+        sourceText: String,
+        translatedText: String,
+        config: RuntimeConfig
+    ): String {
+        val reviewed = reviewedTraditionalTarget(sourceText, translatedText, usesTraditionalOverrides(config),
+            canonicalSource = cachedTermSourceLookup[TextNormalizer.normalizeForTranslation(sourceText)].orEmpty())
+        return if (reviewed != null) sanitizeTraditionalModelTranslation(sourceText, reviewed)
+        else sanitizeCacheTranslation(sourceText, translatedText, config.targetLanguage)
+    }
+
     private fun sanitizeCacheTranslation(
         sourceText: String,
         translatedText: String,
@@ -5052,7 +5123,8 @@ class Translator @Inject constructor(
         matchedTerms: List<TermEntity>,
         playerName: String,
         playerGender: String,
-        targetLanguage: String
+        targetLanguage: String,
+        useTraditionalOverrides: Boolean = false
     ): List<TranslationGlossaryEntry> {
         val entries = buildList {
             matchedTerms.forEach { term ->
@@ -5064,7 +5136,7 @@ class Translator @Inject constructor(
                     add(
                         TranslationGlossaryEntry(
                             source = sourceForm,
-                            target = targetTermText(term, targetLanguage),
+                            target = targetTermText(term, targetLanguage, useTraditionalOverrides),
                             note = TranslationGlossaryBuilder.genderNoteFor(
                                 term.gender,
                                 targetLanguage
@@ -5403,8 +5475,35 @@ class Translator @Inject constructor(
         }
     }
 
-    private fun targetTermText(term: TermEntity, targetLanguage: String): String =
-        selectPromptGlossaryTarget(term.cnTerm, term.enTerm, targetLanguage, ::targetOfficialChinese)
+    private fun targetTermText(term: TermEntity, targetLanguage: String, useTraditionalOverrides: Boolean): String {
+        // Reviewed Hant spellings must not make a lossy Hant -> Hans -> Hant round trip.
+        val reviewed = reviewedTraditionalTarget(term.jpTerm, term.cnTerm,
+            useTraditionalOverrides && isTraditionalTarget(targetLanguage))
+        return reviewed ?: selectPromptGlossaryTarget(
+            term.cnTerm, term.enTerm, targetLanguage, ::targetOfficialChinese)
+    }
+
+    private fun preferredTraditionalTarget(
+        source: String,
+        reference: String,
+        enabled: Boolean,
+        canonicalSource: String = source,
+        allowConvertedReference: Boolean = false
+    ): String = reviewedTraditionalTarget(source, reference, enabled, canonicalSource, allowConvertedReference) ?: reference
+
+    private fun reviewedTraditionalTarget(
+        source: String,
+        reference: String,
+        enabled: Boolean,
+        canonicalSource: String = source,
+        allowConvertedReference: Boolean = false
+    ): String? {
+        if (!enabled) return null
+        val sources = listOf(source, canonicalSource).filter(String::isNotBlank).distinct()
+        if (sources.any { normalizeNameLookup(it) in localCharacterOverrideKeys }) return null
+        return traditionalGlossary.findTarget(sources, reference,
+            convertedReference = if (allowConvertedReference) ::toTraditionalChinese else null)
+    }
 
     private fun targetOfficialChinese(text: String, targetLanguage: String): String {
         if (isEnglishTarget(targetLanguage)) return text.trim()
@@ -6659,7 +6758,9 @@ class Translator @Inject constructor(
             general = !usesSakuraPrompt(config),
             resolvedSpeaker = normalizeCurrentSpeakerContext(generalSpeakerContext),
             speakerGender = normalizeCharacterGender(generalSpeakerGender),
-            targetLanguage = normalizedTargetLanguage
+            targetLanguage = normalizedTargetLanguage,
+            traditionalGlossaryIdentity = if (usesTraditionalGlossaryOverrides(
+                normalizedTargetLanguage, !usesSakuraPrompt(config))) traditionalGlossary.cacheIdentity else ""
         )
         val hash = hashText(effectiveHashMaterial.joinToString("\u001F"))
         // Diagnostic only: two miss lines for the same text can be diffed on "parts" to see which
@@ -6691,6 +6792,9 @@ class Translator @Inject constructor(
     private fun shortKeyDigest(value: String): String =
         if (value.isBlank()) "-" else hashText(value).take(6)
 
+    private fun usesTraditionalOverrides(config: RuntimeConfig): Boolean =
+        usesTraditionalGlossaryOverrides(config.targetLanguage, !usesSakuraPrompt(config))
+
     private fun usesSakuraPrompt(config: RuntimeConfig): Boolean {
         return SakuraPromptBuilder.matchesModel(config.apiModel)
     }
@@ -6717,13 +6821,16 @@ class Translator @Inject constructor(
     private fun buildCurrentSpeakerContext(
         sourceName: String?,
         resolvedName: String?,
-        targetLanguage: String
+        targetLanguage: String,
+        general: Boolean = false
     ): String {
         val source = normalizeCurrentSpeakerContext(sourceName.orEmpty())
         if (source.isBlank()) return ""
 
         val resolved = resolvedName
             ?.takeIf { it.isNotBlank() && !it.isSceneContextErrorText() }
+            ?.let { preferredTraditionalTarget(source, it,
+                usesTraditionalGlossaryOverrides(targetLanguage, general), allowConvertedReference = true) }
             ?.let { targetOfficialChinese(it, targetLanguage) }
             ?.let(::normalizeCurrentSpeakerContext)
             .orEmpty()
@@ -6760,7 +6867,11 @@ class Translator @Inject constructor(
                 contexts, targetLanguage,
                 ::normalizeCurrentSpeakerContext,
                 ::normalizeSceneDialogueContext,
-                ::targetOfficialChinese
+                ::targetOfficialChinese,
+                selectSpeakerTarget = { source, translated, locale ->
+                    preferredTraditionalTarget(source, translated,
+                        usesTraditionalGlossaryOverrides(locale, true), allowConvertedReference = true)
+                }
             )
         }
         if (contexts.isEmpty()) return emptyList()

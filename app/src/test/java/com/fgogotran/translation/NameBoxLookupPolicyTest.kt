@@ -163,7 +163,8 @@ class NameBoxLookupPolicyTest {
         val nonNameBranch = "} else if (alignedSubtitleRows == 0) {"
         assertTrue(admission.contains(nonNameBranch))
         val names = admission.substringBefore(nonNameBranch)
-        assertTrue(names.contains("findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage)"))
+        assertTrue(names.contains("findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage,"))
+        assertTrue(names.contains("useTraditionalOverrides = usesTraditionalOverrides(config)"))
         assertTrue(names.contains("!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)"))
         for (lookup in listOf("translationMemory.lookupNormalized", "findCharacterNameTranslation(", "findTermTranslation(")) {
             assertFalse(names.contains(lookup), lookup)
