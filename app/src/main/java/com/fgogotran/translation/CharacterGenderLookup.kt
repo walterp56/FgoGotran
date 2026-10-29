@@ -1,6 +1,7 @@
 package com.fgogotran.translation
 
 import com.fgogotran.terminology.CharacterNameEntity
+import com.fgogotran.terminology.TermEntity
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -79,10 +80,12 @@ internal class CharacterGenderLookup(
 
     private fun buildIndex(characters: List<CharacterNameEntity>): Map<String, String> {
         val ownersByKey = mutableMapOf<String, MutableMap<String, String>>()
+        val exactGenders = linkedMapOf<String, String>()
         characters.forEach { character ->
             val gender = normalizeGender(character.gender)
             if (gender.isBlank()) return@forEach
             val owner = canonicalKey(character.jpName)
+            if (owner.isNotBlank()) exactGenders.putIfAbsent(owner, gender)
             lookupKeys(character).forEach { key ->
                 // Deduplicate owners per key, preserving the first matching row
                 // just like the previous filter(...).distinctBy(...) scan.
@@ -94,6 +97,21 @@ internal class CharacterGenderLookup(
                 // Two canonical characters are ambiguous even with equal gender.
                 owners.values.singleOrNull()?.let { put(key, it) }
             }
+            // An exact stored label has its own reviewed/inherited gender. Its parent full
+            // name must not make that label ambiguous merely by generating the same part.
+            putAll(exactGenders)
         }
     }
+}
+
+/** Keep existing target text/order; only recover missing character metadata for RAG. */
+internal suspend fun enrichCharacterTermGenders(
+    terms: List<TermEntity>,
+    lookup: CharacterGenderLookup,
+    sourceKey: (String) -> String
+): List<TermEntity> = terms.map { term ->
+    if (term.gender.isBlank() && term.category in setOf("character", "character_part")) {
+        val gender = lookup.find(sourceKey(term.jpTerm))
+        if (gender.isBlank()) term else term.copy(gender = gender)
+    } else term
 }

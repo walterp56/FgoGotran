@@ -17,6 +17,7 @@ object FgoDialogueSymbols {
     private val alternateEllipsisPattern = Regex("[‥⋯]+")
     private val repeatedMiddleDotPattern = Regex("[·・･•]{2,}")
     private val asciiPauseDotRunPattern = Regex("\\.+")
+    private val englishGlossaryPausePattern = Regex("[.．]{2,}")
     private val leadingAsciiDashBeforeTextPattern =
         Regex("(?m)(^|[「『（(\\[\\s　])-+(?=[\\u3400-\\u9FFF■□▇█])")
     private val leadingOcrHyphenBeforeJapanesePattern =
@@ -199,6 +200,39 @@ object FgoDialogueSymbols {
         result = reconcileTrustedTerminal(sourceText, result)
         return restoreSourceOuterWrappers(sourceText, result)
     }
+
+    /** Restore expressive tails of English dictionary content without applying Chinese styling. */
+    internal fun restoreEnglishGlossaryTerminal(sourceText: String, translatedText: String): String {
+        if (translatedText.isBlank()) return translatedText
+        // Same-length pause placeholders let ...! pass the trust check without accepting .! noise.
+        val sourceForTrust = englishGlossaryPausePattern.replace(sourceText) { "…".repeat(it.value.length) }
+        val sourceTerminal = trustedTerminalSpan(sourceForTrust)
+            ?: return translatedText
+        val sourceTail = sourceText.substring(sourceTerminal.start, sourceTerminal.endExclusive)
+        if (!sourceTail.isEnglishExpressiveTail()) return translatedText
+        val suffix = sourceTail.map { symbol ->
+            when (symbol) {
+                '！' -> '!'
+                '？' -> '?'
+                '．' -> '.'
+                '‥', '⋯' -> '…'
+                else -> symbol
+            }
+        }.joinToString("")
+        val targetTerminal = terminalSpan(translatedText)
+            ?.takeIf { it.raw.isEnglishExpressiveTail() }
+        if (targetTerminal != null) {
+            return translatedText.replaceRange(targetTerminal.start, targetTerminal.endExclusive, suffix)
+        }
+
+        // Preserve lexical punctuation (e.g. the period in an abbreviation) and existing wrappers.
+        val insertionIndex = trailingClosingSuffixStart(translatedText)
+        return translatedText.substring(0, insertionIndex) + suffix + translatedText.substring(insertionIndex)
+    }
+
+    private fun String.isEnglishExpressiveTail(): Boolean =
+        isNotEmpty() && all { it in "!！?？.．…‥⋯" } &&
+            (any { it in EMOTIONAL_SYMBOLS } || containsLongPause(replace('．', '.')))
 
     private fun reconcileTrustedTerminal(sourceText: String, translatedText: String): String {
         val sourceTerminal = trustedTerminalSpan(sourceText)?.canonical

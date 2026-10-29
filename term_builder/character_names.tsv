@@ -406,7 +406,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 フランチェスカ・プレラーティ	弗兰切斯卡·普勒拉蒂	Francesca Prelati		女性	
 ヒッポリュテ	希波吕忒	Hippolyta		女性	
 ジョン・ラックランド	无地王约翰	John Lackland		男性	ジョンラックランド
-ウルズ	乌尔德	Urðr		女性	
+ウルズ	乌尔德	Urd		女性	
 カマソッソ	卡玛佐茨	Camazotz		男性	
 朱瑞鳥・紅閻魔	朱瑞鸟·红阎魔	Vermillion Bird, Beni-Enma	朱瑞鳥=Vermillion Bird;紅閻魔=Beni-Enma	女性	朱瑞鳥紅閻魔,朱瑞鳥·紅閻魔
 恐竜王	恐龙王	Dinosaur King		男性	
@@ -515,12 +515,8 @@ ORT	ORT	ORT
 セレシェイラ・エルロン	塞蕾雪拉·艾尔隆	Cerejeira Elron		女性	セレシェイラエルロン
 フォウ	芙芙	Fou			Fou
 キャスパリーグ	凯茜·帕鲁格	Cath Palug			Cath Palug,キャス・パリーグ
-ムニエル	穆尼尔	Meuniere		男性	
 ジングル・アベル・ムニエル	金格尔·阿贝尔·穆尼尔	Jingle Abel Meuniere		男性	ジングルアベルムニエル
-ホームズ	福尔摩斯	Holmes		男性	
 ダ・ヴィンチ	达·芬奇	Da Vinci		女性	ダヴィンチ
-ゴルドルフ	戈尔德鲁夫	Goredolf		男性	
-カドック	卡多克	Kadoc		男性	
 キャプテン・ネモ	船长·尼莫	Captain Nemo		男性	キャプテンネモ
 ネモ・マリーン	尼莫·水兵	Nemo Marine		男性	ネモマリーン
 ネモ・プロフェッサー	尼莫·教授	Nemo Professor		性別不明	ネモプロフェッサー
@@ -621,7 +617,7 @@ Dr.ロマン	Dr.罗曼	Dr. Roman		男性
 オルガ·カルデアス	奥尔加·迦勒底亚斯	Olga Chaldeas		女性	オルガカルデアス
 グリム	格里姆	Grimr		男性	
 賢人グリム	贤人格里姆	Sage Grimr		男性	
-ゴフ	戈夫	Goredolf		男性	
+"	ゴッフ"	戈夫	Goff		男性	
 アーシャ	阿夏	Asha		女性	
 ハサン・サッバーハ	哈桑·萨巴赫	Hassan-i Sabbah		男性	
 シドラ・アズライール	惜德拉·亚兹拉尔	Sidra Azrael		男性	

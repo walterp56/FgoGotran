@@ -2851,7 +2851,7 @@
   {
     "jp_name": "ウルズ",
     "cn_name": "乌尔德",
-    "en_name": "Urðr",
+    "en_name": "Urd",
     "category": "character",
     "aliases": ""
   },
@@ -3612,13 +3612,6 @@
     "aliases": "Cath Palug, キャス・パリーグ"
   },
   {
-    "jp_name": "ムニエル",
-    "cn_name": "穆尼尔",
-    "en_name": "Meuniere",
-    "category": "character",
-    "aliases": ""
-  },
-  {
     "jp_name": "ジングル・アベル・ムニエル",
     "cn_name": "金格尔·阿贝尔·穆尼尔",
     "en_name": "Jingle Abel Meuniere",
@@ -3626,32 +3619,11 @@
     "aliases": "ジングルアベルムニエル"
   },
   {
-    "jp_name": "ホームズ",
-    "cn_name": "福尔摩斯",
-    "en_name": "Holmes",
-    "category": "character",
-    "aliases": ""
-  },
-  {
     "jp_name": "ダ・ヴィンチ",
     "cn_name": "达·芬奇",
     "en_name": "Da Vinci",
     "category": "character",
     "aliases": "ダヴィンチ"
-  },
-  {
-    "jp_name": "ゴルドルフ",
-    "cn_name": "戈尔德鲁夫",
-    "en_name": "Goredolf",
-    "category": "character",
-    "aliases": ""
-  },
-  {
-    "jp_name": "カドック",
-    "cn_name": "卡多克",
-    "en_name": "Kadoc",
-    "category": "character",
-    "aliases": ""
   },
   {
     "jp_name": "キャプテン・ネモ",
@@ -4354,9 +4326,9 @@
     "aliases": ""
   },
   {
-    "jp_name": "ゴフ",
+    "jp_name": "ゴッフ",
     "cn_name": "戈夫",
-    "en_name": "Goredolf",
+    "en_name": "Goff",
     "category": "character",
     "aliases": ""
   },

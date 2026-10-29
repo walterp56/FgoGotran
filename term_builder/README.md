@@ -30,6 +30,25 @@ metadata used by the Sakura glossary and is never appended to the displayed name
 
 Keep full character names here. `build_db.py` automatically adds component records for separator-based names, so a full official row can also become searchable through its name parts. Curated TSV rows still win over generated component rows.
 
+Generated character-name parts inherit gender only when they belong to one
+unambiguous full-name record with known gender. Shared parts, conflicting or
+unknown parents remain blank. Explicit TSV rows keep their supplied metadata,
+including an intentionally blank gender. Name targets and aliases are unchanged.
+
+Remove a standalone short-name row only after reviewing that it identifies the
+same character as the full name and that rebuilding preserves its Chinese and
+English targets, gender, aliases, and Traditional Chinese overrides. Matching
+name parts alone do not establish identity: keep separate forms such as
+`ロムルス` / `ロムルス＝クィリヌス`, `エミヤ` / `エミヤ・オルタ`, and
+`スカサハ` / `スカサハ＝スカディ` as explicit rows.
+
+The reviewed short labels `ホームズ`, `カドック`, `ムニエル`, and `ゴルドルフ`
+are generated from their full-name rows. Keep exceptions such as compound short
+names (`ダ・ヴィンチ`), special translations (`ゴッホ`), short-name-only aliases
+(`オルガマリー`), and ambiguous labels (`ジャック`) explicit. Short-name rows
+remain in the generated database for direct name lookup and RAG; reducing the
+editable TSV does not itself reduce the runtime index.
+
 ## `jp_cn_name_map.tsv`
 
 After running the JP/CN/TW generator, append the English name-box column:

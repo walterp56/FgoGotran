@@ -1103,7 +1103,10 @@ class Translator @Inject constructor(
                 if (!TextNormalizer.hasRubyAnnotations(normalizedText)) {
                     FgoLogger.info(tag, "Character exact HIT")
                     return TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
-                        .forTargetLocale(config, punctuationSourceText)
+                        .withEnglishGlossaryPunctuation(
+                            punctuationSourceText.takeUnless { cropMode || isBattleSubtitle || isSpokenSubtitle },
+                            config.targetLanguage
+                        ).forTargetLocale(config, punctuationSourceText)
                 }
             }
 
@@ -1114,6 +1117,9 @@ class Translator @Inject constructor(
                         sanitizeExactGlossaryTranslation(normalizedText, it, config),
                         "glossary",
                         true
+                    ).withEnglishGlossaryPunctuation(
+                        punctuationSourceText.takeUnless { cropMode || isBattleSubtitle || isSpokenSubtitle },
+                        config.targetLanguage
                     ).forTargetLocale(config, punctuationSourceText)
                 }
             }
@@ -1662,6 +1668,7 @@ class Translator @Inject constructor(
             if (characterTranslation != null) {
                 FgoLogger.info(tag, "Batch character exact HIT[$index]")
                 results[index] = TranslateResult(sanitizeCharacterNameResult(characterTranslation), "character-db", true)
+                    .withEnglishGlossaryPunctuation(normalizedText, config.targetLanguage)
                 continue
             }
 
@@ -1676,7 +1683,7 @@ class Translator @Inject constructor(
                     sanitizeExactGlossaryTranslation(normalizedText, termTranslation, config),
                     "glossary",
                     true
-                )
+                ).withEnglishGlossaryPunctuation(normalizedText, config.targetLanguage)
                 continue
             }
 
@@ -2021,7 +2028,7 @@ class Translator @Inject constructor(
                         sanitizeExactGlossaryTranslation(normalized, it, config),
                         "glossary",
                         true
-                    )
+                    ).withEnglishGlossaryPunctuation(normalized, config.targetLanguage)
                 }
             }
         }
@@ -2051,7 +2058,7 @@ class Translator @Inject constructor(
                         sanitizeExactGlossaryTranslation(normalized, it, config),
                         "glossary",
                         true
-                    )
+                    ).withEnglishGlossaryPunctuation(normalized, config.targetLanguage)
                 }
             }
             if (!forceFreshTranslation && choiceResults[index] == null && !TextNormalizer.hasRubyAnnotations(normalized)) {
@@ -2063,6 +2070,7 @@ class Translator @Inject constructor(
                 )?.let {
                     FgoLogger.info(tag, "Character exact HIT choice[$index]")
                     choiceResults[index] = TranslateResult(sanitizeCharacterNameResult(it), "character-db", true)
+                        .withEnglishGlossaryPunctuation(normalized, config.targetLanguage)
                 }
             }
         }
@@ -3005,6 +3013,7 @@ class Translator @Inject constructor(
         cachedTerms?.let { return it }
         val loaded = (getCachedTermRows() + getCachedCharacterNames().flatMap(::characterTermEntries))
             .distinctBy { TextNormalizer.normalizeForTranslation(it.jpTerm) }
+            .let { enrichCharacterTermGenders(it, characterGenderLookup, ::normalizeNameLookup) }
         cachedTerms = loaded
         if (loaded.isEmpty()) {
             FgoLogger.warn(tag, "Glossary database is empty; RAG and name protection are disabled")
