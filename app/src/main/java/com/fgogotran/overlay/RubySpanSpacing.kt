@@ -17,7 +17,7 @@ internal object RubySpanSpacing {
         val body = StringBuilder(ruby.body)
         var inserted = 0
         var previousRight = minimumLeft
-        ruby.annotations.forEach { annotation ->
+        ruby.annotations.filterNot { it.emphasis }.forEach { annotation ->
             val start = annotation.start + inserted
             val end = annotation.end + inserted
             var endpoint = baseEndpoint(body.toString(), start, end)

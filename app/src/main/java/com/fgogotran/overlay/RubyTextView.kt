@@ -1,5 +1,6 @@
 package com.fgogotran.overlay
 
+import com.fgogotran.text.EmphasisText
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -32,6 +33,7 @@ internal class RubyTextView(context: Context) : TextView(context) {
     fun setRubyText(value: CharSequence) {
         ruby = RubyRenderText.parse(value.toString())
         val display = SpannableStringBuilder(value)
+        EmphasisText.controlOffsets(value.toString()).asReversed().forEach { display.delete(it, it + 1) }
         ruby.markers.asReversed().forEach { display.delete(it.start, it.end) }
         // Deletion adjusts existing quote/colour spans rather than flattening their styling.
         text = display

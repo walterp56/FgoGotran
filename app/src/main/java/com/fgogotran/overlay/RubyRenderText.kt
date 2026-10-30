@@ -1,5 +1,7 @@
 package com.fgogotran.overlay
 
+import com.fgogotran.text.EmphasisText
+import com.fgogotran.text.EmphasisRange
 import java.text.BreakIterator
 import java.util.Locale
 
@@ -8,7 +10,7 @@ internal object RubyRenderText {
     /** Bilingual source text keeps the notation inline; translation decorates the base. */
     enum class Mode { ABOVE_BASE, INLINE }
 
-    data class Annotation(val start: Int, val end: Int, val reading: String)
+    data class Annotation(val start: Int, val end: Int, val reading: String, val emphasis: Boolean = false)
     data class Marker(val start: Int, val end: Int)
 
     data class Text(
@@ -26,19 +28,26 @@ internal object RubyRenderText {
             if (target.size > source.size || target.indices.any {
                     body.codePointAt(source[it]) != displayBody.codePointAt(target[it])
                 }) return displayBody
-            val insertions = annotations.mapNotNull { annotation ->
+            fun mapped(annotation: Annotation): EmphasisRange? {
                 val first = source.indexOfFirst { it >= annotation.start }
-                val end = source.indexOfLast { it < annotation.end }
-                if (first < 0 || end < first || end >= target.size) return@mapNotNull null
-                val offset = target[end] + Character.charCount(displayBody.codePointAt(target[end]))
-                offset to annotation.reading
+                val last = source.indexOfLast { it < annotation.end }
+                if (first < 0 || last < first || last >= target.size) return null
+                return EmphasisRange(target[first], target[last] + Character.charCount(displayBody.codePointAt(target[last])))
             }
-            return StringBuilder(displayBody).apply {
-                insertions.asReversed().forEach { (offset, reading) -> insert(offset, "〈$reading〉") }
+            val insertions = annotations.filterNot { it.emphasis }.mapNotNull { annotation ->
+                mapped(annotation)?.let { it.endExclusive to "〈${annotation.reading}〉" }
+            }
+            val withRuby = StringBuilder(displayBody).apply {
+                insertions.asReversed().forEach { (offset, reading) -> insert(offset, reading) }
             }.toString()
+            val dots = annotations.filter { it.emphasis }.mapNotNull(::mapped).map { range ->
+                EmphasisRange(range.start + insertions.filter { it.first <= range.start }.sumOf { it.second.length },
+                    range.endExclusive + insertions.filter { it.first < range.endExclusive }.sumOf { it.second.length })
+            }
+            return EmphasisText.encode(withRuby, dots)
         }
 
-        fun annotateLines(lines: List<String>): List<String> = annotate(lines.joinToString("\n")).split('\n')
+        fun annotateLines(lines: List<String>): List<String> = EmphasisText.lines(annotate(lines.joinToString("\n")))
     }
 
     private val marker = Regex("〈([^〈〉\\r\\n]+)〉")
@@ -48,7 +57,7 @@ internal object RubyRenderText {
 
     fun parse(value: String, mode: Mode = Mode.ABOVE_BASE): Text {
         if (mode == Mode.INLINE) return Text(value)
-        if ('〈' !in value || '〉' !in value) return Text(value)
+        if (('〈' !in value || '〉' !in value) && !EmphasisText.has(value)) return Text(EmphasisText.plain(value))
         return synchronized(cache) { cache.getOrPut(value) { parseUncached(value) } }
     }
 
@@ -72,7 +81,9 @@ internal object RubyRenderText {
         return if (parsed.annotations.isEmpty()) transformBody(value) else parsed.annotate(transformBody(parsed.body))
     }
 
-    private fun parseUncached(value: String): Text {
+    private fun parseUncached(encoded: String): Text {
+        val emphasized = EmphasisText.decode(encoded)
+        val value = emphasized.text
         val body = StringBuilder()
         val annotations = mutableListOf<Annotation>()
         val markers = mutableListOf<Marker>()
@@ -93,7 +104,21 @@ internal object RubyRenderText {
             cursor = match.range.last + 1
         }
         body.append(value, cursor, value.length)
-        return Text(body.toString(), annotations, markers)
+        val visible = body.toString()
+        fun shifted(offset: Int): Int = offset - markers.filter { it.end <= offset }.sumOf { it.end - it.start }
+        val ranges = emphasized.ranges.filter { range -> markers.none { range.start < it.end && range.endExclusive > it.start } }
+            .map { EmphasisRange(shifted(it.start), shifted(it.endExclusive)) }
+        val iterator = BreakIterator.getCharacterInstance(Locale.ROOT).apply { setText(visible) }
+        var start = iterator.first()
+        var end = iterator.next()
+        val dots = mutableListOf<Annotation>()
+        while (end != BreakIterator.DONE) {
+            if (ranges.any { start >= it.start && end <= it.endExclusive } &&
+                visible.substring(start,end).codePoints().anyMatch(Character::isLetterOrDigit) &&
+                annotations.none { start < it.end && end > it.start }) dots += Annotation(start,end,"•",emphasis=true)
+            start=end; end=iterator.next()
+        }
+        return Text(visible, (annotations + dots).sortedBy { it.start }, markers)
     }
 
     private fun inferBaseStart(text: String, end: Int, floor: Int): Int {

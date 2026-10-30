@@ -1,5 +1,7 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisText
+
 /**
  * Normalizes OCR text before cache lookup and prompt construction.
  *
@@ -11,6 +13,7 @@ object TextNormalizer {
     private val caldeaOcrPattern = Regex("""力ル(?=[\s　…・･、。,.!?！？ー─—―]*デア)""")
 
     fun normalizeForTranslation(text: String): String {
+        if (EmphasisText.has(text)) return EmphasisText.transform(text, ::normalizeForTranslation)
         return text
             .replace("\r\n", "\n")
             .replace('\r', '\n')
@@ -24,7 +27,7 @@ object TextNormalizer {
     }
 
     fun stripRubyAnnotations(text: String): String {
-        return normalizeForTranslation(text).replace(rubyAnnotationPattern, "")
+        return EmphasisText.plain(normalizeForTranslation(text)).replace(rubyAnnotationPattern, "")
     }
 
     fun hasRubyAnnotations(text: String): Boolean {

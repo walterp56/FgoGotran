@@ -1,5 +1,8 @@
 package com.fgogotran.accessibility
 
+import com.fgogotran.text.EmphasisRange
+import com.fgogotran.text.EmphasisText
+import com.fgogotran.ocr.EmphasisSourceMapper
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.AccessibilityService.ScreenshotResult
@@ -463,7 +466,8 @@ class FgoAccessibilityService : AccessibilityService() {
         val text: String,
         val voiceText: String = "",
         /** Main dialogue boxes only; paired ruby boxes must not create a render row. */
-        val dialogueRenderLineBounds: List<DialogueRenderTextPolicy.LineBounds> = emptyList()
+        val dialogueRenderLineBounds: List<DialogueRenderTextPolicy.LineBounds> = emptyList(),
+        val emphasisRanges: List<EmphasisRange> = emptyList()
     )
 
     private data class SceneSource(
@@ -3463,7 +3467,8 @@ class FgoAccessibilityService : AccessibilityService() {
             null
         }
         val fingerprint = translatableRegions.joinToString("\n\n") { regionText ->
-            "${regionText.region.region}:${regionText.region.boundingBox.flattenToString()}\n${regionText.text}"
+            "${regionText.region.region}:${regionText.region.boundingBox.flattenToString()}\n${regionText.text}" +
+                if (regionText.emphasisRanges.isEmpty()) "" else "\nemphasis=${regionText.emphasisRanges}"
         }.trim()
         val dialogueText = dialogueRegion?.text.orEmpty()
         if (voiceDialogue != null && voiceDialogue != dialogueText) {
@@ -3473,13 +3478,18 @@ class FgoAccessibilityService : AccessibilityService() {
             name = nameRegion?.text,
             dialogue = dialogueRegion?.text,
             choices = choiceRegions.map { it.text }
-        )
+        ).let { key ->
+            if (translatableRegions.none { it.emphasisRanges.isNotEmpty() }) key else
+                key + "\nemphasis=" + translatableRegions.joinToString(";") { it.emphasisRanges.toString() }
+        }
         return SceneSource(
             regions = translatableRegions,
             input = SceneTranslateInput(
                 name = nameRegion?.text,
                 dialogue = dialogueRegion?.text,
-                choices = choiceRegions.map { it.text }
+                choices = choiceRegions.map { it.text },
+                dialogueEmphasisRanges = dialogueRegion?.emphasisRanges.orEmpty(),
+                choiceEmphasisRanges = choiceRegions.map { it.emphasisRanges }
             ),
             voiceDialogue = voiceDialogue,
             fingerprint = fingerprint,
@@ -3644,7 +3654,8 @@ class FgoAccessibilityService : AccessibilityService() {
                     region = regionAndText.region.region
                 ),
                 targetLocale = translatedResult.targetLocale,
-                showOriginalText = showOriginalForRegion
+                showOriginalText = showOriginalForRegion,
+                emphasisRanges = EmphasisText.remap(translatedResult.translatedText, translatedText, translatedResult.emphasisRanges)
             )
         }
     }
@@ -3681,6 +3692,14 @@ class FgoAccessibilityService : AccessibilityService() {
                 "${instruction.region.region}=${debugQuote(instruction.translatedText)} (${instruction.targetLocale})"
             }
         )
+        val sourceEmphasis = sceneSource.input.dialogueEmphasisRanges.size +
+            sceneSource.input.choiceEmphasisRanges.sumOf { it.size }
+        val translatedEmphasis = sceneTranslation.dialogue?.emphasisRanges.orEmpty().size +
+            sceneTranslation.choices.sumOf { it.emphasisRanges.size }
+        if (sourceEmphasis > 0 || translatedEmphasis > 0) {
+            FgoLogger.debug(tag, "Scene emphasis [$mode]: sourceRanges=$sourceEmphasis, " +
+                "translatedRanges=$translatedEmphasis, renderRanges=${instructions.sumOf { it.emphasisRanges.size }}")
+        }
     }
 
     private fun debugResult(result: TranslateResult): String {
@@ -3818,6 +3837,10 @@ class FgoAccessibilityService : AccessibilityService() {
             region = region,
             text = sourceText,
             voiceText = voiceText,
+            emphasisRanges = if (region.region == TextRegion.NAME_LABEL) emptyList() else
+                EmphasisSourceMapper.map(sourceText, region.lines.filterNot { it.isDialogueRuby }.map {
+                    EmphasisSourceMapper.Line(it.text, it.emphasisRanges)
+                }),
             dialogueRenderLineBounds = if (region.region == TextRegion.DIALOGUE_BOX) {
                 dialogueSource?.mainLineBounds.orEmpty()
             } else {
@@ -5032,6 +5055,11 @@ class FgoAccessibilityService : AccessibilityService() {
                 SessionTranslationEntry(
                     speakerName = name,
                     dialogueText = dialogue,
+                    dialogueEmphasisRanges = if (dialogueInstruction != null && dialogue != null)
+                        EmphasisText.remap(dialogueInstruction.translatedText, dialogue, dialogueInstruction.emphasisRanges) else emptyList(),
+                    choiceEmphasisRanges = choiceInstructions.filter { it.translatedText.isNotBlank() }.map {
+                        EmphasisText.remap(it.translatedText, it.translatedText.trim(), it.emphasisRanges)
+                    },
                     originalDialogueText = originalDialogue,
                     contextSourceSpeakerName = contextSourceSpeakerName,
                     contextTranslatedSpeakerName = contextTranslatedSpeakerName,

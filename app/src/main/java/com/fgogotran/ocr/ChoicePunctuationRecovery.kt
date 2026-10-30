@@ -88,7 +88,7 @@ internal object ChoicePunctuationRecovery {
     }
 
     /** Only verified, separated upper dots over full-size glyphs are emphasis, not kana/dakuten. */
-    fun emphasisDots(analysis: List<ButtonAnalysis>): Set<Component> = analysis.flatMap { button ->
+    fun emphasisDots(analysis: List<ButtonAnalysis>, allowIsolated: Boolean = false): Set<Component> = analysis.flatMap { button ->
         val band = button.mainBand ?: return@flatMap emptyList()
         val upper = button.components.filter { it.bounds.centerY < band.top }
         fun isDot(component: Component): Boolean {
@@ -118,7 +118,7 @@ internal object ChoicePunctuationRecovery {
             } else runs += mutableListOf(dot)
         }
         runs.filter { run ->
-            if (run.size < 2) false else {
+            if (run.size < 2) allowIsolated else {
                 val gaps = run.zipWithNext { a, b -> b.bounds.centerX - a.bounds.centerX }
                 gaps.maxOrNull()!! <= gaps.minOrNull()!! * 1.55f
             }

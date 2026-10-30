@@ -293,3 +293,26 @@ chapter/LANGUAGE_PACK_DEVICE_CHECK_*.md
 Thumbs.db
 *.log
 *.tmp
+
+# Retain rare JP reference-mark recovery and general-only preservation regressions.
+!app/src/test/java/com/fgogotran/ocr/DialogueReferenceMarkRecoveryTest.kt
+!app/src/test/java/com/fgogotran/translation/GeneralReferenceMarkPolicyTest.kt
+!app/src/test/resources/
+app/src/test/resources/*
+!app/src/test/resources/ocr/
+app/src/test/resources/ocr/*
+!app/src/test/resources/ocr/jp-reference-marks.png
+
+# Retain emphasis OCR, prompt, layout and cache regressions.
+!app/src/test/java/com/fgogotran/text/
+!app/src/test/java/com/fgogotran/text/EmphasisTextTest.kt
+!app/src/test/java/com/fgogotran/overlay/EmphasisRenderTextTest.kt
+!app/src/test/java/com/fgogotran/ocr/EmphasisRangeMapperTest.kt
+!app/src/test/java/com/fgogotran/translation/EmphasisPromptTest.kt
+!app/src/test/java/com/fgogotran/translation/EmphasisPromptEvaluationTest.kt
+!app/src/test/java/com/fgogotran/overlay/EmphasisGraphicsTest.kt
+!app/src/test/java/com/fgogotran/translation/EmphasisCollectedResponseTest.kt
+!app/src/test/java/com/fgogotran/ocr/EmphasisScreenshotTest.kt
+!app/src/test/resources/ocr/jp-emphasis-worlds.png
+!app/src/test/resources/ocr/jp-emphasis-memory.png
+!app/src/test/resources/ocr/jp-emphasis-positions.json

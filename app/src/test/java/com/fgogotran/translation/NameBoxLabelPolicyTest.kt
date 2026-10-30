@@ -293,5 +293,5 @@ class NameBoxLabelPolicyTest {
 
     private fun function(source: String, name: String): String =
         Regex("(?m)^    (?:private )?(?:suspend )?fun ").split(source).drop(1)
-            .first { it.startsWith("$name(") }
+            .first { it.startsWith("${if (name in listOf("translate", "translateBatch", "translateScene")) name + "Internal" else name}(") }
 }

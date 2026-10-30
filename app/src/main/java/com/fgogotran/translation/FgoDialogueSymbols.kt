@@ -1,5 +1,7 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisText
+
 /**
  * Shared FGO-style punctuation rules used after OCR and translation.
  *
@@ -35,6 +37,7 @@ object FgoDialogueSymbols {
      * corner quotes cannot leak into the final Chinese result.
      */
     fun normalizeFinalChineseQuotes(text: String): String {
+        if (EmphasisText.has(text)) return EmphasisText.transform(text, ::normalizeFinalChineseQuotes)
         if ('「' !in text && '」' !in text) return text
         return buildString(text.length) {
             text.forEach { char ->
@@ -55,6 +58,7 @@ object FgoDialogueSymbols {
      * even `…` counts, so those runs must remain exact.
      */
     fun normalizePauseDots(text: String): String {
+        if (EmphasisText.has(text)) return EmphasisText.transform(text, ::normalizePauseDots)
         return alternateEllipsisPattern
             .replace(text) { match -> "…".repeat(match.value.length) }
             .let { normalized ->
@@ -82,6 +86,7 @@ object FgoDialogueSymbols {
      * text. Pure emotional clusters are never reordered or collapsed.
      */
     fun normalizeTranslatedPunctuation(text: String): String {
+        if (EmphasisText.has(text)) return EmphasisText.transform(text, ::normalizeTranslatedPunctuation)
         val trimmed = text.trimEnd()
         if (trimmed.isBlank()) return trimmed
 
@@ -190,6 +195,7 @@ object FgoDialogueSymbols {
      * malformed-tail cleanup.
      */
     fun reconcileSourcePunctuation(sourceText: String, translatedText: String): String {
+        if (EmphasisText.has(sourceText) || EmphasisText.has(translatedText)) return EmphasisText.transform(translatedText) { reconcileSourcePunctuation(EmphasisText.plain(sourceText), it) }
         var result = normalizeTranslatedPunctuation(translatedText)
             .let(::normalizeDashRuns)
         if (result.isBlank()) return result
@@ -203,6 +209,7 @@ object FgoDialogueSymbols {
 
     /** Restore expressive tails of English dictionary content without applying Chinese styling. */
     internal fun restoreEnglishGlossaryTerminal(sourceText: String, translatedText: String): String {
+        if (EmphasisText.has(sourceText) || EmphasisText.has(translatedText)) return EmphasisText.transform(translatedText) { restoreEnglishGlossaryTerminal(EmphasisText.plain(sourceText), it) }
         if (translatedText.isBlank()) return translatedText
         // Same-length pause placeholders let ...! pass the trust check without accepting .! noise.
         val sourceForTrust = englishGlossaryPausePattern.replace(sourceText) { "…".repeat(it.value.length) }
@@ -463,6 +470,7 @@ object FgoDialogueSymbols {
      * ASCII tokens such as A--B, --help, and URL path segments.
      */
     fun normalizeDashRuns(text: String): String {
+        if (EmphasisText.has(text)) return EmphasisText.transform(text, ::normalizeDashRuns)
         val output = StringBuilder(text.length)
         var index = 0
         while (index < text.length) {
@@ -490,12 +498,14 @@ object FgoDialogueSymbols {
      * excludes negative numbers and ordinary Latin hyphenated text.
      */
     fun normalizeLeadingOcrDash(text: String): String {
+        if (EmphasisText.has(text)) return EmphasisText.transform(text, ::normalizeLeadingOcrDash)
         return leadingOcrHyphenBeforeJapanesePattern.replace(text) {
             "${it.groupValues[1]}${it.groupValues[2]}$LONG_DASH_RUN"
         }
     }
 
     fun normalizeForRender(text: String): String {
+        if (EmphasisText.has(text)) return EmphasisText.transform(text, ::normalizeForRender)
         return normalizeTranslatedPunctuation(text)
             .replace('－', '-')
             .replace('―', '—')

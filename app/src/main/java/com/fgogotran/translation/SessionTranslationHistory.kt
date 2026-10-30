@@ -1,5 +1,6 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisRange
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.util.FgoLogger
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +29,9 @@ data class SessionTranslationEntry(
     val historyId: Long = 0L,
     val battleOccurrence: Boolean = false,
     val generalPreparedSourceDialogue: String? = null,
-    val dialogueSubtitleOccurrence: Boolean = false
+    val dialogueSubtitleOccurrence: Boolean = false,
+    val dialogueEmphasisRanges: List<EmphasisRange> = emptyList(),
+    val choiceEmphasisRanges: List<List<EmphasisRange>> = emptyList()
 ) {
     val subtitleOccurrence: Boolean get() = battleOccurrence || dialogueSubtitleOccurrence
 }
@@ -283,7 +286,7 @@ object SessionTranslationHistory {
     }
 
     private fun SessionTranslationEntry.contentKey(): String {
-        return listOf(
+        return (listOf(
             speakerName.orEmpty(),
             dialogueText.orEmpty(),
             originalDialogueText.orEmpty(),
@@ -294,7 +297,8 @@ object SessionTranslationHistory {
             choices.joinToString("\n"),
             originalChoices.joinToString("\n") { it.orEmpty() },
             contextDialogueTranslationTrusted.toString()
-        )
+        ) + if (dialogueEmphasisRanges.isNotEmpty() || choiceEmphasisRanges.any { it.isNotEmpty() })
+            listOf(dialogueEmphasisRanges.toString(), choiceEmphasisRanges.toString()) else emptyList())
             .joinToString("\n")
             .normalizeHistoryText()
     }
@@ -350,6 +354,7 @@ object SessionTranslationHistory {
             speakerName = null,
             dialogueText = null,
             originalDialogueText = null,
+            dialogueEmphasisRanges = emptyList(),
             contextSourceSpeakerName = null,
             contextTranslatedSpeakerName = null,
             contextSourceDialogue = null,

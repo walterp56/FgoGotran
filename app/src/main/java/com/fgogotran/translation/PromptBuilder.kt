@@ -1,5 +1,7 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisText
+
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.TermEntity
 import com.fgogotran.util.FgoLogger
@@ -510,9 +512,9 @@ class PromptBuilder @Inject constructor() {
         val otherSourceText = sourceText.takeUnless {
             hasName && !isDialogue && it == cleanNameText
         }.orEmpty()
-        val otherText = (listOf(otherSourceText) + relevantChoiceTexts).joinToString("\n")
-        val combinedText = (listOf(primarySourceText) + relevantChoiceTexts).joinToString("\n")
-        val playerRuleText = playerReferenceText.trim().ifBlank { combinedText }
+        val otherText = EmphasisText.plain((listOf(otherSourceText) + relevantChoiceTexts).joinToString("\n"))
+        val combinedText = EmphasisText.plain((listOf(primarySourceText) + relevantChoiceTexts).joinToString("\n"))
+        val playerRuleText = EmphasisText.plain(playerReferenceText).trim().ifBlank { combinedText }
         val cleanPlayerName = playerName.trim()
         val normalizedTargetLocale = SettingsRepository.normalizeTargetLanguage(targetLanguage)
         val hasMasterWord = containsMasterWord(playerRuleText)
@@ -767,6 +769,8 @@ class PromptBuilder @Inject constructor() {
         val sb = StringBuilder()
 
         sb.appendGeneralTranslationGlossarySection(glossaryEntries)
+        sb.appendGeneralReferenceMarkSection(listOf(japaneseText))
+        sb.appendGeneralEmphasisSection(listOf(japaneseText) + choiceTexts)
         if (choiceTexts.isNotEmpty()) {
             sb.appendPromptSection(
                 "choice_context",
@@ -789,6 +793,7 @@ class PromptBuilder @Inject constructor() {
             .filter { it.isNotBlank() }
 
         sb.appendGeneralTranslationGlossarySection(glossaryEntries)
+        sb.appendGeneralReferenceMarkSection(lines)
         sb.appendPromptSection("current_japanese_rows", renderNumberedPromptItems(lines))
         sb.appendPromptSection(
             "required_output",
@@ -803,6 +808,7 @@ class PromptBuilder @Inject constructor() {
         rows: List<String>, glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
     ): String = buildString {
         appendGeneralTranslationGlossarySection(glossaryEntries)
+        appendGeneralReferenceMarkSection(rows)
         appendPromptSection("current_japanese_rows", renderNumberedPromptItems(rows))
         appendPromptSection("required_output",
             "Read all rows as connected speech, not separate sentences. Return a JSON array of exactly " +
@@ -1153,7 +1159,8 @@ class PromptBuilder @Inject constructor() {
         }.distinct()
     }
 
-    private fun buildTermSearchText(text: String): TermSearchText {
+    private fun buildTermSearchText(annotatedText: String): TermSearchText {
+        val text = EmphasisText.plain(annotatedText)
         val compactText = StringBuilder()
         val sourceIndices = mutableListOf<Int>()
         val normalized = Normalizer.normalize(text.trim(), Normalizer.Form.NFKC)

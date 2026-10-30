@@ -1,5 +1,6 @@
 package com.fgogotran.ui.overlay
 
+import com.fgogotran.text.EmphasisText
 import android.content.Context
 import com.fgogotran.R
 import android.graphics.Color as AndroidColor
@@ -264,7 +265,8 @@ private fun addHistoryEntryViews(
             )
         )
     }
-    entry.dialogueText?.takeIf { it.isNotBlank() }?.let {
+    entry.dialogueText?.takeIf { it.isNotBlank() }?.let { unmarked ->
+        val it = EmphasisText.encode(unmarked, entry.dialogueEmphasisRanges)
         val originalDialogue = entry.originalDialogueText?.trim()?.takeIf { original -> original.isNotBlank() }
         if (speakerName != null || originalDialogue != null) {
             if (speakerName != null) {
@@ -312,7 +314,7 @@ private fun addHistoryEntryViews(
         container.addView(
             historyTextView(
                 context = container.context,
-                text = if (originalChoice == null) "$choice\n" else choice,
+                text = EmphasisText.encode(if (originalChoice == null) "$choice\n" else choice, entry.choiceEmphasisRanges.getOrElse(index) { emptyList() }),
                 color = FGO_CHOICE_HISTORY_RED,
                 gravity = Gravity.CENTER,
                 typeface = typeface,
@@ -495,6 +497,8 @@ private fun addHistoryBilingualLinePairs(
 }
 
 private fun historyDisplayLines(text: String): List<String> {
+    if (EmphasisText.has(text)) return EmphasisText.lines(text).map { EmphasisText.transform(it, String::trim) }
+        .filter { EmphasisText.plain(it).isNotBlank() }
     return text
         .replace("\r\n", "\n")
         .replace('\r', '\n')

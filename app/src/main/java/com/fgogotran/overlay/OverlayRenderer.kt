@@ -1,5 +1,7 @@
 package com.fgogotran.overlay
 
+import com.fgogotran.text.EmphasisRange
+import com.fgogotran.text.EmphasisText
 import android.content.Context
 import android.graphics.*
 import com.fgogotran.data.SettingsRepository
@@ -21,7 +23,8 @@ data class RenderInstruction(
     val textColor: Int? = null,
     val wideTextSpacing: Boolean = false,
     val targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
-    val showOriginalText: Boolean = false
+    val showOriginalText: Boolean = false,
+    val emphasisRanges: List<EmphasisRange> = emptyList()
 )
 
 /**
@@ -172,7 +175,8 @@ class OverlayRenderer @Inject constructor(
             clearShadowLayer()
         }
 
-        for (instruction in instructions) {
+        for (originalInstruction in instructions) {
+            val instruction = originalInstruction.copy(translatedText = EmphasisText.encode(originalInstruction.translatedText, originalInstruction.emphasisRanges))
             textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             when (instruction.region.region) {
                 TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction, panels)
@@ -1094,7 +1098,7 @@ class OverlayRenderer @Inject constructor(
         val ruby = RubyRenderText.parse(flat)
         val variants = mutableListOf(text, flat)
         // A whole annotated word can move to the other row when its reading would overlap.
-        for (annotation in ruby.annotations) {
+        for (annotation in ruby.annotations.filterNot { it.emphasis }) {
             for (offset in listOf(annotation.start, annotation.end)) {
                 if (offset > 0 && offset < ruby.body.length) {
                     variants += ruby.annotate(ruby.body.take(offset).trimEnd() + "\n" + ruby.body.drop(offset).trimStart())

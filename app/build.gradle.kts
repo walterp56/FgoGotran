@@ -146,6 +146,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     testImplementation(kotlin("test"))
+    // Real Android font shaping/rasterization for annotation placement, never packaged in APK.
+    testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test:runner:1.6.2")

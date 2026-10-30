@@ -22,6 +22,8 @@ internal object StoryTranslationContentPolicy {
                 choices = input.choices.mapIndexed { index, text ->
                     if (shouldTranslateChoice(index)) text else ""
                 },
+                dialogueEmphasisRanges = if (translateDialogue) input.dialogueEmphasisRanges else emptyList(),
+                choiceEmphasisRanges = if (input.choiceEmphasisRanges.isEmpty()) emptyList() else input.choices.indices.map { if (shouldTranslateChoice(it)) input.choiceEmphasisRanges.getOrElse(it) { emptyList() } else emptyList() },
                 requestVoiceHint = input.requestVoiceHint && translateDialogue
             )
         }

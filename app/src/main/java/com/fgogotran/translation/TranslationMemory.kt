@@ -1,5 +1,7 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisText
+
 import android.content.Context
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,7 +36,7 @@ class TranslationMemory @Inject constructor(
     }
 
     fun lookupNormalized(normalizedJapaneseText: String): String? {
-        if (normalizedJapaneseText.isBlank()) return null
+        if (normalizedJapaneseText.isBlank() || EmphasisText.has(normalizedJapaneseText)) return null
         if (TextNormalizer.hasRubyAnnotations(normalizedJapaneseText)) return null
         val loadedEntries = entries()
         loadedEntries[normalizedJapaneseText]?.let { return it }

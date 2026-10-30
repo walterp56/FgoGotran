@@ -165,7 +165,7 @@ class NameBoxLookupPolicyTest {
         val names = admission.substringBefore(nonNameBranch)
         assertTrue(names.contains("findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage,"))
         assertTrue(names.contains("useTraditionalOverrides = usesTraditionalOverrides(config)"))
-        assertTrue(names.contains("!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)"))
+        assertTrue(names.contains("!forceFreshTranslation && !EmphasisText.has(normalizedText) && !TextNormalizer.hasRubyAnnotations(normalizedText)"))
         for (lookup in listOf("translationMemory.lookupNormalized", "findCharacterNameTranslation(", "findTermTranslation(")) {
             assertFalse(names.contains(lookup), lookup)
             assertTrue(admission.substringAfter(nonNameBranch).contains(lookup), lookup)
@@ -212,5 +212,5 @@ class NameBoxLookupPolicyTest {
 
     private fun function(source: String, name: String): String =
         Regex("(?m)^    (?:private )?(?:suspend )?fun ").split(source).drop(1)
-            .first { it.startsWith("$name(") }
+            .first { it.startsWith("${if (name in listOf("translate", "translateBatch", "translateScene")) name + "Internal" else name}(") }
 }

@@ -1,5 +1,7 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisText
+
 import com.fgogotran.data.SettingsRepository
 
 /** A readable JP -> target prompt glossary entry shared by every translation model. */
@@ -128,7 +130,7 @@ internal object TranslationGlossaryBuilder {
         }
         if (context.hasMasks) {
             maskTokens
-                .filter(sourceText::contains)
+                .filter { EmphasisText.plain(sourceText).contains(it) }
                 .forEach { mask ->
                     add(
                         mask,

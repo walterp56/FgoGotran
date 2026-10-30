@@ -399,7 +399,9 @@ private class PaddleOcrRuntime(
             FgoLogger.debug(tag, "PaddleOCR choice punctuation: recovered=${recovery.recoveredCount}, " +
                 "positionRetries=$positionRetries, unresolved=${recovery.unresolvedSourceIndices.size}")
             recovery.lines.map { OcrTextLine(it.text,
-                Rect(it.bounds.left, it.bounds.top, it.bounds.right, it.bounds.bottom), it.confidence) }
+                Rect(it.bounds.left, it.bounds.top, it.bounds.right, it.bounds.bottom), it.confidence,
+                characterPositions = if (choices.emphasisDots.isNotEmpty()) it.tokens.map { token ->
+                    OcrCharacterPosition(token.text, token.centerX) } else emptyList()) }
         } else if (dialoguePixels == null) {
             mergedLines
         } else {
@@ -409,11 +411,16 @@ private class PaddleOcrRuntime(
                 val recognition = target?.let { tightRecognitions[it.index] }
                 dialoguePunctuationLine(line, recognition, target?.box)
             }
+            val referenceMarks = if (fixedDialogue && originalDialoguePixels != null) {
+                DialogueReferenceMarkRecovery.plan(originalDialoguePixels, bitmap.width, bitmap.height,
+                    mainComponents, positionedLines)
+            } else DialogueReferenceMarkRecovery.Plan()
+            val punctuationComponents = referenceMarks.punctuationComponents(mainComponents)
             var recovery = DialoguePunctuationRecovery.recover(
                 pixels = dialoguePixels,
                 width = bitmap.width,
                 height = bitmap.height,
-                components = mainComponents,
+                components = punctuationComponents,
                 lines = positionedLines
             )
             // Usually the base CTC positions are sufficient. If a mask/edge merge invalidated
@@ -454,7 +461,7 @@ private class PaddleOcrRuntime(
             if (positionRetries > 0) {
                 val retried = DialoguePunctuationRecovery.recover(
                     dialoguePixels, bitmap.width, bitmap.height,
-                    mainComponents, retryLines
+                    punctuationComponents, retryLines
                 )
                 recovery = retried.copy(recoveredCount = recovery.recoveredCount + retried.recoveredCount)
             }
@@ -462,14 +469,21 @@ private class PaddleOcrRuntime(
                 tag, "PaddleOCR fixed dialogue punctuation: recovered=${recovery.recoveredCount}, " +
                     "positionRetries=$positionRetries, unresolved=${recovery.unresolvedBounds.size}"
             )
-            recovery.lines.map { line -> OcrTextLine(line.text, line.bounds.toRect(), line.confidence,
+            // No inference or retry is introduced for rare reference marks. Position merging is
+            // last, after the existing punctuation retries; ambiguous anchors leave text unchanged.
+            val referenceRecovery = DialogueReferenceMarkRecovery.recover(recovery.lines, referenceMarks)
+            if (referenceMarks.runs.isNotEmpty()) {
+                FgoLogger.debug(tag, "PaddleOCR reference marks: runs=${referenceMarks.runs.size}, " +
+                    "recoveredSymbols=${referenceRecovery.recoveredSymbols}, extraModelRuns=0")
+            }
+            referenceRecovery.lines.map { line -> OcrTextLine(line.text, line.bounds.toRect(), line.confidence,
                 dialogueRow = if (separatedDialogue) DialogueRubyLayout.mainRow(line.bounds.centerY, bitmap.height) else null,
-                characterPositions = if (separatedDialogue) line.tokens.map { OcrCharacterPosition(it.text, it.centerX) } else emptyList()) }
+                characterPositions = if (separatedDialogue || annotationCleanup?.emphasisDots?.isNotEmpty() == true) line.tokens.map { OcrCharacterPosition(it.text, it.centerX) } else emptyList()) }
         }
         // Ruby never participates in main-row punctuation recovery. Fixed dialogue retains its
         // band ownership; legacy dialogue/choices keep their supplementary replacement policy.
         requestContext.ensureActive()
-        val lines = if (fixedDialogue) {
+        val recognizedLines = if (fixedDialogue) {
             punctuationLines + rubyGroups.mapIndexedNotNull { index, group ->
                 val target = recognitionTargets[mainTargetCount + index]
                 val reading = tightRecognitions[target.index]
@@ -487,6 +501,15 @@ private class PaddleOcrRuntime(
         )
 
         requestContext.ensureActive()
+        val dots = choices?.emphasisDots ?: annotationCleanup?.emphasisDots.orEmpty()
+        val lines = if (dots.isEmpty()) recognizedLines else recognizedLines.map { line ->
+            if (line.isDialogueRuby) line else line.copy(emphasisRanges = EmphasisRangeMapper.map(
+                line.text, line.characterPositions, dots, line.boundingBox.top, line.boundingBox.bottom))
+        }
+        val emphasisCount = lines.sumOf { it.emphasisRanges.size }
+        if (dots.isNotEmpty()) FgoLogger.debug(tag, "PaddleOCR emphasis: dots=${dots.size}, ranges=$emphasisCount, " +
+            "verifiedDots=${dots.count { it.verifiedRowTop != null }}, " +
+            "mappedChars=${lines.sumOf { line -> line.emphasisRanges.sumOf { it.endExclusive-it.start } }}, extraModelRuns=0")
         val fullText = lines.joinToString("\n") { it.text }
         val elapsed = System.currentTimeMillis() - startedAt
         if (lines.isEmpty()) {

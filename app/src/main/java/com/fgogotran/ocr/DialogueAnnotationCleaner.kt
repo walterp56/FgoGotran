@@ -19,7 +19,8 @@ internal object DialogueAnnotationCleaner {
         val maskedComponents: Int,
         val maskedRows: Int,
         // Reuse the one foreground/component scan for dialogue punctuation recovery.
-        val components: List<Component> = emptyList()
+        val components: List<Component> = emptyList(),
+        val emphasisDots: List<OcrEmphasisDot> = emptyList()
     ) {
         val changed: Boolean get() = maskedComponents > 0
     }
@@ -70,15 +71,16 @@ internal object DialogueAnnotationCleaner {
             }
             DotCandidate(component, evidence)
         }
+        val dots = candidates.map { OcrEmphasisDot(it.component.centerX, it.main.top.toFloat(), it.main.bottom.toFloat()) }
         if (candidates.size < MIN_DOTS_PER_EMPHASIS_ROW) {
-            return Result(pixels, maskedComponents = 0, maskedRows = 0, components = components)
+            return Result(pixels, maskedComponents = 0, maskedRows = 0, components = components, emphasisDots = dots)
         }
 
         val emphasisRows = candidateRows(candidates)
             .flatMap(::trustedRuns)
             .filter { it.size >= MIN_DOTS_PER_EMPHASIS_ROW }
         if (emphasisRows.isEmpty()) {
-            return Result(pixels, maskedComponents = 0, maskedRows = 0, components = components)
+            return Result(pixels, maskedComponents = 0, maskedRows = 0, components = components, emphasisDots = dots)
         }
 
         val emphasisComponents = emphasisRows
@@ -94,8 +96,50 @@ internal object DialogueAnnotationCleaner {
             pixels = cleaned,
             maskedComponents = emphasisComponents.size,
             maskedRows = emphasisRows.size,
-            components = components.filterNot { it in masked }
+            components = components.filterNot { it in masked },
+            emphasisDots = verifiedEmphasisDots(emphasisRows, candidates, components, foreground, width, height)
         )
+    }
+
+    /**
+     * Reuse confirmed row geometry for display metadata. A short kana such as つ can have much
+     * less ink below its dot than a kanji; it must not lose its annotation for that reason.
+     * This does not widen the existing masking rule or introduce another recognition pass.
+     */
+    private fun verifiedEmphasisDots(
+        runs: List<List<DotCandidate>>, candidates: List<DotCandidate>, components: List<Component>,
+        foreground: BooleanArray, width: Int, height: Int
+    ): List<OcrEmphasisDot> {
+        val verified = mutableMapOf<Component,OcrEmphasisDot>()
+        for (run in runs) {
+            val rowTop = run.minOf { it.main.top }
+            val rowBottom = run.maxOf { it.main.bottom }
+            val side = run.map { max(it.component.width,it.component.height) }.sorted().let { it[it.size/2] }
+            val centerY = run.map { it.component.centerY }.average().toFloat()
+            val sorted = run.sortedBy { it.component.centerX }
+            val gaps = sorted.zipWithNext { a,b -> b.component.centerX-a.component.centerX }.sorted()
+            val step = gaps[gaps.size/2]
+            for (component in components) {
+                if (!component.isDotCandidate(max(MIN_DOT_SIDE,(height*MAX_DOT_SIDE_HEIGHT_RATIO).roundToInt())) ||
+                    max(component.width,component.height).toFloat() !in (side*.65f)..(side*1.5f) ||
+                    abs(component.centerY-centerY)>max(2f,side*.4f) ||
+                    component.centerX < sorted.first().component.centerX-step*1.15f ||
+                    component.centerX > sorted.last().component.centerX+step*1.15f) continue
+                val phase = (component.centerX-sorted.first().component.centerX)/step
+                if (abs(phase-phase.roundToInt())>.2f) continue
+                val left=(component.centerX-side*2).toInt().coerceAtLeast(0)
+                val right=(component.centerX+side*2).roundToInt().coerceAtMost(width)
+                var ink=0
+                for (y in rowTop until rowBottom) ink+=foregroundCount(foreground,width,left,right,y)
+                if (ink<component.pixelCount || hasSurroundingRubyInk(component,
+                        MainEvidence(rowTop,rowBottom,ink),foreground,width,height)) continue
+                verified[component]=OcrEmphasisDot(component.centerX,rowTop.toFloat(),rowBottom.toFloat(),
+                    rowTop.toFloat(),rowBottom.toFloat())
+            }
+        }
+        return candidates.filterNot { it.component in verified }.map {
+            OcrEmphasisDot(it.component.centerX,it.main.top.toFloat(),it.main.bottom.toFloat())
+        } + verified.values
     }
 
     /** Inspect only a small upper-band neighbourhood, reusing the original foreground mask. */

@@ -1,5 +1,6 @@
 package com.fgogotran.ocr
 
+import com.fgogotran.text.EmphasisRange
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
@@ -27,7 +28,8 @@ data class OcrTextLine(
     // Only the fixed JP dialogue path supplies row ownership and character positions.
     val dialogueRow: Int? = null,
     val isDialogueRuby: Boolean = false,
-    val characterPositions: List<OcrCharacterPosition> = emptyList()
+    val characterPositions: List<OcrCharacterPosition> = emptyList(),
+    val emphasisRanges: List<EmphasisRange> = emptyList()
 )
 
 data class OcrCharacterPosition(val text: String, val centerX: Float)
