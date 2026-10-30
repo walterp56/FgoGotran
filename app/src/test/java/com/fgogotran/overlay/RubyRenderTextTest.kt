@@ -108,7 +108,7 @@ class RubyRenderTextTest {
     }
 
     @Test fun `malformed orphan and empty markers retain their visible content`() {
-        listOf("〈讀音〉", "本文〈〉", "本文〈 〉", "本文〈讀音", "本文〈外〈內〉〉", "本文 〈讀音〉").forEach {
+        listOf("〈讀音〉", "本文〈〉", "本文〈 〉", "本文〈讀音", "本文〈外〈內〉〉").forEach {
             assertEquals(it, RubyRenderText.body(it))
         }
     }
@@ -130,4 +130,123 @@ class RubyRenderTextTest {
         }
         assertEquals("𠮷〈よし〉とCafé〈カフェ〉", parsed.annotate(parsed.body))
     }
+
+    @Test fun `reported English dialogue keeps Olga Marie above her with normal word spacing`() {
+        val source = "After I saw her 〈Olga Marie〉 vanish into the dimensional hole,\n" +
+            "I wondered what would become of me when I lost consciousness."
+        val parsed = RubyRenderText.parse(source)
+        assertEquals(source.replace("her 〈Olga Marie〉", "her"), parsed.body)
+        assertEquals("her", parsed.base())
+        assertEquals("Olga Marie", parsed.annotations.single().reading)
+        assertEquals(source.replace("her 〈", "her〈"), parsed.annotate(parsed.body))
+        assertEquals(parsed.body, parsed.applyEdits(source))
+    }
+
+    @Test fun `horizontal Unicode separators before and after ruby cannot leave it inline`() {
+        for (gap in listOf("", " ", "  ", "\t", "\u3000", "\u00a0", "\u202f", "\u2009", "\u200b", "\u2060", "\ufeff")) {
+            val source = "After her${gap}〈Olga Marie〉 vanish."
+            val parsed = RubyRenderText.parse(source)
+            assertEquals("After her vanish.", parsed.body, gap.toCharArray().contentToString())
+            assertEquals("her", parsed.base())
+            assertEquals("Olga Marie", parsed.annotations.single().reading)
+            assertEquals(parsed.body, parsed.applyEdits(source))
+        }
+    }
+
+    @Test fun `a separator before ruby still separates following English words without a second space`() {
+        val parsed = RubyRenderText.parse("her  〈Olga Marie〉vanishes")
+        assertEquals("her vanishes", parsed.body)
+        assertEquals("her", parsed.base())
+        assertEquals("her〈Olga Marie〉 vanishes", parsed.annotate(parsed.body))
+    }
+
+    @Test fun `Chinese ruby separator whitespace closes naturally without changing its inferred base`() {
+        for (gap in listOf("", " ", "  ", "\t", "\u3000", "\u00a0")) {
+            val source = "我們回到觀星臺${gap}〈迦勒底〉${gap}吧。"
+            val parsed = RubyRenderText.parse(source)
+            assertEquals("我們回到觀星臺吧。", parsed.body)
+            assertEquals("觀星臺", parsed.base())
+            assertEquals(parsed.body, parsed.applyEdits(source))
+        }
+    }
+
+    @Test fun `punctuation and newlines retain their place after removing ruby separators`() {
+        for ((source, expected) in listOf("her 〈Olga Marie〉 ," to "her,",
+            "她 〈奧爾加瑪麗〉 ，" to "她，", "Spell 〈Sirius Light〉 。" to "Spell。",
+            "her 〈Olga Marie〉\nNext" to "her\nNext", "her 〈Olga Marie〉 “Next”" to "her “Next”")) {
+            val parsed = RubyRenderText.parse(source)
+            assertEquals(expected, parsed.body)
+            assertEquals(parsed.body, parsed.applyEdits(source))
+        }
+    }
+
+    @Test fun `repeated words and several spaced readings keep independent source edits and owners`() {
+        val source = "her 〈Olga Marie〉 and her　〈Another Name〉."
+        val parsed = RubyRenderText.parse(source)
+        assertEquals("her and her.", parsed.body)
+        assertEquals(listOf("her", "her"), parsed.annotations.map { parsed.body.substring(it.start, it.end) })
+        assertEquals(listOf("Olga Marie", "Another Name"), parsed.annotations.map { it.reading })
+        assertEquals(parsed.body, parsed.applyEdits(source))
+        assertTrue(parsed.edits.zipWithNext().all { (a,b) -> a.end <= b.start })
+    }
+
+    @Test fun `English base boundaries preserve curly contractions compounds and accented graphemes`() {
+        for (word in listOf("Master’s", "spirit-like", "Café", "Cafe\u0301", "Urðr", "𠮷")) {
+            val parsed = RubyRenderText.parse("Before $word 〈reading words〉 after")
+            assertEquals(word, parsed.base(), word)
+            val annotation = parsed.annotations.single()
+            assertFalse(Character.isLowSurrogate(parsed.body[annotation.start]))
+            assertFalse(Character.isHighSurrogate(parsed.body[annotation.end - 1]))
+        }
+        assertEquals("Spell", RubyRenderText.parse("The Great Command Spell 〈Sirius Light〉.").base())
+    }
+
+    @Test fun `orphan malformed and cross line readings remain literal`() {
+        for (source in listOf("　〈name〉", "her\n〈Olga Marie〉", "her\r\n 〈Olga Marie〉",
+            "her\u2028〈Olga Marie〉", "her. 〈Olga Marie〉", "her 〈〉", "her 〈Olga\nMarie〉")) {
+            val parsed = RubyRenderText.parse(source)
+            assertEquals(source, parsed.body)
+            assertTrue(parsed.annotations.isEmpty())
+            assertTrue(parsed.edits.isEmpty())
+        }
+    }
+
+    @Test fun `a second reading without a new base cannot reuse the previous owner or crash`() {
+        val parsed = RubyRenderText.parse("her〈Olga Marie〉〈another〉")
+        assertEquals("her〈another〉", parsed.body)
+        assertEquals("her", parsed.base())
+        assertEquals("Olga Marie", parsed.annotations.single().reading)
+    }
+
+    @Test fun `whitespace edits preserve later word dot offsets and ruby wins the overlapping base`() {
+        val source = "her 〈Olga Marie〉 is the real reason."
+        val start = source.indexOf("real")
+        val packed = com.fgogotran.text.EmphasisText.encode(source,
+            listOf(com.fgogotran.text.EmphasisRange(start, start + "real reason".length)))
+        val parsed = RubyRenderText.parse(packed)
+        assertEquals("her is the real reason.", parsed.body)
+        assertEquals(listOf("real", "reason"), parsed.annotations.filter { it.emphasis }
+            .map { parsed.body.substring(it.start, it.end) })
+        assertEquals("her", parsed.base())
+    }
+
+    @Test fun `normalized reading survives wrapping and cannot attach to a truncated base`() {
+        val parsed = RubyRenderText.parse("The Great Command Spell 〈Sirius Light〉 appears.")
+        assertEquals(listOf("The Great Command", "Spell〈Sirius Light〉 appears."),
+            parsed.annotateLines(listOf("The Great Command", "Spell appears.")))
+        assertEquals("The Great Command Sp…", parsed.annotate("The Great Command Sp…"))
+    }
+
+    @Test fun `bilingual original mode never normalizes ruby spaces or introduces display edits`() {
+        val source = "星見台 〈カルデア〉 と her　〈Olga Marie〉"
+        val inline = RubyRenderText.parse(source, RubyRenderText.Mode.INLINE)
+        assertEquals(source, inline.body)
+        assertTrue(inline.annotations.isEmpty())
+        assertTrue(inline.edits.isEmpty())
+    }
+
+    private fun RubyRenderText.Text.base() = annotations.single { !it.emphasis }.let { body.substring(it.start, it.end) }
+    private fun RubyRenderText.Text.applyEdits(source: String) = StringBuilder(source).apply {
+        edits.asReversed().forEach { replace(it.start, it.end, it.replacement) }
+    }.toString()
 }

@@ -146,7 +146,7 @@ internal object RubyTextPainter {
         }
     }
 
-    /** Each dot is a font-independent circle centered in its shaped character cell. */
+    /** Each dot is a font-independent circle centered over its shaped character or Latin word. */
     private fun planDot(paint: Paint, body: String, annotation: RubyRenderText.Annotation,
                         x: Float, baseline: Float, bounds: RectF, minimumTop: Float, gap: Float): PlannedAnnotation? {
         val diameter = paint.textSize * DOT_DIAMETER_RATIO

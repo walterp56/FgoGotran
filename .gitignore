@@ -320,3 +320,4 @@ app/src/test/resources/ocr/*
 !app/src/test/java/com/fgogotran/ocr/MlKitOcrProviderTest.kt
 !app/src/test/resources/ocr/jp-ruby-reference.png
 !app/src/test/java/com/fgogotran/overlay/TranslationOverlayControlsTest.kt
+!app/src/test/java/com/fgogotran/overlay/RubySpacingGraphicsTest.kt

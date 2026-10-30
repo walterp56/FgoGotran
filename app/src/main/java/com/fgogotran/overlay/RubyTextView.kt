@@ -34,8 +34,8 @@ internal class RubyTextView(context: Context) : TextView(context) {
         ruby = RubyRenderText.parse(value.toString())
         val display = SpannableStringBuilder(value)
         EmphasisText.controlOffsets(value.toString()).asReversed().forEach { display.delete(it, it + 1) }
-        ruby.markers.asReversed().forEach { display.delete(it.start, it.end) }
-        // Deletion adjusts existing quote/colour spans rather than flattening their styling.
+        ruby.edits.asReversed().forEach { display.replace(it.start, it.end, it.replacement) }
+        // The same source edits produce ruby.body and preserve existing quote/colour spans.
         text = display
     }
 

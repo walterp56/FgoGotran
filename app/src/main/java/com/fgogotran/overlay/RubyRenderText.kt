@@ -12,11 +12,14 @@ internal object RubyRenderText {
 
     data class Annotation(val start: Int, val end: Int, val reading: String, val emphasis: Boolean = false)
     data class Marker(val start: Int, val end: Int)
+    /** Edits use decoded source offsets, so styled history can apply exactly the same cleanup. */
+    data class Edit(val start: Int, val end: Int, val replacement: String = "")
 
     data class Text(
         val body: String,
         val annotations: List<Annotation> = emptyList(),
-        val markers: List<Marker> = emptyList()
+        val markers: List<Marker> = emptyList(),
+        val edits: List<Edit> = emptyList()
     ) {
         /** Reattach annotations after wrapping/spacing/ellipsis, without putting them in body width. */
         fun annotate(displayBody: String): String {
@@ -51,6 +54,9 @@ internal object RubyRenderText {
     }
 
     private val marker = Regex("〈([^〈〉\\r\\n]+)〉")
+    // Keep English contractions/compound words together, without merging adjacent CJK glyphs.
+    private val latinWord = Regex("[\\p{IsLatin}\\p{Nd}][\\p{IsLatin}\\p{M}\\p{Nd}]*" +
+        "(?:['’\u2010\u2011-][\\p{IsLatin}\\p{Nd}][\\p{IsLatin}\\p{M}\\p{Nd}]*)*")
     private val cache = object : LinkedHashMap<String, Text>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Text>?): Boolean = size > 128
     }
@@ -87,25 +93,51 @@ internal object RubyRenderText {
         val body = StringBuilder()
         val annotations = mutableListOf<Annotation>()
         val markers = mutableListOf<Marker>()
+        val edits = mutableListOf<Edit>()
         var cursor = 0
         marker.findAll(value).forEach { match ->
             body.append(value, cursor, match.range.first)
             val reading = match.groupValues[1].trim()
-            val end = body.length
+            // Whitespace adjacent to the notation is a separator, not part of the base.
+            // Never cross a real line/paragraph boundary to find an orphan reading's owner.
+            var end = body.length
+            while (end > 0 && isHorizontalSpace(body[end - 1])) end--
             val previous = if (end > 0) Character.codePointBefore(body, end) else -1
             val unmatchedOpening = body.lastIndexOf("〈") > body.lastIndexOf("〉")
-            if (reading.isEmpty() || previous < 0 || !isWordPart(previous) || unmatchedOpening) {
+            val floor = annotations.lastOrNull()?.end ?: 0
+            if (reading.isEmpty() || previous < 0 || !isWordPart(previous) || unmatchedOpening || end <= floor) {
                 body.append(match.value)
+                cursor = match.range.last + 1
             } else {
-                val start = inferBaseStart(body.toString(), end, annotations.lastOrNull()?.end ?: 0)
+                val start = inferBaseStart(body.toString(), end, floor)
+                val editStart = match.range.first - (body.length - end)
+                var editEnd = match.range.last + 1
+                val hadLeadingSpace = editStart < match.range.first
+                // A tight marker is already valid: preserve following layout padding exactly.
+                // RubySpanSpacing deliberately inserts spaces before the next annotated base.
+                if (hadLeadingSpace) {
+                    while (editEnd < value.length && isHorizontalSpace(value[editEnd])) editEnd++
+                }
+                val gap = if (hadLeadingSpace && needsWordGap(body, end, value, editEnd)) " " else ""
+                body.setLength(end)
                 annotations += Annotation(start, end, reading)
                 markers += Marker(match.range.first, match.range.last + 1)
+                edits += Edit(editStart, editEnd, gap)
+                body.append(gap)
+                cursor = editEnd
             }
-            cursor = match.range.last + 1
         }
         body.append(value, cursor, value.length)
         val visible = body.toString()
-        fun shifted(offset: Int): Int = offset - markers.filter { it.end <= offset }.sumOf { it.end - it.start }
+        fun shifted(offset: Int): Int {
+            var delta = 0
+            for (edit in edits) {
+                if (offset <= edit.start) break
+                if (offset < edit.end) return edit.start + delta + edit.replacement.length
+                delta += edit.replacement.length - (edit.end - edit.start)
+            }
+            return offset + delta
+        }
         val ranges = emphasized.ranges.filter { range -> markers.none { range.start < it.end && range.endExclusive > it.start } }
             .map { EmphasisRange(shifted(it.start), shifted(it.endExclusive)) }
         val iterator = BreakIterator.getCharacterInstance(Locale.ROOT).apply { setText(visible) }
@@ -118,10 +150,31 @@ internal object RubyRenderText {
                 annotations.none { start < it.end && end > it.start }) dots += Annotation(start,end,"•",emphasis=true)
             start=end; end=iterator.next()
         }
-        return Text(visible, (annotations + dots).sortedBy { it.start }, markers)
+        // Latin-script words are one display unit: even separate marked letter ranges in the
+        // same word produce only one centered dot. Other scripts retain per-grapheme dots.
+        val wordDots = latinWord.findAll(visible).mapNotNull { match ->
+            if (match.value.codePoints().noneMatch { Character.UnicodeScript.of(it) == Character.UnicodeScript.LATIN }) {
+                return@mapNotNull null
+            }
+            val wordStart = match.range.first
+            val wordEnd = match.range.last + 1
+            if (dots.none { it.start >= wordStart && it.end <= wordEnd } ||
+                annotations.any { wordStart < it.end && wordEnd > it.start }) return@mapNotNull null
+            Annotation(wordStart, wordEnd, "•", emphasis = true)
+        }.toList()
+        val characterDots = dots.filterNot { dot -> wordDots.any { dot.start >= it.start && dot.end <= it.end } }
+        return Text(visible, (annotations + characterDots + wordDots).sortedBy { it.start }, markers, edits)
     }
 
     private fun inferBaseStart(text: String, end: Int, floor: Int): Int {
+        // A final Latin token has explicit word boundaries, including curly apostrophes,
+        // compounds and combining accents. Do not let it consume an earlier word/CJK phrase.
+        latinWord.findAll(text.substring(floor, end)).lastOrNull()?.let { word ->
+            if (word.range.last + 1 == end - floor &&
+                word.value.codePoints().anyMatch { Character.UnicodeScript.of(it) == Character.UnicodeScript.LATIN }) {
+                return floor + word.range.first
+            }
+        }
         var runStart = end
         while (runStart > floor) {
             val cp = Character.codePointBefore(text, runStart)
@@ -151,6 +204,26 @@ internal object RubyRenderText {
 
     private fun isWordPart(cp: Int): Boolean = Character.isLetterOrDigit(cp) ||
         Character.getType(cp) in setOf(Character.NON_SPACING_MARK.toInt(), Character.COMBINING_SPACING_MARK.toInt())
+
+    private fun isHorizontalSpace(char: Char): Boolean = char == '\t' ||
+        Character.getType(char) == Character.SPACE_SEPARATOR.toInt() ||
+        char == '\u200b' || char == '\u2060' || char == '\ufeff'
+
+    private fun needsWordGap(before: CharSequence, end: Int, after: String, next: Int): Boolean {
+        if (next >= after.length) return false
+        var previousEnd = end
+        var previous = Character.codePointBefore(before, previousEnd)
+        while (previousEnd > 0 && Character.getType(previous) in setOf(
+                Character.NON_SPACING_MARK.toInt(), Character.COMBINING_SPACING_MARK.toInt())) {
+            previousEnd -= Character.charCount(previous)
+            if (previousEnd == 0) return false
+            previous = Character.codePointBefore(before, previousEnd)
+        }
+        val following = after.codePointAt(next)
+        fun latinOrNumber(cp: Int) = Character.UnicodeScript.of(cp) == Character.UnicodeScript.LATIN || Character.isDigit(cp)
+        return (isWordPart(following) && (latinOrNumber(previous) || latinOrNumber(following))) ||
+            (latinOrNumber(previous) && following <= Char.MAX_VALUE.code && following.toChar() in "\"'“‘([{「『")
+    }
 
     private fun meaningfulOffsets(text: String): List<Int> = buildList {
         var offset = 0

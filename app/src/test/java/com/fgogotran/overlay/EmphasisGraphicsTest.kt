@@ -74,7 +74,7 @@ class EmphasisGraphicsTest {
         image.recycle()
     }
 
-    @Test fun `each shaped character has one centered proportional dot in actual story fonts`() {
+    @Test fun `each CJK character and Latin word has one centered proportional dot in actual story fonts`() {
         val image=Bitmap.createBitmap(1600,640,Bitmap.Config.ARGB_8888)
         val canvas=Canvas(image).apply { drawColor(Color.rgb(27,48,78)) }
         val cases=listOf("這才是真正的理由。","我们回迦勒底吧。","This is the real reason.","Wi, Adio\u0301s!")
@@ -90,6 +90,7 @@ class EmphasisGraphicsTest {
             val x=60f;val y=100f+145f*row
             val planned=assertNotNull(RubyTextPainter.planExact(paint,parsed,x,y,RectF(24f,24f,1576f,630f),24f,paint.textSize*.1f))
             assertEquals(parsed.annotations.size,planned.size)
+            assertEquals(if(row<2) body.count { it.isLetterOrDigit() } else if(row==2) 5 else 2,planned.size)
             assertTrue(planned.map { it.baseline }.distinct().size <= 1, "Dots must share one horizontal band")
             for ((annotation,dot) in parsed.annotations.zip(planned)) {
                 val left=x+paint.getRunAdvance(body,0,body.length,0,body.length,false,annotation.start)
@@ -105,7 +106,7 @@ class EmphasisGraphicsTest {
             canvas.drawText(body,x,y,paint)
             RubyTextPainter.drawPlanned(canvas,paint,planned,paint.color,1f)
         }
-        assertTrue(verified>40)
+        assertTrue(verified>20)
         val directory=File(root,"app/build/reports/emphasis-eval").apply { mkdirs() }
         File(directory,"actual-fonts.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG,100,it) }
         image.recycle()
@@ -123,6 +124,49 @@ class EmphasisGraphicsTest {
         }
         paint.textSize=60f
         assertNull(RubyTextPainter.planExact(paint,parsed,10f,20f,RectF(0f,0f,1000f,200f),0f,6f))
+    }
+
+    @Test fun `world has one centered visible dot and playback waits for the whole word`() {
+        val field=FgoTypefaceProvider::class.java.getDeclaredField("cachedEnglishTypeface").apply { isAccessible=true }
+        val previous=field.get(null)
+        field.set(null,Typeface.createFromFile(File(root,"app/src/main/assets/fonts/FgoStory_en.ttf")))
+        val source=Bitmap.createBitmap(1920,1080,Bitmap.Config.ARGB_8888)
+        try {
+            val region=ClassifiedRegion(TextRegion.DIALOGUE_BOX,emptyList(),Rect(35,830,1805,1055),
+                com.fgogotran.ocr.OcrEngineId.PADDLE_OCR)
+            val instruction=RenderInstruction(region,"world.\nKeep going.",targetLocale="en",
+                emphasisRanges=listOf(EmphasisRange(0,5)))
+            OverlayRenderer(RuntimeEnvironment.getApplication()).prepareDialoguePlayback(source,listOf(instruction),
+                DialoguePlaybackSettings(DialogueTextSpeed.NORMAL,1)).use { frame ->
+                val row=frame.panels.single().rows.first()
+                assertEquals("world.",row.text)
+                val reading=row.readings.single()
+                assertEquals(5,reading.end)
+                val wordAdvance=row.advances[row.ends.indexOf(5)]
+                val glyphs=IntArray(reading.layer.bitmap.width*reading.layer.bitmap.height)
+                reading.layer.bitmap.getPixels(glyphs,0,reading.layer.bitmap.width,0,0,
+                    reading.layer.bitmap.width,reading.layer.bitmap.height)
+                val bright=glyphs.indices.filter { Color.alpha(glyphs[it])>220 && Color.red(glyphs[it])>220 }
+                assertTrue(bright.isNotEmpty(),"No visible word dot")
+                val centerX=bright.map { it%reading.layer.bitmap.width }.average()+reading.layer.left
+                assertEquals((row.x+wordAdvance/2f).toDouble(),centerX,1.5,"Word dot is not centered")
+                val point=bright[bright.size/2]
+                val px=reading.layer.left+point%reading.layer.bitmap.width
+                val py=reading.layer.top+point/reading.layer.bitmap.width
+                val partial=frame.bitmap.copy(Bitmap.Config.ARGB_8888,true)
+                val completed=frame.bitmap.copy(Bitmap.Config.ARGB_8888,true)
+                try {
+                    frame.drawReveal(Canvas(partial),3)
+                    frame.drawReveal(Canvas(completed),5)
+                    assertTrue(Color.red(partial.getPixel(px,py))<150,"Dot appeared before world finished")
+                    assertTrue(Color.red(completed.getPixel(px,py))>220,"Complete word lost its dot")
+                    val directory=File(root,"app/build/reports/emphasis-eval").apply { mkdirs() }
+                    File(directory,"english-word-dot.png").outputStream().use {
+                        frame.bitmap.compress(Bitmap.CompressFormat.PNG,100,it)
+                    }
+                } finally { partial.recycle();completed.recycle() }
+            }
+        } finally { source.recycle();field.set(null,previous) }
     }
 
     @Test fun `reported missing dot translations render every marked character across both rows`() {
@@ -153,7 +197,7 @@ class EmphasisGraphicsTest {
         } finally { source.recycle();field.set(null,previous) }
     }
 
-    @Test fun `actual mono and bilingual dialogue retain body positions and reveal dots per character`() {
+    @Test fun `actual mono and bilingual dialogue retain body positions and reveal dots by script unit`() {
         val provider=FgoTypefaceProvider::class.java
         val fontFields=listOf("cachedSimplifiedTypeface" to "FgoStory.ttf",
             "cachedTraditionalTypeface" to "FgoStory_td.otf","cachedEnglishTypeface" to "FgoStory_en.ttf")
@@ -189,7 +233,7 @@ class EmphasisGraphicsTest {
                             "$target/$bilingual: circle cover escaped the reserved band")
                         assertEquals(before.rows.map { it.layer.top to it.x },after.rows.map { it.layer.top to it.x },"$target/$bilingual")
                         assertEquals(text.filterNot(Char::isWhitespace),after.rows.joinToString("") { it.text }.filterNot(Char::isWhitespace))
-                        assertEquals(word.count { it.isLetterOrDigit() },after.rows.sumOf { it.readings.size })
+                        assertEquals(if(target=="en") 2 else word.count { it.isLetterOrDigit() },after.rows.sumOf { it.readings.size })
                         assertTrue(after.originalRows.all { it.readings.isEmpty() })
                         assertTrue(after.rows.flatMap { it.readings }.map { it.end }.distinct().size>1)
                         val directory=File(root,"app/build/reports/emphasis-eval").apply { mkdirs() }
