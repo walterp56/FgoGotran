@@ -2,6 +2,7 @@ package com.fgogotran.ocr
 
 import android.graphics.Bitmap
 import android.graphics.Rect
+import com.fgogotran.text.EmphasisText
 import com.fgogotran.util.FgoLogger
 
 /** One captured pixel array/component analysis for a shared crop or a single-button retry. */
@@ -33,7 +34,12 @@ internal class ChoiceOcrContext private constructor(
                 "unresolved=${recovery.unresolvedSourceIndices.size}, positionRetries=0")
         }
         val lines = recovery.lines.map { line ->
-            OcrTextLine(line.text, Rect(line.bounds.left, line.bounds.top, line.bounds.right, line.bounds.bottom), line.confidence)
+            val original = result.lines.getOrNull(line.sourceIndex)
+            val bounds = Rect(line.bounds.left, line.bounds.top, line.bounds.right, line.bounds.bottom)
+            original?.copy(text = line.text, boundingBox = bounds, confidence = line.confidence,
+                emphasisRanges = EmphasisText.remap(original.text, line.text, original.emphasisRanges),
+                characterPositions = original.characterPositions.takeIf { original.text == line.text }.orEmpty())
+                ?: OcrTextLine(line.text, bounds, line.confidence)
         }
         return result.copy(lines = lines, fullText = lines.joinToString("\n") { it.text })
     }

@@ -11,6 +11,24 @@ import kotlin.test.assertTrue
  */
 class OverlayConfigurationWorkflowTest {
     @Test
+    fun `menu and history yield translation input before adding a modal window and release on dismiss or failure`() {
+        val runner=source("runner/FgoRunnerOverlay.kt")
+        for ((show,dismiss,flag) in listOf(Triple("showArcMenu","dismissMenu","setMenuVisible"),
+            Triple("showHistoryPanel","dismissHistoryPanel","setHistoryVisible"))) {
+            val open=function(runner,show)
+            val sync=open.indexOf("syncTranslatedOverlayControls()",open.indexOf("$flag(true)"))
+            assertTrue(sync>=0 && sync<open.indexOf("wm.addView("),show)
+            val failure=open.substringAfter("catch (e: Exception)")
+            assertTrue(failure.contains("$flag(false)"),show)
+            assertTrue(failure.contains("syncTranslatedOverlayControls()"),show)
+            val close=function(runner,dismiss)
+            assertTrue(close.contains("$flag(false)"),dismiss)
+            assertTrue(close.contains("syncTranslatedOverlayControls()"),dismiss)
+        }
+        assertTrue(function(runner,"syncTranslatedOverlayControls").contains(
+            "translationOverlay.setControlsVisible(TranslationTrigger.isUiBlockingOcr())"))
+    }
+    @Test
     fun `runner refresh key covers language density and font but not game scaling`() {
         val runner = source("runner/FgoRunnerOverlay.kt")
         val key = runner.substringAfter("private data class OverlayUiConfiguration(")

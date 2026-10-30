@@ -64,7 +64,24 @@ internal class MlKitOcrProvider(
         }
     }
 
-    override suspend fun recognize(bitmap: Bitmap): OcrResult {
+    override suspend fun recognize(bitmap: Bitmap): OcrResult = recognize(bitmap, OcrContentKind.GENERAL)
+
+    override suspend fun recognize(bitmap: Bitmap, contentKind: OcrContentKind): OcrResult =
+        recognizeWithAnnotations(bitmap, contentKind)
+
+    override suspend fun recognizeChoices(bitmap: Bitmap, buttons: List<Rect>): OcrResult {
+        val context = ChoiceOcrContext.create(bitmap, buttons)
+        val prepared = context.recognitionBitmap(bitmap)
+        return try {
+            context.recover(recognizeWithAnnotations(prepared, OcrContentKind.CHOICE, context.emphasisDots))
+        } finally {
+            if (prepared !== bitmap && !prepared.isRecycled) prepared.recycle()
+        }
+    }
+
+    private suspend fun recognizeWithAnnotations(
+        bitmap: Bitmap, contentKind: OcrContentKind, choiceDots: List<OcrEmphasisDot> = emptyList()
+    ): OcrResult {
         val startTime = System.currentTimeMillis()
         FgoLogger.debug(tag, "${script.displayName} starting on ${bitmap.width}x${bitmap.height}")
 
@@ -85,6 +102,16 @@ internal class MlKitOcrProvider(
         val image = InputImage.fromBitmap(bitmap, 0)
         val result = recognizer.processSuspending(image)
         val rawLines = result.getTextBlocks().flatMap { block -> block.getLines() }
+        // Read the original pixels after recognition: this adds metadata, never changes ML Kit's
+        // input pixels/recognized words, and makes no second model call.
+        val dots = if (contentKind == OcrContentKind.DIALOGUE || contentKind == OcrContentKind.FIXED_JP_DIALOGUE)
+            MlKitEmphasisInput.dots(bitmap) else choiceDots
+        val symbols = if (dots.isEmpty()) emptyList() else rawLines.flatMap { line ->
+            line.getElements().flatMap { element -> element.getSymbols().mapNotNull { symbol ->
+                val box = symbol.getBoundingBox() ?: return@mapNotNull null
+                MlKitEmphasis.Symbol(symbol.getText(), box.left, box.top, box.right, box.bottom)
+            } }
+        }
         val (lines, fullText) = if (solidMaskRows.isEmpty()) {
             rawLines.map { line ->
                 OcrTextLine(
@@ -121,6 +148,14 @@ internal class MlKitOcrProvider(
             recoveredLines to recoveredFullText
         }
 
+        val annotatedLines = if (dots.isEmpty()) lines else lines.map { line ->
+            val bounds = line.boundingBox
+            line.copy(emphasisRanges = MlKitEmphasis.ranges(line.text, bounds.left, bounds.top,
+                bounds.right, bounds.bottom, symbols, dots))
+        }
+        if (dots.isNotEmpty()) FgoLogger.debug(tag, "${script.displayName} emphasis: dots=${dots.size}, " +
+            "symbols=${symbols.size}, ranges=${annotatedLines.sumOf { it.emphasisRanges.size }}, extraModelRuns=0")
+
         val elapsed = System.currentTimeMillis() - startTime
         if (lines.isEmpty()) {
             FgoLogger.warn(tag, "${script.displayName} returned 0 text lines after ${elapsed}ms")
@@ -132,7 +167,7 @@ internal class MlKitOcrProvider(
         }
 
         return OcrResult(
-            lines = lines,
+            lines = annotatedLines,
             fullText = fullText,
             engine = script.engineId
         )

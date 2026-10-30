@@ -26,6 +26,7 @@ import com.fgogotran.crop.CropSelectionOverlay
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.localization.AppLanguageManager
+import com.fgogotran.overlay.TranslationOverlay
 import com.fgogotran.translation.TranslationMode
 import com.fgogotran.translation.TranslationTrigger
 import com.fgogotran.ui.overlay.FloatingButton
@@ -73,7 +74,8 @@ class FgoRunnerOverlay @Inject constructor(
     private val cropSelectionOverlay: CropSelectionOverlay,
     private val settingsRepository: SettingsRepository,
     private val ocrWorkflowState: ScreenOcrWorkflowState,
-    private val diagnosticEventStore: DiagnosticEventStore
+    private val diagnosticEventStore: DiagnosticEventStore,
+    private val translationOverlay: TranslationOverlay
 ) {
     private var windowManager: WindowManager? = null
     private var composeHost: FakeComposeHost? = null
@@ -863,6 +865,7 @@ class FgoRunnerOverlay @Inject constructor(
         val wm = windowManager ?: return
         dismissMenu()
         TranslationTrigger.setMenuVisible(true)
+        syncTranslatedOverlayControls()
 
         val buttonSizePx = currentButtonSizePx()
         val centerX = btnX + buttonSizePx / 2
@@ -938,6 +941,7 @@ class FgoRunnerOverlay @Inject constructor(
             host.close()
             floatingMenuHost = null
             TranslationTrigger.setMenuVisible(false)
+            syncTranslatedOverlayControls()
             FgoLogger.warn(tag, "Failed to show arc menu", e)
             return
         }
@@ -952,6 +956,7 @@ class FgoRunnerOverlay @Inject constructor(
         }
         floatingMenuHost = null
         TranslationTrigger.setMenuVisible(false)
+        syncTranslatedOverlayControls()
     }
 
     private fun requestClose() {
@@ -1067,6 +1072,7 @@ class FgoRunnerOverlay @Inject constructor(
         val wm = windowManager ?: return
         dismissHistoryPanel()
         TranslationTrigger.setHistoryVisible(true)
+        syncTranslatedOverlayControls()
 
         historyHost = FakeComposeHost(context) {
             HistoryOverlayPanel(onDismiss = { dismissHistoryPanel() })
@@ -1077,6 +1083,7 @@ class FgoRunnerOverlay @Inject constructor(
             historyHost?.close()
             historyHost = null
             TranslationTrigger.setHistoryVisible(false)
+            syncTranslatedOverlayControls()
             FgoLogger.warn(tag, "Failed to show history panel", e)
             return
         }
@@ -1091,6 +1098,11 @@ class FgoRunnerOverlay @Inject constructor(
         }
         historyHost = null
         TranslationTrigger.setHistoryVisible(false)
+        syncTranslatedOverlayControls()
+    }
+
+    private fun syncTranslatedOverlayControls() {
+        translationOverlay.setControlsVisible(TranslationTrigger.isUiBlockingOcr())
     }
 
 }

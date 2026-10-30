@@ -25,7 +25,7 @@ data class OcrTextLine(
     val confidence: Float,
     // Choice-only provenance: the formatter must not rejoin independent recovered groups.
     val isRecoveredRubyGroup: Boolean = false,
-    // Only the fixed JP dialogue path supplies row ownership and character positions.
+    // Fixed Paddle JP dialogue supplies row ownership; providers may retain character anchors.
     val dialogueRow: Int? = null,
     val isDialogueRuby: Boolean = false,
     val characterPositions: List<OcrCharacterPosition> = emptyList(),

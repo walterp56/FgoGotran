@@ -43,6 +43,8 @@ class TranslationOverlay @Inject constructor(
     private var overlayView: DialoguePlaybackView? = null
     private var isOverlayShowing = false
     private var overlayTouchable = true
+    private var requestedOverlayTouchable = true
+    private var controlsVisible = false
     private var screenWidth = 0
     private var screenHeight = 0
     private var latestTranslatedBitmap: Bitmap? = null
@@ -151,6 +153,7 @@ class TranslationOverlay @Inject constructor(
         showOrUpdateTranslatedImage(frame.bitmap)
         if (!isOverlayShowing || latestTranslatedBitmap !== frame.bitmap) return false
         overlayView?.startPlayback(frame)
+        if (!overlayTouchable) overlayView?.pausePlayback()
         return true
     }
 
@@ -175,7 +178,7 @@ class TranslationOverlay @Inject constructor(
             it.visibility = View.VISIBLE
             it.alpha = 1f
             isOverlayShowing = true
-            it.resumePlayback()
+            if (overlayTouchable) it.resumePlayback() else it.pausePlayback()
             FgoLogger.info(tag, "Showing translated image: ${bitmap.width}x${bitmap.height}")
             return
         }
@@ -186,6 +189,8 @@ class TranslationOverlay @Inject constructor(
             alpha = 1f
             scaleType = ImageView.ScaleType.FIT_XY
             setOnTouchListener { _, event ->
+                // A queued event from the old input target must not replay through a menu.
+                if (controlsVisible) return@setOnTouchListener true
                 if (onOverlayTouch?.invoke(event) == true) {
                     return@setOnTouchListener true
                 }
@@ -201,7 +206,8 @@ class TranslationOverlay @Inject constructor(
         }
 
         try {
-            wm.addView(imageView, overlayParams)
+            requestedOverlayTouchable = true
+            wm.addView(imageView, if (controlsVisible) overlayPassthroughParams else overlayParams)
         } catch (e: Exception) {
             imageView.setImageBitmap(null)
             isOverlayShowing = false
@@ -222,7 +228,7 @@ class TranslationOverlay @Inject constructor(
         overlayView = imageView
         latestTranslatedBitmap = bitmap
         isOverlayShowing = true
-        overlayTouchable = true
+        overlayTouchable = !controlsVisible
         updateFloatingHandleGestureExclusion()
         FgoLogger.info(tag, "Showing translated image: ${bitmap.width}x${bitmap.height}")
     }
@@ -251,23 +257,32 @@ class TranslationOverlay @Inject constructor(
     }
 
     fun setTranslatedOverlayTouchable(touchable: Boolean): Boolean {
+        requestedOverlayTouchable = touchable
+        val effectiveTouchable = touchable && !controlsVisible
         val wm = windowManager ?: return false
         val view = overlayView ?: return false
         val currentParams = view.layoutParams
-        if (overlayTouchable == touchable && currentParams?.width == screenWidth &&
+        if (overlayTouchable == effectiveTouchable && currentParams?.width == screenWidth &&
             currentParams.height == screenHeight) return true
-        val params = if (touchable) overlayParams else overlayPassthroughParams
+        val params = if (effectiveTouchable) overlayParams else overlayPassthroughParams
         try {
             wm.updateViewLayout(view, params)
-            overlayTouchable = touchable
-            if (!touchable) view.pausePlayback() else if (isOverlayShowing) view.resumePlayback()
+            overlayTouchable = effectiveTouchable
+            if (!effectiveTouchable) view.pausePlayback() else if (isOverlayShowing) view.resumePlayback()
             updateFloatingHandleGestureExclusion()
-            FgoLogger.debug(tag, "Translated overlay touchable=$touchable")
+            FgoLogger.debug(tag, "Translated overlay touchable=$effectiveTouchable, requested=$touchable, controlsVisible=$controlsVisible")
             return true
         } catch (e: Exception) {
             FgoLogger.warn(tag, "Failed to update translated overlay touchable=$touchable", e)
             return false
         }
+    }
+
+    /** Modal controls own input until every menu/history window has closed. The image stays visible. */
+    fun setControlsVisible(visible: Boolean) {
+        if (controlsVisible == visible) return
+        controlsVisible = visible
+        setTranslatedOverlayTouchable(requestedOverlayTouchable)
     }
 
     /** Restores the translated window after an OCR check found no source-text change. */
