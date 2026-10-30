@@ -1,4 +1,57 @@
-# ML Kit emphasis metadata repair — 2026-10-31
+# ML Kit dot handling — 2026-10-31
+
+## Current behavior: noise suppression only
+
+This section supersedes the earlier emphasis-metadata implementation documented below. The user
+approved treating dots as image noise for ML Kit, retaining ruby recognition/rendering, and keeping
+Paddle's dot feature unchanged. ML Kit remains available; it is not removed or upgraded.
+
+The 02:00–02:01 device log repeatedly reports `をのような世免が他に大う。` for the screenshot
+`そのような世界が他に六つ。`, with `dots=12, symbols=13, ranges=2`. Finding annotation geometry
+did not make the underlying transcription reliable. The same bad transcription existed in the
+older 01:29 log before ML Kit emphasis metadata was added.
+
+### Changes
+
+- Remove `MlKitEmphasis` and metadata-only `MlKitEmphasisInput`, including their obsolete tests.
+- `MlKitDialogueInput.prepare` cleans confirmed upper-dot noise before the single ML Kit call for
+  dialogue/fixed Japanese dialogue. It keeps full input resolution and creates an owned copy only
+  if necessary. The caller's image is never modified or recycled.
+- The existing shared cleaner protects readable ruby, upper strokes/dakuten, body text and main-
+  band punctuation. Only ML Kit opts into masking additional round components confirmed by the
+  already-existing aligned-run evidence, including a dot over a short kana. Paddle's default
+  masking stays unchanged: 11 components in the worlds fixture, versus ML Kit's complete 12-dot run.
+- Choices retain existing `ChoiceOcrContext` noise cleanup and punctuation recovery, but no dot
+  geometry is passed into ML Kit result construction.
+- Every new ML Kit result has empty emphasis ranges: no emphasis markers enter translation and
+  no dot decoration reaches dialogue, choices or new history. Ruby lines/bounds still pass through
+  the existing formatter, translation and renderer.
+- General/name/crop inputs bypass story-dialogue cleanup. No ruby prompt, renderer, Sakura
+  template, retry policy, setting, or saved history record changes. There is no added recognition
+  pass or paid translation request. Full-resolution cleanup adds CPU/memory work; its latency and
+  recognition accuracy must be checked on hardware. Cleanup diagnostics include count and time.
+
+### Current verification
+
+Eleven replacement tests use native Android bitmaps and a recording `TextRecognizer` boundary:
+
+- Real worlds/memory screenshots at 1×/2× remove 12/22 dots, preserve body pixels and an unmarked
+  first row, retain resolution, and leave caller-owned images intact.
+- A real ruby crop at both scales remains pixel-identical. Source: the supplied
+  `Screenshot_20261003_011711_FateGO.jpg`, original crop `(316,833)` through `(2015,1052)`.
+- Mixed ruby/dot/punctuation fixtures cover every supported story ink colour; default Paddle
+  masking remains unchanged. Owned image cleanup is checked on success and recognizer failure.
+- Japanese, Chinese and Latin provider routes invoke recognition once and export no emphasis
+  ranges. Ruby text/bounds, choices, punctuation recovery and general OCR are exercised.
+
+The recording recognizer supplies controlled text: it verifies actual input/result wiring, not
+model transcription quality. No claim is made that all formerly misread words are now correct.
+Targeted checks: 26 tests passed. Full verification: **1,362 tests passed, 0 failures, errors or
+skips**, and `:app:assembleDebug` succeeded. Log: `temp/mlkit-noise-verified.log`. Existing local
+translation response fixtures were replayed without paid evaluations. APK:
+`app/build/outputs/apk/debug/app-debug.apk`. No installation or commit was performed.
+
+## Earlier implementation (superseded)
 
 ## Evidence and cause
 

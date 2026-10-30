@@ -316,6 +316,7 @@ app/src/test/resources/ocr/*
 !app/src/test/resources/ocr/jp-emphasis-worlds.png
 !app/src/test/resources/ocr/jp-emphasis-memory.png
 !app/src/test/resources/ocr/jp-emphasis-positions.json
-!app/src/test/java/com/fgogotran/ocr/MlKitEmphasisTest.kt
-!app/src/test/java/com/fgogotran/ocr/MlKitEmphasisInputTest.kt
+!app/src/test/java/com/fgogotran/ocr/MlKitDialogueInputTest.kt
+!app/src/test/java/com/fgogotran/ocr/MlKitOcrProviderTest.kt
+!app/src/test/resources/ocr/jp-ruby-reference.png
 !app/src/test/java/com/fgogotran/overlay/TranslationOverlayControlsTest.kt

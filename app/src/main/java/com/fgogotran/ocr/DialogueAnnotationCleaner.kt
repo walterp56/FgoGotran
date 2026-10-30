@@ -54,7 +54,13 @@ internal object DialogueAnnotationCleaner {
         val main: MainEvidence
     )
 
-    fun clean(pixels: IntArray, width: Int, height: Int, retainPixelIndices: Boolean = false): Result {
+    fun clean(
+        pixels: IntArray,
+        width: Int,
+        height: Int,
+        retainPixelIndices: Boolean = false,
+        maskVerifiedAlignedDots: Boolean = false
+    ): Result {
         if (width <= 0 || height <= 0 || pixels.size < width * height) {
             return Result(pixels, maskedComponents = 0, maskedRows = 0)
         }
@@ -86,7 +92,11 @@ internal object DialogueAnnotationCleaner {
         val emphasisComponents = emphasisRows
             .flatten()
             .map(DotCandidate::component)
-            .distinct()
+            .toMutableSet()
+        val verifiedDots = verifiedEmphasisDots(emphasisRows, candidates, components, foreground, width, height,
+            // ML Kit treats annotations only as noise. A short kana can fail individual lower-
+            // ink checks despite a confirmed aligned dot run. Keep Paddle's masking unchanged.
+            additionalMasks = emphasisComponents.takeIf { maskVerifiedAlignedDots })
         val cleaned = pixels.copyOf()
         emphasisComponents.forEach { component ->
             maskComponent(cleaned, pixels, width, height, component)
@@ -97,18 +107,19 @@ internal object DialogueAnnotationCleaner {
             maskedComponents = emphasisComponents.size,
             maskedRows = emphasisRows.size,
             components = components.filterNot { it in masked },
-            emphasisDots = verifiedEmphasisDots(emphasisRows, candidates, components, foreground, width, height)
+            emphasisDots = verifiedDots
         )
     }
 
     /**
      * Reuse confirmed row geometry for display metadata. A short kana such as つ can have much
      * less ink below its dot than a kanji; it must not lose its annotation for that reason.
-     * This does not widen the existing masking rule or introduce another recognition pass.
+     * Callers can opt into masking these confirmed components; the default masking is unchanged.
      */
     private fun verifiedEmphasisDots(
         runs: List<List<DotCandidate>>, candidates: List<DotCandidate>, components: List<Component>,
-        foreground: BooleanArray, width: Int, height: Int
+        foreground: BooleanArray, width: Int, height: Int,
+        additionalMasks: MutableSet<Component>? = null
     ): List<OcrEmphasisDot> {
         val verified = mutableMapOf<Component,OcrEmphasisDot>()
         for (run in runs) {
@@ -135,6 +146,7 @@ internal object DialogueAnnotationCleaner {
                         MainEvidence(rowTop,rowBottom,ink),foreground,width,height)) continue
                 verified[component]=OcrEmphasisDot(component.centerX,rowTop.toFloat(),rowBottom.toFloat(),
                     rowTop.toFloat(),rowBottom.toFloat())
+                additionalMasks?.add(component)
             }
         }
         return candidates.filterNot { it.component in verified }.map {

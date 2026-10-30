@@ -28,20 +28,10 @@ internal enum class MlKitOcrScript(
 }
 
 internal class MlKitOcrProvider(
-    private val script: MlKitOcrScript = MlKitOcrScript.JAPANESE
+    private val script: MlKitOcrScript = MlKitOcrScript.JAPANESE,
+    private val recognizer: TextRecognizer = createRecognizer(script)
 ) : OcrProvider {
     override val preferredInputScale = OcrInputScale.X2
-    private val recognizer: TextRecognizer = when (script) {
-        MlKitOcrScript.CHINESE -> TextRecognition.getClient(
-            ChineseTextRecognizerOptions.Builder().build()
-        )
-        MlKitOcrScript.JAPANESE -> TextRecognition.getClient(
-            JapaneseTextRecognizerOptions.Builder().build()
-        )
-        MlKitOcrScript.LATIN -> TextRecognition.getClient(
-            TextRecognizerOptions.DEFAULT_OPTIONS
-        )
-    }
     private val tag = "OCR"
     @Volatile
     private var warmedUp = false
@@ -67,20 +57,20 @@ internal class MlKitOcrProvider(
     override suspend fun recognize(bitmap: Bitmap): OcrResult = recognize(bitmap, OcrContentKind.GENERAL)
 
     override suspend fun recognize(bitmap: Bitmap, contentKind: OcrContentKind): OcrResult =
-        recognizeWithAnnotations(bitmap, contentKind)
+        recognizeWithNoiseCleanup(bitmap, contentKind)
 
     override suspend fun recognizeChoices(bitmap: Bitmap, buttons: List<Rect>): OcrResult {
         val context = ChoiceOcrContext.create(bitmap, buttons)
         val prepared = context.recognitionBitmap(bitmap)
         return try {
-            context.recover(recognizeWithAnnotations(prepared, OcrContentKind.CHOICE, context.emphasisDots))
+            context.recover(recognizeWithNoiseCleanup(prepared, OcrContentKind.CHOICE))
         } finally {
             if (prepared !== bitmap && !prepared.isRecycled) prepared.recycle()
         }
     }
 
-    private suspend fun recognizeWithAnnotations(
-        bitmap: Bitmap, contentKind: OcrContentKind, choiceDots: List<OcrEmphasisDot> = emptyList()
+    private suspend fun recognizeWithNoiseCleanup(
+        bitmap: Bitmap, contentKind: OcrContentKind
     ): OcrResult {
         val startTime = System.currentTimeMillis()
         FgoLogger.debug(tag, "${script.displayName} starting on ${bitmap.width}x${bitmap.height}")
@@ -99,19 +89,21 @@ internal class MlKitOcrProvider(
             )
         }
 
-        val image = InputImage.fromBitmap(bitmap, 0)
-        val result = recognizer.processSuspending(image)
-        val rawLines = result.getTextBlocks().flatMap { block -> block.getLines() }
-        // Read the original pixels after recognition: this adds metadata, never changes ML Kit's
-        // input pixels/recognized words, and makes no second model call.
-        val dots = if (contentKind == OcrContentKind.DIALOGUE || contentKind == OcrContentKind.FIXED_JP_DIALOGUE)
-            MlKitEmphasisInput.dots(bitmap) else choiceDots
-        val symbols = if (dots.isEmpty()) emptyList() else rawLines.flatMap { line ->
-            line.getElements().flatMap { element -> element.getSymbols().mapNotNull { symbol ->
-                val box = symbol.getBoundingBox() ?: return@mapNotNull null
-                MlKitEmphasis.Symbol(symbol.getText(), box.left, box.top, box.right, box.bottom)
-            } }
+        // Only confirmed upper dots are noise here. Keep readable ruby/main pixels and the
+        // full input resolution; ML Kit never exports visual-emphasis ranges to translation.
+        val cleanupStartedAt = System.currentTimeMillis()
+        val prepared = MlKitDialogueInput.prepare(bitmap, contentKind)
+        if (prepared.removedDots > 0) {
+            FgoLogger.debug(tag, "${script.displayName} dialogue noise cleaned before recognition: " +
+                "dots=${prepared.removedDots}, rows=${prepared.removedRows}, " +
+                "elapsedMs=${System.currentTimeMillis() - cleanupStartedAt}ms")
         }
+        val result = try {
+            recognizer.processSuspending(InputImage.fromBitmap(prepared.bitmap, 0))
+        } finally {
+            prepared.close()
+        }
+        val rawLines = result.getTextBlocks().flatMap { block -> block.getLines() }
         val (lines, fullText) = if (solidMaskRows.isEmpty()) {
             rawLines.map { line ->
                 OcrTextLine(
@@ -148,14 +140,6 @@ internal class MlKitOcrProvider(
             recoveredLines to recoveredFullText
         }
 
-        val annotatedLines = if (dots.isEmpty()) lines else lines.map { line ->
-            val bounds = line.boundingBox
-            line.copy(emphasisRanges = MlKitEmphasis.ranges(line.text, bounds.left, bounds.top,
-                bounds.right, bounds.bottom, symbols, dots))
-        }
-        if (dots.isNotEmpty()) FgoLogger.debug(tag, "${script.displayName} emphasis: dots=${dots.size}, " +
-            "symbols=${symbols.size}, ranges=${annotatedLines.sumOf { it.emphasisRanges.size }}, extraModelRuns=0")
-
         val elapsed = System.currentTimeMillis() - startTime
         if (lines.isEmpty()) {
             FgoLogger.warn(tag, "${script.displayName} returned 0 text lines after ${elapsed}ms")
@@ -167,7 +151,7 @@ internal class MlKitOcrProvider(
         }
 
         return OcrResult(
-            lines = annotatedLines,
+            lines = lines,
             fullText = fullText,
             engine = script.engineId
         )
@@ -302,5 +286,11 @@ internal class MlKitOcrProvider(
 
     private companion object {
         const val MASK_DETECTION_MAX_SIDE = 960
+
+        fun createRecognizer(script: MlKitOcrScript): TextRecognizer = when (script) {
+            MlKitOcrScript.CHINESE -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+            MlKitOcrScript.JAPANESE -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
+            MlKitOcrScript.LATIN -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        }
     }
 }
