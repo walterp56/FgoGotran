@@ -2,6 +2,7 @@ package com.fgogotran.voice
 
 import com.fgogotran.translation.VoiceLineHint
 import com.fgogotran.translation.VoiceHintContext
+import java.math.RoundingMode
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
@@ -77,7 +78,6 @@ object VoiceEmotionStyle {
         val resolvedStyle = resolveStyle(profile, styleOverride)
         val rateOverride = rateOverrideFor(
             baseRate = profile.rate,
-            voiceType = profile.description,
             text = normalizedText,
             detectedStyle = detectedStyle,
             voiceTuning = voiceTuning,
@@ -260,11 +260,6 @@ object VoiceEmotionStyle {
         return voiceName.contains(":DragonHDFlashLatestNeural")
     }
 
-    private fun rateBiasFor(voiceHint: VoiceLineHint?): Double {
-        return (voiceHint?.rate ?: 0)
-            .coerceIn(HINT_MIN_DELTA, HINT_MAX_DELTA) * HINT_RATE_STEP
-    }
-
     private fun pitchBiasFor(voiceHint: VoiceLineHint?): Double {
         return (voiceHint?.pitch ?: 0)
             .coerceIn(HINT_MIN_DELTA, HINT_MAX_DELTA) * HINT_PITCH_STEP
@@ -272,60 +267,63 @@ object VoiceEmotionStyle {
 
     private fun rateOverrideFor(
         baseRate: String,
-        voiceType: String,
         text: String,
         detectedStyle: String?,
         voiceTuning: AzureVoiceModelTuning.VoiceModelTuning,
         voiceHint: VoiceLineHint?,
         baseSpeedMultiplier: Double
     ): String? {
-        val base = rateMultiplier(baseRate) ?: return null
-        val normalizedBaseSpeed = baseSpeedMultiplier.coerceIn(MIN_USER_SPEED_MULTIPLIER, MAX_USER_SPEED_MULTIPLIER)
-        val typeMaxRate = maxDialogueRateFor(voiceType)
-        val typeMinRate = minDialogueRateFor(voiceType)
-        val positiveUserBias = (normalizedBaseSpeed - 1.0).coerceAtLeast(0.0)
-        val negativeUserBias = (normalizedBaseSpeed - 1.0).coerceAtMost(0.0)
-        val tuningMinRate = (voiceTuning.minRate + negativeUserBias).coerceAtMost(typeMaxRate)
-        val minimumRate = if (voiceTuning.softenTypeRateFloor) {
-            minOf(typeMinRate, tuningMinRate)
-        } else {
-            maxOf(typeMinRate, tuningMinRate)
-        }
-        val maximumRate = minOf(typeMaxRate, voiceTuning.maxRate + positiveUserBias).coerceAtLeast(minimumRate)
-        val hintedRateBias = rateBiasFor(voiceHint)
-        var adjusted = (base * normalizedBaseSpeed + voiceTuning.rateBias + hintedRateBias)
-            .coerceIn(minimumRate, maximumRate)
-
-        when (detectedStyle) {
-            "sad", "fearful" -> adjusted -= 0.02
-            "angry", "cheerful" -> adjusted += 0.01
-        }
-        if (text.hasExcitedMark()) adjusted += 0.01
-        if (text.length <= SHORT_LINE_LENGTH && detectedStyle in setOf("angry", "cheerful")) {
-            adjusted += 0.01
-        }
-
-        adjusted = adjusted.coerceIn(minimumRate, maximumRate)
-        if (abs(adjusted - base) < MIN_RATE_DELTA) return null
+        val originalBase = rateMultiplier(baseRate)
+        val base = originalBase?.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
+        val userRate = baseSpeedMultiplier.takeIf(Double::isFinite)?.coerceIn(
+            MIN_USER_SPEED_MULTIPLIER, MAX_USER_SPEED_MULTIPLIER
+        ) ?: 1.0
+        // Model calibration belongs to the character preset only. Preserve explicitly slow/fast
+        // character rates, and never use these limits to swallow user or per-line adjustments.
+        val characterMinimum = if (voiceTuning.softenTypeRateFloor) {
+            minOf(base, MIN_USER_SPEED_MULTIPLIER)
+        } else minOf(base, voiceTuning.minRate)
+        val characterMaximum = maxOf(base, voiceTuning.maxRate)
+        val calibratedBase = (base.toBigDecimal() + voiceTuning.rateBias.toBigDecimal()).toDouble()
+        val characterRate = calibratedBase.coerceIn(characterMinimum, characterMaximum)
+        val contextRate = voiceHint?.rate?.let {
+            1.0 + it.coerceIn(HINT_MIN_DELTA, HINT_MAX_DELTA) * HINT_RATE_STEP
+        } ?: localRateMultiplier(text, detectedStyle)
+        // Only Azure's final rate boundary applies after all three factors are multiplied.
+        val adjusted = (userRate.toBigDecimal() * characterRate.toBigDecimal() * contextRate.toBigDecimal())
+            .setScale(2, RoundingMode.HALF_UP).toDouble()
+            .coerceIn(MIN_USER_SPEED_MULTIPLIER, MAX_USER_SPEED_MULTIPLIER)
+        if (originalBase != null && originalBase.isFinite() && abs(adjusted - originalBase) < MIN_RATE_DELTA) return null
         return String.format(Locale.US, "%.2f", adjusted)
+    }
+
+    private fun localRateMultiplier(text: String, detectedStyle: String?): Double {
+        var delta = when (detectedStyle) {
+            "sad", "fearful" -> -0.02
+            "angry", "cheerful" -> 0.01
+            else -> 0.0
+        }
+        if (text.hasExcitedMark()) delta += 0.01
+        if (text.length <= SHORT_LINE_LENGTH && detectedStyle in setOf("angry", "cheerful")) delta += 0.01
+        return 1.0 + delta
     }
 
     private fun rateMultiplier(rawRate: String): Double? {
         val rate = rawRate.trim()
         if (rate.isBlank()) return 1.0
-        if (rate in AZURE_RATE_WORDS) return null
+        when (rate) {
+            "x-slow" -> return 0.5
+            "slow" -> return 0.64
+            "medium", "default" -> return 1.0
+            "fast" -> return 1.55
+            "x-fast" -> return 2.0
+        }
         if (rate.endsWith("%")) {
             val percent = rate.dropLast(1).toDoubleOrNull() ?: return null
             return 1.0 + percent / 100.0
         }
         return rate.toDoubleOrNull()
     }
-
-    private fun minDialogueRateFor(@Suppress("UNUSED_PARAMETER") voiceType: String): Double =
-        MIN_USER_SPEED_MULTIPLIER
-
-    private fun maxDialogueRateFor(@Suppress("UNUSED_PARAMETER") voiceType: String): Double =
-        MAX_USER_SPEED_MULTIPLIER
 
     private fun pitchOverrideFor(
         basePitch: String,
@@ -586,7 +584,7 @@ object VoiceEmotionStyle {
         "zh-CN-Xiaoke:DragonHDFlashLatestNeural" to setOf(
             "angry",
             "customer-service",
-            "cutesy",
+            "cute",
             "excited",
             "fearful",
             "sad",
@@ -972,11 +970,10 @@ object VoiceEmotionStyle {
     private const val MIN_HINT_CONFIDENCE = 0.55
     private const val HINT_MIN_DELTA = -2
     private const val HINT_MAX_DELTA = 2
-    private const val HINT_RATE_STEP = 0.015
+    private const val HINT_RATE_STEP = 0.05
     private const val HINT_PITCH_STEP = 0.5
     private const val HINT_PAUSE_STEP = 0.07
     private const val MIN_USER_SPEED_MULTIPLIER = 0.50
     private const val MAX_USER_SPEED_MULTIPLIER = 2.00
-    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v14"
-    private val AZURE_RATE_WORDS = setOf("x-slow", "slow", "medium", "fast", "x-fast", "default")
+    private const val NATURAL_DIALOGUE_MODE_VERSION = "natural_dialogue_v15"
 }

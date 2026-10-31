@@ -9,6 +9,32 @@ import kotlin.test.assertTrue
 /** Wiring checks for Android-only coordinators; style and parsing behavior have pure JVM tests. */
 class VoiceHintWorkflowTest {
     @Test
+    fun `temporary API prompt specifies units and exact columns before profile construction`() {
+        val builder = source("voice/TempVoiceProfileBuilder.kt")
+        val prompt = function(builder, "buildUserPrompt")
+        assertTrue(prompt.contains("刚好7列、6个制表符"))
+        assertTrue(prompt.contains("cn_style 填 none"))
+        assertTrue(prompt.contains("中性 1.00"))
+        assertTrue(prompt.contains("不用百分比或 0"))
+        assertTrue(prompt.contains("cn_volume 填 100"))
+        val parser = function(builder, "parseResponse")
+        assertTrue(parser.indexOf("TempVoiceProfileFormat.columns(line)") < parser.indexOf("parseColumns("))
+        assertFalse(builder.contains("parseVoiceFirstColumns"))
+    }
+
+    @Test
+    fun `production and settings only cache audio returned through the validation and retry policy`() {
+        val client = source("voice/AzureTtsClient.kt")
+        val synthesize = function(client, "synthesize")
+        assertTrue(synthesize.indexOf("AzureTtsAudioPolicy.synthesize(text, rate)") < synthesize.indexOf("httpClient.post(endpoint)"))
+        assertTrue(synthesize.contains("AzureTtsAudioPolicy.AUDIO_FORMAT"))
+        val service = source("voice/AiVoiceService.kt")
+        assertTrue(function(service, "synthesizeVoiceLines").contains("azureTtsClient.synthesize("))
+        assertTrue(function(service, "playAzureVoiceTest").contains("azureTtsClient.synthesize("))
+        assertTrue(source("voice/VoiceModels.kt").contains("append(AzureTtsAudioPolicy.CACHE_VERSION)"))
+    }
+
+    @Test
     fun `each hint prompt retains its own outer response keys`() {
         val translator = source("translation/Translator.kt")
         assertTrue(function(translator, "buildVoiceHintPrompt")

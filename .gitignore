@@ -208,6 +208,8 @@ AWS/
 app/src/test/java/com/fgogotran/voice/*
 !app/src/test/java/com/fgogotran/voice/VoiceEmotionStyleTest.kt
 !app/src/test/java/com/fgogotran/voice/VoiceHintWorkflowTest.kt
+!app/src/test/java/com/fgogotran/voice/TempVoiceProfileFormatTest.kt
+!app/src/test/java/com/fgogotran/voice/AzureTtsAudioPolicyTest.kt
 !app/src/test/java/com/fgogotran/translation/VoiceHintContractTest.kt
 # Retain focused v2 analytics state/outbox, delivery and lifecycle-wiring regressions.
 !app/src/test/java/com/fgogotran/analytics/

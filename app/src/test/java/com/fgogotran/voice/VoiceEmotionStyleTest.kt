@@ -10,6 +10,104 @@ import kotlin.test.assertTrue
 
 class VoiceEmotionStyleTest {
     @Test
+    fun `API rate multiplies user and character speed with the five relative steps`() {
+        val p = profile("zh-CN-Xiaoxiao:DragonHDFlashLatestNeural", "").copy(rate = "0.95")
+        val expected = listOf(1.03, 1.08, 1.14, 1.20, 1.25)
+        for ((index, delta) in (-2..2).withIndex()) {
+            assertEquals(expected[index], effectiveRate(p, 1.2, delta), 0.0001, "rate=$delta")
+        }
+    }
+
+    @Test
+    fun `model cap cannot swallow a sentence speed increase`() {
+        val p = profile("zh-CN-Xiaoxiao:DragonHDFlashLatestNeural", "").copy(rate = "1.07")
+        assertEquals(1.07, effectiveRate(p, 1.0, 0), 0.0001)
+        assertEquals(1.18, effectiveRate(p, 1.0, 2), 0.0001)
+    }
+
+    @Test
+    fun `slower character preset remains slower before context is applied`() {
+        val slow = profile("zh-CN-XiaoxiaoNeural", "").copy(rate = "0.90")
+        val normal = slow.copy(rate = "1.00")
+        assertEquals(0.90, effectiveRate(slow, 1.0, 0), 0.0001)
+        assertEquals(0.81, effectiveRate(slow, 1.0, -2), 0.0001)
+        assertTrue(effectiveRate(slow, 1.2, 1) < effectiveRate(normal, 1.2, 1))
+    }
+
+    @Test
+    fun `explicit API tempo including zero is not stacked with keyword guesses`() {
+        val p = profile("zh-CN-Xiaoxiao:DragonHDFlashLatestNeural", "")
+        assertEquals(1.00, effectiveRate(p, 1.0, 0, "太好了！！"), 0.0001)
+        assertEquals(1.05, effectiveRate(p, 1.0, 1, "太好了！！"), 0.0001)
+        assertEquals(0.90, effectiveRate(p, 1.0, -2, "太好了！！"), 0.0001)
+        val local = assertNotNull(VoiceEmotionStyle.expressionFor(p, "太好了！！"))
+        assertTrue((local.rateOverride?.toDouble() ?: 1.0) > 1.0)
+    }
+
+    @Test
+    fun `OFF keeps user times character speed and discards contextual tempo`() {
+        val p = profile("zh-CN-Xiaoxiao:DragonHDFlashLatestNeural", "").copy(rate = "0.95")
+        val x = assertNotNull(VoiceEmotionStyle.expressionFor(p, "太好了！！",
+            VoiceLineHint(rate = 2, confidence = 0.9), baseSpeedMultiplier = 1.5,
+            emotionEnhancementEnabled = false))
+        assertEquals("1.43", x.rateOverride)
+        assertFalse(x.voiceHintApplied)
+    }
+
+    @Test
+    fun `model calibration is applied before user and sentence multiplication`() {
+        val p = profile("zh-CN-Xiaoyou:DragonHDFlashLatestNeural", "").copy(rate = "1.07")
+        assertEquals(1.40, effectiveRate(p, 1.2, 2), 0.0001) // 1.2 * (1.07 - 0.01) * 1.10
+    }
+
+    @Test
+    fun `relative tempo remains monotonic for all supported models and ordinary user speeds`() {
+        for (voice in AzureVoiceModelTuning.allowedZhCnVoiceNames()) {
+            for (base in listOf("0.90", "1.00", "1.07")) for (user in listOf(0.75, 1.0, 1.5)) {
+                val rates = (-2..2).map { effectiveRate(profile(voice, "").copy(rate = base), user, it) }
+                assertTrue(rates.zipWithNext().all { (slow, fast) -> slow < fast }, "$voice/$base/$user: $rates")
+            }
+        }
+    }
+
+    @Test
+    fun `only final Azure bounds limit extreme combined rates`() {
+        val p = profile("zh-CN-Xiaoxiao:DragonHDFlashLatestNeural", "")
+        assertEquals(0.5, effectiveRate(p.copy(rate = "0.86"), 0.5, -2), 0.0001)
+        assertEquals(2.0, effectiveRate(p.copy(rate = "1.10"), 2.0, 2), 0.0001)
+        assertEquals(1.98, effectiveRate(p.copy(rate = "1.10"), 2.0, -2), 0.0001)
+    }
+
+    @Test
+    fun `percentage and named profile rates still respect the user baseline`() {
+        val p = profile("zh-CN-Xiaoxiao:DragonHDFlashLatestNeural", "")
+        assertEquals(1.03, effectiveRate(p.copy(rate = "-5%"), 1.2, -2), 0.0001)
+        assertEquals(1.10, effectiveRate(p.copy(rate = "fast"), 0.75, -1), 0.0001)
+        assertEquals(1.00, effectiveRate(p.copy(rate = "NaN"), Double.NaN, 0), 0.0001)
+    }
+
+    @Test
+    fun `short audio guard uses the final sentence rate rather than the app slider`() {
+        val p = profile("zh-CN-Xiaoxiao:DragonHDFlashLatestNeural", "")
+        val text = "各位，請確認通訊狀態。我們準備出發。"
+        val fast = effectiveRate(p, 1.6, 2)
+        val slow = effectiveRate(p, 1.6, -2)
+        assertEquals(1.76, fast, 0.0001)
+        assertEquals(1.44, slow, 0.0001)
+        assertNull(AzureTtsAudioPolicy.suspiciousReason(ByteArray(12_000), text, fast.toString()))
+        assertNotNull(AzureTtsAudioPolicy.suspiciousReason(ByteArray(12_000), text, slow.toString()))
+    }
+
+    private fun effectiveRate(p: VoiceProfile, user: Double, delta: Int, text: String = NEUTRAL_LINE): Double {
+        val x = assertNotNull(VoiceEmotionStyle.expressionFor(p, text,
+            VoiceLineHint(rate = delta, confidence = 0.9), baseSpeedMultiplier = user))
+        return x.rateOverride?.toDouble() ?: when {
+            p.rate.endsWith('%') -> 1.0 + p.rate.dropLast(1).toDouble() / 100.0
+            else -> p.rate.toDouble()
+        }
+    }
+
+    @Test
     fun `english cues use the english dictionaries`() {
         assertEquals("sad", VoiceEmotionStyle.detectStyle("I'm sorry, I didn't mean to..."))
         assertEquals("cheerful", VoiceEmotionStyle.detectStyle("Thank you so much!"))
@@ -83,13 +181,13 @@ class VoiceEmotionStyleTest {
     }
 
     @Test
-    fun `API cutesy stays cutesy rather than being mapped to cute`() {
+    fun `API cute is applied exactly for Xiaoke`() {
         val profile = profile(XIAOKE_FLASH, "sad")
         val expression = assertNotNull(VoiceEmotionStyle.expressionFor(
-            profile, NEUTRAL_LINE, VoiceLineHint(styles = listOf("cutesy"), confidence = 0.9)
+            profile, NEUTRAL_LINE, VoiceLineHint(styles = listOf("cute"), confidence = 0.9)
         ))
-        assertEquals("cutesy", expression.styleOverride)
-        assertEquals("cutesy", VoiceEmotionStyle.resolveStyle(profile, expression.styleOverride))
+        assertEquals("cute", expression.styleOverride)
+        assertEquals("cute", VoiceEmotionStyle.resolveStyle(profile, expression.styleOverride))
         assertTrue(expression.voiceHintApplied)
     }
 
@@ -259,14 +357,14 @@ class VoiceEmotionStyleTest {
         )
         val offRequest = onRequest.copy(ssmlModeVersion = preset.ssmlModeVersion)
         assertFalse(onRequest.cacheMaterial() == offRequest.cacheMaterial())
-        assertEquals("natural_dialogue_v14", localNeutral.ssmlModeVersion)
-        assertEquals("natural_dialogue_v14:presets_only_v1", preset.ssmlModeVersion)
+        assertEquals("natural_dialogue_v15", localNeutral.ssmlModeVersion)
+        assertEquals("natural_dialogue_v15:presets_only_v1", preset.ssmlModeVersion)
     }
 
     @Test
     fun `allowed styles reflect voice support and existing dialogue tuning`() {
         assertEquals(
-            setOf("angry", "cutesy", "fearful", "sad", "sorry", "whispering"),
+            setOf("angry", "cute", "fearful", "sad", "sorry", "whispering"),
             VoiceEmotionStyle.usableHintStylesFor(XIAOKE_FLASH)
         )
         val flashStyles = VoiceEmotionStyle.usableHintStylesFor(XIAOXIAO2_FLASH)
@@ -276,6 +374,14 @@ class VoiceEmotionStyleTest {
         assertTrue("sad" in ordinaryStyles)
         assertFalse("serious" in ordinaryStyles)
         assertFalse("whispering" in ordinaryStyles)
+    }
+
+    @Test
+    fun `Xiaoke uses Azure cute while Xiaoxiao2 keeps its own supported style list`() {
+        assertEquals("cute", VoiceEmotionStyle.resolveStyle(profile(XIAOKE_FLASH, "cute"), null))
+        assertFalse("cutesy" in VoiceEmotionStyle.usableHintStylesFor(XIAOKE_FLASH))
+        assertEquals("", VoiceEmotionStyle.resolveStyle(profile(XIAOKE_FLASH, "cutesy"), null))
+        assertFalse("cute" in VoiceEmotionStyle.usableHintStylesFor(XIAOXIAO2_FLASH))
     }
 
     @Test

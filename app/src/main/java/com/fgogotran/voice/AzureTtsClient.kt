@@ -45,27 +45,31 @@ class AzureTtsClient @Inject constructor() {
             throw IllegalArgumentException("Azure Speech key is blank")
         }
         val endpoint = azureTtsEndpoint(region)
-        val response = try {
-            httpClient.post(endpoint) {
-                header("Ocp-Apim-Subscription-Key", key)
-                header("X-Microsoft-OutputFormat", AZURE_AUDIO_FORMAT)
-                header("User-Agent", "FgoGotran")
-                header("Accept", "audio/mpeg")
-                contentType(ContentType.parse("application/ssml+xml"))
-                setBody(buildSsml(profile, text, styleOverride, rateOverride, pitchOverride, styleDegree, pauseScale))
+        val ssml = buildSsml(profile, text, styleOverride, rateOverride, pitchOverride, styleDegree, pauseScale)
+        val rate = normalizeRate(rateOverride?.takeIf(String::isNotBlank) ?: profile.rate)
+        return AzureTtsAudioPolicy.synthesize(text, rate) {
+            val response = try {
+                httpClient.post(endpoint) {
+                    header("Ocp-Apim-Subscription-Key", key)
+                    header("X-Microsoft-OutputFormat", AzureTtsAudioPolicy.AUDIO_FORMAT)
+                    header("User-Agent", "FgoGotran")
+                    header("Accept", "audio/mpeg")
+                    contentType(ContentType.parse("application/ssml+xml"))
+                    setBody(ssml)
+                }
+            } catch (e: HttpRequestTimeoutException) {
+                FgoLogger.warn(tag, "Azure TTS request timed out")
+                throw e
             }
-        } catch (e: HttpRequestTimeoutException) {
-            FgoLogger.warn(tag, "Azure TTS request timed out")
-            throw e
-        }
 
-        if (!response.status.isSuccess()) {
-            val message = runCatching { response.bodyAsText() }.getOrDefault("")
-            throw IllegalStateException(
-                "Azure TTS failed: HTTP ${response.status.value} ${message.take(160)}"
-            )
+            if (!response.status.isSuccess()) {
+                val message = runCatching { response.bodyAsText() }.getOrDefault("")
+                throw IllegalStateException(
+                    "Azure TTS failed: HTTP ${response.status.value} ${message.take(160)}"
+                )
+            }
+            response.body<ByteArray>()
         }
-        return response.body()
     }
 
     private fun azureTtsEndpoint(region: String): String {
@@ -224,7 +228,6 @@ class AzureTtsClient @Inject constructor() {
     }
 
     private companion object {
-        const val AZURE_AUDIO_FORMAT = "audio-24khz-160kbitrate-mono-mp3"
         const val AZURE_TTS_CONNECT_TIMEOUT_MS = 8_000L
         const val AZURE_TTS_SOCKET_TIMEOUT_MS = 20_000L
         const val AZURE_TTS_REQUEST_TIMEOUT_MS = 25_000L
