@@ -72,6 +72,7 @@ import com.fgogotran.runner.FgoRunnerOverlay
 import com.fgogotran.runner.FgoRunnerService
 import com.fgogotran.runner.RunnerSessionContext
 import com.fgogotran.story.AutoDialogueHandoffPolicy
+import com.fgogotran.story.AutoStoryScenePolicy
 import com.fgogotran.story.ChoiceRecognitionPolicy
 import com.fgogotran.story.ChoiceRetrySource
 import com.fgogotran.story.StoryTapHandoff
@@ -263,6 +264,8 @@ class FgoAccessibilityService : AccessibilityService() {
     private var failedAutoRenderFingerprint = ""
     private var failedAutoRenderRetryAt = 0L
     private var autoTapHandoffPreviousFingerprint = ""
+    private var autoObservedStage = AutoStoryScenePolicy.Stage.WAITING
+    private var voiceOnlyAutoObservedStage = AutoStoryScenePolicy.Stage.WAITING
     private var overlayButtonTouchActive = false
     private var overlayButtonLongPressHandled = false
     private var overlayButtonTouchCancelled = false
@@ -1211,6 +1214,7 @@ class FgoAccessibilityService : AccessibilityService() {
         isForwardingOverlayTap = false
         tapAdvancePolling = false
         autoTapHandoffPreviousFingerprint = ""
+        autoObservedStage = AutoStoryScenePolicy.Stage.WAITING
         emptyChoiceOcrCooldown.reset()
         translationOverlay.hide()
         cropResultOverlay.hide()
@@ -1219,6 +1223,7 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun resetVoiceOnlyStoryState() {
         voiceOnlyStoryState.reset()
+        voiceOnlyAutoObservedStage = AutoStoryScenePolicy.Stage.WAITING
         voiceOnlyCachedNameOcr = null
     }
 
@@ -2121,18 +2126,20 @@ class FgoAccessibilityService : AccessibilityService() {
     ): VoiceOnlyScanResult? {
         val mode = ProcessingMode.AUTO_BACKGROUND
         val completion = voiceOnlyDialogueCompletion(source, screenRegions, frame)
-        val mayContainChoices = if (completion.complete && !completion.byFallback) {
-            withRunnerContext(Dispatchers.Default) {
-                backgroundDetector.mayContainChoiceButtons(source, screenRegions.choiceSearch, frame.pixels)
-            }
-        } else true
-        val bounds = if (mayContainChoices) detectChoiceBounds(source, screenRegions, frame.pixels) else emptyList()
+        if (completion.complete && !completion.byFallback) {
+            observeVoiceOnlyAutoStage(AutoStoryScenePolicy.Stage.DIALOGUE)
+            voiceOnlyStoryState.onChoicesAbsent()
+            return scanVoiceOnlyCompletedDialogueScene(source, screenRegions, mode, frame, completion)
+        }
+        val bounds = detectChoiceBounds(source, screenRegions, frame.pixels)
+        observeVoiceOnlyAutoStage(AutoStoryScenePolicy.select(strictDiamond = false,
+            hasChoices = bounds.isNotEmpty(), fallbackDialogueComplete = completion.complete))
         if (bounds.isEmpty()) {
             voiceOnlyStoryState.onChoicesAbsent()
             return scanVoiceOnlyCompletedDialogueScene(source, screenRegions, mode, frame, completion)
         }
         val choiceFrame = withRunnerContext(Dispatchers.Default) { frame.choices(bounds.map { it.toStoryBounds() }) }
-        if (voiceOnlyStoryState.shouldSkipChoices(choiceFrame, SystemClock.elapsedRealtime(), completion.complete)) {
+        if (voiceOnlyStoryState.shouldSkipChoices(choiceFrame, SystemClock.elapsedRealtime(), dialogueMayBePresent = false)) {
             FgoLogger.debug(tag, "Voice-only AUTO choice OCR skipped: masks match accepted scene")
             return null
         }
@@ -2148,10 +2155,7 @@ class FgoAccessibilityService : AccessibilityService() {
             )
             return null
         }
-        val dialogueRegions = if (completion.complete) {
-            recognizeDialogueRegions(source, screenRegions, allowRedTextFallback = true, useVoiceOnlyNameCache = true)
-        } else emptyList()
-        val scene = completeChoiceSceneSourceFor(choices, source, mergeManualSceneRegions(choices.regions, dialogueRegions))
+        val scene = completeChoiceSceneSourceFor(choices, source)
         if (scene == null) {
             voiceOnlyStoryState.delayFor(mode.name, SystemClock.elapsedRealtime(), EMPTY_OCR_RETRY_BASE_MS)
             return null
@@ -2794,25 +2798,19 @@ class FgoAccessibilityService : AccessibilityService() {
         if (!dialogueComplete) {
             storyOcrVisualGate.reset()
         }
-        val mayContainChoices = if (dialogueComplete && !dialogueCompleteByFallback) {
-            val gateStartedAt = SystemClock.elapsedRealtime()
-            val possible = withRunnerContext(Dispatchers.Default) {
-                backgroundDetector.mayContainChoiceButtons(source, screenRegions.choiceSearch, frame.pixels)
-            }
-            FgoLogger.debug(tag, "Auto choice gate: ${SystemClock.elapsedRealtime() - gateStartedAt}ms, possible=$possible")
-            possible
-        } else {
-            true
-        }
         if (!isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO)) return AutoScanResult.Waiting
-        // Only a strict diamond plus proven panel absence bypasses choice discovery.
-        // Fallback/no-diamond frames and mixed dialogue/choices keep the full path.
-        val choiceBounds = if (mayContainChoices) {
-            detectChoiceBounds(source, screenRegions, frame.pixels)
-        } else {
-            emptyList()
+        if (dialogueComplete && !dialogueCompleteByFallback) {
+            observeAutoStoryStage(AutoStoryScenePolicy.Stage.DIALOGUE)
+            storyTapHandoff.onChoicesAbsent()
+            emptyChoiceOcrCooldown.reset()
+            FgoLogger.debug(tag, "Auto routing: strict diamond owns dialogue; choice discovery skipped")
+            return scanAutoDialogueScene(source, screenRegions, currentScreenWidth, currentScreenHeight,
+                dialogueCompleteByFallback = false, frame = frame)
         }
+        val choiceBounds = detectChoiceBounds(source, screenRegions, frame.pixels)
         if (!isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO)) return AutoScanResult.Waiting
+        observeAutoStoryStage(AutoStoryScenePolicy.select(strictDiamond = false,
+            hasChoices = choiceBounds.isNotEmpty(), fallbackDialogueComplete = dialogueComplete))
         var confirmedChoiceHandoff = false
         val handoffPending = storyTapHandoff.isPending(SystemClock.elapsedRealtime())
         var choiceFrame: StoryTapHandoff.ChoiceFrame? = null
@@ -2847,7 +2845,7 @@ class FgoAccessibilityService : AccessibilityService() {
             } else {
                 confirmedChoiceHandoff = storyTapHandoff.hasDepartedRenderedAutoChoices()
                 if (storyTapHandoff.shouldSkipRenderedChoices(
-                        choiceFrame, SystemClock.elapsedRealtime(), dialogueMayBePresent = dialogueComplete
+                        choiceFrame, SystemClock.elapsedRealtime(), dialogueMayBePresent = false
                     )
                 ) {
                     resetAutoBackoff()
@@ -2864,18 +2862,9 @@ class FgoAccessibilityService : AccessibilityService() {
             val choiceRegions = choiceRecognition.regions
             if (choiceRecognition.isComplete) {
                 FgoLogger.debug(tag, "Auto choice text detected")
-                val dialogueRegions = if (dialogueComplete) {
-                    recognizeDialogueRegions(
-                        source,
-                        screenRegions,
-                        allowRedTextFallback = true
-                    )
-                } else {
-                    emptyList()
-                }
-                val sceneRegions = mergeManualSceneRegions(choiceRegions, dialogueRegions)
-                logAutoStoryDetection("Choice", sceneRegions, currentScreenWidth, currentScreenHeight)
-                val sceneSource = completeChoiceSceneSourceFor(choiceRecognition, source, sceneRegions)
+                // A choice frame never borrows the preceding dialogue or speaker for this request.
+                logAutoStoryDetection("Choice", choiceRegions, currentScreenWidth, currentScreenHeight)
+                val sceneSource = completeChoiceSceneSourceFor(choiceRecognition, source)
                 if (sceneSource != null) return AutoScanResult.Ready(
                     sceneSource = sceneSource,
                     choiceHandoff = confirmedChoiceHandoff,
@@ -2894,6 +2883,18 @@ class FgoAccessibilityService : AccessibilityService() {
             return AutoScanResult.Waiting
         }
 
+        return scanAutoDialogueScene(source, screenRegions, currentScreenWidth, currentScreenHeight,
+            dialogueCompleteByFallback, frame)
+    }
+
+    private suspend fun scanAutoDialogueScene(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        currentScreenWidth: Int,
+        currentScreenHeight: Int,
+        dialogueCompleteByFallback: Boolean,
+        frame: StoryFramePixels
+    ): AutoScanResult {
         val visualDecision = observeStoryOcrVisual(
             source = source,
             screenRegions = screenRegions,
@@ -2944,6 +2945,24 @@ class FgoAccessibilityService : AccessibilityService() {
             accepted = false
         )
         return AutoScanResult.EmptyCompletedDialogue
+    }
+
+    private fun observeAutoStoryStage(stage: AutoStoryScenePolicy.Stage) {
+        if (autoObservedStage == stage) return
+        FgoLogger.debug(tag, "Auto stage: $autoObservedStage -> $stage; clearing obsolete overlay")
+        autoObservedStage = stage
+        translationOverlay.hide() // Clear saved pixels as well; capture restoration must not resurrect them.
+        storyOcrVisualGate.reset()
+        // Keep source deduplication, failure cooldowns and tap-handoff masks: a marker's
+        // animated gap must not turn the same dialogue or choice list into a new request.
+    }
+
+    private fun observeVoiceOnlyAutoStage(stage: AutoStoryScenePolicy.Stage) {
+        // A marker's animated gap is not a confirmed change to a different voice scene.
+        if (stage == AutoStoryScenePolicy.Stage.WAITING || voiceOnlyAutoObservedStage == stage) return
+        voiceOnlyAutoObservedStage = stage
+        voiceOnlyRequestSerial++ // Invalidate a voice hint still returning for the previous kind of scene.
+        voiceOnlyStoryState.visualGate.reset()
     }
 
     private fun observeStoryOcrVisual(
@@ -3055,6 +3074,14 @@ class FgoAccessibilityService : AccessibilityService() {
         if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
             TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
         ) return false
+        val autoStage = if (mode == ProcessingMode.AUTO_BACKGROUND) AutoStoryScenePolicy.contentStage(
+            hasName = !sceneSource.input.name.isNullOrBlank(), hasDialogue = sceneSource.hasDialogue,
+            hasChoices = sceneSource.hasChoices) else null
+        if (mode == ProcessingMode.AUTO_BACKGROUND && autoStage == null) {
+            FgoLogger.warn(tag, "Auto source violates exclusive dialogue/choice routing; discarding request")
+            translationOverlay.hide()
+            return false
+        }
         val sourceFingerprint = sceneSource.fingerprint
         if (!sceneHasRequiredTranslation(sceneSource)) {
             FgoLogger.debug(tag, "Story scene has no translatable dialogue or choices; skipping API and overlay")
@@ -3112,11 +3139,12 @@ class FgoAccessibilityService : AccessibilityService() {
         // A choice retry supplies its own capture time rather than the original's.
         val sourceAgeMs = SystemClock.elapsedRealtime() - sourceCapturedAtElapsedMs
         val forceVisualFreshness = mode == ProcessingMode.AUTO_BACKGROUND && isAutoTapHandoffActive()
-        val shouldCheckFreshness = sourceAgeMs >= FRESHNESS_CHECK_SOURCE_AGE_MS || forceVisualFreshness
+        val shouldCheckFreshness = sourceAgeMs >= FRESHNESS_CHECK_SOURCE_AGE_MS || forceVisualFreshness || autoStage != null
         FgoLogger.debug(
             tag,
             "Freshness decision ($mode): sourceAge=${sourceAgeMs}ms, " +
-                "threshold=${FRESHNESS_CHECK_SOURCE_AGE_MS}ms, forced=$forceVisualFreshness, check=$shouldCheckFreshness"
+                "threshold=${FRESHNESS_CHECK_SOURCE_AGE_MS}ms, forced=$forceVisualFreshness, " +
+                "autoStage=$autoStage, check=$shouldCheckFreshness"
         )
         var freshnessDuration = 0L
         if (shouldCheckFreshness) {
@@ -3124,7 +3152,7 @@ class FgoAccessibilityService : AccessibilityService() {
             val maskStartedAt = SystemClock.elapsedRealtime()
             val sourceVisualFingerprint = visualFingerprintFor(source, sceneSource.regions.map { it.region }, frame.pixels)
             FgoLogger.debug(tag, "Freshness source mask timing: ${SystemClock.elapsedRealtime() - maskStartedAt}ms")
-            val isCurrent = isSourceVisuallyCurrent(sourceVisualFingerprint)
+            val isCurrent = isSourceVisuallyCurrent(sourceVisualFingerprint, expectedAutoStage = autoStage)
             freshnessDuration = SystemClock.elapsedRealtime() - freshnessStartedAt
             if (!isCurrent) {
                 FgoLogger.debug(tag, "Dialogue changed during translation; discarding stale result")
@@ -6129,7 +6157,10 @@ class FgoAccessibilityService : AccessibilityService() {
         return overlapArea >= lineArea * 0.45f
     }
 
-    private suspend fun isSourceVisuallyCurrent(expected: VisualSourceFingerprint): Boolean {
+    private suspend fun isSourceVisuallyCurrent(
+        expected: VisualSourceFingerprint,
+        expectedAutoStage: AutoStoryScenePolicy.Stage? = null
+    ): Boolean {
         val currentScreenshot = takeScreenshotCompat(timingLabel = "FRESHNESS") ?: return false
         val checkStartedAt = SystemClock.elapsedRealtime()
         val pixels = currentScreenshot.framePixels()
@@ -6138,18 +6169,36 @@ class FgoAccessibilityService : AccessibilityService() {
                 currentScreenshot.width,
                 currentScreenshot.height
             )
-            if (expected.hasChoices) {
-                val currentChoices = detectChoiceBounds(currentScreenshot, screenRegions, pixels)
-                if (currentChoices.size < expected.choiceRegionCount) return false
-            }
-            if (expected.hasDialogue) {
-                val markerVisible = backgroundDetector.isDialogueCompleteMarkerVisible(
-                    currentScreenshot,
-                    screenRegions.dialogueComplete,
-                    pixels
-                )
-                if (!markerVisible) {
-                    FgoLogger.debug(tag, "Dialogue marker not visible during visual freshness check; ignoring animated marker")
+            if (expectedAutoStage != null) {
+                val markerReport = backgroundDetector.dialogueCompleteMarkerReport(
+                    currentScreenshot, screenRegions.dialogueComplete, pixels)
+                val strictDiamond = markerReport.shapeVisible
+                // Do not ask the choice detector to overrule a completed dialogue.
+                val currentChoices = if (strictDiamond) emptyList() else
+                    detectChoiceBounds(currentScreenshot, screenRegions, pixels)
+                val observed = AutoStoryScenePolicy.select(strictDiamond, currentChoices.isNotEmpty(),
+                    // The source already passed completion. Tolerate the marker's animation only
+                    // while its existing evidence remains and the same text masks match below.
+                    fallbackDialogueComplete = expectedAutoStage == AutoStoryScenePolicy.Stage.DIALOGUE && markerReport.evidence)
+                observeAutoStoryStage(observed)
+                if (!AutoStoryScenePolicy.acceptsResult(expectedAutoStage, observed)) {
+                    FgoLogger.debug(tag, "Auto stage changed during translation: $expectedAutoStage -> $observed")
+                    return false
+                }
+                if (observed == AutoStoryScenePolicy.Stage.CHOICES &&
+                    currentChoices.size < expected.choiceRegionCount) return false
+            } else {
+                // Manual and semi-auto keep their existing freshness/animated-marker behaviour.
+                if (expected.hasChoices) {
+                    val currentChoices = detectChoiceBounds(currentScreenshot, screenRegions, pixels)
+                    if (currentChoices.size < expected.choiceRegionCount) return false
+                }
+                if (expected.hasDialogue) {
+                    val markerVisible = backgroundDetector.isDialogueCompleteMarkerVisible(
+                        currentScreenshot, screenRegions.dialogueComplete, pixels)
+                    if (!markerVisible) {
+                        FgoLogger.debug(tag, "Dialogue marker not visible during visual freshness check; ignoring animated marker")
+                    }
                 }
             }
             if (expected.samples.isEmpty()) return false

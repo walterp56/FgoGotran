@@ -323,3 +323,4 @@ app/src/test/resources/ocr/*
 !app/src/test/java/com/fgogotran/overlay/TranslationOverlayControlsTest.kt
 !app/src/test/java/com/fgogotran/overlay/RubySpacingGraphicsTest.kt
 !app/src/test/java/com/fgogotran/overlay/AnnotationPreferencesGraphicsTest.kt
+!app/src/test/java/com/fgogotran/story/AutoStoryScenePolicyTest.kt
