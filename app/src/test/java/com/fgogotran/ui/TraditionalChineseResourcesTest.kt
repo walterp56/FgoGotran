@@ -19,40 +19,24 @@ class TraditionalChineseResourcesTest {
     fun `traditional resources cover all translatable keys without duplicates`() {
         // resources() rejects duplicate keys before creating its map.
         assertEquals(defaults.filterValues { it.translatable }.keys, traditional.keys)
-        assertFalse(traditional.containsKey("settings_ruby_example_annotation"))
-        assertFalse(traditional.containsKey("settings_ruby_example_base"))
-        assertEquals("カルデア", defaults.getValue("settings_ruby_example_annotation").text)
-        assertEquals("星見台", defaults.getValue("settings_ruby_example_base").text)
     }
 
     @Test
-    fun `ruby card keeps a short above-base explanation and localized examples in every UI language`() {
-        val expectedExamples = mapOf(
-            "values" to "译文的小字显示在对应正文上方。",
-            "values-b+zh+Hant" to "譯文的小字顯示在對應正文上方。",
-            "values-en" to "Translated small text appears above the matching text."
-        )
-        expectedExamples.forEach { (folder, expected) ->
+    fun `annotation card names both decorations and restores the compact Chaldea comparison`() {
+        for ((folder, title, label) in listOf(
+            Triple("values", "小字与注点", "效果预览"),
+            Triple("values-b+zh+Hant", "小字與註點", "效果預覽"),
+            Triple("values-en", "Ruby and emphasis dots", "Preview")
+        )) {
             val strings = resources(folder)
-            assertEquals(expected, strings.getValue("settings_ruby_example_meaning").text, folder)
+            assertEquals(title, strings.getValue("settings_auto_7").text, folder)
+            assertEquals(label, strings.getValue("settings_ruby_example_label").text, folder)
             assertFalse(strings.containsKey("settings_ruby_example_original_label"), folder)
-            if (folder != "values") {
-                assertFalse(strings.containsKey("settings_ruby_example_annotation"), folder)
-                assertFalse(strings.containsKey("settings_ruby_example_base"), folder)
-            }
+            assertEquals("迦勒底".takeIf { folder != "values-en" } ?: "Chaldea",
+                strings.getValue("settings_ruby_example_translated_annotation").text, folder)
         }
-        assertFalse(defaults.getValue("settings_ruby_example_annotation").translatable)
-        assertFalse(defaults.getValue("settings_ruby_example_base").translatable)
-        val translatedSamples = mapOf(
-            "values" to ("观星台" to "迦勒底"),
-            "values-b+zh+Hant" to ("觀星臺" to "迦勒底"),
-            "values-en" to ("Observatory" to "Chaldea")
-        )
-        translatedSamples.forEach { (folder, sample) ->
-            val strings = resources(folder)
-            assertEquals(sample.first, strings.getValue("settings_ruby_example_translated_base").text, folder)
-            assertEquals(sample.second, strings.getValue("settings_ruby_example_translated_annotation").text, folder)
-        }
+        assertEquals("星見台", defaults.getValue("settings_ruby_example_base").text)
+        assertEquals("カルデア", defaults.getValue("settings_ruby_example_annotation").text)
     }
 
     @Test

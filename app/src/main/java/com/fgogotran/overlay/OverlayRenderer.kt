@@ -24,7 +24,8 @@ data class RenderInstruction(
     val wideTextSpacing: Boolean = false,
     val targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
     val showOriginalText: Boolean = false,
-    val emphasisRanges: List<EmphasisRange> = emptyList()
+    val emphasisRanges: List<EmphasisRange> = emptyList(),
+    val showAnnotations: Boolean = true
 )
 
 /**
@@ -176,7 +177,9 @@ class OverlayRenderer @Inject constructor(
         }
 
         for (originalInstruction in instructions) {
-            val instruction = originalInstruction.copy(translatedText = EmphasisText.encode(originalInstruction.translatedText, originalInstruction.emphasisRanges))
+            val annotated = EmphasisText.encode(originalInstruction.translatedText, originalInstruction.emphasisRanges)
+            val instruction = originalInstruction.copy(translatedText = RubyRenderText.forDisplay(annotated,
+                originalInstruction.showAnnotations))
             textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             when (instruction.region.region) {
                 TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction, panels)
@@ -193,6 +196,7 @@ class OverlayRenderer @Inject constructor(
         screenWidth: Int,
         screenHeight: Int
     ): String {
+        // History retains the annotations even when the current display preference hides them.
         if (instruction.region.region != TextRegion.DIALOGUE_BOX) {
             return instruction.translatedText.trim()
         }

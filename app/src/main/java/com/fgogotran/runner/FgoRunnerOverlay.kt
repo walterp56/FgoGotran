@@ -1075,7 +1075,7 @@ class FgoRunnerOverlay @Inject constructor(
         syncTranslatedOverlayControls()
 
         historyHost = FakeComposeHost(context) {
-            HistoryOverlayPanel(onDismiss = { dismissHistoryPanel() })
+            HistoryOverlayPanel(settingsRepository = settingsRepository, onDismiss = { dismissHistoryPanel() })
         }
         try {
             wm.addView(historyHost!!.view, historyLayoutParams)

@@ -70,6 +70,10 @@ internal object RubyRenderText {
     fun body(value: String, mode: Mode = Mode.ABOVE_BASE): String = parse(value, mode).body
     fun hasRuby(value: String): Boolean = parse(value).annotations.isNotEmpty()
 
+    /** Hide translated ruby and emphasis together without changing stored text or source notation. */
+    fun forDisplay(value: String, showAnnotations: Boolean): String =
+        if (showAnnotations) value else body(value)
+
     /** Ellipsis may drop a reading, but must not leave half of its inline notation. */
     fun inlinePrefix(value: String, maximumCharacters: Int): String {
         var end = maximumCharacters.coerceIn(0, value.length)

@@ -3655,7 +3655,8 @@ class FgoAccessibilityService : AccessibilityService() {
                 ),
                 targetLocale = translatedResult.targetLocale,
                 showOriginalText = showOriginalForRegion,
-                emphasisRanges = EmphasisText.remap(translatedResult.translatedText, translatedText, translatedResult.emphasisRanges)
+                emphasisRanges = EmphasisText.remap(translatedResult.translatedText, translatedText, translatedResult.emphasisRanges),
+                showAnnotations = regionAndText.region.region == TextRegion.NAME_LABEL || translationIncludeRuby
             )
         }
     }

@@ -25,7 +25,7 @@ class DialoguePlaybackPreviewTest {
                 val off = withoutRuby.panels.single().rows
                 assertEquals("two explicit rows: $locale/$bilingual", 2, on.size)
                 assertEquals(2, off.size)
-                assertEquals(1, on.sumOf { it.readings.size })
+                assertEquals(if (locale == "en") 2 else 3, on.sumOf { it.readings.size })
                 assertTrue(off.all { it.readings.isEmpty() })
                 assertEquals(withRuby.timeline.text, withoutRuby.timeline.text)
                 assertEquals(withRuby.timeline.durationNanos, withoutRuby.timeline.durationNanos)

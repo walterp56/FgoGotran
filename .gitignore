@@ -71,6 +71,7 @@ release/
 temp/
 tmp_video_frames/
 showcase/
+tools/
 
 # GitHub Actions typo guard
 .github/workflow/
@@ -321,3 +322,4 @@ app/src/test/resources/ocr/*
 !app/src/test/resources/ocr/jp-ruby-reference.png
 !app/src/test/java/com/fgogotran/overlay/TranslationOverlayControlsTest.kt
 !app/src/test/java/com/fgogotran/overlay/RubySpacingGraphicsTest.kt
+!app/src/test/java/com/fgogotran/overlay/AnnotationPreferencesGraphicsTest.kt

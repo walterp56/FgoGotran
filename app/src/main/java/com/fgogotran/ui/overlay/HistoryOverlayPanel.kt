@@ -67,12 +67,14 @@ private const val HISTORY_SCROLLBAR_TOUCH_SLOP_DP = 28
 private const val HISTORY_DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.7f
 
 @Composable
-fun HistoryOverlayPanel(onDismiss: () -> Unit) {
+fun HistoryOverlayPanel(settingsRepository: SettingsRepository, onDismiss: () -> Unit) {
     val entries by SessionTranslationHistory.entries.collectAsState()
+    val showAnnotations by settingsRepository.translationIncludeRuby.collectAsState(
+        initial = SettingsRepository.DEFAULT_TRANSLATION_INCLUDE_RUBY)
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val uiConfiguration = HistoryUiConfiguration(configuration.densityDpi, configuration.fontScale,
-        configuration.locales.toLanguageTags())
+        configuration.locales.toLanguageTags(), showAnnotations)
 
     Box(
         modifier = Modifier
@@ -208,7 +210,8 @@ private class HistoryListState {
     var updateVersion = 0L
 }
 
-private data class HistoryUiConfiguration(val densityDpi: Int, val fontScale: Float, val locales: String)
+private data class HistoryUiConfiguration(val densityDpi: Int, val fontScale: Float, val locales: String,
+    val showAnnotations: Boolean)
 
 private data class HistoryRow(
     val entry: SessionTranslationEntry,
@@ -241,7 +244,8 @@ private class HistoryRowsAdapter : ListAdapter<HistoryRow, HistoryRowsAdapter.Ho
         holder.container.setPadding(0, 0, 0, row.contentSizing.spacingPx(12))
         addHistoryEntryViews(
             holder.container, row.entry,
-            historyTypeface(holder.container.context, row.entry.targetLocale), row.contentSizing
+            historyTypeface(holder.container.context, row.entry.targetLocale), row.contentSizing,
+            row.configuration.showAnnotations
         )
     }
 }
@@ -251,6 +255,7 @@ private fun addHistoryEntryViews(
     entry: SessionTranslationEntry,
     typeface: Typeface,
     contentSizing: HistoryContentSizing,
+    showAnnotations: Boolean,
 ) {
     val speakerName = entry.speakerName?.takeIf { it.isNotBlank() }
     speakerName?.let {
@@ -266,7 +271,7 @@ private fun addHistoryEntryViews(
         )
     }
     entry.dialogueText?.takeIf { it.isNotBlank() }?.let { unmarked ->
-        val it = EmphasisText.encode(unmarked, entry.dialogueEmphasisRanges)
+        val it = RubyRenderText.forDisplay(EmphasisText.encode(unmarked, entry.dialogueEmphasisRanges), showAnnotations)
         val originalDialogue = entry.originalDialogueText?.trim()?.takeIf { original -> original.isNotBlank() }
         if (speakerName != null || originalDialogue != null) {
             if (speakerName != null) {
@@ -314,7 +319,9 @@ private fun addHistoryEntryViews(
         container.addView(
             historyTextView(
                 context = container.context,
-                text = EmphasisText.encode(if (originalChoice == null) "$choice\n" else choice, entry.choiceEmphasisRanges.getOrElse(index) { emptyList() }),
+                text = RubyRenderText.forDisplay(EmphasisText.encode(choice,
+                    entry.choiceEmphasisRanges.getOrElse(index) { emptyList() }), showAnnotations) +
+                    if (originalChoice == null) "\n" else "",
                 color = FGO_CHOICE_HISTORY_RED,
                 gravity = Gravity.CENTER,
                 typeface = typeface,

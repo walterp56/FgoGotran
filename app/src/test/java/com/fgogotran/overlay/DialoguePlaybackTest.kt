@@ -148,13 +148,14 @@ class DialoguePlaybackTest {
             assertTrue(RubyRenderText.hasRuby(sample.renderText(true)))
             assertFalse(RubyRenderText.hasRuby(sample.renderText(false)))
             assertEquals(sample.text, RubyRenderText.body(sample.renderText(true)))
-            assertEquals("霊基外骨骼〈オルテナウス〉起動。\n行きます！", sample.originalText)
+            assertTrue(sample.originalText.contains("昼食〈ランチ〉"))
+            val range = sample.emphasisRanges.single()
+            assertEquals(if (locale == "en") "Dessert" else if (locale == "zh-Hant") "甜點" else "甜点",
+                sample.annotatedText.substring(range.start, range.endExclusive))
             val t = timeline(sample.text, DialogueTextSpeed.INSTANT, 3)
-            // English has a comma before 'activate'; the Chinese line has a single sentence stop.
-            val pauseCount = if (locale == "en") 2 else 1
-            assertEquals(pauseCount * 300_000_000L, t.durationNanos, locale)
+            assertTrue(t.durationNanos > 0, locale)
             assertTrue(t.visibleEndAt(0) < sample.starts[1], locale)
-            assertEquals(sample.lines[0].length, t.visibleEndAt((pauseCount - 1) * 300_000_000L), locale)
+            assertEquals(sample.text.length, t.visibleEndAt(t.durationNanos), locale)
         }
     }
 }

@@ -72,10 +72,11 @@ internal class DialoguePlaybackPreviewScene private constructor(
             try {
                 val region = ClassifiedRegion(TextRegion.DIALOGUE_BOX, emptyList(),
                     FgoViewportLayout.regionsForScreen(REFERENCE_WIDTH, REFERENCE_HEIGHT).dialogueRender,
-                    OcrEngineId.ML_KIT)
+                    OcrEngineId.PADDLE_OCR)
                 fun prepare(includeRuby: Boolean): DialoguePlaybackFrame = renderer.prepareDialoguePlayback(
-                    source, listOf(RenderInstruction(region, example.renderText(includeRuby), example.originalText,
-                        targetLocale = locale, showOriginalText = bilingual)), DialoguePlaybackSettings()
+                    source, listOf(RenderInstruction(region, example.annotatedText, example.originalText,
+                        targetLocale = locale, showOriginalText = bilingual,
+                        emphasisRanges = example.emphasisRanges, showAnnotations = includeRuby)), DialoguePlaybackSettings()
                 ).also { owned += it }
                 val withRuby = prepare(true)
                 val withoutRuby = prepare(false)
