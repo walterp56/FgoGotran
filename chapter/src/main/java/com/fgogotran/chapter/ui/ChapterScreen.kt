@@ -32,6 +32,7 @@ fun ChapterScreen(onExit: () -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
     val access by model.access.collectAsStateWithLifecycle()
     val record by model.record.collectAsStateWithLifecycle()
+    var showRestore by remember { mutableStateOf(false) }
     ChapterPageLifecycle(model::foreground, model::background)
     BackHandler(onBack = onExit)
 
@@ -82,6 +83,24 @@ fun ChapterScreen(onExit: () -> Unit) {
                     Text(if (installed) "切换语言" else stringResource(R.string.chapter_native_install_now))
                 }
 
+                if (state.hasBackup && !state.busy) {
+                    OutlinedButton(onClick = { showRestore = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("恢复原版（回到日服）")
+                    }
+                }
+                if (showRestore) {
+                    AlertDialog(
+                        onDismissRequest = { showRestore = false },
+                        title = { Text("恢复日服原版？") },
+                        text = { Text("请先完全关闭 FGO。将把已安装章节写回原版日文，官方索引不会改变。") },
+                        confirmButton = {
+                            TextButton(onClick = { showRestore = false; model.restore() }) { Text("恢复") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showRestore = false }) { Text("取消") }
+                        },
+                    )
+                }
                 when (state.phase) {
                     InstallPhase.DOWNLOAD -> Text(stringResource(R.string.chapter_native_downloading), style = MaterialTheme.typography.bodySmall)
                     InstallPhase.INSTALL -> Text(

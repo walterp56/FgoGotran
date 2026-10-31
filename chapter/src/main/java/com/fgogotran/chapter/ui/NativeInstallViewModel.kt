@@ -28,6 +28,7 @@ data class NativeInstallState(
     val installed: Int = 0,
     val total: Int = 0,
     val activeLanguage: String? = null,
+    val hasBackup: Boolean = false,
     val missing: List<String> = emptyList(),
     val error: String? = null,
 ) {
@@ -57,6 +58,7 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
 
     init {
         viewModelScope.launch { coordinator.state.collect { mutableRecord.value = it.record } }
+        mutableState.value = mutableState.value.copy(hasBackup = coordinator.hasLanguageBackup())
     }
 
     fun foreground() {
@@ -129,6 +131,7 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
                 mutableState.value = mutableState.value.copy(
                     phase = InstallPhase.DONE,
                     activeLanguage = packs.firstOrNull()?.language,
+                    hasBackup = true,
                     missing = result.missing,
                 )
             } catch (cancelled: CancellationException) {
@@ -145,14 +148,25 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
             mutableState.value = mutableState.value.copy(error = appContext.getString(R.string.chapter_native_need_shizuku))
             return
         }
-        val record = mutableRecord.value ?: return
-        if (record.mode == null || record.state == ChapterInstallState.RESTORED) return
-        mutableState.value = mutableState.value.copy(phase = InstallPhase.RESTORING, error = null)
+        if (!coordinator.hasLanguageBackup()) {
+            mutableState.value = mutableState.value.copy(error = "没有可恢复的日服备份")
+            return
+        }
+        mutableState.value = mutableState.value.copy(phase = InstallPhase.RESTORING, error = null, installed = 0, total = 0)
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { coordinator.restoreOriginal(true) }
+                val restored = withContext(Dispatchers.IO) {
+                    coordinator.restoreLanguage(reader) { done, total ->
+                        mutableState.value = mutableState.value.copy(installed = done, total = total)
+                    }
+                }
                 ensureActive()
-                mutableState.value = mutableState.value.copy(phase = InstallPhase.RESTORED)
+                mutableState.value = mutableState.value.copy(
+                    phase = InstallPhase.RESTORED,
+                    activeLanguage = null,
+                    hasBackup = false,
+                    installed = restored,
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {

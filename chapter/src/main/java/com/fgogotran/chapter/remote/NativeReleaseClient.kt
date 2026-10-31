@@ -31,6 +31,7 @@ data class NativeStoryPackage(
     val manifest: ByteArray,
     val assetFilename: String,
     val logicalBundle: String,
+    val originalSha256: String,
 ) {
     val scriptsCount: Int get() = scripts.size
 }
@@ -84,6 +85,7 @@ class NativeReleaseClient(
                 manifest = manifest,
                 assetFilename = Json.parseToJsonElement(manifest.decodeToString()).jsonObject["asset_filename"]?.jsonPrimitive?.content.orEmpty(),
                 logicalBundle = Json.parseToJsonElement(manifest.decodeToString()).jsonObject["logical_bundle"]?.jsonPrimitive?.content.orEmpty(),
+                originalSha256 = Json.parseToJsonElement(manifest.decodeToString()).jsonObject["original"]?.jsonObject?.get("sha256")?.jsonPrimitive?.content.orEmpty(),
             )
         }
 

@@ -138,6 +138,12 @@ class ChapterInstallCoordinator private constructor(private val application: App
             }
         }
     }
+    suspend fun restoreLanguage(
+        storage: ChapterOriginalStorage,
+        onProgress: (Int, Int) -> Unit,
+    ): Int = BulkStoryInstaller.restore(application, storage, onProgress)
+
+    fun hasLanguageBackup(): Boolean = BulkStoryInstaller.hasBackup(application)
     suspend fun switchLanguage(
         storage: ChapterOriginalStorage,
         packages: List<NativeStoryPackage>,
