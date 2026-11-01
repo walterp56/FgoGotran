@@ -10,6 +10,7 @@ import com.fgogotran.chapter.install.ChapterInstallCoordinator
 import com.fgogotran.chapter.install.ChapterInstallRecord
 import com.fgogotran.chapter.install.ChapterInstallState
 import com.fgogotran.chapter.packs.StoryLanguage
+import com.fgogotran.chapter.remote.NativeAnnouncement
 import com.fgogotran.chapter.remote.NativePackInfo
 import com.fgogotran.chapter.remote.NativeReleaseClient
 import com.fgogotran.chapter.storage.ChapterAccess
@@ -25,6 +26,7 @@ data class NativeInstallState(
     val languageTag: String = StoryLanguage.ENGLISH.tag,
     val phase: InstallPhase = InstallPhase.IDLE,
     val packs: List<NativePackInfo> = emptyList(),
+    val announcements: List<NativeAnnouncement> = emptyList(),
     val installed: Int = 0,
     val total: Int = 0,
     val activeLanguage: String? = null,
@@ -90,9 +92,13 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
         mutableState.value = mutableState.value.copy(phase = InstallPhase.LOOKUP, packs = emptyList(), error = null)
         lookupJob = viewModelScope.launch {
             try {
-                val packs = withContext(Dispatchers.IO) { client.lookupAll(language, version) }
+                val catalog = withContext(Dispatchers.IO) { client.lookupAll(language, version) }
                 if (mutableState.value.languageTag == language) {
-                    mutableState.value = mutableState.value.copy(phase = InstallPhase.IDLE, packs = packs)
+                    mutableState.value = mutableState.value.copy(
+                        phase = InstallPhase.IDLE,
+                        packs = catalog.packs,
+                        announcements = catalog.announcements,
+                    )
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled

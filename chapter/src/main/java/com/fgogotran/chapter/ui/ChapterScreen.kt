@@ -17,6 +17,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fgogotran.chapter.R
 import com.fgogotran.chapter.install.ChapterInstallState
 import com.fgogotran.chapter.packs.StoryLanguage
+import com.fgogotran.chapter.remote.NativeAnnouncement
 import com.fgogotran.chapter.storage.ChapterAccess
 
 @Composable
@@ -37,6 +38,10 @@ fun ChapterScreen(onExit: () -> Unit) {
     BackHandler(onBack = onExit)
 
     ChapterPageFrame(stringResource(R.string.chapter_native_title), onExit) {
+        if (state.announcements.isNotEmpty()) {
+            AnnouncementBoard(state.announcements)
+            Spacer(Modifier.height(12.dp))
+        }
         OutlinedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.chapter_native_scope_short), style = MaterialTheme.typography.bodyMedium)
@@ -157,6 +162,35 @@ internal fun ChapterPageFrame(title: String, onBack: () -> Unit, content: @Compo
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 content = content,
             )
+        }
+    }
+}
+
+@Composable
+private fun AnnouncementBoard(items: List<NativeAnnouncement>) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Announcements", style = MaterialTheme.typography.titleMedium)
+            items.forEach { item ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            item.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = when (item.level) {
+                                "warning" -> MaterialTheme.colorScheme.error
+                                "success" -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                        Text(item.date, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(item.body, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                HorizontalDivider()
+            }
         }
     }
 }

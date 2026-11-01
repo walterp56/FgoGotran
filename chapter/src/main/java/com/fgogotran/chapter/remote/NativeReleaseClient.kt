@@ -13,6 +13,19 @@ import java.net.URL
 import java.security.MessageDigest
 
 /** Metadata for one hosted language pack (no payload downloaded yet). */
+data class NativeAnnouncement(
+    val id: String,
+    val title: String,
+    val body: String,
+    val date: String,
+    val level: String = "info",
+)
+
+data class NativeCatalog(
+    val packs: List<NativePackInfo>,
+    val announcements: List<NativeAnnouncement>,
+)
+
 data class NativePackInfo(
     val language: String,
     val scripts: List<String>,
@@ -48,10 +61,11 @@ class NativeReleaseClient(
 
     val isConfigured: Boolean get() = baseUrl.isNotBlank() && apiKey.isNotBlank()
 
-    suspend fun lookupAll(language: String, gameVersion: String): List<NativePackInfo> = withContext(Dispatchers.IO) {
+    suspend fun lookupAll(language: String, gameVersion: String): NativeCatalog = withContext(Dispatchers.IO) {
         require(isConfigured) { "Release catalogue is not configured" }
         val body = fetch("$baseUrl/v1/native/catalog?lang=$language&game=$gameVersion", authorized = true).decodeToString()
-        json.decodeFromString<CatalogResponse>(body).packs
+        val response = json.decodeFromString<CatalogResponse>(body)
+        val packs = response.packs
             .filter { it.language == language }
             .mapNotNull { pack ->
                 val bundle = pack.files.bundle ?: return@mapNotNull null
@@ -65,6 +79,12 @@ class NativeReleaseClient(
                     manifestUrl = manifest.url,
                 )
             }
+        NativeCatalog(
+            packs = packs,
+            announcements = response.announcements.map {
+                NativeAnnouncement(it.id, it.title, it.body, it.date, it.level)
+            },
+        )
     }
 
     suspend fun download(info: NativePackInfo, onProgress: (String) -> Unit = {}): NativeStoryPackage =
@@ -124,7 +144,19 @@ class NativeReleaseClient(
 }
 
 @Serializable
-private data class CatalogResponse(val packs: List<PackDto> = emptyList())
+private data class CatalogResponse(
+    val packs: List<PackDto> = emptyList(),
+    val announcements: List<AnnouncementDto> = emptyList(),
+)
+
+@Serializable
+private data class AnnouncementDto(
+    val id: String = "",
+    val title: String = "",
+    val body: String = "",
+    val date: String = "",
+    val level: String = "info",
+)
 
 @Serializable
 private data class PackDto(
