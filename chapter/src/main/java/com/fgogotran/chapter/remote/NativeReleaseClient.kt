@@ -55,15 +55,14 @@ data class NativeStoryPackage(
  */
 class NativeReleaseClient(
     private val baseUrl: String,
-    private val apiKey: String,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    val isConfigured: Boolean get() = baseUrl.isNotBlank() && apiKey.isNotBlank()
+    val isConfigured: Boolean get() = baseUrl.isNotBlank()
 
     suspend fun lookupAll(language: String, gameVersion: String): NativeCatalog = withContext(Dispatchers.IO) {
         require(isConfigured) { "Release catalogue is not configured" }
-        val body = fetch("$baseUrl/v1/native/catalog?lang=$language&game=$gameVersion", authorized = true).decodeToString()
+        val body = fetch("$baseUrl/v1/native/catalog?lang=$language&game=$gameVersion").decodeToString()
         val response = json.decodeFromString<CatalogResponse>(body)
         val packs = response.packs
             .filter { it.language == language }
@@ -90,12 +89,12 @@ class NativeReleaseClient(
     suspend fun download(info: NativePackInfo, onProgress: (String) -> Unit = {}): NativeStoryPackage =
         withContext(Dispatchers.IO) {
             onProgress("bundle")
-            val bundle = fetch(info.bundleUrl, authorized = false)
+            val bundle = fetch(info.bundleUrl)
             require(bundle.size.toLong() == info.bundleSize) { "Bundle size mismatch" }
             require(sha256(bundle) == info.bundleSha256) { "Bundle hash mismatch" }
 
             onProgress("manifest")
-            val manifest = fetch(info.manifestUrl, authorized = false)
+            val manifest = fetch(info.manifestUrl)
 
             NativeStoryPackage(
                 language = info.language,
@@ -109,13 +108,12 @@ class NativeReleaseClient(
             )
         }
 
-    private fun fetch(url: String, authorized: Boolean): ByteArray {
+    private fun fetch(url: String): ByteArray {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 15_000
             readTimeout = 60_000
             setRequestProperty("accept", "application/json")
-            if (authorized) setRequestProperty("x-api-key", apiKey)
         }
         try {
             if (connection.responseCode !in 200..299) {

@@ -42,7 +42,7 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
     private val appContext = context.applicationContext
     private val reader = ShizukuChapterStorage(context, viewModelScope)
     private val coordinator = ChapterInstallCoordinator.get(context)
-    private val client = NativeReleaseClient(BuildConfig.NATIVE_BASE_URL, BuildConfig.NATIVE_API_KEY)
+    private val client = NativeReleaseClient(BuildConfig.NATIVE_BASE_URL)
     val access = reader.access
     val configured = client.isConfigured
 

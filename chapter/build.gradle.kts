@@ -7,11 +7,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-// Catalogue endpoint; override with -Pchapter.nativeBaseUrl / -Pchapter.nativeApiKey.
+// Catalogue endpoint; override with -Pchapter.nativeBaseUrl.
 val nativeBaseUrl = providers.gradleProperty("chapter.nativeBaseUrl")
     .orElse("https://v4qqn1rvi1.execute-api.ap-east-1.amazonaws.com/prod")
     .get()
-val nativeApiKey = providers.gradleProperty("chapter.nativeApiKey").orElse("").get()
 
 android {
     namespace = "com.fgogotran.chapter"
@@ -22,7 +21,6 @@ android {
         minSdk = 30
         consumerProguardFiles("consumer-rules.pro")
         buildConfigField("String", "NATIVE_BASE_URL", "\"$nativeBaseUrl\"")
-        buildConfigField("String", "NATIVE_API_KEY", "\"$nativeApiKey\"")
     }
 
     buildFeatures {
