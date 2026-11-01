@@ -62,6 +62,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Presentation-only host; Chapter has no dependency on the OCR feature. -->
+        <activity
+            android:name=".ChapterHostActivity"
+            android:exported="false"
+            android:configChanges="uiMode"
+            android:theme="@style/Theme.FgoGotran" />
+
         <!-- Keep this activity on the stack until the consent result returns. -->
         <activity
             android:name=".ProjectionConsentActivity"
