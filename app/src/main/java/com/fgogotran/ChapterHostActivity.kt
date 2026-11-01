@@ -22,6 +22,7 @@ class ChapterHostActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!BuildConfig.DEBUG) { finish(); return }
         enableEdgeToEdge()
         refreshTheme()
         val theme = AppThemeMode.fromPreference(intent.getStringExtra(EXTRA_THEME))

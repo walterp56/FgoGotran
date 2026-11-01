@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import com.fgogotran.BuildConfig
 import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -342,16 +343,18 @@ fun HomeScreen(
                 onClick = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
             )
 
-            Card(
-                onClick = onChapter,
-                modifier = Modifier.fillMaxWidth(),
-                border = FgoUiStyle.cardBorder,
-                colors = FgoUiColors.cardColors()
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(stringResource(R.string.home_chapter_title), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.home_chapter_summary), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (BuildConfig.DEBUG) {
+                Card(
+                    onClick = onChapter,
+                    modifier = Modifier.fillMaxWidth(),
+                    border = FgoUiStyle.cardBorder,
+                    colors = FgoUiColors.cardColors()
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(stringResource(R.string.home_chapter_title), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.home_chapter_summary), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
 

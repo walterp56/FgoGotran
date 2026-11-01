@@ -153,7 +153,12 @@ class NameBoxLookupPolicyTest {
         assertTrue(scene.contains("promptBuilder.extractTermMatches(combinedText, allTerms, config.targetLanguage)"))
         assertTrue(scene.contains("val protectedName = uncachedName?.let(::preparePromptText)"))
         assertTrue(scene.contains("translateName = needsName"))
-        assertTrue(function(translatorSource(), "buildSceneUserPrompt").contains("appendLine(it)"))
+        assertTrue(function(translatorSource(), "buildSceneUserPrompt").contains("buildGeneralSceneUserPrompt("))
+        val sceneBuilder = listOf(
+            File("src/main/java/com/fgogotran/translation/GeneralScenePromptRequests.kt"),
+            File("app/src/main/java/com/fgogotran/translation/GeneralScenePromptRequests.kt")
+        ).first(File::isFile).readText()
+        assertTrue(sceneBuilder.contains("appendLine(it)"))
     }
 
     @Test

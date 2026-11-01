@@ -32,7 +32,7 @@ android {
         minSdk = 30
         targetSdk = 34
         versionCode = 18
-        versionName = "5.0.0"
+        versionName = "4.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Run/Debug and release share the owner's local choice and both APK markers.

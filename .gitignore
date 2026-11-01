@@ -72,6 +72,7 @@ temp/
 tmp_video_frames/
 showcase/
 tools/
+docs/
 
 # GitHub Actions typo guard
 .github/workflow/
@@ -322,7 +323,11 @@ app/src/test/resources/ocr/*
 !app/src/test/java/com/fgogotran/ocr/MlKitDialogueInputTest.kt
 !app/src/test/java/com/fgogotran/ocr/MlKitOcrProviderTest.kt
 !app/src/test/resources/ocr/jp-ruby-reference.png
+!docs/
+docs/*
+!docs/FGO_GENERAL_PROMPT_EVAL_2026-11-01.md
 !app/src/test/java/com/fgogotran/overlay/TranslationOverlayControlsTest.kt
+!app/src/test/java/com/fgogotran/translation/AtlasStoryPromptEvaluationTest.kt
 !app/src/test/java/com/fgogotran/overlay/RubySpacingGraphicsTest.kt
 !app/src/test/java/com/fgogotran/overlay/AnnotationPreferencesGraphicsTest.kt
 !app/src/test/java/com/fgogotran/story/AutoStoryScenePolicyTest.kt

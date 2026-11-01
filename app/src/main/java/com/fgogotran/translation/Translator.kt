@@ -789,10 +789,6 @@ class Translator @Inject constructor(
         private const val COMBINED_NAME_MAX_PARTS = 4
         private const val VOICE_HINT_NULL_EXAMPLE =
             """{"voice_hint":null}"""
-        private const val SCENE_RESPONSE_EXAMPLE =
-            """{"name":null,"dialogue":null,"choices":[]}"""
-        private const val SCENE_WITH_VOICE_HINT_RESPONSE_EXAMPLE =
-            """{"name":null,"dialogue":null,"choices":[],"voice_hint":null}"""
         private val PROMPT_ECHO_STRONG_MARKERS = listOf(
             "你是一个轻小说翻译模型",
             "将下面的日文文本翻译成中文：",
@@ -5913,58 +5909,10 @@ class Translator @Inject constructor(
         currentSpeaker: String = "",
         glossaryEntries: List<TranslationGlossaryEntry> = emptyList(),
         voiceHintContext: VoiceHintContext? = null
-    ): String {
-        val responseKeys = if (requestVoiceHint) {
-            "name, dialogue, choices, voice_hint"
-        } else {
-            "name, dialogue, choices"
-        }
-        val emptyExample = if (requestVoiceHint) {
-            SCENE_WITH_VOICE_HINT_RESPONSE_EXAMPLE
-        } else {
-            SCENE_RESPONSE_EXAMPLE
-        }
-        return buildString {
-            appendGeneralTranslationGlossarySection(glossaryEntries)
-            appendGeneralReferenceMarkSection(listOfNotNull(name.takeIf { translateName },
-                dialogue.takeIf { translateDialogue }) + choices)
-            appendGeneralEmphasisSection(listOfNotNull(dialogue.takeIf { translateDialogue }) + choices)
-            appendPromptSectionText(buildGeneralCurrentSpeakerContext(currentSpeaker, appliesToDialogue = dialogue != null))
-            appendSceneDialogueContextBlock(previousDialogueContexts)
-            appendPromptSection(
-                "current_scene",
-                buildString {
-                    name?.let {
-                        append("Name JP (${if (translateName) "translate" else "context only"}): ")
-                        appendLine(it)
-                    }
-                    dialogue?.let {
-                        appendLine("Dialogue JP (${if (translateDialogue) "translate" else "context only"}):")
-                        appendLine(it)
-                    }
-                    if (choices.isNotEmpty()) {
-                        appendLine("Player choices JP (translate):")
-                        append(renderNumberedPromptItems(choices))
-                    }
-                }.trim()
-            )
-            appendPromptSection(
-                "required_output",
-                buildString {
-                    appendLine("Return JSON only with exactly these keys: $responseKeys.")
-                    appendLine("Example shape: $emptyExample")
-                    appendLine(
-                        "Set name=${if (translateName && name != null) "a nonempty translated JSON string" else "null"}; " +
-                            "dialogue=${if (translateDialogue && dialogue != null) "a nonempty translated JSON string" else "null"}; " +
-                            "choices=exactly ${choices.size} nonempty translated JSON strings in the same order."
-                    )
-                    if (requestVoiceHint) {
-                        append(buildVoiceHintInstructions(checkNotNull(voiceHintContext)))
-                    }
-                }
-            )
-        }
-    }
+    ): String = buildGeneralSceneUserPrompt(
+        name, dialogue, choices, requestVoiceHint, translateName, translateDialogue,
+        previousDialogueContexts, currentSpeaker, glossaryEntries, voiceHintContext
+    )
 
     private fun buildDialogueWithVoiceHintUserPrompt(
         dialogue: String,
@@ -5972,25 +5920,9 @@ class Translator @Inject constructor(
         previousDialogueContexts: List<SceneDialogueContext> = emptyList(),
         currentSpeaker: String = "",
         glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
-    ): String {
-        return buildString {
-            appendGeneralTranslationGlossarySection(glossaryEntries)
-            appendGeneralReferenceMarkSection(listOf(dialogue))
-            appendGeneralEmphasisSection(listOf(dialogue))
-            appendPromptSectionText(buildGeneralCurrentSpeakerContext(currentSpeaker, appliesToDialogue = true))
-            appendSceneDialogueContextBlock(previousDialogueContexts)
-            appendPromptSection("current_japanese", dialogue)
-            appendPromptSection(
-                "required_output",
-                buildString {
-                    appendLine("Return JSON only with exactly these keys: dialogue, voice_hint.")
-                    appendLine("dialogue must be a nonempty translated JSON string.")
-                    appendLine("""Neutral example: {"dialogue":"translated dialogue","voice_hint":null}""")
-                    append(buildVoiceHintInstructions(voiceHintContext))
-                }
-            )
-        }
-    }
+    ): String = buildGeneralDialogueWithVoiceHintUserPrompt(
+        dialogue, voiceHintContext, previousDialogueContexts, currentSpeaker, glossaryEntries
+    )
 
     private fun StringBuilder.appendCurrentSpeakerContextBlock(currentSpeaker: String) {
         if (currentSpeaker.isBlank()) return
