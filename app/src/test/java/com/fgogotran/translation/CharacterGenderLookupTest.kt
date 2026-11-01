@@ -1,6 +1,7 @@
 package com.fgogotran.translation
 
 import com.fgogotran.terminology.CharacterNameEntity
+import com.fgogotran.terminology.TermEntity
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -61,6 +62,49 @@ class CharacterGenderLookupTest {
         assertEquals("", lookup.find("alter"))
         assertEquals("女性", lookup.find("jeanne"))
         assertEquals("女性", lookup.find("artoria"))
+    }
+
+    @Test
+    fun `exact short name keeps its gender when its full name generates the same key`() = runBlocking {
+        val rows = listOf(character("Sherlock Holmes", "男性", "Holmes"), character("Holmes", "男性"))
+        for (ordered in listOf(rows, rows.reversed())) {
+            val lookup = lookup { ordered }
+            assertEquals("男性", lookup.find("holmes"))
+            assertEquals("男性", lookup.find("sherlock holmes"))
+        }
+    }
+
+    @Test
+    fun `blank shared short row does not override ambiguous parent ownership`() = runBlocking {
+        val lookup = lookup {
+            listOf(character("Alpha", "女性", "Shared"), character("Beta", "女性", "Shared"),
+                character("Shared", ""))
+        }
+        assertEquals("", lookup.find("shared"))
+        assertEquals("女性", lookup.find("alpha"))
+    }
+
+    @Test
+    fun `RAG recovers missing character gender without changing target text or explicit metadata`() = runBlocking {
+        val lookup = lookup {
+            listOf(character("Sherlock Holmes", "男性", "Holmes"), character("Holmes", "男性"),
+                character("Alpha", "女性", "Shared"), character("Beta", "男性", "Shared"))
+        }
+        val terms = listOf(
+            TermEntity(jpTerm = "Holmes", cnTerm = "福尔摩斯", enTerm = "Holmes", category = "character_part"),
+            TermEntity(jpTerm = "Shared", cnTerm = "共通", category = "character_part"),
+            TermEntity(jpTerm = "Sherlock Holmes", cnTerm = "夏洛克·福尔摩斯", category = "character"),
+            TermEntity(jpTerm = "Holmes", cnTerm = "地名", category = "place"),
+            TermEntity(jpTerm = "Holmes", cnTerm = "明确记录", category = "character", gender = "性別不明")
+        )
+        val enriched = enrichCharacterTermGenders(terms, lookup, ::canonical)
+        assertEquals(terms[0].copy(gender = "男性"), enriched[0])
+        assertSame(terms[1], enriched[1])
+        assertEquals(terms[2].copy(gender = "男性"), enriched[2])
+        assertSame(terms[3], enriched[3])
+        assertSame(terms[4], enriched[4])
+        assertEquals("male", TranslationGlossaryBuilder.genderNoteFor(enriched[0].gender, "en"))
+        assertEquals("男性", TranslationGlossaryBuilder.genderNoteFor(enriched[0].gender, "zh-Hant"))
     }
 
     @Test

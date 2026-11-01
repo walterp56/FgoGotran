@@ -42,6 +42,9 @@ data class VoiceSynthesisRequest(
     val aiVoiceSpeedPercent: Int = 100
 ) {
     fun cacheMaterial(): String = buildString {
+        // Old caches may contain an HTTP-200 partial clip that predated audio validation.
+        append(AzureTtsAudioPolicy.CACHE_VERSION)
+        append('|')
         append(ssmlModeVersion.orEmpty())
         append('|')
         append(azureSpeechRegion)

@@ -30,6 +30,25 @@ metadata used by the Sakura glossary and is never appended to the displayed name
 
 Keep full character names here. `build_db.py` automatically adds component records for separator-based names, so a full official row can also become searchable through its name parts. Curated TSV rows still win over generated component rows.
 
+Generated character-name parts inherit gender only when they belong to one
+unambiguous full-name record with known gender. Shared parts, conflicting or
+unknown parents remain blank. Explicit TSV rows keep their supplied metadata,
+including an intentionally blank gender. Name targets and aliases are unchanged.
+
+Remove a standalone short-name row only after reviewing that it identifies the
+same character as the full name and that rebuilding preserves its Chinese and
+English targets, gender, aliases, and Traditional Chinese overrides. Matching
+name parts alone do not establish identity: keep separate forms such as
+`ロムルス` / `ロムルス＝クィリヌス`, `エミヤ` / `エミヤ・オルタ`, and
+`スカサハ` / `スカサハ＝スカディ` as explicit rows.
+
+The reviewed short labels `ホームズ`, `カドック`, `ムニエル`, and `ゴルドルフ`
+are generated from their full-name rows. Keep exceptions such as compound short
+names (`ダ・ヴィンチ`), special translations (`ゴッホ`), short-name-only aliases
+(`オルガマリー`), and ambiguous labels (`ジャック`) explicit. Short-name rows
+remain in the generated database for direct name lookup and RAG; reducing the
+editable TSV does not itself reduce the runtime index.
+
 ## `jp_cn_name_map.tsv`
 
 After running the JP/CN/TW generator, append the English name-box column:
@@ -116,6 +135,37 @@ organization
 ```
 
 `build_db.py` can also add component records for separator-based terms when the Japanese and Chinese text split into the same number of parts. Curated TSV rows still win over generated component rows.
+
+## Traditional Chinese character and term exceptions
+
+The existing glossary DB remains shared. General-model Traditional Chinese requests
+can select a reviewed character name or term from
+`app/src/main/assets/translation/traditional_glossary_overrides.tsv` instead of
+relying on character conversion alone. Its only columns are `jp_source`, `cn_reference`,
+and `zh_hant`. The original Chinese reference must still match the current glossary.
+This covers character names and glossary terms, including places, organizations,
+skills, and Noble Phantasms; no `kind` column is needed. Add only differences that
+the existing character conversion cannot reliably express, rather than copying
+every glossary entry. Reviewed names use the app's middle-dot separator style.
+Matched exception targets retain their reviewed spelling in RAG and exact-term
+lookups; other entries continue to use the existing character conversion.
+Aliases use the existing glossary; local player names and Sakura requests bypass
+the exception selector. Update the APK to distribute changes to this small table.
+
+Run the read-only audit from the repo root:
+
+```powershell
+python -B term_builder/py/check_traditional_glossary.py --check
+```
+
+It reads both `character_names.tsv` and `term.tsv`, the existing Atlas cache, and
+the speaker-name map without network access. Cached Servant names, skill names,
+and Noble Phantasm names are paired by the same entity ID and field. Other terms
+can be added after manual verification. Candidates require review: the fallback
+character map used for screening is not a measurement of Android ICU, and speaker-map alignments can be
+ambiguous. No candidate is automatically added to the exception table.
+`--report PATH` explicitly writes a report; by default output is stdout only.
+No DB rebuild, schema migration, or CDN publication is needed for this table.
 
 ## Build
 

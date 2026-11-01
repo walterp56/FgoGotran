@@ -2851,7 +2851,7 @@
   {
     "jp_name": "ウルズ",
     "cn_name": "乌尔德",
-    "en_name": "Urðr",
+    "en_name": "Urd",
     "category": "character",
     "aliases": ""
   },
@@ -3578,7 +3578,7 @@
   },
   {
     "jp_name": "シオン・エルトナム・ソカリス",
-    "cn_name": "紫苑·艾尔特纳姆·索卡里斯",
+    "cn_name": "希翁·艾尔特纳姆·索卡里斯",
     "en_name": "Sion Eltnam Sokaris",
     "category": "character",
     "aliases": "シオン·エルトナム·ソカリス, シオンエルトナムソカリス"
@@ -3612,13 +3612,6 @@
     "aliases": "Cath Palug, キャス・パリーグ"
   },
   {
-    "jp_name": "ムニエル",
-    "cn_name": "穆尼尔",
-    "en_name": "Meuniere",
-    "category": "character",
-    "aliases": ""
-  },
-  {
     "jp_name": "ジングル・アベル・ムニエル",
     "cn_name": "金格尔·阿贝尔·穆尼尔",
     "en_name": "Jingle Abel Meuniere",
@@ -3626,32 +3619,11 @@
     "aliases": "ジングルアベルムニエル"
   },
   {
-    "jp_name": "ホームズ",
-    "cn_name": "福尔摩斯",
-    "en_name": "Holmes",
-    "category": "character",
-    "aliases": ""
-  },
-  {
     "jp_name": "ダ・ヴィンチ",
     "cn_name": "达·芬奇",
     "en_name": "Da Vinci",
     "category": "character",
     "aliases": "ダヴィンチ"
-  },
-  {
-    "jp_name": "ゴルドルフ",
-    "cn_name": "戈尔德鲁夫",
-    "en_name": "Goredolf",
-    "category": "character",
-    "aliases": ""
-  },
-  {
-    "jp_name": "カドック",
-    "cn_name": "卡多克",
-    "en_name": "Kadoc",
-    "category": "character",
-    "aliases": ""
   },
   {
     "jp_name": "キャプテン・ネモ",
@@ -3959,7 +3931,7 @@
     "cn_name": "拉妮-Ⅻ",
     "en_name": "Rani XII",
     "category": "character",
-    "aliases": "ラニXII"
+    "aliases": "ラニ=XⅡI, ラニXII"
   },
   {
     "jp_name": "アーユス",
@@ -4354,9 +4326,9 @@
     "aliases": ""
   },
   {
-    "jp_name": "ゴフ",
+    "jp_name": "ゴッフ",
     "cn_name": "戈夫",
-    "en_name": "Goredolf",
+    "en_name": "Goff",
     "category": "character",
     "aliases": ""
   },
@@ -4688,5 +4660,68 @@
     "en_name": "Kaya",
     "category": "character",
     "aliases": ""
+  },
+  {
+    "jp_name": "マッさん",
+    "cn_name": "小御",
+    "en_name": "Massan",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "マスPさん",
+    "cn_name": "御P",
+    "en_name": "MasP",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "えっちゃん",
+    "cn_name": "小艾",
+    "en_name": "Ex",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "タマモアリア",
+    "cn_name": "玉藻艾莉亚",
+    "en_name": "Tamamo Aria",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "シェヘラザード",
+    "cn_name": "山鲁佐德",
+    "en_name": "Scheherazade",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ペンテシレイア",
+    "cn_name": "彭忒西勒亚",
+    "en_name": "Penthesilea",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "キルケー",
+    "cn_name": "喀耳刻",
+    "en_name": "Circe",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "燕青",
+    "cn_name": "燕青",
+    "en_name": "Yan Qing",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ヘシアン・ロボ",
+    "cn_name": "黑森·罗伯",
+    "en_name": "Hessian Lobo",
+    "category": "character",
+    "aliases": "ヘシアンロボ"
   }
 ]

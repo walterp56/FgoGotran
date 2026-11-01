@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -14,6 +16,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextUtils
 import android.util.TypedValue
+import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -21,7 +24,9 @@ import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.TextView
+import androidx.core.view.doOnLayout
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicBoolean
@@ -44,12 +49,20 @@ class VoiceSubtitleOverlay @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val windowManager = context.getSystemService(WindowManager::class.java)
+    // Application resources can describe the background activity rather than this overlay's
+    // landscape area. Reuse one UI context for bounds, insets, views and density/font scaling.
+    private val windowContext: Context by lazy {
+        val display = requireNotNull(context.getSystemService(DisplayManager::class.java)
+            .getDisplay(Display.DEFAULT_DISPLAY)) { "Default display unavailable for voice subtitles" }
+        context.createDisplayContext(display)
+            .createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null)
+    }
+    private val windowManager by lazy { windowContext.getSystemService(WindowManager::class.java) }
     private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val active = AtomicBoolean(false)
     private val displayGeneration = AtomicLong()
     @Volatile private var sessionCurrent: () -> Boolean = { false }
-    private var touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var touchSlop = 0 // Initialized from the UI context before the view accepts touches.
     private var callbacksRegistered = false
 
     private val componentCallbacks = object : ComponentCallbacks {
@@ -58,6 +71,7 @@ class VoiceSubtitleOverlay @Inject constructor(
     }
 
     private var textView: TextView? = null
+    private var statusTypeface: Typeface? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var hideRunnable: Runnable? = null
     private var pendingTimeoutMs: Long? = null
@@ -105,12 +119,12 @@ class VoiceSubtitleOverlay @Inject constructor(
         }
     }
 
-    fun showPartial(text: String) {
-        show(text, isFinal = false, isError = false)
+    fun showPartial(text: String, targetLocale: String) {
+        show(text, isFinal = false, isError = false, targetLocale = targetLocale)
     }
 
-    fun showFinal(text: String) {
-        show(text, isFinal = true, isError = false)
+    fun showFinal(text: String, targetLocale: String) {
+        show(text, isFinal = true, isError = false, targetLocale = targetLocale)
     }
 
     fun showStatus(text: String, isError: Boolean = false) {
@@ -126,7 +140,7 @@ class VoiceSubtitleOverlay @Inject constructor(
             updateMaximumWidth(view)
             updateDisplayText(view)
             view.requestLayout()
-            view.post {
+            view.doOnLayout {
                 if (textView === view) placeView(view, useConfiguredPosition = true)
             }
         }
@@ -151,7 +165,7 @@ class VoiceSubtitleOverlay @Inject constructor(
         mainHandler.post {
             if (epoch != displayGeneration.get()) return@post
             if (callbacksRegistered) {
-                context.unregisterComponentCallbacks(componentCallbacks)
+                windowContext.unregisterComponentCallbacks(componentCallbacks)
                 callbacksRegistered = false
             }
             cancelScheduledHide()
@@ -163,6 +177,7 @@ class VoiceSubtitleOverlay @Inject constructor(
                     .onFailure { FgoLogger.warn(tag, "Voice subtitle overlay removal failed", it) }
             }
             textView = null
+            statusTypeface = null
             layoutParams = null
             layoutScreen = null
         }
@@ -173,15 +188,24 @@ class VoiceSubtitleOverlay @Inject constructor(
         isFinal: Boolean,
         isError: Boolean,
         timeoutMs: Long? = if (isFinal) FINAL_TIMEOUT_MS else null,
-        isStatus: Boolean = false
+        isStatus: Boolean = false,
+        targetLocale: String? = null
     ) {
         val safeText = text.trim()
+        val captionLocale = targetLocale?.let(SettingsRepository::normalizeTargetLanguage)
         val epoch = displayGeneration.get()
         val ownerCurrent = sessionCurrent
         if (safeText.isEmpty() || !active.get() || !ownerCurrent()) return
         mainHandler.post {
             if (epoch != displayGeneration.get() || !active.get() || !ownerCurrent()) return@post
             val view = ensureView() ?: return@post
+            // Caption language belongs to the Azure session that produced it, not mutable UI settings.
+            view.typeface = captionLocale?.let { FgoTypefaceProvider.storyTypeface(view.context, it) }
+                ?: statusTypeface ?: Typeface.DEFAULT
+            view.paint.isFakeBoldText = false
+            // Caption fonts reserve very different bounds for unused glyphs. Use their normal
+            // ascent/descent with our explicit padding; UI status text keeps its default padding.
+            view.includeFontPadding = isStatus
             cancelScheduledHide()
             pendingTimeoutMs = timeoutMs
             if (isStatus) {
@@ -198,7 +222,7 @@ class VoiceSubtitleOverlay @Inject constructor(
             updateMaximumWidth(view)
             updateDisplayText(view)
             view.requestLayout()
-            view.post {
+            view.doOnLayout {
                 if (epoch == displayGeneration.get() && ownerCurrent()) placeView(view, useConfiguredPosition = false)
             }
             if (!touchActive) timeoutMs?.let(::scheduleHide)
@@ -212,7 +236,12 @@ class VoiceSubtitleOverlay @Inject constructor(
             FgoLogger.warn(tag, "Cannot show voice subtitles without overlay permission")
             return null
         }
-        val view = TextView(context).apply {
+        val captionContext = runCatching { windowContext }.onFailure {
+            FgoLogger.warn(tag, "Cannot create voice subtitle window context", it)
+        }.getOrNull() ?: return null
+        val view = TextView(captionContext).apply {
+            statusTypeface = typeface
+            setFallbackLineSpacing(true)
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
             applyViewSizing(this)
             maxLines = MAX_SUBTITLE_LINES
@@ -222,7 +251,7 @@ class VoiceSubtitleOverlay @Inject constructor(
         }
         updateMaximumWidth(view)
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            1, // Replaced by the measured content width before the first caption is drawn.
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -238,7 +267,7 @@ class VoiceSubtitleOverlay @Inject constructor(
             layoutParams = params
             layoutScreen = null
             if (!callbacksRegistered) {
-                context.registerComponentCallbacks(componentCallbacks)
+                windowContext.registerComponentCallbacks(componentCallbacks)
                 callbacksRegistered = true
             }
             view
@@ -255,7 +284,7 @@ class VoiceSubtitleOverlay @Inject constructor(
             setColor(BACKGROUND_COLOR)
             cornerRadius = dp(10).toFloat()
         }
-        touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+        touchSlop = ViewConfiguration.get(view.context).scaledTouchSlop
     }
 
     private fun handleTouch(view: View, event: MotionEvent): Boolean {
@@ -357,7 +386,9 @@ class VoiceSubtitleOverlay @Inject constructor(
             updateMaximumWidth(view)
             updateDisplayText(view)
             view.requestLayout()
-            view.post { placeView(view, useConfiguredPosition = true) }
+            view.doOnLayout {
+                if (textView === view) placeView(view, useConfiguredPosition = true)
+            }
         }
     }
 
@@ -375,12 +406,16 @@ class VoiceSubtitleOverlay @Inject constructor(
 
     private fun updateMaximumWidth(view: TextView) {
         val viewport = currentViewport()
-        view.maxWidth = SubtitleOverlayGeometry.maximumTextWidth(
+        val maximumWidth = SubtitleOverlayGeometry.maximumTextWidth(
             screenWidth = viewport.width,
             insetLeft = viewport.insetLeft,
             insetRight = viewport.insetRight,
             coverage = MAX_WIDTH_COVERAGE
         )
+        if (view.maxWidth != maximumWidth) {
+            FgoLogger.debug(tag, "Overlay viewport=${viewport.width}x${viewport.height}, maxWidth=$maximumWidth")
+        }
+        view.maxWidth = maximumWidth
     }
 
     private fun updateDisplayText(view: TextView) {
@@ -391,16 +426,18 @@ class VoiceSubtitleOverlay @Inject constructor(
             view.maxLines = MAX_STATUS_LINES
             view.ellipsize = TextUtils.TruncateAt.END
             view.text = status
+            updateWindowWidth(view)
             return
         }
-        // Keep the speech reading edge fixed as partial text grows; status messages stay compact.
-        view.minWidth = view.maxWidth
+        // The window fits the longest displayed row; maxWidth remains only a wrapping limit.
+        view.minWidth = 0
         view.gravity = Gravity.START or Gravity.CENTER_VERTICAL
         view.maxLines = MAX_SUBTITLE_LINES
         view.ellipsize = null
         val text = subtitleHistory.text()
         if (text.isEmpty()) {
             view.text = ""
+            updateWindowWidth(view)
             return
         }
         val textWidth = (view.maxWidth - view.compoundPaddingLeft - view.compoundPaddingRight)
@@ -409,12 +446,34 @@ class VoiceSubtitleOverlay @Inject constructor(
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setIncludePad(view.includeFontPadding)
             .setLineSpacing(view.lineSpacingExtra, view.lineSpacingMultiplier)
+            .setUseLineSpacingFromFallbacks(view.isFallbackLineSpacing)
             .setBreakStrategy(view.breakStrategy)
             .setHyphenationFrequency(view.hyphenationFrequency)
             .build()
         // Drop the oldest visible lines, not the newest words at the end of the caption.
         val firstVisibleLine = (layout.lineCount - MAX_SUBTITLE_LINES).coerceAtLeast(0)
-        view.text = text.substring(layout.getLineStart(firstVisibleLine))
+        // Freeze these measured row breaks before sizing the box to its content. Keeping
+        // the original unbroken suffix could reflow it and hide the newest words in a third row.
+        view.text = (firstVisibleLine until layout.lineCount).joinToString("\n") { line ->
+            text.substring(layout.getLineStart(line), layout.getLineEnd(line)).trimEnd('\r', '\n')
+        }
+        updateWindowWidth(view)
+    }
+
+    private fun updateWindowWidth(view: TextView) {
+        val params = layoutParams ?: return
+        // WRAP_CONTENT windows can be measured at Android's preferred dialog width even when
+        // TextView.maxWidth is much larger. Supply the current content width explicitly.
+        val width = SubtitleOverlayGeometry.fittedWindowWidth(
+            Layout.getDesiredWidth(view.text, view.paint),
+            view.compoundPaddingLeft, view.compoundPaddingRight, view.maxWidth)
+        if (params.width == width) return
+        val previousWidth = params.width
+        params.width = width
+        runCatching { windowManager.updateViewLayout(view, params) }.onFailure {
+            params.width = previousWidth
+            FgoLogger.warn(tag, "Voice subtitle overlay resize failed", it)
+        }
     }
 
     private fun clearDisplayText() {
@@ -436,11 +495,16 @@ class VoiceSubtitleOverlay @Inject constructor(
         }
         val viewWidth = view.width.coerceAtLeast(view.measuredWidth)
         val viewHeight = view.height.coerceAtLeast(view.measuredHeight)
+        // Keep the old reading edge as captions grow/shrink. Status text stays centered, and
+        // saved drag positions still take precedence. Only the actual box is clamped to insets.
+        val anchorWidth = if (statusText == null) SubtitleOverlayGeometry.maximumTextWidth(
+            viewport.width, viewport.insetLeft, viewport.insetRight, MAX_WIDTH_COVERAGE
+        ) else viewWidth
         val desired = when {
             useConfiguredPosition || screenChanged -> configuredPosition?.let {
                 SubtitleOverlayPosition(it.first, it.second)
-            } ?: defaultPosition(viewWidth, viewHeight, viewport)
-            configuredPosition == null -> defaultPosition(viewWidth, viewHeight, viewport)
+            } ?: defaultPosition(viewWidth, viewHeight, viewport, anchorWidth)
+            configuredPosition == null -> defaultPosition(viewWidth, viewHeight, viewport, anchorWidth)
             else -> SubtitleOverlayPosition(params.x, params.y)
         }
         val clamped = SubtitleOverlayGeometry.clampPosition(
@@ -462,7 +526,8 @@ class VoiceSubtitleOverlay @Inject constructor(
     private fun defaultPosition(
         viewWidth: Int,
         viewHeight: Int,
-        viewport: SubtitleViewport
+        viewport: SubtitleViewport,
+        anchorWidth: Int
     ): SubtitleOverlayPosition = SubtitleOverlayGeometry.defaultPosition(
         viewWidth = viewWidth,
         viewHeight = viewHeight,
@@ -472,7 +537,8 @@ class VoiceSubtitleOverlay @Inject constructor(
         insetTop = viewport.insetTop,
         insetRight = viewport.insetRight,
         insetBottom = viewport.insetBottom,
-        topMargin = dp(TOP_MARGIN_DP)
+        topMargin = dp(TOP_MARGIN_DP),
+        anchorWidth = anchorWidth
     )
 
     private fun updateWindowPosition(view: View, position: SubtitleOverlayPosition) {
@@ -527,7 +593,7 @@ class VoiceSubtitleOverlay @Inject constructor(
     }
 
     private fun dp(value: Int): Int {
-        return (value * context.resources.displayMetrics.density).roundToInt()
+        return (value * windowContext.resources.displayMetrics.density).roundToInt()
     }
 
     private data class SubtitleSettings(
@@ -553,7 +619,7 @@ class VoiceSubtitleOverlay @Inject constructor(
     private companion object {
         const val tag = "VoiceSubtitle"
         const val TOP_MARGIN_DP = 54
-        const val MAX_WIDTH_COVERAGE = 0.90f
+        const val MAX_WIDTH_COVERAGE = 0.96f
         const val MAX_SUBTITLE_LINES = 2
         const val MAX_STATUS_LINES = 3
         const val FINAL_TIMEOUT_MS = 3_200L

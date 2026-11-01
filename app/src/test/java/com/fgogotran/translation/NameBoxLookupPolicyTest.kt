@@ -153,19 +153,27 @@ class NameBoxLookupPolicyTest {
         assertTrue(scene.contains("promptBuilder.extractTermMatches(combinedText, allTerms, config.targetLanguage)"))
         assertTrue(scene.contains("val protectedName = uncachedName?.let(::preparePromptText)"))
         assertTrue(scene.contains("translateName = needsName"))
-        assertTrue(function(translatorSource(), "buildSceneUserPrompt").contains("appendLine(it)"))
+        assertTrue(function(translatorSource(), "buildSceneUserPrompt").contains("buildGeneralSceneUserPrompt("))
+        val sceneBuilder = listOf(
+            File("src/main/java/com/fgogotran/translation/GeneralScenePromptRequests.kt"),
+            File("app/src/main/java/com/fgogotran/translation/GeneralScenePromptRequests.kt")
+        ).first(File::isFile).readText()
+        assertTrue(sceneBuilder.contains("appendLine(it)"))
     }
 
     @Test
     fun `name-only fallback cannot reenter general memory term or fuzzy shortcuts`() {
         val single = function(translatorSource(), "translate")
         val admission = single.substringAfter("if (translateAsName) {").substringBefore("val useSakuraPrompt")
-        val names = admission.substringBefore("} else {")
-        assertTrue(names.contains("findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage)"))
-        assertTrue(names.contains("!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText)"))
+        val nonNameBranch = "} else if (alignedSubtitleRows == 0) {"
+        assertTrue(admission.contains(nonNameBranch))
+        val names = admission.substringBefore(nonNameBranch)
+        assertTrue(names.contains("findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage,"))
+        assertTrue(names.contains("useTraditionalOverrides = usesTraditionalOverrides(config)"))
+        assertTrue(names.contains("!forceFreshTranslation && !EmphasisText.has(normalizedText) && !TextNormalizer.hasRubyAnnotations(normalizedText)"))
         for (lookup in listOf("translationMemory.lookupNormalized", "findCharacterNameTranslation(", "findTermTranslation(")) {
             assertFalse(names.contains(lookup), lookup)
-            assertTrue(admission.substringAfter("} else {").contains(lookup), lookup)
+            assertTrue(admission.substringAfter(nonNameBranch).contains(lookup), lookup)
         }
         val exact = function(translatorSource(), "findExactVisibleCharacterNameTranslation")
         assertTrue(exact.contains("NameBoxLookupPolicy.findTranslation("))
@@ -209,5 +217,5 @@ class NameBoxLookupPolicyTest {
 
     private fun function(source: String, name: String): String =
         Regex("(?m)^    (?:private )?(?:suspend )?fun ").split(source).drop(1)
-            .first { it.startsWith("$name(") }
+            .first { it.startsWith("${if (name in listOf("translate", "translateBatch", "translateScene")) name + "Internal" else name}(") }
 }

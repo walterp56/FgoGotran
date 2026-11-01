@@ -79,6 +79,7 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
         generated_character_parts += character_parts
         generated_term_parts += term_parts
 
+    inherited_character_genders = inherit_character_component_genders(conn, terms)
     conn.commit()
     character_count = conn.execute("SELECT COUNT(*) FROM character_names").fetchone()[0]
     term_count = conn.execute("SELECT COUNT(*) FROM terms").fetchone()[0]
@@ -96,6 +97,7 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
     print(f"Built {db_path}")
     print(f"  character_names: {character_count} (en: {en_character_count})")
     print(f"  generated_character_parts: {generated_character_parts}")
+    print(f"  inherited_character_genders: {inherited_character_genders}")
     print(f"  generated_term_parts: {generated_term_parts}")
     print(f"  terms: {term_count} (en: {en_term_count})")
     for category, category_count in categories:
@@ -105,6 +107,38 @@ def build_db(json_path: Path = DEFAULT_JSON, db_path: Path = DEFAULT_DB) -> None
     if local_copy.resolve() != db_path.resolve():
         shutil.copy2(db_path, local_copy)
         print(f"Copied local DB preview to {local_copy}")
+
+
+def inherit_character_component_genders(conn: sqlite3.Connection, terms: list[dict[str, Any]]) -> int:
+    """Fill generated name parts from one unambiguous parent; curated rows always win."""
+    explicit_sources: set[str] = set()
+    parents_by_part: dict[str, set[tuple[str, str]]] = {}
+    for term in terms:
+        if clean(term.get("category")) not in {"character", "servant"}:
+            continue
+        source, chinese = clean(term.get("jp_name")), clean(term.get("cn_name"))
+        if not source or not chinese:
+            continue
+        owner = normalize_name_key(source)
+        explicit_sources.add(owner)
+        gender = clean(term.get("gender"))
+        for part, _, _ in merged_component_targets(
+            source, chinese, clean(term.get("en_name")), clean(term.get("en_components"))
+        ):
+            parents_by_part.setdefault(normalize_name_key(part), set()).add((owner, gender))
+
+    updated = 0
+    for (source,) in conn.execute("SELECT jp_name FROM character_names WHERE gender = ''").fetchall():
+        key = normalize_name_key(source)
+        parents = parents_by_part.get(key, set())
+        if key in explicit_sources or len(parents) != 1:
+            continue
+        _, gender = next(iter(parents))
+        if gender not in {"女性", "男性", "性別不明"}:
+            continue
+        updated += conn.execute("UPDATE character_names SET gender = ? WHERE jp_name = ? AND gender = ''",
+                                (gender, source)).rowcount
+    return updated
 
 
 def insert_term(conn: sqlite3.Connection, term: dict[str, Any]) -> tuple[int, int]:

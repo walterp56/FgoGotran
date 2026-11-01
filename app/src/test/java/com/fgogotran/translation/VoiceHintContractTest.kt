@@ -56,7 +56,7 @@ class VoiceHintContractTest {
     }
 
     @Test
-    fun `delivery values keep existing bounds and omit zero`() {
+    fun `delivery bounds preserve explicit neutral rate while omitting zero pitch and pause`() {
         val hint = assertNotNull(parse("""{
             "rate":999,"pitch":-999,"pause":1.2,"intensity":5,"confidence":-1
         }"""))
@@ -65,7 +65,10 @@ class VoiceHintContractTest {
         assertEquals(1, hint.pause)
         assertEquals(1.0, hint.intensity)
         assertEquals(0.0, hint.confidence)
-        assertNull(parse("""{"rate":0,"pitch":0,"pause":0,"intensity":0.5}"""))
+        val neutral = assertNotNull(parse("""{"rate":0,"pitch":0,"pause":0,"intensity":0.5}"""))
+        assertEquals(0, neutral.rate)
+        assertNull(neutral.pitch)
+        assertNull(neutral.pause)
     }
 
     @Test
@@ -76,6 +79,16 @@ class VoiceHintContractTest {
         assertEquals(-1, hint.rate)
         assertEquals(1, hint.pause)
         assertNull(parse("""{"styles":["sad"]}""", styleless))
+    }
+
+    @Test
+    fun `rate prompt defines relative tempo without changing the translation contract`() {
+        val instructions = buildVoiceHintInstructions(context)
+        assertTrue(instructions.contains("relative to app/character speed"))
+        assertTrue(instructions.contains("-2=-10%, -1=-5%, 0=unchanged, 1=+5%, 2=+10%"))
+        assertTrue(instructions.contains("never an absolute speed"))
+        assertTrue(instructions.contains("never change translation"))
+        assertEquals(0, parse("""{"rate":0}""")?.rate)
     }
 
     @Test

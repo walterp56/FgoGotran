@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import com.fgogotran.R
+import com.fgogotran.subtitle.ScreenOcrWorkflow
 import com.fgogotran.localization.LocalizedText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,17 +57,26 @@ enum class FloatingButtonMode {
     SEMI_AUTO,
     AUTO,
     BATTLE,
+    DIALOGUE,
     CROP
 }
 
 internal fun FloatingButtonMode.withBattleIndicator(battleModeActive: Boolean): FloatingButtonMode =
     if (battleModeActive && this != FloatingButtonMode.CROP) FloatingButtonMode.BATTLE else this
 
+internal fun FloatingButtonMode.withSubtitleIndicator(workflow: ScreenOcrWorkflow): FloatingButtonMode =
+    if (this == FloatingButtonMode.CROP) this else when (workflow) {
+        ScreenOcrWorkflow.STORY -> this
+        ScreenOcrWorkflow.BATTLE_SUBTITLE -> FloatingButtonMode.BATTLE
+        ScreenOcrWorkflow.DIALOGUE_SUBTITLE -> FloatingButtonMode.DIALOGUE
+    }
+
 enum class FloatingActionIcon {
     GO,
     SEMI,
     AUTO,
     BATTLE,
+    DIALOGUE,
     CROP,
     HISTORY_LIST,
     CLOSE_CIRCLE
@@ -78,6 +88,7 @@ private fun FloatingActionIcon.textLabel(): String = when (this) {
     FloatingActionIcon.SEMI -> stringResource(R.string.mode_glyph_semi)
     FloatingActionIcon.AUTO -> stringResource(R.string.mode_glyph_auto)
     FloatingActionIcon.BATTLE -> stringResource(R.string.mode_glyph_battle)
+    FloatingActionIcon.DIALOGUE -> stringResource(R.string.mode_glyph_dialogue)
     else -> error("$this is not a text action")
 }
 
@@ -140,6 +151,7 @@ fun FloatingButton(
             FloatingButtonMode.SEMI_AUTO -> R.string.mode_desc_semi
             FloatingButtonMode.AUTO -> R.string.mode_desc_auto
             FloatingButtonMode.BATTLE -> R.string.mode_desc_battle
+            FloatingButtonMode.DIALOGUE -> R.string.mode_desc_dialogue
             FloatingButtonMode.CROP -> R.string.mode_desc_crop
         }
     )
@@ -313,6 +325,7 @@ fun FloatingButton(
                         FloatingButtonMode.SEMI_AUTO -> FloatingActionIcon.SEMI
                         FloatingButtonMode.AUTO -> FloatingActionIcon.AUTO
                         FloatingButtonMode.BATTLE -> FloatingActionIcon.BATTLE
+                        FloatingButtonMode.DIALOGUE -> FloatingActionIcon.DIALOGUE
                         FloatingButtonMode.CROP -> FloatingActionIcon.CROP
                     },
                     prominent = true,
@@ -337,7 +350,8 @@ fun FloatingActionGlyph(
         FloatingActionIcon.GO,
         FloatingActionIcon.SEMI,
         FloatingActionIcon.AUTO,
-        FloatingActionIcon.BATTLE -> BoxWithConstraints(
+        FloatingActionIcon.BATTLE,
+        FloatingActionIcon.DIALOGUE -> BoxWithConstraints(
             modifier = modifier,
             contentAlignment = Alignment.Center
         ) {
@@ -395,6 +409,8 @@ private fun glyphSizeDp(
     icon == FloatingActionIcon.AUTO -> 17f
     icon == FloatingActionIcon.BATTLE && prominent -> 21f
     icon == FloatingActionIcon.BATTLE -> 17f
+    icon == FloatingActionIcon.DIALOGUE && prominent -> 21f
+    icon == FloatingActionIcon.DIALOGUE -> 17f
     else -> 13f
 } * contentScale)
 

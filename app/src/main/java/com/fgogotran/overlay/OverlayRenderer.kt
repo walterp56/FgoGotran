@@ -1,5 +1,7 @@
 package com.fgogotran.overlay
 
+import com.fgogotran.text.EmphasisRange
+import com.fgogotran.text.EmphasisText
 import android.content.Context
 import android.graphics.*
 import com.fgogotran.data.SettingsRepository
@@ -21,7 +23,9 @@ data class RenderInstruction(
     val textColor: Int? = null,
     val wideTextSpacing: Boolean = false,
     val targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
-    val showOriginalText: Boolean = false
+    val showOriginalText: Boolean = false,
+    val emphasisRanges: List<EmphasisRange> = emptyList(),
+    val showAnnotations: Boolean = true
 )
 
 /**
@@ -65,8 +69,8 @@ class OverlayRenderer @Inject constructor(
     }
 
     companion object {
-        private val DIALOGUE_BACKGROUND = Color.rgb(27, 51, 85)
-        private val NAME_BACKGROUND = Color.rgb(52, 89, 138)
+        private val DIALOGUE_BACKGROUND = Color.rgb(27, 48, 78)
+        private val NAME_BACKGROUND = Color.rgb(36, 84, 132)
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
         private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
         private val ORIGINAL_TEXT_COLOR = Color.rgb(80, 235, 235)
@@ -83,18 +87,12 @@ class OverlayRenderer @Inject constructor(
         private const val SOURCE_BOUNDS_RUBY_HEIGHT_RATIO = 0.72f
         private const val ORIGINAL_TEXT_SIZE_RATIO = 0.85f
         private const val ORIGINAL_LINE_HEIGHT_MULTIPLIER = 1.18f
-        private const val BILINGUAL_PAIR_GAP = 10f
-        private const val BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER = 1.08f
         private const val BILINGUAL_CHOICE_LINE_HEIGHT_MULTIPLIER = 1.08f
         private const val BILINGUAL_TRANSLATION_TEXT_SIZE = 53f
-        private const val BILINGUAL_TRANSLATION_MIN_TEXT_SIZE = 24f
         private const val BILINGUAL_CHOICE_TEXT_SIZE = 53f
         private const val BILINGUAL_CHOICE_MIN_TEXT_SIZE = 24f
         private const val BILINGUAL_ORIGINAL_MAX_TEXT_SIZE = 31f
         private const val BILINGUAL_ORIGINAL_MIN_TEXT_SIZE = 14f
-        private const val DIALOGUE_MIN_TEXT_SIZE = 28f
-        private const val DIALOGUE_EMERGENCY_MIN_TEXT_SIZE = 22f
-        private const val DIALOGUE_TEXT_SIZE_SEARCH_PRECISION = 0.25f
         private const val NAME_TEXT_LEFT_INSET = 52f
         private const val NAME_PLATE_LEFT_INSET = 42f
         private const val NAME_TEXT_TOP_INSET = 8f
@@ -140,6 +138,29 @@ class OverlayRenderer @Inject constructor(
         instructions: List<RenderInstruction>,
         screenWidth: Int,
         screenHeight: Int
+    ): Bitmap = renderInternal(bitmap, instructions, null)
+
+    /** Owns its final bitmap and small dialogue patches; no mutable renderer buffer escapes. */
+    internal fun prepareDialoguePlayback(
+        bitmap: Bitmap, instructions: List<RenderInstruction>, settings: DialoguePlaybackSettings
+    ): DialoguePlaybackFrame {
+        val panels = mutableListOf<DialoguePlaybackFrame.Panel>()
+        var owned: Bitmap? = null
+        try {
+            val rendered = renderInternal(bitmap, instructions, panels)
+            owned = checkNotNull(rendered.copy(Bitmap.Config.ARGB_8888, false))
+            return DialoguePlaybackFrame(owned, panels,
+                instructions.filter { it.region.region != TextRegion.DIALOGUE_BOX }
+                    .map { Rect(it.region.boundingBox) }, settings)
+        } catch (error: Throwable) {
+            owned?.takeUnless { it.isRecycled }?.recycle()
+            panels.forEach(DialoguePlaybackFrame::releasePanel)
+            throw error
+        }
+    }
+
+    private fun renderInternal(
+        bitmap: Bitmap, instructions: List<RenderInstruction>, panels: MutableList<DialoguePlaybackFrame.Panel>?
     ): Bitmap {
         FgoLogger.info(tag, "Rendering ${instructions.size} instructions onto ${bitmap.width}x${bitmap.height}")
 
@@ -155,10 +176,13 @@ class OverlayRenderer @Inject constructor(
             clearShadowLayer()
         }
 
-        for (instruction in instructions) {
+        for (originalInstruction in instructions) {
+            val annotated = EmphasisText.encode(originalInstruction.translatedText, originalInstruction.emphasisRanges)
+            val instruction = originalInstruction.copy(translatedText = RubyRenderText.forDisplay(annotated,
+                originalInstruction.showAnnotations))
             textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             when (instruction.region.region) {
-                TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction)
+                TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction, panels)
                 TextRegion.NAME_LABEL -> renderNameLabel(reusableCanvas, textPaint, instruction)
                 TextRegion.CHOICE_BUTTON -> renderChoiceButton(reusableCanvas, textPaint, instruction)
             }
@@ -172,6 +196,7 @@ class OverlayRenderer @Inject constructor(
         screenWidth: Int,
         screenHeight: Int
     ): String {
+        // History retains the annotations even when the current display preference hides them.
         if (instruction.region.region != TextRegion.DIALOGUE_BOX) {
             return instruction.translatedText.trim()
         }
@@ -183,9 +208,7 @@ class OverlayRenderer @Inject constructor(
         }
         val scale = screenScale(screenWidth, screenHeight)
         return layoutDialogueText(instruction, historyPaint, scale)
-            .lines
-            .joinToString("\n")
-            .trim()
+            ?.lines?.joinToString("\n")?.trim() ?: instruction.translatedText.trim()
     }
 
     private fun obtainReusableBitmap(width: Int, height: Int): Bitmap {
@@ -200,38 +223,48 @@ class OverlayRenderer @Inject constructor(
         }
     }
 
+    /** Used by the independent settings preview renderer, never the production renderer. */
+    internal fun releaseBuffers() {
+        reusableCanvas.setBitmap(null)
+        reusableBitmap?.takeUnless { it.isRecycled }?.recycle()
+        reusableBitmap = null
+    }
+
     /**
      * Renders the dialogue box: clears the area, then paints multi-line CN text.
      */
     private fun renderDialogueBox(
         canvas: Canvas,
         paint: Paint,
-        instruction: RenderInstruction
+        instruction: RenderInstruction,
+        panels: MutableList<DialoguePlaybackFrame.Panel>? = null
     ) {
         if (instruction.shouldRenderOriginalText()) {
-            renderBilingualDialogueBox(canvas, paint, instruction)
+            renderBilingualDialogueBox(canvas, paint, instruction, panels)
             return
         }
 
         val scale = screenScale(canvas)
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
         paint.color = textColor
-        val layout = layoutDialogueText(instruction, paint, scale)
+        val layout = layoutDialogueText(instruction, paint, scale) ?: return
+        // Add upper background/clip headroom after fitting so fonts, wrapping and baselines
+        // remain exactly those of the existing single-language row plan.
+        val clearBox = DialogueRenderGeometry.withUpperHeadroom(layout.clearBox.toDialogueRect(),
+            RectF(instruction.region.boundingBox).toDialogueRect(), scale).toRectF()
         FgoLogger.debug(
             tag,
             "Dialogue render lines: count=${layout.lines.size}, " +
-                "widths=${layout.lines.map { paint.measureText(it).toInt() }}, " +
+                "widths=${layout.lines.map { paint.measureRenderText(it).toInt() }}, " +
                 "maxWidth=${layout.textArea.width().toInt()}, textSize=${paint.textSize}, " +
                 "lines=${layout.lines.joinToString(" ⏎ ")}"
         )
         FgoLogger.debug(
             tag,
-            "Dialogue render anchor: left=${layout.clearBox.left.toInt()}, top=${layout.clearBox.top.toInt()}, " +
-                "right=${layout.clearBox.right.toInt()}, bottom=${layout.clearBox.bottom.toInt()}, " +
+            "Dialogue render anchor: left=${clearBox.left.toInt()}, top=${clearBox.top.toInt()}, " +
+                "right=${clearBox.right.toInt()}, bottom=${clearBox.bottom.toInt()}, " +
                 "textLeft=${layout.textArea.left.toInt()}, textTop=${layout.textArea.top.toInt()}"
         )
-        val clearBox = layout.clearBox
-
         canvas.drawRoundRect(
             clearBox.left, clearBox.top,
             clearBox.right, clearBox.bottom,
@@ -239,32 +272,31 @@ class OverlayRenderer @Inject constructor(
         )
 
         val textArea = layout.textArea
-        val firstBaseline = VisualTextMetrics.baselineForTop(
-            paint = paint,
-            top = textArea.top,
-            targetLanguage = instruction.targetLocale,
-            text = layout.lines.firstOrNull().orEmpty()
-        )
-
         canvas.save()
-        canvas.clipRect(textArea)
-        drawLines(
-            canvas = canvas,
-            paint = paint,
-            lines = layout.lines,
-            x = textArea.left,
-            firstBaseline = firstBaseline,
-            lineHeight = layout.lineHeight,
-            textColor = textColor
-        )
+        canvas.clipRect(clearBox)
+        drawPlannedDialogueRows(canvas, paint, layout.plannedRows, textArea.left, textColor, layout.drawingScale)
         canvas.restore()
+        panels?.add(captureDialoguePlayback(clearBox, instruction.region.boundingBox, layout.plannedRows,
+            textArea.left, textColor, layout.drawingScale, paint, 12f * scale))
     }
 
     private data class DialogueTextLayout(
         val clearBox: RectF,
         val textArea: RectF,
         val lines: List<String>,
-        val lineHeight: Float
+        val lineHeight: Float,
+        val plannedRows: List<PlannedDialogueRow>,
+        val drawingScale: Float
+    )
+
+    private data class PlannedDialogueRow(
+        val body: String,
+        val textSize: Float,
+        val baseline: Float,
+        val original: Boolean,
+        val ink: RectF,
+        val ruby: List<RubyTextPainter.PlannedAnnotation>,
+        val rubyEnds: List<Int>
     )
 
     private data class BilingualDialogueTextLayout(
@@ -272,11 +304,11 @@ class OverlayRenderer @Inject constructor(
         val textArea: RectF,
         val translationLines: List<String>,
         val originalLines: List<String>,
-        val translationLineHeight: Float,
-        val originalLineHeight: Float,
-        val pairGap: Float,
+        val rows: BilingualDialogueGeometry.Layout,
         val translationTextSize: Float,
-        val originalTextSize: Float
+        val originalTextSize: Float,
+        val plannedRows: List<PlannedDialogueRow>,
+        val drawingScale: Float
     )
 
     private data class BilingualSingleLineLayout(
@@ -291,11 +323,11 @@ class OverlayRenderer @Inject constructor(
     private data class BilingualLinePairFit(
         val translationLines: List<String>,
         val originalLines: List<String>,
-        val translationLineHeight: Float,
-        val originalLineHeight: Float,
-        val pairGap: Float,
+        val rows: BilingualDialogueGeometry.Layout,
         val translationTextSize: Float,
-        val originalTextSize: Float
+        val originalTextSize: Float,
+        val plannedRows: List<PlannedDialogueRow>,
+        val drawingScale: Float
     )
 
     private data class DialogueRenderCandidates(
@@ -323,11 +355,12 @@ class OverlayRenderer @Inject constructor(
     private fun renderBilingualDialogueBox(
         canvas: Canvas,
         paint: Paint,
-        instruction: RenderInstruction
+        instruction: RenderInstruction,
+        panels: MutableList<DialoguePlaybackFrame.Panel>? = null
     ) {
         val scale = screenScale(canvas)
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
-        val layout = layoutBilingualDialogueText(instruction, paint, scale)
+        val layout = layoutBilingualDialogueText(instruction, paint, scale) ?: return
 
         canvas.drawRoundRect(
             layout.clearBox.left, layout.clearBox.top,
@@ -336,48 +369,40 @@ class OverlayRenderer @Inject constructor(
         )
 
         canvas.save()
-        canvas.clipRect(layout.textArea)
-        drawBilingualLinePairs(
-            canvas = canvas,
-            paint = paint,
-            translationLines = layout.translationLines,
-            originalLines = layout.originalLines,
-            targetLanguage = instruction.targetLocale,
-            x = layout.textArea.left,
-            top = layout.textArea.top,
-            translationTextSize = layout.translationTextSize,
-            originalTextSize = layout.originalTextSize,
-            translationLineHeight = layout.translationLineHeight,
-            originalLineHeight = layout.originalLineHeight,
-            pairGap = layout.pairGap,
-            translationColor = textColor
-        )
+        // Bilingual ruby space stays available even on scenes without annotations.
+        canvas.clipRect(layout.clearBox)
+        drawPlannedDialogueRows(canvas, paint, layout.plannedRows, layout.textArea.left,
+            textColor, layout.drawingScale)
         canvas.restore()
+        panels?.add(captureDialoguePlayback(layout.clearBox, instruction.region.boundingBox, layout.plannedRows,
+            layout.textArea.left, textColor, layout.drawingScale, paint, 12f * scale))
     }
 
     private fun layoutBilingualDialogueText(
         instruction: RenderInstruction,
         paint: Paint,
         scale: Float
-    ): BilingualDialogueTextLayout {
-        val panelBox = RectF(instruction.region.boundingBox)
-        val textArea = fixedBilingualDialogueTextArea(panelBox, scale)
+    ): BilingualDialogueTextLayout? {
+        val legacyPanel = RectF(instruction.region.boundingBox)
+        val panelBox = BilingualDialogueGeometry.renderPlane(legacyPanel.toDialogueRect(), scale).toRectF()
+        // Preserve the established first-row anchor and horizontal insets.
+        val textArea = fixedBilingualDialogueTextArea(legacyPanel, scale).apply {
+            bottom = panelBox.bottom
+        }
         val fit = fitBilingualLinePairs(
             instruction = instruction,
             paint = paint,
             scale = scale,
-            maxWidth = textArea.width(),
-            maxHeight = textArea.height()
-        )
-        val clearBox = bilingualDialogueClearBoxForLayout(
+            textArea = textArea,
+            panelBox = panelBox
+        ) ?: return null
+        val baseClearBox = bilingualDialogueClearBoxForLayout(
             instruction = instruction,
             panelBox = panelBox,
             textArea = textArea,
             translationLines = fit.translationLines,
             originalLines = fit.originalLines,
-            translationLineHeight = fit.translationLineHeight,
-            originalLineHeight = fit.originalLineHeight,
-            pairGap = fit.pairGap,
+            rows = fit.rows,
             translationTextSize = fit.translationTextSize,
             originalTextSize = fit.originalTextSize,
             paint = paint,
@@ -385,15 +410,15 @@ class OverlayRenderer @Inject constructor(
         )
 
         return BilingualDialogueTextLayout(
-            clearBox = clearBox,
+            clearBox = coverPlannedRows(baseClearBox, fit.plannedRows, panelBox, fit.drawingScale),
             textArea = textArea,
             translationLines = fit.translationLines,
             originalLines = fit.originalLines,
-            translationLineHeight = fit.translationLineHeight,
-            originalLineHeight = fit.originalLineHeight,
-            pairGap = fit.pairGap,
+            rows = fit.rows,
             translationTextSize = fit.translationTextSize,
-            originalTextSize = fit.originalTextSize
+            originalTextSize = fit.originalTextSize,
+            plannedRows = fit.plannedRows,
+            drawingScale = fit.drawingScale
         )
     }
 
@@ -401,60 +426,21 @@ class OverlayRenderer @Inject constructor(
         instruction: RenderInstruction,
         paint: Paint,
         scale: Float
-    ): DialogueTextLayout {
-        val panelBox = RectF(instruction.region.boundingBox)
-        val textArea = DialogueRenderGeometry.textArea(
-            panel = panelBox.toDialogueRect(),
-            scale = scale
-        ).toRectF()
-        val preferredTextSize = dialogueTextSize(instruction) * scale
-        paint.textSize = preferredTextSize
-        val candidates = instruction.dialogueRenderCandidates(
-            paint = paint,
-            maxWidth = textArea.width()
-        )
-        val fittedAtPreferredSize = candidates.groups
-            .asSequence()
-            .filter { group -> group.any { it.isNotBlank() } }
-            .mapNotNull { candidateGroup ->
-                fitDialogueTextAtSizeOrNull(
-                    candidates = candidateGroup,
-                    paint = paint,
-                    textSize = preferredTextSize,
-                    maxWidth = textArea.width(),
-                    maxHeight = textArea.height(),
-                    maxLines = DIALOGUE_MAX_LINES,
-                    wordWrap = instruction.isEnglishTarget(),
-                    targetLanguage = instruction.targetLocale
-                )
-            }
-            .firstOrNull()
-
-        val (lines, lineHeight) = fittedAtPreferredSize ?: fitDialogueText(
-            candidates = candidates.all,
-            paint = paint,
-            initialTextSize = preferredTextSize,
-            preferredMinimumTextSize = DIALOGUE_MIN_TEXT_SIZE * scale,
-            emergencyMinimumTextSize = DIALOGUE_EMERGENCY_MIN_TEXT_SIZE * scale,
-            precision = DIALOGUE_TEXT_SIZE_SEARCH_PRECISION * scale,
-            maxWidth = textArea.width(),
-            maxHeight = textArea.height(),
-            maxLines = DIALOGUE_MAX_LINES,
-            preserveExplicitLineBreaks = candidates.preserveExplicitLineBreaks,
-            fallbackText = candidates.finalFallback,
-            wordWrap = instruction.isEnglishTarget(),
-            targetLanguage = instruction.targetLocale
-        )
-        val clearBox = dialogueClearBoxForLayout(
-            instruction = instruction,
-            panelBox = panelBox,
-            textArea = textArea,
-            lines = lines,
-            lineHeight = lineHeight,
-            paint = paint,
-            scale = scale
-        )
-        return DialogueTextLayout(clearBox, textArea, lines, lineHeight)
+    ): DialogueTextLayout? {
+        val panel = RectF(instruction.region.boundingBox)
+        val area = DialogueRenderGeometry.textArea(panel.toDialogueRect(), scale).toRectF()
+        val preferred = dialogueTextSize(instruction) * scale
+        paint.textSize = preferred
+        val candidates = instruction.dialogueRenderCandidates(paint, area.width()).all
+        val fit = ProportionalDialogueFit.largest(preferred, viewportScale = scale) { sizes ->
+            fitMonoDialogueAtSize(instruction, paint, scale, sizes, candidates, area, panel)
+        }
+        if (fit == null) {
+            FgoLogger.warn(tag, "Dialogue has no complete fit at the physical ruby pixel limit; full text retained in history")
+            return null
+        }
+        paint.textSize = fit.sizes.body
+        return fit.value
     }
 
     private fun dialogueClearBoxForLayout(
@@ -467,7 +453,7 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): RectF {
         val originalBounds = originalTextBounds(instruction)?.let(::RectF)
-        val textWidth = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
+        val textWidth = lines.maxOfOrNull { paint.measureRenderText(it) } ?: 0f
         val textBlockHeight = VisualTextMetrics.blockHeight(
             paint = paint,
             lineHeight = lineHeight,
@@ -492,9 +478,7 @@ class OverlayRenderer @Inject constructor(
         textArea: RectF,
         translationLines: List<String>,
         originalLines: List<String>,
-        translationLineHeight: Float,
-        originalLineHeight: Float,
-        pairGap: Float,
+        rows: BilingualDialogueGeometry.Layout,
         translationTextSize: Float,
         originalTextSize: Float,
         paint: Paint,
@@ -508,22 +492,15 @@ class OverlayRenderer @Inject constructor(
         val sourceLeftPaddingX = DialogueRenderGeometry.DYNAMIC_DIALOGUE_LEFT_PADDING * scale
         val sourcePaddingY = DialogueRenderGeometry.DYNAMIC_DIALOGUE_VERTICAL_PADDING * scale
         val translationWidth = measureMaxLineWidth(paint, translationTextSize, translationLines)
-        val originalWidth = measureMaxLineWidth(paint, originalTextSize, originalLines)
-        val textBottom = textArea.top + bilingualLinePairsHeight(
-            translationLines = translationLines,
-            originalLines = originalLines,
-            translationLineHeight = translationLineHeight,
-            originalLineHeight = originalLineHeight,
-            pairGap = pairGap
-        )
+        val originalWidth = measureMaxLineWidth(paint, originalTextSize, originalLines, RubyRenderText.Mode.INLINE)
+        val textBottom = textArea.top + rows.bottom
         val sourceLeft = originalBounds?.left?.minus(sourceLeftPaddingX) ?: textArea.left
-        val sourceTop = originalBounds?.top?.minus(sourcePaddingY) ?: textArea.top
         val sourceRight = originalBounds?.right?.plus(sourcePaddingX) ?: textArea.left
         val sourceBottom = originalBounds?.bottom?.plus(sourcePaddingY) ?: textArea.top
 
         return boundedRect(
             left = minOf(sourceLeft, textArea.left - clearLeftInsetX),
-            top = minOf(sourceTop, textArea.top - clearInsetY) - 12f * scale,
+            top = panelBox.top,
             right = maxOf(
                 sourceRight,
                 textArea.left + translationWidth + clearInsetX,
@@ -537,11 +514,12 @@ class OverlayRenderer @Inject constructor(
     private fun measureMaxLineWidth(
         paint: Paint,
         textSize: Float,
-        lines: List<String>
+        lines: List<String>,
+        rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
     ): Float {
         val previousTextSize = paint.textSize
         paint.textSize = textSize
-        val width = lines.maxOfOrNull { paint.measureText(it) } ?: 0f
+        val width = lines.maxOfOrNull { paint.measureRenderText(it, rubyMode) } ?: 0f
         paint.textSize = previousTextSize
         return width
     }
@@ -621,7 +599,7 @@ class OverlayRenderer @Inject constructor(
         val plateRight = NameRenderGeometry.plateRight(
             basePlateRight = basePlateRight,
             textLeft = textLeft,
-            textWidth = paint.measureText(name),
+            textWidth = paint.measureRenderText(name),
             rightInset = NAME_TEXT_RIGHT_INSET * scale,
             maxRight = canvas.width.toFloat()
         )
@@ -646,7 +624,7 @@ class OverlayRenderer @Inject constructor(
         )
         val nameBaseline = VisualTextMetrics.baselineForName(
             paint = paint,
-            text = name,
+            text = RubyRenderText.body(name),
             area = textArea,
             legacyOffset = NAME_TEXT_BASELINE_OFFSET * scale,
             targetLanguage = instruction.targetLocale
@@ -656,7 +634,7 @@ class OverlayRenderer @Inject constructor(
             "Name plate: name=$name, box=$box, sourceName=$originalNameBounds, " +
                 "detectedPlate=${detectedPlate.flattenToString()}, " +
                 "plate=${plateLeft.toInt()}..${plateRight.toInt()}, " +
-                "textWidth=${paint.measureText(name).toInt()}, " +
+                "textWidth=${paint.measureRenderText(name).toInt()}, " +
                 "textSize=${paint.textSize.toInt()}, baseline=${nameBaseline.toInt()}"
         )
 
@@ -797,41 +775,50 @@ class OverlayRenderer @Inject constructor(
         )
 
         val totalHeight = layout.translationLineHeight + layout.originalLineHeight
-        var currentTop = textArea.centerY() - totalHeight / 2f + 8f * scale
+        val currentTop = textArea.centerY() - totalHeight / 2f + 8f * scale
+        val ink = Rect()
+        val translationBody = RubyRenderText.body(layout.translationText)
+        paint.textSize = layout.translationTextSize
+        val translationBaseline = VisualTextMetrics.baselineForTop(paint, currentTop, instruction.targetLocale,
+            translationBody)
+        paint.getTextBounds(translationBody, 0, translationBody.length, ink)
+        val translationBottom = translationBaseline + ink.bottom
+        paint.textSize = layout.originalTextSize
+        val originalBaseline = VisualTextMetrics.baselineForTop(paint,
+            currentTop + layout.translationLineHeight, instruction.targetLocale, layout.originalText)
+        paint.getTextBounds(layout.originalText, 0, layout.originalText.length, ink)
+        // Use the same offset with or without ruby. The existing plane and inter-row gap stay fixed.
+        val downwardShift = BilingualChoiceGeometry.downwardShift(
+            inkBottom = maxOf(translationBottom, originalBaseline + ink.bottom),
+            planeBottom = textArea.bottom,
+            shadowPadding = (2f + shadowOffset) * scale,
+            viewportScale = scale
+        )
 
         canvas.save()
-        canvas.clipRect(textArea)
+        clipTextAndRuby(canvas, textArea,
+            RectF(box.left + clearInsetX, box.top + 8f * scale, box.right - clearInsetX, box.bottom - 8f * scale),
+            listOf(layout.translationText))
         paint.textSize = layout.translationTextSize
         drawShadowedText(
             canvas = canvas,
             paint = paint,
             text = layout.translationText,
-            x = textArea.centerX() - paint.measureText(layout.translationText) / 2f,
-            y = VisualTextMetrics.baselineForTop(
-                paint = paint,
-                top = currentTop,
-                targetLanguage = instruction.targetLocale,
-                text = layout.translationText
-            ),
+            x = textArea.centerX() - paint.measureRenderText(layout.translationText) / 2f,
+            y = translationBaseline + downwardShift,
             textColor = textColor,
             scale = scale
         )
-        currentTop += layout.translationLineHeight
-
         paint.textSize = layout.originalTextSize
         drawShadowedText(
             canvas = canvas,
             paint = paint,
             text = layout.originalText,
-            x = textArea.centerX() - paint.measureText(layout.originalText) / 2f,
-            y = VisualTextMetrics.baselineForTop(
-                paint = paint,
-                top = currentTop,
-                targetLanguage = instruction.targetLocale,
-                text = layout.originalText
-            ),
+            x = textArea.centerX() - paint.measureRenderText(layout.originalText, RubyRenderText.Mode.INLINE) / 2f,
+            y = originalBaseline + downwardShift,
             textColor = ORIGINAL_TEXT_COLOR,
-            scale = scale
+            scale = scale,
+            rubyMode = RubyRenderText.Mode.INLINE
         )
         canvas.restore()
     }
@@ -887,17 +874,15 @@ class OverlayRenderer @Inject constructor(
         )
 
         // Center the text horizontally within the button bounding box
-        val textWidth = paint.measureText(text)
+        val textWidth = paint.measureRenderText(text)
         val x = box.centerX() - textWidth / 2f
         val y = box.centerY() + paint.textSize / 3f + 4f * scale
 
         canvas.save()
-        canvas.clipRect(textArea)
-        paint.setShadowLayer(2f * scale, shadowOffset * scale, shadowOffset * scale, Color.BLACK)
-        canvas.drawText(text, x, y, paint)
-        paint.clearShadowLayer()
-        paint.color = textColor
-        canvas.drawText(text, x, y, paint)
+        clipTextAndRuby(canvas, textArea,
+            RectF(box.left + clearInsetX, box.top + 8f * scale, box.right - clearInsetX, box.bottom - 8f * scale),
+            listOf(text))
+        drawShadowedText(canvas, paint, text, x, y, textColor, scale)
         canvas.restore()
     }
 
@@ -1001,12 +986,17 @@ class OverlayRenderer @Inject constructor(
         text: String,
         paint: Paint,
         maxWidth: Float,
-        wordWrap: Boolean = false
+        wordWrap: Boolean = false,
+        rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
     ): List<String> {
+        val ruby = RubyRenderText.parse(text, rubyMode)
+        if (ruby.annotations.isNotEmpty()) {
+            return ruby.annotateLines(wrapRubyBody(ruby, paint, maxWidth, wordWrap))
+        }
         val wrapped = mutableListOf<String>()
         text.lines().filter { it.isNotBlank() }.forEach { paragraph ->
             if (wordWrap) {
-                wrapped += wrapEnglishParagraph(paragraph.trim(), paint, maxWidth)
+                wrapped += wrapEnglishParagraph(paragraph.trim(), paint, maxWidth, rubyMode)
             } else {
                 var remaining = paragraph.trim()
                 while (remaining.isNotEmpty()) {
@@ -1022,21 +1012,27 @@ class OverlayRenderer @Inject constructor(
         return wrapped
     }
 
-    private fun wrapEnglishParagraph(paragraph: String, paint: Paint, maxWidth: Float): List<String> {
+    private fun wrapEnglishParagraph(
+        paragraph: String,
+        paint: Paint,
+        maxWidth: Float,
+        rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
+    ): List<String> {
         if (paragraph.isBlank()) return emptyList()
         val lines = mutableListOf<String>()
         val words = paragraph.split(Regex("\\s+")).filter { it.isNotBlank() }
         var current = ""
         words.forEach { word ->
             val candidate = if (current.isBlank()) word else "$current $word"
-            if (paint.measureText(candidate) <= maxWidth || (current.isBlank() && paint.measureText(word) <= maxWidth)) {
+            if (paint.measureRenderText(candidate, rubyMode) <= maxWidth ||
+                (current.isBlank() && paint.measureRenderText(word, rubyMode) <= maxWidth)) {
                 current = candidate
             } else {
                 if (current.isNotBlank()) {
                     lines += current
                     current = ""
                 }
-                if (paint.measureText(word) <= maxWidth) {
+                if (paint.measureRenderText(word, rubyMode) <= maxWidth) {
                     current = word
                 } else {
                     var remaining = word
@@ -1055,201 +1051,192 @@ class OverlayRenderer @Inject constructor(
         return lines
     }
 
-    private fun fitDialogueText(
-        candidates: List<String>,
+    private fun fitMonoDialogueAtSize(
+        instruction: RenderInstruction,
         paint: Paint,
-        initialTextSize: Float,
-        preferredMinimumTextSize: Float,
-        emergencyMinimumTextSize: Float,
-        precision: Float,
-        maxWidth: Float,
-        maxHeight: Float,
-        maxLines: Int,
-        preserveExplicitLineBreaks: Boolean,
-        fallbackText: String,
-        wordWrap: Boolean = false,
-        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
-    ): Pair<List<String>, Float> {
-        val distinctCandidates = distinctDialogueCandidates(candidates)
-        val evaluateSize = { textSize: Float ->
-            fitDialogueTextAtSizeOrNull(
-                candidates = distinctCandidates,
-                paint = paint,
-                textSize = textSize,
-                maxWidth = maxWidth,
-                maxHeight = maxHeight,
-                maxLines = maxLines,
-                wordWrap = wordWrap,
-                targetLanguage = targetLanguage
-            )
-        }
-        val preferredFit = PreciseTextSizeSearch.largestFitting(
-            minimumTextSize = preferredMinimumTextSize,
-            maximumTextSize = initialTextSize,
-            precision = precision,
-            evaluate = evaluateSize
-        )
-        val emergencyFit = preferredFit ?: PreciseTextSizeSearch.largestFitting(
-            minimumTextSize = emergencyMinimumTextSize,
-            maximumTextSize = preferredMinimumTextSize,
-            precision = precision,
-            evaluate = evaluateSize
-        )
-        emergencyFit?.let { fit ->
-            paint.textSize = fit.textSize
-            return fit.value
-        }
-
-        val safeFallbackText = fallbackText
-            .trim()
-            .takeIf { it.isNotBlank() }
-            ?: distinctCandidates.last()
-        paint.textSize = emergencyMinimumTextSize
-        val lineHeight = emergencyMinimumTextSize * DialogueRenderGeometry.lineHeightMultiplier(targetLanguage)
-        val maximumLines = maximumFittingLineCount(
-            paint = paint,
-            lineHeight = lineHeight,
-            maxHeight = maxHeight,
-            maxLines = maxLines,
-            targetLanguage = targetLanguage
-        )
-        FgoLogger.debug(tag, "Dialogue still over 2 lines at emergency size; ellipsizing as final fallback")
-        val fallbackLines = if (preserveExplicitLineBreaks) {
-            val explicitLines = safeFallbackText.lines()
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-            explicitLines
-                .take(maximumLines)
-                .mapIndexed { index, line ->
-                    val isTruncatedFinalVisibleLine =
-                        index == maximumLines - 1 && explicitLines.size > maximumLines
-                    if (isTruncatedFinalVisibleLine) {
-                        ellipsize(
-                            text = line,
-                            paint = paint,
-                            maxWidth = maxWidth,
-                            terminalSourceText = explicitLines.last(),
-                            forceTruncationMarker = true
-                        )
-                    } else {
-                        ellipsize(line, paint, maxWidth)
-                    }
+        viewportScale: Float,
+        sizes: ProportionalDialogueFit.Sizes,
+        candidates: List<String>,
+        area: RectF,
+        panel: RectF
+    ): DialogueTextLayout? {
+        paint.textSize = sizes.body
+        for (candidate in distinctDialogueCandidates(candidates)) {
+            for (lines in completeDialogueLineCandidates(candidate, paint, area.width(), instruction.isEnglishTarget(),
+                panel.left - area.left)) {
+                if (lines.isEmpty() || lines.size > DIALOGUE_MAX_LINES) continue
+                val metrics = bilingualMetrics(paint, sizes.body,
+                    BILINGUAL_ORIGINAL_MAX_TEXT_SIZE * sizes.drawingScale, sizes.drawingScale,
+                    instruction.targetLocale, lines, emptyList())
+                // The normal pitch is a minimum, not a reason to shrink ruby alone or
+                // reject every font size when a body descender and a reading share the gap.
+                val lineHeight = maxOf(sizes.body * DialogueRenderGeometry.lineHeightMultiplier(instruction.targetLocale),
+                    metrics.translation.inkBottom - metrics.translation.inkTop + metrics.rubyHeight +
+                        sizes.body * RubyTextPainter.GAP_RATIO + sizes.drawingScale)
+                val firstBaseline = VisualTextMetrics.baselineForTop(paint, area.top, instruction.targetLocale,
+                    RubyRenderText.body(lines.first()))
+                val rows = mutableListOf<PlannedDialogueRow>()
+                var minimumTop = panel.top
+                for ((index, line) in lines.withIndex()) {
+                    val row = planDialogueRow(paint, line, false, sizes.body, area.left,
+                        firstBaseline + index * lineHeight, area.width(), panel, minimumTop,
+                        sizes.body * RubyTextPainter.GAP_RATIO, sizes.drawingScale) ?: break
+                    rows += row
+                    minimumTop = row.ink.bottom + sizes.drawingScale
                 }
-        } else {
-            limitLines(wrapText(safeFallbackText, paint, maxWidth, wordWrap), maximumLines, paint, maxWidth)
+                if (rows.size != lines.size || rows.last().ink.bottom > area.bottom) continue
+                paint.textSize = sizes.body
+                val clear = dialogueClearBoxForLayout(instruction, panel, area, lines, lineHeight, paint, viewportScale)
+                return DialogueTextLayout(coverPlannedRows(clear, rows, panel, sizes.drawingScale),
+                    area, lines, lineHeight, rows, sizes.drawingScale)
+            }
         }
-        return fallbackLines to lineHeight
+        return null
+    }
+
+    /** Complete wrapping alternatives only: no take(), ellipsis, or discarded readings. */
+    private fun completeDialogueLineCandidates(
+        text: String, paint: Paint, maxWidth: Float, wordWrap: Boolean, minimumLeft: Float
+    ): Sequence<List<String>> = sequence {
+        val flat = text.lines().joinToString(if (wordWrap) " " else "") { it.trim() }
+        val ruby = RubyRenderText.parse(flat)
+        val variants = mutableListOf(text, flat)
+        // A whole annotated word can move to the other row when its reading would overlap.
+        for (annotation in ruby.annotations.filterNot { it.emphasis }) {
+            for (offset in listOf(annotation.start, annotation.end)) {
+                if (offset > 0 && offset < ruby.body.length) {
+                    variants += ruby.annotate(ruby.body.take(offset).trimEnd() + "\n" + ruby.body.drop(offset).trimStart())
+                }
+            }
+        }
+        val rubyPaint = Paint(paint).apply { textSize = paint.textSize * RubyTextPainter.SIZE_RATIO }
+        val ink = Rect()
+        for (variant in variants.distinct()) {
+            val expected = RubyRenderText.parse(variant)
+            fun complete(lines: List<String>): Boolean {
+                val actual = RubyRenderText.parse(lines.joinToString("\n"))
+                return actual.body.filterNot(Char::isWhitespace) == expected.body.filterNot(Char::isWhitespace) &&
+                    actual.annotations.map { it.reading } == expected.annotations.map { it.reading }
+            }
+            var lines = wrapText(variant, paint, maxWidth, wordWrap)
+            if (complete(lines)) yield(lines)
+            if (expected.annotations.isEmpty() || lines.size > DIALOGUE_MAX_LINES) continue
+            // Rare adjacent long readings need horizontal room even after a common shrink.
+            // Add only the missing render spaces, then wrap and validate the full text again.
+            repeat(3) {
+                val padded = lines.map { line ->
+                    RubySpanSpacing.padLine(line, minimumLeft, paint.textSize * 0.05f, paint.measureText(" "),
+                        baseEndpoint = { body, start, end ->
+                            paint.getTextBounds(body, start, end, ink)
+                            paint.getRunAdvance(body, 0, body.length, 0, body.length, false, start) + ink.right
+                        },
+                        readingWidth = { reading ->
+                            rubyPaint.getTextBounds(reading, 0, reading.length, ink)
+                            ink.width().toFloat()
+                        })
+                }
+                if (padded != lines) {
+                    lines = wrapText(padded.joinToString("\n"), paint, maxWidth, wordWrap)
+                    if (complete(lines)) yield(lines)
+                }
+            }
+        }
+    }.distinct()
+
+    private fun planDialogueRow(
+        paint: Paint, text: String, original: Boolean, textSize: Float, x: Float, baseline: Float,
+        maxWidth: Float, panel: RectF, minimumRubyTop: Float, rubyGap: Float, drawingScale: Float
+    ): PlannedDialogueRow? {
+        paint.textSize = textSize
+        val parsed = RubyRenderText.parse(text, if (original) RubyRenderText.Mode.INLINE else RubyRenderText.Mode.ABOVE_BASE)
+        if (paint.measureText(parsed.body) > maxWidth + 0.01f) return null
+        val ink = Rect()
+        paint.getTextBounds(parsed.body, 0, parsed.body.length, ink)
+        val bodyInk = RectF(x + ink.left, baseline + ink.top, x + ink.right, baseline + ink.bottom)
+        val shadow = 4f * drawingScale
+        if (bodyInk.left < panel.left || bodyInk.top < panel.top ||
+            bodyInk.right + shadow > panel.right || bodyInk.bottom + shadow > panel.bottom) return null
+        val ruby = RubyTextPainter.planExact(paint, parsed, x, baseline, panel, minimumRubyTop, rubyGap) ?: return null
+        if (ruby.any { it.right + shadow * RubyTextPainter.SIZE_RATIO > panel.right }) return null
+        return PlannedDialogueRow(parsed.body, textSize, baseline, original, bodyInk, ruby, parsed.annotations.map { it.end })
+    }
+
+    private fun coverPlannedRows(
+        base: RectF, rows: List<PlannedDialogueRow>, panel: RectF, drawingScale: Float
+    ): RectF {
+        val cover = RectF(base)
+        val shadow = 4f * drawingScale
+        for (row in rows) {
+            cover.union(row.ink.left, row.ink.top, row.ink.right + shadow, row.ink.bottom + shadow)
+            for (ruby in row.ruby) {
+                cover.union(ruby.left, ruby.top - drawingScale, ruby.right + shadow, ruby.bottom + shadow)
+            }
+        }
+        cover.intersect(panel)
+        return cover
     }
 
     private fun fitBilingualLinePairs(
         instruction: RenderInstruction,
         paint: Paint,
         scale: Float,
-        maxWidth: Float,
-        maxHeight: Float
-    ): BilingualLinePairFit {
-        paint.textSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale
-        val dialogueRenderCandidates = instruction.dialogueRenderCandidates(paint, maxWidth)
-        val translationCandidates = distinctDialogueCandidates(dialogueRenderCandidates.all)
-        paint.textSize = originalTextSizeFor(BILINGUAL_TRANSLATION_TEXT_SIZE * scale, scale)
-        val originalRenderCandidates = instruction.originalRenderCandidates(paint, maxWidth)
-        val originalCandidates = distinctOriginalCandidates(originalRenderCandidates.all)
-        val minimumTranslationSize = BILINGUAL_TRANSLATION_MIN_TEXT_SIZE * scale
-        val pairGap = BILINGUAL_PAIR_GAP * scale
-        val preciseFit = PreciseTextSizeSearch.largestFitting(
-            minimumTextSize = minimumTranslationSize,
-            maximumTextSize = BILINGUAL_TRANSLATION_TEXT_SIZE * scale,
-            precision = DIALOGUE_TEXT_SIZE_SEARCH_PRECISION * scale
-        ) { translationTextSize ->
-            fitBilingualLinePairsAtSizeOrNull(
-                translationCandidates = translationCandidates,
-                originalCandidates = originalCandidates,
-                paint = paint,
-                scale = scale,
-                maxWidth = maxWidth,
-                maxHeight = maxHeight,
-                pairGap = pairGap,
-                translationTextSize = translationTextSize,
-                translationWordWrap = instruction.isEnglishTarget()
-            )
+        textArea: RectF,
+        panelBox: RectF
+    ): BilingualLinePairFit? {
+        val preferred = BILINGUAL_TRANSLATION_TEXT_SIZE * scale
+        paint.textSize = preferred
+        val translations = distinctDialogueCandidates(instruction.dialogueRenderCandidates(paint, textArea.width()).all)
+        paint.textSize = BilingualOriginalText.PREFERRED_TEXT_SIZE * scale
+        val originals = distinctOriginalCandidates(instruction.originalRenderCandidates(paint, textArea.width()).all)
+        val fit = ProportionalDialogueFit.largest(preferred, viewportScale = scale) { sizes ->
+            fitBilingualLinePairsAtSizeOrNull(translations, originals, paint, sizes, textArea, panelBox,
+                instruction.targetLocale, scale)
         }
-        preciseFit?.value?.let { fit ->
-            paint.textSize = fit.translationTextSize
-            return fit
-        }
-
-        val fallbackTranslationSize = minimumTranslationSize
-        val fallbackOriginalSize = originalTextSizeFor(fallbackTranslationSize, scale)
-        val translationLineHeight = fallbackTranslationSize * BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER
-        val originalLineHeight = fallbackOriginalSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
-        paint.textSize = fallbackTranslationSize
-        val translationLines = limitLines(
-            wrapText(dialogueRenderCandidates.finalFallback, paint, maxWidth, instruction.isEnglishTarget()),
-            DIALOGUE_MAX_LINES,
-            paint,
-            maxWidth
-        )
-        paint.textSize = fallbackOriginalSize
-        val originalLines = limitLines(
-            wrapText(originalRenderCandidates.finalFallback, paint, maxWidth, false),
-            DIALOGUE_MAX_LINES,
-            paint,
-            maxWidth
-        )
-        return BilingualLinePairFit(
-            translationLines = translationLines,
-            originalLines = originalLines,
-            translationLineHeight = translationLineHeight,
-            originalLineHeight = originalLineHeight,
-            pairGap = pairGap,
-            translationTextSize = fallbackTranslationSize,
-            originalTextSize = fallbackOriginalSize
-        )
+        if (fit == null) FgoLogger.warn(tag, "Bilingual dialogue has no complete fit at the physical ruby pixel limit")
+        return fit?.value
     }
 
     private fun fitBilingualLinePairsAtSizeOrNull(
-        translationCandidates: List<String>,
-        originalCandidates: List<String>,
-        paint: Paint,
-        scale: Float,
-        maxWidth: Float,
-        maxHeight: Float,
-        pairGap: Float,
-        translationTextSize: Float,
-        translationWordWrap: Boolean
+        translationCandidates: List<String>, originalCandidates: List<String>, paint: Paint,
+        sizes: ProportionalDialogueFit.Sizes, area: RectF, panel: RectF, targetLanguage: String,
+        viewportScale: Float
     ): BilingualLinePairFit? {
-        val originalTextSize = originalTextSizeFor(translationTextSize, scale)
-        val translationLineHeight = translationTextSize * BILINGUAL_TRANSLATION_LINE_HEIGHT_MULTIPLIER
-        val originalLineHeight = originalTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
-
         for (translationCandidate in translationCandidates) {
-            paint.textSize = translationTextSize
-            val translationLines = wrapText(translationCandidate, paint, maxWidth, translationWordWrap)
-            if (translationLines.size > DIALOGUE_MAX_LINES) continue
-
-            for (originalCandidate in originalCandidates) {
-                paint.textSize = originalTextSize
-                val originalLines = wrapText(originalCandidate, paint, maxWidth, false)
-                if (originalLines.size > DIALOGUE_MAX_LINES) continue
-
-                val totalHeight = bilingualLinePairsHeight(
-                    translationLines = translationLines,
-                    originalLines = originalLines,
-                    translationLineHeight = translationLineHeight,
-                    originalLineHeight = originalLineHeight,
-                    pairGap = pairGap
-                )
-                if (totalHeight <= maxHeight) {
-                    return BilingualLinePairFit(
-                        translationLines = translationLines,
-                        originalLines = originalLines,
-                        translationLineHeight = translationLineHeight,
-                        originalLineHeight = originalLineHeight,
-                        pairGap = pairGap,
-                        translationTextSize = translationTextSize,
-                        originalTextSize = originalTextSize
-                    )
+            paint.textSize = sizes.body
+            for (translationLines in completeDialogueLineCandidates(translationCandidate, paint, area.width(),
+                VisualTextMetrics.isEnglishTarget(targetLanguage), panel.left - area.left)) {
+                if (translationLines.isEmpty() || translationLines.size > DIALOGUE_MAX_LINES) continue
+                // Keep the current body/ruby size while fitting the smaller Japanese independently.
+                val originalFit = BilingualOriginalText.largestFitting(viewportScale) { originalSize ->
+                    var fitted: BilingualLinePairFit? = null
+                    for (originalCandidate in originalCandidates) {
+                        paint.textSize = originalSize
+                        val originalLines = wrapText(originalCandidate, paint, area.width(), false, RubyRenderText.Mode.INLINE)
+                        if (originalLines.isEmpty() || originalLines.size > DIALOGUE_MAX_LINES) continue
+                        val metrics = bilingualMetrics(paint, sizes.body, originalSize, sizes.drawingScale,
+                            targetLanguage, translationLines, originalLines)
+                        val rows = BilingualDialogueGeometry.layout(translationLines.size, originalLines.size,
+                            metrics, panel.top - area.top)
+                        if (rows.bottom > area.height()) continue
+                        val planned = mutableListOf<PlannedDialogueRow>()
+                        for (row in rows.rows) {
+                            val raw = if (row.original) originalLines[row.lineIndex] else translationLines[row.lineIndex]
+                            val prepared = planDialogueRow(paint, raw, row.original,
+                                if (row.original) originalSize else sizes.body, area.left, area.top + row.baseline,
+                                area.width(), panel, area.top + row.minimumRubyTop,
+                                metrics.rubyGap, sizes.drawingScale) ?: break
+                            planned += prepared
+                        }
+                        if (planned.size != rows.rows.size) continue
+                        fitted = BilingualLinePairFit(translationLines, originalLines, rows,
+                            sizes.body, originalSize, planned, sizes.drawingScale)
+                        break
+                    }
+                    fitted
                 }
+                if (originalFit != null) return originalFit.value
+                // Resuming the lazy translation-wrapper sequence must use the body paint.
+                paint.textSize = sizes.body
             }
         }
         return null
@@ -1276,9 +1263,9 @@ class OverlayRenderer @Inject constructor(
             val originalLineHeight = originalTextSize * ORIGINAL_LINE_HEIGHT_MULTIPLIER
 
             paint.textSize = translationTextSize
-            val translationFits = paint.measureText(cleanTranslationText) <= maxWidth
+            val translationFits = paint.measureRenderText(cleanTranslationText) <= maxWidth
             paint.textSize = originalTextSize
-            val originalFits = paint.measureText(cleanOriginalText) <= maxWidth
+            val originalFits = paint.measureRenderText(cleanOriginalText, RubyRenderText.Mode.INLINE) <= maxWidth
 
             if (translationFits && originalFits && translationLineHeight + originalLineHeight <= maxHeight) {
                 return BilingualSingleLineLayout(
@@ -1299,7 +1286,7 @@ class OverlayRenderer @Inject constructor(
         paint.textSize = minimumTranslationTextSize
         val fittedTranslation = ellipsize(cleanTranslationText, paint, maxWidth)
         paint.textSize = fallbackOriginalTextSize
-        val fittedOriginal = ellipsize(cleanOriginalText, paint, maxWidth)
+        val fittedOriginal = ellipsize(cleanOriginalText, paint, maxWidth, rubyMode = RubyRenderText.Mode.INLINE)
         return BilingualSingleLineLayout(
             translationText = fittedTranslation,
             originalText = fittedOriginal,
@@ -1310,53 +1297,7 @@ class OverlayRenderer @Inject constructor(
         )
     }
 
-    private fun fitDialogueTextAtSizeOrNull(
-        candidates: List<String>,
-        paint: Paint,
-        textSize: Float,
-        maxWidth: Float,
-        maxHeight: Float,
-        maxLines: Int,
-        wordWrap: Boolean = false,
-        targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
-    ): Pair<List<String>, Float>? {
-        val distinctCandidates = distinctDialogueCandidates(candidates)
-        paint.textSize = textSize
-        val lineHeight = textSize * DialogueRenderGeometry.lineHeightMultiplier(targetLanguage)
-        distinctCandidates.forEach { candidate ->
-            val lines = wrapText(candidate, paint, maxWidth, wordWrap)
-            if (lines.size <= maxLines.coerceAtLeast(1) &&
-                textBlockHeight(paint, lineHeight, lines.size, targetLanguage) <= maxHeight + 0.5f
-            ) {
-                return lines to lineHeight
-            }
-        }
-        return null
-    }
 
-    /**
-     * Measures the actual vertical text block drawn by [drawLines]. [lineHeight]
-     * is a baseline-to-baseline distance, so only the gaps between lines count.
-     */
-    private fun textBlockHeight(
-        paint: Paint,
-        lineHeight: Float,
-        lineCount: Int,
-        targetLanguage: String
-    ): Float = VisualTextMetrics.blockHeight(paint, lineHeight, lineCount, targetLanguage)
-
-    private fun maximumFittingLineCount(
-        paint: Paint,
-        lineHeight: Float,
-        maxHeight: Float,
-        maxLines: Int,
-        targetLanguage: String
-    ): Int {
-        val allowedLines = maxLines.coerceAtLeast(1)
-        return (allowedLines downTo 1).firstOrNull { lineCount ->
-            textBlockHeight(paint, lineHeight, lineCount, targetLanguage) <= maxHeight + 0.5f
-        } ?: 1
-    }
 
     private fun distinctDialogueCandidates(candidates: List<String>): List<String> {
         return candidates
@@ -1376,27 +1317,60 @@ class OverlayRenderer @Inject constructor(
 
     private fun originalTextSizeFor(translationTextSize: Float, scale: Float): Float {
         return (translationTextSize * ORIGINAL_TEXT_SIZE_RATIO)
-            .coerceAtMost(BILINGUAL_ORIGINAL_MAX_TEXT_SIZE * scale)
+            .coerceAtMost(BilingualOriginalText.PREFERRED_TEXT_SIZE * scale)
             .coerceAtLeast(BILINGUAL_ORIGINAL_MIN_TEXT_SIZE * scale)
     }
 
-    private fun bilingualLinePairsHeight(
+    private fun bilingualMetrics(
+        paint: Paint,
+        translationTextSize: Float,
+        originalTextSize: Float,
+        scale: Float,
+        targetLanguage: String,
         translationLines: List<String>,
-        originalLines: List<String>,
-        translationLineHeight: Float,
-        originalLineHeight: Float,
-        pairGap: Float
-    ): Float {
-        val pairCount = maxOf(translationLines.size, originalLines.size)
-        if (pairCount == 0) return 0f
-
-        var height = 0f
-        repeat(pairCount) { index ->
-            if (index < translationLines.size) height += translationLineHeight
-            if (index < originalLines.size) height += originalLineHeight
-            if (index < pairCount - 1) height += pairGap
+        originalLines: List<String>
+    ): BilingualDialogueGeometry.Metrics {
+        val previousTextSize = paint.textSize
+        val originalProbe = "日本あア"
+        val translationProbe = when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
+            SettingsRepository.TARGET_LANGUAGE_ENGLISH -> "Hg"
+            SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> "國漢永"
+            else -> "国汉永"
         }
-        return height
+        fun measure(size: Float, probe: String, visibleText: String): BilingualDialogueGeometry.TextMetrics {
+            paint.textSize = size
+            val baseline = VisualTextMetrics.baselineForTop(paint, 0f, targetLanguage, probe)
+            val ink = Rect()
+            paint.getTextBounds(probe, 0, probe.length, ink)
+            // A Latin name or other taller visible glyph still needs its real extent.
+            // Translation readings are omitted here so ruby cannot move the body rows.
+            val actualInk = Rect()
+            paint.getTextBounds(visibleText, 0, visibleText.length, actualInk)
+            ink.union(actualInk)
+            return BilingualDialogueGeometry.TextMetrics(baseline, baseline + ink.top,
+                baseline + ink.bottom)
+        }
+        val translation = measure(translationTextSize, translationProbe,
+            RubyRenderText.body(translationLines.joinToString("")))
+        val original = measure(originalTextSize, originalProbe,
+            originalLines.joinToString(""))
+        paint.textSize = translationTextSize * RubyTextPainter.SIZE_RATIO
+        // Ruby can contain Latin names even for a Chinese target. Reserve that full
+        // readable height on every scene while keeping main-row measurements script-specific.
+        val rubyProbe = translationProbe + "Hg"
+        val rubyInk = Rect()
+        paint.getTextBounds(rubyProbe, 0, rubyProbe.length, rubyInk)
+        var rubyHeight = rubyInk.height().toFloat()
+        for (annotation in RubyRenderText.parse(translationLines.joinToString("\n")).annotations) {
+            paint.getTextBounds(annotation.reading, 0, annotation.reading.length, rubyInk)
+            rubyHeight = maxOf(rubyHeight, rubyInk.height().toFloat())
+        }
+        paint.textSize = previousTextSize
+        return BilingualDialogueGeometry.Metrics(translation, original,
+            rubyHeight = rubyHeight + scale,
+            rubyGap = BilingualDialogueGeometry.RUBY_BASE_GAP * scale,
+            translationToOriginalGap = BilingualDialogueGeometry.TRANSLATION_TO_ORIGINAL_GAP * scale,
+            beforeRubyGap = BilingualDialogueGeometry.BEFORE_RUBY_GAP * scale)
     }
 
     private fun dialogueTextSize(instruction: RenderInstruction): Float =
@@ -1420,16 +1394,17 @@ class OverlayRenderer @Inject constructor(
         // Normalise the whole text once, before splitting it into lines: a quote opened on one line
         // and closed on the next has to pair up, otherwise the per-line bracket-noise repair deletes
         // the closing quote and the drawn text silently loses its last character.
-        val normalizedLines = canonicalText
-            .normalizeDialogueSymbolsAndSpacing(targetLocale)
+        val normalizedLines = RubyRenderText.transform(canonicalText) {
+            it.normalizeDialogueSymbolsAndSpacing(targetLocale)
+        }
             .lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
         val preserveExplicitLineBreaks = normalizedLines.size >= DIALOGUE_MAX_LINES
-        val planned = DialogueLinePlanner.plan(
+        val planned = planRubyLines(
             lines = normalizedLines,
             maxWidth = maxWidth,
-            measureText = paint::measureText,
+            measureText = { paint.measureRenderText(it) },
             wordBoundaryMode = isEnglishTarget()
         )
         if (normalizedLines.size > DIALOGUE_MAX_LINES) {
@@ -1449,9 +1424,9 @@ class OverlayRenderer @Inject constructor(
         val compact = if (englishTarget) {
             flattened
         } else {
-            flattened
-                .replace(Regex("[\\s$WIDE_RENDER_SPACE]+"), "")
-                .trim()
+            RubyRenderText.transform(flattened) {
+                it.replace(Regex("[\\s$WIDE_RENDER_SPACE]+"), "").trim()
+            }
         }
 
         val preferred = buildList {
@@ -1483,36 +1458,17 @@ class OverlayRenderer @Inject constructor(
         paint: Paint,
         maxWidth: Float
     ): OriginalRenderCandidates {
-        val normalizedLines = sourceText
-            .replace("\r\n", "\n")
-            .replace('\r', '\n')
-            .lines()
-            .map { it.replace(Regex("[ \\t]+"), " ").trim() }
-            .filter { it.isNotBlank() }
-        val planned = DialogueLinePlanner.plan(
-            lines = normalizedLines,
-            maxWidth = maxWidth,
-            measureText = paint::measureText
-        )
-        val linePreserved = normalizedLines.joinToString("\n").trim()
-        val flattened = normalizedLines.joinToString(WIDE_RENDER_SPACE)
-            .replace(Regex("[ \\t]+"), " ")
-            .trim()
-        val candidates = if (normalizedLines.size > DIALOGUE_MAX_LINES) {
-            planned
-        } else {
-            listOf(linePreserved, flattened)
+        val candidates = BilingualOriginalText.candidates(sourceText, DIALOGUE_MAX_LINES) { lines ->
+            planRubyLines(
+                lines = lines,
+                maxWidth = maxWidth,
+                measureText = { paint.measureRenderText(it, RubyRenderText.Mode.INLINE) },
+                rubyMode = RubyRenderText.Mode.INLINE
+            )
         }
         return OriginalRenderCandidates(
-            all = candidates
-                .filter { it.isNotBlank() }
-                .distinct()
-                .ifEmpty { listOf(sourceText.trim()) },
-            finalFallback = if (normalizedLines.size > DIALOGUE_MAX_LINES) {
-                planned.firstOrNull().orEmpty()
-            } else {
-                flattened
-            }.ifBlank { sourceText.trim() }
+            all = candidates,
+            finalFallback = candidates.firstOrNull().orEmpty()
         )
     }
 
@@ -1528,9 +1484,9 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun RenderInstruction.toChoiceRenderText(): String {
-        val normalized = translatedText.trim()
-            .normalizeDialogueSymbolsAndSpacing(targetLocale)
-            .replace(Regex("[ \\t]+"), " ")
+        val normalized = RubyRenderText.transform(translatedText.trim()) {
+            it.normalizeDialogueSymbolsAndSpacing(targetLocale).replace(Regex("[ \\t]+"), " ")
+        }
         return if (wideTextSpacing) normalized.toFgoWideRenderText() else normalized
     }
 
@@ -1542,6 +1498,7 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun String.toFgoWideRenderText(): String {
+        if (RubyRenderText.hasRuby(this)) return RubyRenderText.transform(this) { it.toFgoWideRenderText() }
         return lines().joinToString("\n") { line ->
             line.spaceCjkRunsForFgo()
         }
@@ -1614,28 +1571,10 @@ class OverlayRenderer @Inject constructor(
         scale: Float
     ): String {
         paint.textSize = initialTextSize
-        while (paint.measureText(text) > maxWidth && paint.textSize > minimumTextSize) {
+        while (paint.measureRenderText(text) > maxWidth && paint.textSize > minimumTextSize) {
             paint.textSize = (paint.textSize - 2f * scale).coerceAtLeast(minimumTextSize)
         }
         return ellipsize(text, paint, maxWidth)
-    }
-
-    private fun limitLines(
-        lines: List<String>,
-        maximumLines: Int,
-        paint: Paint,
-        maxWidth: Float
-    ): List<String> {
-        if (lines.size <= maximumLines) return lines
-        val visible = lines.take(maximumLines).toMutableList()
-        visible[visible.lastIndex] = ellipsize(
-            text = visible.last(),
-            paint = paint,
-            maxWidth = maxWidth,
-            terminalSourceText = lines.last(),
-            forceTruncationMarker = true
-        )
-        return visible
     }
 
     private fun ellipsize(
@@ -1643,16 +1582,23 @@ class OverlayRenderer @Inject constructor(
         paint: Paint,
         maxWidth: Float,
         terminalSourceText: String = text,
-        forceTruncationMarker: Boolean = false
+        forceTruncationMarker: Boolean = false,
+        rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
     ): String {
-        if (!forceTruncationMarker && paint.measureText(text) <= maxWidth) return text
-        val terminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(terminalSourceText)
+        val ruby = RubyRenderText.parse(text, rubyMode)
+        if (ruby.annotations.isNotEmpty()) {
+            return ruby.annotate(ellipsize(ruby.body, paint, maxWidth,
+                RubyRenderText.body(terminalSourceText), forceTruncationMarker))
+        }
+        if (!forceTruncationMarker && paint.measureRenderText(text, rubyMode) <= maxWidth) return text
+        // A closing inline reading bracket belongs to its annotation, not the sentence suffix.
+        val terminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(RubyRenderText.body(terminalSourceText))
         val suffix = if (terminalSuffix.startsWith('…')) {
             terminalSuffix
         } else {
             FgoDialogueSymbols.PAUSE_ELLIPSIS + terminalSuffix
         }
-        val visibleTerminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(text)
+        val visibleTerminalSuffix = FgoDialogueSymbols.terminalDisplaySuffix(RubyRenderText.body(text))
         val body = if (visibleTerminalSuffix.isNotEmpty()) {
             text.dropLast(visibleTerminalSuffix.length)
         } else {
@@ -1661,10 +1607,15 @@ class OverlayRenderer @Inject constructor(
         val count = paint.breakText(
             body,
             true,
-            (maxWidth - paint.measureText(suffix)).coerceAtLeast(1f),
+            (maxWidth - paint.measureRenderText(suffix, rubyMode)).coerceAtLeast(1f),
             null
         )
-        return body.take(count).trimEnd() + suffix
+        val prefix = if (rubyMode == RubyRenderText.Mode.INLINE) {
+            RubyRenderText.inlinePrefix(body, count)
+        } else {
+            body.take(count)
+        }
+        return prefix.trimEnd() + suffix
     }
 
     private fun drawShadowedText(
@@ -1674,73 +1625,90 @@ class OverlayRenderer @Inject constructor(
         x: Float,
         y: Float,
         textColor: Int,
-        scale: Float
+        scale: Float,
+        minimumRubyTop: Float? = null,
+        rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE,
+        rubyGap: Float = paint.textSize * RubyTextPainter.GAP_RATIO
     ) {
+        val ruby = RubyRenderText.parse(text, rubyMode)
         paint.setShadowLayer(2f * scale, shadowOffset * scale, shadowOffset * scale, Color.BLACK)
         paint.color = textColor
-        canvas.drawText(text, x, y, paint)
+        canvas.drawText(ruby.body, x, y, paint)
         paint.clearShadowLayer()
         paint.color = textColor
-        canvas.drawText(text, x, y, paint)
+        canvas.drawText(ruby.body, x, y, paint)
+        if (ruby.annotations.isNotEmpty()) {
+            val clip = RectF(canvas.clipBounds)
+            RubyTextPainter.drawAnnotations(canvas, paint, ruby, x, y, textColor, clip,
+                minimumRubyTop ?: clip.top, scale, rubyGap)
+        }
     }
 
-    private fun drawBilingualLinePairs(
-        canvas: Canvas,
-        paint: Paint,
-        translationLines: List<String>,
-        originalLines: List<String>,
-        targetLanguage: String,
-        x: Float,
-        top: Float,
-        translationTextSize: Float,
-        originalTextSize: Float,
-        translationLineHeight: Float,
-        originalLineHeight: Float,
-        pairGap: Float,
-        translationColor: Int
+    /** Rasterize once in full-frame coordinates, then retain only the affected pixel rectangles. */
+    private fun captureDialoguePlayback(
+        clearBox: RectF, hitBounds: Rect, rows: List<PlannedDialogueRow>, x: Float,
+        textColor: Int, drawingScale: Float, sourcePaint: Paint, cornerRadius: Float
+    ): DialoguePlaybackFrame.Panel {
+        val panelBounds = Rect().also(clearBox::roundOut)
+        val allocated = mutableListOf<Bitmap>()
+        val paint = Paint(sourcePaint)
+        fun layer(bounds: RectF, draw: (Canvas) -> Unit): DialoguePlaybackFrame.Layer {
+            val clipped = RectF(bounds)
+            check(clipped.intersect(clearBox))
+            val pixels = Rect().also(clipped::roundOut)
+            val image = Bitmap.createBitmap(pixels.width().coerceAtLeast(1), pixels.height().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            allocated += image
+            val canvas = Canvas(image)
+            canvas.translate(-pixels.left.toFloat(), -pixels.top.toFloat())
+            canvas.clipRect(clearBox)
+            draw(canvas)
+            return DialoguePlaybackFrame.Layer(image, pixels.left, pixels.top)
+        }
+        try {
+            val blank = layer(clearBox) { canvas ->
+                canvas.drawRoundRect(clearBox, cornerRadius, cornerRadius, dialogueClearPaint)
+            }
+            fun captureRow(row: PlannedDialogueRow): DialoguePlaybackFrame.Row {
+                val bounds = RectF(row.ink).apply { inset(-8f * drawingScale, -8f * drawingScale) }
+                val bodyLayer = layer(bounds) { canvas ->
+                    drawPlannedDialogueRows(canvas, paint, listOf(row.copy(ruby = emptyList(), rubyEnds = emptyList())),
+                        x, textColor, drawingScale)
+                }
+                paint.textSize = row.textSize
+                val ends = DialoguePlaybackCharacters.ends(row.body, inlineRuby = row.original)
+                val advances = FloatArray(ends.size) { index ->
+                    paint.getRunAdvance(row.body, 0, row.body.length, 0, row.body.length, false, ends[index])
+                }
+                val readings = row.ruby.mapIndexed { index, annotation ->
+                    val boundsWithShadow = RectF(annotation.left, annotation.top, annotation.right, annotation.bottom)
+                        .apply { inset(-8f * drawingScale, -8f * drawingScale) }
+                    DialoguePlaybackFrame.Reading(row.rubyEnds[index], layer(boundsWithShadow) { canvas ->
+                        paint.textSize = row.textSize
+                        RubyTextPainter.drawPlanned(canvas, paint, listOf(annotation), textColor, drawingScale)
+                    })
+                }
+                return DialoguePlaybackFrame.Row(row.body, x, ends, advances, bodyLayer, readings)
+            }
+            val body = rows.filterNot { it.original }.map(::captureRow)
+            val original = rows.filter { it.original }.map(::captureRow)
+            return DialoguePlaybackFrame.Panel(panelBounds, Rect(hitBounds), blank, body, original)
+        } catch (error: Throwable) {
+            allocated.forEach { if (!it.isRecycled) it.recycle() }
+            throw error
+        }
+    }
+
+    private fun drawPlannedDialogueRows(
+        canvas: Canvas, paint: Paint, rows: List<PlannedDialogueRow>, x: Float, translationColor: Int, drawingScale: Float
     ) {
-        var currentTop = top
-        val pairCount = maxOf(translationLines.size, originalLines.size)
-        repeat(pairCount) { index ->
-            if (index < translationLines.size) {
-                paint.textSize = translationTextSize
-                drawLines(
-                    canvas = canvas,
-                    paint = paint,
-                    lines = listOf(translationLines[index]),
-                    x = x,
-                    firstBaseline = VisualTextMetrics.baselineForTop(
-                        paint = paint,
-                        top = currentTop,
-                        targetLanguage = targetLanguage,
-                        text = translationLines[index]
-                    ),
-                    lineHeight = translationLineHeight,
-                    textColor = translationColor
-                )
-                currentTop += translationLineHeight
-            }
-            if (index < originalLines.size) {
-                paint.textSize = originalTextSize
-                drawLines(
-                    canvas = canvas,
-                    paint = paint,
-                    lines = listOf(originalLines[index]),
-                    x = x,
-                    firstBaseline = VisualTextMetrics.baselineForTop(
-                        paint = paint,
-                        top = currentTop,
-                        targetLanguage = targetLanguage,
-                        text = originalLines[index]
-                    ),
-                    lineHeight = originalLineHeight,
-                    textColor = ORIGINAL_TEXT_COLOR
-                )
-                currentTop += originalLineHeight
-            }
-            if (index < pairCount - 1) {
-                currentTop += pairGap
-            }
+        for (row in rows) {
+            paint.textSize = row.textSize
+            paint.color = if (row.original) ORIGINAL_TEXT_COLOR else translationColor
+            paint.setShadowLayer(2f * drawingScale, shadowOffset * drawingScale, shadowOffset * drawingScale, Color.BLACK)
+            canvas.drawText(row.body, x, row.baseline, paint)
+            paint.clearShadowLayer()
+            canvas.drawText(row.body, x, row.baseline, paint)
+            RubyTextPainter.drawPlanned(canvas, paint, row.ruby, paint.color, drawingScale)
         }
     }
 
@@ -1751,13 +1719,77 @@ class OverlayRenderer @Inject constructor(
         x: Float,
         firstBaseline: Float,
         lineHeight: Float,
-        textColor: Int
-    ) {
+        textColor: Int,
+        minimumRubyTop: Float = canvas.clipBounds.top.toFloat(),
+        rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
+    ): Float {
         val scale = screenScale(canvas)
+        var nextRubyTop = minimumRubyTop
         for ((index, line) in lines.withIndex()) {
             val y = firstBaseline + index * lineHeight
-            drawShadowedText(canvas, paint, line, x, y, textColor, scale)
+            drawShadowedText(canvas, paint, line, x, y, textColor, scale, nextRubyTop, rubyMode)
+            nextRubyTop = RubyTextPainter.bodyBottom(paint, line, y, rubyMode) + scale
         }
+        return nextRubyTop
+    }
+
+    private fun Paint.measureRenderText(
+        text: String,
+        rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
+    ): Float = measureText(RubyRenderText.body(text, rubyMode))
+
+    private fun clipTextAndRuby(canvas: Canvas, textArea: RectF, clearBox: RectF, lines: List<String>) {
+        if (lines.none(RubyRenderText::hasRuby)) {
+            canvas.clipRect(textArea)
+        } else {
+            // Admit annotations into the already covered space; never move the body baseline.
+            canvas.clipRect(RectF(clearBox.left, clearBox.top, maxOf(textArea.right, clearBox.right), textArea.bottom))
+        }
+    }
+
+    private fun planRubyLines(
+        lines: List<String>,
+        maxWidth: Float,
+        measureText: (String) -> Float,
+        wordBoundaryMode: Boolean = false,
+        rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
+    ): List<String> {
+        val ruby = RubyRenderText.parse(lines.joinToString("\n"), rubyMode)
+        val planned = DialogueLinePlanner.plan(ruby.body.lines(), maxWidth, measureText, wordBoundaryMode)
+        return if (ruby.annotations.isEmpty()) planned else planned.map(ruby::annotate)
+    }
+
+    private fun wrapRubyBody(ruby: RubyRenderText.Text, paint: Paint, maxWidth: Float, wordWrap: Boolean): List<String> {
+        val result = mutableListOf<String>()
+        var paragraphOffset = 0
+        ruby.body.split('\n').forEach { paragraph ->
+            var start = 0
+            while (start < paragraph.length) {
+                while (start < paragraph.length && paragraph[start].isWhitespace()) start++
+                if (start >= paragraph.length) break
+                val remaining = paragraph.substring(start)
+                var count = adjustBreakForLatinToken(remaining,
+                    paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1))
+                if (wordWrap && count < remaining.length) {
+                    val space = remaining.substring(0, count).indexOfLast(Char::isWhitespace)
+                    if (space > 0) count = space
+                }
+                val offset = paragraphOffset + start + count
+                ruby.annotations.firstOrNull { offset > it.start && offset < it.end }?.let { annotation ->
+                    // An over-wide whole base rejects this size during joint fitting. Splitting
+                    // it would attach the reading only to the final fragment and lose its extent.
+                    count = if (annotation.start > paragraphOffset + start) {
+                        annotation.start - paragraphOffset - start
+                    } else {
+                        annotation.end - paragraphOffset - start
+                    }
+                }
+                result += remaining.take(count)
+                start += count
+            }
+            paragraphOffset += paragraph.length + 1
+        }
+        return result
     }
 
     private fun screenScale(canvas: Canvas): Float {

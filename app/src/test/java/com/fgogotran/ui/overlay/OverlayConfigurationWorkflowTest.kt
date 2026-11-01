@@ -11,6 +11,24 @@ import kotlin.test.assertTrue
  */
 class OverlayConfigurationWorkflowTest {
     @Test
+    fun `menu and history yield translation input before adding a modal window and release on dismiss or failure`() {
+        val runner=source("runner/FgoRunnerOverlay.kt")
+        for ((show,dismiss,flag) in listOf(Triple("showArcMenu","dismissMenu","setMenuVisible"),
+            Triple("showHistoryPanel","dismissHistoryPanel","setHistoryVisible"))) {
+            val open=function(runner,show)
+            val sync=open.indexOf("syncTranslatedOverlayControls()",open.indexOf("$flag(true)"))
+            assertTrue(sync>=0 && sync<open.indexOf("wm.addView("),show)
+            val failure=open.substringAfter("catch (e: Exception)")
+            assertTrue(failure.contains("$flag(false)"),show)
+            assertTrue(failure.contains("syncTranslatedOverlayControls()"),show)
+            val close=function(runner,dismiss)
+            assertTrue(close.contains("$flag(false)"),dismiss)
+            assertTrue(close.contains("syncTranslatedOverlayControls()"),dismiss)
+        }
+        assertTrue(function(runner,"syncTranslatedOverlayControls").contains(
+            "translationOverlay.setControlsVisible(TranslationTrigger.isUiBlockingOcr())"))
+    }
+    @Test
     fun `runner refresh key covers language density and font but not game scaling`() {
         val runner = source("runner/FgoRunnerOverlay.kt")
         val key = runner.substringAfter("private data class OverlayUiConfiguration(")
@@ -138,7 +156,7 @@ class OverlayConfigurationWorkflowTest {
         assertTrue(sizing.contains("setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp.toFloat())"))
         assertTrue(sizing.contains("setPadding(dp(10), dp(6), dp(10), dp(6))"))
         assertTrue(sizing.contains("cornerRadius = dp(10).toFloat()"))
-        assertTrue(sizing.contains("ViewConfiguration.get(context).scaledTouchSlop"))
+        assertTrue(sizing.contains("ViewConfiguration.get(view.context).scaledTouchSlop"))
         assertTrue(function(voice, "ensureView").contains("applyViewSizing(this)"))
     }
 
@@ -146,8 +164,13 @@ class OverlayConfigurationWorkflowTest {
     fun `subtitle configuration refresh neither reconnects voice nor adds OCR or API work`() {
         val voice = source("speech/VoiceSubtitleOverlay.kt")
         assertTrue(voice.contains("override fun onConfigurationChanged(newConfig: Configuration) = onDisplayChanged()"))
-        assertTrue(function(voice, "ensureView").contains("context.registerComponentCallbacks(componentCallbacks)"))
-        assertTrue(function(voice, "destroy").contains("context.unregisterComponentCallbacks(componentCallbacks)"))
+        assertTrue(function(voice, "ensureView").contains("windowContext.registerComponentCallbacks(componentCallbacks)"))
+        assertTrue(function(voice, "destroy").contains("windowContext.unregisterComponentCallbacks(componentCallbacks)"))
+        assertTrue(voice.contains("private val windowContext: Context by lazy"))
+        assertTrue(voice.contains("private val windowManager by lazy { windowContext.getSystemService(WindowManager::class.java) }"))
+        assertTrue(voice.contains(".createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null)"))
+        assertTrue(function(voice, "ensureView").contains("TextView(captionContext)"))
+        assertTrue(function(voice, "dp").contains("windowContext.resources.displayMetrics.density"))
         val controller = function(source("speech/RealtimeVoiceTranslationController.kt"), "onDisplayChanged")
         assertTrue(controller.contains("subtitleOverlay.onDisplayChanged()"))
         assertFalse(controller.contains("start("))

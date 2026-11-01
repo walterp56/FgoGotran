@@ -19,6 +19,10 @@ local-ai-studio/state/
 # Python virtual environments
 .venv/
 venv/
+# Bytecode caches from Python utilities, including translation evaluation.
+__pycache__/
+*.pyc
+*.pyo
 term_builder/.venv/
 term_builder/venv
 term_builder/venv/
@@ -67,6 +71,8 @@ release/
 temp/
 tmp_video_frames/
 showcase/
+tools/
+docs/
 
 # GitHub Actions typo guard
 .github/workflow/
@@ -75,6 +81,8 @@ showcase/
 term_builder/voice_tuning/
 helper/
 atlas_cache/
+# Local Atlas sources, authorised JP captures, offline builds and playback evidence.
+/story_assets/
 video/
 # Keep legacy local tests ignored, but retain the battle-subtitle regression suite.
 app/src/test/**
@@ -130,6 +138,14 @@ app/src/test/java/com/fgogotran/overlay/*
 !app/src/test/java/com/fgogotran/overlay/DialogueRenderGeometryTest.kt
 # Retain the focused resolution-independent game-render regressions.
 !app/src/test/java/com/fgogotran/overlay/FgoViewportGeometryTest.kt
+!app/src/test/java/com/fgogotran/overlay/RubyRenderTextTest.kt
+!app/src/test/java/com/fgogotran/overlay/RubyEndAlignmentTest.kt
+!app/src/test/java/com/fgogotran/overlay/HistoryRubyViewportTest.kt
+!app/src/test/java/com/fgogotran/overlay/BilingualDialogueGeometryTest.kt
+!app/src/test/java/com/fgogotran/overlay/BilingualChoiceGeometryTest.kt
+!app/src/test/java/com/fgogotran/overlay/BilingualOriginalTextTest.kt
+!app/src/test/java/com/fgogotran/overlay/ProportionalDialogueFitTest.kt
+!app/src/test/java/com/fgogotran/overlay/RubySpanSpacingTest.kt
 # Retain focused crop scaling and Android UI-boundary regressions.
 !app/src/test/java/com/fgogotran/crop/
 app/src/test/java/com/fgogotran/crop/*
@@ -193,6 +209,8 @@ AWS/
 app/src/test/java/com/fgogotran/voice/*
 !app/src/test/java/com/fgogotran/voice/VoiceEmotionStyleTest.kt
 !app/src/test/java/com/fgogotran/voice/VoiceHintWorkflowTest.kt
+!app/src/test/java/com/fgogotran/voice/TempVoiceProfileFormatTest.kt
+!app/src/test/java/com/fgogotran/voice/AzureTtsAudioPolicyTest.kt
 !app/src/test/java/com/fgogotran/translation/VoiceHintContractTest.kt
 # Retain focused v2 analytics state/outbox, delivery and lifecycle-wiring regressions.
 !app/src/test/java/com/fgogotran/analytics/
@@ -214,6 +232,7 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/voice/InGameVoiceRequestGateTest.kt
 # Retain general prompt/context/response-contract and ruby provenance regressions.
 !app/src/test/java/com/fgogotran/translation/GeneralGlossaryPolicyTest.kt
+!app/src/test/java/com/fgogotran/translation/PromptGlossaryTargetPolicyTest.kt
 !app/src/test/java/com/fgogotran/translation/GeneralPromptRequestsTest.kt
 !app/src/test/java/com/fgogotran/translation/GeneralSceneContextTest.kt
 !app/src/test/java/com/fgogotran/translation/GeneralTranslationResponseContractTest.kt
@@ -228,8 +247,14 @@ app/src/test/java/com/fgogotran/runner/*
 !app/src/test/java/com/fgogotran/crop/CropWorkflowWiringTest.kt
 # Retain screenshot-age freshness and choice-retry timestamp wiring regressions.
 !app/src/test/java/com/fgogotran/story/StoryFreshnessWiringTest.kt
+!app/src/test/java/com/fgogotran/story/StoryTranslationContentPolicyTest.kt
+!app/src/test/java/com/fgogotran/story/StoryTranslationContentWorkflowTest.kt
 # Retain whole-label name lookup, fallback, RAG and name-cache policy regressions.
 !app/src/test/java/com/fgogotran/translation/NameBoxLookupPolicyTest.kt
+# Retain English punctuation restoration for local glossary content shortcuts.
+!app/src/test/java/com/fgogotran/translation/EnglishGlossaryPunctuationTest.kt
+# Retain the focused Traditional Chinese glossary override regressions.
+!app/src/test/java/com/fgogotran/translation/TraditionalGlossaryOverridesTest.kt
 # Retain corpus-based name-label prompt and existing validation allowance regressions.
 !app/src/test/java/com/fgogotran/translation/NameBoxLabelPolicyTest.kt
 # Retain foreground-override default and hidden-toggle regressions.
@@ -241,3 +266,67 @@ app/src/test/java/com/fgogotran/game/*
 !app/src/test/java/com/fgogotran/diagnostic/
 app/src/test/java/com/fgogotran/diagnostic/*
 !app/src/test/java/com/fgogotran/diagnostic/DiagnosticFilePersistenceTest.kt
+
+# Internal device/verification notes (local evidence only)
+# Retain independent voiced-dialogue subtitles, workflow selection and history regressions.
+!app/src/test/java/com/fgogotran/dialoguesubtitle/
+!app/src/test/java/com/fgogotran/dialoguesubtitle/*.kt
+!app/src/test/java/com/fgogotran/translation/DialogueSubtitlePromptTest.kt
+!app/src/test/java/com/fgogotran/translation/SessionHistoryRetentionTest.kt
+!app/src/test/java/com/fgogotran/battle/
+app/src/test/java/com/fgogotran/battle/*
+!app/src/test/java/com/fgogotran/battle/BattleModeStateTest.kt
+!app/src/test/java/com/fgogotran/ui/overlay/FloatingButtonModeTest.kt
+
+chapter/*_DEVICE_CHECK_*.md
+chapter/NATIVE_*.md
+chapter/STORY_*.md
+chapter/PHASE_2_INSTALLER.md
+chapter/R2_ATLAS_PREPARATION_*.md
+chapter/LANGUAGE_PACK_DEVICE_CHECK_*.md
+
+# Retain the offline general-only translation evaluation fixture exporter.
+!app/src/test/java/com/fgogotran/translation/GeneralPromptEvaluationFixtureTest.kt
+!app/src/test/java/com/fgogotran/translation/GeneralEvaluatedPromptPolicyTest.kt
+!app/src/test/java/com/fgogotran/translation/GeneralForeignLanguagePromptTest.kt
+!app/src/test/java/com/fgogotran/translation/RubyMarkupRepresentationTest.kt
+
+# OS / editor noise
+!app/src/test/java/com/fgogotran/overlay/DialoguePlaybackTest.kt
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# Retain rare JP reference-mark recovery and general-only preservation regressions.
+!app/src/test/java/com/fgogotran/ocr/DialogueReferenceMarkRecoveryTest.kt
+!app/src/test/java/com/fgogotran/translation/GeneralReferenceMarkPolicyTest.kt
+!app/src/test/resources/
+app/src/test/resources/*
+!app/src/test/resources/ocr/
+app/src/test/resources/ocr/*
+!app/src/test/resources/ocr/jp-reference-marks.png
+
+# Retain emphasis OCR, prompt, layout and cache regressions.
+!app/src/test/java/com/fgogotran/text/
+!app/src/test/java/com/fgogotran/text/EmphasisTextTest.kt
+!app/src/test/java/com/fgogotran/overlay/EmphasisRenderTextTest.kt
+!app/src/test/java/com/fgogotran/ocr/EmphasisRangeMapperTest.kt
+!app/src/test/java/com/fgogotran/translation/EmphasisPromptTest.kt
+!app/src/test/java/com/fgogotran/translation/EmphasisPromptEvaluationTest.kt
+!app/src/test/java/com/fgogotran/overlay/EmphasisGraphicsTest.kt
+!app/src/test/java/com/fgogotran/translation/EmphasisCollectedResponseTest.kt
+!app/src/test/java/com/fgogotran/ocr/EmphasisScreenshotTest.kt
+!app/src/test/resources/ocr/jp-emphasis-worlds.png
+!app/src/test/resources/ocr/jp-emphasis-memory.png
+!app/src/test/resources/ocr/jp-emphasis-positions.json
+!app/src/test/java/com/fgogotran/ocr/MlKitDialogueInputTest.kt
+!app/src/test/java/com/fgogotran/ocr/MlKitOcrProviderTest.kt
+!app/src/test/resources/ocr/jp-ruby-reference.png
+!docs/
+docs/*
+!app/src/test/java/com/fgogotran/overlay/TranslationOverlayControlsTest.kt
+!app/src/test/java/com/fgogotran/translation/AtlasStoryPromptEvaluationTest.kt
+!app/src/test/java/com/fgogotran/overlay/RubySpacingGraphicsTest.kt
+!app/src/test/java/com/fgogotran/overlay/AnnotationPreferencesGraphicsTest.kt
+!app/src/test/java/com/fgogotran/story/AutoStoryScenePolicyTest.kt

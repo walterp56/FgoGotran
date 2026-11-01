@@ -84,7 +84,7 @@ class ManualTranslationRefreshWorkflowTest {
         val single = function(translator, "translate")
         assertTrue(single.contains("if (!forceFreshTranslation) translationMemory.lookupNormalized(normalizedText)"))
         assertTrue(single.contains("if (!forceFreshTranslation) findCharacterNameTranslation("))
-        assertTrue(single.contains("if (!forceFreshTranslation && !TextNormalizer.hasRubyAnnotations(normalizedText))"))
+        assertTrue(single.contains("if (!forceFreshTranslation && !EmphasisText.has(normalizedText) && !TextNormalizer.hasRubyAnnotations(normalizedText))"))
         val batch = function(translator, "translateBatch")
         assertTrue(batch.contains("val officialMemory = if (forceFreshTranslation) null else translationMemory.lookupNormalized(normalizedText)"))
         for (lookup in listOf("findCharacterNameTranslation", "findTermTranslation")) {
@@ -158,10 +158,10 @@ class ManualTranslationRefreshWorkflowTest {
 
     private fun function(source: String, name: String): String =
         Regex("(?m)^    (?:private )?(?:suspend )?fun ").split(source).drop(1)
-            .first { it.startsWith("$name(") }
+            .first { it.startsWith("${if (name in listOf("translate", "translateBatch", "translateScene")) name + "Internal" else name}(") }
 
     private fun translationCalls(body: String): List<String> =
-        Regex("\\btranslate(?:Batch)?\\(").findAll(body)
+        Regex("\\btranslate(?:Batch)?Internal\\(").findAll(body)
             .filter { it.range.first > 0 }
             .map { match ->
                 var depth = 1

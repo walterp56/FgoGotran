@@ -26,6 +26,11 @@ internal object DialogueRenderGeometry {
     const val TEXT_TOP_INSET = 48f
     const val TEXT_BOTTOM_INSET = 12f
 
+    /** Background/clip padding only. This must never participate in text fitting or anchoring. */
+    fun withUpperHeadroom(cover: DialogueRect, panel: DialogueRect, scale: Float): DialogueRect = cover.copy(
+        top = (cover.top - 8f * scale).coerceAtLeast(panel.top)
+    )
+
     const val LINE_HEIGHT_MULTIPLIER_CN = 1.57f
     const val LINE_HEIGHT_MULTIPLIER_EN = 1.46f
 

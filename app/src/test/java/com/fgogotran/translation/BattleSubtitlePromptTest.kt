@@ -91,6 +91,7 @@ class BattleSubtitlePromptTest {
         )
         val prompt = promptBuilder.buildSystemPrompt(context)
 
-        assertTrue(prompt.length < 1_100, "Battle prompt was ${prompt.length} characters")
+        // Includes the evaluated multilingual exception; still excludes name/history/ruby cards.
+        assertTrue(prompt.length < 1_500, "Battle prompt was ${prompt.length} characters")
     }
 }

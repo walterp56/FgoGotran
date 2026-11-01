@@ -149,7 +149,7 @@ class NameBoxLabelPolicyTest {
     }
 
     @Test
-    fun `ordinary dialogue crop and battle receive no new name instructions or version changes`() {
+    fun `ordinary dialogue crop and battle receive no new name instructions`() {
         for (target in targets) {
             val dialogue = builder.buildPromptContext(
                 outputFormat = PromptOutputFormat.PLAIN_TEXT, sourceText = "タマモーズが来た。", targetLanguage = target
@@ -172,7 +172,7 @@ class NameBoxLabelPolicyTest {
                 assertFalse(builder.buildSystemPrompt(context).contains("Name-box: translate the complete visible label"))
             }
             assertEquals(
-                if (target == "en") "jp-en-fgo-target-v5-plain-layout" else "jp-cn-fgo-target-v97-plain-layout",
+                if (target == "en") "jp-en-fgo-target-v8-contextual-foreign" else "jp-cn-fgo-target-v100-contextual-foreign",
                 PromptBuilder.promptVersionFor(target, battleSubtitle = false)
             )
             assertEquals(
@@ -293,5 +293,5 @@ class NameBoxLabelPolicyTest {
 
     private fun function(source: String, name: String): String =
         Regex("(?m)^    (?:private )?(?:suspend )?fun ").split(source).drop(1)
-            .first { it.startsWith("$name(") }
+            .first { it.startsWith("${if (name in listOf("translate", "translateBatch", "translateScene")) name + "Internal" else name}(") }
 }

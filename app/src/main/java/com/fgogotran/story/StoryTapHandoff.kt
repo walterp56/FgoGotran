@@ -100,10 +100,7 @@ internal class StoryTapHandoff(
         if (scene.kind == Kind.CHOICES && scene.choiceHitBounds.none {
                 x >= it.left && x < it.right && y >= it.top && y < it.bottom
             }) return null
-        if (CONTROL_REGIONS.any { reference ->
-                val bounds = FgoViewportGeometry.map(reference, scene.width, scene.height)
-                x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom
-            }) return null
+        if (isControlTap(x, y, scene.width, scene.height)) return null
         return scene
     }
 
@@ -204,6 +201,12 @@ internal class StoryTapHandoff(
     }
 
     companion object {
+        /** Shared read-only exclusion; playback must never consume LOG, AUTO or SKIP. */
+        fun isControlTap(x: Float, y: Float, width: Int, height: Int): Boolean = CONTROL_REGIONS.any { reference ->
+            val bounds = FgoViewportGeometry.map(reference, width, height)
+            x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom
+        }
+
         private const val MAX_UNCHANGED_CHOICE_SKIP_MS = 1_200L
 
         fun sampleChoices(

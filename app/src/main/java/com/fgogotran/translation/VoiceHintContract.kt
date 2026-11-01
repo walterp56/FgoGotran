@@ -23,6 +23,7 @@ internal fun buildVoiceHintInstructions(context: VoiceHintContext): String = bui
     appendLine("No descriptions, explanations, Markdown, or extra keys.")
     appendLine("""voice_hint field example only (retain required outer keys; do not copy example values): {"voice_hint":{"styles":[],"rate":-1,"confidence":0.8}}""")
     appendLine("styles: zero or one exact allowed style grounded in this line; no substitutes. dragon_styles: [].")
+    appendLine("rate: relative to app/character speed (-2=-10%, -1=-5%, 0=unchanged, 1=+5%, 2=+10%); choose from current context, never an absolute speed.")
     append("If no style fits, use styles=[] with only clearly justified delivery changes. ")
     append("intensity/confidence 0-1; rate/pitch/pause integers -2..2; omit unchanged values.")
 }
@@ -39,7 +40,7 @@ internal fun parseVoiceLineHint(
         .flatMap { key -> styleValues(obj[key]).asSequence() }
         .map { it.trim().lowercase(Locale.US).replace('_', '-') }
         .firstOrNull { it in allowed }
-    val rate = obj.deliveryDelta("rate")
+    val rate = obj.deliveryDelta("rate", keepZero = true)
     val pitch = obj.deliveryDelta("pitch")
     val pause = obj.deliveryDelta("pause")
     if (style == null && rate == null && pitch == null && pause == null) return null
@@ -64,5 +65,5 @@ private fun JsonObject.finiteNumber(key: String): Double? =
     (this[key] as? JsonPrimitive)?.contentOrNull?.trim()?.toDoubleOrNull()
         ?.takeIf { it.isFinite() }
 
-private fun JsonObject.deliveryDelta(key: String): Int? = finiteNumber(key)
-    ?.coerceIn(-2.0, 2.0)?.roundToInt()?.takeIf { it != 0 }
+private fun JsonObject.deliveryDelta(key: String, keepZero: Boolean = false): Int? = finiteNumber(key)
+    ?.coerceIn(-2.0, 2.0)?.roundToInt()?.takeIf { keepZero || it != 0 }

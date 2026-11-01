@@ -118,6 +118,13 @@
     <string name="menu_log">翻译LOG</string>
     <string name="menu_area">区域翻译</string>
     <string name="menu_battle">BATTLE</string>
+    <string name="menu_dialogue_subtitles">召唤字幕</string>
+    <string name="guide_mode_dialogue_text">适合从者召唤台词及其回放。自动翻译画面中目前显示的台词；较晚完成的翻译可在 LOG 查看。</string>
+    <string name="guide_mode_dialogue_button">召唤字幕模式，自动识别，不用点击。</string>
+    <string name="dialogue_subtitle_backlog">待处理的召唤台词过多，已暂停捕获新台词。已捕获的内容会继续翻译，可在 LOG 查看。</string>
+    <string name="dialogue_subtitle_failed">[召唤台词翻译失败：原文已保留在 LOG]</string>
+    <string name="mode_glyph_dialogue">召</string>
+    <string name="mode_desc_dialogue">召唤字幕模式，自动识别，不用点击。</string>
     <string name="menu_live">实时字幕</string>
     <string name="menu_manual">手动</string>
     <string name="menu_semi">半自动</string>
@@ -201,16 +208,20 @@
     <string name="guide_auto_43">全</string>
     <string name="guide_auto_44">战</string>
     <string name="settings_auto_1">提供最近场景的日文与译文对照；模型误译前文时可关闭；会增加Token消耗(云端API)</string>
-    <string name="settings_auto_2">将读音或别名一起交给翻译。</string>
-    <string name="settings_auto_3">默认引擎。启动快，耗电低。由 Google ML Kit 在本机识别。</string>
+    <string name="settings_auto_2">显示游戏中已有的读音、别名与强调注点。</string>
+    <string name="settings_auto_3">启动快，耗电低。由 Google ML Kit 在本机识别。</string>
     <string name="settings_auto_4">相同原文可直接使用上次翻译，速度更快；\n遇到旧译文时可以清除缓存。</string>
-    <string name="settings_auto_5">进阶引擎。准确度高，识别范围广。依赖 CPU 算力。</string>
+    <string name="settings_auto_5">默认引擎。准确度高，识别范围广。依赖 CPU 算力。</string>
     <string name="settings_auto_6">选择适合的 OCR（光学字元识别）引擎</string>
-    <string name="settings_auto_7">翻译时包含上方小字</string>
-    <string name="settings_ruby_example_label">游戏中的例子</string>
+    <string name="settings_auto_7">小字与注点</string>
+    <string name="settings_ruby_example_label">效果预览</string>
     <string name="settings_ruby_example_annotation" translatable="false">カルデア</string>
     <string name="settings_ruby_example_base" translatable="false">星見台</string>
-    <string name="settings_ruby_example_meaning">开启：观星台〈迦勒底〉\n关闭：观星台\n以〈〉表示游戏中正文上方的小字。</string>
+    <string name="settings_ruby_example_translated_base">观星台</string>
+    <string name="settings_ruby_example_translated_annotation">迦勒底</string>
+    <string name="settings_ruby_example_on">开启</string>
+    <string name="settings_ruby_example_off">关闭</string>
+    <string name="settings_ruby_example_meaning">开启时显示小字与注点；关闭后只显示正文。</string>
     <string name="settings_auto_8">Sakura：本机规则</string>
     <string name="settings_auto_9">用于调试和排查问题。</string>
     <string name="settings_auto_10">前台检测已恢复正常</string>
@@ -231,8 +242,22 @@
     <string name="settings_auto_25">参考场景数</string>
     <string name="settings_auto_26">管理接口</string>
     <string name="settings_auto_27">翻译偏好</string>
+    <string name="settings_open_translation_preferences">打开翻译偏好</string>
+    <string name="settings_translation_language_display">语言与显示</string>
+    <string name="settings_translation_processing">翻译处理</string>
+    <string name="settings_translation_context_summary">开启 · %1$d 幕</string>
+    <string name="settings_translation_context_disabled_hint">开启“参考前文”后可调整</string>
     <string name="settings_auto_28">御主名称</string>
     <string name="settings_master_profile_title">御主资料</string>
+    <string name="settings_master_profile_save_hint">其他选项会自动保存；名称与性别请按下方按钮保存。</string>
+    <string name="settings_master_profile_unsaved">尚未保存</string>
+    <string name="settings_master_profile_saving">正在保存…</string>
+    <string name="settings_master_profile_save_failed">保存失败，请重试。</string>
+    <string name="settings_master_profile_unsaved_title">御主资料尚未保存</string>
+    <string name="settings_master_profile_unsaved_message">名称或性别的更改尚未保存。要放弃更改并返回吗？</string>
+    <string name="settings_master_profile_discard">放弃并返回</string>
+    <string name="settings_master_profile_keep_editing">继续编辑</string>
+    <string name="settings_master_name_not_set">未设置</string>
     <string name="settings_auto_29">双语显示</string>
     <string name="settings_auto_30">语音设置</string>
     <string name="settings_auto_31">语音朗读</string>
@@ -338,7 +363,7 @@
     <string name="settings_context_scenes">%1$d 幕</string>
     <string name="voice_read_chinese">中文</string>
     <string name="voice_read_english">英文</string>
-    <string name="voice_read_text_invalid_hint">需与译文语言一致</string>
+    <string name="voice_read_text_follows_translation">跟随翻译语言</string>
     <string name="ui_language_system">跟随系统</string>
     <string name="ui_language_follow_system">使用手机的语言。</string>
     <string name="ui_language_title">界面语言</string>
@@ -378,12 +403,31 @@
     <string name="voice_ai_expression_inactive">未生效</string>
     <string name="app_appearance_title">外观</string>
     <string name="settings_floating_button_size">悬浮按钮大小</string>
+    <string name="settings_floating_button_size_minimum">最小</string>
     <string name="app_theme_title">主题</string>
     <string name="app_theme_system">跟随系统</string>
     <string name="app_theme_light">浅色</string>
     <string name="app_theme_dark">深色</string>
     <string name="app_theme_system_description">使用手机的浅色或深色设置。</string>
     <string name="app_theme_close">关闭</string>
+    <string name="home_chapter_title">剧情翻译 →</string>
+    <string name="home_chapter_summary">安装英语、简中或繁中语言包，译文直接显示在 FGO 内。</string>
+    <string name="dialogue_playback_title">对话播放</string>
+    <string name="dialogue_playback_speed">文字显示速度</string>
+    <string name="dialogue_playback_pause">标点停顿</string>
+    <string name="dialogue_playback_slow">慢</string>
+    <string name="dialogue_playback_instant">最快 MAX</string>
+    <string name="dialogue_playback_hint">游戏对话播放或停顿期间，点一下显示全文；全文显示后，点一下继续。</string>
+    <string name="dialogue_playback_reset">恢复默认</string>
+    <string name="dialogue_playback_replay">重播</string>
+    <string name="dialogue_playback_preview">播放预览</string>
+    <string name="dialogue_playback_next_scene">设置应用于下一幕对话。</string>
+    <string name="dialogue_playback_max_hint">MAX 也会应用标点停顿。</string>
+    <string name="dialogue_playback_pause_none">无</string>
+    <string name="dialogue_playback_pause_short">短</string>
+    <string name="dialogue_playback_pause_medium">中</string>
+    <string name="dialogue_playback_pause_long">较长</string>
+    <string name="dialogue_playback_pause_value">%1$d · %2$s</string>
 </resources>
 
 

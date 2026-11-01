@@ -1,5 +1,6 @@
 package com.fgogotran.ui.overlay
 
+import com.fgogotran.text.EmphasisText
 import android.content.Context
 import com.fgogotran.R
 import android.graphics.Color as AndroidColor
@@ -44,6 +45,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.overlay.FgoTypefaceProvider
 import com.fgogotran.overlay.FgoViewportLayout
+import com.fgogotran.overlay.RubyRenderText
+import com.fgogotran.overlay.RubyTextView
 import com.fgogotran.translation.SessionTranslationEntry
 import com.fgogotran.translation.SessionTranslationHistory
 import kotlin.math.abs
@@ -64,12 +67,14 @@ private const val HISTORY_SCROLLBAR_TOUCH_SLOP_DP = 28
 private const val HISTORY_DIALOGUE_LINE_HEIGHT_MULTIPLIER = 1.7f
 
 @Composable
-fun HistoryOverlayPanel(onDismiss: () -> Unit) {
+fun HistoryOverlayPanel(settingsRepository: SettingsRepository, onDismiss: () -> Unit) {
     val entries by SessionTranslationHistory.entries.collectAsState()
+    val showAnnotations by settingsRepository.translationIncludeRuby.collectAsState(
+        initial = SettingsRepository.DEFAULT_TRANSLATION_INCLUDE_RUBY)
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val uiConfiguration = HistoryUiConfiguration(configuration.densityDpi, configuration.fontScale,
-        configuration.locales.toLanguageTags())
+        configuration.locales.toLanguageTags(), showAnnotations)
 
     Box(
         modifier = Modifier
@@ -205,7 +210,8 @@ private class HistoryListState {
     var updateVersion = 0L
 }
 
-private data class HistoryUiConfiguration(val densityDpi: Int, val fontScale: Float, val locales: String)
+private data class HistoryUiConfiguration(val densityDpi: Int, val fontScale: Float, val locales: String,
+    val showAnnotations: Boolean)
 
 private data class HistoryRow(
     val entry: SessionTranslationEntry,
@@ -238,7 +244,8 @@ private class HistoryRowsAdapter : ListAdapter<HistoryRow, HistoryRowsAdapter.Ho
         holder.container.setPadding(0, 0, 0, row.contentSizing.spacingPx(12))
         addHistoryEntryViews(
             holder.container, row.entry,
-            historyTypeface(holder.container.context, row.entry.targetLocale), row.contentSizing
+            historyTypeface(holder.container.context, row.entry.targetLocale), row.contentSizing,
+            row.configuration.showAnnotations
         )
     }
 }
@@ -248,6 +255,7 @@ private fun addHistoryEntryViews(
     entry: SessionTranslationEntry,
     typeface: Typeface,
     contentSizing: HistoryContentSizing,
+    showAnnotations: Boolean,
 ) {
     val speakerName = entry.speakerName?.takeIf { it.isNotBlank() }
     speakerName?.let {
@@ -262,7 +270,8 @@ private fun addHistoryEntryViews(
             )
         )
     }
-    entry.dialogueText?.takeIf { it.isNotBlank() }?.let {
+    entry.dialogueText?.takeIf { it.isNotBlank() }?.let { unmarked ->
+        val it = RubyRenderText.forDisplay(EmphasisText.encode(unmarked, entry.dialogueEmphasisRanges), showAnnotations)
         val originalDialogue = entry.originalDialogueText?.trim()?.takeIf { original -> original.isNotBlank() }
         if (speakerName != null || originalDialogue != null) {
             if (speakerName != null) {
@@ -310,7 +319,9 @@ private fun addHistoryEntryViews(
         container.addView(
             historyTextView(
                 context = container.context,
-                text = if (originalChoice == null) "$choice\n" else choice,
+                text = RubyRenderText.forDisplay(EmphasisText.encode(choice,
+                    entry.choiceEmphasisRanges.getOrElse(index) { emptyList() }), showAnnotations) +
+                    if (originalChoice == null) "\n" else "",
                 color = FGO_CHOICE_HISTORY_RED,
                 gravity = Gravity.CENTER,
                 typeface = typeface,
@@ -493,6 +504,8 @@ private fun addHistoryBilingualLinePairs(
 }
 
 private fun historyDisplayLines(text: String): List<String> {
+    if (EmphasisText.has(text)) return EmphasisText.lines(text).map { EmphasisText.transform(it, String::trim) }
+        .filter { EmphasisText.plain(it).isNotBlank() }
     return text
         .replace("\r\n", "\n")
         .replace('\r', '\n')
@@ -553,10 +566,16 @@ private fun historyTextView(
     gravity: Int = Gravity.START,
     textSizePx: Float = contentSizing.translationTextSizePx,
     bottomMarginBaseDp: Int = HISTORY_TEXT_BOTTOM_MARGIN_BASE_DP,
-    useDialogueLineHeight: Boolean = false
+    useDialogueLineHeight: Boolean = false,
+    rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
 ): TextView {
-    return TextView(context).apply {
-        this.text = text
+    val view = if (RubyRenderText.parse(text.toString(), rubyMode).annotations.isNotEmpty()) {
+        RubyTextView(context)
+    } else {
+        TextView(context)
+    }
+    return view.apply {
+        if (this is RubyTextView) setRubyText(text) else this.text = text
         setTextColor(color)
         setTextSize(TypedValue.COMPLEX_UNIT_PX, textSizePx)
         val displayedTextSizePx = this.textSize
@@ -605,7 +624,8 @@ private fun historyOriginalTextView(
         typeface = typeface,
         contentSizing = contentSizing,
         textSizePx = contentSizing.originalTextSizePx,
-        bottomMarginBaseDp = bottomMarginBaseDp
+        bottomMarginBaseDp = bottomMarginBaseDp,
+        rubyMode = RubyRenderText.Mode.INLINE
     )
 }
 

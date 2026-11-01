@@ -1,5 +1,7 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisText
+
 import com.fgogotran.data.SettingsRepository
 
 /** A readable JP -> target prompt glossary entry shared by every translation model. */
@@ -8,6 +10,32 @@ internal data class TranslationGlossaryEntry(
     val target: String,
     val note: String = ""
 )
+
+/** Select only the target field; Japanese source forms and player-name literals stay untouched. */
+internal fun selectPromptGlossaryTarget(
+    chineseText: String,
+    englishText: String,
+    targetLanguage: String,
+    convertChineseTarget: (String, String) -> String
+): String = if (SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
+    SettingsRepository.TARGET_LANGUAGE_ENGLISH
+) {
+    englishText.trim()
+} else {
+    convertChineseTarget(chineseText, targetLanguage)
+}
+
+/** Log the prepared targets rather than mistaking raw database spellings for API input. */
+internal fun formatGeneralPromptGlossaryLog(
+    entries: List<TranslationGlossaryEntry>,
+    targetLanguage: String
+): String {
+    val target = SettingsRepository.normalizeTargetLanguage(targetLanguage)
+    val mappings = entries.joinToString("; ") {
+        "${it.source}->${it.target}".replace("\r", "\\r").replace("\n", "\\n")
+    }
+    return "Prompt glossary target=$target: ${entries.size} entry(s) [$mappings]"
+}
 
 /**
  * Adds request-local mappings to the exact database terms selected by RAG.
@@ -21,6 +49,16 @@ internal object TranslationGlossaryBuilder {
     private const val GENERAL_MASTER_NOTE =
         "player title only; for the verb マスターする and its inflections, " +
             "translate the meaning of mastering or learning instead"
+
+    /** Exact configured-name entries are literals, unlike sense-dependent terminology. */
+    fun protectedPlayerNameTargets(entries: List<TranslationGlossaryEntry>): List<String> = entries
+        .filter { entry ->
+            entry.source == entry.target && entry.note.split(';', '；').any {
+                it.trim() == "player name" || it.trim() == "玩家名"
+            }
+        }
+        .map(TranslationGlossaryEntry::target)
+        .distinct()
 
     /** General prompts qualify the player-title sense without changing shared glossary semantics. */
     fun qualifyGeneral(entries: List<TranslationGlossaryEntry>): List<TranslationGlossaryEntry> =
@@ -71,10 +109,10 @@ internal object TranslationGlossaryBuilder {
         // stay in the system-prompt cards so each policy has a single home.
         if (!englishTarget) {
             context.specialFirstPersonMappings.forEach { mapping ->
-                add(mapping.sourceForm, mapping.targetTranslation, "第一人称")
+                add(mapping.sourceForm, mapping.targetTranslation, context.localized("第一人称", "第一人稱"))
             }
             context.specialSecondPersonMappings.forEach { mapping ->
-                add(mapping.sourceForm, mapping.targetTranslation, "第二人称")
+                add(mapping.sourceForm, mapping.targetTranslation, context.localized("第二人称", "第二人稱"))
             }
         }
         if (context.hasMasterWord) {
@@ -92,7 +130,7 @@ internal object TranslationGlossaryBuilder {
         }
         if (context.hasMasks) {
             maskTokens
-                .filter(sourceText::contains)
+                .filter { EmphasisText.plain(sourceText).contains(it) }
                 .forEach { mask ->
                     add(
                         mask,

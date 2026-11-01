@@ -1,5 +1,7 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisText
+
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.TermEntity
 import com.fgogotran.util.FgoLogger
@@ -86,6 +88,13 @@ internal fun StringBuilder.appendGeneralTranslationGlossarySection(
             "Gender notes apply only to explicit references to that person, never to omitted subjects or possessors.\n" +
             TranslationGlossaryBuilder.render(TranslationGlossaryBuilder.qualifyGeneral(entries))
     )
+    val playerNames = TranslationGlossaryBuilder.protectedPlayerNameTargets(entries)
+    if (playerNames.isNotEmpty()) {
+        appendPromptSectionText(
+            "Protected player names (copy exactly; never translate, transliterate or romanize):\n" +
+                playerNames.joinToString("\n")
+        )
+    }
 }
 
 internal fun renderNumberedPromptItems(items: List<String>): String = items
@@ -103,7 +112,8 @@ enum class PromptOutputFormat(val logName: String) {
 
 enum class TranslationPromptProfile {
     GENERAL,
-    BATTLE_SUBTITLE
+    BATTLE_SUBTITLE,
+    DIALOGUE_SUBTITLE
 }
 
 enum class HonorificPromptRule(val sourceSuffix: String) {
@@ -175,10 +185,16 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v97-plain-layout"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v100-contextual-foreign"
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v10-plain-layout"
-        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v5-plain-layout"
+        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v8-contextual-foreign"
         const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v4-plain-layout"
+        const val DIALOGUE_SUBTITLE_PROMPT_VERSION = "dialogue-subtitle-v3-source-repetition"
+        const val DIALOGUE_SUBTITLE_PROMPT_VERSION_EN = "dialogue-subtitle-en-v3-source-repetition"
+
+        fun dialogueSubtitlePromptVersion(targetLanguage: String): String =
+            if (SettingsRepository.normalizeTargetLanguage(targetLanguage) == SettingsRepository.TARGET_LANGUAGE_ENGLISH)
+                DIALOGUE_SUBTITLE_PROMPT_VERSION_EN else DIALOGUE_SUBTITLE_PROMPT_VERSION
 
         /** Prompt/cache version for the requested target; English has its own block set. */
         fun promptVersionFor(targetLanguage: String, battleSubtitle: Boolean): String {
@@ -246,6 +262,14 @@ class PromptBuilder @Inject constructor() {
          * Keeping rare rules conditional lowers prompt noise while preserving the
          * safety rules that must apply to every request.
          */
+        // One policy for every general target/profile; keep the trained Sakura prompt independent.
+        private const val FOREIGN_EXPRESSION_PROMPT =
+            "For foreign expressions, choose retention or natural target-language translation by context, voice and readability. " +
+                "Keep or restore the foreign word itself when discussing its language, word forms or wordplay. " +
+                "When retaining, restore clear katakana to established foreign spelling and preserve diacritics; " +
+                "if unsure, translate the meaning. メルシー is French Merci, not English mercy. " +
+                "Never invent foreign wording."
+
         // ─── Chinese (Simplified/Traditional) prompt set ───────────────────────────
         private val BASE_TRANSLATION_PROMPT = """
             You are an expert Japanese-to-Chinese localizer for Fate/Grand Order.
@@ -255,6 +279,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             Translate or transliterate all other kana; common loanwords may use compact English.
+            $FOREIGN_EXPRESSION_PROMPT
             Preserve stated references and action roles; use natural Chinese omission when Japanese omits them, and never infer them from speaker identity.
             Keep source sentences aligned; line breaks only when meaningful. Pause dots -> ……; long dashes -> ───; keep !? and other expressive punctuation.
             """.trimIndent()
@@ -267,6 +292,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             Translate or transliterate all other kana; common loanwords may use compact English.
+            $FOREIGN_EXPRESSION_PROMPT
             Pause dots -> ……; long dashes -> ───.
             """.trimIndent()
 
@@ -276,10 +302,15 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             Translate or transliterate all other kana; common loanwords may use compact English.
+            $FOREIGN_EXPRESSION_PROMPT
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT = """
             Return only the Chinese translation, without notes, labels, wrappers, or source text.
+            """.trimIndent()
+
+        private val TRADITIONAL_PLAIN_OUTPUT_PROMPT = """
+            Return only the 繁體中文 translation, without notes, labels, wrappers, or source text.
             """.trimIndent()
 
         private val BATTLE_PLAIN_OUTPUT_PROMPT = """
@@ -302,6 +333,9 @@ class PromptBuilder @Inject constructor() {
         private val UNATTRIBUTED_DIALOGUE_PROMPT = """
             - No speaker detected: use current and previous Japanese to distinguish narration, inner thought, or an unidentified voice; never assume the previous speaker.
             """.trimIndent()
+
+        private const val SPOKEN_DIALOGUE_PROMPT =
+            "These are spoken character lines, even without a name box. Translate as dialogue, not narration; do not guess the speaker."
 
         private val PARTICIPANT_DIRECTION_PROMPT = """
             - For benefactives, causatives, and 〜(ら)れる, preserve action direction and possession from Japanese syntax; do not default to passive.
@@ -330,8 +364,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val RUBY_PROMPT = """
-            - base〈ruby〉 -> Chinese base〈ruby〉; translate both naturally and never omit ruby.
-            - English-style ruby may stay English; use 〈〉 only.
+            - base〈ruby〉: preserve both meanings and their base/ruby roles; apply the target-language and foreign-expression rules to both. Use 〈〉 only.
+            - Never omit source ruby or invent annotations.
             - If the translated ruby is identical to the translated base, output the base only (no 〈〉 marker).
             """.trimIndent()
 
@@ -352,6 +386,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
+            $FOREIGN_EXPRESSION_PROMPT
             Use an explicit subject only when English grammar requires one; preserve natural fragments and imperatives, and never invent a person or relationship. Translate second-person address as "you" (or an English insult when hostile), never a name.
             Convert 「」『』 to "..." (nested quotes use '...'). "…" -> "..."; long dash -> "—"; keep !? and !!. Keep source sentences aligned; line breaks only when meaningful.
             """.trimIndent()
@@ -364,6 +399,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
+            $FOREIGN_EXPRESSION_PROMPT
             "…" -> "..."; long dash -> "—".
             """.trimIndent()
 
@@ -373,6 +409,7 @@ class PromptBuilder @Inject constructor() {
             Use glossary targets exactly for their specified source meanings, including spelling and capitalization.
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
+            $FOREIGN_EXPRESSION_PROMPT
             """.trimIndent()
 
         private val PLAIN_OUTPUT_PROMPT_EN = """
@@ -406,7 +443,8 @@ class PromptBuilder @Inject constructor() {
             """.trimIndent()
 
         private val RUBY_PROMPT_EN = """
-            - base〈ruby〉 -> English base〈English ruby〉; translate both naturally and never omit ruby.
+            - base〈ruby〉: preserve both meanings and their base/ruby roles; apply the target-language and foreign-expression rules to both. Use 〈〉 only.
+            - Never omit source ruby or invent annotations.
             - If the translated ruby is identical to the translated base, output the base only (no 〈〉 marker).
             - Never output 〈〉 for anything except ruby.
             """.trimIndent()
@@ -462,6 +500,7 @@ class PromptBuilder @Inject constructor() {
         promptProfile: TranslationPromptProfile = TranslationPromptProfile.GENERAL
     ): PromptContext {
         val isBattleSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
+        val isSpokenSubtitle = promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
         val cleanNameText = nameText
             ?.takeIf { it.isNotBlank() }
             ?.takeUnless { isBattleSubtitle }
@@ -473,9 +512,9 @@ class PromptBuilder @Inject constructor() {
         val otherSourceText = sourceText.takeUnless {
             hasName && !isDialogue && it == cleanNameText
         }.orEmpty()
-        val otherText = (listOf(otherSourceText) + relevantChoiceTexts).joinToString("\n")
-        val combinedText = (listOf(primarySourceText) + relevantChoiceTexts).joinToString("\n")
-        val playerRuleText = playerReferenceText.trim().ifBlank { combinedText }
+        val otherText = EmphasisText.plain((listOf(otherSourceText) + relevantChoiceTexts).joinToString("\n"))
+        val combinedText = EmphasisText.plain((listOf(primarySourceText) + relevantChoiceTexts).joinToString("\n"))
+        val playerRuleText = EmphasisText.plain(playerReferenceText).trim().ifBlank { combinedText }
         val cleanPlayerName = playerName.trim()
         val normalizedTargetLocale = SettingsRepository.normalizeTargetLanguage(targetLanguage)
         val hasMasterWord = containsMasterWord(playerRuleText)
@@ -493,12 +532,12 @@ class PromptBuilder @Inject constructor() {
             promptProfile = promptProfile,
             isCropMode = isCropMode,
             isDialogue = isDialogue,
-            isUnattributedDialogue = !isBattleSubtitle &&
+            isUnattributedDialogue = !isBattleSubtitle && !isSpokenSubtitle &&
                 !isCropMode &&
                 isDialogue &&
                 !isChoiceBatch &&
                 currentSpeaker.isBlank(),
-            requestVoiceHint = requestVoiceHint && !isBattleSubtitle,
+            requestVoiceHint = requestVoiceHint && !isBattleSubtitle && !isSpokenSubtitle,
             hasPlaceholders = containsPlaceholder(combinedText),
             hasMasks = containsMask(combinedText),
             hasMasterWord = hasMasterWord,
@@ -545,6 +584,9 @@ class PromptBuilder @Inject constructor() {
             SettingsRepository.TARGET_LANGUAGE_ENGLISH
         val isBattleSubtitle =
             context.promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
+        val isSpokenSubtitle = context.promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
+        val generalTraditional = context.promptProfile == TranslationPromptProfile.GENERAL && !context.isCropMode &&
+            SettingsRepository.normalizeTargetLanguage(context.targetLanguage) == SettingsRepository.TARGET_LANGUAGE_TRADITIONAL
         val basePrompt = when {
             context.isCropMode -> if (isEnglish) CROP_BASE_PROMPT_EN else CROP_BASE_PROMPT
             isBattleSubtitle ->
@@ -556,8 +598,11 @@ class PromptBuilder @Inject constructor() {
             isBattleSubtitle -> "battle_base"
             else -> "base"
         }
-        sb.append(applyTargetLanguage(basePrompt, targetLanguageLabel))
+        sb.append(applyTargetLanguage(basePrompt, if (generalTraditional) "繁體中文 (Traditional Chinese)" else targetLanguageLabel))
         blockNames += baseBlockName
+        if (isSpokenSubtitle) {
+            appendPromptBlock(rules, blockNames, "spoken_dialogue", SPOKEN_DIALOGUE_PROMPT)
+        }
         if (context.hasPlaceholders) {
             appendPromptBlock(rules, blockNames, "placeholder", PLACEHOLDER_PROMPT)
         }
@@ -578,7 +623,7 @@ class PromptBuilder @Inject constructor() {
                         buildCharacterContextPrompt(context.characterContextPrompt)
                     )
                 }
-                if (context.isUnattributedDialogue) {
+                if (context.isUnattributedDialogue && !isSpokenSubtitle) {
                     appendPromptBlock(
                         rules,
                         blockNames,
@@ -596,7 +641,7 @@ class PromptBuilder @Inject constructor() {
                 )
             }
         }
-        if (!isBattleSubtitle && context.requestVoiceHint) {
+        if (!isBattleSubtitle && !isSpokenSubtitle && context.requestVoiceHint) {
             appendPromptBlock(rules, blockNames, "voice_hint", VOICE_HINT_PROMPT)
         }
         featurePromptBlocks(context).forEach { (name, block) ->
@@ -607,6 +652,7 @@ class PromptBuilder @Inject constructor() {
         val outputPrompt = when {
             useBattlePlainOutput && isEnglish -> BATTLE_PLAIN_OUTPUT_PROMPT_EN
             useBattlePlainOutput -> BATTLE_PLAIN_OUTPUT_PROMPT
+            generalTraditional && context.outputFormat == PromptOutputFormat.PLAIN_TEXT -> TRADITIONAL_PLAIN_OUTPUT_PROMPT
             else -> outputPromptBlock(context.outputFormat, isEnglish)
         }
         sb.appendPromptSectionText(outputPrompt)
@@ -723,6 +769,8 @@ class PromptBuilder @Inject constructor() {
         val sb = StringBuilder()
 
         sb.appendGeneralTranslationGlossarySection(glossaryEntries)
+        sb.appendGeneralReferenceMarkSection(listOf(japaneseText))
+        sb.appendGeneralEmphasisSection(listOf(japaneseText) + choiceTexts)
         if (choiceTexts.isNotEmpty()) {
             sb.appendPromptSection(
                 "choice_context",
@@ -745,6 +793,7 @@ class PromptBuilder @Inject constructor() {
             .filter { it.isNotBlank() }
 
         sb.appendGeneralTranslationGlossarySection(glossaryEntries)
+        sb.appendGeneralReferenceMarkSection(lines)
         sb.appendPromptSection("current_japanese_rows", renderNumberedPromptItems(lines))
         sb.appendPromptSection(
             "required_output",
@@ -753,6 +802,19 @@ class PromptBuilder @Inject constructor() {
 
         FgoLogger.debug(tag, "Crop user prompt: ${sb.length} chars")
         return sb.toString()
+    }
+
+    internal fun buildDialogueSubtitleRowsPrompt(
+        rows: List<String>, glossaryEntries: List<TranslationGlossaryEntry> = emptyList()
+    ): String = buildString {
+        appendGeneralTranslationGlossarySection(glossaryEntries)
+        appendGeneralReferenceMarkSection(rows)
+        appendPromptSection("current_japanese_rows", renderNumberedPromptItems(rows))
+        appendPromptSection("required_output",
+            "Read all rows as connected speech, not separate sentences. Return a JSON array of exactly " +
+                "${rows.size} nonempty translation strings in source-row order, one corresponding fragment per row. " +
+                "Preserve the full meaning across row boundaries, including repetition present in the source. " +
+                "Do not introduce duplicate content.")
     }
 
     private fun containsRuby(text: String): Boolean {
@@ -983,12 +1045,12 @@ class PromptBuilder @Inject constructor() {
 
         FgoLogger.debug(tag, "Term matching: ${matches.size} of ${terms.size} terms matched")
         if (matches.isNotEmpty()) {
-            // Debug output follows the active target so EN runs log EN glossary hits.
+            // These are raw database values; Translator logs the prepared API glossary separately.
             val englishTarget = SettingsRepository.normalizeTargetLanguage(targetLanguage) ==
                 SettingsRepository.TARGET_LANGUAGE_ENGLISH
             FgoLogger.debug(
                 tag,
-                "Matched terms (${if (englishTarget) "en" else "zh"}): ${
+                "RAG DB raw (${if (englishTarget) "en" else "zh"}): ${
                     matches.joinToString(limit = MAX_RAG_TERMS) { term ->
                         val target = if (englishTarget) {
                             term.enTerm.trim().ifBlank { term.cnTerm }
@@ -1097,7 +1159,8 @@ class PromptBuilder @Inject constructor() {
         }.distinct()
     }
 
-    private fun buildTermSearchText(text: String): TermSearchText {
+    private fun buildTermSearchText(annotatedText: String): TermSearchText {
+        val text = EmphasisText.plain(annotatedText)
         val compactText = StringBuilder()
         val sourceIndices = mutableListOf<Int>()
         val normalized = Normalizer.normalize(text.trim(), Normalizer.Form.NFKC)

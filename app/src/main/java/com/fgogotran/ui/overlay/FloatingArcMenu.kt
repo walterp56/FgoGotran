@@ -49,6 +49,7 @@ private val MENU_ACCENT_COLOR = Color(0xFF76518F)
 fun FloatingArcMenu(
     translationMode: TranslationMode,
     battleModeActive: Boolean,
+    dialogueModeActive: Boolean,
     gameServer: String,
     liveVoiceTranslationEnabled: Boolean,
     buttonCenterX: Int,
@@ -56,6 +57,7 @@ fun FloatingArcMenu(
     onDismiss: () -> Unit,
     onTranslationModeChange: (TranslationMode) -> Unit,
     onBattleModeSelect: () -> Unit,
+    onDialogueModeSelect: () -> Unit,
     onLiveVoiceTranslationToggle: (Boolean) -> Unit,
     onCropTranslateClick: () -> Unit,
     onHistoryClick: () -> Unit,
@@ -67,6 +69,7 @@ fun FloatingArcMenu(
     val logLabel = stringResource(R.string.menu_log)
     val areaLabel = stringResource(R.string.menu_area)
     val battleLabel = stringResource(R.string.menu_battle)
+    val dialogueLabel = stringResource(R.string.menu_dialogue_subtitles)
     val liveLabel = stringResource(R.string.menu_live)
     val manualLabel = stringResource(R.string.menu_manual)
     val semiLabel = stringResource(R.string.menu_semi)
@@ -80,14 +83,19 @@ fun FloatingArcMenu(
         textAlign = TextAlign.Center
     )
     val navigationStyle = TextStyle(fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
-    val allSlots = featureSlots(
+    val features = featureSlots(
         logLabel, areaLabel, battleLabel, liveLabel, battleModeActive, isJapaneseServer,
         liveVoiceTranslationEnabled, onHistoryClick, onCropTranslateClick, onBattleModeSelect,
         onLiveVoiceTranslationToggle
-    ) + modeSlots(
-        manualLabel, semiLabel, autoLabel, closeLabel, translationMode, battleModeActive,
+    ).toMutableList().apply {
+        add(3, ArcSlot(FloatingActionIcon.DIALOGUE, dialogueLabel,
+            selected = dialogueModeActive, enabled = isJapaneseServer, onClick = onDialogueModeSelect))
+    }
+    val modes = modeSlots(
+        manualLabel, semiLabel, autoLabel, closeLabel, translationMode, battleModeActive || dialogueModeActive,
         onTranslationModeChange, onCloseClick
     )
+    val allSlots = features + modes
     val insets = WindowInsets.safeDrawing
     val layoutDirection = LocalLayoutDirection.current
 
@@ -111,7 +119,7 @@ fun FloatingArcMenu(
             )
         }
         val labels = allSlots.map { it.label }
-        val pillSize = remember(labels, labelStyle, textMeasurer, density, bounds.width) {
+        val labelSize = remember(labels, labelStyle, textMeasurer, density, bounds.width) {
             // Measure actual localized captions at the current Android font setting, with at most two lines.
             val widths = (listOf(64f, 80f, 96f, 112f, 128f, 144f) + bounds.width)
                 .map { it.coerceAtMost(bounds.width).coerceAtLeast(1f) }.distinct()
@@ -128,16 +136,25 @@ fun FloatingArcMenu(
                 .firstOrNull { (_, results) -> results.none { it.hasVisualOverflow } }
                 ?: measureLabels(widths.last())
             val labelHeight = with(density) { measured.maxOf { it.size.height }.toDp().value }
-            width to maxOf(54f, 20f + 3f + labelHeight + 12f + 2f)
+            width to labelHeight
         }
         val navMeasurement = textMeasurer.measure("›", navigationStyle)
-        val navSize = maxOf(46f, with(density) { maxOf(navMeasurement.size.width, navMeasurement.size.height).toDp().value } + 12f)
-        val layout = ArcMenuGeometry.layout(
-            bounds, with(density) { buttonCenterX.toDp().value }, with(density) { buttonCenterY.toDp().value },
-            pillSize.first, pillSize.second, navSize
-        ) ?: return@BoxWithConstraints // A window smaller than one action plus navigation cannot host an arc.
-        val pages = ArcMenuGeometry.pageIndices(layout.capacity)
-        var page by remember(layout.capacity) { mutableStateOf(0) }
+        val navSize = maxOf(48f, with(density) { maxOf(navMeasurement.size.width, navMeasurement.size.height).toDp().value } + 12f)
+        val anchorX = with(density) { buttonCenterX.toDp().value }
+        val anchorY = with(density) { buttonCenterY.toDp().value }
+        val standardLayout = ArcMenuGeometry.layout(
+            bounds, anchorX, anchorY, labelSize.first, ArcMenuItemStyle.STANDARD.heightDp(labelSize.second), navSize)
+        // Preserve the normal arc when all features fit; compact before adding overflow pages.
+        val itemStyle = if (standardLayout?.capacity == features.size)
+            ArcMenuItemStyle.STANDARD else ArcMenuItemStyle.COMPACT
+        val layout = if (itemStyle == ArcMenuItemStyle.STANDARD) standardLayout else ArcMenuGeometry.layout(
+            bounds, anchorX, anchorY, labelSize.first, itemStyle.heightDp(labelSize.second), navSize,
+            allowFlattening = true
+        )
+        if (layout == null) return@BoxWithConstraints // Even one action plus navigation cannot fit.
+        val groupSizes = listOf(features.size, modes.size)
+        val pages = ArcMenuGeometry.pageIndices(layout.capacity, groupSizes)
+        var page by remember(layout.capacity, groupSizes) { mutableStateOf(0) }
         val contentSlots = pages[page].map { allSlots[it] }
 
         contentSlots.forEachIndexed { index, slot ->
@@ -145,6 +162,7 @@ fun FloatingArcMenu(
             ArcSector(
                 slot = slot,
                 labelStyle = labelStyle,
+                itemStyle = itemStyle,
                 modifier = Modifier
                     .offset(x = rect.left.dp, y = rect.top.dp)
                     .size(rect.width.dp, rect.height.dp)
@@ -254,6 +272,7 @@ private fun modeSlots(
 private fun ArcSector(
     slot: ArcSlot,
     labelStyle: TextStyle,
+    itemStyle: ArcMenuItemStyle,
     modifier: Modifier
 ) {
     val background = when {
@@ -276,7 +295,7 @@ private fun ArcSector(
             .clickable(enabled = slot.enabled, onClick = slot.onClick)
             .padding(
                 horizontal = 4.dp,
-                vertical = 6.dp
+                vertical = itemStyle.verticalPaddingDp.dp
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -288,10 +307,10 @@ private fun ArcSector(
                 icon = slot.icon,
                 color = contentColor,
                 contentScale = 1f,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(itemStyle.iconSizeDp.dp)
             )
         }
-        Spacer(modifier = Modifier.size(3.dp))
+        Spacer(modifier = Modifier.size(itemStyle.labelGapDp.dp))
         Text(
             text = slot.label,
             color = contentColor,

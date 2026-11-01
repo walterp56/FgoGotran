@@ -1,5 +1,7 @@
 package com.fgogotran.translation
 
+import com.fgogotran.text.EmphasisText
+
 /** Reuse the original general request on every repair; feedback never becomes a new task. */
 internal fun buildGeneralStrictRepairMessages(
     initialMessages: List<ChatMessage>,
@@ -74,6 +76,8 @@ internal fun buildGeneralSingleUserPrompt(
     val basePrompt = if (translateAsName || translateAsChoices) {
         buildString {
             appendGeneralTranslationGlossarySection(glossaryEntries)
+            appendGeneralReferenceMarkSection(listOf(japaneseText))
+            appendGeneralEmphasisSection(listOf(japaneseText))
             appendPromptSection("current_japanese", japaneseText)
         }
     } else {
@@ -101,6 +105,8 @@ internal fun buildGeneralBatchUserPrompt(
     previousDialogueContexts: List<SceneDialogueContext> = emptyList()
 ): String = buildString {
     appendGeneralTranslationGlossarySection(glossaryEntries)
+    appendGeneralReferenceMarkSection(texts)
+    appendGeneralEmphasisSection(texts)
     appendPromptSectionText(
         buildGeneralCurrentSpeakerContext(
             currentSpeaker,
@@ -115,4 +121,10 @@ internal fun buildGeneralBatchUserPrompt(
         "Return a JSON array of exactly ${texts.size} nonempty translated strings, one per input item, " +
             "in the same order${if (translateAsChoices) "; treat every item as a player choice" else ""}."
     )
+}
+
+/** No annotation, no new prompt tokens. This helper is never called by Sakura templates. */
+internal fun StringBuilder.appendGeneralEmphasisSection(texts: List<String>) {
+    if (texts.none(EmphasisText::has)) return
+    appendPromptSection("visual_emphasis", "⟦…⟧ marks visual emphasis only. Translate naturally and retain it around the corresponding wording; do not change meaning to preserve the markers.")
 }

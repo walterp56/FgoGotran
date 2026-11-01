@@ -103,7 +103,7 @@ class StoryFreshnessWiringTest {
         val check = render.substringAfter("if (shouldCheckFreshness) {")
             .substringBefore("if (!shouldCheckFreshness)")
         assertTrue(check.contains("visualFingerprintFor(source, sceneSource.regions.map { it.region }, frame.pixels)"))
-        assertTrue(check.contains("val isCurrent = isSourceVisuallyCurrent(sourceVisualFingerprint)"))
+        assertTrue(check.contains("val isCurrent = isSourceVisuallyCurrent(sourceVisualFingerprint, expectedAutoStage = autoStage)"))
         assertTrue(check.substringAfter("if (!isCurrent) {").contains("return false"))
         assertTrue(render.indexOf("isSourceVisuallyCurrent(") < render.indexOf("translationOverlay.updateImage(rendered)"))
         val compare = function("isSourceVisuallyCurrent")

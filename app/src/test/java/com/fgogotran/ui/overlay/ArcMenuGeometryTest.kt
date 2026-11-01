@@ -8,12 +8,52 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ArcMenuGeometryTest {
+    @Test fun `new dialogue action is included for every capacity without mixing action groups`() {
+        for (capacity in 1..5) {
+            val pages = ArcMenuGeometry.pageIndices(capacity, listOf(5, 4))
+            assertEquals((0..8).toList(), pages.flatten())
+            assertTrue(pages.all { it.size in 1..capacity })
+            assertTrue(pages.all { page -> page.all { it < 5 } || page.all { it >= 5 } })
+        }
+        assertEquals(listOf(listOf(0, 1, 2), listOf(3, 4), listOf(5, 6, 7, 8)),
+            ArcMenuGeometry.pageIndices(4, listOf(5, 4)))
+    }
+
+    @Test fun `five features and four controls form exactly two pages when five fit`() {
+        assertEquals(listOf(listOf(0, 1, 2, 3, 4), listOf(5, 6, 7, 8)),
+            ArcMenuGeometry.pageIndices(5, listOf(5, 4)))
+    }
+
+    @Test fun `shorter layouts balance each group rather than leaving an avoidable singleton`() {
+        assertEquals(listOf(listOf(0, 1, 2), listOf(3, 4), listOf(5, 6), listOf(7, 8)),
+            ArcMenuGeometry.pageIndices(3, listOf(5, 4)))
+        for (capacity in 3..5) {
+            assertTrue(ArcMenuGeometry.pageIndices(capacity, listOf(5, 4)).none { it.size == 1 })
+        }
+    }
+
+    @Test fun `balanced pages use the fewest pages and differ by at most one action within a group`() {
+        for (capacity in 1..5) for (size in 1..40) {
+            val pages = ArcMenuGeometry.pageIndices(capacity, listOf(size))
+            assertEquals((size - 1) / capacity + 1, pages.size)
+            assertEquals((0 until size).toList(), pages.flatten())
+            assertTrue(pages.all { it.size in 1..capacity })
+            assertTrue(pages.maxOf { it.size } - pages.minOf { it.size } <= 1)
+        }
+    }
+
     @Test
-    fun `normal phone and high resolution emulator retain four actions per page`() {
+    fun `normal phone and high resolution emulator fit five actions without shrinking`() {
         for (bounds in listOf(ArcMenuRect(8f, 8f, 772f, 352f), ArcMenuRect(8f, 8f, 952f, 592f))) {
             for (anchor in anchors(bounds)) {
                 val layout = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, 65f, 46f))
-                assertEquals(4, layout.capacity)
+                assertEquals(5, layout.capacity)
+                layout.actions.forEach {
+                    assertEquals(64f, it.width, EPSILON)
+                    assertEquals(65f, it.height, EPSILON)
+                }
+                assertEquals(46f, layout.navigation.width, EPSILON)
+                assertEquals(46f, layout.navigation.height, EPSILON)
                 assertSafe(bounds, layout)
             }
         }
@@ -34,11 +74,11 @@ class ArcMenuGeometryTest {
     }
 
     @Test
-    fun `all four capacities are available on progressively shorter screens`() {
+    fun `all five capacities are available on progressively shorter screens`() {
         val capacities = (120..600 step 4).mapNotNull { height ->
             ArcMenuGeometry.layout(ArcMenuRect(8f, 8f, 772f, height.toFloat()), 750f, 60f, 112f, 105f, 64f)?.capacity
         }.toSet()
-        assertEquals(setOf(1, 2, 3, 4), capacities)
+        assertEquals(setOf(1, 2, 3, 4, 5), capacities)
     }
 
     @Test
@@ -79,6 +119,92 @@ class ArcMenuGeometryTest {
     @Test
     fun `a window smaller than one action is rejected without a clamp exception`() {
         assertNull(ArcMenuGeometry.layout(ArcMenuRect(0f, 0f, 30f, 30f), 0f, 0f, 64f, 54f, 46f))
+        assertNull(ArcMenuGeometry.layout(ArcMenuRect(0f, 0f, 30f, 30f), 0f, 0f, 64f, 48f, 48f,
+            allowFlattening = true))
+    }
+
+    @Test fun `compact decoration preserves two line labels and minimum touch targets`() {
+        for (labelHeight in listOf(14f, 28f, 42f, 56f)) {
+            val style = ArcMenuItemStyle.COMPACT
+            val height = style.heightDp(labelHeight)
+            assertTrue(height >= 48f)
+            assertTrue(height >= style.iconSizeDp + style.labelGapDp + labelHeight + 2f * style.verticalPaddingDp)
+            assertTrue(height < ArcMenuItemStyle.STANDARD.heightDp(labelHeight))
+        }
+    }
+
+    @Test fun `allowing an oval does not change a circular layout that already fits`() {
+        val bounds = ArcMenuRect(8f, 8f, 772f, 352f)
+        for (anchor in anchors(bounds)) {
+            val normal = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, 65f, 48f))
+            val adaptive = ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, 65f, 48f,
+                allowFlattening = true)
+            assertEquals(5, normal.capacity)
+            assertEquals(normal, adaptive)
+        }
+    }
+
+    @Test fun `short landscape keeps all five two line features by using a flatter arc`() {
+        val bounds = ArcMenuRect(8f, 8f, 772f, 272f)
+        val height = ArcMenuItemStyle.COMPACT.heightDp(28f)
+        for (anchor in anchors(bounds)) {
+            val circular = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, height, 48f))
+            val oval = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second, 64f, height, 48f,
+                allowFlattening = true))
+            assertTrue(circular.capacity < 5)
+            assertEquals(5, oval.capacity)
+            oval.actions.forEach { assertEquals(64f, it.width, EPSILON); assertEquals(height, it.height, EPSILON) }
+            assertEquals(48f, oval.navigation.width, EPSILON)
+            assertSafe(bounds, oval)
+            assertEquals(2, ArcMenuGeometry.pageIndices(oval.capacity, listOf(5, 4)).size)
+            val rects = oval.actions + oval.navigation
+            assertTrue(rects.maxOf { it.bottom } - rects.minOf { it.top } < 256f)
+        }
+    }
+
+    @Test fun `single line labels fit five full touch targets in a 240dp landscape window`() {
+        val bounds = ArcMenuRect(8f, 8f, 772f, 232f)
+        for (anchor in anchors(bounds)) {
+            val layout = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second,
+                64f, ArcMenuItemStyle.COMPACT.heightDp(14f), 48f, allowFlattening = true))
+            assertEquals(5, layout.capacity)
+            assertSafe(bounds, layout)
+        }
+    }
+
+    @Test fun `a narrow window uses available height before giving up an oval action slot`() {
+        val bounds = ArcMenuRect(8f, 8f, 472f, 352f)
+        val height = ArcMenuItemStyle.COMPACT.heightDp(56f)
+        for (anchor in anchors(bounds)) {
+            val layout = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second,
+                112f, height, 64f, allowFlattening = true))
+            assertEquals(4, layout.capacity)
+            assertSafe(bounds, layout)
+        }
+    }
+
+    @Test fun `oval layouts paginate large labels without clipping or overlapping touch targets`() {
+        for (width in listOf(320f, 360f, 640f, 780f)) for (height in listOf(180f, 240f, 280f, 320f, 360f)) {
+            val bounds = ArcMenuRect(8f, 8f, width - 8f, height - 8f)
+            for ((pillWidth, pillHeight, navSize) in listOf(Triple(64f, 48f, 48f), Triple(64f, 58f, 48f),
+                Triple(112f, ArcMenuItemStyle.COMPACT.heightDp(56f), 64f), Triple(144f, 140f, 72f))) {
+                for (anchor in anchors(bounds) + listOf(-100f to -100f, 1_000f to 1_000f)) {
+                    val circular = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second,
+                        pillWidth, pillHeight, navSize))
+                    val oval = assertNotNull(ArcMenuGeometry.layout(bounds, anchor.first, anchor.second,
+                        pillWidth, pillHeight, navSize, allowFlattening = true))
+                    assertTrue(oval.capacity >= circular.capacity)
+                    oval.actions.forEach {
+                        assertEquals(pillWidth, it.width, EPSILON)
+                        assertEquals(pillHeight, it.height, EPSILON)
+                    }
+                    assertSafe(bounds, oval)
+                    val pages = ArcMenuGeometry.pageIndices(oval.capacity, listOf(5, 4))
+                    assertEquals((0..8).toList(), pages.flatten())
+                    assertTrue(pages.all { page -> page.all { it < 5 } || page.all { it >= 5 } })
+                }
+            }
+        }
     }
 
     @Test
@@ -93,7 +219,7 @@ class ArcMenuGeometryTest {
 
     @Test
     fun `every capacity includes each action exactly once and never mixes groups`() {
-        for (capacity in 1..4) {
+        for (capacity in 1..5) {
             val pages = ArcMenuGeometry.pageIndices(capacity)
             assertEquals((0..7).toList(), pages.flatten())
             assertTrue(pages.all { it.size in 1..capacity })
@@ -113,7 +239,9 @@ class ArcMenuGeometryTest {
     @Test
     fun `invalid capacities cannot silently hide menu actions`() {
         assertFailsWith<IllegalArgumentException> { ArcMenuGeometry.pageIndices(0) }
-        assertFailsWith<IllegalArgumentException> { ArcMenuGeometry.pageIndices(5) }
+        assertFailsWith<IllegalArgumentException> { ArcMenuGeometry.pageIndices(6) }
+        assertFailsWith<IllegalArgumentException> { ArcMenuGeometry.pageIndices(5, emptyList()) }
+        assertFailsWith<IllegalArgumentException> { ArcMenuGeometry.pageIndices(5, listOf(5, 0)) }
     }
 
     private fun anchors(bounds: ArcMenuRect): List<Pair<Float, Float>> = listOf(

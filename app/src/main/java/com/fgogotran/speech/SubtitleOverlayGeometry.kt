@@ -1,5 +1,7 @@
 package com.fgogotran.speech
 
+import kotlin.math.ceil
+
 internal data class SubtitleOverlayPosition(
     val x: Int,
     val y: Int
@@ -7,6 +9,15 @@ internal data class SubtitleOverlayPosition(
 
 /** Pure geometry helpers so overlay placement can be verified without Android UI classes. */
 internal object SubtitleOverlayGeometry {
+    /** A positive, content-sized window width bypasses Android's WRAP_CONTENT dialog sizing. */
+    fun fittedWindowWidth(
+        longestRowWidthPx: Float,
+        paddingLeftPx: Int,
+        paddingRightPx: Int,
+        maximumWidthPx: Int
+    ): Int = (ceil(longestRowWidthPx.toDouble()).toInt() + paddingLeftPx + paddingRightPx)
+        .coerceIn(1, maximumWidthPx.coerceAtLeast(1))
+
     fun maximumTextWidth(
         screenWidth: Int,
         insetLeft: Int,
@@ -26,10 +37,11 @@ internal object SubtitleOverlayGeometry {
         insetTop: Int,
         insetRight: Int,
         insetBottom: Int,
-        topMargin: Int
+        topMargin: Int,
+        anchorWidth: Int = viewWidth
     ): SubtitleOverlayPosition {
         val availableWidth = (screenWidth - insetLeft - insetRight).coerceAtLeast(0)
-        val centeredX = insetLeft + (availableWidth - viewWidth).coerceAtLeast(0) / 2
+        val centeredX = insetLeft + (availableWidth - anchorWidth).coerceAtLeast(0) / 2
         return clampPosition(
             x = centeredX,
             y = insetTop + topMargin.coerceAtLeast(0),

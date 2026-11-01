@@ -264,11 +264,11 @@ class RealtimeVoiceTranslationController @Inject constructor(
                     }
                     is AzureTranslationEvent.Partial -> {
                         _state.value = RealtimeVoiceTranslationState.Translating(event.text)
-                        subtitleOverlay.showPartial(event.text)
+                        subtitleOverlay.showPartial(event.text, config.targetLanguage)
                     }
                     is AzureTranslationEvent.Final -> {
                         _state.value = RealtimeVoiceTranslationState.Listening
-                        subtitleOverlay.showFinal(event.text)
+                        subtitleOverlay.showFinal(event.text, config.targetLanguage)
                     }
                     is AzureTranslationEvent.Canceled -> {
                         terminal.complete(

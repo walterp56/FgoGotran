@@ -29,9 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import com.fgogotran.localization.LocalizedText as Text
@@ -60,7 +58,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fgogotran.R
+import com.fgogotran.ui.component.FgoSettingsSlider
 import com.fgogotran.ui.theme.FgoUiColors
+import com.fgogotran.ui.theme.FgoSettingsColors
 import com.fgogotran.ui.theme.FgoUiStyle
 import com.fgogotran.ui.theme.LocalFgoDarkTheme
 import com.fgogotran.data.SettingsRepository
@@ -93,9 +93,6 @@ fun VoiceSettingsScreen(
     val apiVoiceHintsSupported = Translator.supportsApiVoiceHintsForModel(apiModel)
 
     var aiVoiceEnabled by remember { mutableStateOf(false) }
-    var aiVoiceLanguage by remember {
-        mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_LANGUAGE)
-    }
     var aiVoiceApiHintsEnabled by remember {
         mutableStateOf(SettingsRepository.DEFAULT_AI_VOICE_API_HINTS_ENABLED)
     }
@@ -141,7 +138,6 @@ fun VoiceSettingsScreen(
 
     LaunchedEffect(Unit) {
         aiVoiceEnabled = settingsRepository.aiVoiceEnabled.first()
-        aiVoiceLanguage = settingsRepository.aiVoiceLanguage.first()
         aiVoiceApiHintsEnabled = settingsRepository.aiVoiceApiHintsEnabled.first()
         aiVoiceSpeedPercent = settingsRepository.aiVoiceSpeedPercent.first()
         aiVoiceVolumePercent = settingsRepository.aiVoiceVolumePercent.first()
@@ -288,7 +284,7 @@ fun VoiceSettingsScreen(
                         Text(
                             subtitlePositionResetMessage,
                             style = MaterialTheme.typography.bodySmall,
-                            color = FgoUiColors.blueText
+                            color = FgoSettingsColors.value
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                     }
@@ -364,54 +360,7 @@ fun VoiceSettingsScreen(
                 )
             }
 
-            VoiceSettingsCard(
-                title = stringResource(R.string.voice_auto_43),
-                body = ""
-            ) {
-                val selectedReadTextLanguage = SettingsRepository.resolveReadTextLanguage(
-                    targetLanguage,
-                    aiVoiceLanguage
-                )
-                val readTextHint = stringResource(R.string.voice_read_text_invalid_hint)
-                val chineseReadTextCompatible = SettingsRepository.isReadTextCompatible(
-                    targetLanguage,
-                    SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
-                )
-                val englishReadTextCompatible = SettingsRepository.isReadTextCompatible(
-                    targetLanguage,
-                    SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION
-                )
-                VoiceReadTextOption(
-                    title = stringResource(R.string.voice_read_chinese),
-                    selected = selectedReadTextLanguage ==
-                        SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION,
-                    enabled = aiVoiceActive && chineseReadTextCompatible,
-                    hint = if (chineseReadTextCompatible) "" else readTextHint,
-                    onSelect = {
-                        aiVoiceLanguage = SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
-                        scope.launch {
-                            settingsRepository.setAiVoiceLanguage(
-                                SettingsRepository.AI_VOICE_LANGUAGE_CN_TRANSLATION
-                            )
-                        }
-                    }
-                )
-                VoiceReadTextOption(
-                    title = stringResource(R.string.voice_read_english),
-                    selected = selectedReadTextLanguage ==
-                        SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION,
-                    enabled = aiVoiceActive && englishReadTextCompatible,
-                    hint = if (englishReadTextCompatible) "" else readTextHint,
-                    onSelect = {
-                        aiVoiceLanguage = SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION
-                        scope.launch {
-                            settingsRepository.setAiVoiceLanguage(
-                                SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION
-                            )
-                        }
-                    }
-                )
-            }
+            VoiceReadTextIndicator(targetLanguage = targetLanguage)
 
             VoiceSettingsCard(
                 title = stringResource(R.string.voice_auto_44),
@@ -541,7 +490,7 @@ fun VoiceSettingsScreen(
                         color = if (azureSpeechTestIsError) {
                             MaterialTheme.colorScheme.error
                         } else {
-                            FgoUiColors.blueText
+                            FgoSettingsColors.value
                         }
                     )
                 }
@@ -555,7 +504,7 @@ fun VoiceSettingsScreen(
                             azureSpeechSaveMessage,
                             modifier = Modifier.padding(end = 4.dp).align(Alignment.CenterVertically),
                             style = MaterialTheme.typography.bodySmall,
-                            color = FgoUiColors.blueText
+                            color = FgoSettingsColors.value
                         )
                     }
                     OutlinedButton(
@@ -679,13 +628,8 @@ private fun LiveVoiceSubtitleSizeSlider(
             Text(
                 "${normalizedSize}sp",
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (
-                    normalizedSize == SettingsRepository.DEFAULT_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP
-                ) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    FgoUiColors.blueText
-                },
+                fontWeight = FontWeight.Medium,
+                color = FgoSettingsColors.value,
                 textAlign = TextAlign.End
             )
         }
@@ -696,9 +640,9 @@ private fun LiveVoiceSubtitleSizeSlider(
             Text(
                 stringResource(R.string.voice_auto_53),
                 style = MaterialTheme.typography.bodySmall,
-                color = FgoUiColors.blueText
+                color = FgoSettingsColors.supporting
             )
-            Slider(
+            FgoSettingsSlider(
                 value = normalizedSize.toFloat(),
                 onValueChange = { rawValue -> onFontSizeChange(rawValue.roundToInt()) },
                 valueRange = SettingsRepository.MIN_LIVE_VOICE_SUBTITLE_FONT_SIZE_SP.toFloat()..
@@ -711,7 +655,7 @@ private fun LiveVoiceSubtitleSizeSlider(
             Text(
                 stringResource(R.string.voice_auto_54),
                 style = MaterialTheme.typography.bodySmall,
-                color = FgoUiColors.blueText
+                color = FgoSettingsColors.supporting
             )
         }
     }
@@ -767,11 +711,8 @@ private fun VoiceSpeedSlider(
             Text(
                 aiVoiceSpeedMultiplierLabel(normalizedSpeed),
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (normalizedSpeed == SettingsRepository.DEFAULT_AI_VOICE_SPEED_PERCENT) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    FgoUiColors.blueText
-                },
+                fontWeight = FontWeight.Medium,
+                color = FgoSettingsColors.value,
                 textAlign = TextAlign.End
             )
         }
@@ -782,9 +723,9 @@ private fun VoiceSpeedSlider(
             Text(
                 stringResource(R.string.voice_auto_55),
                 style = MaterialTheme.typography.bodySmall,
-                color = FgoUiColors.blueText
+                color = FgoSettingsColors.supporting
             )
-            Slider(
+            FgoSettingsSlider(
                 value = normalizedSpeed.toFloat(),
                 onValueChange = { rawValue ->
                     onSpeedChange(
@@ -801,7 +742,7 @@ private fun VoiceSpeedSlider(
             Text(
                 stringResource(R.string.voice_auto_56),
                 style = MaterialTheme.typography.bodySmall,
-                color = FgoUiColors.blueText
+                color = FgoSettingsColors.supporting
             )
         }
     }
@@ -845,11 +786,8 @@ private fun VoiceVolumeSlider(
             Text(
                 "$normalizedVolume%",
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (enabled && normalizedVolume != SettingsRepository.DEFAULT_AI_VOICE_VOLUME_PERCENT) {
-                    FgoUiColors.blueText
-                } else {
-                    FgoUiColors.text(darkAlpha = contentAlpha, enabled = enabled)
-                },
+                fontWeight = FontWeight.Medium,
+                color = FgoSettingsColors.value(enabled),
                 textAlign = TextAlign.End
             )
         }
@@ -860,12 +798,9 @@ private fun VoiceVolumeSlider(
             Text(
                 stringResource(R.string.voice_auto_53),
                 style = MaterialTheme.typography.bodySmall,
-                color = FgoUiColors.disabledContent(
-                    FgoUiColors.blueText.copy(alpha = if (enabled) 1f else 0.48f),
-                    enabled = enabled
-                )
+                color = FgoSettingsColors.supporting(enabled)
             )
-            Slider(
+            FgoSettingsSlider(
                 value = normalizedVolume.toFloat(),
                 onValueChange = { rawValue ->
                     onVolumeChange(rawValue.roundToInt())
@@ -881,10 +816,7 @@ private fun VoiceVolumeSlider(
             Text(
                 stringResource(R.string.voice_auto_54),
                 style = MaterialTheme.typography.bodySmall,
-                color = FgoUiColors.disabledContent(
-                    FgoUiColors.blueText.copy(alpha = if (enabled) 1f else 0.48f),
-                    enabled = enabled
-                )
+                color = FgoSettingsColors.supporting(enabled)
             )
         }
     }
@@ -1048,73 +980,51 @@ private fun VoiceMasterGenderIndicator(
             Text(
                 genderLabel,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = FgoUiColors.disabledContent(
-                    FgoUiColors.blueText.copy(alpha = if (enabled) 1f else 0.48f),
-                    enabled = enabled
-                )
+                fontWeight = FontWeight.Medium,
+                color = FgoSettingsColors.value
             )
         }
     }
 }
 
 @Composable
-private fun VoiceReadTextOption(
-    title: String,
-    selected: Boolean,
-    enabled: Boolean,
-    hint: String,
-    onSelect: () -> Unit
-) {
-    Surface(
+private fun VoiceReadTextIndicator(targetLanguage: String) {
+    val languageLabel = when (SettingsRepository.readTextLanguageFor(targetLanguage)) {
+        SettingsRepository.AI_VOICE_LANGUAGE_EN_TRANSLATION -> stringResource(R.string.voice_read_english)
+        else -> stringResource(R.string.voice_read_chinese)
+    }
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.small,
-        color = if (selected) {
-            FgoUiColors.optionContainer(
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f),
-                selected = true,
-                enabled = enabled
-            )
-        } else {
-            FgoUiColors.optionContainer(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f))
-        },
-        border = if (LocalFgoDarkTheme.current) null else BorderStroke(
-            1.dp, FgoUiColors.controlOutline(
-                MaterialTheme.colorScheme.outline, selected = selected, enabled = enabled
-            )
-        )
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
     ) {
-        Row(
-            modifier = Modifier
-                .clickable(enabled = enabled, onClick = onSelect)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            RadioButton(
-                selected = selected,
-                onClick = null,
-                enabled = enabled
-            )
-            Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text(
-                    title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = FgoUiColors.text(
-                        MaterialTheme.colorScheme.onSurface.copy(
-                            alpha = if (enabled || selected) 0.82f else 0.48f
-                        ),
-                        enabled = enabled
-                    )
+                    stringResource(R.string.voice_auto_43),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
                 )
-                if (!enabled && hint.isNotBlank()) {
-                    Text(
-                        hint,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
-                    )
-                }
+                Text(
+                    languageLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = FgoSettingsColors.value,
+                    textAlign = TextAlign.End
+                )
             }
+            Text(
+                stringResource(R.string.voice_read_text_follows_translation),
+                style = MaterialTheme.typography.bodySmall,
+                color = FgoUiColors.text(darkAlpha = 0.65f, secondary = true)
+            )
         }
     }
 }
