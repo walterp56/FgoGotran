@@ -4,7 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { siteConfig } from "@/data/site";
 import { pageMetadata } from "@/lib/seo";
 
-const currentAppVersion = "v4.1.1";
+const currentAppVersion = "v4.2.0";
 
 const downloadOptions = [
   {

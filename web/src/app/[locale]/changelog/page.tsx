@@ -4,6 +4,7 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { pageMetadata } from "@/lib/seo";
 
 const changelogDefs = [
+  { key: "v4_2_0", version: "v4.2.0", date: "2-11-2026" },
   { key: "v4_1_1", version: "v4.1.1", date: "18-10-2026" },
   { key: "v4_1_0", version: "v4.1.0", date: "14-10-2026" },
   { key: "v4_0_0", version: "v4.0.0", date: "30-9-2026" },
