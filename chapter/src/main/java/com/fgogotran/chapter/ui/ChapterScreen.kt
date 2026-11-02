@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -169,46 +168,39 @@ internal fun ChapterPageFrame(title: String, onBack: () -> Unit, content: @Compo
 
 @Composable
 private fun AnnouncementBoard(items: List<NativeAnnouncement>, languageTag: String) {
-    val item = items.firstOrNull() ?: return
-    var expanded by remember(item.id) { mutableStateOf(false) }
-    val accent = when (item.level) {
-        "warning" -> MaterialTheme.colorScheme.error
-        "success" -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.tertiary
-    }
-    val latestLabel = if (languageTag == "zh-Hans" || languageTag == "zh-Hant") "最新公告" else "Latest announcement"
-    val expandLabel = if (languageTag == "zh-Hans" || languageTag == "zh-Hant") "展开" else "Show more"
-    val collapseLabel = if (languageTag == "zh-Hans" || languageTag == "zh-Hant") "收起" else "Show less"
+    if (items.isEmpty()) return
+    val header = if (languageTag == "zh-Hans" || languageTag == "zh-Hant") "公告" else "Announcements"
 
     OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(latestLabel, style = MaterialTheme.typography.labelSmall, color = accent)
-                Spacer(Modifier.weight(1f))
-                Text(item.date, style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(
-                item.title.forLanguage(languageTag),
-                style = MaterialTheme.typography.titleMedium,
-                color = when (item.level) {
-                    "warning" -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.onSurface
-                },
-            )
-            Text(
-                item.body.forLanguage(languageTag),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = if (expanded) Int.MAX_VALUE else 5,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.body.forLanguage(languageTag).length > 120) {
-                TextButton(
-                    onClick = { expanded = !expanded },
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Text(if (expanded) collapseLabel else expandLabel)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(header, style = MaterialTheme.typography.titleMedium)
+            items.forEachIndexed { index, item ->
+                if (index > 0) {
+                    HorizontalDivider()
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            item.title.forLanguage(languageTag),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = when (item.level) {
+                                "warning" -> MaterialTheme.colorScheme.error
+                                "success" -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            item.date,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        item.body.forLanguage(languageTag),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
