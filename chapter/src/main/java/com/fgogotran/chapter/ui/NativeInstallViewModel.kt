@@ -94,8 +94,7 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
     }
 
     fun connect() = reader.connect()
-    fun refresh() { reader.refresh(); lookup(forceRefresh = true) }
-    fun refreshAnnouncements() = lookup(forceRefresh = true)
+    fun refresh() { reader.refresh(); lookup() }
 
     fun selectLanguage(language: StoryLanguage) {
         if (language.tag == mutableState.value.languageTag) return

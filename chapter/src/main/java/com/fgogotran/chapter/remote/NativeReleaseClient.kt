@@ -87,8 +87,7 @@ class NativeReleaseClient(
         require(isConfigured) { "Release catalogue is not configured" }
         val cached = if (forceRefresh) null else cache?.read(language, gameVersion)
         val body = cached ?: run {
-            val refresh = if (forceRefresh) "&refresh=1" else ""
-            val url = "$baseUrl/v1/native/catalog?lang=$language&game=$gameVersion$refresh"
+            val url = "$baseUrl/v1/native/catalog?lang=$language&game=$gameVersion"
             fetch(url).decodeToString().also { cache?.write(language, gameVersion, it) }
         }
         val response = json.decodeFromString<CatalogResponse>(body)
