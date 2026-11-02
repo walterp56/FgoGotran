@@ -40,7 +40,7 @@ fun ChapterScreen(onExit: () -> Unit) {
 
     ChapterPageFrame(stringResource(R.string.chapter_native_title), onExit) {
         if (state.announcements.isNotEmpty()) {
-            AnnouncementBoard(state.announcements, state.languageTag)
+            AnnouncementBoard(state.announcements, state.languageTag, model::refreshAnnouncements)
             Spacer(Modifier.height(12.dp))
         }
         OutlinedCard(Modifier.fillMaxWidth()) {
@@ -167,13 +167,23 @@ internal fun ChapterPageFrame(title: String, onBack: () -> Unit, content: @Compo
 }
 
 @Composable
-private fun AnnouncementBoard(items: List<NativeAnnouncement>, languageTag: String) {
+private fun AnnouncementBoard(
+    items: List<NativeAnnouncement>,
+    languageTag: String,
+    onRefresh: () -> Unit,
+) {
     if (items.isEmpty()) return
-    val header = if (languageTag == "zh-Hans" || languageTag == "zh-Hant") "公告" else "Announcements"
+    val chinese = languageTag == "zh-Hans" || languageTag == "zh-Hant"
+    val header = if (chinese) "公告" else "Announcements"
+    val refreshLabel = if (chinese) "刷新" else "Refresh"
 
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(header, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(header, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onRefresh) { Text(refreshLabel) }
+            }
             items.forEachIndexed { index, item ->
                 if (index > 0) {
                     HorizontalDivider()

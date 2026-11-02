@@ -70,14 +70,27 @@ data class NativeStoryPackage(
  */
 class NativeReleaseClient(
     private val baseUrl: String,
+    private val cache: NativeCatalogCache? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
     val isConfigured: Boolean get() = baseUrl.isNotBlank()
 
-    suspend fun lookupAll(language: String, gameVersion: String): NativeCatalog = withContext(Dispatchers.IO) {
+    fun catalogAgeMs(language: String, gameVersion: String): Long? =
+        cache?.ageMs(language, gameVersion)
+
+    suspend fun lookupAll(
+        language: String,
+        gameVersion: String,
+        forceRefresh: Boolean = false,
+    ): NativeCatalog = withContext(Dispatchers.IO) {
         require(isConfigured) { "Release catalogue is not configured" }
-        val body = fetch("$baseUrl/v1/native/catalog?lang=$language&game=$gameVersion").decodeToString()
+        val cached = if (forceRefresh) null else cache?.read(language, gameVersion)
+        val body = cached ?: run {
+            val refresh = if (forceRefresh) "&refresh=1" else ""
+            val url = "$baseUrl/v1/native/catalog?lang=$language&game=$gameVersion$refresh"
+            fetch(url).decodeToString().also { cache?.write(language, gameVersion, it) }
+        }
         val response = json.decodeFromString<CatalogResponse>(body)
         val packs = response.packs
             .filter { it.language == language }

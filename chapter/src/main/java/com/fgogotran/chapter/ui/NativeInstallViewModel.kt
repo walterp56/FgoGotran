@@ -11,6 +11,7 @@ import com.fgogotran.chapter.install.ChapterInstallRecord
 import com.fgogotran.chapter.install.ChapterInstallState
 import com.fgogotran.chapter.packs.StoryLanguage
 import com.fgogotran.chapter.remote.NativeAnnouncement
+import com.fgogotran.chapter.remote.NativeCatalogCache
 import com.fgogotran.chapter.remote.NativePackInfo
 import com.fgogotran.chapter.remote.NativeReleaseClient
 import com.fgogotran.chapter.storage.ChapterAccess
@@ -42,7 +43,8 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
     private val appContext = context.applicationContext
     private val reader = ShizukuChapterStorage(context, viewModelScope)
     private val coordinator = ChapterInstallCoordinator.get(context)
-    private val client = NativeReleaseClient(BuildConfig.NATIVE_BASE_URL)
+    private val catalogCache = NativeCatalogCache(appContext)
+    private val client = NativeReleaseClient(BuildConfig.NATIVE_BASE_URL, catalogCache)
     private val prefs = appContext.getSharedPreferences("native_story", Context.MODE_PRIVATE)
     val access = reader.access
     val configured = client.isConfigured
@@ -92,7 +94,8 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
     }
 
     fun connect() = reader.connect()
-    fun refresh() { reader.refresh(); lookup() }
+    fun refresh() { reader.refresh(); lookup(forceRefresh = true) }
+    fun refreshAnnouncements() = lookup(forceRefresh = true)
 
     fun selectLanguage(language: StoryLanguage) {
         if (language.tag == mutableState.value.languageTag) return
@@ -101,7 +104,7 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
         lookup()
     }
 
-    fun lookup() {
+    fun lookup(forceRefresh: Boolean = false) {
         if (!configured) return
         lookupJob?.cancel()
         val language = mutableState.value.languageTag
@@ -109,7 +112,9 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
         mutableState.value = mutableState.value.copy(phase = InstallPhase.LOOKUP, packs = emptyList(), error = null)
         lookupJob = viewModelScope.launch {
             try {
-                val catalog = withContext(Dispatchers.IO) { client.lookupAll(language, version) }
+                val catalog = withContext(Dispatchers.IO) {
+                    client.lookupAll(language, version, forceRefresh = forceRefresh)
+                }
                 if (mutableState.value.languageTag == language) {
                     mutableState.value = mutableState.value.copy(
                         phase = InstallPhase.IDLE,
@@ -133,12 +138,25 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
             mutableState.value = mutableState.value.copy(error = appContext.getString(R.string.chapter_native_need_shizuku))
             return
         }
-        val packs = mutableState.value.packs
+        var packs = mutableState.value.packs
         if (packs.isEmpty()) return
+        val language = mutableState.value.languageTag
         val version = mutableState.value.gameVersion
         mutableState.value = mutableState.value.copy(phase = InstallPhase.DOWNLOAD, error = null)
         viewModelScope.launch {
             try {
+                val age = withContext(Dispatchers.IO) { client.catalogAgeMs(language, version) }
+                if (age == null || age > NativeCatalogCache.MAX_DOWNLOAD_AGE_MS) {
+                    val fresh = withContext(Dispatchers.IO) {
+                        client.lookupAll(language, version, forceRefresh = true)
+                    }
+                    packs = fresh.packs
+                    mutableState.value = mutableState.value.copy(
+                        packs = packs,
+                        announcements = fresh.announcements,
+                    )
+                    require(packs.isNotEmpty()) { "No packages available" }
+                }
                 val downloaded = mutableListOf<com.fgogotran.chapter.remote.NativeStoryPackage>()
                 for (pack in packs) {
                     downloaded += withContext(Dispatchers.IO) { client.download(pack) }
