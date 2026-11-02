@@ -6,23 +6,20 @@ if defined FGOGOTRAN_CATALOG_S3_URI set PUBLISH_ARGS=%PUBLISH_ARGS% -S3Uri "%FGO
 if defined FGOGOTRAN_AWS_CLI set PUBLISH_ARGS=%PUBLISH_ARGS% -AwsCli "%FGOGOTRAN_AWS_CLI%"
 if defined FGOGOTRAN_NODE set PUBLISH_ARGS=%PUBLISH_ARGS% -Node "%FGOGOTRAN_NODE%"
 
-echo publish-announcements options:
-echo   No arguments: interactive title/body entry.
-echo   -List        show current announcements.
-echo   -Title ... -Body ... -Level success -Date 2026-11-02
-echo   -Remove ^<id^>  remove one announcement.
-echo   -NoUpload    generate local JSON/catalogue only.
-echo   -Verify      query the public API after upload.
+echo Generating local native-assets release...
+echo   1. validates story_assets\cloud\host\announcements.json
+echo   2. writes release\native-assets\catalog\catalog.json
+echo   3. prints the S3 upload command (no automatic upload)
 echo.
-echo   Optional env: FGOGOTRAN_CATALOG_S3_URI, FGOGOTRAN_AWS_CLI, FGOGOTRAN_NODE
+echo   Add -Upload to upload automatically.
 echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0publish-announcements.ps1" %PUBLISH_ARGS% %*
 set "EXIT_CODE=%ERRORLEVEL%"
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo publish-announcements failed with exit code %EXIT_CODE%.
+  echo publish failed with exit code %EXIT_CODE%.
 ) else (
-  echo publish-announcements finished successfully.
+  echo publish finished successfully.
 )
 echo.
 pause
