@@ -15,8 +15,9 @@ param(
     [switch]$List,
     [switch]$DryRun,
     [switch]$NoUpload,
+    [switch]$Upload,
     [switch]$Verify,
-    [string]$S3Uri = "s3://fgogotran-native-assets/catalog/v1/catalog.json",
+    [string]$S3Uri = "s3://fgogotran-native-assets/catalog/catalog.json",
     [string]$AwsCli = "aws",
     [string]$Node = ""
 )
@@ -26,7 +27,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Resolve-Path (Join-Path $ScriptDir "..")
 $AnnouncementsPath = Join-Path $RepoRoot "story_assets\cloud\host\announcements.json"
-$CatalogPath = Join-Path $RepoRoot "story_assets\cloud\host\catalog\v1\catalog.json"
+$CatalogPath = Join-Path $RepoRoot "release\native-assets\catalog\catalog.json"
 $BuilderPath = Join-Path $RepoRoot "story_assets\tools\build-host-catalog.mjs"
 $CatalogApi = "https://v4qqn1rvi1.execute-api.ap-east-1.amazonaws.com/prod/v1/native/catalog?lang=en&game=2.140.0&refresh=1"
 
@@ -178,14 +179,16 @@ $nodeExe = Resolve-Node $Node
 & $nodeExe $BuilderPath
 if ($LASTEXITCODE -ne 0) { throw "Catalogue build failed with exit code $LASTEXITCODE." }
 
-if (-not $NoUpload) {
-    if (-not $S3Uri) { throw "S3Uri is empty. Pass -S3Uri or use -NoUpload." }
+if ($Upload -and -not $NoUpload) {
+    if (-not $S3Uri) { throw "S3Uri is empty. Pass -S3Uri." }
     & $AwsCli s3 cp $CatalogPath $S3Uri --cache-control no-store --content-type application/json
     if ($LASTEXITCODE -ne 0) { throw "S3 upload failed with exit code $LASTEXITCODE." }
     Write-Host "Uploaded $S3Uri"
 }
 else {
-    Write-Host "Skipped upload (-NoUpload). Local catalogue: $CatalogPath"
+    Write-Host "Local release ready: $CatalogPath"
+    Write-Host "Upload manually:"
+    Write-Host "  $AwsCli s3 cp `"$CatalogPath`" `"$S3Uri`" --cache-control no-store --content-type application/json"
 }
 
 if ($Verify) {
