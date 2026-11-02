@@ -49,6 +49,10 @@
     "battle-subtitles": {
       "title": "Battle subtitles",
       "body": "For players who don't want to miss in-battle dialogue. Locks onto the battle subtitle area only."
+    },
+    "summon-subtitles": {
+      "title": "Summon subtitles",
+      "body": "Automatically translates Servant summoning dialogue and in-game replays into subtitles, with no need to tap for each line."
     }
   },
   "home": {
@@ -64,7 +68,7 @@
     "featuresBody": "Covers story dialogue, choices, character names and common proper nouns, so the JP story reads smoothly.",
     "modesEyebrow": "Modes",
     "modesTitle": "Pick the translation pace that suits you",
-    "modesBody": "From fully manual to fully automatic — plus crop mode for screens that are hard to recognize.",
+    "modesBody": "Choose manual, semi-auto or auto for story dialogue, dedicated subtitles for summons and battles, or crop mode for other game areas.",
     "features": {
       "story": {
         "title": "FGO story translation",
@@ -80,7 +84,7 @@
       },
       "modes": {
         "title": "Multiple translation modes",
-        "body": "Manual, semi-auto, full-auto, crop mode and battle subtitles for different reading habits and game situations."
+        "body": "Manual, semi-auto, auto, crop mode, summon subtitles and battle subtitles for different reading habits and game situations."
       },
       "terms": {
         "title": "Online terminology database",
@@ -90,7 +94,8 @@
         "title": "Bring your own API",
         "body": "Works with DeepSeek, GLM, Qwen, OpenAI, Gemini, Claude, or any OpenAI-compatible service."
       }
-    }
+    },
+    "summonImageAlt": "FGO summon dialogue with English translation subtitles"
   },
   "guide": {
     "title": "Guide",
@@ -109,7 +114,7 @@
       "body": "FgoGotran is an overlay translation tool for the running FGO Japanese game screen.",
       "supported": {
         "title": "Supported",
-        "body": "Live in-game screens, story, choices, and the game area you select in crop mode."
+        "body": "Live in-game screens, story, choices, Servant summoning dialogue and in-game replays, and the game area you select in crop mode."
       },
       "unsupported": {
         "title": "Not supported",
@@ -175,12 +180,13 @@
       },
       "mode-indicator": {
         "title": "Check the current mode",
-        "body": "The floating button shows the current mode, so you always know whether you are in manual, semi-auto, auto, crop or battle-subtitle mode.",
+        "body": "The floating button shows the current mode: manual, semi-auto, auto, crop, summon subtitles or battle subtitles. Summon-subtitle mode shows “SU” in the English interface (“召” in Chinese).",
         "images": [
           "Manual-mode floating button",
           "Semi-auto-mode floating button",
           "Auto-mode floating button",
           "Crop-mode floating button",
+          "Summon-subtitle-mode floating button: SU",
           "Battle-subtitle-mode floating button"
         ]
       },
@@ -213,6 +219,13 @@
         "images": [
           "Translation log example"
         ]
+      },
+      "summon-subtitles": {
+        "title": "Summon subtitles",
+        "body": "For Servant summoning dialogue, including in-game replays. Automatically recognizes the current lines and displays translated subtitles above the Japanese dialogue box. Late translations can be viewed in the translation log.",
+        "images": [
+          "English summon subtitles above the Japanese dialogue box in FGO"
+        ]
       }
     },
     "toc": {
@@ -228,7 +241,8 @@
       "failureRing": "Red ring",
       "cropMode": "Crop mode",
       "battleSubtitles": "Battle subtitles",
-      "translationLog": "Translation log"
+      "translationLog": "Translation log",
+      "summonSubtitles": "Summon subtitles"
     }
   },
   "troubleshooting": {

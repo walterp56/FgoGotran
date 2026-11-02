@@ -1387,34 +1387,6 @@ dd {
   object-fit: cover;
 }
 
-.docs-mode-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 28px;
-}
-
-.docs-mode-card {
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.docs-mode-card svg {
-  color: var(--brand);
-}
-
-.docs-mode-card h3 {
-  margin-top: 8px;
-  font-size: 17px;
-}
-
-.docs-mode-card p {
-  margin: 8px 0 0;
-  color: var(--muted);
-}
-
 .azure-guide-shell .docs-article {
   max-width: 980px;
 }
@@ -2363,7 +2335,6 @@ dd {
   .media-grid,
   .download-source-grid,
   .step-grid,
-  .docs-mode-grid,
   .docs-scope-grid,
   .guide-card,
   .terms-toolbar {

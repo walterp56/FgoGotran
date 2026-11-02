@@ -9,10 +9,11 @@ import {
   MousePointerClick,
   PanelBottom,
   Settings,
-  Smartphone
+  Smartphone,
+  Sparkles
 } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { modeCardDefs, type Feature } from "@/data/site";
+import { summonExampleImage } from "@/data/site";
 import { localizedImage } from "@/lib/localizedImage";
 import { pageMetadata } from "@/lib/seo";
 
@@ -58,6 +59,7 @@ const buttonGuideDefs: GuideSectionDef[] = [
       { src: "/guide/guide-13.jpeg", kind: "icon" },
       { src: "/guide/guide-14.jpeg", kind: "icon" },
       { src: "/guide/guide-15.jpeg", kind: "icon" },
+      { src: "/guide/summon-button.png", kind: "icon" },
       { src: "/guide/guide-20.jpeg", kind: "icon" }
     ]
   },
@@ -68,6 +70,10 @@ const buttonGuideDefs: GuideSectionDef[] = [
   {
     id: "crop-mode",
     images: [{ src: "/guide/guide-log-crop.jpeg", kind: "wide" }, { src: "/guide/guide-18.jpeg", kind: "wide" }]
+  },
+  {
+    id: "summon-subtitles",
+    images: [{ src: summonExampleImage, kind: "wide" }]
   },
   { id: "battle-subtitles", images: [{ src: "/guide/battle.jpg", kind: "wide" }] },
   { id: "translation-log", images: [{ src: "/guide/guide-19.jpeg", kind: "wide" }] }
@@ -85,6 +91,7 @@ const tocDefs = [
   { href: "#mode-indicator", key: "modeIndicator" },
   { href: "#failure-ring", key: "failureRing" },
   { href: "#crop-mode", key: "cropMode" },
+  { href: "#summon-subtitles", key: "summonSubtitles" },
   { href: "#battle-subtitles", key: "battleSubtitles" },
   { href: "#translation-log", key: "translationLog" }
 ];
@@ -129,14 +136,6 @@ export default async function GuidePage({ params }: GuidePageProps) {
   setRequestLocale(locale);
   const t = await getTranslations("guide");
   const common = await getTranslations("common");
-  const modes = await getTranslations("modes");
-
-  const modeCards: Feature[] = modeCardDefs.map((def) => ({
-    ...def,
-    title: modes(`${def.id}.title`),
-    body: modes(`${def.id}.body`)
-  }));
-
   const setupSteps = setupStepDefs.map((def) => ({
     ...def,
     title: t(`setupSteps.${def.id}.title`),
@@ -240,19 +239,6 @@ export default async function GuidePage({ params }: GuidePageProps) {
             <p>{t("callout")}</p>
           </div>
 
-          <div className="docs-mode-grid">
-            {modeCards.map((mode) => {
-              const Icon = mode.icon;
-              return (
-                <article className="docs-mode-card" key={mode.id}>
-                  <Icon size={20} aria-hidden="true" />
-                  <h3>{mode.title}</h3>
-                  <p>{mode.body}</p>
-                </article>
-              );
-            })}
-          </div>
-
           <div className="docs-step-list">
             {buttonGuides.map((guide) => (
               <section className="docs-step" id={guide.id} key={guide.id}>
@@ -263,6 +249,8 @@ export default async function GuidePage({ params }: GuidePageProps) {
                     <MessageSquareText size={18} aria-hidden="true" />
                   ) : guide.id === "battle-subtitles" ? (
                     <Captions size={18} aria-hidden="true" />
+                  ) : guide.id === "summon-subtitles" ? (
+                    <Sparkles size={18} aria-hidden="true" />
                   ) : (
                     <CirclePlay size={18} aria-hidden="true" />
                   )}

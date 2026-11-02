@@ -9,6 +9,7 @@ import {
   ScanText,
   ServerCog,
   SlidersHorizontal,
+  Sparkles,
   SquareDashedMousePointer,
   Workflow
 } from "lucide-react";
@@ -24,6 +25,8 @@ export const siteConfig = {
   termsPreviewPath: "/term-preview/zh-Hans/latest/terms.preview.json",
   characterPreviewPath: "/term-preview/zh-Hans/latest/character_names.preview.json"
 };
+
+export const summonExampleImage = "/guide/summon.jpg";
 
 export type NavItem = {
   href: string;
@@ -68,6 +71,7 @@ export const modeCardDefs: FeatureDef[] = [
   { id: "semi-auto", icon: Workflow },
   { id: "auto", icon: RefreshCw },
   { id: "crop", icon: SquareDashedMousePointer },
-  { id: "translation-log", icon: History },
-  { id: "battle-subtitles", icon: Captions }
+  { id: "summon-subtitles", icon: Sparkles },
+  { id: "battle-subtitles", icon: Captions },
+  { id: "translation-log", icon: History }
 ];

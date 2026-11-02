@@ -53,6 +53,15 @@ Add Traditional Chinese screenshots directly to `web/public/examples/zh-TW/`, fo
 
 When the Traditional Chinese folder contains any supported images, `/zh-TW/` uses only that folder's images. While it is empty, the page uses the default images in `web/public/examples/`. The `.gitkeep` file preserves the empty folder in Git and is ignored by the slideshow.
 
+The summon-subtitle example is shared by the homepage and guide: `public/guide/summon.jpg`
+(Simplified Chinese), `public/guide/zh-TW/summon.jpg`, and `public/guide/en/summon.jpg`.
+The homepage inserts the localized shared example as its second slide; keep one copy per language.
+
+Summon floating-button crops live at `public/guide/summon-button.png` (both Chinese locales)
+and `public/guide/en/summon-button.png` (English). They appear in the mode-indicator strip.
+Both are 128 px crops from the supplied 2340 x 1080 Gallery
+screenshots (2026-11-02 21:29:17 / 21:29:43), at x=2116, y=274, with a circular alpha mask.
+
 Run `npm run check:images` to report image coverage. Rebuild and deploy the website after adding or changing images so the published slideshow includes them.
 
 ## Deployment

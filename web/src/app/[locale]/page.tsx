@@ -5,8 +5,8 @@ import { Link } from "@/i18n/navigation";
 import { ExampleSlideshow, type ExampleImage } from "@/components/ExampleSlideshow";
 import { FeatureGrid } from "@/components/FeatureGrid";
 import { SectionHeader } from "@/components/SectionHeader";
-import { featureDefs, modeCardDefs, siteConfig, type Feature } from "@/data/site";
-import { listLocalizedImages } from "@/lib/localizedImage";
+import { featureDefs, modeCardDefs, siteConfig, summonExampleImage, type Feature } from "@/data/site";
+import { listLocalizedImages, localizedImage } from "@/lib/localizedImage";
 import { pageMetadata } from "@/lib/seo";
 
 type HomePageProps = {
@@ -25,10 +25,15 @@ export default async function HomePage({ params }: HomePageProps) {
   const t = await getTranslations("home");
   const modes = await getTranslations("modes");
 
-  const heroExamples: ExampleImage[] = listLocalizedImages(locale, "examples").map((src, index) => ({
+  const existingExamples: ExampleImage[] = listLocalizedImages(locale, "examples").map((src, index) => ({
     src,
     alt: t("heroImageAlt", { number: index + 1 })
   }));
+  const heroExamples: ExampleImage[] = [
+    ...existingExamples.slice(0, 1),
+    { src: localizedImage(locale, summonExampleImage), alt: t("summonImageAlt") },
+    ...existingExamples.slice(1)
+  ];
 
   const features: Feature[] = featureDefs.map((def) => ({
     ...def,
