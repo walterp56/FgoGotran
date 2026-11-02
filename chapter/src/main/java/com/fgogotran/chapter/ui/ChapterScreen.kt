@@ -45,7 +45,6 @@ fun ChapterScreen(onExit: () -> Unit) {
         OutlinedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.chapter_native_scope_short), style = MaterialTheme.typography.bodyMedium)
-                Text(stringResource(R.string.chapter_game, state.gameVersion), style = MaterialTheme.typography.bodySmall)
 
                 var menu by remember { mutableStateOf(false) }
                 Box {
