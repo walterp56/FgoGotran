@@ -185,9 +185,9 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v100-contextual-foreign"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v101-compact-foreign"
         const val BATTLE_PROMPT_VERSION = "battle-subtitle-v10-plain-layout"
-        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v8-contextual-foreign"
+        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v9-compact-foreign"
         const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v4-plain-layout"
         const val DIALOGUE_SUBTITLE_PROMPT_VERSION = "dialogue-subtitle-v3-source-repetition"
         const val DIALOGUE_SUBTITLE_PROMPT_VERSION_EN = "dialogue-subtitle-en-v3-source-repetition"
@@ -264,11 +264,9 @@ class PromptBuilder @Inject constructor() {
          */
         // One policy for every general target/profile; keep the trained Sakura prompt independent.
         private const val FOREIGN_EXPRESSION_PROMPT =
-            "For foreign expressions, choose retention or natural target-language translation by context, voice and readability. " +
-                "Keep or restore the foreign word itself when discussing its language, word forms or wordplay. " +
-                "When retaining, restore clear katakana to established foreign spelling and preserve diacritics; " +
-                "if unsure, translate the meaning. メルシー is French Merci, not English mercy. " +
-                "Never invent foreign wording."
+            "Translate foreign expressions naturally or retain by context. " +
+                "Keep the word itself in language discussion or wordplay. " +
+                "When retaining, use clear foreign spelling with diacritics; if unsure, translate meaning."
 
         // ─── Chinese (Simplified/Traditional) prompt set ───────────────────────────
         private val BASE_TRANSLATION_PROMPT = """

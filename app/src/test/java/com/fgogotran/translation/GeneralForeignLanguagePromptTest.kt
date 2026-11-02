@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 class GeneralForeignLanguagePromptTest {
     private val builder = PromptBuilder()
     private val targets = listOf("zh-Hans", "zh-Hant", "en")
-    private val policy = "For foreign expressions, choose retention or natural target-language translation by context, voice and readability."
+    private val policy = "Translate foreign expressions naturally or retain by context."
 
     @Test
     fun `all general targets and base profiles choose by context without forcing retention`() {
@@ -24,12 +24,11 @@ class GeneralForeignLanguagePromptTest {
             for (context in contexts) {
                 val prompt = builder.buildSystemPrompt(context)
                 assertEquals(1, prompt.split(policy).size - 1)
-                assertTrue(prompt.contains("Keep or restore the foreign word itself when discussing its language, word forms or wordplay"))
-                assertTrue(prompt.contains("restore clear katakana to established foreign spelling and preserve diacritics"))
-                assertTrue(prompt.contains("if unsure, translate the meaning"))
-                assertTrue(prompt.contains("メルシー is French Merci, not English mercy"))
-                assertFalse(prompt.contains("メルシー can be Merci or thank you"))
-                assertTrue(prompt.contains("Never invent foreign wording."))
+                assertTrue(prompt.contains("Keep the word itself in language discussion or wordplay."))
+                assertTrue(prompt.contains("When retaining, use clear foreign spelling with diacritics"))
+                assertTrue(prompt.contains("if unsure, translate meaning"))
+                assertFalse(prompt.contains("メルシー"))
+                assertFalse(prompt.contains("mercy"))
                 assertFalse(prompt.contains("Foreign-language exception:"))
                 assertFalse(prompt.contains("even when the requested translation is Chinese or English"))
                 assertFalse(prompt.contains("メルシー -> Merci"))
@@ -39,6 +38,22 @@ class GeneralForeignLanguagePromptTest {
                 assertTrue(prompt.contains(if (target == "en") "leave no other kana" else "common loanwords may use compact English"))
                 assertFalse(prompt.contains("base〈ruby〉"))
             }
+        }
+    }
+
+    @Test
+    fun `foreign words do not select word specific system instructions`() {
+        for (target in targets) {
+            val prompts = listOf("準備はできました。", "メルシー。", "アディオス。", "Très bien.")
+                .map { source ->
+                    builder.buildSystemPrompt(builder.buildPromptContext(
+                        outputFormat = PromptOutputFormat.PLAIN_TEXT,
+                        sourceText = source,
+                        targetLanguage = target,
+                        currentSpeaker = "マシュ"
+                    ))
+                }
+            assertTrue(prompts.all { it == prompts.first() }, target)
         }
     }
 
@@ -108,10 +123,11 @@ class GeneralForeignLanguagePromptTest {
     }
 
     @Test
-    fun `contextual policy versions invalidate the earlier forced retention results`() {
+    fun `compact policy versions invalidate earlier foreign policy results`() {
         for (target in targets) {
             assertTrue(builder.buildSystemPrompt(PromptContext(targetLanguage = target)).contains(policy))
-            assertTrue(PromptBuilder.promptVersionFor(target, false).endsWith("contextual-foreign"))
+            assertTrue(PromptBuilder.promptVersionFor(target, false).endsWith("compact-foreign"))
+            assertFalse(PromptBuilder.promptVersionFor(target, false).endsWith("contextual-foreign"))
             assertFalse(PromptBuilder.promptVersionFor(target, false).endsWith("foreign-expressions"))
         }
     }

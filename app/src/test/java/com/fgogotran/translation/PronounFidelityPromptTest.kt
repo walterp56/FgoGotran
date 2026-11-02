@@ -135,11 +135,11 @@ class PronounFidelityPromptTest {
     }
 
     @Test
-    fun `general versions include evaluated policies while battle versions stay fixed`() {
+    fun `general versions include compact foreign policy while battle versions stay fixed`() {
         for (target in generalTargets.keys) {
             val english = target == "en"
             assertEquals(
-                if (english) "jp-en-fgo-target-v8-contextual-foreign" else "jp-cn-fgo-target-v100-contextual-foreign",
+                if (english) "jp-en-fgo-target-v9-compact-foreign" else "jp-cn-fgo-target-v101-compact-foreign",
                 PromptBuilder.promptVersionFor(target, battleSubtitle = false),
                 target
             )
