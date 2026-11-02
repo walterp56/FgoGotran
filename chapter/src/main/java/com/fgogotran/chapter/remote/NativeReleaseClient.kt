@@ -5,6 +5,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.ByteArrayOutputStream
@@ -13,10 +16,22 @@ import java.net.URL
 import java.security.MessageDigest
 
 /** Metadata for one hosted language pack (no payload downloaded yet). */
+data class LocalizedText(
+    val en: String = "",
+    val zhHans: String = "",
+    val zhHant: String = "",
+) {
+    fun forLanguage(tag: String): String = when (tag) {
+        "zh-Hans" -> zhHans.ifBlank { en }
+        "zh-Hant" -> zhHant.ifBlank { en }
+        else -> en.ifBlank { zhHans.ifBlank { zhHant } }
+    }
+}
+
 data class NativeAnnouncement(
     val id: String,
-    val title: String,
-    val body: String,
+    val title: LocalizedText,
+    val body: LocalizedText,
     val date: String,
     val level: String = "info",
 )
@@ -81,7 +96,13 @@ class NativeReleaseClient(
         NativeCatalog(
             packs = packs,
             announcements = response.announcements.map {
-                NativeAnnouncement(it.id, it.title, it.body, it.date, it.level)
+                NativeAnnouncement(
+                    id = it.id,
+                    title = it.title.toLocalizedText(),
+                    body = it.body.toLocalizedText(),
+                    date = it.date,
+                    level = it.level,
+                )
             },
         )
     }
@@ -150,11 +171,24 @@ private data class CatalogResponse(
 @Serializable
 private data class AnnouncementDto(
     val id: String = "",
-    val title: String = "",
-    val body: String = "",
+    val title: JsonElement = JsonPrimitive(""),
+    val body: JsonElement = JsonPrimitive(""),
     val date: String = "",
     val level: String = "info",
 )
+
+private fun JsonElement.toLocalizedText(): LocalizedText {
+    if (this is JsonPrimitive) {
+        val value = contentOrNull.orEmpty()
+        return LocalizedText(value, value, value)
+    }
+    val obj = jsonObject
+    return LocalizedText(
+        en = obj["en"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+        zhHans = obj["zh-Hans"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+        zhHant = obj["zh-Hant"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+    )
+}
 
 @Serializable
 private data class PackDto(

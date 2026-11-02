@@ -39,7 +39,7 @@ fun ChapterScreen(onExit: () -> Unit) {
 
     ChapterPageFrame(stringResource(R.string.chapter_native_title), onExit) {
         if (state.announcements.isNotEmpty()) {
-            AnnouncementBoard(state.announcements)
+            AnnouncementBoard(state.announcements, state.languageTag)
             Spacer(Modifier.height(12.dp))
         }
         OutlinedCard(Modifier.fillMaxWidth()) {
@@ -167,7 +167,7 @@ internal fun ChapterPageFrame(title: String, onBack: () -> Unit, content: @Compo
 }
 
 @Composable
-private fun AnnouncementBoard(items: List<NativeAnnouncement>) {
+private fun AnnouncementBoard(items: List<NativeAnnouncement>, languageTag: String) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Announcements", style = MaterialTheme.typography.titleMedium)
@@ -175,7 +175,7 @@ private fun AnnouncementBoard(items: List<NativeAnnouncement>) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            item.title,
+                            item.title.forLanguage(languageTag),
                             style = MaterialTheme.typography.titleSmall,
                             color = when (item.level) {
                                 "warning" -> MaterialTheme.colorScheme.error
@@ -186,7 +186,7 @@ private fun AnnouncementBoard(items: List<NativeAnnouncement>) {
                         Text(item.date, style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Text(item.body, style = MaterialTheme.typography.bodySmall,
+                    Text(item.body.forLanguage(languageTag), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 HorizontalDivider()
