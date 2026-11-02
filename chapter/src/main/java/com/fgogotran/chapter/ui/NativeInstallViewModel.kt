@@ -43,11 +43,27 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
     private val reader = ShizukuChapterStorage(context, viewModelScope)
     private val coordinator = ChapterInstallCoordinator.get(context)
     private val client = NativeReleaseClient(BuildConfig.NATIVE_BASE_URL)
+    private val prefs = appContext.getSharedPreferences("native_story", Context.MODE_PRIVATE)
     val access = reader.access
     val configured = client.isConfigured
 
+    private val initialLanguageTag: String = prefs.getString("language", defaultLanguageTag())
+        ?: defaultLanguageTag()
+
+    private fun defaultLanguageTag(): String {
+        val locale = java.util.Locale.getDefault()
+        if (locale.language.equals("zh", ignoreCase = true)) {
+            val traditional = locale.script == "Hant" ||
+                locale.country in setOf("TW", "HK", "MO")
+            return if (traditional) StoryLanguage.TRADITIONAL_CHINESE.tag
+            else StoryLanguage.SIMPLIFIED_CHINESE.tag
+        }
+        return StoryLanguage.ENGLISH.tag
+    }
+
     private val mutableState = MutableStateFlow(
         NativeInstallState(
+            languageTag = initialLanguageTag,
             gameVersion = runCatching {
                 context.packageManager.getPackageInfo(FgoJpFormatProfile.GAME_PACKAGE, 0).versionName
             }.getOrNull() ?: "—"
@@ -80,6 +96,7 @@ internal class NativeInstallViewModel(context: Context) : ViewModel() {
 
     fun selectLanguage(language: StoryLanguage) {
         if (language.tag == mutableState.value.languageTag) return
+        prefs.edit().putString("language", language.tag).apply()
         mutableState.value = mutableState.value.copy(languageTag = language.tag, packs = emptyList(), error = null, phase = InstallPhase.IDLE)
         lookup()
     }
