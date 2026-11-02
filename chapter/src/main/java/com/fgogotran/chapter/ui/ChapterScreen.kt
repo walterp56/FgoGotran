@@ -169,7 +169,10 @@ internal fun ChapterPageFrame(title: String, onBack: () -> Unit, content: @Compo
 private fun AnnouncementBoard(items: List<NativeAnnouncement>, languageTag: String) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Announcements", style = MaterialTheme.typography.titleMedium)
+            Text(
+                if (languageTag == "zh-Hans" || languageTag == "zh-Hant") "公告" else "Announcements",
+                style = MaterialTheme.typography.titleMedium,
+            )
             items.forEach { item ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
