@@ -16,7 +16,7 @@ class PaddleEdgePunctuationProbeTest {
 
     @Test
     fun `dim approved story colours recover matching edge evidence only in dialogue`() {
-        listOf(0xB86349, 0x8753D1).forEach { rgb ->
+        listOf(0xB86349, 0x8753D1, 0x6079F0).forEach { rgb ->
             val fixture = Fixture()
             fixture.body(rgb)
             fixture.mark(rgb)

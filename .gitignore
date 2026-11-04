@@ -334,3 +334,10 @@ docs/*
 !app/src/test/java/com/fgogotran/overlay/ChoiceExitControllerTest.kt
 !app/src/test/java/com/fgogotran/overlay/ChoiceExitRenderTest.kt
 !app/src/test/java/com/fgogotran/overlay/ChoiceExitOverlayTest.kt
+# Blue story-ink sampling, rendering and original screenshot crops.
+!app/src/test/java/com/fgogotran/accessibility/StoryTextColorSamplingTest.kt
+!app/src/test/java/com/fgogotran/overlay/StoryTextColorRenderTest.kt
+!app/src/test/resources/ocr/jp-blue-name.png
+!app/src/test/resources/ocr/jp-blue-dialogue.png
+!app/src/test/resources/ocr/jp-blue-nameplate-background.png
+!app/src/test/resources/ocr/jp-blue-dialogue-background.png

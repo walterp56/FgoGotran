@@ -2,7 +2,7 @@ package com.fgogotran.ocr
 
 /** Text ink only: deliberately not used to detect cyan UI borders or nameplate widths. */
 internal object FgoStoryTextPalette {
-    enum class Family { NEUTRAL, RED, CYAN, YELLOW_GREEN, PINK, PURPLE, BROWN }
+    enum class Family { NEUTRAL, RED, CYAN, YELLOW_GREEN, PINK, PURPLE, BROWN, BLUE }
     enum class Scope { STORY, CHOICE }
 
     data class Sample(val rgb: Int, val family: Family, val maxDistanceSquared: Int) {
@@ -22,12 +22,13 @@ internal object FgoStoryTextPalette {
             distance <= maxDistanceSquared &&
                 // Red's antialiased edges can be near brown in RGB distance. Brown has a
                 // warmer green-over-blue hue; do not let it steal unchanged red strokes.
-                (family != Family.BROWN || (r - g >= 30 && g - b >= 8))
+                (family != Family.BROWN || (r - g >= 30 && g - b >= 8)) &&
+                // Blue glyph cores are brighter and less cyan than the translucent blue plates.
+                (family != Family.BLUE || (b >= 160 && b - r >= 65 && b - g >= 65 && g - r >= 8))
     }
 
-    // Keep the four legacy vote indices and render colours stable. Only the three approved
-    // additions are runtime swatches; the research inventory is not a runtime whitelist.
-    // See FGO_STORY_TEXT_COLOURS.md and scripts/research-fgo-story-colours.py for provenance.
+    // Append colours so all existing vote indices and render colours stay stable.
+    // Blue is calibrated from screenshot glyph cores, not the blue UI background.
     val samples = listOf(
         Sample(0xF5F5F0, Family.NEUTRAL, 120 * 120),
         Sample(0xDC0000, Family.RED, 100 * 100),
@@ -35,7 +36,8 @@ internal object FgoStoryTextPalette {
         Sample(0xC5E35E, Family.YELLOW_GREEN, 90 * 90),
         Sample(0xFF69B4, Family.PINK, TAG_TOLERANCE_SQUARED),
         Sample(0x8753D1, Family.PURPLE, TAG_TOLERANCE_SQUARED),
-        Sample(0xB86349, Family.BROWN, TAG_TOLERANCE_SQUARED)
+        Sample(0xB86349, Family.BROWN, TAG_TOLERANCE_SQUARED),
+        Sample(0x6079F0, Family.BLUE, BLUE_TOLERANCE_SQUARED)
     )
     private val choiceSamples = samples.take(2)
 
@@ -56,7 +58,7 @@ internal object FgoStoryTextPalette {
         return bestIndex
     }
 
-    /** Only the approved pink, purple and brown additions, with screenshot tolerance. */
+    /** Supported rare story ink, with per-colour screenshot tolerance and hue guards. */
     fun additionalInkFamily(red: Int, green: Int, blue: Int): Family? {
         if (maxOf(red, green, blue) < 100) return null
         var bestDistance = Int.MAX_VALUE
@@ -121,4 +123,5 @@ internal object FgoStoryTextPalette {
 
     private const val LEGACY_SAMPLE_COUNT = 4
     private const val TAG_TOLERANCE_SQUARED = 55 * 55
+    private const val BLUE_TOLERANCE_SQUARED = 55 * 55
 }

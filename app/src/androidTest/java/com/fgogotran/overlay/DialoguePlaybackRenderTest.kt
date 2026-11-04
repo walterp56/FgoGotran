@@ -67,6 +67,48 @@ class DialoguePlaybackRenderTest {
         } finally { source.recycle(); renderer.releaseBuffers() }
     }
 
+    @Test fun blueStoryInkSurvivesStaticAndPlaybackRendering() {
+        val blue = 0xff6079f0.toInt()
+        val source = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+        val renderer = OverlayRenderer(context)
+        try {
+            for (locale in listOf("zh-Hans", "zh-Hant", "en")) for (bilingual in listOf(false, true)) {
+                val input = instructions(locale, bilingual).map {
+                    if (it.region.region == TextRegion.CHOICE_BUTTON) it else it.copy(textColor = blue)
+                }
+                val expected = renderer.render(source, input, 1920, 1080).copy(Bitmap.Config.ARGB_8888, false)
+                val frame = renderer.prepareDialoguePlayback(source, input, DialoguePlaybackSettings(DialogueTextSpeed.HALF))
+                val actual = expected.copy(Bitmap.Config.ARGB_8888, true)
+                try {
+                    assertTrue("blue static/playback match: $locale/$bilingual", expected.sameAs(frame.bitmap))
+                    fun bluePixels(bounds: Rect): Int {
+                        val pixels = IntArray(bounds.width() * bounds.height())
+                        expected.getPixels(pixels, 0, bounds.width(), bounds.left, bounds.top, bounds.width(), bounds.height())
+                        return pixels.count { colour -> colour ushr 24 == 255 && listOf(0, 8, 16).all { shift ->
+                            kotlin.math.abs((colour ushr shift and 255) - (blue ushr shift and 255)) <= 1
+                        } }
+                    }
+                    assertTrue("blue name", bluePixels(Rect(35, 740, 600, 828)) > 10)
+                    assertTrue("blue dialogue and ruby", bluePixels(Rect(35, 830, 1805, 1055)) > 10)
+                    if (locale == "zh-Hant") {
+                        val folder = File(context.cacheDir, "story-blue-validation").apply { mkdirs() }
+                        File(folder, "blue-${if (bilingual) "bilingual" else "single"}.png").outputStream().use {
+                            expected.compress(Bitmap.CompressFormat.PNG, 100, it)
+                        }
+                    }
+                    frame.drawReveal(Canvas(actual), 2)
+                    assertFalse("partial reveal", actual.sameAs(expected))
+                    assertRegionEquals(expected, actual, Rect(35, 740, 600, 828))
+                    assertRegionEquals(expected, actual, Rect(300, 420, 1600, 555))
+                    actual.eraseColor(android.graphics.Color.TRANSPARENT)
+                    Canvas(actual).drawBitmap(frame.bitmap, 0f, 0f, null)
+                    frame.drawReveal(Canvas(actual), frame.timeline.text.length)
+                    assertTrue("completed blue reveal", actual.sameAs(expected))
+                } finally { expected.recycle(); actual.recycle(); frame.close() }
+            }
+        } finally { source.recycle(); renderer.releaseBuffers() }
+    }
+
     @Test fun rubyAndJapaneseFollowDialogueReveal() {
         val source = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
         val renderer = OverlayRenderer(context)

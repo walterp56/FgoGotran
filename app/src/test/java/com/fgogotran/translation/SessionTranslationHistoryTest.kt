@@ -191,6 +191,20 @@ class SessionTranslationHistoryTest {
     }
 
     @Test
+    fun `new blue name and dialogue retain their sampled colours in LOG`() {
+        val blue = 0xff6079f0.toInt()
+        SessionTranslationHistory.add(SessionTranslationEntry(
+            speakerName = "黑影", dialogueText = "『不對』", originalDialogueText = "『違う』",
+            speakerNameColor = blue, dialogueTextColor = blue, targetLocale = "zh-Hant",
+            sourceKey = "blue-shadow", dialogueSourceKey = "blue-dialogue"
+        ))
+        val entry = SessionTranslationHistory.entries.value.single()
+        assertEquals(blue, entry.speakerNameColor)
+        assertEquals(blue, entry.dialogueTextColor)
+        assertEquals("『不對』", entry.dialogueText)
+    }
+
+    @Test
     fun `early duplicate refresh does not suppress dialogue on an existing choice row`() {
         val original = SessionTranslationEntry(
             dialogueText = "媽媽，可以嗎？",

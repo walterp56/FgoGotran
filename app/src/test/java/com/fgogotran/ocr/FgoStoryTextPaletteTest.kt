@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 class FgoStoryTextPaletteTest {
     @Test
     fun `legacy exact colours and vote indices stay unchanged`() {
-        listOf(0xF5F5F0, 0xDC0000, 0x50EBEB, 0xC5E35E).forEachIndexed { index, rgb ->
+        listOf(0xF5F5F0, 0xDC0000, 0x50EBEB, 0xC5E35E, 0xFF69B4, 0x8753D1, 0xB86349).forEachIndexed { index, rgb ->
             assertEquals(index, nearest(rgb))
             assertEquals(rgb or (0xff shl 24), FgoStoryTextPalette.samples[index].renderColor)
         }
@@ -17,7 +17,7 @@ class FgoStoryTextPaletteTest {
 
     @Test
     fun `all additional source colours vote for themselves and pass the ink gate`() {
-        assertEquals(listOf(0xFF69B4, 0x8753D1, 0xB86349),
+        assertEquals(listOf(0xFF69B4, 0x8753D1, 0xB86349, 0x6079F0),
             FgoStoryTextPalette.samples.drop(4).map { it.rgb })
         FgoStoryTextPalette.samples.drop(4).forEach { sample ->
             assertEquals(sample.rgb, FgoStoryTextPalette.samples[nearest(sample.rgb)].rgb)
@@ -26,6 +26,28 @@ class FgoStoryTextPaletteTest {
             ))
             assertEquals(sample.family, family(sample.rgb))
         }
+    }
+
+    @Test
+    fun `blue screenshot cores pass independently of purple cyan and dark plates`() {
+        listOf(0x6079F0, 0x617AF3, 0x627BF5, 0x556BD5, 0x5267CD).forEach { rgb ->
+            assertEquals(FgoStoryTextPalette.Family.BLUE, family(rgb))
+            assertEquals(7, nearest(rgb))
+        }
+        listOf(0x1B304E, 0x1B3355, 0x245484, 0x19467D).forEach { rgb ->
+            assertEquals(-1, nearest(rgb))
+            assertNull(family(rgb))
+        }
+        assertEquals(FgoStoryTextPalette.Family.PURPLE, family(0x8753D1))
+        assertEquals(2, nearest(0x50EBEB))
+        val blue = FgoStoryTextPalette.samples.last()
+        // Reject hue drift and dark edges without widening the purple tolerance.
+        assertFalse(blue.accepts(112, 119, 240, blue.distanceSquared(112, 119, 240)))
+        assertFalse(blue.accepts(96, 165, 225, blue.distanceSquared(96, 165, 225)))
+        assertFalse(blue.accepts(110, 121, 174, blue.distanceSquared(110, 121, 174)))
+        assertTrue(blue.accepts(96, 121, 240, 55 * 55))
+        assertFalse(blue.accepts(96, 121, 240, 55 * 55 + 1))
+        assertEquals(55 * 55, FgoStoryTextPalette.samples[5].maxDistanceSquared)
     }
 
     @Test
@@ -90,7 +112,7 @@ class FgoStoryTextPaletteTest {
     }
 
     @Test
-    fun `dialogue punctuation and annotation masks accept all seven colours`() {
+    fun `dialogue punctuation and annotation masks accept all supported colours`() {
         FgoStoryTextPalette.samples.forEach { sample ->
             assertTrue(FgoStoryTextPalette.isDialogueInk(
                 (sample.rgb shr 16) and 0xff, (sample.rgb shr 8) and 0xff, sample.rgb and 0xff
@@ -108,7 +130,7 @@ class FgoStoryTextPaletteTest {
         listOf(0xFFD14C, 0xE5BC7C, 0x797979, 0x677B32).forEach { rgb ->
             assertNull(family(rgb))
         }
-        assertEquals(7, FgoStoryTextPalette.samples.size)
+        assertEquals(8, FgoStoryTextPalette.samples.size)
     }
 
     @Test

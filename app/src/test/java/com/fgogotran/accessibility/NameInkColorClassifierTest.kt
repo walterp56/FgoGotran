@@ -49,6 +49,16 @@ class NameInkColorClassifierTest {
     }
 
     @Test
+    fun `blue names remain distinct from purple cyan and their blue plates`() {
+        assertEquals(NameInkColor.BLUE, classifyNameInkColor(96, 121, 240))
+        assertEquals(NameInkColor.BLUE, classifyNameInkColor(85, 107, 213))
+        assertEquals(NameInkColor.PURPLE, classifyNameInkColor(135, 83, 209))
+        listOf(Triple(27, 48, 78), Triple(36, 84, 132), Triple(25, 70, 125)).forEach { (r, g, b) ->
+            assertNull(classifyNameInkColor(r, g, b))
+        }
+    }
+
+    @Test
     fun `uses the same cyan threshold boundary as the text mask`() {
         assertTrue(isFgoCyanTextColor(105, 140, 140))
         assertFalse(isFgoCyanTextColor(106, 140, 140))

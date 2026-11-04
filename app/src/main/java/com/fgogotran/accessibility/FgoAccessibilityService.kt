@@ -4976,29 +4976,36 @@ class FgoAccessibilityService : AccessibilityService() {
 
         val bestIndex = matchCounts.indices.maxByOrNull { matchCounts[it] } ?: return null
         val bestCount = matchCounts[bestIndex]
-        if (region.region == TextRegion.NAME_LABEL) {
-            val runnerUp = matchCounts.indices
-                .filter { it != bestIndex }
-                .maxOfOrNull { matchCounts[it] }
-                ?: 0
+        val runnerUp = matchCounts.indices
+            .filter { it != bestIndex }
+            .maxOfOrNull { matchCounts[it] }
+            ?: 0
+        // A name is never two-coloured: retain the existing white fallback for ambiguous votes.
+        val ambiguousName = region.region == TextRegion.NAME_LABEL && bestIndex != 0 &&
+            bestCount < runnerUp * NAME_COLOR_MIN_WINNER_RATIO
+        val result = when {
+            ambiguousName -> FGO_RENDER_WHITE
+            bestCount >= MIN_PALETTE_TEXT_PIXELS -> colorSamples[bestIndex].renderColor
+            else -> null
+        }
+        if (region.region != TextRegion.CHOICE_BUTTON) {
+            val label = if (region.region == TextRegion.NAME_LABEL) "Name" else "Dialogue"
+            val fallback = when {
+                ambiguousName -> "ambiguous_name"
+                result == null -> "insufficient_pixels"
+                else -> "none"
+            }
+            val renderedRgb = Integer.toHexString((result ?: FGO_RENDER_WHITE) and 0xffffff)
+                .uppercase().padStart(6, '0')
             FgoLogger.debug(
                 tag,
-                "Name colour sample: lines=${region.lines.size}, " +
+                "$label colour sample: region=${region.region}, lines=${region.lines.size}, " +
                     "votes=${matchCounts.toList()}, picked=$bestIndex (${bestCount}px), " +
-                    "runnerUp=$runnerUp"
+                    "family=${colorSamples[bestIndex].family.takeIf { bestCount > 0 }}, " +
+                    "runnerUp=$runnerUp, render=#$renderedRgb, fallback=$fallback"
             )
-            // A name is never two-coloured: without a clear winner the white default is the only
-            // safe answer, otherwise bright scenery bleeding through the plate turns it red.
-            if (bestIndex != 0 && bestCount < runnerUp * NAME_COLOR_MIN_WINNER_RATIO) {
-                FgoLogger.debug(tag, "Name colour ambiguous; falling back to white")
-                return FGO_RENDER_WHITE
-            }
         }
-        return if (bestCount >= MIN_PALETTE_TEXT_PIXELS) {
-            colorSamples[bestIndex].renderColor
-        } else {
-            null
-        }
+        return result
     }
 
     private fun hasRedTextPixels(source: Bitmap, region: ClassifiedRegion): Boolean {

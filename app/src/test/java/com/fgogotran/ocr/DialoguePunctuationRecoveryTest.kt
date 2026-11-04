@@ -243,7 +243,7 @@ class DialoguePunctuationRecoveryTest {
     }
 
     @Test
-    fun `all seven story colours recover punctuation`() {
+    fun `all supported story colours recover punctuation`() {
         FgoStoryTextPalette.samples.forEach { sample ->
             val fixture = Fixture(ink = sample.renderColor)
             fixture.dots(20, 65)
