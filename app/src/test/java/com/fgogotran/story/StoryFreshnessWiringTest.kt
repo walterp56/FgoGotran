@@ -105,7 +105,7 @@ class StoryFreshnessWiringTest {
         assertTrue(check.contains("visualFingerprintFor(source, sceneSource.regions.map { it.region }, frame.pixels)"))
         assertTrue(check.contains("val isCurrent = isSourceVisuallyCurrent(sourceVisualFingerprint, expectedAutoStage = autoStage)"))
         assertTrue(check.substringAfter("if (!isCurrent) {").contains("return false"))
-        assertTrue(render.indexOf("isSourceVisuallyCurrent(") < render.indexOf("translationOverlay.updateImage(rendered)"))
+        assertTrue(render.indexOf("isSourceVisuallyCurrent(") < render.indexOf("translationOverlay.updateStoryImage(rendered,"))
         val compare = function("isSourceVisuallyCurrent")
         assertTrue(compare.contains("takeScreenshotCompat(timingLabel = \"FRESHNESS\") ?: return false"))
         assertTrue(compare.contains("masksAreSimilar(sample.mask, currentMask)"))

@@ -2,6 +2,8 @@ package com.fgogotran.overlay
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Rect
+import android.graphics.RectF
 import android.os.SystemClock
 import android.view.Choreographer
 import android.view.MotionEvent
@@ -17,6 +19,99 @@ internal class DialoguePlaybackView(context: Context) : ImageView(context) {
     private var paused = true
     private var visibleEnd = 0
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+    private var choiceExit: ChoiceExitFrame? = null
+    private var choiceExitStartedAt = 0L
+    private var choiceExitCompletion: ((Boolean) -> Unit)? = null
+    private var choiceFrameCallback: Choreographer.FrameCallback? = null
+    private var choiceWake: Runnable? = null
+    private var retiredChoiceBounds: List<Rect> = emptyList()
+    private var choiceSourceWidth = 0
+    private var choiceSourceHeight = 0
+    private var baseHiddenForChoiceExit = false
+    private val choiceClip = RectF()
+
+    fun startChoiceExit(frame: ChoiceExitFrame, startedAtMs: Long, onComplete: (Boolean) -> Unit) {
+        resetChoiceExit()
+        choiceExit = frame
+        retiredChoiceBounds = frame.bounds.map(::Rect)
+        choiceSourceWidth = frame.width
+        choiceSourceHeight = frame.height
+        choiceExitStartedAt = startedAtMs
+        choiceExitCompletion = onComplete
+        advanceChoiceExit()
+    }
+
+    fun hasChoiceExit(): Boolean = choiceExit != null
+    fun hasRetiredChoices(): Boolean = retiredChoiceBounds.isNotEmpty()
+    fun isBaseHiddenForChoiceExit(): Boolean = baseHiddenForChoiceExit
+
+    /** Keeps only choice patches visible while other render kinds follow their original hide timing. */
+    fun hideBaseDuringChoiceExit() {
+        if (choiceExit == null) return
+        baseHiddenForChoiceExit = true
+        invalidate()
+    }
+
+    fun restoreBaseContent() {
+        baseHiddenForChoiceExit = false
+        invalidate()
+    }
+
+    fun cancelChoiceExit() = finishChoiceExit(false)
+
+    /** New render only. Capture restoration deliberately retains the retired-choice mask. */
+    fun resetChoiceExit() {
+        finishChoiceExit(false)
+        retiredChoiceBounds = emptyList()
+        baseHiddenForChoiceExit = false
+        invalidate()
+    }
+
+    private fun finishChoiceExit(completed: Boolean) {
+        choiceWake?.let(::removeCallbacks)
+        choiceWake = null
+        choiceFrameCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
+        choiceFrameCallback = null
+        val frame = choiceExit
+        choiceExit = null
+        val callback = choiceExitCompletion
+        choiceExitCompletion = null
+        frame?.close()
+        callback?.invoke(completed)
+        invalidate()
+    }
+
+    private fun advanceChoiceExit() {
+        val frame = choiceExit ?: return
+        val elapsed = (SystemClock.elapsedRealtime() - choiceExitStartedAt).coerceAtLeast(0L)
+        val wait = ChoiceExitController.nextUpdateDelayMs(elapsed, frame.hasUnselected, frame.hasSelectedEffect)
+        if (wait == null) {
+            finishChoiceExit(true)
+            return
+        }
+        invalidate()
+        if (wait > 0L) {
+            val wake = object : Runnable {
+                override fun run() {
+                    if (choiceWake !== this) return
+                    choiceWake = null
+                    advanceChoiceExit()
+                }
+            }
+            choiceWake = wake
+            postDelayed(wake, wait)
+        } else {
+            val callback = object : Choreographer.FrameCallback {
+                override fun doFrame(frameTimeNanos: Long) {
+                    if (choiceFrameCallback !== this) return
+                    choiceFrameCallback = null
+                    advanceChoiceExit()
+                }
+            }
+            choiceFrameCallback = callback
+            Choreographer.getInstance().postFrameCallback(callback)
+        }
+    }
 
     fun startPlayback(frame: DialoguePlaybackFrame) {
         clearPlayback()
@@ -75,6 +170,41 @@ internal class DialoguePlaybackView(context: Context) : ImageView(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
+        if (!baseHiddenForChoiceExit) {
+            canvas.save()
+            for (bounds in retiredChoiceBounds) {
+                choiceClip.set(bounds)
+                drawable?.let { image ->
+                    // FIT_XY stretches the drawable bounds directly and reports an identity matrix.
+                    // Other scale types use intrinsic bounds plus imageMatrix. Both use this mapping.
+                    choiceClip.left *= image.bounds.width().toFloat() / choiceSourceWidth
+                    choiceClip.right *= image.bounds.width().toFloat() / choiceSourceWidth
+                    choiceClip.top *= image.bounds.height().toFloat() / choiceSourceHeight
+                    choiceClip.bottom *= image.bounds.height().toFloat() / choiceSourceHeight
+                    choiceClip.offset(image.bounds.left.toFloat(), image.bounds.top.toFloat())
+                }
+                imageMatrix.mapRect(choiceClip)
+                choiceClip.offset(paddingLeft.toFloat(), paddingTop.toFloat())
+                canvas.clipOutRect(choiceClip)
+            }
+            drawBaseContent(canvas)
+            canvas.restore()
+        }
+        choiceExit?.let { frame ->
+            canvas.save()
+            canvas.translate(paddingLeft.toFloat(), paddingTop.toFloat())
+            canvas.concat(imageMatrix)
+            drawable?.let { image ->
+                canvas.translate(image.bounds.left.toFloat(), image.bounds.top.toFloat())
+                canvas.scale(image.bounds.width().toFloat() / frame.width,
+                    image.bounds.height().toFloat() / frame.height)
+            }
+            frame.draw(canvas, (SystemClock.elapsedRealtime() - choiceExitStartedAt).coerceAtLeast(0L))
+            canvas.restore()
+        }
+    }
+
+    private fun drawBaseContent(canvas: Canvas) {
         super.onDraw(canvas)
         canvas.save()
         canvas.translate(paddingLeft.toFloat(), paddingTop.toFloat())
@@ -114,6 +244,7 @@ internal class DialoguePlaybackView(context: Context) : ImageView(context) {
     }
 
     override fun onDetachedFromWindow() {
+        cancelChoiceExit()
         pausePlayback()
         super.onDetachedFromWindow()
     }

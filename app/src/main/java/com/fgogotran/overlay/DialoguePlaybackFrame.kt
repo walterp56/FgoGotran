@@ -26,7 +26,8 @@ internal class DialoguePlaybackFrame(
     val bitmap: Bitmap,
     val panels: List<Panel>,
     private val exclusions: List<Rect>,
-    settings: DialoguePlaybackSettings
+    settings: DialoguePlaybackSettings,
+    val choices: List<ChoiceRenderRegion> = emptyList()
 ) : AutoCloseable {
     data class Layer(val bitmap: Bitmap, val left: Int, val top: Int) {
         private val destination = RectF(left.toFloat(), top.toFloat(), left + bitmap.width.toFloat(), top + bitmap.height.toFloat())

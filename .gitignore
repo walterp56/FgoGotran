@@ -330,3 +330,7 @@ docs/*
 !app/src/test/java/com/fgogotran/overlay/RubySpacingGraphicsTest.kt
 !app/src/test/java/com/fgogotran/overlay/AnnotationPreferencesGraphicsTest.kt
 !app/src/test/java/com/fgogotran/story/AutoStoryScenePolicyTest.kt
+# Choice exit timing, drawing and overlay lifecycle regressions.
+!app/src/test/java/com/fgogotran/overlay/ChoiceExitControllerTest.kt
+!app/src/test/java/com/fgogotran/overlay/ChoiceExitRenderTest.kt
+!app/src/test/java/com/fgogotran/overlay/ChoiceExitOverlayTest.kt

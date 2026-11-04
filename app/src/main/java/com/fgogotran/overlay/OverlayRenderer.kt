@@ -140,18 +140,24 @@ class OverlayRenderer @Inject constructor(
         screenHeight: Int
     ): Bitmap = renderInternal(bitmap, instructions, null)
 
+    internal fun renderWithChoices(bitmap: Bitmap, instructions: List<RenderInstruction>): ChoiceRenderResult {
+        val choices = mutableListOf<ChoiceRenderRegion>()
+        return ChoiceRenderResult(renderInternal(bitmap, instructions, null, choices), choices)
+    }
+
     /** Owns its final bitmap and small dialogue patches; no mutable renderer buffer escapes. */
     internal fun prepareDialoguePlayback(
         bitmap: Bitmap, instructions: List<RenderInstruction>, settings: DialoguePlaybackSettings
     ): DialoguePlaybackFrame {
         val panels = mutableListOf<DialoguePlaybackFrame.Panel>()
+        val choices = mutableListOf<ChoiceRenderRegion>()
         var owned: Bitmap? = null
         try {
-            val rendered = renderInternal(bitmap, instructions, panels)
+            val rendered = renderInternal(bitmap, instructions, panels, choices)
             owned = checkNotNull(rendered.copy(Bitmap.Config.ARGB_8888, false))
             return DialoguePlaybackFrame(owned, panels,
                 instructions.filter { it.region.region != TextRegion.DIALOGUE_BOX }
-                    .map { Rect(it.region.boundingBox) }, settings)
+                    .map { Rect(it.region.boundingBox) }, settings, choices)
         } catch (error: Throwable) {
             owned?.takeUnless { it.isRecycled }?.recycle()
             panels.forEach(DialoguePlaybackFrame::releasePanel)
@@ -160,7 +166,8 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun renderInternal(
-        bitmap: Bitmap, instructions: List<RenderInstruction>, panels: MutableList<DialoguePlaybackFrame.Panel>?
+        bitmap: Bitmap, instructions: List<RenderInstruction>, panels: MutableList<DialoguePlaybackFrame.Panel>?,
+        choices: MutableList<ChoiceRenderRegion>? = null
     ): Bitmap {
         FgoLogger.info(tag, "Rendering ${instructions.size} instructions onto ${bitmap.width}x${bitmap.height}")
 
@@ -184,7 +191,7 @@ class OverlayRenderer @Inject constructor(
             when (instruction.region.region) {
                 TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction, panels)
                 TextRegion.NAME_LABEL -> renderNameLabel(reusableCanvas, textPaint, instruction)
-                TextRegion.CHOICE_BUTTON -> renderChoiceButton(reusableCanvas, textPaint, instruction)
+                TextRegion.CHOICE_BUTTON -> renderChoiceButton(reusableCanvas, textPaint, instruction, choices)
             }
         }
 
@@ -736,7 +743,8 @@ class OverlayRenderer @Inject constructor(
     private fun renderBilingualChoiceButton(
         canvas: Canvas,
         paint: Paint,
-        instruction: RenderInstruction
+        instruction: RenderInstruction,
+        choices: MutableList<ChoiceRenderRegion>? = null
     ) {
         val scale = screenScale(canvas)
         val box = fixedChoiceRenderBox(instruction.region.boundingBox, canvas, scale) ?: run {
@@ -800,27 +808,39 @@ class OverlayRenderer @Inject constructor(
             RectF(box.left + clearInsetX, box.top + 8f * scale, box.right - clearInsetX, box.bottom - 8f * scale),
             listOf(layout.translationText))
         paint.textSize = layout.translationTextSize
+        val translationX = textArea.centerX() - paint.measureRenderText(layout.translationText) / 2f
         drawShadowedText(
             canvas = canvas,
             paint = paint,
             text = layout.translationText,
-            x = textArea.centerX() - paint.measureRenderText(layout.translationText) / 2f,
+            x = translationX,
             y = translationBaseline + downwardShift,
             textColor = textColor,
             scale = scale
         )
         paint.textSize = layout.originalTextSize
+        val originalX = textArea.centerX() - paint.measureRenderText(layout.originalText, RubyRenderText.Mode.INLINE) / 2f
         drawShadowedText(
             canvas = canvas,
             paint = paint,
             text = layout.originalText,
-            x = textArea.centerX() - paint.measureRenderText(layout.originalText, RubyRenderText.Mode.INLINE) / 2f,
+            x = originalX,
             y = originalBaseline + downwardShift,
             textColor = ORIGINAL_TEXT_COLOR,
             scale = scale,
             rubyMode = RubyRenderText.Mode.INLINE
         )
         canvas.restore()
+        choices?.add(choiceRenderRegion(instruction.region.boundingBox, box, scale, paint, textArea,
+            listOf(
+                ChoiceTextRun(layout.translationText,
+                    translationX,
+                    translationBaseline + downwardShift, layout.translationTextSize, textColor),
+                ChoiceTextRun(layout.originalText,
+                    originalX,
+                    originalBaseline + downwardShift, layout.originalTextSize, ORIGINAL_TEXT_COLOR,
+                    RubyRenderText.Mode.INLINE)
+            )))
     }
 
     /**
@@ -829,10 +849,11 @@ class OverlayRenderer @Inject constructor(
     private fun renderChoiceButton(
         canvas: Canvas,
         paint: Paint,
-        instruction: RenderInstruction
+        instruction: RenderInstruction,
+        choices: MutableList<ChoiceRenderRegion>? = null
     ) {
         if (instruction.shouldRenderOriginalText()) {
-            renderBilingualChoiceButton(canvas, paint, instruction)
+            renderBilingualChoiceButton(canvas, paint, instruction, choices)
             return
         }
 
@@ -884,6 +905,45 @@ class OverlayRenderer @Inject constructor(
             listOf(text))
         drawShadowedText(canvas, paint, text, x, y, textColor, scale)
         canvas.restore()
+        choices?.add(choiceRenderRegion(instruction.region.boundingBox, box, scale, paint, textArea,
+            listOf(ChoiceTextRun(text, x, y, paint.textSize, textColor))))
+    }
+
+    private data class ChoiceTextRun(
+        val text: String, val x: Float, val baseline: Float, val textSize: Float, val color: Int,
+        val rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
+    )
+
+    private fun choiceRenderRegion(
+        hitBounds: Rect, box: RectF, scale: Float, sourcePaint: Paint, textArea: RectF,
+        runs: List<ChoiceTextRun>
+    ): ChoiceRenderRegion {
+        val paintBounds = Rect()
+        // Includes antialiasing at the clear plane's edge, plus every clipped annotation and shadow.
+        RectF(box.left + 47f * scale - 1f, box.top + 8f * scale - 1f,
+            box.right - 47f * scale + 1f, box.bottom - 8f * scale + 1f).roundOut(paintBounds)
+        val clearBox = RectF(box.left + 47f * scale, box.top + 8f * scale,
+            box.right - 47f * scale, box.bottom - 8f * scale)
+        val frozenPaint = Paint(sourcePaint)
+        val frozenClearPaint = Paint(choiceClearPaint)
+        val frozenTextArea = RectF(textArea)
+        val frozenRuns = runs.toList()
+        val visual = ChoiceSelectionVisualPlan(clearBox, 10f * scale,
+            drawBackground = { target ->
+                target.drawRoundRect(clearBox, 10f * scale, 10f * scale, frozenClearPaint)
+            },
+            drawText = { target ->
+                val paint = Paint(frozenPaint)
+                target.save()
+                clipTextAndRuby(target, frozenTextArea, clearBox, listOf(frozenRuns.first().text))
+                for (run in frozenRuns) {
+                    paint.textSize = run.textSize
+                    drawShadowedText(target, paint, run.text, run.x, run.baseline, run.color, scale,
+                        rubyMode = run.rubyMode)
+                }
+                target.restore()
+            })
+        return ChoiceRenderRegion(Rect(hitBounds), paintBounds, visual)
     }
 
     private fun fixedChoiceRenderBox(rawBox: Rect, canvas: Canvas, scale: Float): RectF? {

@@ -67,6 +67,7 @@ import com.fgogotran.overlay.RenderInstruction
 import com.fgogotran.overlay.TextRegion
 import com.fgogotran.overlay.TranslationOverlay
 import com.fgogotran.overlay.DialoguePlaybackFrame
+import com.fgogotran.overlay.ChoiceRenderRegion
 import com.fgogotran.overlay.DialoguePlaybackSettings
 import com.fgogotran.runner.FgoRunnerOverlay
 import com.fgogotran.runner.FgoRunnerService
@@ -323,6 +324,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val NEXT_DIALOGUE_POLL_INTERVAL = 400L
         private const val NEXT_DIALOGUE_POLL_TIMEOUT = 2_500L
         private const val TAP_PASSTHROUGH_SETTLE_DELAY = 56L
+        private const val TAP_REPLAY_DURATION_MS = 80L
         private const val TAP_REPLAY_TIMEOUT = 500L
         private const val VOICE_HINT_REQUEST_TIMEOUT_MS = 2_500L
         private const val OVERLAY_BUTTON_LONG_PRESS_TIMEOUT = 420L
@@ -3209,6 +3211,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val renderStartedAt = SystemClock.elapsedRealtime()
         val playbackSettings = dialoguePlaybackSettings // One immutable preference snapshot per scene.
         var pendingPlayback: DialoguePlaybackFrame? = null
+        var pendingChoices: List<ChoiceRenderRegion> = emptyList()
         var renderDuration: Long
         var overlayStartedAt: Long
         try {
@@ -3217,7 +3220,9 @@ class FgoAccessibilityService : AccessibilityService() {
                     instructions.any { it.region.region == TextRegion.DIALOGUE_BOX }) {
                     overlayRenderer.prepareDialoguePlayback(source, instructions, playbackSettings)
                         .also { pendingPlayback = it }.bitmap
-                } else overlayRenderer.render(source, instructions, currentScreenWidth, currentScreenHeight)
+                } else overlayRenderer.renderWithChoices(source, instructions).also {
+                    pendingChoices = it.choices
+                }.bitmap
             }
             renderDuration = SystemClock.elapsedRealtime() - renderStartedAt
             if (processingVersion != stopVersion) {
@@ -3235,8 +3240,8 @@ class FgoAccessibilityService : AccessibilityService() {
             overlayStartedAt = SystemClock.elapsedRealtime()
             restoreFgoForegroundAfterCapture(mode.name)
             val presented = pendingPlayback?.let { translationOverlay.updatePlayback(it) } ?: run {
-                translationOverlay.updateImage(rendered)
-                translationOverlay.isShowing()
+                translationOverlay.updateStoryImage(rendered, pendingChoices,
+                    hasOtherContent = instructions.any { it.region.region != TextRegion.CHOICE_BUTTON })
             }
             if (!presented) {
                 FgoLogger.warn(tag, "Overlay display failed; keeping scene retryable without a render commit")
@@ -6687,12 +6692,15 @@ class FgoAccessibilityService : AccessibilityService() {
             return
         }
 
+        val choiceTap = translationOverlay.takeChoiceTap()
+        val overlayGeneration = translationOverlay.renderGeneration
         val tapMode = TranslationTrigger.translationMode()
         val previousAutoFingerprint = lastAutoRenderedSourceText
         val tapProcessingVersion = stopVersion
         val tapRenderGeneration = storyTapHandoff.autoRenderGeneration
         fun replayContextCurrent(): Boolean =
             isOverlayTapContextCurrent(tapProcessingVersion, tapMode) &&
+                translationOverlay.renderGeneration == overlayGeneration &&
                 storyTapHandoff.autoRenderGeneration == tapRenderGeneration &&
                 (storyTapScene == null || storyTapHandoff.ownsScene(storyTapScene))
         if (!replayContextCurrent()) return
@@ -6702,6 +6710,7 @@ class FgoAccessibilityService : AccessibilityService() {
         // AUTO handoff may run OCR inside this replay; retain the same story owner
         // so mode changes and Crop can cancel and join it, not just its old flags.
         translationJob = launchRunnerWork {
+            var choiceExit: kotlinx.coroutines.Deferred<Boolean>? = null
             try {
                 if (!replayContextCurrent()) return@launchRunnerWork
                 if (!canPerformGestures()) {
@@ -6720,8 +6729,10 @@ class FgoAccessibilityService : AccessibilityService() {
                 translationOverlay.setTranslatedOverlayTouchable(false)
                 delay(TAP_PASSTHROUGH_SETTLE_DELAY)
                 if (!replayContextCurrent()) return@launchRunnerWork
+                var gameTapStartedAtMs = 0L
                 val dispatched = try {
                     withTimeoutOrNull(TAP_REPLAY_TIMEOUT) {
+                        gameTapStartedAtMs = SystemClock.elapsedRealtime()
                         dispatchTapToFgo(x, y)
                     } ?: run {
                         FgoLogger.warn(tag, "Overlay tap replay timed out")
@@ -6741,11 +6752,26 @@ class FgoAccessibilityService : AccessibilityService() {
                         tapMode != TranslationMode.MANUAL &&
                             storyTapHandoff.beginAfterReplay(it, SystemClock.elapsedRealtime())
                     }
+                    choiceExit = choiceTap?.let {
+                        // FGO confirms a choice on release. Keep the fixed gesture timeline even
+                        // when the completion callback is delivered late; never restart at callback time.
+                        translationOverlay.beginChoiceExit(it, gameTapStartedAtMs + TAP_REPLAY_DURATION_MS)
+                    }
+                    choiceExit?.let { exit ->
+                        // Keep other render kinds on their old immediate/120ms hide schedule.
+                        // The existing replay owner excludes ordinary capture until these patches retire.
+                        if (tapMode != TranslationMode.AUTO || handoffScene == null) {
+                            delay(TAP_TRANSLATION_READ_HOLD_DELAY)
+                        }
+                        if (!replayContextCurrent()) return@launchRunnerWork
+                        translationOverlay.hideNonChoiceContentDuringExit(overlayGeneration)
+                        if (!exit.await() || !replayContextCurrent()) return@launchRunnerWork
+                    }
                     if (tapMode == TranslationMode.AUTO && handoffScene != null) {
                         FgoLogger.debug(
                             tag,
                             if (handoffScene.kind == StoryTapHandoff.Kind.CHOICES) {
-                                "Overlay choice tap replay completed; polling next scene immediately"
+                                "Overlay choice tap replay completed; polling after choice exit"
                             } else {
                                 "Overlay tap replay completed; holding translation before polling next scene"
                             }
@@ -6768,7 +6794,7 @@ class FgoAccessibilityService : AccessibilityService() {
                             )
                         }
                         FgoLogger.debug(tag, "Overlay tap replay completed; holding translation before capture hide")
-                        delay(TAP_TRANSLATION_READ_HOLD_DELAY)
+                        if (choiceExit == null) delay(TAP_TRANSLATION_READ_HOLD_DELAY)
                         if (!replayContextCurrent()) return@launchRunnerWork
                         translationOverlay.hideForCapture()
                     }
@@ -6777,9 +6803,11 @@ class FgoAccessibilityService : AccessibilityService() {
                     translationOverlay.setTranslatedOverlayTouchable(true)
                 }
             } finally {
+                if (choiceExit?.isCompleted == false) translationOverlay.cancelChoiceExit(overlayGeneration)
                 if (tapProcessingVersion == stopVersion) {
                     // Restore only our unchanged scene, never alter a newer render.
                     if (TranslationTrigger.translationMode() == tapMode &&
+                        translationOverlay.renderGeneration == overlayGeneration &&
                         storyTapHandoff.autoRenderGeneration == tapRenderGeneration &&
                         (storyTapScene == null || storyTapHandoff.ownsScene(storyTapScene)) &&
                         translationOverlay.isShowing()
@@ -7003,7 +7031,7 @@ class FgoAccessibilityService : AccessibilityService() {
         if (!isEffectiveFgoForeground) return false
         val path = Path().apply { moveTo(x, y) }
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0L, 80L))
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, TAP_REPLAY_DURATION_MS))
             .build()
 
         return suspendCancellableCoroutine { cont ->

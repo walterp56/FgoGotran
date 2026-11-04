@@ -12,14 +12,18 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.ImageView
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.story.StoryTapHandoff
 import com.fgogotran.util.FgoLogger
 import com.fgogotran.util.setFloatingHandleGestureExclusion
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 
 /**
  * Manages the TYPE_ACCESSIBILITY_OVERLAY system windows.
@@ -48,6 +52,14 @@ class TranslationOverlay @Inject constructor(
     private var screenWidth = 0
     private var screenHeight = 0
     private var latestTranslatedBitmap: Bitmap? = null
+    private var renderedChoices: List<ChoiceRenderRegion> = emptyList()
+    private var hasNonChoiceContent = true
+    private val choiceTapGate = DialoguePlaybackTapGate()
+    private var choiceDownIndex = -1
+    private var pendingChoiceTap: ChoiceTap? = null
+    internal var renderGeneration = 0L
+        private set
+    internal data class ChoiceTap(val generation: Long, val selectedIndex: Int)
     private var onOverlayTap: ((Float, Float) -> Unit)? = null
     private var onOverlayTouch: ((MotionEvent) -> Boolean)? = null
     private var floatingHandleBounds: Rect? = null
@@ -143,6 +155,7 @@ class TranslationOverlay @Inject constructor(
 
     /** Displays a current-sized rendered bitmap, reusing the native window when possible. */
     fun showTranslatedImage(bitmap: Bitmap) {
+        resetChoicePresentation()
         overlayView?.clearPlayback()
         showOrUpdateTranslatedImage(bitmap)
     }
@@ -152,6 +165,8 @@ class TranslationOverlay @Inject constructor(
         hideOverlayView(clearBitmap = true)
         showOrUpdateTranslatedImage(frame.bitmap)
         if (!isOverlayShowing || latestTranslatedBitmap !== frame.bitmap) return false
+        renderedChoices = frame.choices
+        hasNonChoiceContent = true
         overlayView?.startPlayback(frame)
         if (!overlayTouchable) overlayView?.pausePlayback()
         return true
@@ -159,6 +174,79 @@ class TranslationOverlay @Inject constructor(
 
     internal fun handleDialoguePlaybackTouch(event: MotionEvent): Boolean =
         isOverlayShowing && overlayTouchable && overlayView?.handlePlaybackTouch(event) == true
+
+    private fun resetChoicePresentation() {
+        renderGeneration++
+        renderedChoices = emptyList()
+        hasNonChoiceContent = true
+        choiceTapGate.cancel()
+        pendingChoiceTap = null
+        choiceDownIndex = -1
+        overlayView?.resetChoiceExit()
+    }
+
+    private fun trackChoiceTouch(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pendingChoiceTap = null
+                choiceDownIndex = renderedChoices.indexOfFirst {
+                    it.hitBounds.contains(event.rawX.toInt(), event.rawY.toInt())
+                }
+                val eligible = choiceDownIndex >= 0 && !StoryTapHandoff.isControlTap(
+                    event.rawX, event.rawY, screenWidth, screenHeight)
+                choiceTapGate.down(renderGeneration, event.rawX, event.rawY,
+                    ViewConfiguration.get(context).scaledTouchSlop.toFloat(), eligible)
+            }
+            MotionEvent.ACTION_MOVE -> choiceTapGate.move(event.rawX, event.rawY)
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_CANCEL -> {
+                choiceTapGate.cancel()
+                pendingChoiceTap = null
+            }
+            MotionEvent.ACTION_UP -> {
+                pendingChoiceTap = if (choiceTapGate.up(renderGeneration, event.rawX, event.rawY) &&
+                    renderedChoices.getOrNull(choiceDownIndex)?.hitBounds
+                        ?.contains(event.rawX.toInt(), event.rawY.toInt()) == true
+                ) ChoiceTap(renderGeneration, choiceDownIndex) else null
+            }
+        }
+    }
+
+    internal fun takeChoiceTap(): ChoiceTap? = pendingChoiceTap.also { pendingChoiceTap = null }
+
+    internal fun beginChoiceExit(tap: ChoiceTap, gameTapCompletedAtMs: Long): Deferred<Boolean>? {
+        val view = overlayView ?: return null
+        val bitmap = latestTranslatedBitmap ?: return null
+        if (tap.generation != renderGeneration || !isOverlayShowing || controlsVisible ||
+            tap.selectedIndex !in renderedChoices.indices || view.hasRetiredChoices()) return null
+        val frame = try {
+            ChoiceExitFrame.capture(bitmap, renderedChoices, tap.selectedIndex)
+        } catch (e: Exception) {
+            FgoLogger.warn(tag, "Could not retain choice patches; using existing tap handoff", e)
+            return null
+        }
+        val completion = CompletableDeferred<Boolean>()
+        renderedChoices = emptyList() // A displayed list can only start one exit.
+        pendingChoiceTap = null
+        view.startChoiceExit(frame, gameTapCompletedAtMs) { completed ->
+            if (renderGeneration == tap.generation) {
+                // Never retain an empty input target, including a mixed scene whose base has hidden.
+                if (!hasNonChoiceContent) latestTranslatedBitmap = null
+                if (!hasNonChoiceContent || view.isBaseHiddenForChoiceExit()) {
+                    hideOverlayView(clearBitmap = false)
+                }
+            }
+            completion.complete(completed)
+        }
+        return completion
+    }
+
+    internal fun hideNonChoiceContentDuringExit(generation: Long) {
+        if (generation == renderGeneration) overlayView?.hideBaseDuringChoiceExit()
+    }
+
+    internal fun cancelChoiceExit(generation: Long) {
+        if (generation == renderGeneration) overlayView?.cancelChoiceExit()
+    }
 
     private fun showOrUpdateTranslatedImage(bitmap: Bitmap) {
         val wm = windowManager ?: return
@@ -175,6 +263,7 @@ class TranslationOverlay @Inject constructor(
             if (!setTranslatedOverlayTouchable(true)) return
             latestTranslatedBitmap = bitmap
             it.setImageBitmap(bitmap)
+            it.restoreBaseContent()
             it.visibility = View.VISIBLE
             it.alpha = 1f
             isOverlayShowing = true
@@ -192,8 +281,11 @@ class TranslationOverlay @Inject constructor(
                 // A queued event from the old input target must not replay through a menu.
                 if (controlsVisible) return@setOnTouchListener true
                 if (onOverlayTouch?.invoke(event) == true) {
+                    choiceTapGate.cancel()
+                    pendingChoiceTap = null
                     return@setOnTouchListener true
                 }
+                trackChoiceTouch(event)
                 if (event.actionMasked == MotionEvent.ACTION_UP) {
                     FgoLogger.debug(
                         this@TranslationOverlay.tag,
@@ -238,14 +330,21 @@ class TranslationOverlay @Inject constructor(
      * This is the preferred method — it avoids removing/re-adding the window on every frame.
      */
     fun updateImage(bitmap: Bitmap) {
+        updateStoryImage(bitmap, emptyList(), hasOtherContent = true)
+    }
+
+    internal fun updateStoryImage(
+        bitmap: Bitmap,
+        choices: List<ChoiceRenderRegion>,
+        hasOtherContent: Boolean
+    ): Boolean {
+        resetChoicePresentation()
         overlayView?.clearPlayback()
-        if (overlayView != null) {
-            FgoLogger.debug(tag, "Updating overlay image")
-            showOrUpdateTranslatedImage(bitmap)
-        } else {
-            FgoLogger.debug(tag, "No existing overlay, creating new")
-            showTranslatedImage(bitmap)
-        }
+        showOrUpdateTranslatedImage(bitmap)
+        if (!isOverlayShowing || latestTranslatedBitmap !== bitmap) return false
+        renderedChoices = choices
+        hasNonChoiceContent = hasOtherContent
+        return true
     }
 
     /** Temporarily hides the translated window during OCR, retaining its rendered image. */
@@ -282,6 +381,11 @@ class TranslationOverlay @Inject constructor(
     fun setControlsVisible(visible: Boolean) {
         if (controlsVisible == visible) return
         controlsVisible = visible
+        if (visible) {
+            choiceTapGate.cancel()
+            pendingChoiceTap = null
+            overlayView?.cancelChoiceExit()
+        }
         setTranslatedOverlayTouchable(requestedOverlayTouchable)
     }
 
@@ -314,6 +418,7 @@ class TranslationOverlay @Inject constructor(
     }
 
     private fun hideOverlayView(clearBitmap: Boolean) {
+        if (clearBitmap) resetChoicePresentation() else overlayView?.cancelChoiceExit()
         overlayView?.let {
             it.pausePlayback()
             it.alpha = 0f
@@ -331,6 +436,7 @@ class TranslationOverlay @Inject constructor(
     }
 
     private fun removeOverlayView() {
+        resetChoicePresentation()
         val wm = windowManager ?: return
         overlayView?.let {
             try {

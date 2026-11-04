@@ -73,7 +73,7 @@ class AutoStoryScenePolicyTest {
         val render = function("translateAndRenderScene")
         assertTrue(render.indexOf("AutoStoryScenePolicy.contentStage(") < render.indexOf("translateSceneSource("))
         assertTrue(render.contains("|| autoStage != null")) // Fast AUTO cache hits also confirm the scene kind.
-        assertTrue(render.indexOf("isSourceVisuallyCurrent(") < render.indexOf("translationOverlay.updateImage("))
+        assertTrue(render.indexOf("isSourceVisuallyCurrent(") < render.indexOf("translationOverlay.updateStoryImage("))
         val freshness = function("isSourceVisuallyCurrent")
         assertTrue(freshness.contains("if (strictDiamond) emptyList() else"))
         assertTrue(freshness.contains("&& markerReport.evidence"))
