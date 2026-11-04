@@ -2172,7 +2172,7 @@
   {
     "jp_name": "九紋竜エリザ",
     "cn_name": "九纹龙伊丽莎",
-    "en_name": "Nine-Tattoo Dragon Elisa",
+    "en_name": "Elisa the Nine-Tattooed Dragon",
     "category": "character",
     "aliases": ""
   },
@@ -2333,7 +2333,7 @@
   {
     "jp_name": "ケット・クー・ミコケル",
     "cn_name": "凯特·库·米可科尔",
-    "en_name": "Cait Cú Cerpriestess",
+    "en_name": "Cait Cú MikoCer",
     "category": "character",
     "aliases": "ケットクーミコケル"
   },
@@ -2487,7 +2487,7 @@
   {
     "jp_name": "静希草十郎",
     "cn_name": "静希草十郎",
-    "en_name": "Shizuki Soujuurou",
+    "en_name": "Sizuki Soujyuro",
     "category": "character",
     "aliases": ""
   },
@@ -3649,7 +3649,7 @@
   {
     "jp_name": "ネモ・エンジン",
     "cn_name": "尼莫·引擎",
-    "en_name": "Nemo Engine",
+    "en_name": "Nemo Engineer",
     "category": "character",
     "aliases": "ネモエンジン"
   },
@@ -3663,7 +3663,7 @@
   {
     "jp_name": "ネモ・ベーカリー",
     "cn_name": "尼莫·烘焙坊",
-    "en_name": "Nemo Bakery",
+    "en_name": "Nemo Baker",
     "category": "character",
     "aliases": "ネモベーカリー"
   },
@@ -4020,7 +4020,7 @@
   {
     "jp_name": "ムリアン",
     "cn_name": "缪瑞恩",
-    "en_name": "Muryan",
+    "en_name": "Murian",
     "category": "character",
     "aliases": ""
   },
@@ -4244,7 +4244,7 @@
   {
     "jp_name": "イシュキック",
     "cn_name": "希基克",
-    "en_name": "Ixquic",
+    "en_name": "Xquic",
     "category": "character",
     "aliases": ""
   },
@@ -4489,14 +4489,28 @@
   {
     "jp_name": "エルン",
     "cn_name": "奥露恩",
-    "en_name": "Örun",
+    "en_name": "Rún",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "エルルーン",
+    "cn_name": "奥尔露恩",
+    "en_name": "Ölrún",
     "category": "character",
     "aliases": ""
   },
   {
     "jp_name": "イルス",
     "cn_name": "洁尔诗",
-    "en_name": "Ers",
+    "en_name": "Irs",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ゲイルスケグル",
+    "cn_name": "洁尔诗科古尔",
+    "en_name": "Geirskögul",
     "category": "character",
     "aliases": ""
   },
@@ -4723,5 +4737,19 @@
     "en_name": "Hessian Lobo",
     "category": "character",
     "aliases": "ヘシアンロボ"
+  },
+  {
+    "jp_name": "キリエ",
+    "cn_name": "基列",
+    "en_name": "Kyrie",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "折田さん",
+    "cn_name": "折田同学",
+    "en_name": "Oruta",
+    "category": "character",
+    "aliases": ""
   }
 ]

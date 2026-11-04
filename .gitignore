@@ -334,6 +334,8 @@ docs/*
 !app/src/test/java/com/fgogotran/overlay/ChoiceExitControllerTest.kt
 !app/src/test/java/com/fgogotran/overlay/ChoiceExitRenderTest.kt
 !app/src/test/java/com/fgogotran/overlay/ChoiceExitOverlayTest.kt
+# Dialogue-only read-tail timing, pixel isolation and lifecycle regressions.
+!app/src/test/java/com/fgogotran/overlay/DialogueExitTest.kt
 # Blue story-ink sampling, rendering and original screenshot crops.
 !app/src/test/java/com/fgogotran/accessibility/StoryTextColorSamplingTest.kt
 !app/src/test/java/com/fgogotran/overlay/StoryTextColorRenderTest.kt

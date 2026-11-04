@@ -29,6 +29,18 @@ internal class DialoguePlaybackView(context: Context) : ImageView(context) {
     private var choiceSourceHeight = 0
     private var baseHiddenForChoiceExit = false
     private val choiceClip = RectF()
+    private var dialogueExitTail = false
+
+    /** Dialogue and speaker name keep their existing pixels until their shared exit deadline. */
+    fun showDialogueExitTail() {
+        dialogueExitTail = true
+    }
+
+    fun hasDialogueExitTail(): Boolean = dialogueExitTail
+
+    fun clearDialogueExitTail() {
+        dialogueExitTail = false
+    }
 
     fun startChoiceExit(frame: ChoiceExitFrame, startedAtMs: Long, onComplete: (Boolean) -> Unit) {
         resetChoiceExit()

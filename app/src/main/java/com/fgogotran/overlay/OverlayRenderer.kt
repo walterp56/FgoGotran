@@ -140,9 +140,11 @@ class OverlayRenderer @Inject constructor(
         screenHeight: Int
     ): Bitmap = renderInternal(bitmap, instructions, null)
 
-    internal fun renderWithChoices(bitmap: Bitmap, instructions: List<RenderInstruction>): ChoiceRenderResult {
+    internal fun renderWithChoices(
+        bitmap: Bitmap, instructions: List<RenderInstruction>, dialogueBounds: MutableList<Rect>? = null
+    ): ChoiceRenderResult {
         val choices = mutableListOf<ChoiceRenderRegion>()
-        return ChoiceRenderResult(renderInternal(bitmap, instructions, null, choices), choices)
+        return ChoiceRenderResult(renderInternal(bitmap, instructions, null, choices, dialogueBounds), choices)
     }
 
     /** Owns its final bitmap and small dialogue patches; no mutable renderer buffer escapes. */
@@ -167,7 +169,8 @@ class OverlayRenderer @Inject constructor(
 
     private fun renderInternal(
         bitmap: Bitmap, instructions: List<RenderInstruction>, panels: MutableList<DialoguePlaybackFrame.Panel>?,
-        choices: MutableList<ChoiceRenderRegion>? = null
+        choices: MutableList<ChoiceRenderRegion>? = null,
+        dialogueBounds: MutableList<Rect>? = null
     ): Bitmap {
         FgoLogger.info(tag, "Rendering ${instructions.size} instructions onto ${bitmap.width}x${bitmap.height}")
 
@@ -189,7 +192,7 @@ class OverlayRenderer @Inject constructor(
                 originalInstruction.showAnnotations))
             textPaint.typeface = FgoTypefaceProvider.storyTypeface(context, instruction.targetLocale)
             when (instruction.region.region) {
-                TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction, panels)
+                TextRegion.DIALOGUE_BOX -> renderDialogueBox(reusableCanvas, textPaint, instruction, panels, dialogueBounds)
                 TextRegion.NAME_LABEL -> renderNameLabel(reusableCanvas, textPaint, instruction)
                 TextRegion.CHOICE_BUTTON -> renderChoiceButton(reusableCanvas, textPaint, instruction, choices)
             }
@@ -244,10 +247,11 @@ class OverlayRenderer @Inject constructor(
         canvas: Canvas,
         paint: Paint,
         instruction: RenderInstruction,
-        panels: MutableList<DialoguePlaybackFrame.Panel>? = null
+        panels: MutableList<DialoguePlaybackFrame.Panel>? = null,
+        dialogueBounds: MutableList<Rect>? = null
     ) {
         if (instruction.shouldRenderOriginalText()) {
-            renderBilingualDialogueBox(canvas, paint, instruction, panels)
+            renderBilingualDialogueBox(canvas, paint, instruction, panels, dialogueBounds)
             return
         }
 
@@ -283,6 +287,7 @@ class OverlayRenderer @Inject constructor(
         canvas.clipRect(clearBox)
         drawPlannedDialogueRows(canvas, paint, layout.plannedRows, textArea.left, textColor, layout.drawingScale)
         canvas.restore()
+        dialogueBounds?.add(Rect().also(clearBox::roundOut))
         panels?.add(captureDialoguePlayback(clearBox, instruction.region.boundingBox, layout.plannedRows,
             textArea.left, textColor, layout.drawingScale, paint, 12f * scale))
     }
@@ -363,7 +368,8 @@ class OverlayRenderer @Inject constructor(
         canvas: Canvas,
         paint: Paint,
         instruction: RenderInstruction,
-        panels: MutableList<DialoguePlaybackFrame.Panel>? = null
+        panels: MutableList<DialoguePlaybackFrame.Panel>? = null,
+        dialogueBounds: MutableList<Rect>? = null
     ) {
         val scale = screenScale(canvas)
         val textColor = instruction.textColor ?: FGO_TEXT_COLOR
@@ -381,6 +387,7 @@ class OverlayRenderer @Inject constructor(
         drawPlannedDialogueRows(canvas, paint, layout.plannedRows, layout.textArea.left,
             textColor, layout.drawingScale)
         canvas.restore()
+        dialogueBounds?.add(Rect().also(layout.clearBox::roundOut))
         panels?.add(captureDialoguePlayback(layout.clearBox, instruction.region.boundingBox, layout.plannedRows,
             layout.textArea.left, textColor, layout.drawingScale, paint, 12f * scale))
     }

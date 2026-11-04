@@ -31,6 +31,59 @@ class DialoguePlaybackRenderTest {
         )
     }
 
+    @Test fun dialogueAndNameExitTailRetainsNativePixelsTogether() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val renderer = OverlayRenderer(context)
+            val source = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+            try {
+                for (locale in listOf("zh-Hans", "zh-Hant", "en")) for (bilingual in listOf(false, true)) {
+                    val input = instructions(locale, bilingual).filter { it.region.region != TextRegion.CHOICE_BUTTON }
+                    val bounds = mutableListOf<Rect>()
+                    val expected = renderer.renderWithChoices(source, input, bounds).bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    val frame = renderer.prepareDialoguePlayback(source, input, DialoguePlaybackSettings())
+                    try {
+                        assertEquals(bounds, frame.panels.map { it.bounds })
+                        assertTrue(expected.sameAs(frame.bitmap))
+                        for (playback in listOf(false, true)) {
+                            val view = DialoguePlaybackView(context).apply {
+                                scaleType = android.widget.ImageView.ScaleType.FIT_XY
+                                if (playback) startPlayback(frame) else setImageBitmap(expected)
+                                layout(0, 0, 1920, 1080)
+                                pausePlayback()
+                                showDialogueExitTail()
+                            }
+                            val output = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+                            try {
+                                view.draw(Canvas(output))
+                                val before = IntArray(1920 * 1080)
+                                val after = IntArray(before.size)
+                                expected.getPixels(before, 0, 1920, 0, 0, 1920, 1080)
+                                output.getPixels(after, 0, 1920, 0, 0, 1920, 1080)
+                                for (index in before.indices) {
+                                    val x = index % 1920; val y = index / 1920
+                                    if (after[index] != before[index]) {
+                                        fail("name/dialogue tail changed pixels at $x,$y: $locale/$bilingual/$playback")
+                                    }
+                                }
+                                if (bilingual && !playback) {
+                                    val folder = File(context.getExternalFilesDir(null), "dialogue-exit-validation").apply { mkdirs() }
+                                    File(folder, "$locale-hold.png").outputStream().use {
+                                        output.compress(Bitmap.CompressFormat.PNG, 100, it)
+                                    }
+                                }
+                            } finally {
+                                view.setImageBitmap(null)
+                                if (playback) view.clearPlayback()
+                                output.recycle()
+                            }
+                        }
+                    } finally { expected.recycle(); frame.close() }
+                }
+            } finally { source.recycle(); renderer.releaseBuffers() }
+        }
+    }
+
     @Test fun finalPixelsMatchLegacyAndOtherRegionsNeverAnimate() {
         val renderer = OverlayRenderer(context)
         val source = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)

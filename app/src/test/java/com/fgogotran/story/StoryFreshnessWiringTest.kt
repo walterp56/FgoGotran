@@ -137,4 +137,18 @@ class StoryFreshnessWiringTest {
             assertFalse(function(method).contains("shouldCheckFreshness"), method)
         }
     }
+
+    @Test
+    fun `successful dialogue taps get a separate tail before capture while choices skip it`() {
+        val tap = function("handleTranslatedOverlayTap")
+        val ordinary = tap.substringAfter("if (choiceExit == null) {").substringBefore("translationOverlay.hideForCapture()")
+        assertTrue(ordinary.indexOf("delay(TAP_TRANSLATION_READ_HOLD_DELAY)") <
+            ordinary.indexOf("translationOverlay.awaitDialogueExitTail(overlayGeneration)"))
+        assertTrue(ordinary.contains("if (!replayContextCurrent()) return@launchRunnerWork"))
+        assertTrue(tap.contains("overlayGeneration = overlayGeneration"))
+        val poll = function("pollNextSceneAfterTap")
+        assertTrue(poll.contains("if (!skipReadHold && !translationOverlay.awaitDialogueExitTail(overlayGeneration)) return"))
+        assertTrue(poll.indexOf("awaitDialogueExitTail(") < poll.indexOf("translationOverlay.hideForCapture()"))
+        assertTrue(poll.indexOf("awaitDialogueExitTail(") < poll.indexOf("processScreen(ProcessingMode.AUTO_BACKGROUND)"))
+    }
 }

@@ -24,6 +24,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.delay
 
 /**
  * Manages the TYPE_ACCESSIBILITY_OVERLAY system windows.
@@ -54,6 +55,7 @@ class TranslationOverlay @Inject constructor(
     private var latestTranslatedBitmap: Bitmap? = null
     private var renderedChoices: List<ChoiceRenderRegion> = emptyList()
     private var hasNonChoiceContent = true
+    private var renderedDialogueBounds: List<Rect> = emptyList()
     private val choiceTapGate = DialoguePlaybackTapGate()
     private var choiceDownIndex = -1
     private var pendingChoiceTap: ChoiceTap? = null
@@ -74,6 +76,11 @@ class TranslationOverlay @Inject constructor(
     }
 
     private val tag = "Overlay"
+
+    companion object {
+        // Added after the existing 120ms hold, calibrated to the supplied 30fps recording.
+        internal const val DIALOGUE_EXIT_TAIL_MS = 60L
+    }
 
     fun setFloatingHandleBounds(screenBounds: Rect?) {
         floatingHandleBounds = screenBounds?.let { Rect(it) }
@@ -166,6 +173,7 @@ class TranslationOverlay @Inject constructor(
         showOrUpdateTranslatedImage(frame.bitmap)
         if (!isOverlayShowing || latestTranslatedBitmap !== frame.bitmap) return false
         renderedChoices = frame.choices
+        renderedDialogueBounds = frame.panels.map { Rect(it.bounds) }
         hasNonChoiceContent = true
         overlayView?.startPlayback(frame)
         if (!overlayTouchable) overlayView?.pausePlayback()
@@ -179,6 +187,8 @@ class TranslationOverlay @Inject constructor(
         renderGeneration++
         renderedChoices = emptyList()
         hasNonChoiceContent = true
+        renderedDialogueBounds = emptyList()
+        overlayView?.clearDialogueExitTail()
         choiceTapGate.cancel()
         pendingChoiceTap = null
         choiceDownIndex = -1
@@ -246,6 +256,36 @@ class TranslationOverlay @Inject constructor(
 
     internal fun cancelChoiceExit(generation: Long) {
         if (generation == renderGeneration) overlayView?.cancelChoiceExit()
+    }
+
+    /** Called after the existing read hold and only after a successful game-tap replay. */
+    internal suspend fun awaitDialogueExitTail(generation: Long): Boolean {
+        if (generation != renderGeneration || !isOverlayShowing || controlsVisible) return false
+        val view = overlayView ?: return false
+        if (latestTranslatedBitmap == null) return false
+        // Choices, including mixed frames, keep their existing complete exit workflow.
+        if (renderedChoices.isNotEmpty() || view.hasChoiceExit() || renderedDialogueBounds.isEmpty()) return true
+        // Without choices, this story bitmap contains only dialogue and its speaker name.
+        // Keep the whole presentation intact so both retire on the same clock.
+        view.showDialogueExitTail()
+        try {
+            delay(DIALOGUE_EXIT_TAIL_MS)
+            return generation == renderGeneration && isOverlayShowing && !controlsVisible && view.hasDialogueExitTail()
+        } finally {
+            if (generation == renderGeneration && view.hasDialogueExitTail()) retireDialogueExitTail()
+        }
+    }
+
+    /** A tapped-away dialogue must never be restored by a later capture or delayed completion. */
+    private fun retireDialogueExitTail() {
+        hideOverlayView(clearBitmap = false)
+        latestTranslatedBitmap = null
+        renderedDialogueBounds = emptyList()
+        overlayView?.let {
+            it.setImageBitmap(null)
+            it.clearPlayback()
+            it.clearDialogueExitTail()
+        }
     }
 
     private fun showOrUpdateTranslatedImage(bitmap: Bitmap) {
@@ -336,7 +376,8 @@ class TranslationOverlay @Inject constructor(
     internal fun updateStoryImage(
         bitmap: Bitmap,
         choices: List<ChoiceRenderRegion>,
-        hasOtherContent: Boolean
+        hasOtherContent: Boolean,
+        dialogueBounds: List<Rect> = emptyList()
     ): Boolean {
         resetChoicePresentation()
         overlayView?.clearPlayback()
@@ -344,6 +385,7 @@ class TranslationOverlay @Inject constructor(
         if (!isOverlayShowing || latestTranslatedBitmap !== bitmap) return false
         renderedChoices = choices
         hasNonChoiceContent = hasOtherContent
+        renderedDialogueBounds = dialogueBounds.map(::Rect)
         return true
     }
 
@@ -352,7 +394,8 @@ class TranslationOverlay @Inject constructor(
         if (isOverlayShowing) {
             FgoLogger.debug(tag, "Temporarily hiding overlay for OCR capture")
         }
-        hideOverlayView(clearBitmap = false)
+        if (overlayView?.hasDialogueExitTail() == true) retireDialogueExitTail()
+        else hideOverlayView(clearBitmap = false)
     }
 
     fun setTranslatedOverlayTouchable(touchable: Boolean): Boolean {
@@ -385,6 +428,7 @@ class TranslationOverlay @Inject constructor(
             choiceTapGate.cancel()
             pendingChoiceTap = null
             overlayView?.cancelChoiceExit()
+            if (overlayView?.hasDialogueExitTail() == true) retireDialogueExitTail()
         }
         setTranslatedOverlayTouchable(requestedOverlayTouchable)
     }

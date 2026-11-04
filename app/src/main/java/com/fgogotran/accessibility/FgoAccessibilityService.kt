@@ -3212,6 +3212,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val playbackSettings = dialoguePlaybackSettings // One immutable preference snapshot per scene.
         var pendingPlayback: DialoguePlaybackFrame? = null
         var pendingChoices: List<ChoiceRenderRegion> = emptyList()
+        val pendingDialogueBounds = mutableListOf<Rect>()
         var renderDuration: Long
         var overlayStartedAt: Long
         try {
@@ -3220,7 +3221,7 @@ class FgoAccessibilityService : AccessibilityService() {
                     instructions.any { it.region.region == TextRegion.DIALOGUE_BOX }) {
                     overlayRenderer.prepareDialoguePlayback(source, instructions, playbackSettings)
                         .also { pendingPlayback = it }.bitmap
-                } else overlayRenderer.renderWithChoices(source, instructions).also {
+                } else overlayRenderer.renderWithChoices(source, instructions, pendingDialogueBounds).also {
                     pendingChoices = it.choices
                 }.bitmap
             }
@@ -3241,7 +3242,8 @@ class FgoAccessibilityService : AccessibilityService() {
             restoreFgoForegroundAfterCapture(mode.name)
             val presented = pendingPlayback?.let { translationOverlay.updatePlayback(it) } ?: run {
                 translationOverlay.updateStoryImage(rendered, pendingChoices,
-                    hasOtherContent = instructions.any { it.region.region != TextRegion.CHOICE_BUTTON })
+                    hasOtherContent = instructions.any { it.region.region != TextRegion.CHOICE_BUTTON },
+                    dialogueBounds = pendingDialogueBounds)
             }
             if (!presented) {
                 FgoLogger.warn(tag, "Overlay display failed; keeping scene retryable without a render commit")
@@ -6787,7 +6789,8 @@ class FgoAccessibilityService : AccessibilityService() {
                             skipReadHold = handoffScene.kind == StoryTapHandoff.Kind.CHOICES,
                             previousFingerprint = previousAutoFingerprint,
                             processingVersion = tapProcessingVersion,
-                            scene = handoffScene
+                            scene = handoffScene,
+                            overlayGeneration = overlayGeneration
                         )
                     } else {
                         if (tapMode == TranslationMode.SEMI_AUTO && handoffScene != null) {
@@ -6801,7 +6804,11 @@ class FgoAccessibilityService : AccessibilityService() {
                             )
                         }
                         FgoLogger.debug(tag, "Overlay tap replay completed; holding translation before capture hide")
-                        if (choiceExit == null) delay(TAP_TRANSLATION_READ_HOLD_DELAY)
+                        if (choiceExit == null) {
+                            delay(TAP_TRANSLATION_READ_HOLD_DELAY)
+                            if (!replayContextCurrent()) return@launchRunnerWork
+                            if (!translationOverlay.awaitDialogueExitTail(overlayGeneration)) return@launchRunnerWork
+                        }
                         if (!replayContextCurrent()) return@launchRunnerWork
                         translationOverlay.hideForCapture()
                     }
@@ -6984,7 +6991,8 @@ class FgoAccessibilityService : AccessibilityService() {
         skipReadHold: Boolean,
         previousFingerprint: String,
         processingVersion: Long,
-        scene: StoryTapHandoff.RenderedScene
+        scene: StoryTapHandoff.RenderedScene,
+        overlayGeneration: Long
     ) {
         fun contextCurrent(): Boolean = isOverlayTapContextCurrent(processingVersion, TranslationMode.AUTO)
         if (!contextCurrent() || !storyTapHandoff.ownsScene(scene)) return
@@ -6995,6 +7003,10 @@ class FgoAccessibilityService : AccessibilityService() {
             if (!skipReadHold) {
                 delay(TAP_TRANSLATION_READ_HOLD_DELAY)
             }
+            if (!contextCurrent() || !storyTapHandoff.ownsScene(scene) ||
+                storyTapHandoff.autoRenderGeneration != previousRenderGeneration
+            ) return
+            if (!skipReadHold && !translationOverlay.awaitDialogueExitTail(overlayGeneration)) return
             if (!contextCurrent() || !storyTapHandoff.ownsScene(scene) ||
                 storyTapHandoff.autoRenderGeneration != previousRenderGeneration
             ) return
