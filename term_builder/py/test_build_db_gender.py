@@ -122,6 +122,38 @@ class GeneratedCharacterGenderTest(unittest.TestCase):
         self.assertIn('ダヴィンチ', json.loads(built['ダ・ヴィンチ']['aliases']))
         self.assertIn('オルガマリ', json.loads(built['オルガマリー']['aliases']))
 
+    def test_english_short_names_and_formal_names_keep_their_own_identity_and_gender(self):
+        terms = self.curated_terms()
+        sources = {term['jp_name'] for term in terms}
+        self.assertNotIn('草十郎', sources)
+        rows = self.build(terms)['characters']
+        self.assertEqual(('Sizuki Soujyuro', '男性'),
+                         (rows['静希草十郎']['en_name'], rows['静希草十郎']['gender']))
+        self.assertEqual(('Soujyuro', '男性'),
+                         (rows['草十郎']['en_name'], rows['草十郎']['gender']))
+        for short, formal, short_target, formal_target in (
+            ('エルン', 'エルルーン', 'Rún', 'Ölrún'),
+            ('イルス', 'ゲイルスケグル', 'Irs', 'Geirskögul'),
+        ):
+            self.assertEqual(short_target, rows[short]['en_name'])
+            self.assertEqual(formal_target, rows[formal]['en_name'])
+            self.assertNotEqual(rows[short]['en_name'], rows[formal]['en_name'])
+            self.assertEqual('女性', rows[short]['gender'])
+            self.assertEqual('女性', rows[formal]['gender'])
+            self.assertNotIn(formal, json.loads(rows[short]['aliases']))
+
+    def test_localized_nemo_titles_do_not_change_generic_component_meanings(self):
+        rows = self.build(self.curated_terms())['characters']
+        for full, component, full_target, component_target, chinese in (
+            ('ネモ・エンジン', 'エンジン', 'Nemo Engineer', 'Engine', '尼莫·引擎'),
+            ('ネモ・ベーカリー', 'ベーカリー', 'Nemo Baker', 'Bakery', '尼莫·烘焙坊'),
+        ):
+            self.assertEqual(full_target, rows[full]['en_name'])
+            self.assertEqual(component_target, rows[component]['en_name'])
+            self.assertEqual(chinese, rows[full]['cn_name'])
+            self.assertEqual('女性', rows[full]['gender'])
+            self.assertEqual('女性', rows[component]['gender'])
+
 
 if __name__ == '__main__':
     unittest.main()

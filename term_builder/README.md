@@ -28,6 +28,12 @@ FULL_JP_NAME	OFFICIAL_CN_NAME	OFFICIAL_EN_NAME	JP_PART=EN_PART;JP_PART=EN_PART	�
 metadata used by the Sakura glossary and is never appended to the displayed name.
 `aliases` is optional and comma-separated. `en_name` is the target used for English translations. `en_components` is optional and only needed when English name parts cannot be aligned automatically.
 
+Use explicit `en_components` when a localized full name rewords an ordinary noun.
+For example, `ネモ・エンジン` uses `Nemo Engineer`, while its standalone
+`エンジン` component keeps `Engine` so ordinary engine references do not become
+people. Keep distinct short and formal English labels as separate rows, such as
+`エルン` / `Rún` and `エルルーン` / `Ölrún`.
+
 Keep full character names here. `build_db.py` automatically adds component records for separator-based names, so a full official row can also become searchable through its name parts. Curated TSV rows still win over generated component rows.
 
 Generated character-name parts inherit gender only when they belong to one

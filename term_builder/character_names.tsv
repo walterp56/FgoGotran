@@ -309,7 +309,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 壱与	壹与	Iyo		女性	
 呼延灼	呼延灼	Huyan Zhuo		女性	
 黄飛虎	黄飞虎	Huang Feihu		男性	
-九紋竜エリザ	九纹龙伊丽莎	Nine-Tattoo Dragon Elisa		女性	
+九紋竜エリザ	九纹龙伊丽莎	Elisa the Nine-Tattooed Dragon		女性	
 ブリトマート	布里托玛特	Britomart		女性	
 グレゴリー・ラスプーチン	格里戈里·拉斯普京	Grigori Rasputin		男性	グレゴリーラスプーチン
 ニトクリス・オルタ	尼托克丽丝·Alter	Nitocris Alter		女性	ニトクリスオルタ
@@ -332,7 +332,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 メリュジーヌ	梅柳齐娜	Mélusine		女性	
 メリュジーヌ・オンディーヌ	梅柳齐娜·翁蒂娜	Mélusine Undine		女性	メリュジーヌオンディーヌ
 ＵＤＫ－バーゲスト	UDK－巴格斯特	UDK-Barghest		女性	UDK-バーゲスト,UDK巴格斯特
-ケット・クー・ミコケル	凯特·库·米可科尔	Cait Cú Cerpriestess		女性	ケットクーミコケル
+ケット・クー・ミコケル	凯特·库·米可科尔	Cait Cú MikoCer		女性	ケットクーミコケル
 ワンジナ	旺吉娜	Wandjina		性別不明	
 プトレマイオス	托勒密	Ptolemaîos		男性	
 杉谷善住坊	杉谷善住坊	Sugitani Zenjubou		性別不明	
@@ -354,7 +354,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 Ｅ－フレアマリー	E－火玛丽	E-Flare Marie		女性	E-フレアマリー
 Ｅ－アクアマリー	E－水玛丽	E-Aqua Marie		女性	E-アクアマリー
 蒼崎青子	苍崎青子	Aozaki Aoko		女性	
-静希草十郎	静希草十郎	Shizuki Soujuurou		男性	
+静希草十郎	静希草十郎	Sizuki Soujyuro	静希=Sizuki;草十郎=Soujyuro	男性	
 久遠寺有珠	久远寺有珠	Kuonji Alice		女性	
 ひびき	响	Hibiki		女性	ひびき
 千鍵	千键	Chikagi		女性	
@@ -520,9 +520,9 @@ ORT	ORT	ORT
 キャプテン・ネモ	船长·尼莫	Captain Nemo		男性	キャプテンネモ
 ネモ・マリーン	尼莫·水兵	Nemo Marine		男性	ネモマリーン
 ネモ・プロフェッサー	尼莫·教授	Nemo Professor		性別不明	ネモプロフェッサー
-ネモ・エンジン	尼莫·引擎	Nemo Engine		女性	ネモエンジン
+ネモ・エンジン	尼莫·引擎	Nemo Engineer	ネモ=Nemo;エンジン=Engine	女性	ネモエンジン
 ネモ・ナース	尼莫·护士	Nemo Nurse		性別不明	ネモナース
-ネモ・ベーカリー	尼莫·烘焙坊	Nemo Bakery		女性	ネモベーカリー
+ネモ・ベーカリー	尼莫·烘焙坊	Nemo Baker	ネモ=Nemo;ベーカリー=Bakery	女性	ネモベーカリー
 オルガマリー・アニムスフィア	奥尔加玛丽·阿尼姆斯菲亚	Olga Marie Animusphere	オルガマリー=Olga Marie;アニムスフィア=Animusphere	女性	オルガマリーアニムスフィア
 オルガマリー	奥尔加玛丽	Olga Marie		女性	オルガマリ,オルガマリ一
 レフ・ライノール・フラウロス	雷夫·莱诺尔·佛劳洛斯	Lev Lainur Flauros		男性	レフライノールフラウロス
@@ -573,7 +573,7 @@ Dr.ロマン	Dr.罗曼	Dr. Roman		男性
 ドクター	医生	Doctor		男性	
 先輩	前辈	Senpai			センパイ,せんぱい
 オーディン	奥丁	Odin		男性	
-ムリアン	缪瑞恩	Muryan		女性	
+ムリアン	缪瑞恩	Murian		女性	
 レッドラ・ビット	瑞德拉·比特	Redra Bit		男性	レッドラビット
 アイン	Eins	Eins		女性	
 ツヴァイ	Zwei	Zwei		女性	
@@ -605,7 +605,7 @@ Dr.ロマン	Dr.罗曼	Dr. Roman		男性
 フラット	弗拉特	Flat		男性	
 マリーンズ	水兵们	Marines			
 テペウ	特佩乌	Tepeu		男性	
-イシュキック	希基克	Ixquic		女性	
+イシュキック	希基克	Xquic		女性	
 グレイ・リリィ	格蕾·Lily	Gray Lily		女性	クレイリリィ,グレイ・リリィ
 アス	阿斯	As		男性	
 アスカラポス	阿斯卡拉福斯	Ascalaphus		男性	
@@ -640,8 +640,10 @@ Dr.ロマン	Dr.罗曼	Dr. Roman		男性
 まーちゃん	御酱	Masu-chan			
 小野篁	小野篁	Ono no Takamura		男性	
 リンド	琳德	Rindr		女性	
-エルン	奥露恩	Örun		女性	
-イルス	洁尔诗	Ers		女性	
+エルン	奥露恩	Rún		女性	
+エルルーン	奥尔露恩	Ölrún		女性	
+イルス	洁尔诗	Irs		女性	
+ゲイルスケグル	洁尔诗科古尔	Geirskögul		女性	
 エリセ	绘里濑	Erice		女性	
 ちゃんマス	酱御	Chan-masu			
 辈先	辈前	Paisen			
