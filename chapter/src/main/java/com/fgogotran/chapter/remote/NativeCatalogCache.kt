@@ -12,7 +12,7 @@ import java.io.File
  */
 class NativeCatalogCache(context: Context) {
     companion object {
-        const val MAX_UI_AGE_MS = 15 * 60 * 1000L
+        const val MAX_UI_AGE_MS = 60 * 60 * 1000L
         const val MAX_DOWNLOAD_AGE_MS = 3 * 60 * 1000L
     }
 
