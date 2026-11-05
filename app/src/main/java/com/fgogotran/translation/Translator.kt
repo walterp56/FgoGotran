@@ -335,6 +335,7 @@ class Translator @Inject constructor(
     private var cachedCharacterNameLookup: Map<String, String>? = null
     private var cachedCharacterNameLookupEn: Map<String, String>? = null
     private var cachedCharacterNameVariants: List<NormalizedCharacterNameVariant>? = null
+    private val glossaryOcrCorrector = GlossaryOcrCorrectorCache(::getCachedCharacterNames, ::getCachedTerms)
     private val memoryCacheLock = Any()
     private val memoryTranslationCache = object : LinkedHashMap<String, String>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
@@ -639,6 +640,7 @@ class Translator @Inject constructor(
     }
 
     private fun clearCharacterNameCaches() {
+        glossaryOcrCorrector.clear()
         cachedTerms = null
         characterGenderLookup.clear()
         cachedCharacterNameLookup = null
@@ -1011,6 +1013,7 @@ class Translator @Inject constructor(
             getCachedCharacterNameLookup()
             characterGenderLookup.warmUp()
             characterContextRepository.warmUp()
+            glossaryOcrCorrector.snapshot()
             FgoLogger.info(tag, "Translator warm-up complete")
         } catch (e: CancellationException) {
             throw e
@@ -1108,7 +1111,9 @@ class Translator @Inject constructor(
         } else {
             rawNormalizedText
         }
-        val normalizedText = correctPlayerNameOcr(normalizedSourceText, playerName, "TEXT")
+        val textCorrection = correctGlossaryOcrSource(
+            correctPlayerNameOcr(normalizedSourceText, playerName, "TEXT"), playerName, "TEXT", translateAsName)
+        val normalizedText = textCorrection.text
         val isBattleSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
         val isSpokenSubtitle = promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
         require(subtitleRowCount >= 0 &&
@@ -1116,13 +1121,17 @@ class Translator @Inject constructor(
         val alignedSubtitleRows = subtitleRowCount.takeIf { it > 1 } ?: 0
         require(alignedSubtitleRows == 0 || normalizedText.lines().size == alignedSubtitleRows)
         val subtitleReferences = if (isSpokenSubtitle) prepareDialogueSubtitleReferences(subtitleReferenceJapanese) else emptyList()
+        val choiceCorrections = mutableListOf<GlossaryOcrCorrection>()
         val normalizedChoices = if (isBattleSubtitle || isSpokenSubtitle) {
             emptyList()
         } else {
             choiceTexts.mapIndexedNotNull { index, choice ->
                 TextNormalizer.normalizeForTranslation(choice)
                     .takeIf { it.isNotBlank() }
-                    ?.let { correctPlayerNameOcr(it, playerName, "CHOICE[$index]") }
+                    ?.let {
+                        correctGlossaryOcrSource(correctPlayerNameOcr(it, playerName, "CHOICE[$index]"),
+                            playerName, "CHOICE[$index]").also(choiceCorrections::add).text
+                    }
             }
         }
         val punctuationSourceText = normalizedText.takeIf { restoreSourcePunctuation && alignedSubtitleRows == 0 }
@@ -1281,7 +1290,8 @@ class Translator @Inject constructor(
             translateAsChoices,
             glossaryFingerprintOf(matchedTerms) + nameHintFingerprint,
             generalSpeakerContext = activeCurrentSpeaker,
-            generalSpeakerGender = activeCurrentSpeakerGender
+            generalSpeakerGender = activeCurrentSpeakerGender,
+            ocrCorrectionPolicy = glossaryOcrCachePolicy(textCorrection, *choiceCorrections.toTypedArray())
         )
         val hash = cacheKeyInfo.hash
 
@@ -1672,9 +1682,11 @@ class Translator @Inject constructor(
         val cacheEnabled = config.cacheEnabled
         val cacheReadEnabled = cacheEnabled && !forceFreshTranslation
         val attemptLimit = maxApiAttempts.coerceIn(1, MAX_TRANSLATION_API_ATTEMPTS)
-        val normalizedTexts = rawNormalizedTexts.mapIndexed { index, text ->
-            correctPlayerNameOcr(text, playerName, "BATCH[$index]")
+        val textCorrections = rawNormalizedTexts.mapIndexed { index, text ->
+            correctGlossaryOcrSource(correctPlayerNameOcr(text, playerName, "BATCH[$index]"),
+                playerName, "BATCH[$index]")
         }
+        val normalizedTexts = textCorrections.map { it.text }
         val activeCurrentSpeaker = normalizeCurrentSpeakerContext(currentSpeaker)
         val currentSpeakerCacheIdentity = normalizeCurrentSpeakerContext(currentSpeakerSourceName)
             .ifBlank { activeCurrentSpeaker }
@@ -1695,7 +1707,8 @@ class Translator @Inject constructor(
                 currentSpeaker = currentSpeakerCacheIdentity,
                 choiceBatch = translateAsChoices,
                 glossaryFingerprint = glossaryFingerprints[index],
-                generalSpeakerContext = activeCurrentSpeaker
+                generalSpeakerContext = activeCurrentSpeaker,
+                ocrCorrectionPolicy = glossaryOcrCachePolicy(textCorrections[index])
             )
         }
         val hashes = cacheKeys.map { it.hash }
@@ -2076,11 +2089,19 @@ class Translator @Inject constructor(
         val cacheReadEnabled = cacheEnabled && !forceFreshTranslation
         val playerName = config.playerName
         val useSakuraPrompt = usesSakuraPrompt(config)
-        val normalizedName = rawNormalizedName?.let { correctPlayerNameOcr(it, playerName, "SCENE_NAME") }
-        val normalizedDialogue = rawNormalizedDialogue?.let { correctPlayerNameOcr(it, playerName, "SCENE_DIALOGUE") }
-        val normalizedChoices = rawNormalizedChoices.mapIndexed { index, text ->
-            text?.let { correctPlayerNameOcr(it, playerName, "SCENE_CHOICE[$index]") }
+        val nameCorrection = rawNormalizedName?.let {
+            correctGlossaryOcrSource(correctPlayerNameOcr(it, playerName, "SCENE_NAME"), playerName, "SCENE_NAME", true)
         }
+        val dialogueCorrection = rawNormalizedDialogue?.let {
+            correctGlossaryOcrSource(correctPlayerNameOcr(it, playerName, "SCENE_DIALOGUE"), playerName, "SCENE_DIALOGUE")
+        }
+        val choiceCorrections = rawNormalizedChoices.mapIndexed { index, text ->
+            text?.let { correctGlossaryOcrSource(correctPlayerNameOcr(it, playerName, "SCENE_CHOICE[$index]"),
+                playerName, "SCENE_CHOICE[$index]") }
+        }
+        val normalizedName = nameCorrection?.text
+        val normalizedDialogue = dialogueCorrection?.text
+        val normalizedChoices = choiceCorrections.map { it?.text }
 
         var nameResult: TranslateResult? = null
         var dialogueResult: TranslateResult? = null
@@ -2206,7 +2227,8 @@ class Translator @Inject constructor(
                 choiceTexts = emptyList(),
                 config = config,
                 promptPolicyKey = NameBoxLookupPolicy.SCENE_CACHE_POLICY,
-                glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage)
+                glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage),
+                ocrCorrectionPolicy = glossaryOcrCachePolicy(nameCorrection)
             )
         }
         val nameHash = nameKey?.hash
@@ -2266,11 +2288,12 @@ class Translator @Inject constructor(
                 characterContextCacheIdentity = characterContextCacheIdentity,
                 glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage),
                 generalSpeakerContext = currentSpeaker,
-                generalSpeakerGender = currentSpeakerGender
+                generalSpeakerGender = currentSpeakerGender,
+                ocrCorrectionPolicy = glossaryOcrCachePolicy(nameCorrection, dialogueCorrection)
             )
         }
         val dialogueHash = dialogueKey?.hash
-        val choiceKeys = normalizedChoices.map { text ->
+        val choiceKeys = normalizedChoices.mapIndexed { index, text ->
             text?.let {
                 cacheKey(
                     normalizedText = it,
@@ -2280,7 +2303,8 @@ class Translator @Inject constructor(
                     currentSpeaker = currentSpeakerSourceName,
                     choiceBatch = true,
                     glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage),
-                    generalSpeakerContext = currentSpeaker
+                    generalSpeakerContext = currentSpeaker,
+                    ocrCorrectionPolicy = glossaryOcrCachePolicy(nameCorrection, choiceCorrections[index])
                 )
             }
         }
@@ -3122,6 +3146,18 @@ class Translator @Inject constructor(
             config = config,
             trustedForContext = false
         ).copy(countsAsUsage = text.isNotBlank())
+    }
+
+    private suspend fun correctGlossaryOcrSource(
+        text: String, playerName: String, label: String, wholeName: Boolean = false
+    ): GlossaryOcrCorrection {
+        if (!GlossaryOcrCorrector.mightNeedCorrection(text)) return GlossaryOcrCorrection(text)
+        val corrector = glossaryOcrCorrector.snapshot()
+        val result = if (wholeName) corrector.correctName(text, playerName) else corrector.correctText(text, playerName)
+        if (result.changed) FgoLogger.debug(tag, "Glossary OCR correction ($label): " +
+            result.edits.joinToString { "${it.before}->${it.after} [${it.canonical}]" } +
+            "; policy=${GlossaryOcrCorrector.CACHE_POLICY}")
+        return result
     }
 
     private suspend fun getCachedTerms(): List<TermEntity> {
@@ -6818,7 +6854,8 @@ class Translator @Inject constructor(
         choiceBatch: Boolean = false,
         glossaryFingerprint: String,
         generalSpeakerContext: String = "",
-        generalSpeakerGender: String = ""
+        generalSpeakerGender: String = "",
+        ocrCorrectionPolicy: String = ""
     ): CacheKeyInfo {
         val promptVersion = translationPromptVersion(config)
         val backend = config.backend
@@ -6868,7 +6905,7 @@ class Translator @Inject constructor(
         val finalHashMaterial = extendChinesePostprocessingCacheMaterial(
             effectiveHashMaterial, normalizedTargetLanguage
         )
-        val hash = hashText(finalHashMaterial.joinToString("\u001F"))
+        val hash = hashText(extendGlossaryOcrCacheMaterial(finalHashMaterial, ocrCorrectionPolicy).joinToString("\u001F"))
         // Diagnostic only: two miss lines for the same text can be diffed on "parts" to see which
         // key field changed (prompt / model / speaker / glossary / ...).
         val parts = (listOf(
@@ -6895,7 +6932,7 @@ class Translator @Inject constructor(
             listOf("postprocess=$CHINESE_POSTPROCESSING_CACHE_VERSION")
         } else {
             emptyList()
-        }).joinToString(",")
+        } + if (ocrCorrectionPolicy.isNotBlank()) listOf("ocr=$ocrCorrectionPolicy") else emptyList()).joinToString(",")
         return CacheKeyInfo(hash, parts)
     }
 

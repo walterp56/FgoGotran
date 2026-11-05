@@ -36,12 +36,12 @@ internal object NameBoxLookupPolicy {
         return null
     }
 
-    private fun lookupKey(text: String): String =
+    internal fun lookupKey(text: String): String =
         Normalizer.normalize(text, Normalizer.Form.NFKC)
             .trim()
             .replace(repeatedWhitespace, " ")
 
-    private fun storedAliases(rawAliases: String?): List<String> {
+    internal fun storedAliases(rawAliases: String?): List<String> {
         val raw = rawAliases.orEmpty().trim()
         if (raw.isBlank() || raw == "[]") return emptyList()
         if (raw.startsWith('[')) {

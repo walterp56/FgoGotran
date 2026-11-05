@@ -345,3 +345,6 @@ docs/*
 !app/src/test/resources/ocr/jp-blue-dialogue-background.png
 # Chinese honorific script matching and cache round-trip regressions.
 !app/src/test/java/com/fgogotran/translation/ChineseHonorificNormalizationTest.kt
+# Dictionary-bounded OCR repair and offline translation/cache integration regressions.
+!app/src/test/java/com/fgogotran/translation/GlossaryOcrCorrectorTest.kt
+!app/src/test/java/com/fgogotran/translation/GlossaryOcrTranslationIntegrationTest.kt

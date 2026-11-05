@@ -267,7 +267,7 @@ class ChineseHonorificNormalizationTest {
         val config = constructor.newInstance("deepseek", "", "https://offline.invalid/v1", model,
             "", "", true, target, "", ApiSamplingSettings(SettingsRepository.API_SAMPLING_MODE_AUTO, false, 1.0, false, 1.0))
         val value = requireNotNull(invoke("cacheKey", source, emptyList<String>(), config,
-            "", "", "", "", choiceBatch, "", "", ""))
+            "", "", "", "", choiceBatch, "", "", "", ""))
         fun field(name: String) = value.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(value) as String
         return field("hash") to field("parts")
     }
