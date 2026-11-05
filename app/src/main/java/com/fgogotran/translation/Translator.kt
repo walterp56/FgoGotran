@@ -3113,8 +3113,10 @@ class Translator @Inject constructor(
 
     private suspend fun getCachedTerms(): List<TermEntity> {
         cachedTerms?.let { return it }
-        val loaded = (getCachedTermRows() + getCachedCharacterNames().flatMap(::characterTermEntries))
-            .distinctBy { TextNormalizer.normalizeForTranslation(it.jpTerm) }
+        val loaded = mergeCachedGlossaryTerms(
+            getCachedTermRows(),
+            getCachedCharacterNames().flatMap(::characterTermEntries)
+        )
             .let { enrichCharacterTermGenders(it, characterGenderLookup, ::normalizeNameLookup) }
         cachedTerms = loaded
         if (loaded.isEmpty()) {

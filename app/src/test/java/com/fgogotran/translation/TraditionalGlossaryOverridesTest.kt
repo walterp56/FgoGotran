@@ -122,6 +122,13 @@ class TraditionalGlossaryOverridesTest {
         assertEquals("無限劍製", index.findTarget(listOf("無限の剣製"), "无限剑制"))
         assertEquals("萬符必行破戒", index.findTarget(listOf("破戒すべき全ての符", "ルールブレイカー"), "万符必应破戒"))
         assertNull(index.findTarget(listOf("ルールブレイカー"), "已更新譯名"))
+        assertEquals("芭潔特·佛拉卡·馬克雷米茲", index.findTarget(
+            listOf("バゼット・フラガ・マクレミッツ"), "巴泽特·弗拉加·马克雷密斯"))
+        assertEquals("芭潔特", index.findTarget(listOf("バゼット"), "巴泽特"))
+        assertEquals("梵谷", index.findTarget(listOf("ゴッホ"), "梵高"))
+        assertEquals("克呂提厄·梵谷", index.findTarget(
+            listOf("クリュティエ＝ヴァン・ゴッホ"), "克吕提厄·梵高"))
+        assertNull(index.findTarget(listOf("ヴァン"), "冯"))
     }
 
     @Test fun scheherazadeHasAnExplicitBaseCharacterRowForChineseAndEnglishLookup() {

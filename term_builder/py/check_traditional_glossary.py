@@ -63,7 +63,7 @@ def load_current_entries(characters: Path, terms: Path) -> dict[str, list[Curren
             jp, cn = row[jp_column].strip(), row[cn_column].strip()
             entry = CurrentEntry(jp, cn, jp)
             result[source_key(jp)].append(entry)
-            for alias in re.split(r"[,|]", row.get("aliases", "")):
+            for alias in re.split(r"[,|]", row.get("aliases") or ""):
                 if alias.strip():
                     result[source_key(alias)].append(CurrentEntry(alias.strip(), cn, jp))
             parts.extend(CurrentEntry(a, b, a) for a, b in split_parallel_components(jp, cn))

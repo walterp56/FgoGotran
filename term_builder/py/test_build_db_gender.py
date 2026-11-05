@@ -154,6 +154,57 @@ class GeneratedCharacterGenderTest(unittest.TestCase):
             self.assertEqual('女性', rows[full]['gender'])
             self.assertEqual('女性', rows[component]['gender'])
 
+    def test_full_vessel_names_preserve_existing_short_labels_and_gender(self):
+        terms = self.curated_terms()
+        sources = {term['jp_name'] for term in terms}
+        rows = self.build(terms)['characters']
+        for full, short, chinese, english in (
+            ('バゼット・フラガ・マクレミッツ', 'バゼット', '巴泽特', 'Bazett'),
+            ('カレン・Ｃ・オルテンシア', 'カレン', '卡莲', 'Caren'),
+        ):
+            self.assertIn(full, sources)
+            self.assertNotIn(short, sources)
+            self.assertEqual((chinese, english, '女性', '[]'),
+                             tuple(rows[short][key] for key in ('cn_name', 'en_name', 'gender', 'aliases')))
+        # A family name shared by two people no longer identifies one parent.
+        self.assertEqual('Edelfelt', rows['エーデルフェルト']['en_name'])
+        self.assertEqual('', rows['エーデルフェルト']['gender'])
+
+    def test_gogh_aliases_and_clytie_labels_do_not_collapse_into_the_historical_painter(self):
+        rows = self.build(self.curated_terms())['characters']
+        self.assertNotIn('ヴァン・ゴッホ', rows)
+        for source, chinese, english, gender in (
+            ('ゴッホ', '梵高', 'Van Gogh', '女性'),
+            ('クリュティエ', '克吕提厄', 'Clytie', '女性'),
+            ('クリュティエ＝ヴァン・ゴッホ', '克吕提厄·梵高', 'Clytie van Gogh', '女性'),
+            ('ヴィンセント・ヴァン・ゴッホ', '文森特·梵高', 'Vincent van Gogh', '男性'),
+        ):
+            self.assertEqual((chinese, english, gender),
+                             tuple(rows[source][key] for key in ('cn_name', 'en_name', 'gender')))
+        self.assertCountEqual(['ヴァン・ゴッホ', 'ヴァンゴッホ'], json.loads(rows['ゴッホ']['aliases']))
+        self.assertNotIn('クリュティエ', json.loads(rows['ゴッホ']['aliases']))
+        self.assertNotIn('ヴィンセント・ヴァン・ゴッホ', json.loads(rows['ゴッホ']['aliases']))
+
+    def test_gogh_full_names_do_not_overwrite_von_or_lose_clyties_chinese_short_name(self):
+        rows = self.build(self.curated_terms())['characters']
+        self.assertEqual('von', rows['ヴァン']['en_name'])
+        self.assertEqual('男性', rows['ヴィンセント']['gender'])
+        self.assertEqual(('克吕提厄', 'Clytie', '女性'),
+                         tuple(rows['クリュティエ'][key] for key in ('cn_name', 'en_name', 'gender')))
+        self.assertEqual('Paracelsus von Hohenheim', rows['ヴァン・ホーエンハイム・パラケルスス']['en_name'])
+
+    def test_illya_and_emiya_identities_do_not_collapse_to_other_full_names(self):
+        rows = self.build(self.curated_terms())['characters']
+        self.assertEqual(('伊莉雅', 'Illya', '女性'),
+                         tuple(rows['イリヤ'][key] for key in ('cn_name', 'en_name', 'gender')))
+        self.assertEqual('Illyasviel von Einzbern', rows['イリヤスフィール・フォン・アインツベルン']['en_name'])
+        self.assertNotIn('イリヤ', json.loads(rows['イリヤスフィール・フォン・アインツベルン']['aliases']))
+        for source, english in (('エミヤ', 'Emiya'), ('衛宮士郎', 'Shirou Emiya'),
+                                ('衛宮切嗣', 'Kiritsugu Emiya')):
+            self.assertEqual((english, '男性'), (rows[source]['en_name'], rows[source]['gender']))
+        for ambiguous_single_character in ('凛', '桜', 'Ｃ', 'C'):
+            self.assertNotIn(ambiguous_single_character, rows)
+
 
 if __name__ == '__main__':
     unittest.main()

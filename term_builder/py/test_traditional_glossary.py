@@ -7,6 +7,16 @@ from check_traditional_glossary import CurrentEntry, audit, load_candidates, loa
 
 
 class TraditionalGlossaryTest(unittest.TestCase):
+    def test_omitted_optional_alias_fields_are_empty(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            characters, terms = root / 'characters.tsv', root / 'terms.tsv'
+            characters.write_text('jp_name\tcn_name\taliases\nゴッホ\t梵高\n', encoding='utf-8')
+            terms.write_text('jp_term\tcn_term\taliases\n真祖\t真祖\n', encoding='utf-8')
+            current = load_current_entries(characters, terms)
+            self.assertEqual('梵高', current[source_key('ゴッホ')][0].reference)
+            self.assertEqual('真祖', current[source_key('真祖')][0].reference)
+
     def test_three_columns_and_duplicates(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "overrides.tsv"

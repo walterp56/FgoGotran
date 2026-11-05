@@ -247,7 +247,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 卑弥呼	卑弥呼	Himiko		女性	
 斎藤一	斋藤一	Saito Hajime		男性	
 織田信勝	织田信胜	Oda Nobukatsu		男性	
-ヴィンセント・ヴァン・ゴッホ	文森特·梵高	Vincent van Gogh		女性	ヴィンセントヴァンゴッホ
+ヴィンセント・ヴァン・ゴッホ	文森特·梵高	Vincent van Gogh	ヴィンセント=Vincent	男性	ヴィンセントヴァンゴッホ
 蘆屋道満	芦屋道满	Ashiya Douman		性別不明	
 渡辺綱	渡边纲	Watanabe-no-Tsuna		男性	ワタナベノツナ
 綱	纲	Tsuna		男性	ツナ
@@ -257,7 +257,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 平景清	平景清	Taira-no-Kagekiyo		性別不明	
 鬼一法眼	鬼一法眼	Kiichi Hogen		性別不明	
 アムール	阿摩耳	Amor		女性	
-カレン	卡莲	Caren		女性	
+カレン・Ｃ・オルテンシア	卡莲·C·奥尔黛西亚	Caren C. Hortensia		女性	カレン・C・オルテンシア,カレンＣオルテンシア,カレンCオルテンシア
 ガラテア	伽拉忒亚	Galatea		女性	
 ミス・クレーン	Miss・克莱恩	Miss Crane		女性	ミスクレーン
 謎のアイドルX・オルタ	谜之偶像X·Alter	Mysterious Idol X (Alter)	謎のアイドルX=Mysterious Idol X	女性	謎のアイドルXオルタ
@@ -282,7 +282,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 闇のコヤンスカヤ	暗之高扬斯卡娅	Koyanskaya of Dark		女性	
 ヘファイスティオン	赫费斯提翁	Hephaistíon		女性	
 マナナン・マク・リール	马纳南·麦克·利尔	Manannán mac Lir		男性	マナナンマクリール
-バゼット	巴泽特	Bazett		女性	
+バゼット・フラガ・マクレミッツ	巴泽特·弗拉加·马克雷密斯	Bazett Fraga McRemitz		女性	バゼットフラガマクレミッツ
 徴姉妹	征氏姐妹	Hai Bà Trưng		女性	
 太歳星君	太岁星君	Taisui Xingjun		男性	
 スーパーバニヤン	超级班扬	Super Bunyan		女性	
@@ -657,7 +657,7 @@ Dr.ロマン	Dr.罗曼	Dr. Roman		男性
 ジャック	杰克	Jack		女性	
 エリザ	伊莉莎	Elisa		女性	
 テノチティトラン・バニー	特诺奇蒂特兰·兔女郎	Tenochtitlan Bunny		女性	
-ゴッホ	梵高	Gogh		女性	
+ゴッホ	梵高	Van Gogh		女性	ヴァン・ゴッホ,ヴァンゴッホ
 超絶神託ちゃん	超绝神谕酱	Super Oracle-chan		女性	
 ナウクラテー2号機	瑙克拉特二号机	Naucrate Mk.II		女性	
 フシアナ	伏西亞娜	Hussianna		女性	
@@ -678,3 +678,14 @@ AAA	AAA	AAA		女性
 ヘシアン・ロボ	黑森·罗伯	Hessian Lobo		男性	ヘシアンロボ
 キリエ	基列	Kyrie		女性	
 折田さん	折田同学	Oruta		女性	
+アルクェイド・ブリュンスタッド	爱尔奎特·布伦史塔德	Arcueid Brunestud		女性	アルクェイドブリュンスタッド
+シエル	希耶尔	Ciel		女性
+イリヤ	伊莉雅	Illya		女性
+望月千代女	望月千代女	Mochizuki Chiyome		女性
+クリュティエ	克吕提厄	Clytie		女性
+クリュティエ＝ヴァン・ゴッホ	克吕提厄·梵高	Clytie van Gogh	クリュティエ=Clytie	女性	クリュティエヴァンゴッホ
+ルヴィアゼリッタ・エーデルフェルト	露维亚瑟琳塔·艾德费尔特	Luviagelita Edelfelt		女性	ルヴィアゼリッタエーデルフェルト
+遠坂凛	远坂凛	Rin Tohsaka		女性	遠坂 凛
+間桐桜	间桐樱	Sakura Matou		女性	間桐 桜
+衛宮士郎	卫宫士郎	Shirou Emiya		男性	衛宮 士郎
+衛宮切嗣	卫宫切嗣	Kiritsugu Emiya		男性	衛宮 切嗣

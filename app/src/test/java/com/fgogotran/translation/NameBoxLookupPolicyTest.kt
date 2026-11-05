@@ -204,6 +204,39 @@ class NameBoxLookupPolicyTest {
         assertEquals(2, Regex("NameBoxLookupPolicy\\.(?:SCENE|SINGLE)_CACHE_POLICY").findAll(translator).count())
     }
 
+    @Test
+    fun `curated gogh labels keep aliases full true name gender and Hant targets separate`() {
+        val selected = setOf("ゴッホ", "クリュティエ", "クリュティエ＝ヴァン・ゴッホ", "ヴィンセント・ヴァン・ゴッホ")
+        val source = listOf(File("../term_builder/character_names.tsv"),
+            File("term_builder/character_names.tsv")).first(File::isFile)
+        val rows = source.readLines(Charsets.UTF_8).drop(1).map { it.split('\t') }
+            .filter { it[0] in selected }.map { fields ->
+                CharacterNameEntity(jpName = fields[0], cnName = fields[1], enName = fields[2],
+                    gender = fields[4], aliases = fields.getOrElse(5) { "" })
+            }
+        assertEquals(selected, rows.map { it.jpName }.toSet())
+        for ((label, english) in listOf(
+            "ゴッホ" to "Van Gogh", "ヴァン・ゴッホ" to "Van Gogh", "ヴァンゴッホ" to "Van Gogh",
+            "クリュティエ" to "Clytie", "クリュティエ＝ヴァン・ゴッホ" to "Clytie van Gogh",
+            "クリュティエ=ヴァン・ゴッホ" to "Clytie van Gogh",
+            "クリュティエヴァンゴッホ" to "Clytie van Gogh",
+            "ヴィンセント・ヴァン・ゴッホ" to "Vincent van Gogh"
+        )) assertEquals(english, find(label, rows, english = true), label)
+        assertEquals("克吕提厄", find("クリュティエ", rows))
+        assertEquals("克吕提厄·梵高", find("クリュティエ＝ヴァン・ゴッホ", rows))
+        assertEquals("男性", rows.single { it.jpName == "ヴィンセント・ヴァン・ゴッホ" }.gender)
+        assertTrue(rows.filterNot { it.jpName == "ヴィンセント・ヴァン・ゴッホ" }.all { it.gender == "女性" })
+        val overrides = listOf(File("src/main/assets/$TRADITIONAL_GLOSSARY_ASSET"),
+            File("app/src/main/assets/$TRADITIONAL_GLOSSARY_ASSET")).first(File::isFile)
+            .useLines { TraditionalGlossaryOverrides.parse(it) }
+        for ((label, expected) in listOf("ヴァン・ゴッホ" to "梵谷", "ヴァンゴッホ" to "梵谷",
+            "クリュティエ＝ヴァン・ゴッホ" to "克呂提厄·梵谷")) {
+            assertEquals(expected, NameBoxLookupPolicy.findTranslation(label, rows, false) { matched, target ->
+                overrides.findTarget(listOf(matched.jpName), target) ?: target
+            })
+        }
+    }
+
     private fun find(source: String, rows: List<CharacterNameEntity>, english: Boolean = false): String? =
         NameBoxLookupPolicy.findTranslation(source, rows, english)
 

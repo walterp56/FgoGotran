@@ -34,6 +34,19 @@ For example, `ネモ・エンジン` uses `Nemo Engineer`, while its standalone
 people. Keep distinct short and formal English labels as separate rows, such as
 `エルン` / `Rún` and `エルルーン` / `Ölrún`.
 
+`ゴッホ` uses `Van Gogh`; `ヴァン・ゴッホ` and `ヴァンゴッホ` are aliases.
+Keep `クリュティエ`, `クリュティエ＝ヴァン・ゴッホ`, and the historical
+`ヴィンセント・ヴァン・ゴッホ` as separate displayed names. Clytie is female;
+the historical Vincent is male. Clytie needs an explicit short row because
+her full Japanese and Chinese names split into different numbers of parts.
+Their explicit `en_components` omit the shared `ヴァン` and `ゴッホ` parts.
+The app also prefers stored DB rows over runtime-generated name parts,
+so full names cannot overwrite existing `ヴァン` / `von` or `ゴッホ` targets.
+The exceptional
+short label `イリヤ` stays explicit as `Illya`, rather than becoming an alias
+that returns `Illyasviel von Einzbern`. Bazett and Caren use their full-name
+rows to generate the existing short labels and female gender.
+
 Keep full character names here. `build_db.py` automatically adds component records for separator-based names, so a full official row can also become searchable through its name parts. Curated TSV rows still win over generated component rows.
 
 Generated character-name parts inherit gender only when they belong to one
