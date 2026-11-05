@@ -217,6 +217,16 @@ data class SceneTranslateResult(
 
 internal const val GENERAL_HANT_REFERENCE_POLICY_VERSION = "general-hant-reference-v1"
 
+/** Retire pre-fix Chinese ちゃん results without flushing unrelated translations. */
+internal fun extendChineseHonorificCacheMaterial(
+    material: List<String>,
+    sourceTexts: List<String>,
+    targetLanguage: String
+): List<String> = if (
+    SettingsRepository.normalizeTargetLanguage(targetLanguage) != SettingsRepository.TARGET_LANGUAGE_ENGLISH &&
+    sourceTexts.any { "ちゃん" in it }
+) material + "chinese-chan-script-v1" else material
+
 /** Preserve legacy, Hans, and English keys; Hant references get their own versioned namespace. */
 internal fun extendGeneralPromptCacheMaterial(
     legacyMaterial: List<String>,
@@ -5845,7 +5855,10 @@ class Translator @Inject constructor(
         '驅' to '驱', '驚' to '惊', '驗' to '验', '髒' to '脏', '鬥' to '斗',
         '魚' to '鱼', '魯' to '鲁', '鮮' to '鲜', '鳥' to '鸟', '鳴' to '鸣',
         '鴻' to '鸿', '鵬' to '鹏', '鷹' to '鹰', '麥' to '麦', '黃' to '黄',
-        '點' to '点', '齊' to '齐', '齒' to '齿', '龍' to '龙'
+        '點' to '点', '齊' to '齐', '齒' to '齿', '龍' to '龙',
+        // Honorifics and reviewed Hant glossary characters missing from the original table.
+        '醬' to '酱', '呂' to '吕', '溫' to '温', '納' to '纳', '維' to '维',
+        '茲' to '兹', '萊' to '莱', '蓋' to '盖', '貴' to '贵'
     )
 
     private suspend fun cacheTranslatedText(
@@ -6849,7 +6862,10 @@ class Translator @Inject constructor(
                 normalizedTargetLanguage, !usesSakuraPrompt(config))) traditionalGlossary.cacheIdentity else "",
             referenceMarkSources = listOf(normalizedText) + choiceTexts
         )
-        val hash = hashText(effectiveHashMaterial.joinToString("\u001F"))
+        val finalHashMaterial = extendChineseHonorificCacheMaterial(
+            effectiveHashMaterial, listOf(normalizedText) + choiceTexts, normalizedTargetLanguage
+        )
+        val hash = hashText(finalHashMaterial.joinToString("\u001F"))
         // Diagnostic only: two miss lines for the same text can be diffed on "parts" to see which
         // key field changed (prompt / model / speaker / glossary / ...).
         val parts = (listOf(
@@ -6870,6 +6886,10 @@ class Translator @Inject constructor(
             "text=${hashText(normalizedText).take(6)}/${normalizedText.length}"
         ) + if (GENERAL_HANT_REFERENCE_POLICY_VERSION in effectiveHashMaterial) {
             listOf("refs=$GENERAL_HANT_REFERENCE_POLICY_VERSION")
+        } else {
+            emptyList()
+        } + if (finalHashMaterial !== effectiveHashMaterial) {
+            listOf("honorific=chinese-chan-script-v1")
         } else {
             emptyList()
         }).joinToString(",")

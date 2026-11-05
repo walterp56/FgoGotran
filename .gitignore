@@ -343,3 +343,5 @@ docs/*
 !app/src/test/resources/ocr/jp-blue-dialogue.png
 !app/src/test/resources/ocr/jp-blue-nameplate-background.png
 !app/src/test/resources/ocr/jp-blue-dialogue-background.png
+# Chinese honorific script matching and cache round-trip regressions.
+!app/src/test/java/com/fgogotran/translation/ChineseHonorificNormalizationTest.kt
