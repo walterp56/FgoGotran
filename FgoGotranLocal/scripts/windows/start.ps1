@@ -21,6 +21,7 @@ $data = if ([string]::IsNullOrWhiteSpace($DataDirectory)) {
 if ($data.TrimEnd('\') -eq $root.TrimEnd('\')) {
     throw 'The user data directory must not be the project root.'
 }
+$version = Get-Content -LiteralPath (Join-Path $root 'src\fgogotran_local\version.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $nativeArchitecture = if (-not [string]::IsNullOrWhiteSpace($env:PROCESSOR_ARCHITEW6432)) {
     $env:PROCESSOR_ARCHITEW6432
 } else {
@@ -105,6 +106,12 @@ try {
     $response = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 "$localUrl/healthz"
     $health = $response.Content | ConvertFrom-Json
     if ($response.StatusCode -eq 200 -and $health.ok -eq $true -and $health.service -eq 'fgogotran-local') {
+        if (-not ($health.PSObject.Properties.Name -contains 'versionCode') -or
+            -not ($health.PSObject.Properties.Name -contains 'versionName') -or
+            [int]$health.versionCode -ne [int]$version.versionCode -or
+            [string]$health.versionName -ne [string]$version.versionName) {
+            Write-Warning 'A different FgoGotran Local version is running. Close its console and launch again to use the files on disk.'
+        }
         if ($openBrowser) { Start-Process $localUrl }
         Write-Host "FgoGotran Local is already running at $localUrl"
         exit 0
@@ -128,6 +135,8 @@ try {
         throw 'Another FgoGotran Local launch is preparing the same control port. Wait for it to finish.'
     }
 
+    $env:PYTHONPYCACHEPREFIX = Join-Path $data 'cache\pycache'
+    $env:GRADIO_TEMP_DIR = Join-Path $data 'cache\gradio'
     $pythonOutput = & $setupScript -ProjectRoot $root -DataDirectory $data
     $venvPython = @($pythonOutput)[-1]
     if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
@@ -141,6 +150,7 @@ try {
         Write-Warning 'The control interface will still open so the runtime can be configured manually.'
     }
 
+    $env:FGO_LOCAL_PYTHON = $venvPython
     & $doctorScript -ProjectRoot $root -DataDirectory $data
 
     $env:FGO_LOCAL_HOME = $data
@@ -150,7 +160,7 @@ try {
     $env:FGO_LOCAL_AUTO_START_MODEL = if ([string]::IsNullOrWhiteSpace($env:FGO_LOCAL_AUTO_START_MODEL)) { '1' } else { $env:FGO_LOCAL_AUTO_START_MODEL }
     $env:PYTHONUTF8 = '1'
 
-    Write-Host "Starting FgoGotran Local at $localUrl"
+    Write-Host "Starting FgoGotran Local $($version.versionName) ($($version.versionCode)) at $localUrl"
     Write-Host 'Keep this window open while using local translation.'
     & $venvPython -m fgogotran_local
     $serviceExitCode = $LASTEXITCODE

@@ -222,13 +222,19 @@ class ConfigStore:
     def _apply_managed_defaults(self, raw: Any) -> tuple[Any, bool]:
         if not isinstance(raw, dict):
             return raw, False
-        manifest = self._load_managed_manifest()
-        if manifest is None:
-            return raw, False
-
         data_root = self.config_path.parent.resolve()
         candidate = json.loads(json.dumps(raw))
         changed = False
+
+        if not str(candidate.get("modelsDirectory", "")).strip():
+            models = data_root / "models"
+            models.mkdir(parents=True, exist_ok=True)
+            candidate["modelsDirectory"] = str(models)
+            changed = True
+
+        manifest = self._load_managed_manifest()
+        if manifest is None:
+            return candidate, changed
 
         llama = self._managed_file(manifest.get("llamaServerPath"), data_root)
         if (

@@ -14,9 +14,8 @@ Set-StrictMode -Version Latest
 
 $root = (Get-Item -LiteralPath $ProjectRoot -Force).FullName
 $data = [System.IO.Path]::GetFullPath($DataDirectory)
-$venv = Join-Path $root '.venv'
-$venvPython = Join-Path $venv 'Scripts\python.exe'
-$marker = Join-Path $venv '.fgogotran-local-dependencies'
+$legacyVenv = Join-Path $root '.venv'
+$venv = ''
 $runtimeRoot = Join-Path $data 'runtime\windows-x64'
 $managedPythonRoot = Join-Path $runtimeRoot 'python-3.13.15'
 $managedPython = Join-Path $managedPythonRoot 'python.exe'
@@ -123,9 +122,9 @@ function Find-CompatiblePython {
 
 function Move-Aside([string]$Path, [string]$Label) {
     $resolved = [System.IO.Path]::GetFullPath($Path)
-    $expectedPrefix = $root.TrimEnd('\') + '\'
+    $expectedPrefix = [System.IO.Path]::GetFullPath($runtimeRoot).TrimEnd('\') + '\'
     if (-not $resolved.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing to move $Label outside the project directory."
+        throw "Refusing to move $Label outside the managed runtime directory."
     }
     $suffix = Get-Date -Format 'yyyyMMdd-HHmmss'
     $backup = "$resolved.incompatible-$suffix"
@@ -245,6 +244,25 @@ if ($data.TrimEnd('\') -eq $root.TrimEnd('\')) {
 
 New-Item -ItemType Directory -Path $data -Force | Out-Null
 
+# All managed environments live in user_data. A legacy root .venv is kept
+# untouched; moving it would preserve invalid absolute interpreter paths.
+$dependencyFiles = @((Join-Path $root 'requirements.txt'), (Join-Path $root 'pyproject.toml'))
+$dependencyHash = Get-DependencyFingerprint $dependencyFiles
+$dependencyFingerprint = "v2:$dependencyHash"
+$venv = Join-Path $runtimeRoot "environments\$dependencyHash"
+$venvPython = Join-Path $venv 'Scripts\python.exe'
+$marker = Join-Path $venv '.fgogotran-local-dependencies'
+$environmentHome = Join-Path $venv '.fgogotran-local-home'
+if (Test-Path -LiteralPath $environmentHome -PathType Leaf) {
+    $savedHome = (Get-Content -LiteralPath $environmentHome -Raw).Trim()
+    if ($savedHome -ne [System.IO.Path]::GetFullPath($venv)) {
+        Move-Aside $venv 'relocated Python environment'
+    }
+}
+if (-not (Test-Path -LiteralPath $venv) -and (Test-Path -LiteralPath $legacyVenv)) {
+    Write-Step 'Preparing the user_data Python environment; the legacy .venv is preserved.'
+}
+
 if (Test-Path -LiteralPath $venvPython -PathType Leaf) {
     $existingEnvironment = Test-PythonCandidate $venvPython @()
     if (-not $existingEnvironment) {
@@ -262,7 +280,7 @@ if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
     Write-Step "Creating the private Python environment with Python $($python.Version) $($python.Architecture)..."
     & $python.Executable @($python.PrefixArguments) -m venv $venv
     if ($LASTEXITCODE -ne 0) {
-        throw 'Failed to create .venv.'
+        throw 'Failed to create the user_data Python environment.'
     }
 }
 
@@ -279,15 +297,11 @@ if ($LASTEXITCODE -ne 0 -or -not $sitePackagesOutput) {
 $sitePackages = [System.IO.Path]::GetFullPath(@($sitePackagesOutput)[-1].Trim())
 $venvPrefix = [System.IO.Path]::GetFullPath($venv).TrimEnd('\') + '\'
 if (-not $sitePackages.StartsWith($venvPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw 'The private Python site-packages directory resolved outside .venv.'
+    throw 'The private Python site-packages directory resolved outside its managed environment.'
 }
 Write-Utf8NoBom (Join-Path $sitePackages 'fgogotran-local-src.pth') $sourceRoot
+Write-Utf8NoBom $environmentHome ([System.IO.Path]::GetFullPath($venv))
 
-$dependencyFiles = @(
-    (Join-Path $root 'requirements.txt'),
-    (Join-Path $root 'pyproject.toml')
-)
-$dependencyFingerprint = "v2:$(Get-DependencyFingerprint $dependencyFiles)"
 $installedFingerprint = if (Test-Path -LiteralPath $marker -PathType Leaf) {
     Get-Content -LiteralPath $marker -Raw
 } else {

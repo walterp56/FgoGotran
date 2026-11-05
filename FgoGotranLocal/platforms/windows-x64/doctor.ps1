@@ -11,7 +11,14 @@ Set-StrictMode -Version Latest
 
 $root = (Get-Item -LiteralPath $ProjectRoot -Force).FullName
 $data = [System.IO.Path]::GetFullPath($DataDirectory)
-$python = Join-Path $root '.venv\Scripts\python.exe'
+$python = $env:FGO_LOCAL_PYTHON
+if (-not $python) {
+    $environments = Join-Path $data 'runtime\windows-x64\environments'
+    $python = Get-ChildItem -LiteralPath $environments -Directory -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | ForEach-Object { Join-Path $_.FullName 'Scripts\python.exe' } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+}
+if (-not $python) { $python = '' }
 $manifestPaths = @(
     (Join-Path $data 'runtime\windows-x64\managed-runtime.json'),
     (Join-Path $data 'runtime\managed-runtime.json')
@@ -25,7 +32,7 @@ function Report([string]$State, [string]$Label, [string]$Detail) {
 
 Write-Host 'FgoGotran Local environment check'
 
-$pythonExists = Test-Path -LiteralPath $python -PathType Leaf
+$pythonExists = $python -and (Test-Path -LiteralPath $python -PathType Leaf)
 if ($pythonExists) {
     & $python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" 2>$null
     Report $(if ($LASTEXITCODE -eq 0) { 'OK' } else { 'FAIL' }) 'Python environment' $(if ($LASTEXITCODE -eq 0) { 'Ready' } else { 'The private runtime is not compatible.' })

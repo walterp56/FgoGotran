@@ -51,7 +51,6 @@ if (-not $ApkDir) {
 if (-not $Output) {
     $Output = Join-Path $RepoRoot "release\cdn"
 }
-$NoCacheControl = "no-cache, no-store, must-revalidate, max-age=0, s-maxage=0"
 
 function Assert-ExitCode {
     param([string]$Step)
@@ -59,15 +58,6 @@ function Assert-ExitCode {
     if ($LASTEXITCODE -ne 0) {
         throw "$Step failed with exit code $LASTEXITCODE."
     }
-}
-
-function Join-S3Path {
-    param(
-        [string]$Root,
-        [string]$Path
-    )
-
-    return "$($Root.TrimEnd('/'))/$($Path.TrimStart('/'))"
 }
 
 function Get-RelativeUrlPath {
@@ -131,20 +121,13 @@ function Publish-AppRelease {
     Write-Host ""
     Write-Host "Publishing app CDN files to $($S3Uri.TrimEnd('/'))"
 
-    & $AwsCli s3 cp $ReleaseApk (Join-S3Path $S3Uri $ApkKey) `
-        --content-type "application/vnd.android.package-archive" `
-        --cache-control $NoCacheControl
-    Assert-ExitCode "Upload APK"
-
-    & $AwsCli s3 cp $ReleaseSha (Join-S3Path $S3Uri "$ApkKey.sha256") `
-        --content-type "text/plain; charset=utf-8" `
-        --cache-control $NoCacheControl
-    Assert-ExitCode "Upload APK checksum"
-
-    & $AwsCli s3 cp $LatestManifest (Join-S3Path $S3Uri "app/android/latest/manifest.json") `
-        --content-type "application/json; charset=utf-8" `
-        --cache-control $NoCacheControl
-    Assert-ExitCode "Upload app latest manifest"
+    # Re-read the origin and condition on its ETag, preserving the Local block
+    # even if another release was published after this APK was packaged.
+    & $PythonExe (Join-Path $RepoRoot 'term_builder\py\shared_release_manifest.py') `
+        --manifest $LatestManifest --product android --s3-uri $S3Uri --aws-cli $AwsCli `
+        --artifact-file $ReleaseApk --artifact-key $ApkKey `
+        --artifact-file $ReleaseSha --artifact-key "$ApkKey.sha256"
+    Assert-ExitCode "Publish shared latest manifest"
 
     if ($CloudFrontDistributionId) {
         Write-Host "Invalidating CloudFront path /app/*"
@@ -217,7 +200,7 @@ try {
     Write-Host ""
     Write-Host "Upload these S3 prefixes:"
     Write-Host "  app/android/releases/<version>/"
-    Write-Host "  app/android/latest/manifest.json  (upload last)"
+    Write-Host "  app/android/latest/manifest.json  (merge and conditionally publish last; do not upload directly)"
 
     if ($S3Uri) {
         Publish-AppRelease -OutputRoot $Output

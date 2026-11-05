@@ -33,7 +33,10 @@ def test_control_server_identifies_itself_and_rejects_unmarked_mutations(tmp_pat
         blocked = client.post("/api/actions/start", json={})
 
     assert health.status_code == 200
-    assert health.json() == {"ok": True, "service": "fgogotran-local"}
+    assert health.json()["ok"] is True
+    assert health.json()["service"] == "fgogotran-local"
+    assert health.json()["versionName"] == "v1.0.0"
+    assert health.json()["versionCode"] == 1
     assert status.json()["state"] == "STOPPED"
     assert "apiKey" not in masked_key.json()
     assert secret not in masked_key.text
@@ -219,6 +222,7 @@ def test_status_and_diagnostics_never_expose_computer_inventory(tmp_path: Path):
     }
     assert forbidden.isdisjoint(diagnostics)
     assert set(diagnostics) == {
+        "softwareVersion",
         "pythonEnvironmentReady",
         "pythonDependenciesReady",
         "configurationReady",

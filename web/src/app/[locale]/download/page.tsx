@@ -5,11 +5,12 @@ import { siteConfig } from "@/data/site";
 import { pageMetadata } from "@/lib/seo";
 
 const currentAppVersion = "v4.2.0";
+const oneDriveDownloadUrl = "https://1drv.ms/f/c/9e1fdb13e6d5d039/IgDO_uKE7yZWT6cPSy-v_LlnAW4zG9Wv51mwltpuVAVI9HI?e=uEzfCt";
 
 const downloadOptions = [
   {
     key: "onedrive",
-    href: "https://1drv.ms/f/c/9e1fdb13e6d5d039/IgDO_uKE7yZWT6cPSy-v_LlnAW4zG9Wv51mwltpuVAVI9HI?e=uEzfCt",
+    href: oneDriveDownloadUrl,
     iconSrc: "/download-icons/onedrive.svg",
     accentColor: "#0078d4"
   },
@@ -103,6 +104,22 @@ export default async function DownloadPage({ params }: DownloadPageProps) {
               <span className="download-source-subtitle">{t(`options.${option.key}.subtitle`)}</span>
             </a>
           ))}
+        </div>
+      </section>
+      <section className="section compact" id="local">
+        <div className="download-intro">
+          <h2>FgoGotran Local · Windows ZIP</h2>
+          <p>{t("localDownload.body")}</p>
+          <div className="download-actions">
+            <a className="primary-button" href={oneDriveDownloadUrl} target="_blank" rel="noreferrer">
+              {t("localDownload.button")}
+            </a>{" "}
+            <Link className="secondary-button" href="/local-guide">{t("localGuide")}</Link>
+          </div>
+          <div className="download-reminder" role="note">
+            <strong>{t("localDownload.reminderTitle")}</strong>
+            {t("localDownload.reminder")}
+          </div>
         </div>
       </section>
     </>

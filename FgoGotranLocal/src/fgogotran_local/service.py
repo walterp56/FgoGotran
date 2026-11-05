@@ -13,6 +13,8 @@ from .llama_manager import LlamaManager
 from .log_store import LogStore
 from .network_monitor import NetworkMonitor
 from .privacy import redact_connection, redact_sensitive_payload
+from .updates import UpdateManager
+from .version import version_info
 
 from .i18n import t
 
@@ -27,6 +29,7 @@ class LocalTranslationService:
         self.monitor = NetworkMonitor()
         self.started_at = time.monotonic()
         self._auto_start_task: asyncio.Task[None] | None = None
+        self.updates = UpdateManager(self.data_directory)
 
     async def initialize(self) -> None:
         await self.config_store.load()
@@ -37,6 +40,7 @@ class LocalTranslationService:
             self._auto_start_task = asyncio.create_task(self._auto_start_model(), name="llama-auto-start")
 
     async def close(self) -> None:
+        await self.updates.close()
         if self._auto_start_task and not self._auto_start_task.done():
             self._auto_start_task.cancel()
             try:
@@ -166,6 +170,7 @@ class LocalTranslationService:
         except ConfigError:
             runtime_ready = False
         return {
+            "softwareVersion": version_info(),
             "pythonEnvironmentReady": True,
             "pythonDependenciesReady": True,
             "configurationReady": True,

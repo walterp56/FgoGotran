@@ -15,6 +15,9 @@ from .errors import StudioError
 from .i18n import DEFAULT_LOCALE, activate, deactivate, t
 from .privacy import redact_sensitive_text
 from .service import LocalTranslationService
+from .updates import download_page_url
+from .update_ui import DIALOG_TEMPLATE, DIALOG_CSS, DIALOG_JS, dialog_value
+from .i18n import current as current_locale
 
 
 STUDIO_CSS = """
@@ -196,6 +199,20 @@ html[lang="zh-Hant"] .gradio-container {
 .workflow-step strong { color: var(--fgo-ink); font-size: .9rem; }
 .workflow-step small { display: block; color: var(--fgo-muted); font-size: .78rem; line-height: 1.35; }
 .action-copy { color: var(--fgo-muted); font-size: .9rem; margin: 0 0 12px; }
+.software-update-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.software-version-label { color: var(--fgo-muted); font-size: .9rem; }
+.software-version { color: var(--fgo-navy); font-size: 1.9rem; font-weight: 740; margin-top: 5px; }
+.update-state { padding: 10px 12px; background: #eef4fa; border-radius: 9px; }
+.update-state-latest { color: var(--fgo-success); background: #e9f6f0; }
+.update-state-error { color: var(--fgo-warning); background: #fff5d9; }
+.update-state-available { color: var(--fgo-blue); background: #eaf5ff; }
+.update-page { gap: 16px !important; }
+.update-version-panel { background: linear-gradient(135deg, #ffffff, #f6faff) !important; }
+.update-actions { gap: 12px !important; margin-top: 4px !important; }
+.update-guide { margin-top: 0; }
+.update-guide ol { margin: 4px 0 14px; padding-left: 24px; }
+.update-guide li { padding: 5px 0 5px 4px; line-height: 1.7; }
+.update-guide p:last-child { color: var(--fgo-muted); margin-bottom: 0; }
 .inline-result { min-height: 34px; margin-top: 8px; }
 .save-bar { margin-top: 13px; border-top: 1px solid #e4ebf2; padding-top: 13px; }
 .checklist { margin: 0; padding-left: 1.25rem; color: var(--fgo-muted); }
@@ -300,6 +317,23 @@ def build_ui(
 
     def localized_handler(fn):
         """Bind an event handler to this UI's locale."""
+        if inspect.isasyncgenfunction(fn):
+            @functools.wraps(fn)
+            async def async_generator_handler(*args, **kwargs):
+                iterator = fn(*args, **kwargs)
+                while True:
+                    handler_token = activate(locale)
+                    try:
+                        value = await anext(iterator)
+                    except StopAsyncIteration:
+                        return
+                    finally:
+                        deactivate(handler_token)
+                    # Do not leave a locale token active across Gradio yields.
+                    yield value
+
+            return async_generator_handler
+
         if inspect.iscoroutinefunction(fn):
             @functools.wraps(fn)
             async def async_handler(*args, **kwargs):
@@ -344,6 +378,12 @@ def build_ui(
                   </div>
                 </div>
                 """
+            )
+
+            update_dialog = gr.HTML(
+                value={"showPrompt": False}, html_template=DIALOG_TEMPLATE,
+                css_template=DIALOG_CSS, js_on_load=DIALOG_JS, apply_default_css=False,
+                min_height=0, elem_id="local-update-reminder",
             )
 
             with gr.Tabs(elem_classes=["studio-tabs"]):
@@ -498,6 +538,16 @@ def build_ui(
                         t("ui.system.description"),
                     ))
                     with gr.Tabs():
+                        with gr.Tab(t("update.tab")):
+                            with gr.Column(elem_classes=["update-page"]):
+                                with gr.Group(elem_classes=["panel-card", "update-version-panel"]):
+                                    update_output = gr.HTML(_update_markup(service.updates.snapshot()))
+                                    with gr.Row(elem_classes=["update-actions"]):
+                                        update_check_button = gr.Button(t("update.check"), variant="primary", elem_id="local-check-update")
+                                        gr.Button(t("update.download"), link=download_page_url(), link_target="_self", elem_id="local-download-page")
+                                with gr.Group(elem_classes=["panel-card", "update-guide"]):
+                                    gr.HTML(f'<div class="panel-title"><h3>{html.escape(t("update.guideTitle"))}</h3></div>')
+                                    gr.Markdown(t("update.guideSteps"))
                         with gr.Tab(t("ui.system.diagnostics")):
                             with gr.Group(elem_classes=["panel-card"]):
                                 diagnostics_button = gr.Button(t("ui.system.runDiagnostics"), variant="primary")
@@ -797,6 +847,23 @@ def build_ui(
                 except Exception as error:
                     return _error_message(error)
 
+            @localized_handler
+            async def check_update():
+                yield gr.update(value=t("update.checking"), interactive=False), _update_markup(service.updates.snapshot(), checking=True), gr.skip()
+                try:
+                    value = await service.updates.check_for_prompt(active=True)
+                    yield gr.update(value=t("update.check"), interactive=True), _update_markup(value), dialog_value(value)
+                except Exception as error:
+                    yield gr.update(value=t("update.check"), interactive=True), _update_markup(service.updates.snapshot(), error=_error_message(error)), gr.skip()
+
+            @localized_handler
+            async def check_update_passive():
+                value = await service.updates.check_for_prompt(active=False)
+                return _update_markup(value), dialog_value(value) if value.get("showPrompt") else gr.skip()
+
+            update_check_button.click(check_update, outputs=[update_check_button, update_output, update_dialog], api_visibility="private")
+            studio.load(check_update_passive, outputs=[update_output, update_dialog], api_visibility="private")
+
             studio.load(load_initial, outputs=profile_state_outputs, api_visibility="private")
             studio.load(
                 refresh_overview,
@@ -917,6 +984,32 @@ def studio_theme():
         secondary_hue="sky",
         neutral_hue="slate",
         radius_size="md",
+    )
+
+
+def _update_markup(value: dict, *, error: str = "", checking: bool = False) -> str:
+    current = value["current"]
+    state = "checking" if checking else "idle"
+    if error or value.get("isError"):
+        state, message = "error", t("update.failureTitle")
+    elif checking:
+        message = t("update.checking")
+    elif not value["checked"]:
+        message = t("update.notChecked")
+    elif value.get("release") is None:
+        message = t("update.notPublished")
+    elif value["available"]:
+        state, message = "available", t("update.available", name=value["release"]["versionName"])
+    else:
+        state, message = "latest", t("update.latest")
+    return (
+        f'<div class="software-update-card"><div class="software-update-heading"><div>'
+        f'<div class="software-version-label">{html.escape(t("update.currentLabel"))}</div>'
+        f'<div class="software-version">{html.escape(current["versionName"])}</div>'
+        '</div></div>'
+        f'<p class="update-state update-state-{state}" role="status">{html.escape(message)}</p>'
+        + (error if error else "")
+        + '</div>'
     )
 
 
@@ -1113,6 +1206,7 @@ def _diagnostics_markdown(value: dict) -> str:
     port_status = t("ui.diagnostics.portRunning") if value.get("serverRunning") else state("portAvailable")
     return "\n".join([
         t("ui.diagnostics.title"),
+        t("update.current", name=value["softwareVersion"]["versionName"], code=value["softwareVersion"]["versionCode"]),
         t("ui.diagnostics.pythonEnvironment", state=state("pythonEnvironmentReady")),
         t("ui.diagnostics.pythonDependencies", state=state("pythonDependenciesReady")),
         t("ui.diagnostics.configuration", state=state("configurationReady")),

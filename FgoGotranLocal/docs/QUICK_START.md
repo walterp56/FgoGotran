@@ -7,7 +7,7 @@ Double-click `Start-FgoGotranLocal.cmd` and keep the command window open.
 When required, the launcher asks before downloading external components. Press Enter to accept the displayed default or enter `n` to keep that component manual.
 
 1. A compatible installed 64-bit Python 3.11–3.13 is reused. If none exists, the launcher can download the signed Python 3.13.15 installer from `python.org` and install it privately under `user_data/runtime/windows-x64` without changing `PATH` or file associations. An existing valid runtime in the former shared location remains usable.
-2. `.venv` is created and the Python UI dependencies are installed.
+2. A private dependency environment is created under `user_data/runtime/windows-x64/environments/<dependency-fingerprint>`. Matching environments are reused; dependency changes create another environment. A legacy root `.venv` is left untouched.
 3. If llama.cpp is not configured, the launcher can obtain an official Windows x64 release. An NVIDIA CUDA build compatible with the driver is preferred; the official CPU build is the fallback.
 4. Download a compatible GGUF model yourself from a trusted publisher and select it in the control interface.
 5. Downloaded Python and llama.cpp files are checked against their official signature or size/SHA-256 metadata before use.

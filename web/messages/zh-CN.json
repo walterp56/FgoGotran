@@ -1441,6 +1441,12 @@
     "localReminderBefore": "想让手机调用 Windows 电脑上的 llama.cpp 与 GGUF，可查看",
     "localGuide": "FgoGotran Local 使用指南",
     "localReminderAfter": "。",
+    "localDownload": {
+      "body": "FgoGotranLocal 是 Windows 电脑端的本地翻译工具，下载格式为 ZIP。请在 OneDrive 中选择最新版 FgoGotranLocal ZIP。",
+      "button": "前往 OneDrive 下载 ZIP",
+      "reminderTitle": "手动更新：",
+      "reminder": "更新前先完全关闭 FgoGotranLocal 并备份 user_data。将新版 ZIP 解压到原安装路径，启动前放回原来的 user_data；确认设置和翻译正常后再删除备份。外部模型请保留原位置。"
+    },
     "options": {
       "onedrive": {
         "title": "OneDrive",

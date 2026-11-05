@@ -50,7 +50,7 @@ def test_fresh_config_adopts_managed_llama_but_never_legacy_managed_model(tmp_pa
     public = run(store.load())
 
     assert public["llamaServerPath"] == str(executable.resolve())
-    assert public["modelsDirectory"] == ""
+    assert public["modelsDirectory"] == str(tmp_path / "models")
     assert public["profiles"]["fgo-balanced"]["modelPath"] == ""
     assert public["profiles"]["fgo-balanced"]["modelAlias"] == "fgo-local-v1"
 
@@ -181,7 +181,7 @@ def test_managed_manifest_cannot_adopt_paths_outside_data_directory(tmp_path: Pa
     public = run(store.load())
 
     assert public["llamaServerPath"] == ""
-    assert public["modelsDirectory"] == ""
+    assert public["modelsDirectory"] == str(tmp_path / "models")
     assert public["profiles"]["fgo-balanced"]["modelPath"] == ""
 
 

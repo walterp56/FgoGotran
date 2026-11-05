@@ -6,12 +6,68 @@ FgoGotran Local is a Windows control interface for running a local `llama.cpp` t
 
 The repository contains only the lightweight launcher, Gradio control interface, configuration logic, and documentation. Python, llama.cpp, and CUDA runtime files can be downloaded to ignored local directories only after first-run confirmation; they are never committed or redistributed in this folder. GGUF models are always obtained and selected by the user.
 
+## Version and manual updates
+
+The initial software release is **v1.0.0, version code 1**. The single version
+source is `src/fgogotran_local/version.json`; configuration `version` and
+platform `schemaVersion` remain separate schema versions. The header, startup
+console, diagnostics and `/healthz` report the running software version.
+
+Open **System → Software updates** for a manual check. Opening the Local
+control page also starts a passive check in the background. Both use the
+existing `https://cdn.fgogotran.com/app/android/latest/manifest.json` and only
+its `fgogotranLocal` version section. The CDN holds small metadata, never the
+Local ZIP. Download links inside Local always go to the official website's
+localized `/download/#local` section; OneDrive remains a website download source.
+
+A new version first shows a dialog with current/latest versions and localized
+release notes. **Go to download page** opens the website in the current tab;
+Local translation continues. Passive dialogs also offer **Skip this version**
+and **Not now**. Successful passive checks and dismissed reminders cool down
+for 24 hours; failed checks cool down for one hour until a later page visit.
+No periodic polling is added. Refreshing, changing language and restarting do
+not bypass the saved reminder preferences. Manual checks bypass cooldown and
+ignored-version preferences, and concurrent checks share one request.
+
+Passive failures/current-version results do not open dialogs. Manual failures
+show a retry message; **Go to download page** stays available even offline from
+the manifest. Reminder state/cache is saved atomically in
+`user_data/state/update_reminder.json`, separate from inference configuration.
+
+## Preserve one data folder when updating
+
+All new managed data goes under `user_data`: settings/API Key/profiles in
+`config.json`, models in `models`, Python/dependency environments/llama.cpp/CUDA
+in `runtime`, logs/reminders in `state`, and temporary files in `cache` or
+`downloads`. Existing external model/runtime paths are preserved; those external
+files are not included in a user_data backup.
+
+1. Fully close FgoGotranLocal (close its launcher console).
+2. Back up `user_data` (or the custom data directory you selected).
+3. Download the latest Local ZIP through the website, then extract the new
+   program to the **original installation path**.
+4. Restore your original `user_data` **before launching the new program**.
+5. Run `Start-FgoGotranLocal.cmd`, check settings/model/translation, and retain
+   the backup until the new version is confirmed working.
+
+The ZIP never contains user_data, so it cannot replace your settings with empty
+defaults. Do not merge a newly generated config over your backup. A legacy root
+`.venv` is left untouched; new setup creates its environment inside user_data
+instead of moving the old environment. First migration may need to install
+Python dependencies again. Later matching environments are reused; changed
+requirements use a separate environment. If a managed environment was relocated,
+it is preserved as an incompatible backup and recreated at the final path.
+
+The version check never downloads ZIPs, replaces program files, changes model
+settings, stops translation or launches installers. See
+[portable releases and shared metadata](docs/portable-releases.md).
+
 ## Quick start
 
 Double-click `Start-FgoGotranLocal.cmd`. On a new PC, the launcher can:
 
 1. Use an existing 64-bit Python 3.11–3.13, or offer to install an isolated Python 3.13.15 runtime under `user_data`.
-2. Create `.venv` and install the control-interface dependencies.
+2. Create a dependency environment inside `user_data/runtime/windows-x64/environments` and install the control-interface dependencies.
 3. Load the `platforms/windows-x64` package, detect the NVIDIA driver, and download a compatible official llama.cpp CUDA build with a CPU fallback.
 4. Verify the Python publisher signature and the official size/SHA-256 metadata before using downloads.
 5. Create the local configuration and open `http://127.0.0.1:18081`.
@@ -36,7 +92,10 @@ Interface labels, runtime status messages, validation errors, and runtime logs a
 Automatic setup stores its files in locations already excluded by `.gitignore`:
 
 ```text
-.venv\
+user_data\models\
+user_data\runtime\windows-x64\environments\
+user_data\state\
+user_data\cache\
 user_data\downloads\
 user_data\runtime\windows-x64\python-3.13.15\
 user_data\runtime\windows-x64\llama.cpp\

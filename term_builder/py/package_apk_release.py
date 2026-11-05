@@ -24,6 +24,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from shared_release_manifest import merge_manifest, read_manifest
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
@@ -232,7 +234,9 @@ def package_apk_release(args: argparse.Namespace) -> dict[str, Any]:
     )
     if changelog_i18n:
         manifest["changelogI18n"] = changelog_i18n
-    write_json(latest_dir / "manifest.json", manifest)
+    latest_manifest = latest_dir / "manifest.json"
+    current = read_manifest(latest_manifest) if latest_manifest.exists() else {}
+    write_json(latest_manifest, merge_manifest(current, manifest, "android"))
 
     return {
         "releaseDir": str(release_dir),

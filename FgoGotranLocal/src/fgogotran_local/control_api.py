@@ -7,6 +7,7 @@ from .i18n import activate, deactivate, normalize_locale, t
 from .privacy import redact_sensitive_payload
 from .security import require_safe_mutation
 from .service import LocalTranslationService
+from .version import version_info
 
 
 def create_control_router(service: LocalTranslationService) -> APIRouter:
@@ -22,7 +23,21 @@ def create_control_router(service: LocalTranslationService) -> APIRouter:
 
     @router.get("/healthz", include_in_schema=False)
     async def healthz() -> dict:
-        return {"ok": True, "service": "fgogotran-local"}
+        return {"ok": True, "service": "fgogotran-local", **version_info()}
+
+    @router.get("/api/updates", include_in_schema=False)
+    async def update_status() -> dict:
+        return service.updates.snapshot()
+
+    @router.post("/api/updates/check", include_in_schema=False)
+    async def check_updates(request: Request) -> dict:
+        await require_safe_mutation(request)
+        return await service.updates.check_for_prompt(active=True)
+
+    @router.post("/api/updates/reminder", include_in_schema=False)
+    async def update_reminder(request: Request) -> dict:
+        body = await require_safe_mutation(request)
+        return await service.updates.reminder_action(body.get("versionCode"), body.get("action"))
 
     @router.get("/api/status", include_in_schema=False)
     async def status() -> dict:

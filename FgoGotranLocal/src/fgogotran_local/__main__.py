@@ -11,6 +11,7 @@ import uvicorn
 
 from .application import create_application
 from .service import LocalTranslationService, configured_data_directory
+from .version import VERSION_NAME, VERSION_CODE
 
 
 CONTROL_HOST = "127.0.0.1"
@@ -24,7 +25,7 @@ def main() -> None:
     service = LocalTranslationService(configured_data_directory(__file__))
     application = create_application(service)
     local_url = f"http://{CONTROL_HOST}:{port}"
-    print(f"FgoGotran Local：{local_url}", flush=True)
+    print(f"FgoGotran Local {VERSION_NAME} ({VERSION_CODE}): {local_url}", flush=True)
     if os.environ.get("FGO_LOCAL_OPEN_BROWSER") == "1":
         threading.Thread(
             target=_open_browser_when_ready,

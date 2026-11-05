@@ -34,7 +34,7 @@ def test_ui_has_translation_only_primary_navigation(tmp_path: Path):
     ]
 
     assert tuple(tab_labels[:4]) == UI_TAB_LABELS
-    assert tab_labels[4:] == ["环境诊断", "运行日志"]
+    assert tab_labels[4:] == ["软件更新", "环境诊断", "运行日志"]
     assert "语音" not in " ".join(tab_labels)
 
 
