@@ -277,7 +277,7 @@ jp_name	cn_name	en_name	en_components	gender	aliases
 出雲阿国	出云阿国	Izumo-no-Okuni		女性	
 謎の蘭丸X	谜之兰丸X	Mysterious Ranmaru X		性別不明	
 太公望	太公望	Taigong Wang		男性	
-ドブルイニャ・ニキチッチ	多布雷尼亚·尼基季奇	Dobrynya Nikitich		女性	ドブルイニャニキチッチ
+ドブルイニャ・ニキチッチ	多布雷尼亚·尼基季奇	Dobrynya Nikitich		女性	ドブルイニャニキチッチ, ドブルイニャ二キチッチ,ドブルイニャ・二キチッチ
 ビーストⅣ	BeastⅣ	Beast IV		女性	ビーストIV
 闇のコヤンスカヤ	暗之高扬斯卡娅	Koyanskaya of Dark		女性	
 ヘファイスティオン	赫费斯提翁	Hephaistíon		女性	
@@ -637,7 +637,7 @@ Dr.ロマン	Dr.罗曼	Dr. Roman		男性
 ミ二小町	迷你小町	Mini Komachi		女性	
 ぬらりひょん	滑头鬼	Nurarihyon		男性	
 ヴェルザンディ	薇尔丹蒂	Verdandi		女性	
-まーちゃん	御酱	Masu-chan			
+まーちゃん	御酱	Masu-chan			マーちゃん
 小野篁	小野篁	Ono no Takamura		男性	
 リンド	琳德	Rindr		女性	
 エルン	奥露恩	Rún		女性	
@@ -646,7 +646,7 @@ Dr.ロマン	Dr.罗曼	Dr. Roman		男性
 ゲイルスケグル	洁尔诗科古尔	Geirskögul		女性	
 エリセ	绘里濑	Erice		女性	
 ちゃんマス	酱御	Chan-masu			
-辈先	辈前	Paisen			
+辈先	辈前	Paisen			パイセン
 サンチョ	桑丘	Sancho		女性	
 リンボ	Limbo	Limbo		性別不明	
 ダイダロス	代达罗斯	Daedalus		男性	
@@ -689,3 +689,5 @@ AAA	AAA	AAA		女性
 間桐桜	间桐樱	Sakura Matou		女性	間桐 桜
 衛宮士郎	卫宫士郎	Shirou Emiya		男性	衛宮 士郎
 衛宮切嗣	卫宫切嗣	Kiritsugu Emiya		男性	衛宮 切嗣
+なぎこ	诺子	Nagiko		女性	
+ナゴン	纳言	Nagon		女性	

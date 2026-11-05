@@ -1806,11 +1806,11 @@
     "aliases": ""
   },
   {
-    "jp_name": "カレン",
-    "cn_name": "卡莲",
-    "en_name": "Caren",
+    "jp_name": "カレン・Ｃ・オルテンシア",
+    "cn_name": "卡莲·C·奥尔黛西亚",
+    "en_name": "Caren C. Hortensia",
     "category": "character",
-    "aliases": ""
+    "aliases": "カレンCオルテンシア, カレン・C・オルテンシア, カレンＣオルテンシア"
   },
   {
     "jp_name": "ガラテア",
@@ -1950,7 +1950,7 @@
     "cn_name": "多布雷尼亚·尼基季奇",
     "en_name": "Dobrynya Nikitich",
     "category": "character",
-    "aliases": "ドブルイニャニキチッチ"
+    "aliases": "ドブルイニャニキチッチ, ドブルイニャ・二キチッチ, ドブルイニャ二キチッチ"
   },
   {
     "jp_name": "ビーストⅣ",
@@ -1981,11 +1981,11 @@
     "aliases": "マナナンマクリール"
   },
   {
-    "jp_name": "バゼット",
-    "cn_name": "巴泽特",
-    "en_name": "Bazett",
+    "jp_name": "バゼット・フラガ・マクレミッツ",
+    "cn_name": "巴泽特·弗拉加·马克雷密斯",
+    "en_name": "Bazett Fraga McRemitz",
     "category": "character",
-    "aliases": ""
+    "aliases": "バゼットフラガマクレミッツ"
   },
   {
     "jp_name": "徴姉妹",
@@ -4470,7 +4470,7 @@
     "cn_name": "御酱",
     "en_name": "Masu-chan",
     "category": "character",
-    "aliases": ""
+    "aliases": "マーちゃん"
   },
   {
     "jp_name": "小野篁",
@@ -4533,7 +4533,7 @@
     "cn_name": "辈前",
     "en_name": "Paisen",
     "category": "character",
-    "aliases": ""
+    "aliases": "パイセン"
   },
   {
     "jp_name": "サンチョ",
@@ -4608,9 +4608,9 @@
   {
     "jp_name": "ゴッホ",
     "cn_name": "梵高",
-    "en_name": "Gogh",
+    "en_name": "Van Gogh",
     "category": "character",
-    "aliases": ""
+    "aliases": "ヴァンゴッホ, ヴァン・ゴッホ"
   },
   {
     "jp_name": "超絶神託ちゃん",
@@ -4749,6 +4749,97 @@
     "jp_name": "折田さん",
     "cn_name": "折田同学",
     "en_name": "Oruta",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "アルクェイド・ブリュンスタッド",
+    "cn_name": "爱尔奎特·布伦史塔德",
+    "en_name": "Arcueid Brunestud",
+    "category": "character",
+    "aliases": "アルクェイドブリュンスタッド"
+  },
+  {
+    "jp_name": "シエル",
+    "cn_name": "希耶尔",
+    "en_name": "Ciel",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "イリヤ",
+    "cn_name": "伊莉雅",
+    "en_name": "Illya",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "望月千代女",
+    "cn_name": "望月千代女",
+    "en_name": "Mochizuki Chiyome",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "クリュティエ",
+    "cn_name": "克吕提厄",
+    "en_name": "Clytie",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "クリュティエ＝ヴァン・ゴッホ",
+    "cn_name": "克吕提厄·梵高",
+    "en_name": "Clytie van Gogh",
+    "category": "character",
+    "aliases": "クリュティエヴァンゴッホ"
+  },
+  {
+    "jp_name": "ルヴィアゼリッタ・エーデルフェルト",
+    "cn_name": "露维亚瑟琳塔·艾德费尔特",
+    "en_name": "Luviagelita Edelfelt",
+    "category": "character",
+    "aliases": "ルヴィアゼリッタエーデルフェルト"
+  },
+  {
+    "jp_name": "遠坂凛",
+    "cn_name": "远坂凛",
+    "en_name": "Rin Tohsaka",
+    "category": "character",
+    "aliases": "遠坂 凛"
+  },
+  {
+    "jp_name": "間桐桜",
+    "cn_name": "间桐樱",
+    "en_name": "Sakura Matou",
+    "category": "character",
+    "aliases": "間桐 桜"
+  },
+  {
+    "jp_name": "衛宮士郎",
+    "cn_name": "卫宫士郎",
+    "en_name": "Shirou Emiya",
+    "category": "character",
+    "aliases": "衛宮 士郎"
+  },
+  {
+    "jp_name": "衛宮切嗣",
+    "cn_name": "卫宫切嗣",
+    "en_name": "Kiritsugu Emiya",
+    "category": "character",
+    "aliases": "衛宮 切嗣"
+  },
+  {
+    "jp_name": "なぎこ",
+    "cn_name": "诺子",
+    "en_name": "Nagiko",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ナゴン",
+    "cn_name": "纳言",
+    "en_name": "Nagon",
     "category": "character",
     "aliases": ""
   }

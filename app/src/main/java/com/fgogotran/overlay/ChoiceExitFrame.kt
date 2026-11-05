@@ -55,11 +55,12 @@ internal class ChoiceExitFrame private constructor(
         layers.forEachIndexed { index, layer ->
             val selected = index == selectedIndex
             val textAlpha = ChoiceExitController.alpha(selected, elapsedMs)
-            if (textAlpha == 0) {
+            val coverAlpha = ChoiceExitController.additionalBackgroundAlpha(selected, elapsedMs)
+            // Rounded text alpha can reach zero before the source glyphs have retired.
+            if (textAlpha == 0 && coverAlpha == 0) {
                 layer.releaseBackground()
                 return@forEachIndexed
             }
-            val coverAlpha = ChoiceExitController.additionalBackgroundAlpha(selected, elapsedMs)
             if (coverAlpha > 0 && !layer.backgroundAttempted && layer.plan != null) {
                 layer.backgroundAttempted = true
                 try {

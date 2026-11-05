@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ChoiceExitControllerTest {
-    @Test fun `covers follow text opacity without extending either row retirement`() {
+    @Test fun `covers gradually follow text opacity without an opaque retirement tail`() {
         for ((selected, start, end) in listOf(Triple(false, 100L, 600L), Triple(true, 700L, 1_300L))) {
             var previousText = 255
             var previousCover = 255
@@ -29,19 +29,34 @@ class ChoiceExitControllerTest {
         assertEquals(254, ChoiceExitController.backgroundAlpha(true, 876))
         assertEquals(126, ChoiceExitController.backgroundAlpha(false, 350))
         assertEquals(126, ChoiceExitController.backgroundAlpha(true, 1_000))
+        for ((selected, end) in listOf(false to 600L, true to 1_300L)) {
+            assertEquals(255, ChoiceExitController.backgroundAlpha(selected, Long.MIN_VALUE))
+            assertTrue(ChoiceExitController.backgroundAlpha(selected, end - 100L) < 32)
+            assertEquals(0, ChoiceExitController.backgroundAlpha(selected, end - 20L))
+            assertEquals(0, ChoiceExitController.backgroundAlpha(selected, Long.MAX_VALUE))
+            assertEquals(0, ChoiceExitController.alpha(selected, end - 20L))
+            assertEquals(0, ChoiceExitController.additionalBackgroundAlpha(selected, end - 20L),
+                "no empty cover once translated text has disappeared")
+        }
     }
 
     @Test fun `selection echo expands and fades without extending the existing retirement`() {
         assertEquals(0, ChoiceExitController.selectionAlpha(-1))
         assertEquals(0, ChoiceExitController.selectionAlpha(0))
-        assertEquals(70, ChoiceExitController.selectionAlpha(30))
-        assertEquals(140, ChoiceExitController.selectionAlpha(60))
-        assertEquals(87, ChoiceExitController.selectionAlpha(150))
+        assertEquals(0, ChoiceExitController.selectionAlpha(Long.MIN_VALUE))
+        for (time in listOf(1L, 33L, 60L, 100L)) assertEquals(255, ChoiceExitController.selectionAlpha(time))
+        assertEquals(191, ChoiceExitController.selectionAlpha(150))
+        assertEquals(127, ChoiceExitController.selectionAlpha(200))
+        assertEquals(63, ChoiceExitController.selectionAlpha(250))
+        assertEquals(1, ChoiceExitController.selectionAlpha(299))
         assertEquals(0, ChoiceExitController.selectionAlpha(300))
         assertEquals(0, ChoiceExitController.selectionAlpha(Long.MAX_VALUE))
         assertEquals(1f, ChoiceExitController.selectionScale(-1))
-        assertTrue(kotlin.math.abs(1.3f - ChoiceExitController.selectionScale(150)) < 0.0001f)
-        assertEquals(1.6f, ChoiceExitController.selectionScale(Long.MAX_VALUE))
+        assertEquals(1f, ChoiceExitController.selectionScale(0))
+        assertTrue(kotlin.math.abs(1.11f - ChoiceExitController.selectionScale(33)) < 0.0001f)
+        assertEquals(1.5f, ChoiceExitController.selectionScale(150))
+        assertEquals(2f, ChoiceExitController.selectionScale(300))
+        assertEquals(2f, ChoiceExitController.selectionScale(Long.MAX_VALUE))
         assertEquals(1_300L, ChoiceExitController.DURATION_MS)
     }
 

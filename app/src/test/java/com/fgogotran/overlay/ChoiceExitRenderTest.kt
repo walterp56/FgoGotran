@@ -100,7 +100,39 @@ class ChoiceExitRenderTest {
         }
     }
 
-    @Test fun `release anchored start preserves the full echo peak after the 80ms game gesture`() {
+    @Test fun `cover visibly fades before retirement and cannot leave an opaque textless plane`() {
+        for (selected in listOf(false, true)) {
+            val source = source()
+            val plan = selectionPlan()
+            plan.capture(rows[1]).use { it.draw(Canvas(source), 1f, 0) }
+            val chosen = if (selected) 1 else 0
+            val frame = ChoiceExitFrame.capture(source,
+                listOf(regions[0], regions[1].copy(selectionVisual = plan)), chosen)
+            val output = Bitmap.createBitmap(320, 240, Bitmap.Config.ARGB_8888)
+            val start = if (selected) 700L else 100L
+            val end = if (selected) 1_300L else 600L
+            val times = ((start..end step 17L).toList() + listOf(end - 20, end - 1, end, end + 33)).sorted()
+            try {
+                for (time in times) {
+                    output.eraseColor(Color.TRANSPARENT)
+                    val canvas = Canvas(output)
+                    frame.draw(canvas, time)
+                    val opacity = Color.alpha(output.getPixel(100, 110))
+                    if (time >= start + (end - start) / 2) {
+                        assertTrue(opacity <= 127, "cover must already be translucent at $selected/$time")
+                    }
+                    if (time >= end - 100L) assertTrue(opacity < 32, "no late black block at $selected/$time")
+                    if (time == end - 20L) {
+                        assertEquals(0, ChoiceExitController.alpha(selected, time))
+                        assertEquals(Color.TRANSPARENT, output.getPixel(100, 110), "no textless plane")
+                    }
+                    if (time >= end) assertEquals(Color.TRANSPARENT, output.getPixel(100, 110), "cover retired at $end")
+                }
+            } finally { frame.close(); output.recycle(); source.recycle() }
+        }
+    }
+
+    @Test fun `release anchored start preserves the bright echo after the 80ms game gesture`() {
         val source = source()
         val plan = selectionPlan()
         val original = plan.capture(rows[1])
@@ -111,11 +143,10 @@ class ChoiceExitRenderTest {
         try {
             view.startChoiceExit(ChoiceExitFrame.capture(source,
                 listOf(regions[1].copy(selectionVisual = plan)), 0), dispatchedAt + 80L) {}
-            val atRelease = pixels(view)
-            for (y in rows[1].top until rows[1].bottom) for (x in rows[1].left until rows[1].right) {
-                assertEquals(source.getPixel(x, y), atRelease.getPixel(x, y), "effect must start at release")
-            }
-            atRelease.recycle()
+            // Scheduling a vsync may advance Robolectric's clock before the first draw.
+            // Verify the anchor directly; the zero-time pixels are tested deterministically below.
+            assertEquals(dispatchedAt + 80L, DialoguePlaybackView::class.java
+                .getDeclaredField("choiceExitStartedAt").apply { isAccessible = true }.getLong(view))
             ShadowSystemClock.advanceBy(Duration.ofMillis(60))
             val atPeak = pixels(view)
             assertTrue((rows[1].top until rows[1].bottom).any { y ->
@@ -169,6 +200,43 @@ class ChoiceExitRenderTest {
             }
         } finally {
             view.resetChoiceExit(); view.setImageBitmap(null); source.recycle()
+        }
+    }
+
+    @Test fun `large echo clips long text to its row at every sampled frame`() {
+        val source = source()
+        val bounds = RectF(rows[1])
+        val background = Paint().apply { color = Color.BLUE }
+        val letters = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 23f }
+        val plan = ChoiceSelectionVisualPlan(bounds, 0f,
+            drawBackground = { it.drawRect(bounds, background) },
+            drawText = { it.drawText("A long selected choice", 22f, 120f, letters) })
+        plan.capture(rows[1]).use { it.draw(Canvas(source), 1f, 0) }
+        val choices = listOf(regions[0], regions[1].copy(selectionVisual = plan))
+        val actual = Bitmap.createBitmap(320, 240, Bitmap.Config.ARGB_8888)
+        val normal = Bitmap.createBitmap(320, 240, Bitmap.Config.ARGB_8888)
+        val frame = ChoiceExitFrame.capture(source, choices, 1)
+        val reference = ChoiceExitFrame.capture(source, regions, 1)
+        try {
+            for (time in listOf(33L, 100L, 150L, 200L, 250L, 300L)) {
+                actual.eraseColor(Color.TRANSPARENT); normal.eraseColor(Color.TRANSPARENT)
+                frame.draw(Canvas(actual), time); reference.draw(Canvas(normal), time)
+                var changes = 0
+                for (y in 0 until 240) for (x in 0 until 320) {
+                    if (!rows[1].contains(x, y)) {
+                        assertEquals(normal.getPixel(x, y), actual.getPixel(x, y), "outside row at $time/$x,$y")
+                    } else {
+                        if (actual.getPixel(x, y) != normal.getPixel(x, y)) changes++
+                        if (source.getPixel(x, y) == Color.WHITE) {
+                            assertEquals(Color.WHITE, actual.getPixel(x, y), "sharp text at $time/$x,$y")
+                        }
+                    }
+                }
+                if (time < 300) assertTrue(changes > 0, "visible echo at $time")
+                else assertEquals(0, changes, "echo must end at 300ms")
+            }
+        } finally {
+            frame.close(); reference.close(); actual.recycle(); normal.recycle(); source.recycle()
         }
     }
 
@@ -265,7 +333,7 @@ class ChoiceExitRenderTest {
                             val frame = ChoiceExitFrame.capture(expected, result.choices, 0)
                             val output = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
                             try {
-                                for (time in listOf(0L, 30L, 60L, 150L, 300L, 600L, 700L, 850L, 1_000L, 1_150L, 1_300L)) {
+                                for (time in listOf(0L, 33L, 60L, 100L, 150L, 200L, 250L, 300L, 600L, 700L, 850L, 1_000L, 1_150L, 1_300L)) {
                                     output.eraseColor(Color.TRANSPARENT)
                                     frame.draw(Canvas(output), time)
                                     val b = region.paintBounds

@@ -973,6 +973,97 @@
     "aliases": ""
   },
   {
+    "jp_term": "魔術礼装",
+    "cn_term": "魔术礼装",
+    "en_term": "Mystic Code",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "直死の魔眼",
+    "cn_term": "直死魔眼",
+    "en_term": "Mystic Eyes of Death Perception",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "神造兵装",
+    "cn_term": "神造兵装",
+    "en_term": "Divine Construct",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "幻想種",
+    "cn_term": "幻想种",
+    "en_term": "Phantasmal Species",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "幻霊",
+    "cn_term": "幻灵",
+    "en_term": "Phantom Spirit",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "真祖",
+    "cn_term": "真祖",
+    "en_term": "True Ancestor",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "死徒",
+    "cn_term": "死徒",
+    "en_term": "Dead Apostle",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "魔神柱",
+    "cn_term": "魔神柱",
+    "en_term": "Demon God Pillar",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "人理焼却",
+    "cn_term": "人理烧却",
+    "en_term": "Incineration of Humanity",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "人類悪",
+    "cn_term": "人类恶",
+    "en_term": "Evil of Humanity",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "霊基グラフ",
+    "cn_term": "灵基肖像",
+    "en_term": "Spirit Origin graph",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "対粛正防御",
+    "cn_term": "对肃正防御",
+    "en_term": "Anti-Enforcement Defense",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "封印指定",
+    "cn_term": "封印指定",
+    "en_term": "Seal Designation",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
     "jp_term": "レムレム",
     "cn_term": "REM REM",
     "en_term": "REM REM",

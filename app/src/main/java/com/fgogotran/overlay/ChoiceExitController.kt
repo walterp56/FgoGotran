@@ -8,18 +8,19 @@ internal object ChoiceExitController {
     const val SELECTED_FADE_MS = 600L
     const val DURATION_MS = SELECTED_HOLD_MS + SELECTED_FADE_MS
     const val SELECTION_EFFECT_MS = 300L
-    private const val SELECTION_RISE_MS = 60L
-    private const val SELECTION_MAX_ALPHA = 140
-    private const val SELECTION_MAX_SCALE = 1.6f
+    private const val SELECTION_BRIGHT_HOLD_MS = 100L
+    private const val SELECTION_MAX_ALPHA = 255
+    private const val SELECTION_MAX_SCALE = 2f
 
     fun selectionScale(elapsedMs: Long): Float =
         1f + (SELECTION_MAX_SCALE - 1f) * elapsedMs.coerceIn(0L, SELECTION_EFFECT_MS) / SELECTION_EFFECT_MS
 
     fun selectionAlpha(elapsedMs: Long): Int = when {
         elapsedMs <= 0L || elapsedMs >= SELECTION_EFFECT_MS -> 0
-        elapsedMs < SELECTION_RISE_MS -> (SELECTION_MAX_ALPHA * elapsedMs / SELECTION_RISE_MS).toInt()
+        // At zero the copy overlaps the original exactly; start on the first expanded frame.
+        elapsedMs <= SELECTION_BRIGHT_HOLD_MS -> SELECTION_MAX_ALPHA
         else -> (SELECTION_MAX_ALPHA * (SELECTION_EFFECT_MS - elapsedMs) /
-            (SELECTION_EFFECT_MS - SELECTION_RISE_MS)).toInt()
+            (SELECTION_EFFECT_MS - SELECTION_BRIGHT_HOLD_MS)).toInt()
     }
 
     fun alpha(selected: Boolean, elapsedMs: Long): Int {
@@ -32,7 +33,7 @@ internal object ChoiceExitController {
         return (255L * remaining * remaining / (fade * fade)).toInt()
     }
 
-    /** Keep the cover opaque above half text opacity; then both ease out together. */
+    /** Restore the gradual cover fade; do not leave an opaque plane after text disappears. */
     fun backgroundAlpha(selected: Boolean, elapsedMs: Long): Int =
         (alpha(selected, elapsedMs) * 2).coerceAtMost(255)
 
