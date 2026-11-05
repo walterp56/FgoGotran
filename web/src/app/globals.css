@@ -349,6 +349,72 @@ h3 {
   grid-template-columns: 1fr 1fr;
 }
 
+.changelog-grid-local {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.changelog-tabs {
+  display: inline-flex;
+  max-width: 100%;
+  gap: 4px;
+  padding: 5px;
+  margin-bottom: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.changelog-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  scroll-margin-top: 110px;
+}
+
+.changelog-tabs button svg {
+  flex-shrink: 0;
+}
+
+.changelog-tabs button:hover {
+  color: var(--brand-strong);
+}
+
+.changelog-tabs button[aria-selected="true"] {
+  color: var(--brand-strong);
+  background: var(--surface);
+  box-shadow: 0 2px 7px rgba(18, 33, 55, 0.1);
+}
+
+.changelog-tabs button:focus-visible,
+.changelog-products [role="tabpanel"]:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .changelog-tabs {
+    display: flex;
+  }
+
+  .changelog-tabs button {
+    flex: 1;
+    min-width: 0;
+    gap: 6px;
+    padding: 9px 8px;
+    font-size: 14px;
+  }
+}
+
 .feature-card,
 .api-route-card,
 .status-card,

@@ -115,6 +115,7 @@ export default async function DownloadPage({ params }: DownloadPageProps) {
               {t("localDownload.button")}
             </a>{" "}
             <Link className="secondary-button" href="/local-guide">{t("localGuide")}</Link>
+            <Link className="secondary-button" href="/changelog/#local">{t("localDownload.changelog")}</Link>
           </div>
           <div className="download-reminder" role="note">
             <strong>{t("localDownload.reminderTitle")}</strong>

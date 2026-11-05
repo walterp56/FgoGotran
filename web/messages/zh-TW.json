@@ -1201,7 +1201,7 @@
     "title": "更新紀錄",
     "eyebrow": "Changelog",
     "h1": "更新紀錄",
-    "body": "記錄 FgoGotran Android App 的主要更新。",
+    "body": "記錄 FgoGotran Android App 與 FgoGotran Local 的主要更新。",
     "recent": "最近更新",
     "entries": {
       "v4_2_0": {
@@ -1417,6 +1417,23 @@
           "支援自定義翻譯 API"
         ]
       }
+    },
+    "products": {
+      "label": "選擇產品",
+      "android": "Android App",
+      "local": "FgoGotran Local",
+      "androidBody": "Android 遊戲翻譯應用程式",
+      "localBody": "Windows 本地翻譯工具"
+    },
+    "localEntries": {
+      "v1_0_0": {
+        "items": [
+          "新增主動檢查與背景版本提醒，支援暫不更新及略過版本。",
+          "重整軟體更新頁，提供官網下載入口與資料保留步驟。",
+          "將預設模型目錄、執行環境、快取及紀錄集中於 user_data，方便備份還原。",
+          "提供簡體中文、繁體中文及英文介面，保留既有設定與外部模型路徑。"
+        ]
+      }
     }
   },
   "download": {
@@ -1445,7 +1462,8 @@
       "body": "FgoGotranLocal 是 Windows 電腦端的本地翻譯工具，下載格式為 ZIP。請在 OneDrive 中選擇最新版 FgoGotranLocal ZIP。",
       "button": "前往 OneDrive 下載 ZIP",
       "reminderTitle": "手動更新：",
-      "reminder": "更新前先完全關閉 FgoGotranLocal 並備份 user_data。將新版 ZIP 解壓到原安裝路徑，啟動前放回原本的 user_data；確認設定與翻譯正常後再刪除備份。外部模型請保留原位置。"
+      "reminder": "更新前先完全關閉 FgoGotranLocal 並備份 user_data。將新版 ZIP 解壓到原安裝路徑，啟動前放回原本的 user_data；確認設定與翻譯正常後再刪除備份。外部模型請保留原位置。",
+      "changelog": "更新紀錄"
     },
     "options": {
       "onedrive": {

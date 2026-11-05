@@ -1231,7 +1231,7 @@
     "title": "Changelog",
     "eyebrow": "Changelog",
     "h1": "Changelog",
-    "body": "A record of the main FgoGotran Android app updates.",
+    "body": "The main updates to the FgoGotran Android app and FgoGotran Local.",
     "recent": "Recent updates",
     "entries": {
       "v4_2_0": {
@@ -1447,6 +1447,23 @@
           "Added custom translation API support"
         ]
       }
+    },
+    "products": {
+      "label": "Choose a product",
+      "android": "Android App",
+      "local": "FgoGotran Local",
+      "androidBody": "The Android game translation app",
+      "localBody": "Local translation for Windows"
+    },
+    "localEntries": {
+      "v1_0_0": {
+        "items": [
+          "Added manual update checks and background reminders, with Not now and Skip this version.",
+          "Redesigned Software updates with a website download link and data-preservation instructions.",
+          "Consolidated default model storage, managed runtimes, caches and state under user_data for backup and restore.",
+          "Added Simplified Chinese, Traditional Chinese and English interfaces while preserving existing settings and external model paths."
+        ]
+      }
     }
   },
   "download": {
@@ -1475,7 +1492,8 @@
       "body": "FgoGotranLocal is the Windows tool for local translation, distributed as a ZIP. Choose the latest FgoGotranLocal ZIP in the OneDrive folder.",
       "button": "Download ZIP from OneDrive",
       "reminderTitle": "Manual updates: ",
-      "reminder": "Fully close FgoGotranLocal and back up user_data. Extract the new ZIP to the original installation path and restore user_data before launching. Keep the backup until settings and translation work. Leave external models at their configured paths."
+      "reminder": "Fully close FgoGotranLocal and back up user_data. Extract the new ZIP to the original installation path and restore user_data before launching. Keep the backup until settings and translation work. Leave external models at their configured paths.",
+      "changelog": "Changelog"
     },
     "options": {
       "onedrive": {

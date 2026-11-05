@@ -1,9 +1,12 @@
-import { Smartphone } from "lucide-react";
+import { Monitor, Smartphone } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { ChangelogProducts } from "@/components/ChangelogProducts";
 import { SectionHeader } from "@/components/SectionHeader";
 import { pageMetadata } from "@/lib/seo";
 
-const changelogDefs = [
+type ChangelogEntry = { key: string; version: string; date?: string };
+
+const androidChangelogDefs: ChangelogEntry[] = [
   { key: "v4_2_0", version: "v4.2.0", date: "2-11-2026" },
   { key: "v4_1_1", version: "v4.1.1", date: "18-10-2026" },
   { key: "v4_1_0", version: "v4.1.0", date: "14-10-2026" },
@@ -24,6 +27,10 @@ const changelogDefs = [
   { key: "v1_0_0", version: "v1.0.0", date: "30-6-2026" }
 ];
 
+const localChangelogDefs: ChangelogEntry[] = [
+  { key: "v1_0_0", version: "v1.0.0" }
+];
+
 type ChangelogPageProps = {
   params: Promise<{ locale: string }>;
 };
@@ -39,6 +46,26 @@ export default async function ChangelogPage({ params }: ChangelogPageProps) {
   setRequestLocale(locale);
   const t = await getTranslations("changelog");
 
+  function renderEntries(entries: ChangelogEntry[], product: "android" | "local") {
+    const Icon = product === "android" ? Smartphone : Monitor;
+    const namespace = product === "android" ? "entries" : "localEntries";
+    return entries.map((entry) => {
+      const items = t.raw(`${namespace}.${entry.key}.items`) as string[];
+      return (
+        <article className="changelog-card" key={entry.key}>
+          <div className="status-title">
+            <Icon size={20} aria-hidden="true" />
+            <h3>{entry.version}</h3>
+          </div>
+          {entry.date ? <p className="muted">{entry.date}</p> : null}
+          <ul>
+            {items.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </article>
+      );
+    });
+  }
+
   return (
     <>
       <section className="page-hero">
@@ -50,26 +77,27 @@ export default async function ChangelogPage({ params }: ChangelogPageProps) {
       </section>
 
       <section className="section">
-        <SectionHeader title={t("recent")} />
-        <div className="changelog-grid">
-          {changelogDefs.map((entry) => {
-            const items = t.raw(`entries.${entry.key}.items`) as string[];
-            return (
-              <article className="changelog-card" key={entry.key}>
-                <div className="status-title">
-                  <Smartphone size={20} aria-hidden="true" />
-                  <h3>{entry.version}</h3>
-                </div>
-                <p className="muted">{entry.date}</p>
-                <ul>
-                  {items.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </article>
-            );
-          })}
-        </div>
+        <ChangelogProducts
+          label={t("products.label")}
+          androidLabel={t("products.android")}
+          localLabel={t("products.local")}
+          android={
+            <>
+              <SectionHeader title={t("products.android")} body={t("products.androidBody")} />
+              <div className="changelog-grid">
+                {renderEntries(androidChangelogDefs, "android")}
+              </div>
+            </>
+          }
+          local={
+            <>
+              <SectionHeader title={t("products.local")} body={t("products.localBody")} />
+              <div className="changelog-grid changelog-grid-local">
+                {renderEntries(localChangelogDefs, "local")}
+              </div>
+            </>
+          }
+        />
       </section>
     </>
   );
