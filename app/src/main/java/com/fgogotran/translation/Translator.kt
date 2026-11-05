@@ -217,15 +217,18 @@ data class SceneTranslateResult(
 
 internal const val GENERAL_HANT_REFERENCE_POLICY_VERSION = "general-hant-reference-v1"
 
-/** Retire pre-fix Chinese ちゃん results without flushing unrelated translations. */
-internal fun extendChineseHonorificCacheMaterial(
+/** Bump when shared Chinese postprocessing changes cached output, independently of prompts. */
+internal const val CHINESE_POSTPROCESSING_CACHE_VERSION = "chinese-postprocessing-v1"
+
+/** Apply one output-policy version to Chinese results; retain existing model/language namespaces. */
+internal fun extendChinesePostprocessingCacheMaterial(
     material: List<String>,
-    sourceTexts: List<String>,
     targetLanguage: String
-): List<String> = if (
-    SettingsRepository.normalizeTargetLanguage(targetLanguage) != SettingsRepository.TARGET_LANGUAGE_ENGLISH &&
-    sourceTexts.any { "ちゃん" in it }
-) material + "chinese-chan-script-v1" else material
+): List<String> = when (SettingsRepository.normalizeTargetLanguage(targetLanguage)) {
+    SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
+    SettingsRepository.TARGET_LANGUAGE_TRADITIONAL -> material + CHINESE_POSTPROCESSING_CACHE_VERSION
+    else -> material
+}
 
 /** Preserve legacy, Hans, and English keys; Hant references get their own versioned namespace. */
 internal fun extendGeneralPromptCacheMaterial(
@@ -6862,8 +6865,8 @@ class Translator @Inject constructor(
                 normalizedTargetLanguage, !usesSakuraPrompt(config))) traditionalGlossary.cacheIdentity else "",
             referenceMarkSources = listOf(normalizedText) + choiceTexts
         )
-        val finalHashMaterial = extendChineseHonorificCacheMaterial(
-            effectiveHashMaterial, listOf(normalizedText) + choiceTexts, normalizedTargetLanguage
+        val finalHashMaterial = extendChinesePostprocessingCacheMaterial(
+            effectiveHashMaterial, normalizedTargetLanguage
         )
         val hash = hashText(finalHashMaterial.joinToString("\u001F"))
         // Diagnostic only: two miss lines for the same text can be diffed on "parts" to see which
@@ -6889,7 +6892,7 @@ class Translator @Inject constructor(
         } else {
             emptyList()
         } + if (finalHashMaterial !== effectiveHashMaterial) {
-            listOf("honorific=chinese-chan-script-v1")
+            listOf("postprocess=$CHINESE_POSTPROCESSING_CACHE_VERSION")
         } else {
             emptyList()
         }).joinToString(",")

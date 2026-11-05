@@ -2,12 +2,15 @@ package com.fgogotran.translation
 
 import android.icu.text.Transliterator
 import androidx.room.Room
+import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.TermDao
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.runBlocking
+import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import java.io.File
 import java.lang.reflect.Proxy
 import org.junit.After
@@ -20,6 +23,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -146,20 +150,138 @@ class ChineseHonorificNormalizationTest {
         assertEquals(english, sanitize("sanitizeEnglishModelTranslation", "……ダ・ヴィンチちゃん！？", english))
     }
 
-    @Test fun onlyChineseRequestsContainingChanBypassTheOldCache() {
-        val old = listOf("prompt", "model", "source", "glossary")
-        for (target in listOf("zh-Hans", "zh-Hant", "zh-Hant-TW")) {
-            for (sources in listOf(listOf("……ダ・ヴィンチちゃん"), listOf("本文", "ダ・ヴィンチちゃん"))) {
-                val updated = extendChineseHonorificCacheMaterial(old, sources, target)
-                assertNotEquals(old, updated)
-                assertEquals(old, updated.dropLast(1))
-                assertEquals("chinese-chan-script-v1", updated.last())
-            }
-            assertSame(old, extendChineseHonorificCacheMaterial(old, listOf("マシュ", "ダ・ヴィンチ"), target))
+    @Test fun bothChineseTargetsAlwaysUseOnePostprocessingVersion() {
+        val material = listOf("prompt", "model", "source", "glossary")
+        for (target in listOf("zh-Hans", "zh-CN", "zh-Hant", "zh-Hant-TW", "zh-Hant-HK")) {
+            val updated = extendChinesePostprocessingCacheMaterial(material, target)
+            assertEquals(material + CHINESE_POSTPROCESSING_CACHE_VERSION, updated)
+            assertNotEquals(material, updated)
         }
-        assertSame(old, extendChineseHonorificCacheMaterial(old, listOf("ダ・ヴィンチちゃん"), "en"))
-        assertSame(old, extendChineseHonorificCacheMaterial(old, listOf("ダ・ヴィンチちゃん"), "en-US"))
+        for (target in listOf("en", "en-US")) {
+            assertSame(material, extendChinesePostprocessingCacheMaterial(material, target))
+        }
     }
+
+    @Test fun productionKeysRetireOldChineseEntriesRegardlessOfSourceHonorificOrModel() {
+        for (fixture in preChangeKeys.filter { it.target != "en" }) {
+            val updated = key(fixture.source, fixture.target, fixture.model)
+            assertNotEquals(fixture.hash, updated.first, fixture.toString())
+            assertTrue("postprocess=$CHINESE_POSTPROCESSING_CACHE_VERSION" in updated.second)
+            assertFalse("honorific=" in updated.second)
+        }
+        for (source in listOf("マシュてゃ", "ダ・ヴィンチ殿", "ちゃんと聞いて。")) {
+            for (target in listOf("zh-Hans", "zh-Hant")) {
+                for (batch in listOf(false, true)) {
+                    assertTrue("postprocess=$CHINESE_POSTPROCESSING_CACHE_VERSION" in
+                        key(source, target, "deepseek-v4-flash", batch).second)
+                }
+            }
+        }
+    }
+
+    @Test fun englishProductionHashesRemainExactlyThePreChangeValues() {
+        for (fixture in preChangeKeys.filter { it.target == "en" }) {
+            for (target in listOf("en", "en-US")) {
+                val updated = key(fixture.source, target, fixture.model)
+                assertEquals(fixture.hash, updated.first, fixture.toString())
+                assertFalse("postprocess=" in updated.second)
+                assertFalse("honorific=" in updated.second)
+            }
+        }
+    }
+
+    @Test fun sharedVersionPreservesExistingGeneralTargetAndModelSeparation() {
+        val source = "マシュさん"
+        val hans = key(source, "zh-Hans", "deepseek-v4-flash").first
+        val hant = key(source, "zh-Hant", "deepseek-v4-flash").first
+        assertNotEquals(hans, hant)
+        assertEquals(hans, key(source, "zh-CN", "deepseek-v4-flash").first)
+        assertEquals(hant, key(source, "zh-Hant-TW", "deepseek-v4-flash").first)
+        assertEquals(hant, key(source, "zh-Hant-HK", "deepseek-v4-flash").first)
+        assertNotEquals(hans, key(source, "zh-Hans", "sakura-14b-qwen2.5-v1.0").first)
+    }
+
+    @Test fun newPolicyIgnoresBadOldKeysAndCorrectResultsHitRoomAndMemory() = runBlocking {
+        val fixtures = preChangeKeys.filter { it.target != "en" && it.source == "……ダ・ヴィンチちゃん" }
+        for (fixture in fixtures) {
+            val source = fixture.source
+            val target = fixture.target
+            val updated = key(source, target, fixture.model)
+            val bad = "……达·文西酱酱"
+            invoke("removeMemoryCachedTranslation", updated.first)
+            db.cacheDao().deleteByHash(updated.first)
+            db.cacheDao().insert(CachedTranslation(jpTextHash = fixture.hash,
+                jpText = source, normalizedJpText = source, cnText = bad))
+            invoke("putMemoryCachedTranslation", fixture.hash, bad)
+            val general = fixture.model == "deepseek-v4-flash"
+            suspend fun lookup(): Any? = invokeSuspending("lookupCachedTranslation",
+                updated.first, source, "", "offline-test", updated.second, target, general, 0)
+            assertNull(lookup(), "The new key must not fall back to a retired key")
+            assertEquals(bad, db.cacheDao().getCached(fixture.hash), "Do not clear old rows")
+
+            invokeSuspending("cacheTranslatedText", updated.first, source, source,
+                "……達·文西醬", "offline-test", "", "offline-test", target, general, 0)
+            val expected = "……达·文西酱"
+            assertEquals(expected, db.cacheDao().getCached(updated.first))
+            invoke("removeMemoryCachedTranslation", updated.first)
+            assertEquals(expected, lookup(), "Room cache hit")
+            db.cacheDao().deleteByHash(updated.first)
+            assertEquals(expected, lookup(), "Memory cache hit after the Room row is removed")
+            assertEquals(if (target == "zh-Hant") "……達·文西醬" else expected,
+                call("toTargetChinese", expected, target))
+            assertEquals(bad, db.cacheDao().getCached(fixture.hash))
+            invoke("removeMemoryCachedTranslation", updated.first)
+        }
+    }
+
+    private data class PreChangeKey(val model: String, val target: String, val source: String, val hash: String)
+
+    // Captured from production cacheKey() before this postprocessing-policy change; no API calls.
+    private val preChangeKeys = """
+        deepseek-v4-flash|zh-Hans|……ダ・ヴィンチちゃん|60481b77f79304a61fc35b62fce33cc748a2faf1dfd0fb8e8cb9d917e7005bd0
+        deepseek-v4-flash|zh-Hans|マシュさん|9554f70fd1a2d0d758e43fb07f7325d08efeb9c2b49897191210f868d34d78c3
+        deepseek-v4-flash|zh-Hans|お帰りなさい。|6c947a27d358bf34a77e6b6ca0fab20ee0f943c7c9957f476dc4c7902fd3aff6
+        deepseek-v4-flash|zh-Hant|……ダ・ヴィンチちゃん|0674dee1ca3c1fe7bb6caa1e403b5ace17c586a775ff1081cae446ffaaa3a605
+        deepseek-v4-flash|zh-Hant|マシュさん|d188ed36acc0de4aa7cd0a6fbdc5e30eafa792d2124eeac1a7a02592612aca97
+        deepseek-v4-flash|zh-Hant|お帰りなさい。|06b9e4858de54b971619d31010dba104968a9e9e570a25f022230396cd6097ff
+        deepseek-v4-flash|en|……ダ・ヴィンチちゃん|f9477da7b447e70131f15e4540a0ba8a2ffdbea2cf3cb3a07ac681f8f93f443e
+        deepseek-v4-flash|en|マシュさん|785fa4b9aa1c0441ab21fff83d88f2feb76bf270a98539983d1564f211dd9a91
+        deepseek-v4-flash|en|お帰りなさい。|2ac4594f97b94b7559ee00c06578773f20bd809545b3eb3b595397c5b76716b3
+        sakura-14b-qwen2.5-v1.0|zh-Hans|……ダ・ヴィンチちゃん|d98a03c7e63bd58c1cb0f5166263b10b1d8cce8e31f16cb489fb6292f19cb413
+        sakura-14b-qwen2.5-v1.0|zh-Hans|マシュさん|c0bbfc19260a1d3d80598bf706f14a07e43c48ad24e77f061112f881abab77cc
+        sakura-14b-qwen2.5-v1.0|zh-Hans|お帰りなさい。|75cc39b8f43f9cc26f819a2329760cf7c6f379d34233933e752b68837b4dff15
+        sakura-14b-qwen2.5-v1.0|zh-Hant|……ダ・ヴィンチちゃん|d98a03c7e63bd58c1cb0f5166263b10b1d8cce8e31f16cb489fb6292f19cb413
+        sakura-14b-qwen2.5-v1.0|zh-Hant|マシュさん|c0bbfc19260a1d3d80598bf706f14a07e43c48ad24e77f061112f881abab77cc
+        sakura-14b-qwen2.5-v1.0|zh-Hant|お帰りなさい。|75cc39b8f43f9cc26f819a2329760cf7c6f379d34233933e752b68837b4dff15
+        sakura-14b-qwen2.5-v1.0|en|……ダ・ヴィンチちゃん|da1ae34034b729f850c1c284c0a64f4feca7e91ba43e5b181c63b5f63f879d63
+        sakura-14b-qwen2.5-v1.0|en|マシュさん|a2b258f68cbe405b0704f55bcf40cf2fd776767a7b5e9fd22ef6989e22c7307d
+        sakura-14b-qwen2.5-v1.0|en|お帰りなさい。|7e3af48115b6a5c40da822afb586d331d3be10a3fe52fb4c0f8a27f6d52970a5
+    """.trimIndent().lines().map { line ->
+        val columns = line.split('|')
+        PreChangeKey(columns[0], columns[1], columns[2], columns[3])
+    }
+
+    private fun key(source: String, target: String, model: String, choiceBatch: Boolean = false): Pair<String, String> {
+        val configType = Translator::class.java.declaredClasses.single { it.simpleName == "RuntimeConfig" }
+        val constructor = configType.declaredConstructors.single().apply { isAccessible = true }
+        val config = constructor.newInstance("deepseek", "", "https://offline.invalid/v1", model,
+            "", "", true, target, "", ApiSamplingSettings(SettingsRepository.API_SAMPLING_MODE_AUTO, false, 1.0, false, 1.0))
+        val value = requireNotNull(invoke("cacheKey", source, emptyList<String>(), config,
+            "", "", "", "", choiceBatch, "", "", ""))
+        fun field(name: String) = value.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(value) as String
+        return field("hash") to field("parts")
+    }
+
+    private fun invoke(name: String, vararg args: Any?): Any? = Translator::class.java.declaredMethods
+        .single { it.name == name && it.parameterCount == args.size }
+        .apply { isAccessible = true }.invoke(translator, *args)
+
+    private suspend fun invokeSuspending(name: String, vararg args: Any?): Any? =
+        suspendCoroutineUninterceptedOrReturn { continuation ->
+            Translator::class.java.declaredMethods
+                .single { it.name == name && it.parameterCount == args.size + 1 }
+                .apply { isAccessible = true }.invoke(translator, *args, continuation)
+        }
 
     private fun sanitize(method: String, source: String, translated: String) = call(method, source, translated) as String
 
