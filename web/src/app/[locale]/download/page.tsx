@@ -91,7 +91,6 @@ export default async function DownloadPage({ params }: DownloadPageProps) {
           {downloadOptions.map((option) => (
             <a
               className="download-source-card"
-              id={option.key === "onedrive" ? "local" : undefined}
               href={option.href}
               key={option.key}
               target="_blank"

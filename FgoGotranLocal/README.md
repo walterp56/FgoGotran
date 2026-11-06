@@ -18,7 +18,7 @@ control page also starts a passive check in the background. Both use the
 existing `https://cdn.fgogotran.com/app/android/latest/manifest.json` and only
 its `fgogotranLocal` version section. The CDN holds small metadata, never the
 Local ZIP. Download links inside Local always go to the official website's
-localized `/download/#local` section; OneDrive remains a website download source.
+`https://fgogotran.com/zh-CN/download` page; OneDrive remains a website download source.
 
 A new version first shows a dialog with current/latest versions and localized
 release notes. **Go to download page** opens the website in the current tab;

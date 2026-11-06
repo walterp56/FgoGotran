@@ -40,7 +40,7 @@ different program files. A higher version without ZIP details does not inherit
 the previous version's artifact information.
 
 Local reads version/name/release notes, not the manifest's OneDrive URL.
-It always directs to the official localized download page's `#local` section.
+It always directs to `https://fgogotran.com/zh-CN/download`, without a fragment.
 The page owns the actual OneDrive link. Both active and passive checks show a
 dialog first; navigation requires the user's **Go to download page** action.
 

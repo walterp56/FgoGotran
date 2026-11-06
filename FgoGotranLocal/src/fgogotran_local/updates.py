@@ -16,20 +16,18 @@ from pathlib import Path
 import httpx
 
 from .errors import StudioError
-from .i18n import t, current as current_locale
+from .i18n import t
 from .version import VERSION_CODE, version_info
 
 MANIFEST_URL = "https://cdn.fgogotran.com/app/android/latest/manifest.json"
-DOWNLOAD_BASE_URL = "https://fgogotran.com"
+DOWNLOAD_PAGE_URL = "https://fgogotran.com/zh-CN/download"
 MAX_MANIFEST_BYTES = 1024 * 1024
 SUCCESS_COOLDOWN = 24 * 60 * 60
 FAILURE_COOLDOWN = 60 * 60
 
 
-def download_page_url(locale: str | None = None) -> str:
-    language = locale or current_locale()
-    route = {"zh-Hans": "zh-CN", "zh-Hant": "zh-TW", "en": "en"}.get(language, "zh-CN")
-    return f"{DOWNLOAD_BASE_URL}/{route}/download/#local"
+def download_page_url() -> str:
+    return DOWNLOAD_PAGE_URL
 
 
 def parse_release(document: dict) -> dict | None:

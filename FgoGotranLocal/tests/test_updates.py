@@ -60,7 +60,7 @@ def test_only_local_version_fields_matter_and_download_link_is_fixed(tmp_path):
     manager, _, _ = make_manager(tmp_path, value)
     result = asyncio.run(manager.check_for_prompt(active=True))
     assert result["available"] and result["showPrompt"]
-    assert result["downloadPageUrl"] == "https://fgogotran.com/zh-CN/download/#local"
+    assert result["downloadPageUrl"] == "https://fgogotran.com/zh-CN/download"
     assert "downloadUrl" not in result["release"]
     assert "packageSha256" not in result["release"]
     assert not hasattr(manager, "install")
@@ -230,7 +230,7 @@ def test_update_ui_and_dialog_in_all_locales(tmp_path):
         components = studio.get_config_file()["components"]
         download = next(item["props"] for item in components
                         if item.get("type") == "button" and item["props"].get("elem_id") == "local-download-page")
-        assert download["link"] == download_page_url(locale)
+        assert download["link"] == "https://fgogotran.com/zh-CN/download"
         assert download["link_target"] == "_self"
         assert download["value"] == CATALOGS[locale]["update.download"]
         callbacks = {fn.fn.__name__: fn.fn for fn in studio.fns.values() if fn.fn}
@@ -241,7 +241,7 @@ def test_update_ui_and_dialog_in_all_locales(tmp_path):
             assert stages[-1][0]["interactive"] is True
             dialog = stages[-1][2]
             assert dialog["showPrompt"] and dialog["source"] == "active"
-            assert dialog["downloadPageUrl"] == download_page_url(locale)
+            assert dialog["downloadPageUrl"] == "https://fgogotran.com/zh-CN/download"
             assert dialog["labels"]["title"] == CATALOGS[locale]["update.dialogTitle"]
             assert "<script>" not in stages[-1][1]
             assert CATALOGS[locale]["update.currentLabel"] in stages[-1][1]
@@ -253,7 +253,7 @@ def test_update_ui_and_dialog_in_all_locales(tmp_path):
             stages = [value async for value in callbacks["check_update"]()]
             assert CATALOGS[locale]["update.checkFailed"] in stages[-1][1]
             assert CATALOGS[locale]["update.currentLabel"] in stages[-1][1]
-            assert download["link"] == download_page_url(locale)
+            assert download["link"] == "https://fgogotran.com/zh-CN/download"
         finally:
             deactivate(token)
     for locale in CATALOGS:
@@ -271,7 +271,7 @@ def test_streamed_update_callback_activates_its_locale_without_caller_context(tm
         stages = [value async for value in callback()]
         assert stages[0][0]["value"] == CATALOGS[locale]["update.checking"]
         assert stages[-1][2]["labels"]["title"] == CATALOGS[locale]["update.dialogTitle"]
-        assert stages[-1][2]["downloadPageUrl"] == download_page_url(locale)
+        assert stages[-1][2]["downloadPageUrl"] == "https://fgogotran.com/zh-CN/download"
     asyncio.run(exercise())
 
 
