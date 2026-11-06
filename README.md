@@ -25,7 +25,7 @@ FgoGotran is an Android floating translation tool for **Fate/Grand Order JP stor
 ## Features
 
 - Floating translation overlay for story dialogue, choices, and speaker names.
-- Manual, semi-automatic, automatic, crop, and Battle subtitle modes.
+- Manual, semi-automatic, automatic, crop, summon subtitle, and battle subtitle modes.
 - ML Kit and PaddleOCR engines with selectable OCR behavior.
 - Online terminology database updated from the CDN.
 - Glossary/RAG protection for character names, classes, Noble Phantasms, places, and other official terms.
@@ -59,6 +59,7 @@ Punctuation Wait Time: 0
 | Semi-auto | Translates story dialogue automatically and leaves choices for manual confirmation. |
 | Full-auto | Watches the screen and refreshes translations automatically. |
 | Crop | Lets you select a screen region for OCR and translation. |
+| Summon subtitles | Automatically translates Servant summoning dialogue and in-game replays into subtitles, with no need to tap for each line. |
 | Battle subtitles | Locks onto the battle subtitle area for short in-battle dialogue. |
 
 ## Local AI with FgoGotran Local

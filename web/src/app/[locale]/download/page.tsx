@@ -91,6 +91,7 @@ export default async function DownloadPage({ params }: DownloadPageProps) {
           {downloadOptions.map((option) => (
             <a
               className="download-source-card"
+              id={option.key === "onedrive" ? "local" : undefined}
               href={option.href}
               key={option.key}
               target="_blank"
@@ -104,23 +105,6 @@ export default async function DownloadPage({ params }: DownloadPageProps) {
               <span className="download-source-subtitle">{t(`options.${option.key}.subtitle`)}</span>
             </a>
           ))}
-        </div>
-      </section>
-      <section className="section compact" id="local">
-        <div className="download-intro">
-          <h2>FgoGotran Local · Windows ZIP</h2>
-          <p>{t("localDownload.body")}</p>
-          <div className="download-actions">
-            <a className="primary-button" href={oneDriveDownloadUrl} target="_blank" rel="noreferrer">
-              {t("localDownload.button")}
-            </a>{" "}
-            <Link className="secondary-button" href="/local-guide">{t("localGuide")}</Link>
-            <Link className="secondary-button" href="/changelog/#local">{t("localDownload.changelog")}</Link>
-          </div>
-          <div className="download-reminder" role="note">
-            <strong>{t("localDownload.reminderTitle")}</strong>
-            {t("localDownload.reminder")}
-          </div>
         </div>
       </section>
     </>

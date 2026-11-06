@@ -675,6 +675,7 @@ dd {
 }
 
 .download-source-card {
+  scroll-margin-top: 110px;
   --download-accent: var(--brand);
   --download-card-bg: linear-gradient(
     180deg,
