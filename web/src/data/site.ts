@@ -17,6 +17,7 @@ import type { LucideIcon } from "lucide-react";
 
 export const siteConfig = {
   name: "FgoGotran",
+  contactEmail: "garygeo57@gmail.com",
   githubUrl: "https://github.com/walterp56/FgoGotran",
   githubReleasesUrl: "https://github.com/walterp56/FgoGotran/releases",
   cdnBaseUrl: process.env.NEXT_PUBLIC_CDN_BASE_URL ?? "https://cdn.fgogotran.com",
@@ -42,7 +43,8 @@ export const navItems: NavItem[] = [
   { href: "/speech-guide", key: "speechGuide" },
   { href: "/terms", key: "terms" },
   { href: "/media", key: "media" },
-  { href: "/changelog", key: "changelog" }
+  { href: "/changelog", key: "changelog" },
+  { href: "/about", key: "about" }
 ];
 
 export type Feature = {

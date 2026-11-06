@@ -12,7 +12,8 @@
     "speechGuide": "語音指南",
     "terms": "術語表",
     "media": "媒體",
-    "changelog": "更新紀錄"
+    "changelog": "更新紀錄",
+    "about": "關於"
   },
   "common": {
     "github": "GitHub",
@@ -222,7 +223,6 @@
     "sidebarErrorLog": "錯誤紀錄",
     "eyebrow": "Troubleshooting",
     "h1": "FgoGotran 故障排查",
-    "intro": "先找到你看到的現象，再按順序檢查。手機使用者通常只需要檢查權限、API 和語音設定；模擬器問題更多，請優先匯出錯誤紀錄 TXT。",
     "jumpPrimary": "先匯出紀錄",
     "actionGuide": "使用指南",
     "actionApiGuide": "API 指南",
@@ -1182,26 +1182,23 @@
     "tableEnglish": "英文"
   },
   "media": {
-    "title": "媒體",
-    "description": "FgoGotran 的演示影片、使用效果與更新動態。",
+    "title": "影片展示",
+    "description": "觀看 FgoGotran 的操作示範與實際翻譯畫面。",
     "eyebrow": "Media",
-    "h1": "媒體",
-    "body": "FgoGotran 的演示影片、使用效果與更新動態。",
+    "h1": "影片展示",
     "openVideo": "開啟原影片",
-    "items": {
-      "bili3": "B站演示影片3",
-      "yt3": "YouTube 演示影片3",
-      "bili2": "B站演示影片2",
-      "yt2": "YouTube 演示影片2",
-      "bili1": "B站演示影片1",
-      "yt1": "YouTube 演示影片1"
-    }
+    "filterLabel": "依影片平台篩選",
+    "allPlatforms": "全部",
+    "playlist": "影片清單",
+    "videoCount": "{count} 部影片",
+    "selectedVideo": "目前影片",
+    "position": "{current} / {total}",
+    "playerHelp": "播放器無法載入時，可前往原平台觀看。"
   },
   "changelog": {
     "title": "更新紀錄",
     "eyebrow": "Changelog",
     "h1": "更新紀錄",
-    "body": "記錄 FgoGotran Android App 與 FgoGotran Local 的主要更新。",
     "recent": "最近更新",
     "entries": {
       "v4_2_0": {
@@ -1421,9 +1418,7 @@
     "products": {
       "label": "選擇產品",
       "android": "Android App",
-      "local": "FgoGotran Local",
-      "androidBody": "Android 遊戲翻譯應用程式",
-      "localBody": "Windows 本地翻譯工具"
+      "local": "FgoGotran Local"
     },
     "localEntries": {
       "v1_0_0": {
@@ -1501,6 +1496,44 @@
     "summon-subtitles": {
       "title": "召喚字幕",
       "body": "自動翻譯從者召喚台詞及遊戲內回放，以字幕顯示譯文，不需逐句點擊。"
+    }
+  },
+  "about": {
+    "title": "關於 FgoGotran",
+    "description": "FgoGotran 的聯絡方式、免責聲明與隱私政策。",
+    "eyebrow": "About",
+    "h1": "關於 FgoGotran",
+    "contact": {
+      "title": "聯絡",
+      "emailAction": "傳送郵件",
+      "github": "GitHub 專案",
+      "issues": "問題回報",
+      "hint": "回報問題時，請註明應用程式版本、系統版本和重現步驟；請勿傳送 API Key 等敏感資訊。"
+    },
+    "disclaimer": {
+      "title": "免責聲明",
+      "items": [
+        {
+          "title": "非官方專案",
+          "body": "FgoGotran 是獨立開發的非官方專案，與 Fate/Grand Order 官方、相關權利方及第三方服務提供者無隸屬、贊助或認可關係。"
+        },
+        {
+          "title": "權利歸屬",
+          "body": "遊戲名稱、角色、畫面、音訊及商標等內容歸各自權利方所有。專案授權不授予第三方遊戲素材或商標的使用權。"
+        },
+        {
+          "title": "翻譯限制",
+          "body": "OCR、AI 翻譯與語音辨識可能出現錯誤。翻譯結果僅供輔助理解，不代表官方譯文。"
+        },
+        {
+          "title": "第三方服務與使用條款",
+          "body": "第三方服務與模型遵循各自的條款、授權及收費規則。使用前請了解並遵守遊戲及所選服務的條款。軟體按現狀提供，相關擔保與責任限制依專案授權及適用法律處理。"
+        }
+      ]
+    },
+    "resources": {
+      "label": "相關資訊",
+      "privacy": "隱私政策"
     }
   }
 }

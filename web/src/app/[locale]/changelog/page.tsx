@@ -72,7 +72,6 @@ export default async function ChangelogPage({ params }: ChangelogPageProps) {
         <div className="page-hero-inner">
           <p className="eyebrow">{t("eyebrow")}</p>
           <h1>{t("h1")}</h1>
-          <p>{t("body")}</p>
         </div>
       </section>
 
@@ -83,7 +82,7 @@ export default async function ChangelogPage({ params }: ChangelogPageProps) {
           localLabel={t("products.local")}
           android={
             <>
-              <SectionHeader title={t("products.android")} body={t("products.androidBody")} />
+              <SectionHeader title={t("products.android")} />
               <div className="changelog-grid">
                 {renderEntries(androidChangelogDefs, "android")}
               </div>
@@ -91,7 +90,7 @@ export default async function ChangelogPage({ params }: ChangelogPageProps) {
           }
           local={
             <>
-              <SectionHeader title={t("products.local")} body={t("products.localBody")} />
+              <SectionHeader title={t("products.local")} />
               <div className="changelog-grid changelog-grid-local">
                 {renderEntries(localChangelogDefs, "local")}
               </div>

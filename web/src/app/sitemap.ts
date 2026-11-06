@@ -15,7 +15,8 @@ const routes = [
   ...apiProviderGuides.map((guide) => `/api-guide/${guide.slug}`),
   "/terms",
   "/media",
-  "/changelog"
+  "/changelog",
+  "/about"
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

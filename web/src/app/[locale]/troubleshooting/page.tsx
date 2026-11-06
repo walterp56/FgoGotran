@@ -84,7 +84,6 @@ export default async function TroubleshootingPage({ params }: TroubleshootingPag
         <header className="docs-hero">
           <p className="eyebrow">{t("eyebrow")}</p>
           <h1>{t("h1")}</h1>
-          <p>{t("intro")}</p>
 
           <div className="trouble-jump-nav" aria-label={t("jumpPrimary")}>
             <a className="jump-primary" href="#error-log">

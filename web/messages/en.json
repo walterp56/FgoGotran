@@ -12,7 +12,8 @@
     "speechGuide": "Voice Guide",
     "terms": "Terminology",
     "media": "Media",
-    "changelog": "Changelog"
+    "changelog": "Changelog",
+    "about": "About"
   },
   "common": {
     "github": "GitHub",
@@ -252,7 +253,6 @@
     "sidebarErrorLog": "Error log",
     "eyebrow": "Troubleshooting",
     "h1": "FgoGotran Troubleshooting",
-    "intro": "Find the symptom you are seeing, then work through the checks in order. Phone users usually only need to check permissions, API and voice settings; emulator problems are more varied, so export the error log TXT first.",
     "jumpPrimary": "Export the log first",
     "actionGuide": "Guide",
     "actionApiGuide": "API Guide",
@@ -1212,26 +1212,23 @@
     "tableEnglish": "English"
   },
   "media": {
-    "title": "Media",
-    "description": "FgoGotran demo videos, usage examples and updates.",
+    "title": "Video demos",
+    "description": "Watch FgoGotran demonstrations and see translation in action.",
     "eyebrow": "Media",
-    "h1": "Media",
-    "body": "FgoGotran demo videos, usage examples and updates.",
+    "h1": "See FgoGotran in action",
     "openVideo": "Open original video",
-    "items": {
-      "bili3": "Bilibili demo 3",
-      "yt3": "YouTube demo 3",
-      "bili2": "Bilibili demo 2",
-      "yt2": "YouTube demo 2",
-      "bili1": "Bilibili demo 1",
-      "yt1": "YouTube demo 1"
-    }
+    "filterLabel": "Filter by video platform",
+    "allPlatforms": "All videos",
+    "playlist": "Video library",
+    "videoCount": "{count} videos",
+    "selectedVideo": "Selected video",
+    "position": "{current} / {total}",
+    "playerHelp": "If the player does not load, watch the video on its original platform."
   },
   "changelog": {
     "title": "Changelog",
     "eyebrow": "Changelog",
     "h1": "Changelog",
-    "body": "The main updates to the FgoGotran Android app and FgoGotran Local.",
     "recent": "Recent updates",
     "entries": {
       "v4_2_0": {
@@ -1451,9 +1448,7 @@
     "products": {
       "label": "Choose a product",
       "android": "Android App",
-      "local": "FgoGotran Local",
-      "androidBody": "The Android game translation app",
-      "localBody": "Local translation for Windows"
+      "local": "FgoGotran Local"
     },
     "localEntries": {
       "v1_0_0": {
@@ -1501,6 +1496,44 @@
         "title": "Baidu Netdisk",
         "subtitle": "APK download (code: y978)"
       }
+    }
+  },
+  "about": {
+    "title": "About FgoGotran",
+    "description": "Contact details, disclaimer and privacy policy for FgoGotran.",
+    "eyebrow": "About",
+    "h1": "About FgoGotran",
+    "contact": {
+      "title": "Contact",
+      "emailAction": "Send an email",
+      "github": "GitHub project",
+      "issues": "Report an issue",
+      "hint": "When reporting a problem, include the app version, operating system version and steps to reproduce it. Do not send API keys or other sensitive information."
+    },
+    "disclaimer": {
+      "title": "Disclaimer",
+      "items": [
+        {
+          "title": "Unofficial project",
+          "body": "FgoGotran is an independently developed, unofficial project. It is not affiliated with, sponsored by or endorsed by the Fate/Grand Order operators, related rights holders or third-party service providers."
+        },
+        {
+          "title": "Ownership of content",
+          "body": "Game names, characters, images, audio, trademarks and related content belong to their respective rights holders. The project license does not grant rights to third-party game assets or trademarks."
+        },
+        {
+          "title": "Translation limitations",
+          "body": "OCR, AI translation and speech recognition may produce errors. Translations are provided to help understanding and are not official translations."
+        },
+        {
+          "title": "Third-party services and terms",
+          "body": "Third-party services and models are subject to their own terms, licenses and fees. Review and comply with the terms of the game and your selected services before use. The software is provided as is; warranties and limitations of liability are subject to the project license and applicable law."
+        }
+      ]
+    },
+    "resources": {
+      "label": "Related information",
+      "privacy": "Privacy policy"
     }
   }
 }
