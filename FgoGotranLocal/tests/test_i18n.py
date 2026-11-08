@@ -191,7 +191,7 @@ def test_header_switcher_marks_the_current_page(tmp_path: Path, href: str, local
     nav = header[header.index("<nav") : header.index("</nav>")]
 
     assert nav.count("lang-link") == 3
-    assert f'class="lang-link is-active" href="{href}"' in nav
+    assert f'class="lang-link is-active" data-ui-language="{locale}" data-ui-path="{href}" aria-pressed="true"' in nav
 
 
 def test_application_serves_all_language_routes(tmp_path: Path):

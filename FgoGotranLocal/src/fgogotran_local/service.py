@@ -14,6 +14,7 @@ from .log_store import LogStore
 from .network_monitor import NetworkMonitor
 from .privacy import redact_connection, redact_sensitive_payload
 from .updates import UpdateManager
+from .ui_preferences import UiPreferences
 from .version import version_info
 
 from .i18n import t
@@ -30,6 +31,7 @@ class LocalTranslationService:
         self.started_at = time.monotonic()
         self._auto_start_task: asyncio.Task[None] | None = None
         self.updates = UpdateManager(self.data_directory)
+        self.ui_preferences = UiPreferences(self.data_directory)
 
     async def initialize(self) -> None:
         await self.config_store.load()

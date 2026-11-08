@@ -13,6 +13,8 @@ When required, the launcher asks before downloading external components. Press E
 5. Downloaded Python and llama.cpp files are checked against their official signature or size/SHA-256 metadata before use.
 6. The browser opens `http://127.0.0.1:18081`. An already complete active profile starts automatically.
 
+Choose Simplified Chinese, Traditional Chinese, or English using the buttons in the page header. Your choice is saved immediately and restored when Local restarts or its page is reopened. New installations default to Simplified Chinese. The preference is stored in `user_data/state/ui_preferences.json` and is included when you back up the entire `user_data` folder. Interface language does not change your translation target. If saving fails, the current page stays open with a retry message.
+
 Automatic setup never downloads or manages GGUF models and never overwrites a valid user-configured runtime or model path. If a saved llama-server path points to a missing file, the launcher asks before installing a replacement and updates only that stale setting. A failed llama.cpp download does not prevent the control interface from opening.
 
 ## Manual setup remains supported
@@ -31,7 +33,7 @@ Keep all DLLs supplied with `llama-server.exe`; copying only the executable is i
 
 After the status becomes **Ready**:
 
-1. Reveal the endpoint and API key on the overview page.
+1. Use the Endpoint and API Key copy icons on the overview page; they copy the complete values while the fields remain masked. Reveal a value only when you need to inspect it.
 2. In FgoGotran, select the custom/local API provider.
 3. Copy the endpoint, Model ID, and API key exactly.
 4. Use `http://<PC-LAN-IP>:18080/health` in the phone browser to test basic LAN access.

@@ -25,6 +25,11 @@ def create_control_router(service: LocalTranslationService) -> APIRouter:
     async def healthz() -> dict:
         return {"ok": True, "service": "fgogotran-local", **version_info()}
 
+    @router.post("/api/ui-preferences/language", include_in_schema=False)
+    async def set_ui_language(request: Request) -> dict:
+        body = await require_safe_mutation(request)
+        return await service.ui_preferences.set_language(body.get("language"))
+
     @router.get("/api/updates", include_in_schema=False)
     async def update_status() -> dict:
         return service.updates.snapshot()

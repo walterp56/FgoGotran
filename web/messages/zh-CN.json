@@ -744,7 +744,7 @@
         },
         "gguf": {
           "title": "准备 GGUF 翻译模型",
-          "body": "从可信发布者自行下载能够理解日文、稳定输出中文的 Instruction 或 Chat GGUF，再在管理页面选择模型目录和文件。",
+          "body": "从可信发布者自行下载能够理解日文、稳定输出所选目标语言（简体中文、繁体中文或英文）的 Instruction 或 Chat GGUF，再在管理页面选择模型目录和文件。",
           "note": "启动器不会下载、更新、替换或删除 GGUF 模型。"
         },
         "panel": {
@@ -768,7 +768,7 @@
         },
         "connect": {
           "title": "连接 Android 应用",
-          "body": "在总览分别点击“显示 Endpoint”和“显示 API Key”，把两项完整值及可见的 Model ID 填入 FgoGotran 的“自定义 / 本地 AI”，再点击“测试 API”和“应用API设置”。"
+          "body": "在总览使用 Endpoint 和 API Key 旁的复制图标，直接复制完整值，字段保持隐藏；需要检查时才显示。将两项完整值及 Model ID 填入 FgoGotran 的“自定义 / 本地 AI”，再点击“测试 API”和“应用API设置”。"
         }
       }
     },
@@ -785,7 +785,7 @@
       "ggufTitle": "GGUF 模型",
       "ggufItems": [
         "选择 Instruction 或 Chat 模型，不使用未经对齐的 Base 模型。",
-        "确认能够理解日文，并稳定输出所选中文。",
+        "确认能够理解日文，并稳定输出所选目标语言。",
         "确认 llama.cpp 支持模型架构和 Chat Template。",
         "从可信发布者下载，并在提供校验值时完成核对。"
       ],
@@ -814,7 +814,7 @@
     },
     "controlPanel": {
       "title": "控制面板",
-      "body": "页面默认在 <code>127.0.0.1:18081</code> 打开，并分成四个标签页。",
+      "body": "页面默认在 <code>127.0.0.1:18081</code> 打开，并分成四个标签页。顶部可选择简体中文、繁体中文或 English，点击后立即保存；重新启动或再次打开页面会恢复上次选择。首次使用默认简体中文，界面语言不会改变翻译目标语言。",
       "subheading": "首次测试保留这些默认值",
       "tableParam": "参数",
       "tableDefault": "默认值",
@@ -822,7 +822,7 @@
       "tabs": {
         "overview": {
           "title": "总览",
-          "body": "启动、重新启动或停止 llama-server；查看运行状态和当前 Profile 摘要。Endpoint 与 API Key 默认隐藏，需要时可分别临时显示。"
+          "body": "启动、重新启动或停止 llama-server，查看运行状态和当前 Profile 摘要。Endpoint 与 API Key 默认隐藏，可通过各自的复制图标直接复制完整值，需要检查时才临时显示。"
         },
         "model": {
           "title": "模型设置",
@@ -830,11 +830,11 @@
         },
         "test": {
           "title": "连接测试",
-          "body": "复测 API Key、Model ID、请求格式和非空中文输出。启动服务时也会自动执行一次兼容性测试。"
+          "body": "复测 API Key、Model ID、请求格式和非空输出。启动服务时也会自动执行一次兼容性测试；通过不代表所有目标语言的翻译质量。"
         },
         "system": {
           "title": "系统",
-          "body": "查看 Python、端口、GPU、内存诊断和运行日志；局域网地址与本机路径默认隐藏，可按需临时显示。"
+          "body": "查看当前版本、检查软件更新、查看环境诊断和运行日志。诊断不展示硬件清单或系统详细信息；日志只保存在内存中，并遮盖密钥、IP 地址和本机路径。"
         }
       },
       "parameters": {
@@ -882,26 +882,26 @@
     },
     "phone": {
       "title": "连接 Android 手机",
-      "body": "请点击总览的“显示 Endpoint”并复制当前地址，不要凭记忆手动组合 IP 和端口。",
+      "body": "使用总览 Endpoint 旁的复制图标取得当前完整地址，需要查看时才点击“显示 Endpoint”。不要凭记忆手动组合 IP 和端口。",
       "callout": "手机不能填写 <code>localhost</code>、<code>127.0.0.1</code>、<code>0.0.0.0</code>、电脑主机名或路由器地址。",
       "steps": [
         "让手机和电脑连接同一个可信 Wi-Fi 或局域网。",
         "把 Windows 当前网络配置为“专用网络”。",
         "在当前 Profile 选择“可信局域网 + 本机”，保存并重新启动服务。",
-        "等待状态变成“已就绪”，点击总览的“显示 Endpoint”，再用其中相同的电脑 IP 与端口打开 /health 地址。",
+        "等待状态变成“已就绪”，复制总览的 Endpoint，再用其中相同的电脑 IP 与端口打开 /health 地址。",
         "在 FgoGotran 的 API 设置中选择“自定义 / 本地 AI”。",
-        "分别点击总览的“显示 Endpoint”和“显示 API Key”，填写两项完整值及模型名称，然后测试并应用设置。"
+        "使用总览 Endpoint 和 API Key 旁的复制图标，把两项完整值及 Model ID 填入手机，然后测试并应用设置。"
       ],
       "apiAddress": "API 地址",
       "apiAddressValue": "http://<ip>电脑局域网IP</ip>:18080/v1/chat/completions",
       "browserTest": "手机浏览器测试",
       "healthValue": "http://<ip>电脑局域网IP</ip>:18080/health",
       "fieldComputer": "电脑总览",
-      "fieldShowEndpoint": "显示 Endpoint",
+      "fieldShowEndpoint": "复制 Endpoint",
       "fieldApiAddress": "手机“API 地址”",
       "fieldModelId": "Model ID",
       "fieldModel": "手机“模型”",
-      "fieldShowApiKey": "显示 API Key",
+      "fieldShowApiKey": "复制 API Key",
       "fieldApiKey": "手机“API Key”"
     },
     "status": {
@@ -1020,11 +1020,11 @@
       },
       "backup": {
         "title": "配置备份",
-        "body": "更新或重置前备份 user_data。这个目录含 API Key，不能上传、公开或随故障截图一起发送。"
+        "body": "更新或重置前备份整个 user_data 文件夹，其中包含模型设置、API Key、界面语言和更新提醒。此文件夹不能上传、公开或随故障截图一起发送；外部模型请保留原位置。"
       },
       "update": {
-        "title": "安全更新",
-        "body": "先停止服务，再把新版 llama.cpp 解压到新目录。更新路径并通过加载与翻译测试后，才移除旧版本。"
+        "title": "更新 FgoGotran Local",
+        "body": "打开管理页面时会在后台检查更新，也可在“系统 → 软件更新”手动检查。有新版时先显示版本和更新说明，点击“前往下载页”后从官网下载 ZIP。更新前完全关闭 Local（关闭启动器命令窗口），备份整个 user_data 文件夹，将新版 ZIP 解压到原安装路径，启动前放回原来的 user_data 文件夹；确认设置和翻译正常后再删除备份。"
       }
     },
     "checklist": {
@@ -1034,7 +1034,7 @@
         "使用 64 位 Python 3.11、3.12 或 3.13",
         "llama.cpp 来自可信来源并已完整解压；自动下载已通过大小和 SHA-256 校验",
         "llama-server.exe 同目录保留所需 DLL",
-        "GGUF 是从可信发布者自行取得、支持日文输入和中文输出的 Instruction 或 Chat 模型",
+        "GGUF 是从可信发布者自行取得、支持日文输入和所选目标语言输出的 Instruction 或 Chat 模型",
         "手机连接时选择“可信局域网 + 本机”",
         "Windows 防火墙只允许专用网络",
         "运行状态已经变为“已就绪”",

@@ -92,7 +92,7 @@
   },
   {
     "jp_term": "ロストベルト",
-    "cn_term": "异闻带",
+    "cn_term": "Lostbelt",
     "en_term": "Lostbelt",
     "category": "game_term",
     "aliases": ""
@@ -1067,6 +1067,13 @@
     "jp_term": "レムレム",
     "cn_term": "REM REM",
     "en_term": "REM REM",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "オプリチニキ",
+    "cn_term": "杀戮猎兵",
+    "en_term": "Oprichniki",
     "category": "game_term",
     "aliases": ""
   }

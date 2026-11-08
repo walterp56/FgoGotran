@@ -17,6 +17,7 @@ from .privacy import redact_sensitive_text
 from .service import LocalTranslationService
 from .updates import download_page_url
 from .update_ui import DIALOG_TEMPLATE, DIALOG_CSS, DIALOG_JS, dialog_value
+from .ui_preferences import LANGUAGE_PATHS
 from .i18n import current as current_locale
 
 
@@ -145,13 +146,22 @@ html[lang="zh-Hant"] .gradio-container {
 .studio-lang .lang-link {
   display: inline-block;
   padding: 4px 11px;
+  border: 0;
   border-radius: 999px;
+  background: transparent;
   color: var(--fgo-muted);
+  font-family: inherit;
   font-size: .8125rem;
   font-weight: 680;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
 }
+.studio-lang .lang-link:disabled { opacity: .65; cursor: wait; }
+.studio-lang .lang-link:focus-visible { outline: 3px solid var(--fgo-cyan); outline-offset: 2px; }
+.studio-language { display: flex; flex-direction: column; align-items: flex-end; max-width: 420px; }
+.language-status { margin-top: 7px; color: var(--fgo-muted); font-size: .8rem; text-align: right; }
+.language-status.is-error { color: #ad3939; }
 .studio-lang .lang-link:hover { color: var(--fgo-blue); background: #eef6fb; }
 .studio-lang .lang-link.is-active {
   color: #fff;
@@ -251,18 +261,66 @@ UI_TAB_LABELS = tuple(t(key) for key in UI_TAB_KEYS)
 
 # Locale switch targets shown in the header; labels stay script-native.
 LOCALE_LINKS: tuple[tuple[str, str, str], ...] = (
-    ("zh-Hans", "/", "简体"),
-    ("zh-Hant", "/zh-Hant/", "繁體"),
-    ("en", "/en/", "English"),
+    ("zh-Hans", LANGUAGE_PATHS["zh-Hans"], "简体"),
+    ("zh-Hant", LANGUAGE_PATHS["zh-Hant"], "繁體"),
+    ("en", LANGUAGE_PATHS["en"], "English"),
 )
+
+
+LANGUAGE_SWITCH_JS = """
+const nav = element.querySelector('.studio-lang');
+const status = element.querySelector('.language-status');
+const buttons = [...nav.querySelectorAll('[data-ui-language]')];
+let saving = false;
+for (const button of buttons) {
+  button.addEventListener('click', async () => {
+    if (saving) return;
+    saving = true;
+    for (const item of buttons) item.disabled = true;
+    status.classList.remove('is-error');
+    status.hidden = false;
+    status.textContent = status.dataset.saving;
+    const language = button.dataset.uiLanguage;
+    const path = button.dataset.uiPath;
+    try {
+      const response = await fetch('/api/ui-preferences/language', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-FGO-Control': '1', 'Accept-Language': nav.dataset.language},
+        body: JSON.stringify({language})
+      });
+      if (!response.ok) throw new Error('Language preference was not saved');
+      const value = await response.json();
+      if (value.language !== language || value.path !== path) throw new Error('Invalid language response');
+      window.location.assign(path);
+    } catch (error) {
+      saving = false;
+      for (const item of buttons) item.disabled = false;
+      status.classList.add('is-error');
+      status.textContent = status.dataset.saveError;
+      button.focus();
+    }
+  });
+}
+"""
 
 
 def _language_links_markup(active: str) -> str:
     links = []
     for locale, href, label in LOCALE_LINKS:
         css = "lang-link is-active" if locale == active else "lang-link"
-        links.append(f'<a class="{css}" href="{href}">{html.escape(label)}</a>')
-    return f'<nav class="studio-lang" aria-label="{html.escape(t("ui.header.language"))}">' + "".join(links) + "</nav>"
+        pressed = "true" if locale == active else "false"
+        links.append(
+            f'<button type="button" class="{css}" data-ui-language="{locale}" '
+            f'data-ui-path="{href}" aria-pressed="{pressed}">{html.escape(label)}</button>'
+        )
+    return (
+        '<div class="studio-language">'
+        f'<nav class="studio-lang" data-language="{active}" aria-label="{html.escape(t("ui.header.language"))}">'
+        + "".join(links)
+        + '</nav><span class="language-status" role="status" hidden '
+        f'data-saving="{html.escape(t("ui.language.saving"), quote=True)}" '
+        f'data-save-error="{html.escape(t("ui.language.saveFailed"), quote=True)}"></span></div>'
+    )
 
 
 def _clipboard_copy_js(label: str) -> str:
@@ -377,7 +435,8 @@ def build_ui(
                     <span class="privacy-pill">{html.escape(t("ui.header.privacyPill"))}</span>
                   </div>
                 </div>
-                """
+                """,
+                js_on_load=LANGUAGE_SWITCH_JS,
             )
 
             update_dialog = gr.HTML(

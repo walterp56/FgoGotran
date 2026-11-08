@@ -10,8 +10,8 @@ The repository contains only the lightweight launcher, Gradio control interface,
 
 The initial software release is **v1.0.0, version code 1**. The single version
 source is `src/fgogotran_local/version.json`; configuration `version` and
-platform `schemaVersion` remain separate schema versions. The header, startup
-console, diagnostics and `/healthz` report the running software version.
+platform `schemaVersion` remain separate schema versions. The Software updates
+page, startup console, diagnostics and `/healthz` report the running software version.
 
 Open **System → Software updates** for a manual check. Opening the Local
 control page also starts a passive check in the background. Both use the
@@ -38,9 +38,10 @@ the manifest. Reminder state/cache is saved atomically in
 
 All new managed data goes under `user_data`: settings/API Key/profiles in
 `config.json`, models in `models`, Python/dependency environments/llama.cpp/CUDA
-in `runtime`, logs/reminders in `state`, and temporary files in `cache` or
-`downloads`. Existing external model/runtime paths are preserved; those external
-files are not included in a user_data backup.
+in `runtime`, runtime state/update reminders/UI preferences in `state`, and
+temporary files in `cache` or `downloads`. Runtime logs stay in memory.
+Existing external model/runtime paths are preserved; those external files are
+not included in a user_data backup.
 
 1. Fully close FgoGotranLocal (close its launcher console).
 2. Back up `user_data` (or the custom data directory you selected).
@@ -79,13 +80,15 @@ Press Enter at the setup questions to accept the default. Existing valid llama.c
 
 The control interface ships in three languages, all sharing one runtime and one configuration:
 
-- Simplified Chinese at `http://127.0.0.1:18081/`
+- Simplified Chinese at `http://127.0.0.1:18081/` when selected; otherwise the root URL restores the saved language.
 - Traditional Chinese (Taiwan terms) at `http://127.0.0.1:18081/zh-Hant/`
 - US English at `http://127.0.0.1:18081/en/`
 
-Switch languages with the links in the page header; there is no automatic redirect, so the Simplified Chinese page stays at the root. The REST API follows `Accept-Language` instead: `en*` returns English, Chinese tags return their script, and any other tag keeps the Simplified Chinese default.
+Use the language buttons in the page header to save your choice immediately. Opening Local again, including while it is already running, restores that language. The preference is stored in `user_data/state/ui_preferences.json` and moves with the entire `user_data` folder when you back it up or restore it. A new installation or an unreadable preference file defaults to Simplified Chinese. Visiting a language URL directly does not overwrite your saved choice.
 
-Interface labels, runtime status messages, validation errors, and runtime logs all follow the page language. `zh_hans.py` is the source of truth; the Traditional Chinese catalog is generated with OpenCC `cn -> twp` plus the website's Taiwan term list and then hand-reviewed, and the English catalog is written directly in US English using the wording already published in the website and Android resources. Adding another language only needs a new catalog file next to them, a mount in `application.py`, and an entry in `LOCALE_LINKS`.
+The root URL redirects to your saved Traditional Chinese or English interface; choosing Simplified Chinese saves that preference and keeps the root URL. If saving fails, the current page stays open and shows a retry message. The REST API follows `Accept-Language` instead: `en*` returns English, Chinese tags return their script, and any other tag keeps the Simplified Chinese default.
+
+Interface labels, runtime status messages, validation errors, and runtime logs all follow the page language. `zh_hans.py` is the source of truth; the Traditional Chinese catalog is generated with OpenCC `cn -> twp` plus the website's Taiwan term list and then hand-reviewed, and the English catalog is written directly in US English using the wording already published in the website and Android resources. To add a language, register its catalog in `i18n/__init__.py`, add its route to `LANGUAGE_PATHS` in `ui_preferences.py`, mount its UI in `application.py`, and add its native label to `LOCALE_LINKS` in `ui.py`. Extend locale normalization and tests for the new language as well.
 
 ## Managed files
 

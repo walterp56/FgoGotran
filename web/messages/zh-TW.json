@@ -744,7 +744,7 @@
         },
         "gguf": {
           "title": "準備 GGUF 翻譯模型",
-          "body": "從可信釋出者自行下載能夠理解日文、穩定輸出中文的 Instruction 或 Chat GGUF，再在管理頁面選擇模型目錄和檔案。",
+          "body": "從可信發布者自行下載能夠理解日文、穩定輸出所選目標語言（簡體中文、繁體中文或英文）的 Instruction 或 Chat GGUF，再在管理頁面選擇模型目錄和檔案。",
           "note": "啟動器不會下載、更新、替換或刪除 GGUF 模型。"
         },
         "panel": {
@@ -768,7 +768,7 @@
         },
         "connect": {
           "title": "連線 Android 應用",
-          "body": "在總覽分別點選“顯示 Endpoint”和“顯示 API Key”，把兩項完整值及可見的 Model ID 填入 FgoGotran 的“自定義 / 本地 AI”，再點選“測試 API”和“應用API設定”。"
+          "body": "在總覽使用 Endpoint 和 API Key 旁的複製圖示，直接複製完整值，欄位保持隱藏；需要檢查時才顯示。將兩項完整值及 Model ID 填入 FgoGotran 的「自訂 / 本地 AI」，再點擊「測試 API」和「套用 API 設定」。"
         }
       }
     },
@@ -785,7 +785,7 @@
       "ggufTitle": "GGUF 模型",
       "ggufItems": [
         "選擇 Instruction 或 Chat 模型，不使用未經對齊的 Base 模型。",
-        "確認能夠理解日文，並穩定輸出所選中文。",
+        "確認能夠理解日文，並穩定輸出所選目標語言。",
         "確認 llama.cpp 支援模型架構和 Chat Template。",
         "從可信釋出者下載，並在提供校驗值時完成核對。"
       ],
@@ -814,7 +814,7 @@
     },
     "controlPanel": {
       "title": "控制面板",
-      "body": "頁面預設在 <code>127.0.0.1:18081</code> 開啟，並分成四個標籤頁。",
+      "body": "頁面預設在 <code>127.0.0.1:18081</code> 開啟，並分成四個分頁。頂部可選擇簡體中文、繁體中文或 English，點擊後立即儲存；重新啟動或再次開啟頁面會恢復上次選擇。首次使用預設簡體中文，介面語言不會改變翻譯目標語言。",
       "subheading": "首次測試保留這些預設值",
       "tableParam": "參數",
       "tableDefault": "預設值",
@@ -822,7 +822,7 @@
       "tabs": {
         "overview": {
           "title": "總覽",
-          "body": "啟動、重新啟動或停止 llama-server；檢視執行狀態和當前 Profile 摘要。Endpoint 與 API Key 預設隱藏，需要時可分別臨時顯示。"
+          "body": "啟動、重新啟動或停止 llama-server，查看執行狀態和目前 Profile 摘要。Endpoint 與 API Key 預設隱藏，可透過各自的複製圖示直接複製完整值，需要檢查時才暫時顯示。"
         },
         "model": {
           "title": "模型設定",
@@ -830,11 +830,11 @@
         },
         "test": {
           "title": "連線測試",
-          "body": "複測 API Key、Model ID、請求格式和非空中文輸出。啟動服務時也會自動執行一次相容性測試。"
+          "body": "複測 API Key、Model ID、請求格式和非空輸出。啟動服務時也會自動執行一次相容性測試；通過不代表所有目標語言的翻譯品質。"
         },
         "system": {
           "title": "系統",
-          "body": "檢視 Python、埠、GPU、記憶體診斷和執行日誌；區域網路地址與本機路徑預設隱藏，可按需臨時顯示。"
+          "body": "查看目前版本、檢查軟體更新、查看環境診斷和執行日誌。診斷不展示硬體清單或系統詳細資訊；日誌只保存在記憶體中，並遮蓋金鑰、IP 地址和本機路徑。"
         }
       },
       "parameters": {
@@ -882,26 +882,26 @@
     },
     "phone": {
       "title": "連線 Android 手機",
-      "body": "請點選總覽的“顯示 Endpoint”並複製當前地址，不要憑記憶手動組合 IP 和埠。",
+      "body": "使用總覽 Endpoint 旁的複製圖示取得目前完整地址，需要查看時才點擊「顯示 Endpoint」。不要憑記憶手動組合 IP 和連接埠。",
       "callout": "手機不能填寫 <code>localhost</code>、<code>127.0.0.1</code>、<code>0.0.0.0</code>、電腦主機名或路由器地址。",
       "steps": [
         "讓手機和電腦連線同一個可信 Wi-Fi 或區域網路。",
         "把 Windows 當前網路配置為“專用網路”。",
         "在當前 Profile 選擇“可信區域網路 + 本機”，儲存並重新啟動服務。",
-        "等待狀態變成“已就緒”，點選總覽的“顯示 Endpoint”，再用其中相同的電腦 IP 與埠開啟 /health 地址。",
+        "等待狀態變成「已就緒」，複製總覽的 Endpoint，再用其中相同的電腦 IP 與連接埠開啟 /health 地址。",
         "在 FgoGotran 的 API 設定中選擇“自定義 / 本地 AI”。",
-        "分別點選總覽的“顯示 Endpoint”和“顯示 API Key”，填寫兩項完整值及模型名稱，然後測試並應用設定。"
+        "使用總覽 Endpoint 和 API Key 旁的複製圖示，把兩項完整值及 Model ID 填入手機，然後測試並套用設定。"
       ],
       "apiAddress": "API 地址",
       "apiAddressValue": "http://<ip>電腦區域網路IP</ip>:18080/v1/chat/completions",
       "browserTest": "手機瀏覽器測試",
       "healthValue": "http://<ip>電腦區域網路IP</ip>:18080/health",
       "fieldComputer": "電腦總覽",
-      "fieldShowEndpoint": "顯示 Endpoint",
+      "fieldShowEndpoint": "複製 Endpoint",
       "fieldApiAddress": "手機“API 地址”",
       "fieldModelId": "Model ID",
       "fieldModel": "手機“模型”",
-      "fieldShowApiKey": "顯示 API Key",
+      "fieldShowApiKey": "複製 API Key",
       "fieldApiKey": "手機“API Key”"
     },
     "status": {
@@ -1020,11 +1020,11 @@
       },
       "backup": {
         "title": "配置備份",
-        "body": "更新或重置前備份 user_data。這個目錄含 API Key，不能上傳、公開或隨故障截圖一起傳送。"
+        "body": "更新或重設前備份整個 user_data 資料夾，其中包含模型設定、API Key、介面語言和更新提醒。此資料夾不能上傳、公開或隨故障截圖一起傳送；外部模型請保留原位置。"
       },
       "update": {
-        "title": "安全更新",
-        "body": "先停止服務，再把新版 llama.cpp 解壓到新目錄。更新路徑並通過載入與翻譯測試後，才移除舊版本。"
+        "title": "更新 FgoGotran Local",
+        "body": "開啟管理頁面時會在背景檢查更新，也可在「系統 → 軟體更新」手動檢查。有新版時先顯示版本和更新說明，點擊「前往下載頁」後從官網下載 ZIP。更新前完全關閉 Local（關閉啟動器命令視窗），備份整個 user_data 資料夾，將新版 ZIP 解壓到原安裝路徑，啟動前放回原來的 user_data 資料夾；確認設定和翻譯正常後再刪除備份。"
       }
     },
     "checklist": {
@@ -1034,7 +1034,7 @@
         "使用 64 位 Python 3.11、3.12 或 3.13",
         "llama.cpp 來自可信來源並已完整解壓；自動下載已通過大小和 SHA-256 校驗",
         "llama-server.exe 同目錄保留所需 DLL",
-        "GGUF 是從可信釋出者自行取得、支援日文輸入和中文輸出的 Instruction 或 Chat 模型",
+        "GGUF 是從可信發布者自行取得、支援日文輸入和所選目標語言輸出的 Instruction 或 Chat 模型",
         "手機連線時選擇“可信區域網路 + 本機”",
         "Windows 防火牆只允許專用網路",
         "執行狀態已經變為“已就緒”",

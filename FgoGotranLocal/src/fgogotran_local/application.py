@@ -6,7 +6,7 @@ from typing import Any, Awaitable, Callable
 
 import gradio as gr
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from .control_api import create_control_router
 from .errors import StudioError
@@ -14,11 +14,31 @@ from .privacy import redact_sensitive_text
 from .security import LocalControlSecurityMiddleware
 from .service import LocalTranslationService
 from .ui import STUDIO_CSS, build_ui, studio_theme
+from .ui_preferences import LANGUAGE_PATHS, UiPreferences
 
 
 Scope = dict[str, Any]
 Receive = Callable[[], Awaitable[dict[str, Any]]]
 Send = Callable[[dict[str, Any]], Awaitable[None]]
+
+
+class PreferredLanguageMiddleware:
+    """Resolve the browser launch URL without changing Gradio or API routes."""
+
+    def __init__(self, app: Any, preferences: UiPreferences) -> None:
+        self.app, self.preferences = app, preferences
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if (scope["type"] == "http" and scope.get("method") == "GET"
+            and scope.get("path") == "/" and self.preferences.preferred_path != "/"):
+            target = self.preferences.preferred_path
+            query = scope.get("query_string", b"")
+            if query:
+                target += "?" + query.decode("latin-1")
+            response = RedirectResponse(target, status_code=307)
+            await response(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
 
 
 class PageLanguageMiddleware:
@@ -100,10 +120,13 @@ def create_application(
     allowed_hosts = ["127.0.0.1", "localhost"]
     if allow_test_host:
         allowed_hosts.append("testserver")
+    if mount_ui:
+        # Added before the security middleware so Host checks run before redirects.
+        app.add_middleware(PreferredLanguageMiddleware, preferences=service.ui_preferences)
     app.add_middleware(LocalControlSecurityMiddleware, allowed_hosts=allowed_hosts)
     app.add_middleware(
         PageLanguageMiddleware,
-        routes={"/": "zh-Hans", "/zh-Hant/": "zh-Hant", "/en/": "en"},
+        routes={path: language for language, path in LANGUAGE_PATHS.items()},
     )
 
     @app.exception_handler(StudioError)

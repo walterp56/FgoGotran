@@ -774,7 +774,7 @@
         },
         "gguf": {
           "title": "Prepare a GGUF translation model",
-          "body": "Download an Instruction or Chat GGUF from a trusted publisher that understands Japanese and reliably outputs Chinese, then select the model folder and file in the control panel.",
+          "body": "Download an Instruction or Chat GGUF from a trusted publisher that understands Japanese and reliably outputs your selected target language (Simplified Chinese, Traditional Chinese, or English), then select the model folder and file in the control panel.",
           "note": "The launcher never downloads, updates, replaces or deletes GGUF models."
         },
         "panel": {
@@ -798,7 +798,7 @@
         },
         "connect": {
           "title": "Connect the Android app",
-          "body": "On the overview page, tap “Show Endpoint” and “Show API Key”, then enter both full values and the visible Model ID into FgoGotran's “Custom / Local AI”, and tap “Test API” and “Apply API settings”."
+          "body": "Use the copy icons beside Endpoint and API Key on the overview page to copy their complete values while the fields remain masked; reveal them only when you need to inspect them. Enter both values and the Model ID into FgoGotran's “Custom / Local AI”, then tap “Test API” and “Apply API settings”."
         }
       }
     },
@@ -815,7 +815,7 @@
       "ggufTitle": "GGUF model",
       "ggufItems": [
         "Choose an Instruction or Chat model; do not use an unaligned Base model.",
-        "Make sure it understands Japanese and reliably outputs the Chinese you selected.",
+        "Confirm that it understands Japanese and reliably outputs your selected target language.",
         "Make sure llama.cpp supports the model architecture and chat template.",
         "Download from a trusted publisher and verify the checksum when one is provided."
       ],
@@ -844,7 +844,7 @@
     },
     "controlPanel": {
       "title": "Control panel",
-      "body": "The page opens at <code>127.0.0.1:18081</code> by default and has four tabs.",
+      "body": "The page opens at <code>127.0.0.1:18081</code> and has four tabs. Choose Simplified Chinese, Traditional Chinese, or English at the top; your choice is saved immediately and restored after restarting Local or reopening the page. First use defaults to Simplified Chinese. Interface language does not change the translation target.",
       "subheading": "Keep these defaults for your first test",
       "tableParam": "Parameter",
       "tableDefault": "Default",
@@ -852,7 +852,7 @@
       "tabs": {
         "overview": {
           "title": "Overview",
-          "body": "Start, restart or stop llama-server, and check the runtime status and current profile summary. Endpoint and API key are hidden by default and can be revealed temporarily."
+          "body": "Start, restart, or stop llama-server and view its runtime status and active profile summary. Endpoint and API Key stay masked while their copy icons copy the complete values; reveal them only when you need to inspect them."
         },
         "model": {
           "title": "Model settings",
@@ -860,11 +860,11 @@
         },
         "test": {
           "title": "Connection test",
-          "body": "Re-check the API key, Model ID, request format and non-empty Chinese output. A compatibility test also runs automatically when the service starts."
+          "body": "Recheck the API key, Model ID, request format, and non-empty output. Startup also runs this compatibility check; passing does not establish translation quality in every target language."
         },
         "system": {
           "title": "System",
-          "body": "Check Python, ports, GPU, memory diagnostics and the runtime log; LAN addresses and local paths are hidden by default and can be revealed temporarily."
+          "body": "View the current version, check for software updates, and inspect environment diagnostics and runtime logs. Diagnostics do not display hardware inventory or detailed system information. Logs stay in memory and redact keys, IP addresses, and local paths."
         }
       },
       "parameters": {
@@ -912,26 +912,26 @@
     },
     "phone": {
       "title": "Connect an Android phone",
-      "body": "Tap “Show Endpoint” on the overview page and copy the current address instead of assembling the IP and port from memory.",
+      "body": "Use the Endpoint copy icon on the overview page to obtain the complete current address; reveal it only when you need to inspect it. Do not assemble the IP and port from memory.",
       "callout": "Your phone must not use <code>localhost</code>, <code>127.0.0.1</code>, <code>0.0.0.0</code>, the PC hostname or the router address.",
       "steps": [
         "Put the phone and the PC on the same trusted Wi-Fi or LAN.",
         "Set the current Windows network to “Private network”.",
         "In the current profile choose “Trusted LAN + this PC”, save, and restart the service.",
-        "Wait until the status becomes “Ready”, tap “Show Endpoint” on the overview page, and open the /health address using the same PC IP and port.",
+        "Wait until the status becomes “Ready”, copy the Endpoint on the overview page, and open the /health address using the same PC IP and port.",
         "In FgoGotran's API settings, choose “Custom / Local AI”.",
-        "Tap “Show Endpoint” and “Show API Key” on the overview page, fill in both full values plus the model name, then test and apply the settings."
+        "Use the Endpoint and API Key copy icons on the overview page, enter both complete values and the Model ID on the phone, then test and apply the settings."
       ],
       "apiAddress": "API address",
       "apiAddressValue": "http://<ip>PC LAN IP</ip>:18080/v1/chat/completions",
       "browserTest": "Phone browser test",
       "healthValue": "http://<ip>PC LAN IP</ip>:18080/health",
       "fieldComputer": "PC overview",
-      "fieldShowEndpoint": "Show Endpoint",
+      "fieldShowEndpoint": "Copy Endpoint",
       "fieldApiAddress": "Phone “API address”",
       "fieldModelId": "Model ID",
       "fieldModel": "Phone “Model”",
-      "fieldShowApiKey": "Show API Key",
+      "fieldShowApiKey": "Copy API Key",
       "fieldApiKey": "Phone “API Key”"
     },
     "status": {
@@ -1050,11 +1050,11 @@
       },
       "backup": {
         "title": "Configuration backup",
-        "body": "Back up user_data before updating or resetting. This folder contains the API key and must not be uploaded, published or sent along with troubleshooting screenshots."
+        "body": "Before updating or resetting, back up the entire user_data folder, which includes model settings, the API key, interface language, and update reminders. Do not upload, publish, or send this folder with troubleshooting screenshots. Keep external models at their original paths."
       },
       "update": {
-        "title": "Safe updates",
-        "body": "Stop the service first, then unpack the new llama.cpp into a new folder. Remove the old version only after updating the path and passing load and translation tests."
+        "title": "Update FgoGotran Local",
+        "body": "Opening the control page checks for updates in the background; you can also check under “System → Software updates”. A new version first shows its version and release notes. Choose “Go to download page” to download the ZIP from the website. Fully close Local (close its launcher console), back up the entire user_data folder, extract the new ZIP to the original installation path, and restore your original user_data folder before launching. Remove the backup only after settings and translation work correctly."
       }
     },
     "checklist": {
@@ -1064,7 +1064,7 @@
         "Using 64-bit Python 3.11, 3.12 or 3.13",
         "llama.cpp comes from a trusted source and is fully extracted; automatic downloads passed the size and SHA-256 checks",
         "Required DLLs remain next to llama-server.exe",
-        "The GGUF is an Instruction or Chat model you obtained from a trusted publisher that supports Japanese input and Chinese output",
+        "The GGUF is an Instruction or Chat model you obtained from a trusted publisher that supports Japanese input and your selected target language",
         "“Trusted LAN + this PC” is selected for the phone connection",
         "Windows Firewall allows private networks only",
         "The runtime status has become “Ready”",
