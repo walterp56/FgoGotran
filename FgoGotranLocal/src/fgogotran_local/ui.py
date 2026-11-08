@@ -6,6 +6,7 @@ import functools
 import html
 import inspect
 import mimetypes
+import re
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from .service import LocalTranslationService
 from .updates import download_page_url
 from .update_ui import DIALOG_TEMPLATE, DIALOG_CSS, DIALOG_JS, dialog_value
 from .ui_preferences import LANGUAGE_PATHS
+from .connection_test import connection_example
 from .i18n import current as current_locale
 
 
@@ -323,6 +325,24 @@ def _language_links_markup(active: str) -> str:
     )
 
 
+def _test_response_code(text: str) -> str:
+    # Markdown escapes code-span content itself. Use a longer delimiter than
+    # any backtick run in model output, preventing it from breaking the span.
+    delimiter = "`" * (max((len(run) for run in re.findall(r"`+", text)), default=0) + 1)
+    return delimiter + " " + text.replace("\r", " ").replace("\n", " ") + " " + delimiter
+
+
+def _connection_example_markup(locale: str) -> str:
+    example = connection_example(locale)
+    language = t("ui.test.language." + example["targetLanguage"])
+    return (
+        '<div class="connection-example">'
+        f'<p><strong>{html.escape(t("ui.test.source"))}</strong> '
+        f'{html.escape(example["sourceText"])}</p>'
+        f'<p>{html.escape(t("ui.test.target", language=language))}</p></div>'
+    )
+
+
 def _clipboard_copy_js(label: str) -> str:
     safe_label = label.replace("\\", "\\\\").replace('"', '\\"')
     empty_message = t("ui.result.copyNothing")
@@ -571,6 +591,7 @@ def build_ui(
                         with gr.Column(scale=3):
                             with gr.Group(elem_classes=["panel-card"]):
                                 gr.HTML(_panel_title_markup(t("ui.test.compatTitle"), t("ui.test.compatHint")))
+                                gr.HTML(_connection_example_markup(locale))
                                 test_button = gr.Button(t("ui.test.start"), variant="primary")
                                 test_result = gr.Markdown(elem_classes=["inline-result"])
                         with gr.Column(scale=2):
@@ -750,11 +771,14 @@ def build_ui(
             @localized_handler
             async def run_test() -> str:
                 try:
-                    result = await service.test_compatibility()
-                    response = html.escape(result["response"])
-                    return f"{_result(t('ui.test.passed', ms=result['latencyMs']), ok=True)}\n\n" + t(
+                    result = await service.test_compatibility(locale)
+                    response = _test_response_code(result["response"])
+                    rendered = f"{_result(t('ui.test.passed', ms=result['latencyMs']), ok=True)}\n\n" + t(
                         "ui.test.response", response=response
                     )
+                    if result.get("warning"):
+                        rendered += "\n\n> " + html.escape(result["warning"])
+                    return rendered
                 except Exception as error:
                     return _error_message(error)
 

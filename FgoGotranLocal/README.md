@@ -90,6 +90,37 @@ The root URL redirects to your saved Traditional Chinese or English interface; c
 
 Interface labels, runtime status messages, validation errors, and runtime logs all follow the page language. `zh_hans.py` is the source of truth; the Traditional Chinese catalog is generated with OpenCC `cn -> twp` plus the website's Taiwan term list and then hand-reviewed, and the English catalog is written directly in US English using the wording already published in the website and Android resources. To add a language, register its catalog in `i18n/__init__.py`, add its route to `LANGUAGE_PATHS` in `ui_preferences.py`, mount its UI in `application.py`, and add its native label to `LOCALE_LINKS` in `ui.py`. Extend locale normalization and tests for the new language as well.
 
+## Connection test
+
+The test sends the Android app's example, `マスター、カルデアに戻りましょう。`,
+with a general plain-text request exported from its production prompt builders
+and prepared glossary. Manual tests target the current page language; the
+startup check uses the saved interface language. This does not change the
+Android app's translation target. The page shows the Japanese source, target,
+response and request latency. Each test uses one request with the existing
+45-second timeout; switching languages does not automatically run another test.
+
+Passing establishes connection and response-format compatibility. An apparent
+Japanese or wrong-language response produces an advisory message without retrying
+or stopping the model. Review meaning and simplified/traditional wording yourself;
+shared Chinese characters cannot establish which script the model followed.
+The first request can be slower while the model warms up.
+
+`src/fgogotran_local/connection_prompts.json` is shipped with Local; no Android
+SDK or glossary database is required at runtime. It is a prepared example,
+not a live OCR/RAG or end-to-end gameplay test. Sakura prompts are not used.
+After changing Android prompt builders or source glossary data, regenerate and
+review it from the repository root (with the Android build JDK configured):
+
+```powershell
+$env:FGO_LOCAL_EXPORT_PROMPTS = '1'
+.\gradlew.bat :app:testDebugUnitTest --tests com.fgogotran.translation.LocalConnectionPromptFixtureTest
+Remove-Item Env:FGO_LOCAL_EXPORT_PROMPTS
+```
+
+Without that export flag, the Android test compares the committed requests with
+fresh builder output; Local tests also check source fingerprints for drift.
+
 ## Managed files
 
 Automatic setup stores its files in locations already excluded by `.gitignore`:

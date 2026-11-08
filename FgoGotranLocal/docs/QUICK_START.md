@@ -29,6 +29,15 @@ You can decline automatic llama.cpp setup and configure your own runtime on the 
 
 Keep all DLLs supplied with `llama-server.exe`; copying only the executable is insufficient.
 
+## Test a translation
+
+Open **Connection test** after the model becomes ready. It uses the Android
+app's general translation prompt and Japanese example, targeting the current
+interface language. Check the displayed source, target, response and latency.
+Startup uses the same example in the saved interface language. Passing confirms
+API compatibility; language warnings require reviewing the translation and do
+not stop the model or send a second request.
+
 ## Connect FgoGotran
 
 After the status becomes **Ready**:

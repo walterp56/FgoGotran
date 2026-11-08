@@ -29,10 +29,6 @@ CJK = re.compile(r"[\u4e00-\u9fff]")
 TRANSLATED_LOCALES = ("zh-Hant", "en")
 LANGUAGE_ROUTES = {"/": "zh-Hans", "/zh-Hant/": "zh-Hant", "/en/": "en"}
 ALLOWED_CHINESE_LITERALS = {
-    # Functional probe prompt for llama-server: it must stay in the app's
-    # translation target language, independent of the UI locale.
-    "你是一个日中翻译模型，只返回中文译文。",
-    "将下面的日文文本翻译成中文：カルデアへようこそ。",
     # Header language switcher labels stay script-native on purpose.
     "简体",
     "繁體",

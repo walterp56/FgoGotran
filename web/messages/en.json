@@ -860,7 +860,7 @@
         },
         "test": {
           "title": "Connection test",
-          "body": "Recheck the API key, Model ID, request format, and non-empty output. Startup also runs this compatibility check; passing does not establish translation quality in every target language."
+          "body": "Uses the Android general translation prompt and Japanese example, targeting the current interface language: Simplified Chinese, Traditional Chinese, or English. The page shows the source, target, response, and latency. Startup uses the saved interface language. Passing verifies connection and response format; language warnings require review and do not retry or stop the model."
         },
         "system": {
           "title": "System",

@@ -88,6 +88,13 @@ If the fallback also fails, the service remains in the error state instead of re
 
 Startup must pass the same Chat Completions check before the service becomes ready. Verify that the active profile's Model ID matches the alias used by llama-server. Inspect the displayed compatibility result and runtime log for authentication, template, reasoning-only, or empty-output failures. The request timeout is 45 seconds.
 
+The example is exported from the Android general translation builders. A manual
+test targets the current interface language; startup uses the saved interface
+language. A successful format check with a language warning is not a stopped
+model: inspect the returned translation and model support for that language.
+The warning does not retry automatically. First-request latency includes model
+warm-up; a single example does not establish general translation quality.
+
 ## The phone cannot connect
 
 Follow [Phone Connection](PHONE_CONNECTION.md) in order. Do not use the router address and do not use control port `18081` as the translation API port.

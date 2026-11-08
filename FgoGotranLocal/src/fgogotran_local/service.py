@@ -36,7 +36,8 @@ class LocalTranslationService:
     async def initialize(self) -> None:
         await self.config_store.load()
         self.logs = LogStore(self.data_directory / "state", self.config_store.get_secret)
-        self.manager = LlamaManager(self.config_store, self.data_directory / "state", self.logs)
+        self.manager = LlamaManager(self.config_store, self.data_directory / "state", self.logs,
+                                    language_provider=lambda: self.ui_preferences.language)
         await self.manager.start_background()
         if os.environ.get("FGO_LOCAL_AUTO_START_MODEL") == "1":
             self._auto_start_task = asyncio.create_task(self._auto_start_model(), name="llama-auto-start")
@@ -160,8 +161,8 @@ class LocalTranslationService:
     async def restart(self) -> dict[str, Any]:
         return await self._manager().restart()
 
-    async def test_compatibility(self) -> dict[str, Any]:
-        return await self._manager().test_compatibility()
+    async def test_compatibility(self, locale: str | None = None) -> dict[str, Any]:
+        return await self._manager().test_compatibility(locale)
 
     async def diagnostics(self) -> dict[str, Any]:
         config = self.config_store.get_raw_config()

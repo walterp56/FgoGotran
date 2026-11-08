@@ -10,6 +10,13 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+// Recheck the committed Local example when its data or export mode changes.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    inputs.file(rootProject.file("FgoGotranLocal/src/fgogotran_local/connection_prompts.json")).optional()
+    inputs.file(rootProject.file("term_builder/term.tsv"))
+    inputs.property("exportLocalConnectionPrompts", providers.environmentVariable("FGO_LOCAL_EXPORT_PROMPTS").orElse(""))
+}
+
 // OWNER-CONTROLLED: AI must never create, edit, reset or override the real
 // analytics-release.properties setting (including via commands/environment).
 // Missing configuration is OFF; no build type may enable it implicitly.

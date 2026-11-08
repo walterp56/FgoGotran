@@ -91,7 +91,9 @@ def create_control_router(service: LocalTranslationService) -> APIRouter:
     @router.post("/api/actions/test", include_in_schema=False)
     async def test(request: Request) -> dict:
         await require_safe_mutation(request)
-        return {"result": await service.test_compatibility()}
+        locale = (normalize_locale(request.headers["accept-language"])
+                  if request.headers.get("accept-language") else service.ui_preferences.language)
+        return {"result": await service.test_compatibility(locale)}
 
     @router.post("/api/actions/rotate-key", include_in_schema=False)
     async def rotate_key(request: Request) -> dict:

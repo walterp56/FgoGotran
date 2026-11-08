@@ -16,6 +16,7 @@ from .compatibility import (
     classify_chat_completion,
 )
 from .config_store import ConfigStore
+from .connection_test import connection_example, language_warning_key
 from .errors import StudioError
 from .llama_arguments import (
     ThinkingControl,
@@ -24,7 +25,7 @@ from .llama_arguments import (
     runtime_profile_changed,
 )
 from .llama_metrics import empty_metrics, parse_prometheus_metrics
-from .i18n import t
+from .i18n import DEFAULT_LOCALE, normalize_locale, t
 from .log_store import LogStore
 
 
@@ -46,10 +47,12 @@ STATE_KEYS = {
 
 
 class LlamaManager:
-    def __init__(self, config_store: ConfigStore, state_directory: Path | str, logs: LogStore) -> None:
+    def __init__(self, config_store: ConfigStore, state_directory: Path | str, logs: LogStore,
+                 language_provider: Callable[[], str] | None = None) -> None:
         self.config_store = config_store
         self.state_directory = Path(state_directory).resolve()
         self.logs = logs
+        self._language_provider = language_provider or (lambda: DEFAULT_LOCALE)
         self.process: asyncio.subprocess.Process | None = None
         self.state = "STOPPED"
         self.message_key = "llama.message.initial"
@@ -148,26 +151,35 @@ class LlamaManager:
 
         return await self._exclusive(operation)
 
-    async def test_compatibility(self) -> dict[str, Any]:
+    async def test_compatibility(self, locale: str | None = None) -> dict[str, Any]:
         if not self.is_running() or self.state not in {"READY", "BUSY"}:
             raise StudioError(t("llama.error.modelNotReady"), 409)
         profile = self.running_profile
         api_key = self.running_api_key
         if not profile or not api_key:
             raise StudioError(t("llama.error.noActiveProfile"), 409)
+        target = normalize_locale(locale if locale is not None else self._language_provider())
+        example = connection_example(target)
         self._log("INFO", "llama.log.testRunning")
-        result = await self._probe_chat_compatibility(profile, api_key)
+        result = await self._probe_chat_compatibility(profile, api_key, target)
         if not result.ok:
             raise StudioError(t("llama.error.testFailed", message=result.message))
         self.last_request_at = _utc_now()
         self._log("INFO", "llama.log.testPassed", ms=result.latency_ms)
-        return {"ok": True, "latencyMs": result.latency_ms, "response": result.content[:200]}
+        warning_key = language_warning_key(result.content, target)
+        return {"ok": True, "latencyMs": result.latency_ms, "response": result.content[:200],
+                "sourceText": example["sourceText"], "targetLanguage": target,
+                "promptVersion": example["promptVersion"],
+                "warning": t(warning_key) if warning_key else ""}
 
     async def _probe_chat_compatibility(
         self,
         profile: dict[str, Any],
         api_key: str,
+        locale: str | None = None,
     ) -> ChatCompatibilityResult:
+        # Capture once: a language switch while inference runs cannot alter this request.
+        example = connection_example(locale if locale is not None else self._language_provider())
         started = asyncio.get_running_loop().time()
         try:
             response = await self._client.post(
@@ -175,12 +187,7 @@ class LlamaManager:
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
                     "model": profile["modelAlias"],
-                    # Functional probe prompt sent to llama-server: keep it in the
-                    # app's translation target language, independent of the UI locale.
-                    "messages": [
-                        {"role": "system", "content": "你是一个日中翻译模型，只返回中文译文。"},
-                        {"role": "user", "content": "将下面的日文文本翻译成中文：カルデアへようこそ。"},
-                    ],
+                    "messages": example["messages"],
                     "max_tokens": 128,
                     "temperature": 0.1,
                     "top_p": 0.3,

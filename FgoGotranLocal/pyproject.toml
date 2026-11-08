@@ -35,7 +35,7 @@ where = ["src"]
 version = {attr = "fgogotran_local.__version__"}
 
 [tool.setuptools.package-data]
-fgogotran_local = ["version.json"]
+fgogotran_local = ["version.json", "connection_prompts.json"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
