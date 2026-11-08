@@ -37,19 +37,7 @@ object FgoDialogueSymbols {
      * corner quotes cannot leak into the final Chinese result.
      */
     fun normalizeFinalChineseQuotes(text: String): String {
-        if (EmphasisText.has(text)) return EmphasisText.transform(text, ::normalizeFinalChineseQuotes)
-        if ('「' !in text && '」' !in text) return text
-        return buildString(text.length) {
-            text.forEach { char ->
-                append(
-                    when (char) {
-                        '「' -> '『'
-                        '」' -> '』'
-                        else -> char
-                    }
-                )
-            }
-        }
+        return TranslationPunctuationNormalizer.quotes(text)
     }
 
     /**

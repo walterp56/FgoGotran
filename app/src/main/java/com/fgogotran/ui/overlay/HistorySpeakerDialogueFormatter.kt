@@ -7,7 +7,7 @@ internal data class HistorySpeakerDialogue(
     val trailingPunctuation: String
 )
 
-/** Applies the fixed outer `「...」` history convention to dialogue with a speaker. */
+/** Uses target-language speech quotes for translations; Japanese originals retain `「...」`. */
 internal object HistorySpeakerDialogueFormatter {
     private const val OPENING_QUOTE = '「'
     private const val CLOSING_QUOTE = '」'
@@ -18,7 +18,25 @@ internal object HistorySpeakerDialogueFormatter {
         '〜', '～', '~', '：', ':', '；', ';', '♪', '♡', '♥', '☆', '★'
     )
 
-    fun prepare(text: String): HistorySpeakerDialogue {
+    fun prepare(text: String, targetLocale: String? = null): HistorySpeakerDialogue {
+        if (targetLocale != null) {
+            val normalized = com.fgogotran.translation.TranslationPunctuationNormalizer.normalize(text, targetLocale)
+            val open = if (targetLocale == "en") '"' else '『'
+            val close = if (targetLocale == "en") '"' else '』'
+            var end = normalized.lastIndex
+            while (end > 0 && normalized[end] in trailingPunctuation) end--
+            var depth = 0
+            var completeEarly = false
+            if (open != close) normalized.take(end + 1).forEachIndexed { index, char ->
+                if (char == open) depth++
+                if (char == close) depth--
+                if (depth <= 0 && index < end) completeEarly = true
+            }
+            val onePair = normalized.firstOrNull() == open && normalized.getOrNull(end) == close &&
+                if (open == close) normalized.substring(1, end).none { it == open } else depth == 0 && !completeEarly
+            return if (onePair) HistorySpeakerDialogue(normalized.substring(1, end), open.toString(), close.toString(), normalized.substring(end + 1))
+            else HistorySpeakerDialogue(normalized, open.toString(), close.toString(), "")
+        }
         val trimmed = text.trim()
         if (trimmed.length < 2) return wrap(trimmed)
 

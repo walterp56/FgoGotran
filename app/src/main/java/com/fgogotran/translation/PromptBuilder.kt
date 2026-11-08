@@ -185,10 +185,10 @@ data class PromptContext(
 class PromptBuilder @Inject constructor() {
 
     companion object {
-        const val PROMPT_VERSION = "jp-cn-fgo-target-v101-compact-foreign"
-        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v10-plain-layout"
-        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v9-compact-foreign"
-        const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v4-plain-layout"
+        const val PROMPT_VERSION = "jp-cn-fgo-target-v102-punctuation"
+        const val BATTLE_PROMPT_VERSION = "battle-subtitle-v11-punctuation"
+        const val PROMPT_VERSION_EN = "jp-en-fgo-target-v10-punctuation"
+        const val BATTLE_PROMPT_VERSION_EN = "battle-subtitle-en-v5-punctuation"
         const val DIALOGUE_SUBTITLE_PROMPT_VERSION = "dialogue-subtitle-v3-source-repetition"
         const val DIALOGUE_SUBTITLE_PROMPT_VERSION_EN = "dialogue-subtitle-en-v3-source-repetition"
 
@@ -279,7 +279,7 @@ class PromptBuilder @Inject constructor() {
             Translate or transliterate all other kana; common loanwords may use compact English.
             $FOREIGN_EXPRESSION_PROMPT
             Preserve stated references and action roles; use natural Chinese omission when Japanese omits them, and never infer them from speaker identity.
-            Keep source sentences aligned; line breaks only when meaningful. Pause dots -> ……; long dashes -> ───; keep !? and other expressive punctuation.
+            Keep source sentences aligned; line breaks only when meaningful. Use …… and ─── as minimum pause/line lengths; preserve longer source runs and expressive punctuation order.
             """.trimIndent()
 
         private val BATTLE_SUBTITLE_BASE_PROMPT = """
@@ -291,7 +291,7 @@ class PromptBuilder @Inject constructor() {
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             Translate or transliterate all other kana; common loanwords may use compact English.
             $FOREIGN_EXPRESSION_PROMPT
-            Pause dots -> ……; long dashes -> ───.
+            Use …… and ─── as minimum pause/line lengths; preserve longer source runs.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT = """
@@ -386,7 +386,7 @@ class PromptBuilder @Inject constructor() {
             For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
             $FOREIGN_EXPRESSION_PROMPT
             Use an explicit subject only when English grammar requires one; preserve natural fragments and imperatives, and never invent a person or relationship. Translate second-person address as "you" (or an English insult when hostile), never a name.
-            Convert 「」『』 to "..." (nested quotes use '...'). "…" -> "..."; long dash -> "—"; keep !? and !!. Keep source sentences aligned; line breaks only when meaningful.
+            Convert 「」『』 to "..." (nested quotes use '...'). Use ... and — as minimum pause/line lengths; preserve longer source runs and !? / !!. Keep source sentences aligned; line breaks only when meaningful.
             """.trimIndent()
 
         private val BATTLE_SUBTITLE_BASE_PROMPT_EN = """
@@ -398,7 +398,7 @@ class PromptBuilder @Inject constructor() {
             Preserve configured player names and explicitly protected literals verbatim, including kana.
             For other katakana names and terms, use official NA spelling when known, otherwise an appropriate translation or standard romanization; leave no other kana.
             $FOREIGN_EXPRESSION_PROMPT
-            "…" -> "..."; long dash -> "—".
+            Use ... and — as minimum pause/line lengths; preserve longer source runs.
             """.trimIndent()
 
         private val CROP_BASE_PROMPT_EN = """

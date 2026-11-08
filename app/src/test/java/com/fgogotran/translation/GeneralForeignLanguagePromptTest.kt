@@ -126,7 +126,7 @@ class GeneralForeignLanguagePromptTest {
     fun `compact policy versions invalidate earlier foreign policy results`() {
         for (target in targets) {
             assertTrue(builder.buildSystemPrompt(PromptContext(targetLanguage = target)).contains(policy))
-            assertTrue(PromptBuilder.promptVersionFor(target, false).endsWith("compact-foreign"))
+            assertTrue(PromptBuilder.promptVersionFor(target, false).endsWith("punctuation"))
             assertFalse(PromptBuilder.promptVersionFor(target, false).endsWith("contextual-foreign"))
             assertFalse(PromptBuilder.promptVersionFor(target, false).endsWith("foreign-expressions"))
         }

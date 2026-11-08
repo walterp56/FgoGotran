@@ -179,11 +179,11 @@ class ChineseHonorificNormalizationTest {
         }
     }
 
-    @Test fun englishProductionHashesRemainExactlyThePreChangeValues() {
+    @Test fun englishProductionHashesRetirePrePunctuationPolicyValues() {
         for (fixture in preChangeKeys.filter { it.target == "en" }) {
             for (target in listOf("en", "en-US")) {
                 val updated = key(fixture.source, target, fixture.model)
-                assertEquals(fixture.hash, updated.first, fixture.toString())
+                assertNotEquals(fixture.hash, updated.first, fixture.toString())
                 assertFalse("postprocess=" in updated.second)
                 assertFalse("honorific=" in updated.second)
             }
@@ -261,13 +261,20 @@ class ChineseHonorificNormalizationTest {
         PreChangeKey(columns[0], columns[1], columns[2], columns[3])
     }
 
-    private fun key(source: String, target: String, model: String, choiceBatch: Boolean = false): Pair<String, String> {
+    @Test fun rawPauseLengthsRemainDistinctEvenWhenNormalizedTextMatches() {
+        for (target in listOf("zh-Hans", "zh-Hant", "en")) {
+            assertNotEquals(key("───待て", target, "test-model", rawSource = "---待て").first,
+                key("───待て", target, "test-model", rawSource = "------待て").first)
+        }
+    }
+
+    private fun key(source: String, target: String, model: String, choiceBatch: Boolean = false, rawSource: String = source): Pair<String, String> {
         val configType = Translator::class.java.declaredClasses.single { it.simpleName == "RuntimeConfig" }
         val constructor = configType.declaredConstructors.single().apply { isAccessible = true }
         val config = constructor.newInstance("deepseek", "", "https://offline.invalid/v1", model,
             "", "", true, target, "", ApiSamplingSettings(SettingsRepository.API_SAMPLING_MODE_AUTO, false, 1.0, false, 1.0))
         val value = requireNotNull(invoke("cacheKey", source, emptyList<String>(), config,
-            "", "", "", "", choiceBatch, "", "", "", ""))
+            "", "", "", "", choiceBatch, "", "", "", "", rawSource))
         fun field(name: String) = value.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(value) as String
         return field("hash") to field("parts")
     }

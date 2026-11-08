@@ -79,7 +79,7 @@ class BattleSubtitlePromptTest {
 
     @Test
     fun `battle prompt version invalidates old cached policy`() {
-        assertEquals("battle-subtitle-v10-plain-layout", PromptBuilder.BATTLE_PROMPT_VERSION)
+        assertEquals("battle-subtitle-v11-punctuation", PromptBuilder.BATTLE_PROMPT_VERSION)
     }
 
     @Test

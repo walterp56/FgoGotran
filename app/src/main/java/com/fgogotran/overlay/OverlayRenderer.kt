@@ -1558,10 +1558,7 @@ class OverlayRenderer @Inject constructor(
     }
 
     private fun String.normalizeDialogueSymbolsAndSpacing(targetLocale: String): String {
-        if (SettingsRepository.normalizeTargetLanguage(targetLocale) == SettingsRepository.TARGET_LANGUAGE_ENGLISH) {
-            return replace("\r\n", "\n").replace('\r', '\n').trim()
-        }
-        return FgoDialogueSymbols.normalizeForRender(this)
+        return com.fgogotran.translation.TranslationPunctuationNormalizer.normalize(this, targetLocale).trim()
     }
 
     private fun String.toFgoWideRenderText(): String {

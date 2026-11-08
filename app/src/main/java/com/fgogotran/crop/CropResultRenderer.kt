@@ -566,10 +566,7 @@ class CropResultRenderer @Inject constructor(
     }
 
     private fun normalizeForRender(text: String, targetLocale: String): String {
-        if (isEnglishTarget(targetLocale)) {
-            return text.replace("\r\n", "\n").replace('\r', '\n').trim()
-        }
-        return FgoDialogueSymbols.normalizeForRender(text)
+        return com.fgogotran.translation.TranslationPunctuationNormalizer.normalize(text, targetLocale).trim()
     }
 
     private fun isEnglishTarget(targetLocale: String): Boolean {

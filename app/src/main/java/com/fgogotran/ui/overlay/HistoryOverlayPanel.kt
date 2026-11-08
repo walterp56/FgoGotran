@@ -271,7 +271,9 @@ private fun addHistoryEntryViews(
         )
     }
     entry.dialogueText?.takeIf { it.isNotBlank() }?.let { unmarked ->
-        val it = RubyRenderText.forDisplay(EmphasisText.encode(unmarked, entry.dialogueEmphasisRanges), showAnnotations)
+        val it = RubyRenderText.forDisplay(
+            com.fgogotran.translation.TranslationPunctuationNormalizer.normalize(
+                EmphasisText.encode(unmarked, entry.dialogueEmphasisRanges), entry.targetLocale), showAnnotations)
         val originalDialogue = entry.originalDialogueText?.trim()?.takeIf { original -> original.isNotBlank() }
         if (speakerName != null || originalDialogue != null) {
             if (speakerName != null) {
@@ -280,6 +282,7 @@ private fun addHistoryEntryViews(
                         context = container.context,
                         text = it,
                         originalText = originalDialogue,
+                        targetLocale = entry.targetLocale,
                         color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                         typeface = typeface,
                         contentSizing = contentSizing,
@@ -319,8 +322,9 @@ private fun addHistoryEntryViews(
         container.addView(
             historyTextView(
                 context = container.context,
-                text = RubyRenderText.forDisplay(EmphasisText.encode(choice,
-                    entry.choiceEmphasisRanges.getOrElse(index) { emptyList() }), showAnnotations) +
+                text = RubyRenderText.forDisplay(com.fgogotran.translation.TranslationPunctuationNormalizer.normalize(
+                    EmphasisText.encode(choice, entry.choiceEmphasisRanges.getOrElse(index) { emptyList() }),
+                    entry.targetLocale), showAnnotations) +
                     if (originalChoice == null) "\n" else "",
                 color = FGO_CHOICE_HISTORY_RED,
                 gravity = Gravity.CENTER,
@@ -351,11 +355,12 @@ private fun historySpeakerDialogueView(
     context: Context,
     text: String,
     originalText: String?,
+    targetLocale: String,
     typeface: Typeface,
     contentSizing: HistoryContentSizing,
     color: Int,
 ): LinearLayout {
-    val quotedDialogue = HistorySpeakerDialogueFormatter.prepare(text)
+    val quotedDialogue = HistorySpeakerDialogueFormatter.prepare(text, targetLocale)
     val quoteWidth = historyQuoteIndentPx(
         typeface,
         contentSizing,

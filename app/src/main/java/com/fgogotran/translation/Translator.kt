@@ -1134,7 +1134,7 @@ class Translator @Inject constructor(
                     }
             }
         }
-        val punctuationSourceText = normalizedText.takeIf { restoreSourcePunctuation && alignedSubtitleRows == 0 }
+        val punctuationSourceText = rawNormalizedText.takeIf { restoreSourcePunctuation && alignedSubtitleRows == 0 }
         if (!cropMode && !translateAsChoices && !translateAsName &&
             alignedSubtitleRows == 0 && TextNormalizer.isPunctuationOnlyDialogue(normalizedText)
         ) {
@@ -1291,7 +1291,8 @@ class Translator @Inject constructor(
             glossaryFingerprintOf(matchedTerms) + nameHintFingerprint,
             generalSpeakerContext = activeCurrentSpeaker,
             generalSpeakerGender = activeCurrentSpeakerGender,
-            ocrCorrectionPolicy = glossaryOcrCachePolicy(textCorrection, *choiceCorrections.toTypedArray())
+            ocrCorrectionPolicy = glossaryOcrCachePolicy(textCorrection, *choiceCorrections.toTypedArray()),
+            punctuationSource = rawNormalizedText + "\n" + choiceTexts.joinToString("\n")
         )
         val hash = cacheKeyInfo.hash
 
@@ -1708,7 +1709,8 @@ class Translator @Inject constructor(
                 choiceBatch = translateAsChoices,
                 glossaryFingerprint = glossaryFingerprints[index],
                 generalSpeakerContext = activeCurrentSpeaker,
-                ocrCorrectionPolicy = glossaryOcrCachePolicy(textCorrections[index])
+                ocrCorrectionPolicy = glossaryOcrCachePolicy(textCorrections[index]),
+                punctuationSource = rawNormalizedTexts[index]
             )
         }
         val hashes = cacheKeys.map { it.hash }
@@ -1807,7 +1809,7 @@ class Translator @Inject constructor(
         }
 
         if (uncachedIndices.isEmpty()) {
-            return results.completeForTargetLocale(config, normalizedTexts)
+            return results.completeForTargetLocale(config, rawNormalizedTexts)
         }
 
         if (config.requiresApiKey && apiKey.isBlank()) {
@@ -1822,7 +1824,7 @@ class Translator @Inject constructor(
                     isFailure = true
                 )
             }
-            return results.completeForTargetLocale(config, normalizedTexts)
+            return results.completeForTargetLocale(config, rawNormalizedTexts)
         }
 
         val uncachedTexts = uncachedIndices.map { normalizedTexts[it] }
@@ -1955,7 +1957,7 @@ class Translator @Inject constructor(
                     )
                 }
             }
-            return results.completeForTargetLocale(config, normalizedTexts)
+            return results.completeForTargetLocale(config, rawNormalizedTexts)
         }
 
         for ((batchIndex, originalIndex) in uncachedIndices.withIndex()) {
@@ -2039,7 +2041,7 @@ class Translator @Inject constructor(
         }
 
         FgoLogger.info(tag, "Batch translation complete: backend=$backend, items=${uncachedTexts.size}")
-        return results.completeForTargetLocale(config, normalizedTexts)
+        return results.completeForTargetLocale(config, rawNormalizedTexts)
     }
 
     private fun TranslateResult.withDecodedEmphasis(): TranslateResult {
@@ -2289,7 +2291,8 @@ class Translator @Inject constructor(
                 glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage),
                 generalSpeakerContext = currentSpeaker,
                 generalSpeakerGender = currentSpeakerGender,
-                ocrCorrectionPolicy = glossaryOcrCachePolicy(nameCorrection, dialogueCorrection)
+                ocrCorrectionPolicy = glossaryOcrCachePolicy(nameCorrection, dialogueCorrection),
+                punctuationSource = input.dialogue.orEmpty()
             )
         }
         val dialogueHash = dialogueKey?.hash
@@ -2304,7 +2307,8 @@ class Translator @Inject constructor(
                     choiceBatch = true,
                     glossaryFingerprint = glossaryFingerprintFor(it, config.targetLanguage),
                     generalSpeakerContext = currentSpeaker,
-                    ocrCorrectionPolicy = glossaryOcrCachePolicy(nameCorrection, choiceCorrections[index])
+                    ocrCorrectionPolicy = glossaryOcrCachePolicy(nameCorrection, choiceCorrections[index]),
+                    punctuationSource = input.choices[index]
                 )
             }
         }
@@ -3047,8 +3051,11 @@ class Translator @Inject constructor(
                 targetLocale = normalizedTargetLocale
             )
         }
-        return if (punctuationSourceText != null && !isEnglishTarget(normalizedTargetLocale)) {
-            localized.withFinalizedContentPunctuation(punctuationSourceText)
+        return if (punctuationSourceText != null && !localized.isFailure &&
+            !localized.translatedText.isSceneContextErrorText()
+        ) {
+            localized.copy(translatedText = TranslationPunctuationNormalizer.normalize(
+                localized.translatedText, normalizedTargetLocale, punctuationSourceText))
         } else {
             localized
         }
@@ -3097,19 +3104,6 @@ class Translator @Inject constructor(
         val normalizedText = FgoDialogueSymbols.normalizeFinalChineseQuotes(translatedText)
         if (normalizedText == translatedText) return this
         return copy(translatedText = normalizedText)
-    }
-
-    private fun TranslateResult.withFinalizedContentPunctuation(sourceText: String): TranslateResult {
-        if (translatedText.isSceneContextErrorText()) return this
-        val finalizedText = if (sourceText.isBlank()) {
-            FgoDialogueSymbols.normalizeTranslatedPunctuation(translatedText)
-        } else {
-            FgoDialogueSymbols.reconcileSourcePunctuation(sourceText, translatedText)
-        }
-        if (finalizedText == translatedText) return this
-        return copy(
-            translatedText = finalizedText
-        )
     }
 
     private fun modelTranslateResult(
@@ -5629,7 +5623,7 @@ class Translator @Inject constructor(
     }
 
     private fun preserveSourcePunctuation(sourceText: String, translatedText: String): String {
-        return FgoDialogueSymbols.reconcileSourcePunctuation(sourceText, translatedText)
+        return TranslationPunctuationNormalizer.normalize(translatedText, "zh-Hans", sourceText)
     }
 
     private fun toSimplifiedChinese(text: String): String {
@@ -6855,7 +6849,8 @@ class Translator @Inject constructor(
         glossaryFingerprint: String,
         generalSpeakerContext: String = "",
         generalSpeakerGender: String = "",
-        ocrCorrectionPolicy: String = ""
+        ocrCorrectionPolicy: String = "",
+        punctuationSource: String = normalizedText
     ): CacheKeyInfo {
         val promptVersion = translationPromptVersion(config)
         val backend = config.backend
@@ -6888,7 +6883,8 @@ class Translator @Inject constructor(
             genderIdentity,
             normalizedText,
             choiceTexts.joinToString("\n")
-        ) + emphasisCachePolicy).toMutableList()
+        ) + emphasisCachePolicy + listOf(TranslationPunctuationNormalizer.VERSION,
+            TranslationPunctuationNormalizer.sourceSignature(punctuationSource))).toMutableList()
         if (cacheLanguageNamespace.isNotBlank()) {
             hashMaterial += cacheLanguageNamespace
         }
@@ -6915,6 +6911,7 @@ class Translator @Inject constructor(
             "model=${config.apiModel}",
             "base=${shortKeyDigest(config.apiBaseUrl)}",
             "sampling=$sampling",
+            "punctuation=${TranslationPunctuationNormalizer.VERSION}",
             "policy=${promptPolicyKey.ifBlank { "-" }}",
             "ctx=${sceneContextPolicyKey.ifBlank { "-" }}",
             "speaker=${shortKeyDigest(speakerIdentity)}",
