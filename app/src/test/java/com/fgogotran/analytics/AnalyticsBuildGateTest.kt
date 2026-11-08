@@ -40,7 +40,12 @@ class AnalyticsBuildGateTest {
 
     @Test fun `all build types share one owner choice and missing configuration defaults off`() {
         val gradle = source("app/build.gradle.kts")
-        val choice = gradle.substringBefore("android {")
+        // Unrelated test/export tasks may use environment variables. Restrict the
+        // no-overrides contract to the complete owner-setting declaration.
+        val choiceStart = gradle.indexOf("val analyticsReleaseProperties =")
+        val choiceEnd = gradle.indexOf("android {", choiceStart)
+        assertTrue(choiceStart >= 0 && choiceEnd > choiceStart)
+        val choice = gradle.substring(choiceStart, choiceEnd)
         assertTrue(choice.contains("file(\"analytics-release.properties\")"))
         assertTrue(choice.contains("null, \"false\" -> false"))
         assertTrue(choice.contains("\"true\" -> true"))

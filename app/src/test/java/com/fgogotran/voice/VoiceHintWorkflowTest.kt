@@ -1,13 +1,72 @@
 package com.fgogotran.voice
 
+import androidx.room.Room
+import com.fgogotran.data.SettingsRepository
+import com.fgogotran.data.UserProfile
+import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.terminology.LocalGlossaryDao
+import com.fgogotran.terminology.TermDao
+import com.fgogotran.translation.*
+import io.ktor.client.HttpClient
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import java.io.File
+import java.lang.reflect.Proxy
+import org.junit.After
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Wiring checks for Android-only coordinators; style and parsing behavior have pure JVM tests. */
+/** Generated-prompt contracts and coordinator wiring; no provider calls or device playback. */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], manifest = Config.NONE)
 class VoiceHintWorkflowTest {
+    private var promptTranslator: Translator? = null
+    private var promptDb: TranslationCacheDb? = null
+
+    @After fun closePromptResources() {
+        promptTranslator?.let {
+            val client = Translator::class.java.getDeclaredField("httpClient").apply { isAccessible = true }
+            (client.get(it) as HttpClient).close()
+        }
+        promptDb?.close()
+    }
+
+    private fun prompt(name: String, vararg args: Any?): String {
+        val translator = promptTranslator ?: run {
+            val app = RuntimeEnvironment.getApplication()
+            val local = unusedDao(LocalGlossaryDao::class.java)
+            val settings = SettingsRepository(app, local)
+            val db = Room.inMemoryDatabaseBuilder(app, TranslationCacheDb::class.java).build()
+            promptDb = db
+            Translator(settings, UserProfile(settings), unusedDao(TermDao::class.java), local,
+                PromptBuilder(), CharacterContextRepository(app), db, TranslationMemory(app),
+                DiagnosticEventStore(app), app).also { promptTranslator = it }
+        }
+        return Translator::class.java.declaredMethods.single { it.name == name && it.parameterCount == args.size }
+            .apply { isAccessible = true }.invoke(translator, *args) as String
+    }
+
+    private fun hintPrompts(context: VoiceHintContext): List<String> = listOf(
+        prompt("buildVoiceHintPrompt", "マシュ", "先輩、大丈夫ですか？", context),
+        prompt("buildDialogueWithVoiceHintUserPrompt", "先輩、大丈夫ですか？", context,
+            emptyList<SceneDialogueContext>(), "マシュ", emptyList<TranslationGlossaryEntry>()),
+        scenePrompt(context)
+    )
+
+    private fun scenePrompt(context: VoiceHintContext?): String = prompt("buildSceneUserPrompt",
+        "マシュ", "先輩、大丈夫ですか？", listOf("大丈夫"), context != null, true, true,
+        emptyList<SceneDialogueContext>(), "マシュ", emptyList<TranslationGlossaryEntry>(), context)
+
+    private fun <T : Any> unusedDao(type: Class<T>): T = requireNotNull(type.cast(Proxy.newProxyInstance(
+        type.classLoader, arrayOf(type)
+    ) { _, method, _ -> error("Unexpected DAO access: ${method.name}") }))
+
     @Test
     fun `temporary API prompt specifies units and exact columns before profile construction`() {
         val builder = source("voice/TempVoiceProfileBuilder.kt")
@@ -36,21 +95,40 @@ class VoiceHintWorkflowTest {
 
     @Test
     fun `each hint prompt retains its own outer response keys`() {
-        val translator = source("translation/Translator.kt")
-        assertTrue(function(translator, "buildVoiceHintPrompt")
-            .contains("Return JSON only with exactly this key: voice_hint."))
-        assertTrue(function(translator, "buildDialogueWithVoiceHintUserPrompt")
-            .contains("Return JSON only with exactly these keys: dialogue, voice_hint."))
-        val scene = function(translator, "buildSceneUserPrompt")
-        assertTrue(scene.contains("\"name, dialogue, choices, voice_hint\""))
-        assertTrue(scene.contains("\"name, dialogue, choices\""))
-        assertTrue(translator.contains("VOICE_HINT_TEST_MAX_TOKENS = 96"))
+        val context = VoiceHintContext(listOf("zh-CN-XiaoxiaoNeural"), listOf("sad"))
+        val expected = listOf(setOf("voice_hint"), setOf("dialogue", "voice_hint"),
+            setOf("name", "dialogue", "choices", "voice_hint"), setOf("name", "dialogue", "choices"))
+        val examples = listOf("Neutral/unclear example: ", "Neutral example: ", "Example shape: ", "Example shape: ")
+        (hintPrompts(context) + scenePrompt(null)).forEachIndexed { index, prompt ->
+            val contract = Regex("Return JSON only with exactly (?:this key|these keys): ([^.]+)\\.")
+                .findAll(prompt).toList().single().groupValues[1].split(", ").toSet()
+            assertEquals(expected[index], contract)
+            val example = prompt.lineSequence().single { it.startsWith(examples[index]) }
+                .removePrefix(examples[index])
+            assertEquals(expected[index], Json.parseToJsonElement(example).jsonObject.keys)
+        }
+        assertFalse(scenePrompt(null).contains("Allowed styles:"))
+        assertTrue(source("translation/Translator.kt").contains("VOICE_HINT_TEST_MAX_TOKENS = 96"))
     }
 
     @Test
     fun `all three hint prompts and the cache path use the same request context`() {
         val translator = source("translation/Translator.kt")
-        assertEquals(3, Regex("buildVoiceHintInstructions\\(").findAll(translator).count())
+        val contexts = listOf(
+            VoiceHintContext(listOf("zh-CN-XiaoxiaoNeural"), listOf("sad", "whispering")),
+            VoiceHintContext(listOf("en-US-JennyNeural"), listOf("angry", "shouting")),
+            VoiceHintContext(listOf("ja-JP-NanamiNeural"), emptyList())
+        )
+        // Revisit the first voice to catch request-global style/context leakage.
+        for (context in contexts + contexts.first()) for (prompt in hintPrompts(context)) {
+            assertTrue(prompt.contains(buildVoiceHintInstructions(context)))
+            assertEquals(1, Regex("Voice\\(s\\): ").findAll(prompt).count())
+            assertEquals(1, Regex("Allowed styles: ").findAll(prompt).count())
+            for (other in contexts.filter { it != context }) {
+                assertFalse(prompt.contains(other.voiceNames.single()))
+                for (style in other.allowedStyles) assertFalse(prompt.contains(style))
+            }
+        }
         assertFalse(translator.contains("VOICE_HINT_NORMAL_STYLES"))
         assertFalse(translator.contains("VOICE_HINT_DRAGON_STYLES"))
         val cached = translator.substringAfter(
