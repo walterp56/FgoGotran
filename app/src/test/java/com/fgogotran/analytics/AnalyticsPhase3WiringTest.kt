@@ -46,8 +46,8 @@ class AnalyticsPhase3WiringTest {
     @Test fun `all normal voice calls carry origin and only successful playback counts`() {
         val service = source("accessibility/FgoAccessibilityService.kt")
         assertEquals(4, Regex("usageOrigin = usageOrigin").findAll(service).count())
-        assertTrue(service.contains("AnalyticsUsageOrigin(server, mode.analyticsMode)"))
-        assertTrue(service.contains("AnalyticsUsageOrigin(SettingsRepository.GAME_SERVER_JP, mode.analyticsMode)"))
+        assertTrue(service.contains("AnalyticsUsageOrigin(server)"))
+        assertTrue(service.contains("AnalyticsUsageOrigin(SettingsRepository.GAME_SERVER_JP)"))
         val voice = source("voice/AiVoiceService.kt")
         val production = voice.substringBefore("suspend fun prepareAzureVoiceTest")
         assertTrue(production.contains("if (started && usageOrigin != null)"))

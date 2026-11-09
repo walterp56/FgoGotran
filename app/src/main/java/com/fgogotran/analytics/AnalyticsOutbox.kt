@@ -18,7 +18,9 @@ object AnalyticsProtocol {
     val modes = setOf("manual", "semi_auto", "auto", "not_used", "unknown")
     val backends = setOf("deepseek", "zhipu", "qwen", "gpt", "gemini", "claude", "custom_openai", "not_used", "unknown")
     val wireJson = Json { encodeDefaults = false; ignoreUnknownKeys = true }
-    val storageJson = Json { encodeDefaults = true }
+    // Older builds stored last_successful_mode. Ignore unknown keys so an upgrade can
+    // still read the existing outbox instead of failing every read forever.
+    val storageJson = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     private val uuid = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
     fun validInstallId(value: String) = uuid.matches(value)
@@ -56,13 +58,11 @@ data class AnalyticsState(
     @SerialName("app_version") val appVersion: String,
     @SerialName("app_version_code") val appVersionCode: Long,
     @SerialName("ui_language") val uiLanguage: String,
-    @SerialName("last_successful_mode") val lastSuccessfulMode: String? = null,
     @SerialName("last_successful_backend") val lastSuccessfulBackend: String? = null
 ) {
     init {
         require(revision in 0..AnalyticsProtocol.MAX_REVISION)
         AnalyticsProfile(appVersion, appVersionCode, uiLanguage)
-        require(lastSuccessfulMode == null || lastSuccessfulMode in AnalyticsProtocol.modes)
         require(lastSuccessfulBackend == null || lastSuccessfulBackend in AnalyticsProtocol.backends)
     }
 }
@@ -159,7 +159,7 @@ data class AnalyticsOutbox(
         require(revision <= AnalyticsProtocol.MAX_REVISION)
         return copy(state = AnalyticsState(
             revision, profile.appVersion, profile.appVersionCode, profile.uiLanguage,
-            previous?.lastSuccessfulMode, previous?.lastSuccessfulBackend
+            previous?.lastSuccessfulBackend
         ))
     }
 
@@ -171,11 +171,10 @@ data class AnalyticsOutbox(
 
     fun withSuccess(success: AnalyticsSuccess): AnalyticsOutbox {
         val previous = checkNotNull(state) { "Profile must exist before success recording" }
-        val mode = success.mode ?: previous.lastSuccessfulMode
         val backend = success.backend ?: previous.lastSuccessfulBackend
-        val recorded = if (mode == previous.lastSuccessfulMode && backend == previous.lastSuccessfulBackend) this
+        val recorded = if (backend == previous.lastSuccessfulBackend) this
         else copy(state = previous.copy(
-            revision = previous.revision + 1, lastSuccessfulMode = mode, lastSuccessfulBackend = backend
+            revision = previous.revision + 1, lastSuccessfulBackend = backend
         ))
         return recorded.withDaily(success.daily)
     }

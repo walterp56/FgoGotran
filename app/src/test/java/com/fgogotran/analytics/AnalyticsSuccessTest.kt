@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 class AnalyticsSuccessTest {
     private val date = "2026-10-11"
-    private val origin = AnalyticsUsageOrigin("jp", "semi_auto")
+    private val origin = AnalyticsUsageOrigin("jp")
     private fun outbox() = AnalyticsOutbox("11111111-1111-4111-8111-111111111111")
         .withProfile(AnalyticsProfile("4.1.0", 16, "en"))
     private fun api(backend: String, target: String = "zh-Hant") = TranslateResult(
@@ -22,7 +22,6 @@ class AnalyticsSuccessTest {
     @Test fun `fresh API display records actual backend mode server and output target`() {
         val recorded = outbox().withSuccess(success(api("qwen")))
         assertEquals("qwen", recorded.state?.lastSuccessfulBackend)
-        assertEquals("semi_auto", recorded.state?.lastSuccessfulMode)
         assertEquals(setOf("jp"), recorded.days[date]?.known?.gameServers)
         assertEquals(setOf("zh-Hant"), recorded.days[date]?.known?.translationTargets)
         assertTrue(recorded.days[date]?.known?.voiceServers.orEmpty().isEmpty())
@@ -32,15 +31,13 @@ class AnalyticsSuccessTest {
     @Test fun `cache counts delivered use without inventing selected backend`() {
         val recorded = outbox().withSuccess(success(TranslateResult("cached", "cache", true, "en")))
         assertNull(recorded.state?.lastSuccessfulBackend)
-        assertEquals("semi_auto", recorded.state?.lastSuccessfulMode)
         assertEquals(setOf("en"), recorded.days[date]?.known?.translationTargets)
     }
 
     @Test fun `local output preserves previous actual backend`() {
         val recorded = outbox().withSuccess(success(api("deepseek")))
-            .withSuccess(success(TranslateResult("local name", "character-db", true), AnalyticsUsageOrigin("jp", "auto")))
+            .withSuccess(success(TranslateResult("local name", "character-db", true), AnalyticsUsageOrigin("jp")))
         assertEquals("deepseek", recorded.state?.lastSuccessfulBackend)
-        assertEquals("auto", recorded.state?.lastSuccessfulMode)
     }
 
     @Test fun `A to B to A same day advances current state without repeating daily memberships`() {
@@ -59,26 +56,22 @@ class AnalyticsSuccessTest {
         assertNull(acknowledged.withSuccess(success(api("deepseek"))).nextReport())
     }
 
-    @Test fun `mode and backend change independently`() {
+    @Test fun `backend changes independently of voice and crop usage`() {
         val first = outbox().withSuccess(success(api("deepseek")))
-        val voice = first.withSuccess(AnalyticsSuccess.voice(date, AnalyticsUsageOrigin("cn", "manual")))
-        assertEquals("manual", voice.state!!.lastSuccessfulMode)
+        val voice = first.withSuccess(AnalyticsSuccess.voice(date, AnalyticsUsageOrigin("cn")))
         assertEquals("deepseek", voice.state!!.lastSuccessfulBackend)
         val crop = voice.withSuccess(success(api("claude"), AnalyticsUsageOrigin("jp")))
-        assertEquals("manual", crop.state!!.lastSuccessfulMode)
         assertEquals("claude", crop.state!!.lastSuccessfulBackend)
     }
 
     @Test fun `battle and crop do not create normal workflow use`() {
         val recorded = outbox().withSuccess(success(api("gemini"), AnalyticsUsageOrigin("jp")))
-        assertNull(recorded.state!!.lastSuccessfulMode)
         assertEquals("gemini", recorded.state!!.lastSuccessfulBackend)
     }
 
     @Test fun `voice-only use counts source and voice server without target backend or DAU`() {
         for (server in listOf("cn", "tw", "en")) {
-            val recorded = outbox().withSuccess(AnalyticsSuccess.voice(date, AnalyticsUsageOrigin(server, "auto")))
-            assertEquals("auto", recorded.state!!.lastSuccessfulMode)
+            val recorded = outbox().withSuccess(AnalyticsSuccess.voice(date, AnalyticsUsageOrigin(server)))
             assertNull(recorded.state!!.lastSuccessfulBackend)
             assertEquals(setOf(server), recorded.days[date]!!.known.gameServers)
             assertEquals(setOf(server), recorded.days[date]!!.known.voiceServers)
@@ -134,7 +127,6 @@ class AnalyticsSuccessTest {
         val recorded = outbox().withSuccess(success(api("gpt")))
             .withProfile(AnalyticsProfile("4.0.0", 15, "zh-Hant"))
         assertEquals("gpt", recorded.state!!.lastSuccessfulBackend)
-        assertEquals("semi_auto", recorded.state!!.lastSuccessfulMode)
         assertEquals("zh-Hant", recorded.state!!.uiLanguage)
         assertFalse(recorded.days[date]!!.known.appOpened)
     }

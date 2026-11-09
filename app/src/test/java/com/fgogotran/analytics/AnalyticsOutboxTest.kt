@@ -27,7 +27,6 @@ class AnalyticsOutboxTest {
         assertEquals(ANALYTICS_TEST_ID, report.installId)
         assertEquals(1, report.state.revision)
         assertEquals("zh-Hant", report.state.uiLanguage)
-        assertNull(report.state.lastSuccessfulMode)
         assertNull(report.state.lastSuccessfulBackend)
         assertEquals(listOf(AnalyticsDailyFacts("2026-10-11", appOpened = true)), report.daily)
         val json = AnalyticsProtocol.encode(report)
@@ -67,18 +66,16 @@ class AnalyticsOutboxTest {
         val profileOnly = AnalyticsOutbox(ANALYTICS_TEST_ID).withProfile(ANALYTICS_TEST_PROFILE)
         val report = assertNotNull(profileOnly.nextReport())
         assertTrue(report.daily.isEmpty())
-        assertNull(report.state.lastSuccessfulMode)
         assertNull(report.state.lastSuccessfulBackend)
     }
 
     @Test
-    fun `profile refresh preserves independent last successful fields`() {
+    fun `profile refresh preserves last successful backend`() {
         val previous = pendingAnalytics().let {
-            it.copy(state = it.state!!.copy(lastSuccessfulMode = "semi_auto", lastSuccessfulBackend = "gemini"))
+            it.copy(state = it.state!!.copy(lastSuccessfulBackend = "gemini"))
         }
         val updated = previous.withProfile(AnalyticsProfile("4.1.1", 17, "en"))
-        assertEquals("semi_auto", updated.state!!.lastSuccessfulMode)
-        assertEquals("gemini", updated.state.lastSuccessfulBackend)
+        assertEquals("gemini", updated.state!!.lastSuccessfulBackend)
         assertEquals(2, updated.state.revision)
     }
 
@@ -146,7 +143,6 @@ class AnalyticsOutboxTest {
         assertFails { AnalyticsProtocol.storageJson.decodeFromString<AnalyticsOutbox>("{broken") }
         assertFails { AnalyticsProtocol.storageJson.decodeFromString<AnalyticsOutbox>(json.replace("\"revision\":1", "\"revision\":-1")) }
         assertFails { AnalyticsProtocol.storageJson.decodeFromString<AnalyticsOutbox>(json.replace(ANALYTICS_TEST_ID, "invalid")) }
-        assertFails { AnalyticsProtocol.storageJson.decodeFromString<AnalyticsOutbox>(json.dropLast(1) + ",\"unknown\":true}") }
     }
 
     @Test
@@ -237,8 +233,19 @@ class AnalyticsOutboxTest {
         assertFails { AnalyticsDailyFacts("2026-10-11", gameServers = setOf("azure")) }
         assertFails { AnalyticsDailyFacts("2026-10-11", translationTargets = setOf("ja")) }
         assertFails { pendingAnalytics().state!!.copy(lastSuccessfulBackend = "cache") }
-        assertFails { pendingAnalytics().state!!.copy(lastSuccessfulMode = "crop") }
         val exhausted = pendingAnalytics().let { it.copy(state = it.state!!.copy(revision = AnalyticsProtocol.MAX_REVISION)) }
         assertFails { exhausted.withProfile(AnalyticsProfile("4.1.1", 17, "en")) }
+    }
+
+    @Test
+    fun `stored outbox from a build with last_successful_mode still decodes`() {
+        val legacy = """
+            {"installId":"$ANALYTICS_TEST_ID","state":{"revision":7,"app_version":"4.1.0","app_version_code":16,"ui_language":"zh-Hant","last_successful_mode":"semi_auto","last_successful_backend":"deepseek"},"acknowledgedRevision":-1}
+        """.trimIndent()
+        val decoded = AnalyticsProtocol.storageJson.decodeFromString<AnalyticsOutbox>(legacy)
+        assertEquals(7, decoded.state!!.revision)
+        assertEquals("deepseek", decoded.state!!.lastSuccessfulBackend)
+        val reencoded = AnalyticsProtocol.storageJson.encodeToString(AnalyticsOutbox.serializer(), decoded)
+        assertFalse(reencoded.contains("last_successful_mode"))
     }
 }

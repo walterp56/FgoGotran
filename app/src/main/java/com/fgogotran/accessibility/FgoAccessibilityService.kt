@@ -2227,7 +2227,7 @@ class FgoAccessibilityService : AccessibilityService() {
         server: String
     ) {
         val requestSerial = ++voiceOnlyRequestSerial
-        val usageOrigin = AnalyticsUsageOrigin(server, mode.analyticsMode)
+        val usageOrigin = AnalyticsUsageOrigin(server)
         val masterVoice = aiVoiceMasterVoice
         val speakerName = voiceSpeakerForDialogue(sceneSource.input.name)
         val dialogue = (sceneSource.voiceDialogue ?: sceneSource.input.dialogue)
@@ -3072,7 +3072,7 @@ class FgoAccessibilityService : AccessibilityService() {
         frame: StoryFramePixels
     ): Boolean {
         // Normal translated-story processing is JP-only; other servers use requestVoiceOnlyScene.
-        val usageOrigin = AnalyticsUsageOrigin(SettingsRepository.GAME_SERVER_JP, mode.analyticsMode)
+        val usageOrigin = AnalyticsUsageOrigin(SettingsRepository.GAME_SERVER_JP)
         if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
             TranslationTrigger.isUiBlockingOcr() || (!mode.userInitiated && !isEffectiveFgoForeground)
         ) return false
