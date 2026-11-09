@@ -99,6 +99,38 @@ class AnalyticsApkGuardTest(unittest.TestCase):
             self.assertEqual(["CN"], output["changelog"])
             self.assertEqual({"zh-Hans": ["CN"], "zh-Hant": ["TW"], "en": ["EN"]}, output["changelogI18n"])
             self.assertEqual(release.sha256_file(apk), output["apkSha256"])
+            args.changelog = ["Updated CN"]
+            release.package_apk_release(args)
+            self.assertEqual(apk.read_bytes(), packaged.read_bytes())
+            self.assertEqual(["Updated CN"], json.loads(Path(result["manifest"]).read_bytes())["changelog"])
+
+    @patch.object(release, "verify_apk_analytics")
+    def test_different_existing_apk_is_preserved_without_a_manifest(self, _verify):
+        with tempfile.TemporaryDirectory() as temp:
+            args, _ = self.fixture(Path(temp))
+            destination = args.output / "app/android/releases/test/FgoGotran-test.apk"
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(b"existing APK")
+            checksum = destination.with_suffix(".apk.sha256")
+            checksum.write_bytes(b"existing checksum")
+            with self.assertRaisesRegex(ValueError, "Versioned APK already exists"):
+                release.package_apk_release(args)
+            self.assertEqual(b"existing APK", destination.read_bytes())
+            self.assertEqual(b"existing checksum", checksum.read_bytes())
+            self.assertFalse((args.output / "app/android/latest").exists())
+
+    @patch.object(release, "verify_apk_analytics")
+    def test_manifest_conflict_stops_before_writing_a_new_artifact(self, _verify):
+        with tempfile.TemporaryDirectory() as temp:
+            args, apk = self.fixture(Path(temp))
+            release.package_apk_release(args)
+            original = {p: p.read_bytes() for p in args.output.rglob("*") if p.is_file()}
+            apk.write_bytes(b"different APK")
+            args.release_slug = "another-folder"
+            with self.assertRaisesRegex(ValueError, "version code cannot identify different"):
+                release.package_apk_release(args)
+            self.assertFalse((args.output / "app/android/releases/another-folder").exists())
+            self.assertEqual(original, {p: p.read_bytes() for p in args.output.rglob("*") if p.is_file()})
 
     def test_powershell_failure_exits_before_publishing_and_skipverify_cannot_bypass(self):
         script = (release.REPO_ROOT / "scripts/release-app.ps1").read_text(encoding="utf-8")

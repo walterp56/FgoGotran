@@ -62,16 +62,20 @@ runtimes, Python environments, caches and state live inside user_data.
 1. Increase `versionCode` and set `versionName` in
    `src/fgogotran_local/version.json`. Python's package version is derived.
 2. Review localized release notes and test the changes.
-3. Run from the repository root:
+3. After preparing Android, run from the repository root with the approved
+   Local source snapshot as `$localSnapshot`:
 
 ```powershell
-python term_builder/py/package_local_release.py --output release/local-preparation --changelog "Local release notes" --changelog-hant "Traditional Chinese release notes" --changelog-en "English release notes"
+python term_builder/py/package_local_release.py --root $localSnapshot --changelog "Local release notes" --changelog-hant "Traditional Chinese release notes" --changelog-en "English release notes"
 ```
 
-Output contains `packages/<version>/FgoGotranLocal-<version>-windows-x64.zip`,
-its SHA-256 file and a merged `app/android/latest/manifest.json`. The base is
-`--shared-manifest <file>`, an existing output manifest, or a read-only fetch
-of the current CDN manifest. No upload occurs during packaging.
+By default, the ZIP and its SHA-256 file go next to the APK in
+`release/cdn/app/android/releases/<Android-version>/`. The filename stays
+`FgoGotranLocal-<Local-version>-windows-x64.zip`. The packager merges the Local
+block into the same `release/cdn/app/android/latest/manifest.json`, preserving
+the Android fields. The APK must already be in the release directory and its
+size and SHA-256 must match the manifest before the ZIP can be created.
+No upload occurs during packaging.
 
 The ZIP excludes user_data, .venv, model/runtime files, private configuration,
 logs, bytecode and tests. Its file inventory is for package validation only;

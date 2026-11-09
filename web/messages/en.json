@@ -1231,6 +1231,18 @@
     "h1": "Changelog",
     "recent": "Recent updates",
     "entries": {
+      "v4_2_1": {
+        "items": [
+          "Added story-choice exit animations that keep the selected option visible longer, and adjusted when dialogue and speaker names disappear as the story advances.",
+          "Added glossary-based OCR correction for single-character errors in unambiguously matched character names and terms.",
+          "Standardized punctuation in Chinese and English translations, improving retention of ellipses, dashes, and expressive sentence endings.",
+          "Improved dialogue quote formatting in the translation log while preserving quotes and punctuation within the text.",
+          "Improved recognition and rendering of blue and brown story text, and fallback behavior when speaker-name colors are ambiguous.",
+          "Improved Simplified and Traditional Chinese honorific handling, including 酱 and 醬, and updated bundled Traditional Chinese mappings and website glossary previews.",
+          "Reduced usage analytics by no longer recording the last successfully used translation mode.",
+          "Updated the website media showcase and added a localized About page with contact information and disclaimers."
+        ]
+      },
       "v4_2_0": {
         "items": [
           "Added Summon subtitles for Servant summoning dialogue and in-game replays, with late translations available in LOG.",
@@ -1456,7 +1468,9 @@
           "Added manual update checks and background reminders, with Not now and Skip this version.",
           "Redesigned Software updates with a website download link and data-preservation instructions.",
           "Consolidated default model storage, managed runtimes, caches and state under user_data for backup and restore.",
-          "Added Simplified Chinese, Traditional Chinese and English interfaces while preserving existing settings and external model paths."
+          "Added Simplified Chinese, Traditional Chinese and English interfaces while preserving existing settings and external model paths.",
+          "Saved the interface language across restarts and included the preference in data-folder backups.",
+          "Updated connection tests to use a built-in FGO dialogue sample for Simplified Chinese, Traditional Chinese, and English, with warnings for possible language mismatches."
         ]
       }
     }
@@ -1472,7 +1486,7 @@
     "facts": {
       "version": "Current version: {version}",
       "android": "Supports Android 11+",
-      "size": "APK size: 147.09 MB",
+      "size": "APK size: 147.12 MB",
       "apiKey": "You provide your own translation API key"
     },
     "installReminderTitle": "Install note: ",

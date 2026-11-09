@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -201,17 +202,16 @@ def package_apk_release(args: argparse.Namespace) -> dict[str, Any]:
     latest_prefix = f"{app_prefix}/latest"
     release_dir = output_root / release_prefix
     latest_dir = output_root / latest_prefix
-    release_dir.mkdir(parents=True, exist_ok=True)
-    latest_dir.mkdir(parents=True, exist_ok=True)
 
     apk_name = args.apk_name or f"FgoGotran-{version_name}.apk"
     release_apk = release_dir / apk_name
-    shutil.copy2(source_apk, release_apk)
-
-    apk_hash = sha256_file(release_apk)
-    apk_size = release_apk.stat().st_size
+    apk_hash = sha256_file(source_apk)
+    apk_size = source_apk.stat().st_size
+    if release_apk.exists() and (
+        not release_apk.is_file() or sha256_file(release_apk) != apk_hash
+    ):
+        raise ValueError("Versioned APK already exists with different contents; use a new Android version")
     sha_file = release_dir / f"{apk_name}.sha256"
-    sha_file.write_text(f"{apk_hash}  {apk_name}\n", encoding="utf-8")
 
     min_sdk = args.min_sdk if args.min_sdk is not None else read_gradle_min_sdk()
     changelog = args.changelog or [f"FgoGotran {version_name} release"]
@@ -236,7 +236,20 @@ def package_apk_release(args: argparse.Namespace) -> dict[str, Any]:
         manifest["changelogI18n"] = changelog_i18n
     latest_manifest = latest_dir / "manifest.json"
     current = read_manifest(latest_manifest) if latest_manifest.exists() else {}
-    write_json(latest_manifest, merge_manifest(current, manifest, "android"))
+    merged = merge_manifest(current, manifest, "android")
+
+    release_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=release_dir, suffix=".apk.tmp", delete=False) as handle:
+        temporary = Path(handle.name)
+    try:
+        shutil.copy2(source_apk, temporary)
+        if temporary.stat().st_size != apk_size or sha256_file(temporary) != apk_hash:
+            raise ValueError("Source APK changed during packaging; existing artifacts were preserved")
+        temporary.replace(release_apk)
+    finally:
+        temporary.unlink(missing_ok=True)
+    sha_file.write_text(f"{apk_hash}  {apk_name}\n", encoding="utf-8")
+    write_json(latest_manifest, merged)
 
     return {
         "releaseDir": str(release_dir),

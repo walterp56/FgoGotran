@@ -7,6 +7,7 @@ import { pageMetadata } from "@/lib/seo";
 type ChangelogEntry = { key: string; version: string; date?: string };
 
 const androidChangelogDefs: ChangelogEntry[] = [
+  { key: "v4_2_1", version: "v4.2.1" },
   { key: "v4_2_0", version: "v4.2.0", date: "2-11-2026" },
   { key: "v4_1_1", version: "v4.1.1", date: "18-10-2026" },
   { key: "v4_1_0", version: "v4.1.0", date: "14-10-2026" },

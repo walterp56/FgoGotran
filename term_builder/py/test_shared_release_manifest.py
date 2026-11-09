@@ -14,14 +14,22 @@ from package_local_release import LOCAL_ROOT, package_release, publish_release_m
 from shared_release_manifest import main as publish_main
 
 
+APK_BYTES = b"existing Android APK"
 ANDROID = {"manifestVersion": 1, "versionCode": 18, "versionName": "4.2.0",
            "apkUrl": "https://cdn.fgogotran.com/app/android/releases/4.2.0/app.apk",
-           "apkSha256": "a" * 64, "apkSize": 10, "changelog": ["Android"]}
+           "apkSha256": hashlib.sha256(APK_BYTES).hexdigest(), "apkSize": len(APK_BYTES), "changelog": ["Android"]}
 LOCAL = {"versionCode": 1, "versionName": "v1.0.0", "platform": "windows-x64",
          "downloadMode": "manual", "downloadUrl": "https://1drv.ms/f/public-folder",
          "packageSha256": "b" * 64, "packageSize": 10, "changelog": ["Local"]}
 MINIMAL_LOCAL = {key: value for key, value in LOCAL.items()
                  if key not in {"downloadUrl", "packageSha256", "packageSize"}}
+
+
+def stage_android_apk(output: Path) -> Path:
+    apk = output / "app/android/releases/4.2.0/app.apk"
+    apk.parent.mkdir(parents=True)
+    apk.write_bytes(APK_BYTES)
+    return apk
 
 
 class SharedManifestTests(unittest.TestCase):
@@ -190,8 +198,14 @@ class SharedManifestTests(unittest.TestCase):
 
     def test_local_zip_has_inventory_and_no_user_data_models_environment_or_tests(self):
         with tempfile.TemporaryDirectory() as folder:
-            result = package_release(LOCAL_ROOT, Path(folder), {**ANDROID, "fgogotranLocal": MINIMAL_LOCAL})
+            output = Path(folder)
+            apk = stage_android_apk(output)
+            result = package_release(LOCAL_ROOT, output, {**ANDROID, "fgogotranLocal": MINIMAL_LOCAL})
             archive = Path(result["archive"])
+            self.assertEqual(apk.parent / "FgoGotranLocal-v1.0.0-windows-x64.zip", archive)
+            self.assertEqual(output / "app/android/latest/manifest.json", Path(result["manifest"]))
+            self.assertEqual(APK_BYTES, apk.read_bytes())
+            self.assertTrue(archive.with_suffix(".zip.sha256").is_file())
             with zipfile.ZipFile(archive) as package:
                 names = package.namelist()
                 self.assertIn("installed-files.json", names)
@@ -208,11 +222,36 @@ class SharedManifestTests(unittest.TestCase):
             self.assertEqual("manual", shared["fgogotranLocal"]["downloadMode"])
             self.assertTrue(shared["fgogotranLocal"]["downloadUrl"].startswith("https://1drv.ms/"))
             self.assertNotIn("packageUrl", shared["fgogotranLocal"])
-            self.assertNotIn("app/local", archive.as_posix())
             self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), shared["fgogotranLocal"]["packageSha256"])
             # Reproducible packaging: a second preparation has identical bytes.
-            again = package_release(LOCAL_ROOT, Path(folder), shared)
+            again = package_release(LOCAL_ROOT, output, shared)
             self.assertEqual(result["release"]["packageSha256"], again["release"]["packageSha256"])
+
+    def test_local_packaging_does_not_replace_shared_manifest_from_stale_base(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            stage_android_apk(output)
+            result = package_release(LOCAL_ROOT, output, ANDROID)
+            manifest = Path(result["manifest"])
+            previous = manifest.read_bytes()
+            with self.assertRaisesRegex(ValueError, "output shared manifest differs"):
+                package_release(LOCAL_ROOT, output, ANDROID)
+            self.assertEqual(previous, manifest.read_bytes())
+
+    def test_local_packaging_requires_the_matching_apk_before_writing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            with self.assertRaisesRegex(FileNotFoundError, "Prepare the Android APK"):
+                package_release(LOCAL_ROOT, output, ANDROID)
+            self.assertEqual([], list(output.iterdir()))
+
+            apk = stage_android_apk(output)
+            for altered in (b"short", b"x" * len(APK_BYTES)):
+                with self.subTest(apk=altered):
+                    apk.write_bytes(altered)
+                    with self.assertRaisesRegex(ValueError, "does not match the manifest"):
+                        package_release(LOCAL_ROOT, output, ANDROID)
+                    self.assertEqual([apk], [path for path in output.rglob("*") if path.is_file()])
 
     @patch("package_local_release.publish_manifest")
     def test_local_publication_sends_only_manifest_never_zip_or_checksum(self, publish):

@@ -4,7 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { siteConfig } from "@/data/site";
 import { pageMetadata } from "@/lib/seo";
 
-const currentAppVersion = "v4.2.0";
+const currentAppVersion = "v4.2.1";
 const oneDriveDownloadUrl = "https://1drv.ms/f/c/9e1fdb13e6d5d039/IgDO_uKE7yZWT6cPSy-v_LlnAW4zG9Wv51mwltpuVAVI9HI?e=uEzfCt";
 
 const downloadOptions = [

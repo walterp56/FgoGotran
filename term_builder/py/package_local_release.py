@@ -1,24 +1,27 @@
 """Build a local ZIP for manual OneDrive upload and shared version metadata.
 
-Packaging is local only. Publication is a separate, explicit command using
---publish-manifest-s3 publishes only the small shared manifest. This script
-never uploads the ZIP or checksum to S3/CDN.
+The ZIP and checksum are prepared alongside the Android APK. The explicit
+--publish-manifest-s3 option publishes only the shared manifest, never the ZIP
+or its checksum.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import re
+import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import local_distribution as helper
 from shared_release_manifest import MANIFEST_KEY, merge_manifest, publish_manifest, read_manifest, write_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCAL_ROOT = ROOT / "FgoGotranLocal"
-DEFAULT_OUTPUT = ROOT / "release/local"
+DEFAULT_OUTPUT = ROOT / "release/cdn"
 DEFAULT_BASE_URL = "https://cdn.fgogotran.com"
 
 
@@ -26,6 +29,33 @@ def package_release(root: Path, output: Path, shared: dict, *, download_url: str
                     notes: list[str] | None = None,
                     notes_hant: list[str] | None = None, notes_en: list[str] | None = None) -> dict:
     helper.validate_download_url(download_url)
+    android_version = shared.get("versionName")
+    if not isinstance(android_version, str) or not re.fullmatch(
+        r"[0-9][0-9A-Za-z._+-]*", android_version
+    ) or android_version.endswith("."):
+        raise ValueError("A valid Android version name is required for the shared release directory")
+    release_prefix = f"app/android/releases/{android_version}"
+    apk_url = shared.get("apkUrl")
+    if not isinstance(apk_url, str):
+        raise ValueError("The shared manifest must identify the Android APK")
+    apk_dir, _, apk_name = urlsplit(apk_url).path.rpartition("/")
+    if not apk_dir.endswith(f"/{release_prefix}") or not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._+-]*\.apk", apk_name):
+        raise ValueError("The Android APK URL must use the Android version directory")
+    manifest = output / MANIFEST_KEY
+    if manifest.exists() and read_manifest(manifest) != shared:
+        raise ValueError("The output shared manifest differs from the supplied base; re-read it before packaging")
+
+    folder = output / release_prefix
+    apk = folder / apk_name
+    if not apk.is_file():
+        raise FileNotFoundError(f"Prepare the Android APK in the shared release directory first: {apk}")
+    expected_hash, expected_size = shared.get("apkSha256"), shared.get("apkSize")
+    if (not isinstance(expected_hash, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_hash)
+        or type(expected_size) is not int or expected_size <= 0):
+        raise ValueError("The shared manifest must include the Android APK SHA-256 and byte size")
+    if apk.stat().st_size != expected_size or helper.file_hash(apk) != expected_hash:
+        raise ValueError("The Android APK in the shared release directory does not match the manifest")
+
     version = json.loads((root / helper.VERSION_FILE).read_text(encoding="utf-8"))
     files = {}
     candidates = [root / name for name in helper.MANAGED_FILES]
@@ -49,33 +79,34 @@ def package_release(root: Path, output: Path, shared: dict, *, download_url: str
                  "files": {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}}
     helper.validate_inventory(inventory)
     files[helper.INVENTORY] = (json.dumps(inventory, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-    folder = output / "packages" / version['versionName']
-    folder.mkdir(parents=True, exist_ok=True)
     archive = folder / f"FgoGotranLocal-{version['versionName']}-windows-x64.zip"
-    temporary = archive.with_suffix(".zip.tmp")
-    with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as package:
-        for name, data in sorted(files.items()):
-            entry = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
-            entry.compress_type = zipfile.ZIP_DEFLATED
-            entry.external_attr = 0o100644 << 16
-            package.writestr(entry, data)
-    digest = helper.file_hash(temporary)
-    if archive.exists() and helper.file_hash(archive) != digest:
-        temporary.unlink()
-        raise ValueError("Versioned ZIP already exists with different contents; use a new version or a separate preparation directory")
-    temporary.replace(archive)
-    archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
-    release = {**version, "platform": "windows-x64",
-               "downloadMode": "manual", "downloadUrl": download_url,
-               "packageSha256": digest, "packageSize": archive.stat().st_size,
-               "changelog": notes or [f"FgoGotranLocal {version['versionName']}"]}
-    localized = {locale: value for locale, value in
-                 (("zh-Hans", notes), ("zh-Hant", notes_hant), ("en", notes_en)) if value}
-    if localized:
-        release["changelogI18n"] = localized
-    helper.inspect_package(archive, release)
-    manifest = output / MANIFEST_KEY
-    write_manifest(manifest, merge_manifest(shared, {"fgogotranLocal": release}, "local"))
+    with tempfile.NamedTemporaryFile(dir=folder, suffix=".zip.tmp", delete=False) as handle:
+        temporary = Path(handle.name)
+    try:
+        with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as package:
+            for name, data in sorted(files.items()):
+                entry = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
+                entry.compress_type = zipfile.ZIP_DEFLATED
+                entry.external_attr = 0o100644 << 16
+                package.writestr(entry, data)
+        digest = helper.file_hash(temporary)
+        if archive.exists() and helper.file_hash(archive) != digest:
+            raise ValueError("Versioned ZIP already exists with different contents; use a new Local version")
+        release = {**version, "platform": "windows-x64",
+                   "downloadMode": "manual", "downloadUrl": download_url,
+                   "packageSha256": digest, "packageSize": temporary.stat().st_size,
+                   "changelog": notes or [f"FgoGotranLocal {version['versionName']}"]}
+        localized = {locale: value for locale, value in
+                     (("zh-Hans", notes), ("zh-Hant", notes_hant), ("en", notes_en)) if value}
+        if localized:
+            release["changelogI18n"] = localized
+        helper.inspect_package(temporary, release)
+        merged = merge_manifest(shared, {"fgogotranLocal": release}, "local")
+        temporary.replace(archive)
+        archive.with_suffix(".zip.sha256").write_text(f"{digest}  {archive.name}\n", encoding="utf-8")
+        write_manifest(manifest, merged)
+    finally:
+        temporary.unlink(missing_ok=True)
     return {"archive": str(archive), "manifest": str(manifest), "release": release}
 
 
