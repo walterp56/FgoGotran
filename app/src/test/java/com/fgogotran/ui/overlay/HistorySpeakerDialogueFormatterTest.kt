@@ -19,9 +19,9 @@ class HistorySpeakerDialogueFormatterTest {
 
     @Test
     fun `always adds a new frame around a complete speech pair`() {
-        assertEquals("「「等一下！」」", render("「等一下！」", "zh-Hans"))
+        assertEquals("「「等一下！」」", render("「等一下！」"))
         assertEquals("「「內容」。」", render("「內容」。"))
-        assertEquals("““Wait...!””", render("“Wait...!”", "en"))
+        assertEquals("「「Wait...!」」", render("「Wait...!」"))
     }
 
     @Test
@@ -33,19 +33,20 @@ class HistorySpeakerDialogueFormatterTest {
     fun `other quote styles remain inside the fixed speech pair`() {
         assertEquals("「『內心話』」", render("『內心話』"))
         assertEquals("「“內容”」", render("“內容”"))
+        assertEquals("「“Wait...!”」", render("“Wait...!”"))
     }
 
     @Test
-    fun `locale frame keeps body punctuation and annotations intact`() {
-        assertEquals("「先等一下...！」", render("先等一下...！", "zh-Hans"))
+    fun `frame keeps body punctuation and annotations intact`() {
+        assertEquals("「先等一下...！」", render("先等一下...！"))
         assertEquals("「他說『先等等』。」", render("他說『先等等』。"))
-        assertEquals("“Wait...!”", render("Wait...!", "en-US"))
+        assertEquals("「Wait...!」", render("Wait...!"))
         val body = "迦勒底〈Chaldea〉...!\n──等等。"
         assertEquals("「$body」", render(body))
     }
 
-    private fun render(text: String, locale: String = "zh-Hant"): String {
-        val prepared = HistorySpeakerDialogueFormatter.prepare(text, locale)
+    private fun render(text: String): String {
+        val prepared = HistorySpeakerDialogueFormatter.prepare(text)
         return prepared.openingQuote + prepared.body + prepared.closingQuote
     }
 }

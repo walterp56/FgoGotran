@@ -282,7 +282,6 @@ private fun addHistoryEntryViews(
                         context = container.context,
                         text = dialogue,
                         originalText = originalDialogue,
-                        targetLocale = entry.targetLocale,
                         color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                         typeface = typeface,
                         contentSizing = contentSizing,
@@ -356,12 +355,11 @@ private fun historySpeakerDialogueView(
     context: Context,
     text: String,
     originalText: String?,
-    targetLocale: String,
     typeface: Typeface,
     contentSizing: HistoryContentSizing,
     color: Int,
 ): LinearLayout {
-    val quotedDialogue = HistorySpeakerDialogueFormatter.prepare(text, targetLocale)
+    val quotedDialogue = HistorySpeakerDialogueFormatter.prepare(text)
     val quoteWidth = historyQuoteIndentPx(
         typeface,
         contentSizing,
