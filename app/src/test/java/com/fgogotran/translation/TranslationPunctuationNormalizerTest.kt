@@ -3,7 +3,6 @@ package com.fgogotran.translation
 import com.fgogotran.text.EmphasisRange
 import com.fgogotran.text.EmphasisText
 import com.fgogotran.overlay.RubyRenderText
-import com.fgogotran.ui.overlay.HistorySpeakerDialogueFormatter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -107,11 +106,4 @@ class TranslationPunctuationNormalizerTest {
         assertEquals(TranslationPunctuationNormalizer.sourceSignature("甲..."), TranslationPunctuationNormalizer.sourceSignature(" 甲〈...----〉... "))
     }
 
-    @Test fun historyUsesTargetQuotesWithoutAddingADuplicatePair() {
-        assertEquals("『", HistorySpeakerDialogueFormatter.prepare("『內容』", "zh-Hant").openingQuote)
-        assertEquals("內容", HistorySpeakerDialogueFormatter.prepare("『內容』", "zh-Hant").body)
-        assertEquals("甲『乙』", HistorySpeakerDialogueFormatter.prepare("『甲『乙』』", "zh-Hant").body)
-        assertEquals("\"", HistorySpeakerDialogueFormatter.prepare("Hello...", "en").openingQuote)
-        assertEquals("「", HistorySpeakerDialogueFormatter.prepare("原文").openingQuote)
-    }
 }

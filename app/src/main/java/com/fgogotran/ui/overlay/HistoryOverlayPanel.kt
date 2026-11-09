@@ -271,16 +271,16 @@ private fun addHistoryEntryViews(
         )
     }
     entry.dialogueText?.takeIf { it.isNotBlank() }?.let { unmarked ->
-        val it = RubyRenderText.forDisplay(
-            com.fgogotran.translation.TranslationPunctuationNormalizer.normalize(
-                EmphasisText.encode(unmarked, entry.dialogueEmphasisRanges), entry.targetLocale), showAnnotations)
+        val dialogue = RubyRenderText.forDisplay(
+            EmphasisText.encode(unmarked, entry.dialogueEmphasisRanges), showAnnotations
+        )
         val originalDialogue = entry.originalDialogueText?.trim()?.takeIf { original -> original.isNotBlank() }
         if (speakerName != null || originalDialogue != null) {
             if (speakerName != null) {
                 container.addView(
                     historySpeakerDialogueView(
                         context = container.context,
-                        text = it,
+                        text = dialogue,
                         originalText = originalDialogue,
                         targetLocale = entry.targetLocale,
                         color = entry.dialogueTextColor ?: AndroidColor.WHITE,
@@ -292,7 +292,7 @@ private fun addHistoryEntryViews(
                 container.addView(
                     historyBilingualLinesView(
                         context = container.context,
-                        translationText = it,
+                        translationText = dialogue,
                         originalText = originalDialogue,
                         translationColor = entry.dialogueTextColor ?: AndroidColor.WHITE,
                         typeface = typeface,
@@ -304,7 +304,7 @@ private fun addHistoryEntryViews(
             container.addView(
                 historyTextView(
                     context = container.context,
-                    text = it,
+                    text = dialogue,
                     color = entry.dialogueTextColor ?: AndroidColor.WHITE,
                     typeface = typeface,
                     contentSizing = contentSizing,
@@ -322,9 +322,10 @@ private fun addHistoryEntryViews(
         container.addView(
             historyTextView(
                 context = container.context,
-                text = RubyRenderText.forDisplay(com.fgogotran.translation.TranslationPunctuationNormalizer.normalize(
+                text = RubyRenderText.forDisplay(
                     EmphasisText.encode(choice, entry.choiceEmphasisRanges.getOrElse(index) { emptyList() }),
-                    entry.targetLocale), showAnnotations) +
+                    showAnnotations
+                ) +
                     if (originalChoice == null) "\n" else "",
                 color = FGO_CHOICE_HISTORY_RED,
                 gravity = Gravity.CENTER,
@@ -405,8 +406,7 @@ private fun historySpeakerDialogueView(
                             context = context,
                             text = quoteSpeakerDialogueClosing(
                                 bodyText,
-                                quotedDialogue.closingQuote,
-                                quotedDialogue.trailingPunctuation
+                                quotedDialogue.closingQuote
                             ),
                             color = color,
                             typeface = typeface,
@@ -419,10 +419,7 @@ private fun historySpeakerDialogueView(
                         container = this,
                         context = context,
                         translationLines = historyDisplayLines(bodyText)
-                            .withClosingQuoteOnLastLine(
-                                quotedDialogue.closingQuote,
-                                quotedDialogue.trailingPunctuation
-                            ),
+                            .withClosingQuoteOnLastLine(quotedDialogue.closingQuote),
                         originalLines = historyDisplayLines(originalBodyText),
                         translationColor = color,
                         typeface = typeface,
@@ -520,13 +517,10 @@ private fun historyDisplayLines(text: String): List<String> {
         .ifEmpty { listOf(text.trim()) }
 }
 
-private fun List<String>.withClosingQuoteOnLastLine(
-    closingQuote: String = "」",
-    trailingPunctuation: String = ""
-): List<CharSequence> {
+private fun List<String>.withClosingQuoteOnLastLine(closingQuote: String): List<CharSequence> {
     return mapIndexed { index, line ->
         if (index == lastIndex) {
-            quoteSpeakerDialogueClosing(line, closingQuote, trailingPunctuation)
+            quoteSpeakerDialogueClosing(line, closingQuote)
         } else {
             line
         }
@@ -535,10 +529,9 @@ private fun List<String>.withClosingQuoteOnLastLine(
 
 private fun quoteSpeakerDialogueClosing(
     text: String,
-    closingQuote: String = "」",
-    trailingPunctuation: String = ""
+    closingQuote: String
 ): CharSequence {
-    val quotedText = "$text$closingQuote$trailingPunctuation"
+    val quotedText = "$text$closingQuote"
     val closingQuoteIndex = text.length
     return SpannableString(quotedText).apply {
         setSpan(
