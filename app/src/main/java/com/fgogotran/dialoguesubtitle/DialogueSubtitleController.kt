@@ -8,6 +8,7 @@ import com.fgogotran.R
 import com.fgogotran.analytics.AnalyticsUsageOrigin
 import com.fgogotran.analytics.AppAnalytics
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.data.TranslationApiProfile
 import com.fgogotran.ocr.OcrContentKind
 import com.fgogotran.ocr.OcrEngine
 import com.fgogotran.localization.AppLanguageManager
@@ -73,22 +74,32 @@ class DialogueSubtitleController @Inject constructor(
     private var currentTargetLocale = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED
     private var backlogWarned = false
 
+    private data class SubtitleSettings(
+        val locale: String,
+        val apiProfile: TranslationApiProfile,
+        val engine: String,
+        val includeRuby: Boolean,
+        val context: Pair<Boolean, Int>
+    )
+
     fun init(context: Context) {
         userContext = context
         overlay = DialogueSubtitleOverlay(context)
         scope.launch {
-            var previous: List<String>? = null
+            var initialized = false
             combine(
-                settings.targetLanguage, settings.translationBackend, settings.apiModel,
-                settings.apiBaseUrl, settings.ocrEngine, settings.translationIncludeRuby.map { it.toString() },
-                settings.translationContextEnabled.map { it.toString() }, settings.translationContextSceneCount.map { it.toString() }
-            ) { it.toList() }.distinctUntilChanged().collect { values ->
-                if (previous != null && workflow.isDialogue) reset()
-                currentTargetLocale = values[0]
-                includeRuby = values[5].toBooleanStrict()
-                contextEnabled = values[6].toBooleanStrict()
-                contextCount = values[7].toInt().coerceIn(0, 2)
-                previous = values
+                settings.targetLanguage, settings.apiProfile, settings.ocrEngine,
+                settings.translationIncludeRuby,
+                combine(settings.translationContextEnabled, settings.translationContextSceneCount, ::Pair)
+            ) { locale, profile, engine, ruby, context ->
+                SubtitleSettings(locale, profile, engine, ruby, context)
+            }.distinctUntilChanged().collect { values ->
+                if (initialized && workflow.isDialogue) reset()
+                currentTargetLocale = values.locale
+                includeRuby = values.includeRuby
+                contextEnabled = values.context.first
+                contextCount = values.context.second.coerceIn(0, 2)
+                initialized = true
             }
         }
     }

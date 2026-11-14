@@ -37,12 +37,11 @@ class TraditionalGlossaryIntegrationTest {
             val oldTarget = repo.targetLanguage.first()
             val oldProfile = repo.playerProfile.first()
             val oldBackend = repo.translationBackend.first()
-            val oldKey = repo.getApiKeyForBackend(oldBackend)
-            val oldUrl = repo.getApiBaseUrlForBackend(oldBackend)
-            val oldModel = repo.getApiModelForBackend(oldBackend)
+            val oldApiProfile = repo.getApiProfile(oldBackend)
             val backend = SettingsRepository.BACKEND_DEEPSEEK
-            suspend fun model(value: String) = repo.saveApiSettings(backend, "",
-                SettingsRepository.defaultApiBaseUrl(backend), value)
+            suspend fun model(value: String) = repo.saveApiSettings(
+                repo.recommendedApiProfile(backend).copy(model = value)
+            )
             val terms = listOf(TermEntity(jpTerm = "シオン", cnTerm = "希翁", enTerm = "Sion", category = "character",
                 aliases = "[\"明示された別名\"]"),
                 TermEntity(jpTerm = "オベロン", cnTerm = "奥伯龙", enTerm = "Oberon", category = "character"),
@@ -146,8 +145,7 @@ class TraditionalGlossaryIntegrationTest {
                 localDao.deleteCharacterName("test-hant-local")
                 repo.setTargetLanguage(oldTarget)
                 repo.setPlayerProfile(oldProfile.name, oldProfile.gender)
-                repo.saveApiSettings(oldBackend, oldKey, oldUrl,
-                    oldModel.ifBlank { SettingsRepository.defaultApiModel(oldBackend) })
+                repo.saveApiSettings(oldApiProfile)
                 translator.clearGlossaryCache()
                 instrumentation.runOnMainSync { activity.finish() }
             }

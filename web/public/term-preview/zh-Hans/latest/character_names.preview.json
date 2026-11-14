@@ -1607,7 +1607,7 @@
     "cn_name": "冲田·J·总司",
     "en_name": "Okita J. Souji",
     "category": "character",
-    "aliases": "オキタ・J・ソウジ, オキタＪソウジ"
+    "aliases": "オキタJソウジ, オキタ・J・ソウジ, オキタＪソウジ"
   },
   {
     "jp_name": "スペース・イシュタル",
@@ -4840,6 +4840,34 @@
     "jp_name": "ナゴン",
     "cn_name": "纳言",
     "en_name": "Nagon",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "松永弾正",
+    "cn_name": "松永弹正",
+    "en_name": "Matsunaga Danjō",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ノッブ",
+    "cn_name": "阿信",
+    "en_name": "Nobbu",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "駒姫",
+    "cn_name": "驹姬",
+    "en_name": "Komahime",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "カッツ",
+    "cn_name": "阿胜",
+    "en_name": "Kattsu",
     "category": "character",
     "aliases": ""
   }

@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="api_request_manual">手动</string>
+    <string name="api_request_preset">服务商预设</string>
+    <string name="api_view_request">查看请求设置</string>
+    <string name="api_external_endpoint_manual">其他接口地址请使用手动设置。改回服务商的标准地址后可使用自动设置。</string>
+    <string name="api_task_budget_auto">按任务自动选择输出上限</string>
+    <string name="api_preview_thinking_off">思考模式已关闭</string>
+    <string name="api_preview_reasoning">推理强度：%1$s</string>
+    <string name="api_preview_sampling_default">取样使用服务商默认值。</string>
+    <string name="api_preview_needs_connection">输入有效的接口地址和模型后即可预览请求。</string>
     <string name="app_name">FgoGotran</string>
     <string name="accessibility_summary">启动翻译后截屏识别并显示覆盖层；默认也可在其他前台应用上运行。</string>
     <string name="accessibility_description">FgoGotran 不是无障碍辅助工具，专为 FGO 翻译设计。它检测窗口和点击，在您启动翻译后截取当前画面进行 OCR，并可将覆盖层点击转发给当前前台应用。默认兼容设置也允许在其他前台应用上运行；打开敏感应用前请先停止翻译。使用在线接口时，待翻译文字会发送到您选择或配置的服务。</string>
@@ -9,6 +18,27 @@
     <string name="accessibility_not_connected_message">即使系统设置显示"已启用"，FgoGotran 仍可能没有收到服务连接。\n\n目前无法启动翻译。请在系统设置中检查 FgoGotran 无障碍服务：\n\n• 如果开关已开启：先关闭，等待 2–3 秒，再重新开启。\n• 如果开关已关闭：直接开启。\n• 返回 FgoGotran，确认状态变为"已连接"后启动悬浮服务。\n\n如果仍无法连接，请完整关闭电脑上的模拟器，再重新打开模拟器及 FGO。不是只重开游戏，也不需要重启电脑。</string>
     <string name="overlay_permission_title">悬浮窗权限用途说明</string>
     <string name="overlay_permission_message">FgoGotran 需要“显示在其他应用上层”权限，才能显示翻译按钮、菜单和翻译结果。\n\n覆盖层专为 FGO 翻译设计；默认兼容设置下，也可能显示在其他前台应用上。您可以随时停止翻译，或在系统设置中关闭此权限；关闭权限后翻译按钮和覆盖层将无法显示。\n\n继续表示您理解并同意上述用途。</string>    <string name="api_title">API接口</string>
+    <string name="api_format">API 格式</string>
+    <string name="api_output_field">输出上限字段</string>
+    <string name="api_output_budget">输出上限（Token）</string>
+    <string name="api_output_budget_help">留空时按任务使用默认上限。输入数值后，测试 API 和游戏内翻译使用同一上限。</string>
+    <string name="api_reasoning_effort">推理强度</string>
+    <string name="api_provider_default">服务商默认</string>
+    <string name="api_sampling_options">取样</string>
+    <string name="api_thinking_setting">思考模式</string>
+    <string name="api_thinking_disabled">关闭</string>
+    <string name="api_address_edit_in_advanced">展开高级设置以编辑此地址。</string>
+    <string name="api_address_profile_help">输入服务商提供的完整请求地址。更换发送目的地后，重用已保存的 API Key 前需要确认。</string>
+    <string name="api_confirm_destination_title">确认 API Key 发送地址</string>
+    <string name="api_confirm_destination_body">要将现有 API Key 用于 %1$s 吗？</string>
+    <string name="api_confirm_destination_action">使用此地址</string>
+    <string name="api_error_output_budget">请输入 1 到 %1$d 之间的整数，或留空。</string>
+    <string name="api_error_output_limit">回复已达到输出上限。可尝试提高上限，或选择模型支持的较低推理强度。</string>
+    <string name="api_format_help">选择接口支持的格式。多数预设使用 Chat Completions，Claude 使用 Anthropic Messages。</string>
+    <string name="api_output_field_help">这是 API 接收输出上限的参数名。OpenAI 预设使用 max_completion_tokens。</string>
+    <string name="api_reasoning_effort_help">选择服务商默认时，使用模型的默认推理强度。可用选项因模型而异。</string>
+    <string name="api_thinking_help">这是服务商特定的选项。自动模式遵循所选预设。</string>
+    <string name="api_sampling_help">自动模式使用 FgoGotran 的预设。选择服务商默认时，由服务商决定 Temperature 和 Top-p。</string>
     <string name="api_back">返回</string>
     <string name="api_provider">服务商</string>
     <string name="api_request_settings">请求设置</string>
@@ -36,7 +66,7 @@
     <string name="api_top_p_range">范围 0.01–1.00；数值越低候选范围越小</string>
     <string name="api_testing">测试中</string>
     <string name="api_test">测试 API</string>
-    <string name="api_restore_defaults">恢复默认</string>
+    <string name="api_restore_defaults">恢复推荐设置</string>
     <string name="api_apply">应用API设置</string>
     <string name="api_saved">已保存</string>
     <string name="api_save_failed">保存失败</string>

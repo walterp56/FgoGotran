@@ -6,6 +6,7 @@ import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.scriptmemory.ScriptMemory
 import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.TermDao
 import io.ktor.client.HttpClient
@@ -40,7 +41,7 @@ class ChineseHonorificNormalizationTest {
         db = Room.inMemoryDatabaseBuilder(app, TranslationCacheDb::class.java).build()
         translator = Translator(settings, UserProfile(settings), unusedDao(TermDao::class.java),
             local, PromptBuilder(), CharacterContextRepository(app), db,
-            TranslationMemory(app), DiagnosticEventStore(app), app)
+            TranslationMemory(app), DiagnosticEventStore(app), ScriptMemory(app), app)
     }
 
     @After fun tearDown() {
@@ -272,7 +273,8 @@ class ChineseHonorificNormalizationTest {
         val configType = Translator::class.java.declaredClasses.single { it.simpleName == "RuntimeConfig" }
         val constructor = configType.declaredConstructors.single().apply { isAccessible = true }
         val config = constructor.newInstance("deepseek", "", "https://offline.invalid/v1", model,
-            "", "", true, target, "", ApiSamplingSettings(SettingsRepository.API_SAMPLING_MODE_AUTO, false, 1.0, false, 1.0))
+            "", "", true, target, "", ApiSamplingSettings(SettingsRepository.API_SAMPLING_MODE_AUTO, false, 1.0, false, 1.0),
+            com.fgogotran.data.TranslationRequestOptions())
         val value = requireNotNull(invoke("cacheKey", source, emptyList<String>(), config,
             "", "", "", "", choiceBatch, "", "", "", "", rawSource))
         fun field(name: String) = value.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(value) as String

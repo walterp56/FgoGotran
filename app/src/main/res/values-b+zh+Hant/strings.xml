@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="api_request_manual">手動</string>
+    <string name="api_request_preset">服務商預設組合</string>
+    <string name="api_view_request">查看請求設定</string>
+    <string name="api_external_endpoint_manual">其他介面網址請使用手動設定。改回服務商的標準網址後可使用自動設定。</string>
+    <string name="api_task_budget_auto">依任務自動選擇輸出上限</string>
+    <string name="api_preview_thinking_off">思考模式已關閉</string>
+    <string name="api_preview_reasoning">推理強度：%1$s</string>
+    <string name="api_preview_sampling_default">取樣使用服務商預設值。</string>
+    <string name="api_preview_needs_connection">輸入有效的介面網址和模型後即可預覽請求。</string>
     <string name="app_name">FgoGotran</string>
     <string name="accessibility_summary">啟動翻譯後截圖辨識並顯示覆蓋層；預設也可在其他前景應用程式上執行。</string>
     <string name="accessibility_description">FgoGotran 不是無障礙輔助工具，專為 FGO 翻譯設計。它偵測視窗和點擊，在您啟動翻譯後截取目前畫面進行 OCR，並可將覆蓋層點擊轉發給目前前景應用程式。預設相容設定也允許在其他前景應用程式上執行；開啟敏感應用程式前請先停止翻譯。使用線上介面時，待翻譯文字會傳送到您選擇或設定的服務。</string>
@@ -10,6 +19,27 @@
     <string name="overlay_permission_title">懸浮視窗權限用途說明</string>
     <string name="overlay_permission_message">FgoGotran 需要「顯示在其他應用程式上層」權限，才能顯示翻譯按鈕、選單和翻譯結果。\n\n覆蓋層專為 FGO 翻譯設計；預設相容設定下，也可能顯示在其他前景應用程式上。您可以隨時停止翻譯，或在系統設定中關閉此權限；關閉權限後翻譯按鈕和覆蓋層將無法顯示。\n\n繼續表示您理解並同意上述用途。</string>
     <string name="api_title">API介面</string>
+    <string name="api_format">API 格式</string>
+    <string name="api_output_field">輸出上限欄位</string>
+    <string name="api_output_budget">輸出上限（Token）</string>
+    <string name="api_output_budget_help">留空時依任務使用預設上限。輸入數值後，測試 API 和遊戲內翻譯會使用同一上限。</string>
+    <string name="api_reasoning_effort">推理強度</string>
+    <string name="api_provider_default">服務商預設</string>
+    <string name="api_sampling_options">取樣</string>
+    <string name="api_thinking_setting">思考模式</string>
+    <string name="api_thinking_disabled">關閉</string>
+    <string name="api_address_edit_in_advanced">展開進階設定以編輯此網址。</string>
+    <string name="api_address_profile_help">輸入服務商提供的完整請求網址。變更傳送目的地後，重用已儲存的 API Key 前需要確認。</string>
+    <string name="api_confirm_destination_title">確認 API Key 傳送網址</string>
+    <string name="api_confirm_destination_body">要將現有 API Key 用於 %1$s 嗎？</string>
+    <string name="api_confirm_destination_action">使用此網址</string>
+    <string name="api_error_output_budget">請輸入 1 到 %1$d 之間的整數，或留空。</string>
+    <string name="api_error_output_limit">回覆已達輸出上限。可試著提高上限，或選擇模型支援的較低推理強度。</string>
+    <string name="api_format_help">選擇介面支援的格式。多數預設使用 Chat Completions，Claude 使用 Anthropic Messages。</string>
+    <string name="api_output_field_help">這是 API 接收輸出上限的參數名稱。OpenAI 預設使用 max_completion_tokens。</string>
+    <string name="api_reasoning_effort_help">選擇服務商預設時，使用模型的預設推理強度。可用選項因模型而異。</string>
+    <string name="api_thinking_help">這是服務商特有的選項。自動模式依所選預設處理。</string>
+    <string name="api_sampling_help">自動模式使用 FgoGotran 的預設。選擇服務商預設時，由服務商決定 Temperature 和 Top-p。</string>
     <string name="api_back">返回</string>
     <string name="api_provider">服務商</string>
     <string name="api_request_settings">請求設定</string>
@@ -37,7 +67,7 @@
     <string name="api_top_p_range">範圍 0.01–1.00；數值越低候選範圍越小</string>
     <string name="api_testing">測試中</string>
     <string name="api_test">測試 API</string>
-    <string name="api_restore_defaults">恢復預設</string>
+    <string name="api_restore_defaults">恢復建議設定</string>
     <string name="api_apply">套用 API 設定</string>
     <string name="api_saved">已儲存</string>
     <string name="api_save_failed">儲存失敗</string>

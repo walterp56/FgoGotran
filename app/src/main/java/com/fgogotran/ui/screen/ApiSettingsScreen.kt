@@ -13,6 +13,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -22,15 +26,20 @@ import com.fgogotran.ui.theme.FgoSettingsColors
 import com.fgogotran.ui.theme.FgoUiStyle
 import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.data.TranslationApiFormat
+import com.fgogotran.data.TranslationApiProfile
+import com.fgogotran.data.TranslationOutputLimit
+import com.fgogotran.data.TranslationReasoning
+import com.fgogotran.data.TranslationRequestMode
+import com.fgogotran.data.TranslationRequestOptions
+import com.fgogotran.data.TranslationThinking
+import com.fgogotran.translation.ApiOutputLimitException
 import com.fgogotran.network.ApiEndpointPolicy
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.BackendProviderLabel
-import com.fgogotran.util.FgoLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-
-private const val API_SETTINGS_LOG_TAG = "ApiSettings"
 
 private data class BackendOption(
     val value: String,
@@ -84,6 +93,7 @@ private fun samplingRecommendation(context: Context, backend: String, apiModel: 
 private fun apiTestFailureResult(context: Context, error: Throwable): String {
     val message = error.message.orEmpty()
     return when {
+        error is ApiOutputLimitException -> context.getString(R.string.api_error_output_limit)
         message.startsWith("API 地址") ||
             message.startsWith("HTTP 仅允许") ||
             message.startsWith("模型名称") ->
@@ -139,7 +149,7 @@ private fun localizedApiError(context: Context, message: String): String = when 
     else -> message
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ApiSettingsScreen(
     settingsRepository: SettingsRepository,
@@ -171,6 +181,7 @@ fun ApiSettingsScreen(
     var apiModel by remember { mutableStateOf(SettingsRepository.DEFAULT_DEEPSEEK_MODEL) }
     var apiKey by remember { mutableStateOf("") }
     var advancedSamplingExpanded by remember { mutableStateOf(false) }
+    var requestMode by remember { mutableStateOf(TranslationRequestMode.AUTO) }
     var samplingMode by remember { mutableStateOf(SettingsRepository.API_SAMPLING_MODE_AUTO) }
     var temperatureEnabled by remember { mutableStateOf(false) }
     var temperatureText by remember {
@@ -195,11 +206,20 @@ fun ApiSettingsScreen(
     var saveMessage by remember { mutableStateOf("") }
     var saveMessageIsError by remember { mutableStateOf(false) }
     var testingApi by remember { mutableStateOf(false) }
+    var savingApi by remember { mutableStateOf(false) }
+    var savedProfile by remember { mutableStateOf<TranslationApiProfile?>(null) }
+    var initialized by remember { mutableStateOf(false) }
+    var requestOptions by remember {
+        mutableStateOf(TranslationRequestOptions.recommended(SettingsRepository.BACKEND_DEEPSEEK))
+    }
+    var outputBudgetText by remember { mutableStateOf("") }
+    var pendingConfirmation by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
     val isCustomBackend = selectedBackend == SettingsRepository.BACKEND_CUSTOM_OPENAI
     val isQwenBackend = selectedBackend == SettingsRepository.BACKEND_QWEN
     val samplingCapabilities = SettingsRepository.apiSamplingCapabilities(
         selectedBackend,
-        apiModel
+        apiModel,
+        requestOptions.format
     )
     val supportsSamplingCustomization = samplingCapabilities.supportsCustomization
 
@@ -213,7 +233,9 @@ fun ApiSettingsScreen(
 
     fun currentSamplingSettings(): ApiSamplingSettings {
         val defaults = SettingsRepository.defaultApiSamplingSettings(selectedBackend)
-        val effectiveMode = if (supportsSamplingCustomization) {
+        val effectiveMode = if (supportsSamplingCustomization ||
+            samplingMode == SettingsRepository.API_SAMPLING_MODE_PROVIDER_DEFAULT
+        ) {
             SettingsRepository.normalizeApiSamplingMode(samplingMode)
         } else {
             SettingsRepository.API_SAMPLING_MODE_AUTO
@@ -268,67 +290,35 @@ fun ApiSettingsScreen(
         )
     }
 
-    fun effectiveApiBaseUrl(): String {
-        return when {
-            isCustomBackend -> apiBaseUrl
-            isQwenBackend -> SettingsRepository.defaultQwenBaseUrl(qwenSite)
-            else -> SettingsRepository.defaultApiBaseUrl(selectedBackend)
-        }
+    fun loadDraft(profile: TranslationApiProfile) {
+        selectedBackend = profile.backend
+        qwenSite = profile.qwenSite
+        apiBaseUrl = profile.endpoint
+        apiModel = profile.model
+        apiKey = profile.apiKey
+        requestOptions = profile.requestOptions
+        requestMode = profile.requestMode
+        advancedSamplingExpanded = false
+        outputBudgetText = profile.requestOptions.outputBudget?.toString().orEmpty()
+        applySamplingSettings(profile.sampling)
     }
 
     LaunchedEffect(Unit) {
-        selectedBackend = SettingsRepository.normalizeBackend(settingsRepository.translationBackend.first())
-        val savedQwenSite = settingsRepository.getQwenSite()
-        qwenSite = savedQwenSite
-        apiBaseUrl = when (selectedBackend) {
-            SettingsRepository.BACKEND_CUSTOM_OPENAI -> settingsRepository.getApiBaseUrlForBackend(selectedBackend)
-                .ifBlank { SettingsRepository.defaultApiBaseUrl(selectedBackend) }
-            SettingsRepository.BACKEND_QWEN -> SettingsRepository.defaultQwenBaseUrl(savedQwenSite)
-            else -> SettingsRepository.defaultApiBaseUrl(selectedBackend)
-        }
-        apiModel = settingsRepository.getApiModelForBackend(selectedBackend)
-            .ifBlank { SettingsRepository.defaultApiModel(selectedBackend) }
-        apiKey = settingsRepository.getApiKeyForBackend(selectedBackend)
-        applySamplingSettings(
-            settingsRepository.getApiSamplingSettingsForBackend(selectedBackend, apiModel)
-        )
+        val profile = settingsRepository.apiProfile.first()
+        loadDraft(profile)
+        savedProfile = profile
+        initialized = true
     }
 
     fun selectBackend(backend: String) {
+        if (savingApi || selectedBackend == backend) return
+        savedProfile = null
         selectedBackend = backend
-        apiBaseUrl = if (backend == SettingsRepository.BACKEND_QWEN) {
-            SettingsRepository.defaultQwenBaseUrl(qwenSite)
-        } else {
-            SettingsRepository.defaultApiBaseUrl(backend)
-        }
-        apiModel = SettingsRepository.defaultApiModel(backend)
-        apiKey = ""
-        applySamplingSettings(SettingsRepository.defaultApiSamplingSettings(backend))
-        saveMessage = ""
-        saveMessageIsError = false
         scope.launch {
-            val savedQwenSite = settingsRepository.getQwenSite()
-            val savedBaseUrl = when (backend) {
-                SettingsRepository.BACKEND_CUSTOM_OPENAI -> settingsRepository.getApiBaseUrlForBackend(backend)
-                    .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) }
-                SettingsRepository.BACKEND_QWEN -> SettingsRepository.defaultQwenBaseUrl(savedQwenSite)
-                else -> SettingsRepository.defaultApiBaseUrl(backend)
-            }
-            val savedModel = settingsRepository.getApiModelForBackend(backend)
-                .ifBlank { SettingsRepository.defaultApiModel(backend) }
-            val savedKey = settingsRepository.getApiKeyForBackend(backend)
-            val savedSamplingSettings = settingsRepository.getApiSamplingSettingsForBackend(
-                backend,
-                savedModel
-            )
-            if (selectedBackend == backend) {
-                if (backend == SettingsRepository.BACKEND_QWEN) {
-                    qwenSite = savedQwenSite
-                }
-                apiBaseUrl = savedBaseUrl
-                apiModel = savedModel
-                apiKey = savedKey
-                applySamplingSettings(savedSamplingSettings)
+            val profile = settingsRepository.getApiProfile(backend)
+            if (selectedBackend == backend && savedProfile == null) {
+                loadDraft(profile)
+                savedProfile = profile
             }
         }
     }
@@ -336,116 +326,155 @@ fun ApiSettingsScreen(
     fun selectQwenSite(site: String) {
         qwenSite = SettingsRepository.normalizeQwenSite(site)
         apiBaseUrl = SettingsRepository.defaultQwenBaseUrl(qwenSite)
-        saveMessage = ""
-        saveMessageIsError = false
     }
 
     fun restoreBackendDefaults() {
-        if (isQwenBackend) {
-            qwenSite = SettingsRepository.DEFAULT_QWEN_SITE
-            apiBaseUrl = SettingsRepository.defaultQwenBaseUrl(qwenSite)
-        } else {
-            apiBaseUrl = SettingsRepository.defaultApiBaseUrl(selectedBackend)
+        val recommended = settingsRepository.recommendedApiProfile(selectedBackend, qwenSite)
+        if (!isCustomBackend) {
+            apiBaseUrl = recommended.endpoint
+            apiModel = recommended.model
         }
-        apiModel = SettingsRepository.defaultApiModel(selectedBackend)
-        applySamplingSettings(SettingsRepository.defaultApiSamplingSettings(selectedBackend))
+        requestMode = TranslationRequestMode.AUTO
+        advancedSamplingExpanded = false
+    }
+
+    fun profileDraft(sampling: ApiSamplingSettings, options: TranslationRequestOptions) = TranslationApiProfile(
+        backend = selectedBackend,
+        endpoint = apiBaseUrl,
+        model = apiModel,
+        apiKey = apiKey,
+        qwenSite = qwenSite,
+        sampling = sampling,
+        requestOptions = options,
+        requestMode = requestMode
+    )
+
+    val isManual = requestMode == TranslationRequestMode.MANUAL
+    val canUseAuto = isCustomBackend ||
+        profileDraft(SettingsRepository.defaultApiSamplingSettings(selectedBackend), requestOptions).usesProviderEndpoint()
+
+    fun draftSignature() = listOf(
+        selectedBackend, qwenSite, apiBaseUrl, apiModel, apiKey, requestOptions, outputBudgetText,
+        samplingMode, temperatureEnabled, temperatureText, topPEnabled, topPText, requestMode
+    )
+
+    val signature = draftSignature()
+    LaunchedEffect(signature) {
         saveMessage = ""
         saveMessageIsError = false
     }
 
-    fun saveSettings() {
+    fun withValidatedDraft(onReady: (TranslationApiProfile, String?) -> Unit) {
+        val saved = savedProfile ?: return
+        try {
+            val budget = outputBudgetText.trim().takeIf { it.isNotEmpty() }?.let {
+                val value = it.toIntOrNull()
+                if (isManual) {
+                    require(value != null && value in 1..TranslationRequestOptions.MAX_BUDGET) {
+                        context.getString(R.string.api_error_output_budget, TranslationRequestOptions.MAX_BUDGET)
+                    }
+                }
+                value?.takeIf { it in 1..TranslationRequestOptions.MAX_BUDGET }
+            }
+            val sampling = if (isManual) currentSamplingSettings()
+                else runCatching { currentSamplingSettings() }.getOrElse { saved.sampling }
+            val draft = profileDraft(sampling, requestOptions.copy(outputBudget = budget))
+            val effective = draft.resolved()
+            if (effective.needsCredentialConfirmation(saved)) {
+                val origin = checkNotNull(ApiEndpointPolicy.origin(effective.endpoint))
+                val checkedSignature = draftSignature()
+                pendingConfirmation = origin to {
+                    if (draftSignature() == checkedSignature) onReady(draft, origin)
+                }
+            } else {
+                onReady(draft, null)
+            }
+        } catch (e: IllegalArgumentException) {
+            saveMessage = localizedApiError(context, e.message.orEmpty())
+            saveMessageIsError = true
+        }
+    }
+
+    fun saveSettings() = withValidatedDraft { profile, confirmedOrigin ->
+        val submitted = draftSignature()
+        savingApi = true
         scope.launch {
             try {
-                settingsRepository.saveApiSettings(
-                    backend = selectedBackend,
-                    apiKey = apiKey,
-                    apiBaseUrl = effectiveApiBaseUrl(),
-                    apiModel = apiModel,
-                    qwenSite = qwenSite,
-                    samplingSettings = currentSamplingSettings()
-                )
-                saveMessage = context.getString(R.string.api_saved)
-                saveMessageIsError = false
+                settingsRepository.saveApiSettings(profile, confirmedOrigin)
+                savedProfile = profile
+                if (draftSignature() == submitted) {
+                    saveMessage = context.getString(R.string.api_saved)
+                    saveMessageIsError = false
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                saveMessage = e.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.api_save_failed)
-                saveMessageIsError = true
+                if (draftSignature() == submitted) {
+                    saveMessage = e.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.api_save_failed)
+                    saveMessageIsError = true
+                }
+            } finally {
+                savingApi = false
             }
         }
     }
 
-    fun testApi() {
-        if (testingApi) return
+    var testJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    LaunchedEffect(signature) { testJob?.cancel() }
+
+    fun testApi() = withValidatedDraft { profile, confirmedOrigin ->
+        val submitted = draftSignature()
         testingApi = true
         saveMessage = ""
         saveMessageIsError = false
-        scope.launch {
+        testJob = scope.launch {
             val startedAt = SystemClock.elapsedRealtime()
-            val requestBackend = SettingsRepository.normalizeBackend(selectedBackend)
-            val requestBaseUrl = effectiveApiBaseUrl()
-            val requestModel = apiModel.trim().ifBlank {
-                SettingsRepository.defaultApiModel(requestBackend)
-            }
-            FgoLogger.info(
-                API_SETTINGS_LOG_TAG,
-                "API test started: backend=$requestBackend, model=$requestModel, " +
-                    "baseUrl=$requestBaseUrl, keyChars=${apiKey.trim().length}"
-            )
             try {
-                val testResult = translator.testApiSettings(
-                    backend = requestBackend,
-                    apiKey = apiKey,
-                    apiBaseUrl = requestBaseUrl,
-                    apiModel = requestModel,
-                    samplingSettings = currentSamplingSettings()
-                )
+                val testResult = translator.testApiSettings(profile, confirmedOrigin)
+                if (draftSignature() != submitted) return@launch
                 val elapsedMs = SystemClock.elapsedRealtime() - startedAt
-                FgoLogger.info(
-                    API_SETTINGS_LOG_TAG,
-                    "API test succeeded: backend=$requestBackend, model=$requestModel, elapsedMs=$elapsedMs"
-                )
-                saveMessage = apiTestMessage(
-                    context = context,
-                    status = context.getString(R.string.api_success),
-                    durationMs = elapsedMs,
-                    result = if (testResult.ignoredSamplingParameters.isNotEmpty()) {
-                        val ignoredLabels = testResult.ignoredSamplingParameters.joinToString("、") {
-                            when (it) {
-                                "temperature" -> "Temperature"
-                                "top_p" -> "Top-p"
-                                "do_sample" -> context.getString(R.string.api_sampling_switches)
-                                else -> it
-                            }
-                        }
-                        context.getString(R.string.api_ignored_params, ignoredLabels)
-                    } else {
-                        context.getString(R.string.api_ready)
-                    }
-                )
+                val result = if (testResult.ignoredSamplingParameters.isEmpty()) {
+                    context.getString(R.string.api_ready)
+                } else {
+                    val ignored = testResult.ignoredSamplingParameters.joinToString(", ")
+                    context.getString(R.string.api_ignored_params, ignored)
+                }
+                saveMessage = apiTestMessage(context, context.getString(R.string.api_success), elapsedMs, result)
                 saveMessageIsError = false
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val elapsedMs = SystemClock.elapsedRealtime() - startedAt
-                FgoLogger.warn(
-                    API_SETTINGS_LOG_TAG,
-                    "API test failed: backend=$requestBackend, model=$requestModel, " +
-                        "baseUrl=$requestBaseUrl, elapsedMs=$elapsedMs, " +
-                        "error=${e.javaClass.simpleName}: ${e.message}",
-                    e
-                )
+                if (draftSignature() != submitted) return@launch
                 saveMessage = apiTestMessage(
-                    context = context,
-                    status = context.getString(R.string.api_failed),
-                    durationMs = elapsedMs,
-                    result = apiTestFailureResult(context, e)
+                    context,
+                    context.getString(R.string.api_failed),
+                    SystemClock.elapsedRealtime() - startedAt,
+                    apiTestFailureResult(context, e)
                 )
                 saveMessageIsError = true
             } finally {
                 testingApi = false
             }
         }
+    }
+
+    pendingConfirmation?.let { (origin, confirm) ->
+        AlertDialog(
+            onDismissRequest = { pendingConfirmation = null },
+            title = { Text(stringResource(R.string.api_confirm_destination_title)) },
+            text = { Text(stringResource(R.string.api_confirm_destination_body, origin)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingConfirmation = null
+                    confirm()
+                }) { Text(stringResource(R.string.api_confirm_destination_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingConfirmation = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -486,7 +515,8 @@ fun ApiSettingsScreen(
                         ) {
                             RadioButton(
                                 selected = selectedBackend == option.value,
-                                onClick = { selectBackend(option.value) }
+                                onClick = { selectBackend(option.value) },
+                                enabled = initialized && !savingApi
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 BackendProviderLabel(
@@ -505,6 +535,11 @@ fun ApiSettingsScreen(
                         }
                     }
                 }
+            }
+
+            if (savedProfile == null) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                return@Column
             }
 
             Card(
@@ -546,43 +581,46 @@ fun ApiSettingsScreen(
                             )
                         }
                     }
-                    if (isCustomBackend) {
-                        OutlinedTextField(
-                            colors = FgoUiColors.outlinedTextFieldColors(),
-                            value = apiBaseUrl,
-                            onValueChange = {
-                                apiBaseUrl = it
-                                saveMessage = ""
-                                saveMessageIsError = false
-                            },
-                            label = { Text(stringResource(R.string.api_address)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                            supportingText = {
-                                Text(stringResource(R.string.api_address_https_note))
-                            },
-                            singleLine = true
-                        )
-                        if (apiBaseUrl.trim().startsWith("http://", ignoreCase = true)) {
-                            val localEndpointValid = remember(apiBaseUrl) {
-                                runCatching {
-                                    ApiEndpointPolicy.validateCustomOpenAiEndpoint(apiBaseUrl)
-                                }.getOrNull()?.isPrivateLanHttp == true
-                            }
-                            Text(
-                                if (localEndpointValid) {
-                                    stringResource(R.string.api_local_http_warning)
-                                } else {
-                                    stringResource(R.string.api_http_address_hint)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (localEndpointValid) {
-                                    FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
-                                } else {
-                                    MaterialTheme.colorScheme.error
-                                }
-                            )
+                    OutlinedTextField(
+                        colors = FgoUiColors.outlinedTextFieldColors(),
+                        value = apiBaseUrl,
+                        onValueChange = {
+                            apiBaseUrl = it
+                            saveMessage = ""
+                            saveMessageIsError = false
+                        },
+                        label = { Text(stringResource(R.string.api_address)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        readOnly = !isCustomBackend && !isManual,
+                        supportingText = {
+                            if (isCustomBackend || isManual) Text(stringResource(R.string.api_address_profile_help))
+                        },
+                        singleLine = isCustomBackend || isManual
+                    )
+                    if (apiBaseUrl.trim().startsWith("http://", ignoreCase = true)) {
+                        val format = if (isManual) requestOptions.format else TranslationApiFormat.CHAT_COMPLETIONS
+                        val localEndpointValid = remember(apiBaseUrl, selectedBackend, format) {
+                            runCatching {
+                                ApiEndpointPolicy.validateTranslationEndpoint(
+                                    apiBaseUrl,
+                                    isCustomBackend && format == TranslationApiFormat.CHAT_COMPLETIONS
+                                )
+                            }.getOrNull()?.isPrivateLanHttp == true
                         }
+                        Text(
+                            if (localEndpointValid) {
+                                stringResource(R.string.api_local_http_warning)
+                            } else {
+                                stringResource(R.string.api_http_address_hint)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (localEndpointValid) {
+                                FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            }
+                        )
                     }
                     OutlinedTextField(
                         colors = FgoUiColors.outlinedTextFieldColors(),
@@ -614,64 +652,178 @@ fun ApiSettingsScreen(
                         singleLine = true
                     )
                     HorizontalDivider()
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = !isManual,
+                            enabled = canUseAuto,
+                            onClick = {
+                                requestMode = TranslationRequestMode.AUTO
+                                advancedSamplingExpanded = false
+                            },
+                            label = { Text(stringResource(R.string.api_sampling_auto_recommended)) }
+                        )
+                        FilterChip(
+                            selected = isManual,
+                            onClick = {
+                                requestMode = TranslationRequestMode.MANUAL
+                                advancedSamplingExpanded = true
+                            },
+                            label = { Text(stringResource(R.string.api_request_manual)) }
+                        )
+                    }
+                    if (!canUseAuto) ApiFieldHelp(stringResource(R.string.api_external_endpoint_manual))
                     TextButton(
                         colors = FgoUiColors.textButtonColors(),
                         onClick = { advancedSamplingExpanded = !advancedSamplingExpanded },
                         modifier = Modifier.align(Alignment.Start)
                     ) {
-                        Text(if (advancedSamplingExpanded) stringResource(R.string.api_advanced_hide) else stringResource(R.string.api_advanced_custom))
+                        Text(stringResource(
+                            if (advancedSamplingExpanded) R.string.api_advanced_hide
+                            else if (isManual) R.string.api_advanced_custom
+                            else R.string.api_view_request
+                        ))
                     }
-                    if (advancedSamplingExpanded) {
+                    if (advancedSamplingExpanded && !isManual) {
+                        val preview = runCatching {
+                            profileDraft(SettingsRepository.defaultApiSamplingSettings(selectedBackend), requestOptions)
+                                .resolved()
+                        }.getOrNull()
+                        preview?.let { profile ->
+                            val options = profile.requestOptions
+                            val format = if (options.format == TranslationApiFormat.CHAT_COMPLETIONS) {
+                                "Chat Completions"
+                            } else {
+                                "Anthropic Messages"
+                            }
+                            ApiFieldHelp("$format · ${options.outputLimit.field}", options.outputLimit.field)
+                            ApiFieldHelp(stringResource(R.string.api_task_budget_auto))
+                            if (options.disablesThinking(profile.backend, profile.model)) {
+                                ApiFieldHelp(stringResource(R.string.api_preview_thinking_off))
+                            } else if (options.reasoning.value != null) {
+                                ApiFieldHelp(
+                                    stringResource(R.string.api_preview_reasoning, options.reasoning.value)
+                                )
+                            }
+                            ApiFieldHelp(
+                                if (profile.sampling.mode == SettingsRepository.API_SAMPLING_MODE_PROVIDER_DEFAULT) {
+                                    stringResource(R.string.api_preview_sampling_default)
+                                } else {
+                                    samplingRecommendation(context, profile.backend, profile.model)
+                                }
+                            )
+                        } ?: ApiFieldHelp(stringResource(R.string.api_preview_needs_connection))
+                    }
+                    if (advancedSamplingExpanded && isManual) {
+                        ApiOptionPicker(
+                            label = stringResource(R.string.api_format),
+                            help = stringResource(R.string.api_format_help),
+                            selected = requestOptions.format,
+                            options = TranslationApiFormat.entries,
+                            optionLabel = { if (it == TranslationApiFormat.CHAT_COMPLETIONS) "Chat Completions" else "Anthropic Messages" },
+                            onSelect = { requestOptions = requestOptions.copy(format = it) }
+                        )
+                        if (requestOptions.format == TranslationApiFormat.CHAT_COMPLETIONS) {
+                            ApiOptionPicker(
+                                label = stringResource(R.string.api_output_field),
+                                help = stringResource(R.string.api_output_field_help),
+                                code = TranslationOutputLimit.MAX_COMPLETION_TOKENS.field,
+                                selected = requestOptions.outputLimit,
+                                options = TranslationOutputLimit.entries,
+                                optionLabel = { it.field },
+                                onSelect = { requestOptions = requestOptions.copy(outputLimit = it) }
+                            )
+                            val providerDefault = stringResource(R.string.api_provider_default)
+                            val manualProfile = profileDraft(
+                                SettingsRepository.defaultApiSamplingSettings(selectedBackend), requestOptions
+                            )
+                            val reasoningChoices = manualProfile.manualReasoningChoices() ?: TranslationReasoning.entries
+                            if (reasoningChoices.size > 1 || requestOptions.reasoning !in reasoningChoices) {
+                                ApiOptionPicker(
+                                    label = stringResource(R.string.api_reasoning_effort),
+                                    help = stringResource(R.string.api_reasoning_effort_help),
+                                    selected = requestOptions.reasoning,
+                                    options = reasoningChoices,
+                                    optionLabel = { it.value ?: providerDefault },
+                                    onSelect = { requestOptions = requestOptions.copy(reasoning = it) }
+                                )
+                            }
+                            val thinkingChoices = manualProfile.manualThinkingChoices()
+                            if (thinkingChoices.size > 1 || requestOptions.disablesThinking(selectedBackend, apiModel)) {
+                                val disabled = stringResource(R.string.api_thinking_disabled)
+                                val presetLabel = stringResource(R.string.api_request_preset)
+                                ApiOptionPicker(
+                                    label = stringResource(R.string.api_thinking_setting),
+                                    help = stringResource(R.string.api_thinking_help),
+                                    selected = requestOptions.thinking,
+                                    options = thinkingChoices,
+                                    optionLabel = {
+                                        when (it) {
+                                            TranslationThinking.RECOMMENDED -> presetLabel
+                                            TranslationThinking.PROVIDER_DEFAULT -> providerDefault
+                                            TranslationThinking.DISABLED -> disabled
+                                        }
+                                    },
+                                    onSelect = { requestOptions = requestOptions.copy(thinking = it) }
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            colors = FgoUiColors.outlinedTextFieldColors(),
+                            value = outputBudgetText,
+                            onValueChange = { outputBudgetText = it },
+                            label = { Text(stringResource(R.string.api_output_budget)) },
+                            supportingText = { Text(stringResource(R.string.api_output_budget_help)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true
+                        )
+                        HorizontalDivider()
                         Text(
-                            samplingRecommendation(context, selectedBackend, apiModel),
+                            if (requestOptions.format == TranslationApiFormat.ANTHROPIC_MESSAGES) {
+                                stringResource(R.string.api_sampling_auto_only)
+                            } else {
+                                samplingRecommendation(context, selectedBackend, apiModel)
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
                         )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            FilterChip(
-                                colors = FgoUiColors.filterChipColors(),
-                                selected = !supportsSamplingCustomization ||
-                                    samplingMode == SettingsRepository.API_SAMPLING_MODE_AUTO,
-                                onClick = {
-                                    samplingMode = SettingsRepository.API_SAMPLING_MODE_AUTO
-                                    saveMessage = ""
-                                    saveMessageIsError = false
-                                },
-                                label = { Text(stringResource(R.string.api_sampling_auto_recommended)) }
-                            )
-                            FilterChip(
-                                colors = FgoUiColors.filterChipColors(),
-                                selected = supportsSamplingCustomization &&
-                                    samplingMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM,
-                                onClick = {
-                                    if (supportsSamplingCustomization) {
-                                        samplingMode = SettingsRepository.API_SAMPLING_MODE_CUSTOM
-                                        if (!temperatureEnabled && !topPEnabled) {
-                                            when {
-                                                samplingCapabilities.supportsTemperature ->
-                                                    temperatureEnabled = true
-                                                samplingCapabilities.supportsTopP ->
-                                                    topPEnabled = true
-                                            }
-                                        }
-                                        saveMessage = ""
-                                        saveMessageIsError = false
+                        if (requestOptions.format == TranslationApiFormat.CHAT_COMPLETIONS) {
+                            val defaultLabel = stringResource(R.string.api_provider_default)
+                            val recommendedLabel = stringResource(R.string.api_request_preset)
+                            val customLabel = stringResource(R.string.api_sampling_custom)
+                            val modes = listOf(
+                                SettingsRepository.API_SAMPLING_MODE_AUTO,
+                                SettingsRepository.API_SAMPLING_MODE_PROVIDER_DEFAULT
+                            ) + if (supportsSamplingCustomization) {
+                                listOf(SettingsRepository.API_SAMPLING_MODE_CUSTOM)
+                            } else {
+                                emptyList()
+                            }
+                            ApiOptionPicker(
+                                label = stringResource(R.string.api_sampling_options),
+                                help = stringResource(R.string.api_sampling_help),
+                                selected = SettingsRepository.normalizeApiSamplingMode(samplingMode)
+                                    .takeIf { it in modes } ?: SettingsRepository.API_SAMPLING_MODE_AUTO,
+                                options = modes,
+                                optionLabel = {
+                                    when (it) {
+                                        SettingsRepository.API_SAMPLING_MODE_CUSTOM -> customLabel
+                                        SettingsRepository.API_SAMPLING_MODE_PROVIDER_DEFAULT -> defaultLabel
+                                        else -> recommendedLabel
                                     }
                                 },
-                                enabled = supportsSamplingCustomization,
-                                label = { Text(stringResource(R.string.api_sampling_custom)) }
+                                onSelect = { mode ->
+                                    samplingMode = mode
+                                    if (mode == SettingsRepository.API_SAMPLING_MODE_CUSTOM &&
+                                        !temperatureEnabled && !topPEnabled
+                                    ) {
+                                        temperatureEnabled = samplingCapabilities.supportsTemperature
+                                        topPEnabled = !temperatureEnabled && samplingCapabilities.supportsTopP
+                                    }
+                                }
                             )
                         }
-                        if (!supportsSamplingCustomization) {
-                            Text(
-                                stringResource(R.string.api_sampling_auto_only),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = FgoUiColors.text(darkAlpha = 0.6f, secondary = true)
-                            )
-                        } else if (samplingMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM) {
+                        if (supportsSamplingCustomization && samplingMode == SettingsRepository.API_SAMPLING_MODE_CUSTOM) {
                             Text(
                                 if (samplingCapabilities.allowsCombinedParameters) {
                                     stringResource(R.string.api_sampling_local_note)
@@ -793,7 +945,7 @@ fun ApiSettingsScreen(
                             colors = FgoUiColors.outlinedButtonColors(),
                             shape = FgoUiStyle.buttonShape,
                             onClick = { testApi() },
-                            enabled = !testingApi
+                            enabled = !testingApi && !savingApi && savedProfile != null
                         ) {
                             if (testingApi) {
                                 CircularProgressIndicator(
@@ -813,12 +965,17 @@ fun ApiSettingsScreen(
                         OutlinedButton(
                             colors = FgoUiColors.outlinedButtonColors(),
                             shape = FgoUiStyle.buttonShape,
-                            onClick = { restoreBackendDefaults() }
+                            onClick = { restoreBackendDefaults() },
+                            enabled = !savingApi && savedProfile != null
                         ) {
                             Text(stringResource(R.string.api_restore_defaults))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(shape = FgoUiStyle.buttonShape, onClick = { saveSettings() }) {
+                        Button(
+                            shape = FgoUiStyle.buttonShape,
+                            onClick = { saveSettings() },
+                            enabled = !testingApi && !savingApi && savedProfile != null
+                        ) {
                             Text(stringResource(R.string.api_apply))
                         }
                     }
@@ -829,3 +986,54 @@ fun ApiSettingsScreen(
 }
 
 
+
+@Composable
+private fun <T> ApiOptionPicker(
+    label: String,
+    help: String,
+    selected: T,
+    options: List<T>,
+    code: String? = null,
+    optionLabel: (T) -> String,
+    onSelect: (T) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        Box {
+            OutlinedButton(onClick = { expanded = true }) { Text(optionLabel(selected)) }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(optionLabel(option)) },
+                        onClick = {
+                            expanded = false
+                            onSelect(option)
+                        }
+                    )
+                }
+            }
+        }
+        ApiFieldHelp(help, code)
+    }
+}
+
+@Composable
+private fun ApiFieldHelp(text: String, code: String? = null) {
+    val styledText = remember(text, code) {
+        buildAnnotatedString {
+            append(text)
+            if (code != null) {
+                val start = text.indexOf(code)
+                if (start >= 0) {
+                    addStyle(SpanStyle(fontFamily = FontFamily.Monospace), start, start + code.length)
+                }
+            }
+        }
+    }
+    androidx.compose.material3.Text(
+        text = styledText,
+        style = MaterialTheme.typography.bodySmall,
+        color = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
+    )
+}

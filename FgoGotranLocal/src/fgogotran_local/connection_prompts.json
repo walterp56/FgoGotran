@@ -6,8 +6,8 @@
         "app/src/main/java/com/fgogotran/translation/PromptBuilder.kt": "a788c0d5d6992bdb00f2e811234fe3a10e944fecfe3197973bb20d58c4998f11",
         "app/src/main/java/com/fgogotran/translation/GeneralPromptRequests.kt": "bd0ed2e95901f1c6445069369188ede5047cd9be44b16fa77b5c4c9fe061bb7f",
         "app/src/main/java/com/fgogotran/translation/TranslationGlossaryBuilder.kt": "1c03e07909d94b8f8e4491ff36406292cda4782c940b5d2f636f1c2c62bb9df7",
-        "app/src/main/java/com/fgogotran/translation/Translator.kt": "aadcb991a57b168549a60988c236d63dde0cce709e9973f24cf349862295a21e",
-        "term_builder/term.tsv": "9c72d9bb8e1062057ca6e5b35a41055c95228adb1d790d8101d85209f8d26414"
+        "app/src/main/java/com/fgogotran/translation/Translator.kt": "a576f0a181dbb1e651f60c78abc7f1fa0fb2f7d3301ceb1ae9f9ed2e94313311",
+        "term_builder/term.tsv": "9f870272c0f575e782ad9d0857d87ec63629c5d892e6eec3cdea018394d800be"
     },
     "requests": {
         "zh-Hans": {

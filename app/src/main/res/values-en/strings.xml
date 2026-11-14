@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="api_request_manual">Manual</string>
+    <string name="api_request_preset">Provider preset</string>
+    <string name="api_view_request">View request settings</string>
+    <string name="api_external_endpoint_manual">Use Manual for a different endpoint. To switch back to Auto, use the provider’s standard endpoint.</string>
+    <string name="api_task_budget_auto">Automatic output limit by task</string>
+    <string name="api_preview_thinking_off">Thinking off</string>
+    <string name="api_preview_reasoning">Reasoning effort: %1$s</string>
+    <string name="api_preview_sampling_default">Sampling uses provider defaults.</string>
+    <string name="api_preview_needs_connection">Enter a valid endpoint and model to preview the request.</string>
     <string name="app_name">FgoGotran</string>
     <string name="accessibility_summary">Captures text and shows an overlay after you start translation; other foreground apps are allowed by default.</string>
     <string name="accessibility_description">FgoGotran is not an accessibility aid. Designed for FGO translation, it detects windows and taps, captures the screen for OCR after you start translation, and can forward overlay taps to the current foreground app. Default compatibility settings also allow other foreground apps; stop translation before opening sensitive apps. Online APIs receive the text to translate at your selected or configured service.</string>
@@ -9,6 +18,27 @@
     <string name="accessibility_not_connected_message">Even if system settings show it as enabled, FgoGotran may not have received a service connection.\n\nTranslation cannot start right now. Check the FgoGotran accessibility service in system settings:\n\n• If the switch is on: turn it off, wait 2–3 seconds, then turn it on again.\n• If the switch is off: turn it on.\n• Return to FgoGotran, confirm the status shows Connected, then start the overlay service.\n\nIf it still cannot connect, fully exit the emulator on your computer, then reopen it and FGO. Restarting only the game is not enough; you do not need to restart your computer.</string>
     <string name="overlay_permission_title">Overlay permission purpose</string>
     <string name="overlay_permission_message">FgoGotran needs the \"Display over other apps\" permission to show translation buttons, menus, and results.\n\nThe overlay is designed for FGO translation, but default compatibility settings also allow it over other foreground apps. You can stop translation at any time or turn this permission off in system settings; with permission off, the translation button and overlay cannot be displayed.\n\nContinuing means you understand and agree to these uses.</string>    <string name="api_title">API</string>
+    <string name="api_format">API format</string>
+    <string name="api_output_field">Output-limit field</string>
+    <string name="api_output_budget">Output limit (tokens)</string>
+    <string name="api_output_budget_help">Leave blank to use the limit for each task. Enter a number to use the same limit for Test API and gameplay.</string>
+    <string name="api_reasoning_effort">Reasoning effort</string>
+    <string name="api_provider_default">Provider default</string>
+    <string name="api_sampling_options">Sampling</string>
+    <string name="api_thinking_setting">Thinking</string>
+    <string name="api_thinking_disabled">Disabled</string>
+    <string name="api_address_edit_in_advanced">Expand Advanced to edit this URL.</string>
+    <string name="api_address_profile_help">Enter the full request URL from your provider. Confirm the new destination before reusing a saved API key.</string>
+    <string name="api_confirm_destination_title">Confirm API key destination</string>
+    <string name="api_confirm_destination_body">Use the existing API key with %1$s?</string>
+    <string name="api_confirm_destination_action">Use this destination</string>
+    <string name="api_error_output_budget">Enter a whole number from 1 to %1$d, or leave it blank.</string>
+    <string name="api_error_output_limit">The reply hit the output limit. Try raising it or selecting a lower reasoning effort supported by your model.</string>
+    <string name="api_format_help">Choose the format your endpoint accepts. Most presets use Chat Completions. Claude uses Anthropic Messages.</string>
+    <string name="api_output_field_help">The parameter name your API expects for the output limit. The OpenAI preset uses max_completion_tokens.</string>
+    <string name="api_reasoning_effort_help">Provider default uses the model’s default effort. Supported values vary by model.</string>
+    <string name="api_thinking_help">A provider-specific option. Auto follows the selected preset.</string>
+    <string name="api_sampling_help">Auto uses the FgoGotran preset. Provider default leaves Temperature and Top-p to the provider.</string>
     <string name="api_back">Back</string>
     <string name="api_provider">Provider</string>
     <string name="api_request_settings">Request</string>
@@ -36,7 +66,7 @@
     <string name="api_top_p_range">0.01–1.00; lower narrows candidates</string>
     <string name="api_testing">Testing</string>
     <string name="api_test">Test</string>
-    <string name="api_restore_defaults">Reset</string>
+    <string name="api_restore_defaults">Reset to recommended</string>
     <string name="api_apply">Apply</string>
     <string name="api_saved">Saved</string>
     <string name="api_save_failed">Save failed</string>

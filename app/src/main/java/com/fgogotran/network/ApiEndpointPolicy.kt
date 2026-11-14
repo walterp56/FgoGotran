@@ -18,7 +18,17 @@ object ApiEndpointPolicy {
         val isPrivateLanHttp: Boolean
     )
 
-    fun validateCustomOpenAiEndpoint(rawUrl: String): ValidatedEndpoint {
+    fun validateCustomOpenAiEndpoint(rawUrl: String): ValidatedEndpoint =
+        validateEndpoint(rawUrl, allowPrivateLanHttp = true, requireChatPath = true)
+
+    fun validateTranslationEndpoint(rawUrl: String, allowPrivateLanHttp: Boolean): ValidatedEndpoint =
+        validateEndpoint(rawUrl, allowPrivateLanHttp, requireChatPath = false)
+
+    private fun validateEndpoint(
+        rawUrl: String,
+        allowPrivateLanHttp: Boolean,
+        requireChatPath: Boolean
+    ): ValidatedEndpoint {
         val trimmed = rawUrl.trim()
         require(trimmed.isNotEmpty()) { "API 地址不能为空" }
 
@@ -46,7 +56,7 @@ object ApiEndpointPolicy {
         }
 
         val path = uri.path.orEmpty().trimEnd('/')
-        require(path.endsWith("/chat/completions", ignoreCase = true)) {
+        require(!requireChatPath || path.endsWith("/chat/completions", ignoreCase = true)) {
             "API 地址必须指向 Chat Completions 接口，例如 /v1/chat/completions"
         }
 
@@ -54,15 +64,23 @@ object ApiEndpointPolicy {
             return ValidatedEndpoint(url = trimmed, isPrivateLanHttp = false)
         }
 
-        require(isPrivateLanLiteral(uri.host)) {
+        require(allowPrivateLanHttp && isPrivateLanLiteral(uri.host)) {
             "HTTP 仅允许数字形式的电脑私有局域网地址；公网或主机名请使用 HTTPS"
         }
         return ValidatedEndpoint(url = trimmed, isPrivateLanHttp = true)
     }
 
     fun isPrivateLanHttp(rawUrl: String): Boolean = runCatching {
-        validateCustomOpenAiEndpoint(rawUrl).isPrivateLanHttp
+        validateTranslationEndpoint(rawUrl, allowPrivateLanHttp = true).isPrivateLanHttp
     }.getOrDefault(false)
+
+    fun origin(rawUrl: String): String? {
+        val uri = runCatching { URI(rawUrl.trim()) }.getOrNull() ?: return null
+        val scheme = uri.scheme?.lowercase() ?: return null
+        val host = uri.host?.lowercase() ?: return null
+        val port = if (uri.port != -1) uri.port else if (scheme == "https") 443 else 80
+        return "$scheme://$host:$port"
+    }
 
     private fun isPrivateLanLiteral(rawHost: String): Boolean {
         val host = rawHost.removePrefix("[").removeSuffix("]")

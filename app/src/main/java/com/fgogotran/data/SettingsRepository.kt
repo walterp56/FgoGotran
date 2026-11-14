@@ -12,7 +12,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.fgogotran.analytics.AnalyticsOutbox
 import com.fgogotran.analytics.AnalyticsOutboxStore
 import com.fgogotran.analytics.AnalyticsProtocol
-import com.fgogotran.network.ApiEndpointPolicy
 import com.fgogotran.overlay.DialoguePlaybackSettings
 import com.fgogotran.overlay.DialogueTextSpeed
 import com.fgogotran.terminology.LocalCharacterNameEntity
@@ -25,6 +24,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -209,14 +209,15 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_CLAUDE_BASE_URL = "https://api.anthropic.com/v1/messages"
         const val DEFAULT_CUSTOM_BASE_URL = ""
 
-        const val DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
+        const val DEFAULT_DEEPSEEK_MODEL = "deepseek-flash"
         const val DEFAULT_ZHIPU_MODEL = "glm-4.5-air"
         const val DEFAULT_QWEN_MODEL = "qwen-flash"
-        const val DEFAULT_OPENAI_MODEL = "gpt-4o"
+        const val DEFAULT_OPENAI_MODEL = "gpt-6-luna"
         const val DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
-        const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
+        const val DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
         const val DEFAULT_CUSTOM_MODEL = ""
         const val API_SAMPLING_MODE_AUTO = "auto"
+        const val API_SAMPLING_MODE_PROVIDER_DEFAULT = "provider_default"
         const val API_SAMPLING_MODE_CUSTOM = "custom"
         private const val LEGACY_API_SAMPLING_MODE_TEMPERATURE = "temperature"
         private const val LEGACY_API_SAMPLING_MODE_TOP_P = "top_p"
@@ -444,6 +445,7 @@ class SettingsRepository @Inject constructor(
         }
 
         fun normalizeApiSamplingMode(mode: String): String = when (mode) {
+            API_SAMPLING_MODE_PROVIDER_DEFAULT -> mode
             API_SAMPLING_MODE_CUSTOM,
             LEGACY_API_SAMPLING_MODE_TEMPERATURE,
             LEGACY_API_SAMPLING_MODE_TOP_P -> API_SAMPLING_MODE_CUSTOM
@@ -452,10 +454,13 @@ class SettingsRepository @Inject constructor(
 
         fun apiSamplingCapabilities(
             backend: String,
-            apiModel: String
+            apiModel: String,
+            format: TranslationApiFormat = TranslationRequestOptions.recommended(normalizeBackend(backend)).format
         ): ApiSamplingCapabilities {
+            if (format == TranslationApiFormat.ANTHROPIC_MESSAGES) {
+                return ApiSamplingCapabilities(false, false, false)
+            }
             return when (normalizeBackend(backend)) {
-                BACKEND_CLAUDE,
                 BACKEND_GEMINI -> ApiSamplingCapabilities(
                     supportsTemperature = false,
                     supportsTopP = false,
@@ -491,12 +496,13 @@ class SettingsRepository @Inject constructor(
         fun normalizeApiSamplingSettings(
             backend: String,
             apiModel: String,
-            settings: ApiSamplingSettings
+            settings: ApiSamplingSettings,
+            format: TranslationApiFormat = TranslationRequestOptions.recommended(normalizeBackend(backend)).format
         ): ApiSamplingSettings {
             val defaults = defaultApiSamplingSettings(backend)
-            val capabilities = apiSamplingCapabilities(backend, apiModel)
+            val capabilities = apiSamplingCapabilities(backend, apiModel, format)
             val normalizedMode = normalizeApiSamplingMode(settings.mode).let { mode ->
-                if (capabilities.supportsCustomization) mode
+                if (mode == API_SAMPLING_MODE_PROVIDER_DEFAULT || capabilities.supportsCustomization) mode
                 else API_SAMPLING_MODE_AUTO
             }
             val temperatureEnabled =
@@ -569,101 +575,84 @@ class SettingsRepository @Inject constructor(
         normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
     }
 
-    /** User's API key for the selected translation backend. */
-    val apiKey: Flow<String> = context.dataStore.data.map { prefs ->
-        val backend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
-        prefs[apiKeyPreferenceKey(backend)] ?: ""
-    }
+    val apiProfile: Flow<TranslationApiProfile> = context.dataStore.data.map { readApiProfile(it) }
+    val apiModel: Flow<String> = apiProfile.map { it.model }.distinctUntilChanged()
+    suspend fun getApiProfile(backend: String): TranslationApiProfile =
+        readApiProfile(context.dataStore.data.first(), backend)
 
-    suspend fun getApiKeyForBackend(backend: String): String {
-        val normalizedBackend = normalizeBackend(backend)
-        return context.dataStore.data.map { prefs ->
-            prefs[apiKeyPreferenceKey(normalizedBackend)] ?: ""
-        }.first()
-    }
-
-    /** Chat completions endpoint for the selected backend. Blank means provider default. */
-    val apiBaseUrl: Flow<String> = context.dataStore.data.map { prefs ->
-        val backend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
-        if (backend == BACKEND_CUSTOM_OPENAI) {
-            prefs[apiBaseUrlPreferenceKey(backend)] ?: prefs[KEY_API_BASE_URL] ?: ""
-        } else if (backend == BACKEND_QWEN) {
-            defaultQwenBaseUrl(resolveQwenSite(prefs))
+    internal fun readApiProfile(
+        prefs: Preferences,
+        backend: String = prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK
+    ): TranslationApiProfile {
+        val normalized = normalizeBackend(backend)
+        val isSelected = normalized == normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
+        val site = resolveQwenSite(prefs)
+        val storedOptions = prefs[apiRequestOptionsKey(normalized)]
+        val recommended = recommendedApiProfile(normalized, site)
+        val options = storedOptions?.let { apiRequestOptionsJson.decodeFromString<TranslationRequestOptions>(it) }
+            ?: recommended.requestOptions
+        val savedEndpoint = prefs[apiBaseUrlPreferenceKey(normalized)]
+            ?: prefs[KEY_API_BASE_URL]?.takeIf { isSelected }
+        // Before editable profiles, cloud URLs in preferences were ignored by the runtime.
+        val endpoint = if (storedOptions != null || normalized == BACKEND_CUSTOM_OPENAI) {
+            savedEndpoint?.ifBlank { recommended.endpoint } ?: recommended.endpoint
         } else {
-            defaultApiBaseUrl(backend)
+            recommended.endpoint
         }
+        val model = (prefs[apiModelPreferenceKey(normalized)]
+            ?: prefs[KEY_API_MODEL]?.takeIf { isSelected })
+            ?.ifBlank { recommended.model } ?: recommended.model
+        val mode = prefs[apiSamplingModePreferenceKey(normalized)] ?: recommended.sampling.mode
+        val profile = recommended.copy(
+            endpoint = endpoint,
+            model = model,
+            apiKey = prefs[apiKeyPreferenceKey(normalized)].orEmpty(),
+            sampling = ApiSamplingSettings(
+                mode = mode,
+                temperatureEnabled = prefs[apiTemperatureEnabledPreferenceKey(normalized)]
+                    ?: (mode == LEGACY_API_SAMPLING_MODE_TEMPERATURE),
+                temperature = prefs[apiTemperaturePreferenceKey(normalized)]?.toDoubleOrNull()
+                    ?: recommended.sampling.temperature,
+                topPEnabled = prefs[apiTopPEnabledPreferenceKey(normalized)]
+                    ?: (mode == LEGACY_API_SAMPLING_MODE_TOP_P),
+                topP = prefs[apiTopPPreferenceKey(normalized)]?.toDoubleOrNull()
+                    ?: recommended.sampling.topP
+            ),
+            requestOptions = options
+        )
+        val requestMode = prefs[apiRequestModeKey(normalized)]
+        return profile.copy(requestMode = when (requestMode) {
+            TranslationRequestMode.AUTO.name -> TranslationRequestMode.AUTO
+            TranslationRequestMode.MANUAL.name -> TranslationRequestMode.MANUAL
+            else -> if (
+                (normalized == BACKEND_CUSTOM_OPENAI || profile.usesProviderEndpoint()) &&
+                options == recommended.requestOptions && mode == API_SAMPLING_MODE_AUTO &&
+                !profile.sampling.temperatureEnabled && !profile.sampling.topPEnabled
+            ) {
+                TranslationRequestMode.AUTO
+            } else {
+                TranslationRequestMode.MANUAL
+            }
+        })
     }
 
-    suspend fun getApiBaseUrlForBackend(backend: String): String {
-        val normalizedBackend = normalizeBackend(backend)
-        if (normalizedBackend == BACKEND_QWEN) {
-            return context.dataStore.data.map { prefs ->
-                defaultQwenBaseUrl(resolveQwenSite(prefs))
-            }.first()
-        }
-        if (normalizedBackend != BACKEND_CUSTOM_OPENAI) {
-            return defaultApiBaseUrl(normalizedBackend)
-        }
-        return context.dataStore.data.map { prefs ->
-            val selectedBackend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
-            prefs[apiBaseUrlPreferenceKey(normalizedBackend)]
-                ?: prefs[KEY_API_BASE_URL]?.takeIf { normalizedBackend == selectedBackend }
-                ?: ""
-        }.first()
-    }
+    private val apiRequestOptionsJson = Json { encodeDefaults = true }
 
-    val qwenSite: Flow<String> = context.dataStore.data.map { prefs ->
-        resolveQwenSite(prefs)
-    }
+    private fun apiRequestOptionsKey(backend: String) = stringPreferencesKey("api_request_options_$backend")
+    private fun apiRequestModeKey(backend: String) = stringPreferencesKey("api_request_mode_$backend")
 
-    suspend fun getQwenSite(): String {
-        return qwenSite.first()
-    }
-
-    /** Model name for the selected backend. */
-    val apiModel: Flow<String> = context.dataStore.data.map { prefs ->
-        val backend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
-        prefs[apiModelPreferenceKey(backend)] ?: prefs[KEY_API_MODEL] ?: defaultApiModel(backend)
-    }
-
-    suspend fun getApiModelForBackend(backend: String): String {
-        val normalizedBackend = normalizeBackend(backend)
-        return context.dataStore.data.map { prefs ->
-            val selectedBackend = normalizeBackend(prefs[KEY_TRANSLATION_BACKEND] ?: BACKEND_DEEPSEEK)
-            prefs[apiModelPreferenceKey(normalizedBackend)]
-                ?: prefs[KEY_API_MODEL]?.takeIf { normalizedBackend == selectedBackend }
-                ?: ""
-        }.first()
-    }
-
-    suspend fun getApiSamplingSettingsForBackend(
-        backend: String,
-        apiModel: String
-    ): ApiSamplingSettings {
-        val normalizedBackend = normalizeBackend(backend)
-        val defaults = defaultApiSamplingSettings(normalizedBackend)
-        return context.dataStore.data.map { prefs ->
-            val storedMode = prefs[apiSamplingModePreferenceKey(normalizedBackend)]
-                ?: defaults.mode
-            normalizeApiSamplingSettings(
-                backend = normalizedBackend,
-                apiModel = apiModel,
-                settings = ApiSamplingSettings(
-                    mode = storedMode,
-                    temperatureEnabled = prefs[
-                        apiTemperatureEnabledPreferenceKey(normalizedBackend)
-                    ] ?: (storedMode == LEGACY_API_SAMPLING_MODE_TEMPERATURE),
-                    temperature = prefs[apiTemperaturePreferenceKey(normalizedBackend)]
-                        ?.toDoubleOrNull()
-                        ?: defaults.temperature,
-                    topPEnabled = prefs[apiTopPEnabledPreferenceKey(normalizedBackend)]
-                        ?: (storedMode == LEGACY_API_SAMPLING_MODE_TOP_P),
-                    topP = prefs[apiTopPPreferenceKey(normalizedBackend)]
-                        ?.toDoubleOrNull()
-                        ?: defaults.topP
-                )
-            )
-        }.first()
+    fun recommendedApiProfile(backend: String, qwenSite: String = DEFAULT_QWEN_SITE): TranslationApiProfile {
+        val normalized = normalizeBackend(backend)
+        return TranslationApiProfile(
+            backend = normalized,
+            endpoint = TranslationApiProfile.recommendedEndpoint(normalized, qwenSite),
+            model = defaultApiModel(normalized),
+            apiKey = "",
+            qwenSite = normalizeQwenSite(qwenSite),
+            sampling = defaultApiSamplingSettings(normalized),
+            requestOptions = TranslationRequestOptions.recommended(normalized),
+            requestMode = TranslationRequestMode.AUTO
+        )
     }
 
     /** The player's local FGO Master profile for dialogue personalization. */
@@ -1003,70 +992,33 @@ class SettingsRepository @Inject constructor(
         FgoLogger.debug(tag, "Setting updated: ignored_app_update_version_code=$safeVersionCode")
     }
 
-    suspend fun saveApiSettings(
-        backend: String,
-        apiKey: String,
-        apiBaseUrl: String,
-        apiModel: String,
-        qwenSite: String = DEFAULT_QWEN_SITE,
-        samplingSettings: ApiSamplingSettings? = null
-    ) {
-        val normalizedBackend = normalizeBackend(backend)
-        val normalizedQwenSite = normalizeQwenSite(qwenSite)
-        val normalizedApiBaseUrl = if (normalizedBackend == BACKEND_CUSTOM_OPENAI) {
-            ApiEndpointPolicy.validateCustomOpenAiEndpoint(apiBaseUrl).url
+    suspend fun saveApiSettings(profile: TranslationApiProfile, confirmedOrigin: String? = null) {
+        val effective = profile.resolved()
+        val validated = if (profile.requestMode == TranslationRequestMode.AUTO) {
+            effective.copy(requestOptions = profile.requestOptions, sampling = profile.sampling)
         } else {
-            apiBaseUrl.trim()
+            profile.validated()
         }
-        val normalizedApiModel = apiModel.trim()
-        require(normalizedApiModel.isNotEmpty()) { "模型名称不能为空" }
-        val requestedSamplingSettings = samplingSettings
-            ?: defaultApiSamplingSettings(normalizedBackend)
-        val normalizedSamplingSettings = normalizeApiSamplingSettings(
-            backend = normalizedBackend,
-            apiModel = normalizedApiModel,
-            settings = requestedSamplingSettings
-        )
-        if (normalizedSamplingSettings.temperatureEnabled) {
-            require(
-                requestedSamplingSettings.temperature.isFinite() &&
-                    requestedSamplingSettings.temperature in
-                    MIN_API_TEMPERATURE..MAX_API_TEMPERATURE
-            ) { "Temperature 必须在 0.00 到 1.00 之间" }
+        val backend = validated.backend
+        val sampling = validated.sampling
+        context.dataStore.edit { prefs ->
+            validated.requireCredentialConfirmation(readApiProfile(prefs, backend), confirmedOrigin)
+            prefs[KEY_TRANSLATION_BACKEND] = backend
+            prefs[apiKeyPreferenceKey(backend)] = validated.apiKey
+            prefs[apiBaseUrlPreferenceKey(backend)] = validated.endpoint
+            prefs[apiModelPreferenceKey(backend)] = validated.model
+            prefs[KEY_API_BASE_URL] = validated.endpoint
+            prefs[KEY_API_MODEL] = validated.model
+            prefs[apiSamplingModePreferenceKey(backend)] = sampling.mode
+            prefs[apiTemperatureEnabledPreferenceKey(backend)] = sampling.temperatureEnabled
+            prefs[apiTemperaturePreferenceKey(backend)] = sampling.temperature.toString()
+            prefs[apiTopPEnabledPreferenceKey(backend)] = sampling.topPEnabled
+            prefs[apiTopPPreferenceKey(backend)] = sampling.topP.toString()
+            prefs[apiRequestOptionsKey(backend)] = apiRequestOptionsJson.encodeToString(validated.requestOptions)
+            prefs[apiRequestModeKey(backend)] = validated.requestMode.name
+            if (backend == BACKEND_QWEN) prefs[KEY_QWEN_SITE] = validated.qwenSite
         }
-        if (normalizedSamplingSettings.topPEnabled) {
-            require(
-                requestedSamplingSettings.topP.isFinite() &&
-                    requestedSamplingSettings.topP in MIN_API_TOP_P..MAX_API_TOP_P
-            ) { "Top-p 必须在 0.01 到 1.00 之间" }
-        }
-        context.dataStore.edit {
-            it[KEY_TRANSLATION_BACKEND] = normalizedBackend
-            it[apiKeyPreferenceKey(normalizedBackend)] = apiKey.trim()
-            it[apiBaseUrlPreferenceKey(normalizedBackend)] = normalizedApiBaseUrl
-            it[apiModelPreferenceKey(normalizedBackend)] = normalizedApiModel
-            it[KEY_API_BASE_URL] = normalizedApiBaseUrl
-            it[KEY_API_MODEL] = normalizedApiModel
-            it[apiSamplingModePreferenceKey(normalizedBackend)] = normalizedSamplingSettings.mode
-            it[apiTemperatureEnabledPreferenceKey(normalizedBackend)] =
-                normalizedSamplingSettings.temperatureEnabled
-            it[apiTemperaturePreferenceKey(normalizedBackend)] =
-                normalizedSamplingSettings.temperature.toString()
-            it[apiTopPEnabledPreferenceKey(normalizedBackend)] =
-                normalizedSamplingSettings.topPEnabled
-            it[apiTopPPreferenceKey(normalizedBackend)] = normalizedSamplingSettings.topP.toString()
-            if (normalizedBackend == BACKEND_QWEN) {
-                it[KEY_QWEN_SITE] = normalizedQwenSite
-            }
-        }
-        FgoLogger.debug(
-            tag,
-            "API settings updated: backend=$normalizedBackend, model=${apiModel.trim()}, " +
-                "sampling=${normalizedSamplingSettings.mode}, " +
-                "temperatureEnabled=${normalizedSamplingSettings.temperatureEnabled}, " +
-                "topPEnabled=${normalizedSamplingSettings.topPEnabled}, " +
-                "api_key=(redacted, ${apiKey.trim().length} chars)"
-        )
+        FgoLogger.debug(tag, "API settings updated: backend=$backend, model=${validated.model}")
     }
 
     suspend fun setPlayerProfile(name: String, gender: String) {

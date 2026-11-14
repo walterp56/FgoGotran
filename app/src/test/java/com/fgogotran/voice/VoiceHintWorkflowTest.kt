@@ -4,6 +4,7 @@ import androidx.room.Room
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
+import com.fgogotran.scriptmemory.ScriptMemory
 import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.TermDao
 import com.fgogotran.translation.*
@@ -46,7 +47,7 @@ class VoiceHintWorkflowTest {
             promptDb = db
             Translator(settings, UserProfile(settings), unusedDao(TermDao::class.java), local,
                 PromptBuilder(), CharacterContextRepository(app), db, TranslationMemory(app),
-                DiagnosticEventStore(app), app).also { promptTranslator = it }
+                DiagnosticEventStore(app), ScriptMemory(app), app).also { promptTranslator = it }
         }
         return Translator::class.java.declaredMethods.single { it.name == name && it.parameterCount == args.size }
             .apply { isAccessible = true }.invoke(translator, *args) as String

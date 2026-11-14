@@ -5,9 +5,13 @@ import com.fgogotran.text.EmphasisRange
 
 import android.icu.text.Transliterator
 import com.fgogotran.data.ApiSamplingSettings
+import com.fgogotran.data.TranslationApiFormat
+import com.fgogotran.data.TranslationApiProfile
+import com.fgogotran.data.TranslationRequestOptions
 import android.content.Context
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.scriptmemory.ScriptMemory
 import com.fgogotran.localization.AppLanguageManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.fgogotran.data.UserProfile
@@ -280,6 +284,7 @@ class Translator @Inject constructor(
     private val cacheDb: TranslationCacheDb,
     private val translationMemory: TranslationMemory,
     private val diagnosticEventStore: DiagnosticEventStore,
+    private val scriptMemory: ScriptMemory,
     @ApplicationContext private val context: Context
 ) {
     /** Placeholder text is drawn into the overlay bitmap, so resolve it with the app UI language. */
@@ -365,36 +370,26 @@ class Translator @Inject constructor(
     }
 
     suspend fun testApiSettings(
-        backend: String,
-        apiKey: String,
-        apiBaseUrl: String,
-        apiModel: String,
-        samplingSettings: ApiSamplingSettings =
-            SettingsRepository.defaultApiSamplingSettings(backend)
+        profile: TranslationApiProfile,
+        confirmedOrigin: String? = null
     ): ApiSettingsTestResult {
-        val normalizedBackend = SettingsRepository.normalizeBackend(backend)
-        val resolvedApiBaseUrl = apiBaseUrl.trim().ifBlank {
-            SettingsRepository.defaultApiBaseUrl(normalizedBackend)
-        }
-        val resolvedApiModel = apiModel.trim().ifBlank {
-            SettingsRepository.defaultApiModel(normalizedBackend)
-        }
-        require(resolvedApiModel.isNotBlank()) { "模型名称不能为空" }
+        val validated = profile.resolved()
+        val normalizedBackend = validated.backend
+        validated.requireCredentialConfirmation(
+            settingsRepository.getApiProfile(normalizedBackend), confirmedOrigin
+        )
         val config = RuntimeConfig(
             backend = normalizedBackend,
-            apiKey = apiKey.trim(),
-            apiBaseUrl = validateApiBaseUrl(normalizedBackend, resolvedApiBaseUrl),
-            apiModel = resolvedApiModel,
+            apiKey = validated.apiKey,
+            apiBaseUrl = validated.endpoint,
+            apiModel = validated.model,
             playerName = "",
             playerGender = SettingsRepository.DEFAULT_PLAYER_GENDER,
             cacheEnabled = false,
             targetLanguage = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
             glossaryCacheKey = "api-test",
-            samplingSettings = SettingsRepository.normalizeApiSamplingSettings(
-                backend = normalizedBackend,
-                apiModel = resolvedApiModel,
-                settings = samplingSettings
-            )
+            samplingSettings = validated.sampling,
+            requestOptions = validated.requestOptions
         )
         if (config.requiresApiKey && config.apiKey.isBlank()) {
             throw IllegalStateException("API Key is empty")
@@ -402,7 +397,7 @@ class Translator @Inject constructor(
         FgoLogger.info(
             tag,
             "API test config: backend=${config.backend}, model=${config.apiModel}, " +
-                "baseUrl=${config.apiBaseUrl}, keyChars=${config.apiKey.length}"
+                "origin=${ApiEndpointPolicy.origin(config.apiBaseUrl)}"
         )
 
         val normalizedText = TextNormalizer.normalizeForTranslation(API_TEST_JAPANESE_TEXT)
@@ -663,7 +658,8 @@ class Translator @Inject constructor(
         val cacheEnabled: Boolean,
         val targetLanguage: String,
         val glossaryCacheKey: String,
-        val samplingSettings: ApiSamplingSettings
+        val samplingSettings: ApiSamplingSettings,
+        val requestOptions: TranslationRequestOptions
     ) {
         val requiresApiKey: Boolean
             get() = SettingsRepository.requiresApiKey(backend)
@@ -785,7 +781,6 @@ class Translator @Inject constructor(
         private const val SCENE_CONTEXT_CACHE_POLICY_VERSION = "scene-context-bilingual-v8"
         private const val CURRENT_SPEAKER_CONTEXT_MAX_CHARS = 160
         private const val SCENE_DIALOGUE_CONTEXT_MAX_CHARS = 320
-        private const val ZHIPU_TRANSLATION_MAX_TOKENS = 512
         private const val MAX_TRANSLATION_API_ATTEMPTS = 3
         private const val UNTRANSLATED_FALLBACK = ""
                 private const val MASKED_TEXT_BACKEND = "masked-source"
@@ -962,6 +957,7 @@ class Translator @Inject constructor(
     }
 
     private fun formatUserFacingApiError(error: Exception): String {
+        if (error is ApiOutputLimitException) return localizedTranslationText(R.string.api_error_output_limit)
         if (error is HttpRequestTimeoutException || error.message?.contains("timeout", ignoreCase = true) == true) {
             return "请求超时，请稍后重试或更换模型"
         }
@@ -1045,6 +1041,21 @@ class Translator @Inject constructor(
         subtitleRowCount: Int = 0,
         emphasisRanges: List<EmphasisRange> = emptyList()
     ): TranslateResult {
+        if (scriptMemoryEligible(japaneseText, choiceTexts, cropMode, translateAsChoices, translateAsName)) {
+            val locale = settingsRepository.targetLanguage.first()
+            scriptMemory.lookup(japaneseText, currentSpeaker, locale)?.let { hit ->
+                val playerName = settingsRepository.playerName.first()
+                val gender = settingsRepository.playerGender.first()
+                return TranslateResult(
+                    translatedText = ScriptMemory.renderOfficial(hit.text, playerName, gender),
+                    backend = "script-memory",
+                    cached = false,
+                    targetLocale = locale,
+                    trustedForContext = false,
+                    countsAsUsage = false
+                ).withDecodedEmphasis()
+            }
+        }
         val result = translateInternal(
             japaneseText = EmphasisText.encode(japaneseText, emphasisRanges),
             choiceTexts = choiceTexts,
@@ -1114,6 +1125,7 @@ class Translator @Inject constructor(
         val textCorrection = correctGlossaryOcrSource(
             correctPlayerNameOcr(normalizedSourceText, playerName, "TEXT"), playerName, "TEXT", translateAsName)
         val normalizedText = textCorrection.text
+        val cropSourceChars = if (cropMode) normalizedText.count { !it.isWhitespace() } else null
         val isBattleSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE
         val isSpokenSubtitle = promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
         require(subtitleRowCount >= 0 &&
@@ -1448,6 +1460,7 @@ class Translator @Inject constructor(
                     config = config,
                     messages = messages,
                     maxTokens = maxTokens,
+                    cropSourceChars = cropSourceChars,
                     promptKind = when {
                         isSpokenSubtitle -> "dialogue_subtitle"
                         isBattleSubtitle -> "battle"
@@ -2043,6 +2056,15 @@ class Translator @Inject constructor(
         FgoLogger.info(tag, "Batch translation complete: backend=$backend, items=${uncachedTexts.size}")
         return results.completeForTargetLocale(config, rawNormalizedTexts)
     }
+
+    private fun scriptMemoryEligible(
+        japaneseText: String,
+        choiceTexts: List<String>,
+        cropMode: Boolean,
+        translateAsChoices: Boolean,
+        translateAsName: Boolean
+    ): Boolean = !cropMode && !translateAsChoices && !translateAsName &&
+        choiceTexts.isEmpty() && japaneseText.trim().length >= ScriptMemory.MIN_QUERY_LENGTH
 
     private fun TranslateResult.withDecodedEmphasis(): TranslateResult {
         val parsed = EmphasisText.decode(translatedText)
@@ -2986,26 +3008,19 @@ class Translator @Inject constructor(
         val now = System.currentTimeMillis()
         val playerProfile = userProfile.getPlayerProfile()
         val playerName = playerProfile.name
-        val backend = settingsRepository.translationBackend.first()
-        val apiBaseUrl = settingsRepository.getApiBaseUrlForBackend(backend)
-            .ifBlank { SettingsRepository.defaultApiBaseUrl(backend) }
-        val apiModel = settingsRepository.getApiModelForBackend(backend)
-            .ifBlank { SettingsRepository.defaultApiModel(backend) }
-        require(apiModel.isNotBlank()) { "模型名称不能为空" }
+        val profile = settingsRepository.apiProfile.first().resolved()
         val loaded = RuntimeConfig(
-            backend = backend,
-            apiKey = settingsRepository.getApiKeyForBackend(backend),
-            apiBaseUrl = validateApiBaseUrl(backend, apiBaseUrl),
-            apiModel = apiModel,
+            backend = profile.backend,
+            apiKey = profile.apiKey,
+            apiBaseUrl = profile.endpoint,
+            apiModel = profile.model,
             playerName = playerName,
             playerGender = playerProfile.gender,
             cacheEnabled = settingsRepository.cacheEnabled.first(),
             targetLanguage = settingsRepository.targetLanguage.first(),
             glossaryCacheKey = settingsRepository.dbSha256.first().ifBlank { "online-db-pending" },
-            samplingSettings = settingsRepository.getApiSamplingSettingsForBackend(
-                backend,
-                apiModel
-            )
+            samplingSettings = profile.sampling,
+            requestOptions = profile.requestOptions
         )
         cachedRuntimeConfig?.let { cached ->
             if (
@@ -3024,14 +3039,6 @@ class Translator @Inject constructor(
         cachedRuntimeConfigAt = now
         FgoLogger.debug(tag, "Runtime config refreshed")
         return loaded
-    }
-
-    private fun validateApiBaseUrl(backend: String, apiBaseUrl: String): String {
-        return if (SettingsRepository.normalizeBackend(backend) == SettingsRepository.BACKEND_CUSTOM_OPENAI) {
-            ApiEndpointPolicy.validateCustomOpenAiEndpoint(apiBaseUrl).url
-        } else {
-            apiBaseUrl.trim()
-        }
     }
 
     private fun TranslateResult.forTargetLocale(
@@ -6204,7 +6211,10 @@ class Translator @Inject constructor(
                 config = config,
                 messages = retryMessages,
                 maxTokens = maxTokens,
-                promptKind = if (cropMode) "strict_retry_crop" else "strict_retry"
+                promptKind = if (cropMode) "strict_retry_crop" else "strict_retry",
+                cropSourceChars = if (cropMode) normalizedText.count { !it.isWhitespace() } else null,
+                isSubtitle = promptProfile == TranslationPromptProfile.BATTLE_SUBTITLE ||
+                    promptProfile == TranslationPromptProfile.DIALOGUE_SUBTITLE
             )
         } catch (e: CancellationException) {
             throw e
@@ -6343,17 +6353,23 @@ class Translator @Inject constructor(
     }
 
     private fun effectiveApiSampling(config: RuntimeConfig): EffectiveApiSampling {
+        if (config.requestOptions.format == TranslationApiFormat.ANTHROPIC_MESSAGES) {
+            return EffectiveApiSampling()
+        }
         val settings = SettingsRepository.normalizeApiSamplingSettings(
             backend = config.backend,
             apiModel = config.apiModel,
-            settings = config.samplingSettings
+            settings = config.samplingSettings,
+            format = config.requestOptions.format
         )
         return when (settings.mode) {
+            SettingsRepository.API_SAMPLING_MODE_PROVIDER_DEFAULT -> EffectiveApiSampling()
             SettingsRepository.API_SAMPLING_MODE_CUSTOM -> EffectiveApiSampling(
                 temperature = settings.temperature.takeIf { settings.temperatureEnabled },
                 topP = settings.topP.takeIf { settings.topPEnabled },
                 doSample = true.takeIf {
                     config.backend == SettingsRepository.BACKEND_ZHIPU &&
+                        config.apiBaseUrl.trimEnd('/') == SettingsRepository.DEFAULT_ZHIPU_BASE_URL &&
                         (settings.temperatureEnabled || settings.topPEnabled)
                 }
             )
@@ -6450,6 +6466,7 @@ class Translator @Inject constructor(
             settings = config.samplingSettings
         )
         return when (settings.mode) {
+            SettingsRepository.API_SAMPLING_MODE_PROVIDER_DEFAULT -> "sampling-v2:provider-default"
             SettingsRepository.API_SAMPLING_MODE_CUSTOM -> listOfNotNull(
                 "sampling-v2:custom",
                 settings.temperature.takeIf { settings.temperatureEnabled }
@@ -6458,58 +6475,6 @@ class Translator @Inject constructor(
             ).joinToString(":")
             else -> "sampling-v2:auto"
         }
-    }
-
-    private suspend fun translateDeepSeek(
-        apiKey: String,
-        apiBaseUrl: String,
-        apiModel: String,
-        messages: List<ChatMessage>,
-        maxTokens: Int,
-        sampling: EffectiveApiSampling
-    ): String {
-        FgoLogger.debug(
-            tag,
-            "DeepSeek request: model=$apiModel, baseUrl=$apiBaseUrl, " +
-                "messages=${messages.size}, maxTokens=$maxTokens, " +
-                "thinkingDisabled=${apiModel.startsWith("deepseek-v4")}, keyChars=${apiKey.length}"
-        )
-        val response = httpClient.post(apiBaseUrl) {
-            if (apiKey.isNotBlank()) {
-                header("Authorization", "Bearer $apiKey")
-            }
-            contentType(ContentType.Application.Json)
-            setBody(
-                buildJsonObject {
-                    put("model", JsonPrimitive(apiModel))
-                    put("max_tokens", JsonPrimitive(maxTokens))
-                    sampling.temperature?.let { put("temperature", JsonPrimitive(it)) }
-                    sampling.topP?.let { put("top_p", JsonPrimitive(it)) }
-                    put("messages", chatMessagesJson(messages))
-                    if (apiModel.startsWith("deepseek-v4")) {
-                        put("thinking", buildJsonObject {
-                            put("type", JsonPrimitive("disabled"))
-                        })
-                    }
-                }
-            )
-        }
-        val rawBody = response.bodyAsText()
-        if (!response.status.isSuccess()) {
-            val apiError = extractChatApiError(rawBody)
-                ?: "HTTP ${response.status.value}: ${apiResponseLogSample(rawBody, 240)}"
-            FgoLogger.warn(
-                tag,
-                "DeepSeek API error: status=${response.status.value}, " +
-                    "message=$apiError, body=${apiResponseLogSample(rawBody)}"
-            )
-            throw TranslationApiHttpException(response.status.value, apiError)
-        }
-        FgoLogger.debug(
-            tag,
-            "DeepSeek API success: status=${response.status.value}, bodyChars=${rawBody.length}"
-        )
-        return parseChatCompletionContent(rawBody, "DeepSeek API")
     }
 
     private suspend fun translateClaude(
@@ -6522,7 +6487,7 @@ class Translator @Inject constructor(
         val systemPrompt = claudeSystemPrompt(messages)
         FgoLogger.debug(
             tag,
-            "Claude request: model=$apiModel, baseUrl=$apiBaseUrl, " +
+            "Claude request: model=$apiModel, origin=${ApiEndpointPolicy.origin(apiBaseUrl)}, " +
                 "messages=${messages.count { it.role != "system" }}, " +
                 "systemChars=${systemPrompt.length}, maxTokens=$maxTokens, keyChars=${apiKey.length}"
         )
@@ -6563,11 +6528,15 @@ class Translator @Inject constructor(
         } catch (e: Exception) {
             throw Exception("Claude returned non-JSON response: ${rawBody.take(240)}")
         }
+        requireCompleteApiOutput((body["stop_reason"] as? JsonPrimitive)?.contentOrNull, "max_tokens")
         val contentArray = runCatching { body["content"]?.jsonArray }.getOrNull()
         val text = contentArray
             ?.mapNotNull { block ->
                 runCatching {
-                    block.jsonObject["text"]?.jsonPrimitive?.contentOrNull
+                    val obj = block.jsonObject
+                    obj["text"]?.jsonPrimitive?.contentOrNull.takeIf {
+                        obj["type"]?.jsonPrimitive?.contentOrNull in listOf(null, "text")
+                    }
                 }.getOrNull()
             }
             ?.joinToString("")
@@ -6582,8 +6551,9 @@ class Translator @Inject constructor(
         apiModel: String,
         messages: List<ChatMessage>,
         maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
-        disableThinking: Boolean = false,
-        reasoningEffort: String? = null,
+        disableThinking: Boolean,
+        requestOptions: TranslationRequestOptions,
+        allowSamplingRetry: Boolean,
         sampling: EffectiveApiSampling
     ): String {
         val isPrivateLanHttp = ApiEndpointPolicy.isPrivateLanHttp(apiBaseUrl)
@@ -6596,7 +6566,8 @@ class Translator @Inject constructor(
                     messages = messages,
                     maxTokens = maxTokens,
                     disableThinking = disableThinking,
-                    reasoningEffort = reasoningEffort,
+                    requestOptions = requestOptions,
+                    allowSamplingRetry = allowSamplingRetry,
                     useLocalTimeout = true,
                     sampling = sampling
                 )
@@ -6609,7 +6580,8 @@ class Translator @Inject constructor(
                 messages = messages,
                 maxTokens = maxTokens,
                 disableThinking = disableThinking,
-                reasoningEffort = reasoningEffort,
+                requestOptions = requestOptions,
+                allowSamplingRetry = allowSamplingRetry,
                 useLocalTimeout = false,
                 sampling = sampling
             )
@@ -6623,7 +6595,8 @@ class Translator @Inject constructor(
         messages: List<ChatMessage>,
         maxTokens: Int,
         disableThinking: Boolean,
-        reasoningEffort: String?,
+        requestOptions: TranslationRequestOptions,
+        allowSamplingRetry: Boolean,
         useLocalTimeout: Boolean,
         sampling: EffectiveApiSampling
     ): String {
@@ -6644,14 +6617,14 @@ class Translator @Inject constructor(
                     buildJsonObject {
                         put("model", JsonPrimitive(apiModel))
                         put("messages", chatMessagesJson(messages))
-                        put("max_tokens", JsonPrimitive(maxTokens))
+                        put(requestOptions.outputLimit.field, JsonPrimitive(maxTokens))
                         requestSampling.temperature?.let {
                             put("temperature", JsonPrimitive(it))
                         }
                         requestSampling.topP?.let { put("top_p", JsonPrimitive(it)) }
                         requestSampling.doSample?.let { put("do_sample", JsonPrimitive(it)) }
-                        if (!reasoningEffort.isNullOrBlank()) {
-                            put("reasoning_effort", JsonPrimitive(reasoningEffort))
+                        requestOptions.reasoning.value?.let {
+                            put("reasoning_effort", JsonPrimitive(it))
                         }
                         if (disableThinking) {
                             put(
@@ -6674,11 +6647,11 @@ class Translator @Inject constructor(
         )
         val initialSampling = sampling.without(alreadyUnsupported)
         var (statusCode, rawBody) = executeRequest(initialSampling)
-        val rejectedParameters = rejectedSamplingParameters(
-            statusCode = statusCode,
-            responseBody = rawBody,
-            requestedSampling = initialSampling
-        )
+        val rejectedParameters = if (allowSamplingRetry) {
+            rejectedSamplingParameters(statusCode, rawBody, initialSampling)
+        } else {
+            emptySet()
+        }
         if (rejectedParameters.isNotEmpty()) {
             rejectedParameters.forEach { parameter ->
                 unsupportedSamplingParameters += samplingParameterCompatibilityKey(
@@ -6704,7 +6677,7 @@ class Translator @Inject constructor(
                 ?: "HTTP $statusCode: ${apiResponseLogSample(rawBody, 240)}"
             FgoLogger.warn(
                 tag,
-                "Chat API error: model=$apiModel, baseUrl=$apiBaseUrl, " +
+                "Chat API error: model=$apiModel, origin=${ApiEndpointPolicy.origin(apiBaseUrl)}, " +
                     "status=$statusCode, message=$apiError, " +
                     "body=${apiResponseLogSample(rawBody)}"
             )
@@ -6727,7 +6700,8 @@ class Translator @Inject constructor(
             ?: throw Exception("$providerName returned invalid response: ${rawBody.take(240)}")
 
         val choices = runCatching { jsonObject["choices"]?.jsonArray }.getOrNull()
-        val firstChoice = choices?.firstOrNull()
+        val firstChoice = choices?.firstOrNull() as? JsonObject
+        requireCompleteApiOutput((firstChoice?.get("finish_reason") as? JsonPrimitive)?.contentOrNull, "length")
         val content = runCatching {
             firstChoice
                 ?.jsonObject
@@ -6735,7 +6709,7 @@ class Translator @Inject constructor(
                 ?.jsonObject
                 ?.get("content")
                 ?.jsonPrimitive
-                ?.content
+                ?.contentOrNull
                 ?.trim()
         }.getOrNull()
         if (!content.isNullOrBlank()) {
@@ -6746,6 +6720,10 @@ class Translator @Inject constructor(
             throw Exception(error)
         }
         throw Exception("$providerName returned empty or unsupported response: ${rawBody.take(240)}")
+    }
+
+    private fun requireCompleteApiOutput(stopReason: String?, limitReason: String) {
+        if (stopReason == limitReason) throw ApiOutputLimitException()
     }
 
     private fun extractChatApiError(rawBody: String): String? {
@@ -6785,13 +6763,19 @@ class Translator @Inject constructor(
             .firstNotNullOfOrNull { key ->
                 (errorObject[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotBlank)
             }
+        val parameter = (errorObject["param"] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
+        val detail = if (parameter != null && message?.contains(parameter) != true) {
+            listOfNotNull(parameter, message).joinToString(": ")
+        } else {
+            message
+        }
         val code = listOf("code", "type")
             .firstNotNullOfOrNull { key ->
                 (errorObject[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotBlank)
             }
         return when {
-            message != null && code != null -> "$message ($code)"
-            message != null -> message
+            detail != null && code != null -> "$detail ($code)"
+            detail != null -> detail
             code != null -> code
             else -> null
         }
@@ -6866,6 +6850,18 @@ class Translator @Inject constructor(
         } else {
             ""
         }
+        val requestOptions = config.requestOptions
+        val requestCachePolicy = if (requestOptions == TranslationRequestOptions.recommended(config.backend) &&
+            config.backend != SettingsRepository.BACKEND_GPT
+        ) {
+            emptyList()
+        } else {
+            listOf(
+                "api-request-v1", requestOptions.format.name, requestOptions.outputLimit.field,
+                requestOptions.outputBudget?.toString().orEmpty(), requestOptions.reasoning.value.orEmpty(),
+                requestOptions.disablesThinking(config.backend, config.apiModel).toString()
+            )
+        }
         val emphasisCachePolicy = if ((listOf(normalizedText) + choiceTexts).any(EmphasisText::has)) listOf(EmphasisText.CACHE_VERSION) else emptyList()
         val hashMaterial = (listOf(
             promptVersion,
@@ -6883,7 +6879,7 @@ class Translator @Inject constructor(
             genderIdentity,
             normalizedText,
             choiceTexts.joinToString("\n")
-        ) + emphasisCachePolicy + listOf(TranslationPunctuationNormalizer.VERSION,
+        ) + requestCachePolicy + emphasisCachePolicy + listOf(TranslationPunctuationNormalizer.VERSION,
             TranslationPunctuationNormalizer.sourceSignature(punctuationSource))).toMutableList()
         if (cacheLanguageNamespace.isNotBlank()) {
             hashMaterial += cacheLanguageNamespace
@@ -7098,19 +7094,26 @@ class Translator @Inject constructor(
         config: RuntimeConfig,
         messages: List<ChatMessage>,
         maxTokens: Int = CHAT_COMPLETION_MAX_TOKENS,
-        promptKind: String = "translation"
+        promptKind: String = "translation",
+        cropSourceChars: Int? = null,
+        isSubtitle: Boolean = promptKind == "battle" || promptKind == "dialogue_subtitle"
     ): String {
         val apiMessages = messages.map { it.copy(content = EmphasisText.wire(it.content)) }
-        val effectiveMaxTokens = if (config.backend == SettingsRepository.BACKEND_ZHIPU) {
-            maxTokens.coerceAtMost(ZHIPU_TRANSLATION_MAX_TOKENS)
-        } else {
-            maxTokens
-        }
+        val options = config.requestOptions
+        val effectiveMaxTokens = TranslationOutputBudget.resolve(
+            backend = config.backend,
+            model = config.apiModel,
+            options = options,
+            taskBudget = maxTokens,
+            promptKind = promptKind,
+            cropSourceChars = cropSourceChars,
+            isSubtitle = isSubtitle
+        )
         val sampling = effectiveApiSampling(config)
         logPromptRequest(promptKind, config, apiMessages, effectiveMaxTokens, sampling)
         val startedAt = System.currentTimeMillis()
-        val result = when (config.backend) {
-            SettingsRepository.BACKEND_CLAUDE -> translateClaude(
+        val result = when (options.format) {
+            TranslationApiFormat.ANTHROPIC_MESSAGES -> translateClaude(
                 apiKey = config.apiKey,
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
@@ -7118,43 +7121,15 @@ class Translator @Inject constructor(
                 maxTokens = effectiveMaxTokens
             )
 
-            SettingsRepository.BACKEND_ZHIPU -> translateOpenAiCompatible(
+            TranslationApiFormat.CHAT_COMPLETIONS -> translateOpenAiCompatible(
                 apiKey = config.apiKey,
                 apiBaseUrl = config.apiBaseUrl,
                 apiModel = config.apiModel,
                 messages = apiMessages,
                 maxTokens = effectiveMaxTokens,
-                disableThinking = true,
-                sampling = sampling
-            )
-
-            SettingsRepository.BACKEND_GPT,
-            SettingsRepository.BACKEND_QWEN,
-            SettingsRepository.BACKEND_CUSTOM_OPENAI -> translateOpenAiCompatible(
-                apiKey = config.apiKey,
-                apiBaseUrl = config.apiBaseUrl,
-                apiModel = config.apiModel,
-                messages = apiMessages,
-                maxTokens = effectiveMaxTokens,
-                sampling = sampling
-            )
-
-            SettingsRepository.BACKEND_GEMINI -> translateOpenAiCompatible(
-                apiKey = config.apiKey,
-                apiBaseUrl = config.apiBaseUrl,
-                apiModel = config.apiModel,
-                messages = apiMessages,
-                maxTokens = effectiveMaxTokens,
-                reasoningEffort = "low",
-                sampling = sampling
-            )
-
-            else -> translateDeepSeek(
-                apiKey = config.apiKey,
-                apiBaseUrl = config.apiBaseUrl,
-                apiModel = config.apiModel,
-                messages = apiMessages,
-                maxTokens = effectiveMaxTokens,
+                disableThinking = options.disablesThinking(config.backend, config.apiModel),
+                requestOptions = options,
+                allowSamplingRetry = config.backend != SettingsRepository.BACKEND_DEEPSEEK,
                 sampling = sampling
             )
         }

@@ -1076,5 +1076,26 @@
     "en_term": "Oprichniki",
     "category": "game_term",
     "aliases": ""
+  },
+  {
+    "jp_term": "遺分體",
+    "cn_term": "遗分体",
+    "en_term": "Elements",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "エレメンツ",
+    "cn_term": "Elements",
+    "en_term": "Elements",
+    "category": "game_term",
+    "aliases": ""
+  },
+  {
+    "jp_term": "大令呪",
+    "cn_term": "大令咒",
+    "en_term": "Sirius Light",
+    "category": "game_term",
+    "aliases": ""
   }
 ]
