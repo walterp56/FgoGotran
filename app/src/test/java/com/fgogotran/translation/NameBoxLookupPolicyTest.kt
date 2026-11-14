@@ -143,7 +143,7 @@ class NameBoxLookupPolicyTest {
         assertTrue(names.contains("maskedSourceFallback(normalized)"))
         assertTrue(names.contains("findExactVisibleCharacterNameTranslation("))
         assertTrue(names.contains("!TextNormalizer.hasRubyAnnotations(normalized)"))
-        assertTrue(names.contains("sanitizeVisibleCharacterNameResult(it)"))
+        assertTrue(names.contains("nameResult = it"))
         for (disallowed in listOf(
             "findCharacterNameTranslation(", "resolveCharacterNameWithState(",
             "resolveCombinedCharacterNames(", "allowOcrWrappedMatch"
@@ -176,7 +176,7 @@ class NameBoxLookupPolicyTest {
             assertTrue(admission.substringAfter(nonNameBranch).contains(lookup), lookup)
         }
         val exact = function(translatorSource(), "findExactVisibleCharacterNameTranslation")
-        assertTrue(exact.contains("NameBoxLookupPolicy.findTranslation("))
+        assertTrue(exact.contains("NameBoxLookupPolicy.findCharacter("))
         assertTrue(exact.contains("characters = getCachedCharacterNames()"))
         assertFalse(exact.contains("characterNameVariants("))
     }

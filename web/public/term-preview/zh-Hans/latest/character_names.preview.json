@@ -1607,7 +1607,7 @@
     "cn_name": "冲田·J·总司",
     "en_name": "Okita J. Souji",
     "category": "character",
-    "aliases": "オキタJソウジ, オキタ・J・ソウジ, オキタＪソウジ"
+    "aliases": "オキタJソウジ, オキタノソウジ, オキタ・J・ソウジ, オキタ・ノ・ソウジ, オキタＪソウジ"
   },
   {
     "jp_name": "スペース・イシュタル",
@@ -4868,6 +4868,13 @@
     "jp_name": "カッツ",
     "cn_name": "阿胜",
     "en_name": "Kattsu",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "煉獄",
+    "cn_name": "炼狱",
+    "en_name": "Rengoku",
     "category": "character",
     "aliases": ""
   }

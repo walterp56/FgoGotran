@@ -21,6 +21,16 @@ internal object NameBoxLookupPolicy {
         english: Boolean,
         selectTarget: ((CharacterNameEntity, String) -> String)? = null
     ): String? {
+        val character = findCharacter(sourceText, characters, english) ?: return null
+        val target = if (english) character.enName else character.cnName
+        return selectTarget?.invoke(character, target) ?: target
+    }
+
+    fun findCharacter(
+        sourceText: String,
+        characters: List<CharacterNameEntity>,
+        english: Boolean
+    ): CharacterNameEntity? {
         val sourceKey = lookupKey(sourceText)
         if (sourceKey.isBlank()) return null
         // Rows already have local-profile overrides applied. Preserve their existing priority.
@@ -30,7 +40,7 @@ internal object NameBoxLookupPolicy {
             if (lookupKey(character.jpName) == sourceKey ||
                 storedAliases(character.aliases).any { lookupKey(it) == sourceKey }
             ) {
-                return selectTarget?.invoke(character, target) ?: target
+                return character
             }
         }
         return null

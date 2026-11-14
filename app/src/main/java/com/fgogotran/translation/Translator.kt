@@ -105,7 +105,8 @@ data class TranslateResult(
     // Known status/error output is still rendered as before, but is not successful use.
     val countsAsUsage: Boolean = true,
     val dialogueSubtitleRows: List<String> = emptyList(),
-    val emphasisRanges: List<EmphasisRange> = emptyList()
+    val emphasisRanges: List<EmphasisRange> = emptyList(),
+    internal val hasReviewedTraditionalName: Boolean = false
 )
 
 data class ApiSettingsTestResult(
@@ -1167,8 +1168,7 @@ class Translator @Inject constructor(
             if (!forceFreshTranslation && !EmphasisText.has(normalizedText) && !TextNormalizer.hasRubyAnnotations(normalizedText)) {
                 findExactVisibleCharacterNameTranslation(normalizedText, config.targetLanguage, useTraditionalOverrides = usesTraditionalOverrides(config))?.let {
                     FgoLogger.info(tag, "Character TSV HIT exact visible name")
-                    return TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
-                        .forTargetLocale(config, punctuationSourceText)
+                    return it.forTargetLocale(config, punctuationSourceText)
                 }
             }
         } else if (alignedSubtitleRows == 0) {
@@ -2146,7 +2146,7 @@ class Translator @Inject constructor(
                     useTraditionalOverrides = usesTraditionalOverrides(config)
                 )?.let {
                     FgoLogger.info(tag, "Character TSV HIT exact visible name")
-                    nameResult = TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
+                    nameResult = it
                 }
             }
             if (nameResult == null) {
@@ -3048,6 +3048,8 @@ class Translator @Inject constructor(
         val normalizedTargetLocale = SettingsRepository.normalizeTargetLanguage(config.targetLanguage)
         val localized = when {
             isEnglishTarget(normalizedTargetLocale) -> copy(targetLocale = normalizedTargetLocale)
+            isTraditionalTarget(normalizedTargetLocale) && hasReviewedTraditionalName ->
+                copy(targetLocale = normalizedTargetLocale)
             isTraditionalTarget(normalizedTargetLocale) -> copy(
                 translatedText = toTraditionalChinese(translatedText),
                 targetLocale = normalizedTargetLocale
@@ -3314,14 +3316,22 @@ class Translator @Inject constructor(
         normalizedText: String,
         targetLanguage: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
         useTraditionalOverrides: Boolean = false
-    ): String? = NameBoxLookupPolicy.findTranslation(
-        sourceText = normalizedText,
-        characters = getCachedCharacterNames(),
-        english = isEnglishTarget(targetLanguage),
-        selectTarget = if (!useTraditionalOverrides) null else { character, target ->
-            preferredTraditionalTarget(character.jpName, target, true)
-        }
-    )
+    ): TranslateResult? {
+        val english = isEnglishTarget(targetLanguage)
+        val character = NameBoxLookupPolicy.findCharacter(
+            sourceText = normalizedText,
+            characters = getCachedCharacterNames(),
+            english = english
+        ) ?: return null
+        val target = if (english) character.enName else character.cnName
+        val reviewed = reviewedTraditionalTarget(character.jpName, target, useTraditionalOverrides)
+        return TranslateResult(
+            translatedText = sanitizeVisibleCharacterNameResult(reviewed ?: target, preserveScript = reviewed != null),
+            backend = "character-db",
+            cached = true,
+            hasReviewedTraditionalName = reviewed != null
+        )
+    }
 
     /**
      * Gender is prompt metadata, so only an exact variant that identifies one
@@ -3473,9 +3483,7 @@ class Translator @Inject constructor(
         normalizedName: String,
         targetLanguage: String
     ): TranslateResult? {
-        findExactVisibleCharacterNameTranslation(normalizedName, targetLanguage)?.let {
-            return TranslateResult(sanitizeVisibleCharacterNameResult(it), "character-db", true)
-        }
+        findExactVisibleCharacterNameTranslation(normalizedName, targetLanguage)?.let { return it }
         val stateName = parseCharacterNameState(normalizedName) ?: return null
         val baseTranslation = findCharacterNameTranslation(
             stateName.baseName,
@@ -3996,8 +4004,8 @@ class Translator @Inject constructor(
             .trimEnd { it.isNameTrailingPunctuation() }
     }
 
-    private fun sanitizeVisibleCharacterNameResult(name: String): String {
-        return toSimplifiedChinese(name)
+    private fun sanitizeVisibleCharacterNameResult(name: String, preserveScript: Boolean): String {
+        return (if (preserveScript) name else toSimplifiedChinese(name))
             .normalizeTranslatedNameSeparators()
             .trim()
     }

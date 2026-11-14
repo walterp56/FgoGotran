@@ -7,6 +7,8 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.scriptmemory.ScriptMemory
+import com.fgogotran.terminology.CharacterNameEntity
+import com.fgogotran.terminology.LocalCharacterNameEntity
 import com.fgogotran.terminology.LocalGlossaryDao
 import com.fgogotran.terminology.TermDao
 import io.ktor.client.HttpClient
@@ -33,13 +35,25 @@ import kotlin.test.assertTrue
 class ChineseHonorificNormalizationTest {
     private lateinit var translator: Translator
     private lateinit var db: TranslationCacheDb
+    private lateinit var settings: SettingsRepository
+    private var characterNames = emptyList<CharacterNameEntity>()
+    private var localCharacterNames = emptyList<LocalCharacterNameEntity>()
 
     @Before fun setUp() {
         val app = RuntimeEnvironment.getApplication()
-        val local = unusedDao(LocalGlossaryDao::class.java)
-        val settings = SettingsRepository(app, local)
+        val local = testDao(LocalGlossaryDao::class.java) {
+            if (it == "getAllCharacterNames") localCharacterNames else error("Unexpected DAO access: $it")
+        }
+        settings = SettingsRepository(app, local)
+        val terms = testDao(TermDao::class.java) {
+            when (it) {
+                "getAllCharacterNames" -> characterNames
+                "getAllTerms" -> emptyList<Any>()
+                else -> error("Unexpected DAO access: $it")
+            }
+        }
         db = Room.inMemoryDatabaseBuilder(app, TranslationCacheDb::class.java).build()
-        translator = Translator(settings, UserProfile(settings), unusedDao(TermDao::class.java),
+        translator = Translator(settings, UserProfile(settings), terms,
             local, PromptBuilder(), CharacterContextRepository(app), db,
             TranslationMemory(app), DiagnosticEventStore(app), ScriptMemory(app), app)
     }
@@ -63,6 +77,44 @@ class ChineseHonorificNormalizationTest {
             visible = call("toTargetChinese", stored, "zh-Hant") as String
             assertEquals(expected, visible)
         }
+    }
+
+    @Test fun exactNameBoxKeepsReviewedTraditionalSpellingThroughBothTranslationPaths() = runBlocking {
+        val glossary = listOf(File("src/main/assets/$TRADITIONAL_GLOSSARY_ASSET"),
+            File("app/src/main/assets/$TRADITIONAL_GLOSSARY_ASSET")).first(File::isFile)
+        val overrides = glossary.useLines { TraditionalGlossaryOverrides.parse(it) }
+        val field = Translator::class.java.getDeclaredField("traditionalGlossary\$delegate").apply { isAccessible = true }
+        field.set(translator, lazyOf(overrides))
+
+        val canonical = "オキタ・Ｊ・ソウジ"
+        val alias = "オキタ・ノ・ソウジ"
+        characterNames = listOf(
+            CharacterNameEntity(jpName = canonical, cnName = "冲田·J·总司", enName = "Okita J. Souji", aliases = alias),
+            CharacterNameEntity(jpName = "シオン", cnName = "希翁", enName = "Sion"),
+            CharacterNameEntity(jpName = "ダ・ヴィンチ", cnName = "达·芬奇", enName = "Da Vinci"),
+            CharacterNameEntity(jpName = "織田信長", cnName = "织田信长", enName = "Oda Nobunaga")
+        )
+        localCharacterNames = listOf(LocalCharacterNameEntity(id = "custom", jpName = "ダ・ヴィンチ", cnName = "达·芬奇"))
+
+        suspend fun assertName(source: String, expected: String, locale: String) {
+            val single = translator.translate(source, translateAsName = true)
+            val scene = translator.translateScene(SceneTranslateInput(source, null, emptyList()))
+            for (result in listOf(single, requireNotNull(scene.name))) {
+                assertEquals(expected, result.translatedText, source)
+                assertEquals(locale, result.targetLocale, source)
+                assertEquals("character-db", result.backend, source)
+            }
+        }
+
+        settings.setTargetLanguage("zh-Hant")
+        assertName(alias, "沖田·J·總司", "zh-Hant")
+        assertName("シオン", "紫苑", "zh-Hant")
+        assertName("織田信長", "織田信長", "zh-Hant")
+        assertName("ダ・ヴィンチ", "達·芬奇", "zh-Hant")
+        settings.setTargetLanguage("zh-Hans")
+        assertName(alias, "冲田·J·总司", "zh-Hans")
+        settings.setTargetLanguage("en")
+        assertName(alias, "Okita J. Souji", "en")
     }
 
     @Test fun existingHonorificsAreRecognisedInEitherChineseScript() {
@@ -298,7 +350,7 @@ class ChineseHonorificNormalizationTest {
         .getDeclaredMethod(name, *Array(args.size) { String::class.java })
         .apply { isAccessible = true }.invoke(translator, *args)
 
-    private fun <T : Any> unusedDao(type: Class<T>): T = requireNotNull(type.cast(Proxy.newProxyInstance(
+    private fun <T : Any> testDao(type: Class<T>, invoke: (String) -> Any): T = requireNotNull(type.cast(Proxy.newProxyInstance(
         type.classLoader, arrayOf(type)
-    ) { _, method, _ -> error("Unexpected DAO access: ${method.name}") }))
+    ) { _, method, _ -> invoke(method.name) }))
 }
