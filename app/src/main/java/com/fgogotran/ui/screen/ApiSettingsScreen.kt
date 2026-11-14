@@ -777,17 +777,8 @@ fun ApiSettingsScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true
                         )
-                        HorizontalDivider()
-                        Text(
-                            if (requestOptions.format == TranslationApiFormat.ANTHROPIC_MESSAGES) {
-                                stringResource(R.string.api_sampling_auto_only)
-                            } else {
-                                samplingRecommendation(context, selectedBackend, apiModel)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = FgoUiColors.text(darkAlpha = 0.7f, secondary = true)
-                        )
                         if (requestOptions.format == TranslationApiFormat.CHAT_COMPLETIONS) {
+                            HorizontalDivider()
                             val defaultLabel = stringResource(R.string.api_provider_default)
                             val recommendedLabel = stringResource(R.string.api_request_preset)
                             val customLabel = stringResource(R.string.api_sampling_custom)

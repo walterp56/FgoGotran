@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="api_request_manual">手動</string>
-    <string name="api_request_preset">服務商預設組合</string>
+    <string name="api_request_preset">FgoGotran 建議</string>
     <string name="api_view_request">查看請求設定</string>
     <string name="api_external_endpoint_manual">其他介面網址請使用手動設定。改回服務商的標準網址後可使用自動設定。</string>
     <string name="api_task_budget_auto">依任務自動選擇輸出上限</string>
@@ -38,8 +38,8 @@
     <string name="api_format_help">選擇介面支援的格式。多數預設使用 Chat Completions，Claude 使用 Anthropic Messages。</string>
     <string name="api_output_field_help">這是 API 接收輸出上限的參數名稱。OpenAI 預設使用 max_completion_tokens。</string>
     <string name="api_reasoning_effort_help">選擇服務商預設時，使用模型的預設推理強度。可用選項因模型而異。</string>
-    <string name="api_thinking_help">這是服務商特有的選項。自動模式依所選預設處理。</string>
-    <string name="api_sampling_help">自動模式使用 FgoGotran 的預設。選擇服務商預設時，由服務商決定 Temperature 和 Top-p。</string>
+    <string name="api_thinking_help">使用 FgoGotran 的建議，或由服務商決定。</string>
+    <string name="api_sampling_help">選擇服務商預設時，由服務商決定如何取樣。</string>
     <string name="api_back">返回</string>
     <string name="api_provider">服務商</string>
     <string name="api_request_settings">請求設定</string>
@@ -57,7 +57,6 @@
     <string name="api_advanced_hide">收起進階自訂</string>
     <string name="api_sampling_auto_recommended">自動（推薦）</string>
     <string name="api_sampling_custom">自訂</string>
-    <string name="api_sampling_auto_only">該服務商或模型為確保請求相容性，僅使用自動模式。</string>
     <string name="api_sampling_local_note">本機／自訂介面可單獨啟用，也可同時傳送兩個參數。</string>
     <string name="api_sampling_cloud_note">雲端介面一次只啟用一個參數；開啟另一項會自動關閉目前項。</string>
     <string name="api_temperature_title">控制隨機程度</string>

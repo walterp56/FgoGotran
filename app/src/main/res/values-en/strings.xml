@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="api_request_manual">Manual</string>
-    <string name="api_request_preset">Provider preset</string>
+    <string name="api_request_preset">FgoGotran recommendation</string>
     <string name="api_view_request">View request settings</string>
     <string name="api_external_endpoint_manual">Use Manual for a different endpoint. To switch back to Auto, use the provider’s standard endpoint.</string>
     <string name="api_task_budget_auto">Automatic output limit by task</string>
@@ -37,8 +37,8 @@
     <string name="api_format_help">Choose the format your endpoint accepts. Most presets use Chat Completions. Claude uses Anthropic Messages.</string>
     <string name="api_output_field_help">The parameter name your API expects for the output limit. The OpenAI preset uses max_completion_tokens.</string>
     <string name="api_reasoning_effort_help">Provider default uses the model’s default effort. Supported values vary by model.</string>
-    <string name="api_thinking_help">A provider-specific option. Auto follows the selected preset.</string>
-    <string name="api_sampling_help">Auto uses the FgoGotran preset. Provider default leaves Temperature and Top-p to the provider.</string>
+    <string name="api_thinking_help">Use FgoGotran’s recommendation or let the provider decide.</string>
+    <string name="api_sampling_help">Provider default lets the service decide how to sample.</string>
     <string name="api_back">Back</string>
     <string name="api_provider">Provider</string>
     <string name="api_request_settings">Request</string>
@@ -56,7 +56,6 @@
     <string name="api_advanced_hide">Hide advanced</string>
     <string name="api_sampling_auto_recommended">Auto (recommended)</string>
     <string name="api_sampling_custom">Custom</string>
-    <string name="api_sampling_auto_only">Auto only for compatibility.</string>
     <string name="api_sampling_local_note">Local/custom: enable either or both.</string>
     <string name="api_sampling_cloud_note">Cloud: one parameter at a time.</string>
     <string name="api_temperature_title">Randomness</string>
