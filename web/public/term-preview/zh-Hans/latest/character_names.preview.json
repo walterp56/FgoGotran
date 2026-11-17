@@ -4877,5 +4877,40 @@
     "en_name": "Rengoku",
     "category": "character",
     "aliases": ""
+  },
+  {
+    "jp_name": "ノブナガ・オーディ・エタニティ",
+    "cn_name": "信长·欧迪·永恒",
+    "en_name": "Nobunaga Odi Eternity",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "ダイナマイト利休",
+    "cn_name": "炸药驹",
+    "en_name": "Dynamite Rikyu",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "キューティ駒",
+    "cn_name": "可爱驹",
+    "en_name": "Cutie Koma",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "久坂玄瑞",
+    "cn_name": "久坂玄瑞",
+    "en_name": "Kusaka Genzui",
+    "category": "character",
+    "aliases": ""
+  },
+  {
+    "jp_name": "三好長慶",
+    "cn_name": "三好长庆",
+    "en_name": "Miyoshi Nagayoshi",
+    "category": "character",
+    "aliases": ""
   }
 ]

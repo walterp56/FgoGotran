@@ -1231,6 +1231,14 @@
     "h1": "Changelog",
     "recent": "Recent updates",
     "entries": {
+      "v4_2_2": {
+        "items": [
+          "Redesigned API settings with automatic recommendations, manual configuration, and a request preview. Changing the request URL requires confirmation before reusing a saved API key.",
+          "Set automatic output limits by translation task and added a message when a provider cuts off its reply at the limit.",
+          "Fixed Traditional Chinese nameplates so they preserve glossary spellings such as 沖田·J·總司.",
+          "After API or translation settings change, Summon Subtitles clears the previous subtitles and applies the new settings on the next scan."
+        ]
+      },
       "v4_2_1": {
         "items": [
           "Added story-choice exit animations that keep the selected option visible longer, and adjusted when dialogue and speaker names disappear as the story advances.",
@@ -1486,7 +1494,7 @@
     "facts": {
       "version": "Current version: {version}",
       "android": "Supports Android 11+",
-      "size": "APK size: 147.12 MB",
+      "size": "APK size: 147.19 MB",
       "apiKey": "You provide your own translation API key"
     },
     "installReminderTitle": "Install note: ",
