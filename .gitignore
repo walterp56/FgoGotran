@@ -65,6 +65,16 @@ tmp_video_frames/
 showcase/
 tools/
 
+# Story data: raw Atlas scripts, translated TSVs, inventories, ledgers, SQLite
+# packs and downloadable chapter releases stay local. The builder, tools and
+# docs are versioned; the story content itself is not.
+/story_builder/work/
+/release/cdn/story/
+event-*.tsv
+event-*.db
+story.db
+source-inventory.json
+
 # GitHub Actions typo guard
 .github/workflow/
 

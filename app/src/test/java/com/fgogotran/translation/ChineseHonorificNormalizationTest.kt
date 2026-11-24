@@ -4,6 +4,9 @@ import android.icu.text.Transliterator
 import androidx.room.Room
 import com.fgogotran.data.ApiSamplingSettings
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.storylibrary.StoryChapterRepository
+import com.fgogotran.storylibrary.StoryChapterResolver
+import com.fgogotran.storylibrary.StoryChapterStorage
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.scriptmemory.ScriptMemory
@@ -55,7 +58,7 @@ class ChineseHonorificNormalizationTest {
         db = Room.inMemoryDatabaseBuilder(app, TranslationCacheDb::class.java).build()
         translator = Translator(settings, UserProfile(settings), terms,
             local, PromptBuilder(), CharacterContextRepository(app), db,
-            TranslationMemory(app), DiagnosticEventStore(app), ScriptMemory(app), app)
+            TranslationMemory(app), DiagnosticEventStore(app), ScriptMemory(app), StoryChapterResolver(app, settings, StoryChapterRepository(settings, StoryChapterStorage(app))), app)
     }
 
     @After fun tearDown() {

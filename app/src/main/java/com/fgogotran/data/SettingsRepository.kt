@@ -98,6 +98,11 @@ class SettingsRepository @Inject constructor(
         val KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_X = intPreferencesKey("live_voice_subtitle_landscape_x")
         val KEY_LIVE_VOICE_SUBTITLE_LANDSCAPE_Y = intPreferencesKey("live_voice_subtitle_landscape_y")
         val KEY_DEBUG_LOGGING_ENABLED = booleanPreferencesKey("debug_logging_enabled")
+        val KEY_STORY_CHAPTER_DB_ENABLED = booleanPreferencesKey("story_chapter_db_enabled")
+        val KEY_STORY_CHAPTER_ID = stringPreferencesKey("story_chapter_id")
+        val KEY_STORY_CHAPTER_VERSION = stringPreferencesKey("story_chapter_version")
+        val KEY_STORY_CHAPTER_SHA256 = stringPreferencesKey("story_chapter_sha256")
+        val KEY_STORY_CHAPTER_FUZZY_MATCH = booleanPreferencesKey("story_chapter_fuzzy_match")
         val KEY_FOREGROUND_TEST_OVERRIDE_ENABLED = booleanPreferencesKey("foreground_test_override_enabled")
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_LANGUAGE = stringPreferencesKey("target_chinese_locale") // legacy key name kept for migration
@@ -1374,6 +1379,60 @@ class SettingsRepository @Inject constructor(
             tag,
             "Setting updated: app_version_last_failed_check_at=${failedAt.coerceAtLeast(0L)}"
         )
+    }
+
+    /** Whether the downloaded Story Library chapter database replaces API translation. */
+    val storyChapterDbEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_STORY_CHAPTER_DB_ENABLED] ?: false
+    }
+
+    /** Story Library chapter id currently installed and selected, or blank. */
+    val storyChapterId: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_STORY_CHAPTER_ID] ?: ""
+    }
+
+    /** Content version of the selected chapter pack. */
+    val storyChapterVersion: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_STORY_CHAPTER_VERSION] ?: ""
+    }
+
+    /** SHA-256 of the installed chapter pack, for update checks. */
+    val storyChapterSha256: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_STORY_CHAPTER_SHA256] ?: ""
+    }
+
+    /** Whether OCR lines may match the chapter pack approximately. Default on. */
+    val storyChapterFuzzyMatch: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_STORY_CHAPTER_FUZZY_MATCH] ?: true
+    }
+
+    suspend fun setStoryChapterDbEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_STORY_CHAPTER_DB_ENABLED] = enabled }
+        FgoLogger.debug(tag, "Setting updated: story_chapter_db_enabled=$enabled")
+    }
+
+    suspend fun setStoryChapterFuzzyMatch(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_STORY_CHAPTER_FUZZY_MATCH] = enabled }
+        FgoLogger.debug(tag, "Setting updated: story_chapter_fuzzy_match=$enabled")
+    }
+
+    suspend fun setStoryChapter(chapterId: String, contentVersion: String, sha256: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_STORY_CHAPTER_ID] = chapterId
+            prefs[KEY_STORY_CHAPTER_VERSION] = contentVersion
+            prefs[KEY_STORY_CHAPTER_SHA256] = sha256
+        }
+        FgoLogger.debug(tag, "Setting updated: story_chapter_id=$chapterId version=$contentVersion")
+    }
+
+    suspend fun clearStoryChapter() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(KEY_STORY_CHAPTER_ID)
+            prefs.remove(KEY_STORY_CHAPTER_VERSION)
+            prefs.remove(KEY_STORY_CHAPTER_SHA256)
+            prefs[KEY_STORY_CHAPTER_DB_ENABLED] = false
+        }
+        FgoLogger.debug(tag, "Setting updated: story chapter cleared")
     }
 }
 

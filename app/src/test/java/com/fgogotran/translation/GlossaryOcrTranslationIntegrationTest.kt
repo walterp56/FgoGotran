@@ -4,6 +4,9 @@ import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.room.Room
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.storylibrary.StoryChapterRepository
+import com.fgogotran.storylibrary.StoryChapterResolver
+import com.fgogotran.storylibrary.StoryChapterStorage
 import com.fgogotran.data.TranslationApiFormat
 import com.fgogotran.data.TranslationReasoning
 import com.fgogotran.data.TranslationRequestMode
@@ -67,7 +70,7 @@ class GlossaryOcrTranslationIntegrationTest {
         settings.setTargetLanguage("zh-Hans")
         db = Room.inMemoryDatabaseBuilder(app, TranslationCacheDb::class.java).build()
         translator = Translator(settings, UserProfile(settings), terms, local, PromptBuilder(),
-            CharacterContextRepository(app), db, TranslationMemory(app), DiagnosticEventStore(app), ScriptMemory(app), app)
+            CharacterContextRepository(app), db, TranslationMemory(app), DiagnosticEventStore(app), ScriptMemory(app), StoryChapterResolver(app, settings, StoryChapterRepository(settings, StoryChapterStorage(app))), app)
         val engine = object : HttpClientEngineBase("glossary-ocr-offline") {
             override val config = HttpClientEngineConfig()
             override val supportedCapabilities = setOf(HttpTimeout)

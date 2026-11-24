@@ -71,6 +71,7 @@ fun HomeScreen(
     diagnosticEventStore: DiagnosticEventStore,
     onGuide: () -> Unit,
     onSettings: () -> Unit,
+    onStoryLibrary: () -> Unit,
     onChapter: () -> Unit
 ) {
     val context = LocalContext.current
@@ -343,10 +344,28 @@ fun HomeScreen(
                 onClick = { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
             )
 
+            Card(
+                onClick = onStoryLibrary,
+                modifier = Modifier.fillMaxWidth(),
+                border = FgoUiStyle.cardBorder,
+                colors = FgoUiColors.cardColors()
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = stringResource(R.string.home_story_library_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = stringResource(R.string.home_story_library_summary),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             if (BuildConfig.DEBUG) {
                 Card(
-                    onClick = onChapter,
-                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onChapter,                    modifier = Modifier.fillMaxWidth(),
                     border = FgoUiStyle.cardBorder,
                     colors = FgoUiColors.cardColors()
                 ) {

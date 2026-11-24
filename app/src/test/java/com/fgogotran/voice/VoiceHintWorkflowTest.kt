@@ -2,6 +2,9 @@ package com.fgogotran.voice
 
 import androidx.room.Room
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.storylibrary.StoryChapterRepository
+import com.fgogotran.storylibrary.StoryChapterResolver
+import com.fgogotran.storylibrary.StoryChapterStorage
 import com.fgogotran.data.UserProfile
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.scriptmemory.ScriptMemory
@@ -47,7 +50,7 @@ class VoiceHintWorkflowTest {
             promptDb = db
             Translator(settings, UserProfile(settings), unusedDao(TermDao::class.java), local,
                 PromptBuilder(), CharacterContextRepository(app), db, TranslationMemory(app),
-                DiagnosticEventStore(app), ScriptMemory(app), app).also { promptTranslator = it }
+                DiagnosticEventStore(app), ScriptMemory(app), StoryChapterResolver(app, settings, StoryChapterRepository(settings, StoryChapterStorage(app))), app).also { promptTranslator = it }
         }
         return Translator::class.java.declaredMethods.single { it.name == name && it.parameterCount == args.size }
             .apply { isAccessible = true }.invoke(translator, *args) as String

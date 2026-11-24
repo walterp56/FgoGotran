@@ -1,0 +1,3 @@
+#!/bin/sh
+# Reject pushes that would publish story content.
+exec node scripts/check-story-content.mjs --push

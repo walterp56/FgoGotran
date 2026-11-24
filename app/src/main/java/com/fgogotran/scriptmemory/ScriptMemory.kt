@@ -177,6 +177,9 @@ class ScriptMemory @Inject constructor(
         internal const val MIN_SCORE = 0.55
         internal const val AMBIGUITY_MARGIN = 0.03
 
+        /** Name filled into a `[%1]` slot when the player has not set one. */
+        internal const val DEFAULT_MASTER_NAME = "藤丸立香"
+
         private val ruby = Regex("〈[^〉]*〉")
         private val spaces = Regex("[\\s\\u3000]+")
         private val punctuation = Regex("[。、，．,.！？!?…‥・：:；;「」『』（）()\\[\\]］［〈〉《》]")
@@ -216,7 +219,7 @@ class ScriptMemory @Inject constructor(
             value = value.replace(Regex("\\[&([^:\\]]+):([^\\]]+)\\]")) { match ->
                 if (gender == "female") match.groupValues[2] else match.groupValues[1]
             }
-            val name = playerName.ifBlank { "藤丸立香" }
+            val name = playerName.ifBlank { DEFAULT_MASTER_NAME }
             value = value.replace("[%1]", name)
             value = value.replace(Regex("\\[line \\d+\\]"), "")
             value = value.replace(Regex("\\[(?:[0-9a-fA-F]{6}|-|sr)\\]"), "")

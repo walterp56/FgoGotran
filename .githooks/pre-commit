@@ -1,0 +1,3 @@
+#!/bin/sh
+# Reject staged story content before it reaches the repository.
+exec node scripts/check-story-content.mjs

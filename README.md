@@ -115,6 +115,30 @@ cd FgoGotranLocal
 .\Start-FgoGotranLocal.cmd
 ```
 
+### Story data stays local
+
+Full story scripts, translated TSVs, inventories, translation ledgers, chapter
+SQLite packs, and `release/cdn/story/` are never committed. Only the builder,
+tools, and docs are versioned.
+
+```text
+story_builder/work/     story TSV, DB, inventory, ledgers   (ignored)
+release/cdn/story/      downloadable chapter packs          (ignored)
+story_assets/           local Atlas sources                 (ignored)
+temp/                   scratch downloads and probes        (ignored)
+```
+
+Pre-commit and pre-push guards reject story paths and script/TSV/ledger content.
+Enable them once per clone:
+
+```powershell
+git config core.hooksPath .githooks
+node scripts\check-story-content.mjs --files <path-to-test>
+```
+
+Never attach a story pack to a GitHub Release; story packs are published to the
+CDN only.
+
 ## Project Structure
 
 ```text

@@ -456,6 +456,38 @@
     <string name="dialogue_playback_pause_medium">中</string>
     <string name="dialogue_playback_pause_long">較長</string>
     <string name="dialogue_playback_pause_value">%1$d · %2$s</string>
+    <string name="home_story_library_title">劇情庫</string>
+    <string name="home_story_library_summary">選擇章節下載離線劇情翻譯，或在劇情庫中切換到 API 翻譯。</string>
+    <string name="story_library_title">劇情庫</string>
+    <string name="story_library_back">返回</string>
+    <string name="story_library_intro">選擇章節並下載該章的劇情翻譯資料庫。套用後，翻譯只來自已下載的資料庫，不再呼叫 API。</string>
+    <string name="story_library_category_newest">最新</string>
+    <string name="story_library_category_main_story">主線</string>
+    <string name="story_library_category_events">活動</string>
+    <string name="story_library_category_interludes">幕間</string>
+    <string name="story_library_status_finished">已完成</string>
+    <string name="story_library_status_progressing">進行中</string>
+    <string name="story_library_coverage">譯文 %1$d%% · %2$d 條</string>
+    <string name="story_library_switch_title">使用下載的劇情翻譯</string>
+    <string name="story_library_switch_summary">開啟後只使用已下載的章節資料庫；找不到文本時提示檢查所選章節，不會呼叫 API。</string>
+    <string name="story_library_active_chapter">目前章節：%1$s（%2$s）</string>
+    <string name="story_library_download_apply">下載並套用</string>
+    <string name="story_library_apply">套用</string>
+    <string name="story_library_update">更新</string>
+    <string name="story_library_remove">刪除</string>
+    <string name="story_library_refresh">重新整理目錄</string>
+    <string name="story_library_downloading">下載中 %1$d%%</string>
+    <string name="story_library_verifying">正在校驗…</string>
+    <string name="story_library_installing">正在安裝…</string>
+    <string name="story_library_installed">已安裝：%1$s</string>
+    <string name="story_library_loading">正在取得目錄…</string>
+    <string name="story_library_empty">此分類暫無章節</string>
+    <string name="story_library_unavailable">暫未提供下載</string>
+    <string name="story_library_error">失敗：%1$s</string>
+    <string name="story_library_badge_newest">最新</string>
+    <string name="story_chapter_text_not_found">未在所選章節（%1$s）中找到這句文本。請確認 FGO 已開啟該章節；若是新發布的子章節，請在劇情庫中點「更新」。</string>
+    <string name="story_chapter_fuzzy_title">容錯比對 OCR 文字</string>
+    <string name="story_chapter_fuzzy_summary">OCR 漏字或把「～」辨識成「〜」時也盡量對上劇情庫。比對不確定時保留原文，不會亂猜。</string>
 </resources>
 
 

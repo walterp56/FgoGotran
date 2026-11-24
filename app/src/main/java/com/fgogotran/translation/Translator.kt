@@ -12,6 +12,7 @@ import android.content.Context
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.scriptmemory.ScriptMemory
+import com.fgogotran.storylibrary.StoryChapterResolver
 import com.fgogotran.localization.AppLanguageManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.fgogotran.data.UserProfile
@@ -286,6 +287,7 @@ class Translator @Inject constructor(
     private val translationMemory: TranslationMemory,
     private val diagnosticEventStore: DiagnosticEventStore,
     private val scriptMemory: ScriptMemory,
+    private val storyChapterResolver: StoryChapterResolver,
     @ApplicationContext private val context: Context
 ) {
     /** Placeholder text is drawn into the overlay bitmap, so resolve it with the app UI language. */
@@ -1056,6 +1058,39 @@ class Translator @Inject constructor(
                     countsAsUsage = false
                 ).withDecodedEmphasis()
             }
+        }
+        // A downloaded chapter pack wins over every other backend. When it is
+        // active a miss never falls through to the API: the user gets the original
+        // text, or the "check the selected chapter" warning after repeated misses.
+        when (val chapter = storyChapterResolver.translateLine(
+            text = japaneseText,
+            speaker = currentSpeaker,
+            kind = when {
+                translateAsName -> StoryChapterResolver.LineKind.NAME
+                translateAsChoices -> StoryChapterResolver.LineKind.CHOICE
+                else -> StoryChapterResolver.LineKind.DIALOGUE
+            }
+        )) {
+            is StoryChapterResolver.LineResult.Hit -> return TranslateResult(
+                translatedText = chapter.text,
+                backend = "chapter-db",
+                cached = false,
+                targetLocale = settingsRepository.targetLanguage.first(),
+                trustedForContext = false,
+                countsAsUsage = false
+            ).withDecodedEmphasis()
+
+            is StoryChapterResolver.LineResult.Miss -> return TranslateResult(
+                translatedText = chapter.warningText ?: japaneseText,
+                backend = "chapter-db",
+                cached = false,
+                targetLocale = settingsRepository.targetLanguage.first(),
+                trustedForContext = false,
+                isFailure = chapter.warningText != null,
+                countsAsUsage = false
+            )
+
+            StoryChapterResolver.LineResult.Inactive -> Unit
         }
         val result = translateInternal(
             japaneseText = EmphasisText.encode(japaneseText, emphasisRanges),
@@ -2096,6 +2131,7 @@ class Translator @Inject constructor(
         voiceHintContext: VoiceHintContext? = null,
         forceFreshTranslation: Boolean = false
     ): SceneTranslateResult {
+        storyChapterResolver.translateScene(input)?.let { return it }
         val rawNormalizedName = input.name?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
         val rawNormalizedDialogue = input.dialogue
             ?.let(TextNormalizer::normalizeForTranslation)

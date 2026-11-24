@@ -19,6 +19,7 @@ import com.fgogotran.data.SettingsRepository
 import com.fgogotran.data.AppThemeMode
 import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.localization.AppLanguageManager
+import com.fgogotran.storylibrary.StoryChapterRepository
 import com.fgogotran.translation.Translator
 import com.fgogotran.ui.component.AutoAppUpdateDialog
 import com.fgogotran.ui.component.openAppDownloadPage
@@ -28,6 +29,7 @@ import com.fgogotran.ui.screen.DiagnosticLogScreen
 import com.fgogotran.ui.screen.GuideScreen
 import com.fgogotran.ui.screen.HomeScreen
 import com.fgogotran.ui.screen.SettingsScreen
+import com.fgogotran.ui.screen.StoryLibraryScreen
 import com.fgogotran.ui.screen.TranslationPreferencesScreen
 import com.fgogotran.ui.screen.VoiceSettingsScreen
 import com.fgogotran.ui.theme.FgoGotranTheme
@@ -63,6 +65,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var appAnalytics: AppAnalytics
     @Inject lateinit var diagnosticEventStore: DiagnosticEventStore
     @Inject lateinit var aiVoiceService: AiVoiceService
+    @Inject lateinit var storyChapterRepository: StoryChapterRepository
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguageManager.wrap(newBase))
@@ -90,6 +93,7 @@ class MainActivity : ComponentActivity() {
                     translator,
                     diagnosticEventStore,
                     aiVoiceService,
+                    storyChapterRepository,
                     loadedThemeMode
                 )
             }
@@ -119,7 +123,7 @@ class MainActivity : ComponentActivity() {
 /**
  * Top-level navigation state and routing.
  */
-enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS, TRANSLATION_PREFERENCES, VOICE_SETTINGS, DIAGNOSTIC_LOG }
+enum class Screen { HOME, GUIDE, SETTINGS, API_SETTINGS, TRANSLATION_PREFERENCES, VOICE_SETTINGS, DIAGNOSTIC_LOG, STORY_LIBRARY }
 
 /**
  * Root composable managing top-level navigation.
@@ -131,6 +135,7 @@ fun MainScreen(
     translator: Translator,
     diagnosticEventStore: DiagnosticEventStore,
     aiVoiceService: AiVoiceService,
+    storyChapterRepository: StoryChapterRepository,
     themeMode: AppThemeMode
 ) {
     val context = LocalContext.current
@@ -188,6 +193,7 @@ fun MainScreen(
             diagnosticEventStore = diagnosticEventStore,
             onGuide = { currentScreen = Screen.GUIDE },
             onSettings = { currentScreen = Screen.SETTINGS },
+            onStoryLibrary = { currentScreen = Screen.STORY_LIBRARY },
             onChapter = {
                 context.startActivity(Intent(context, ChapterHostActivity::class.java)
                     .putExtra(ChapterHostActivity.EXTRA_THEME, themeMode.preferenceValue))
@@ -235,6 +241,12 @@ fun MainScreen(
         Screen.DIAGNOSTIC_LOG -> DiagnosticLogScreen(
             diagnosticEventStore = diagnosticEventStore,
             onBack = { currentScreen = Screen.SETTINGS }
+        )
+
+        Screen.STORY_LIBRARY -> StoryLibraryScreen(
+            settingsRepository = settingsRepository,
+            repository = storyChapterRepository,
+            onBack = { currentScreen = Screen.HOME }
         )
     }
 }

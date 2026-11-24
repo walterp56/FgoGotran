@@ -455,6 +455,38 @@
     <string name="dialogue_playback_pause_medium">Medium</string>
     <string name="dialogue_playback_pause_long">Longer</string>
     <string name="dialogue_playback_pause_value">%1$d · %2$s</string>
+    <string name="home_story_library_title">Story Library</string>
+    <string name="home_story_library_summary">Download a chapter translation, or switch between the chapter database and API translation.</string>
+    <string name="story_library_title">Story Library</string>
+    <string name="story_library_back">Back</string>
+    <string name="story_library_intro">Pick a chapter and download its translation database. Once applied, translations come only from the downloaded chapter and the API is not used.</string>
+    <string name="story_library_category_newest">Newest</string>
+    <string name="story_library_category_main_story">Main Story</string>
+    <string name="story_library_category_events">Events</string>
+    <string name="story_library_category_interludes">Interludes</string>
+    <string name="story_library_status_finished">Finished</string>
+    <string name="story_library_status_progressing">In progress</string>
+    <string name="story_library_coverage">%1$d%% translated · %2$d lines</string>
+    <string name="story_library_switch_title">Use downloaded chapter translation</string>
+    <string name="story_library_switch_summary">When on, only the downloaded chapter is used. A missing line tells you to check the selected chapter instead of calling the API.</string>
+    <string name="story_library_active_chapter">Active chapter: %1$s (%2$s)</string>
+    <string name="story_library_download_apply">Download &amp; apply</string>
+    <string name="story_library_apply">Apply</string>
+    <string name="story_library_update">Update</string>
+    <string name="story_library_remove">Remove</string>
+    <string name="story_library_refresh">Refresh catalog</string>
+    <string name="story_library_downloading">Downloading %1$d%%</string>
+    <string name="story_library_verifying">Verifying…</string>
+    <string name="story_library_installing">Installing…</string>
+    <string name="story_library_installed">Installed: %1$s</string>
+    <string name="story_library_loading">Loading catalog…</string>
+    <string name="story_library_empty">No chapters in this category</string>
+    <string name="story_library_unavailable">Not available yet</string>
+    <string name="story_library_error">Failed: %1$s</string>
+    <string name="story_library_badge_newest">Newest</string>
+    <string name="story_chapter_text_not_found">This line was not found in the selected chapter (%1$s). Check that FGO is on that chapter; for a newly released sub-chapter, tap Update in Story Library.</string>
+    <string name="story_chapter_fuzzy_title">Tolerant OCR matching</string>
+    <string name="story_chapter_fuzzy_summary">Still match the chapter database when OCR drops a character or reads ～ as 〜. Ambiguous lines keep the original text instead of guessing.</string>
 </resources>
 
 
