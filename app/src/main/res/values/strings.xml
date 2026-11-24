@@ -462,6 +462,7 @@
     <string name="story_library_title">剧情库</string>
     <string name="story_library_back">返回</string>
     <string name="story_library_intro">选择章节并下载该章的剧情翻译数据库。应用后，翻译只来自已下载的数据库，不再调用 API。</string>
+<string name="story_library_announcements">公告</string>
     <string name="story_library_category_newest">最新</string>
     <string name="story_library_category_main_story">主线</string>
     <string name="story_library_category_events">活动</string>

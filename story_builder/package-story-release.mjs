@@ -29,18 +29,22 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..');
 const defaultWork = join(scriptDir, 'work');
 const catalogPath = join(scriptDir, 'catalog.tsv');
+const announcementsPath = join(scriptDir, 'announcements.json');
 const MANIFEST_VERSION = 1;
 const SCHEMA_VERSION = 1;
+const ANNOUNCEMENT_LEVELS = ['info', 'success', 'warning'];
 
 const usage = 'Usage: node story_builder/package-story-release.mjs <chapter-id> [--version <ver>] ' +
-  '[--out <dir>] [--base-url <url>] [--minimum-app-version <ver>] [--check] [--pretty]';
+  '[--out <dir>] [--base-url <url>] [--minimum-app-version <ver>] [--check] [--pretty]\n' +
+  '       node story_builder/package-story-release.mjs --catalog-only [--out <dir>] ' +
+  '[--base-url <url>] [--minimum-app-version <ver>] [--check] [--pretty]';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 function parseArgs(argv) {
   const flags = {
     version: '', out: join(repoRoot, 'release', 'cdn'), baseUrl: 'https://cdn.fgogotran.com',
-    minimumAppVersion: '4.1.0', check: false, pretty: false,
+    minimumAppVersion: '4.1.0', check: false, pretty: false, catalogOnly: false,
   };
   const positional = [];
   const value = (index) => {
@@ -56,6 +60,7 @@ function parseArgs(argv) {
     else if (arg === '--minimum-app-version') { flags.minimumAppVersion = value(index); index++; }
     else if (arg === '--check') flags.check = true;
     else if (arg === '--pretty') flags.pretty = true;
+    else if (arg === '--catalog-only') flags.catalogOnly = true;
     else if (arg.startsWith('--')) throw new Error(usage);
     else positional.push(arg);
   }
@@ -129,8 +134,61 @@ async function buildCatalogDocument(catalog, out, flags) {
   };
 }
 
+/**
+ * The announcement board source. A missing file means "no announcements"; the
+ * array shape is the one the native catalogue used, so migrated entries keep
+ * working. Wrapped in `{schemaVersion, generatedAt, announcements}` for the CDN.
+ */
+async function readAnnouncements() {
+  if (!(await exists(announcementsPath))) return [];
+  const parsed = JSON.parse(await readFile(announcementsPath, 'utf8'));
+  const items = Array.isArray(parsed) ? parsed : parsed?.announcements;
+  if (!Array.isArray(items)) throw new Error('announcements.json must be an array');
+  const ids = new Set();
+  for (const item of items) {
+    const id = String(item?.id ?? '').trim();
+    if (!id) throw new Error('announcement is missing id');
+    if (ids.has(id)) throw new Error('duplicate announcement id ' + id);
+    ids.add(id);
+    if (item.title == null) throw new Error(id + ': missing title');
+    if (item.body == null) throw new Error(id + ': missing body');
+    if (!String(item.date ?? '').trim()) throw new Error(id + ': missing date');
+    if (!ANNOUNCEMENT_LEVELS.includes(item.level ?? 'info')) {
+      throw new Error(id + ': level must be ' + ANNOUNCEMENT_LEVELS.join(', '));
+    }
+  }
+  return items.map((item) => ({
+    id: String(item.id),
+    title: item.title,
+    body: item.body,
+    date: String(item.date),
+    level: item.level ?? 'info',
+  }));
+}
+
+async function buildAnnouncementsDocument() {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    announcements: await readAnnouncements(),
+  };
+}
+
+/** Writes `story/latest/catalog.json` and `story/latest/announcements.json`. */
+async function writeCatalogAndAnnouncements(catalog, flags) {
+  const document = await buildCatalogDocument(catalog, flags.out, flags);
+  const announcements = await buildAnnouncementsDocument();
+  await mkdir(join(flags.out, 'story', 'latest'), { recursive: true });
+  await writeFile(join(flags.out, 'story', 'latest', 'catalog.json'),
+    JSON.stringify(document, null, 2) + '\n', 'utf8');
+  await writeFile(join(flags.out, 'story', 'latest', 'announcements.json'),
+    JSON.stringify(announcements, null, 2) + '\n', 'utf8');
+  return { document, announcements };
+}
+
 async function checkRelease(catalog, out, flags) {
   const problems = [];
+  problems.push(...await checkAnnouncements(out));
   const catalogJsonPath = join(out, 'story', 'latest', 'catalog.json');
   if (!(await exists(catalogJsonPath))) {
     return { ok: false, problems: ['missing ' + catalogJsonPath] };
@@ -173,13 +231,34 @@ async function checkRelease(catalog, out, flags) {
   return { ok: problems.length === 0, problems };
 }
 
+/** `--check`: the published announcement board must match its source file. */
+async function checkAnnouncements(out) {
+  const problems = [];
+  const source = await readAnnouncements();
+  const publishedPath = join(out, 'story', 'latest', 'announcements.json');
+  if (!(await exists(publishedPath))) {
+    problems.push('missing ' + publishedPath);
+    return problems;
+  }
+  const published = JSON.parse(await readFile(publishedPath, 'utf8'));
+  const items = Array.isArray(published?.announcements) ? published.announcements : [];
+  const sourceIds = source.map((item) => item.id);
+  const publishedIds = items.map((item) => String(item?.id ?? ''));
+  if (sourceIds.join('\u0000') !== publishedIds.join('\u0000')) {
+    problems.push('announcements.json is stale: published ' + JSON.stringify(publishedIds) +
+      ' != source ' + JSON.stringify(sourceIds));
+  }
+  for (const item of items) {
+    if (!ANNOUNCEMENT_LEVELS.includes(item?.level ?? 'info')) {
+      problems.push('announcement ' + item?.id + ': unknown level ' + JSON.stringify(item?.level));
+    }
+  }
+  return problems;
+}
+
 async function main(argv) {
   const { positional, flags } = parseArgs(argv);
-  const chapterId = positional[0];
-  if (!/^[a-z0-9][a-z0-9-]*$/i.test(chapterId ?? '')) throw new Error(usage);
   const catalog = await loadCatalog(catalogPath);
-  const row = catalog.get(chapterId);
-  if (!row) throw new Error('catalog.tsv has no row for ' + chapterId);
 
   if (flags.check) {
     const result = await checkRelease(catalog, flags.out, flags);
@@ -187,6 +266,29 @@ async function main(argv) {
     if (!result.ok) process.exitCode = 1;
     return;
   }
+
+  // Catalog and announcement board only: no chapter database is packaged or
+  // versioned, so a translation update can be announced without a release.
+  if (flags.catalogOnly) {
+    const written = await writeCatalogAndAnnouncements(catalog, flags);
+    const report = {
+      ok: true,
+      catalogOnly: true,
+      chaptersInCatalog: written.document.chapters.length,
+      published: written.document.chapters.filter((chapter) => chapter.available)
+        .map((chapter) => chapter.chapterId),
+      announcements: written.announcements.announcements.length,
+      catalog: join(flags.out, 'story', 'latest', 'catalog.json'),
+      announcementsFile: join(flags.out, 'story', 'latest', 'announcements.json'),
+    };
+    console.log(flags.pretty ? JSON.stringify(report, null, 2) : JSON.stringify(report));
+    return;
+  }
+
+  const chapterId = positional[0];
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(chapterId ?? '')) throw new Error(usage);
+  const row = catalog.get(chapterId);
+  if (!row) throw new Error('catalog.tsv has no row for ' + chapterId);
 
   const work = resolve(positional[1] && !positional[1].startsWith('--') ? positional[1] : defaultWork);
   const dbPath = join(work, chapterId, chapterId + '.db');
@@ -245,10 +347,8 @@ async function main(argv) {
   };
   await writeFile(join(chapterRoot, 'latest.json'), JSON.stringify(chapterManifest, null, 2) + '\n', 'utf8');
 
-  const document = await buildCatalogDocument(catalog, flags.out, flags);
-  await mkdir(join(flags.out, 'story', 'latest'), { recursive: true });
-  await writeFile(join(flags.out, 'story', 'latest', 'catalog.json'),
-    JSON.stringify(document, null, 2) + '\n', 'utf8');
+  const written = await writeCatalogAndAnnouncements(catalog, flags);
+  const document = written.document;
 
   const report = {
     ok: true,
@@ -263,6 +363,7 @@ async function main(argv) {
     latest: row.latest === 1,
     chaptersInCatalog: document.chapters.length,
     published: document.chapters.filter((chapter) => chapter.available).map((chapter) => chapter.chapterId),
+    announcements: written.announcements.announcements.length,
   };
   console.log(flags.pretty ? JSON.stringify(report, null, 2) : JSON.stringify(report));
 }

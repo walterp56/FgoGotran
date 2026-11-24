@@ -65,6 +65,9 @@ enum class StoryChapterCategory(val catalogValue: String) {
 
 object StoryCatalogRules {
     const val CATALOG_URL = "https://cdn.fgogotran.com/story/latest/catalog.json"
+
+    /** Announcement board document; published next to [CATALOG_URL]. */
+    const val ANNOUNCEMENTS_URL = "https://cdn.fgogotran.com/story/latest/announcements.json"
     const val SUPPORTED_SCHEMA_VERSION = 1
     const val FINISHED = "finished"
     const val PROGRESSING = "progressing"

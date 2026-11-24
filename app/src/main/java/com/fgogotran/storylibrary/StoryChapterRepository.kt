@@ -29,6 +29,14 @@ data class StoryCatalogUiState(
     val error: String = ""
 )
 
+/** `story/latest/announcements.json`; a failure keeps the previous board visible. */
+data class StoryAnnouncementsUiState(
+    val loading: Boolean = false,
+    val loaded: Boolean = false,
+    val announcements: List<StoryAnnouncement> = emptyList(),
+    val error: String = ""
+)
+
 enum class StoryInstallPhase { IDLE, DOWNLOADING, VERIFYING, INSTALLING, DONE, FAILED }
 
 data class StoryInstallUiState(
@@ -67,10 +75,14 @@ class StoryChapterRepository @Inject constructor(
     private val _catalogState = MutableStateFlow(StoryCatalogUiState())
     val catalogState: StateFlow<StoryCatalogUiState> = _catalogState
 
+    private val _announcementsState = MutableStateFlow(StoryAnnouncementsUiState())
+    val announcementsState: StateFlow<StoryAnnouncementsUiState> = _announcementsState
+
     private val _installState = MutableStateFlow(StoryInstallUiState())
     val installState: StateFlow<StoryInstallUiState> = _installState
 
     private var catalogFetchedAt = 0L
+    private var announcementsFetchedAt = 0L
     private var cachedDatabase: StoryChapterDatabase? = null
     private var cachedDatabaseKey = ""
 
@@ -114,9 +126,50 @@ class StoryChapterRepository @Inject constructor(
         }
     }
 
+    /**
+     * Refreshes the announcement board from `story/latest/announcements.json`.
+     *
+     * Announcements are informational: a failure keeps the previous board visible
+     * and never blocks the chapter catalog.
+     */
+    suspend fun refreshAnnouncements(force: Boolean = false) {
+        val ageMs = System.currentTimeMillis() - announcementsFetchedAt
+        val current = _announcementsState.value
+        if (!force && current.loaded && ageMs in 0 until CATALOG_TTL_MS) return
+        _announcementsState.value = current.copy(loading = true, error = "")
+        try {
+            val body = withContext(Dispatchers.IO) {
+                val response = httpClient.get(cacheBustedUrl(StoryCatalogRules.ANNOUNCEMENTS_URL))
+                if (!response.status.isSuccess()) {
+                    throw IllegalStateException("Announcements HTTP ${response.status.value}")
+                }
+                response.bodyAsText()
+            }
+            val document = json.decodeFromString(StoryAnnouncementsDocument.serializer(), body)
+            val announcements = document.announcements
+                .filter { it.id.isNotBlank() && !it.title.isBlank() }
+            _announcementsState.value = StoryAnnouncementsUiState(
+                loading = false,
+                loaded = true,
+                announcements = announcements,
+                error = ""
+            )
+            announcementsFetchedAt = System.currentTimeMillis()
+            FgoLogger.info(
+                tag,
+                "Story announcements loaded: ${announcements.size}, generated=${document.generatedAt}"
+            )
+        } catch (error: Throwable) {
+            FgoLogger.warn(tag, "Story announcements fetch failed", error)
+            _announcementsState.value = current.copy(
+                loading = false,
+                error = error.message ?: error.javaClass.simpleName
+            )
+        }
+    }
+
     /** Downloads, verifies, installs, and activates [chapter]. */
-    suspend fun downloadAndApply(chapter: StoryCatalogChapter) {
-        installMutex.withLock {
+    suspend fun downloadAndApply(chapter: StoryCatalogChapter) {        installMutex.withLock {
             val chapterId = chapter.chapterId
             val dbUrl = chapter.dbUrl
             val sha256 = chapter.dbSha256

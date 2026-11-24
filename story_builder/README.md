@@ -243,12 +243,35 @@ release/cdn/story/<chapter-id>/releases/<version>/story.db
 release/cdn/story/<chapter-id>/releases/<version>/story.db.sha256
 release/cdn/story/<chapter-id>/latest.json
 release/cdn/story/latest/catalog.json        # the app menu mapping
+release/cdn/story/latest/announcements.json  # the Story Library announcement board
 ```
 
 Upload the versioned chapter files first, then `story/<id>/latest.json`, then
-`story/latest/catalog.json` last. The app compares `contentVersion` with the
-installed pack: a newer version is what the **Update** button re-downloads after a
-day-by-day sub-chapter release.
+`story/latest/announcements.json`, then `story/latest/catalog.json` last. The app
+compares `contentVersion` with the installed pack: a newer version is what the
+**Update** button re-downloads after a day-by-day sub-chapter release.
+
+### Announcement board
+
+`story_builder/announcements.json` is the board source: an array of
+`{id, title, body, date, level}`, where `title`/`body` are either a plain string
+or `{"en", "zh-Hans", "zh-Hant"}` and `level` is `info`, `success`, or `warning`.
+The app shows the entries at the top of Story Library, in file order, and a
+failure to fetch keeps the previous board rather than hiding it.
+
+```powershell
+# rewrite catalog.json + announcements.json only; no chapter database is touched
+.\scripts\release-story.ps1 -CatalogOnly
+.\scripts\release-story.ps1 -CatalogOnly -S3Uri s3://YOUR_BUCKET -CloudFrontDistributionId YOUR_DISTRIBUTION_ID
+
+# the same two files by hand
+node story_builder/package-story-release.mjs --catalog-only
+node story_builder/package-story-release.mjs --check      # names a stale board
+```
+
+`--check` fails when the published `announcements.json` no longer lists the same
+ids as the source, so an edited board is never silently skipped at upload time.
+A normal chapter release also regenerates both files.
 
 Database schema (`PRAGMA user_version = 1`), one file holding all three locales:
 

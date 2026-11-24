@@ -460,6 +460,7 @@
     <string name="story_library_title">Story Library</string>
     <string name="story_library_back">Back</string>
     <string name="story_library_intro">Pick a chapter and download its translation database. Once applied, translations come only from the downloaded chapter and the API is not used.</string>
+<string name="story_library_announcements">Announcements</string>
     <string name="story_library_category_newest">Newest</string>
     <string name="story_library_category_main_story">Main Story</string>
     <string name="story_library_category_events">Events</string>

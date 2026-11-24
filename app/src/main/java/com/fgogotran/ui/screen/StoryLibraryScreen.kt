@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
+import com.fgogotran.storylibrary.StoryAnnouncement
 import com.fgogotran.storylibrary.StoryCatalogRules
 import com.fgogotran.storylibrary.StoryCatalogChapter
 import com.fgogotran.storylibrary.StoryChapterCategory
@@ -72,6 +73,7 @@ fun StoryLibraryScreen(
 ) {
     val scope = rememberCoroutineScope()
     val catalog by repository.catalogState.collectAsStateWithLifecycle()
+    val announcements by repository.announcementsState.collectAsStateWithLifecycle()
     val install by repository.installState.collectAsStateWithLifecycle()
     val enabled by settingsRepository.storyChapterDbEnabled.collectAsStateWithLifecycle(initialValue = false)
     val fuzzyMatch by settingsRepository.storyChapterFuzzyMatch.collectAsStateWithLifecycle(initialValue = true)
@@ -82,7 +84,12 @@ fun StoryLibraryScreen(
     )
     var filter by rememberSaveable { mutableStateOf(StoryCategoryFilter.NEWEST) }
 
-    LaunchedEffect(Unit) { repository.refreshCatalog() }
+    // Opening the page is the refresh signal: a new announcement or chapter should
+    // not wait for the 10-minute catalogue TTL.
+    LaunchedEffect(Unit) {
+        repository.refreshCatalog(force = true)
+        repository.refreshAnnouncements(force = true)
+    }
 
     Scaffold(
         topBar = {
@@ -109,6 +116,11 @@ fun StoryLibraryScreen(
                 text = stringResource(R.string.story_library_intro),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            StoryAnnouncementBoard(
+                announcements = announcements.announcements,
+                languageTag = targetLocale
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -357,6 +369,61 @@ private fun StoryChapterCard(
                     TextButton(colors = FgoUiColors.textButtonColors(), onClick = onRemove) {
                         Text(stringResource(R.string.story_library_remove), color = MaterialTheme.colorScheme.error)
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Announcement board: story translation news, published as
+ * `story/latest/announcements.json` next to the chapter catalogue.
+ *
+ * Entries are shown in document order; the publisher curates it. A warning entry
+ * uses the error colour, a success entry the primary colour.
+ */
+@Composable
+private fun StoryAnnouncementBoard(
+    announcements: List<StoryAnnouncement>,
+    languageTag: String
+) {
+    if (announcements.isEmpty()) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        border = FgoUiStyle.cardBorder,
+        colors = FgoUiColors.cardColors()
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = stringResource(R.string.story_library_announcements),
+                style = MaterialTheme.typography.titleMedium
+            )
+            announcements.forEachIndexed { index, item ->
+                if (index > 0) HorizontalDivider()
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = item.title.forLanguage(languageTag),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = when (item.level) {
+                                "warning" -> MaterialTheme.colorScheme.error
+                                "success" -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = item.displayDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = item.body.forLanguage(languageTag),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

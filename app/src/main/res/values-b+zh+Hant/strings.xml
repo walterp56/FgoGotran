@@ -461,6 +461,7 @@
     <string name="story_library_title">劇情庫</string>
     <string name="story_library_back">返回</string>
     <string name="story_library_intro">選擇章節並下載該章的劇情翻譯資料庫。套用後，翻譯只來自已下載的資料庫，不再呼叫 API。</string>
+<string name="story_library_announcements">公告</string>
     <string name="story_library_category_newest">最新</string>
     <string name="story_library_category_main_story">主線</string>
     <string name="story_library_category_events">活動</string>

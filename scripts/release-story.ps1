@@ -9,7 +9,10 @@ param(
     [string]$AwsCli = "aws",
     [string]$CloudFrontDistributionId = "",
     [switch]$SkipVerify,
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    # Rebuild only story/latest/catalog.json and story/latest/announcements.json.
+    # No chapter database is packaged, versioned, or uploaded.
+    [switch]$CatalogOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,6 +56,79 @@ function Join-S3Path {
     )
 
     return "$($Root.TrimEnd('/'))/$($Path.TrimStart('/'))"
+}
+
+function Update-StoryCdnInvalidation {
+    if (-not $CloudFrontDistributionId) {
+        Write-Warning "No CloudFront distribution id was provided. Existing edge caches may keep serving old story files."
+        return
+    }
+
+    Write-Host "Invalidating CloudFront path /story/*"
+    $InvalidationId = & $AwsCli cloudfront create-invalidation `
+        --distribution-id $CloudFrontDistributionId `
+        --paths "/story/*" `
+        --query "Invalidation.Id" `
+        --output text
+    Assert-ExitCode "Create CloudFront invalidation"
+
+    if ($InvalidationId) {
+        Write-Host "Waiting for CloudFront invalidation $InvalidationId"
+        & $AwsCli cloudfront wait invalidation-completed `
+            --distribution-id $CloudFrontDistributionId `
+            --id $InvalidationId
+        Assert-ExitCode "Wait for CloudFront invalidation"
+    }
+}
+
+# Announcement-only publish: catalogue plus announcement board, no chapter files.
+function Publish-StoryCatalogOnly {
+    param([string]$OutputRoot)
+
+    if (-not $S3Uri.StartsWith("s3://")) {
+        throw "S3Uri must start with s3://, for example s3://your-bucket"
+    }
+
+    $AwsCommand = Get-Command $AwsCli -ErrorAction SilentlyContinue
+    if (-not $AwsCommand) {
+        throw "AWS CLI not found: $AwsCli"
+    }
+
+    $Announcements = Join-Path $OutputRoot "story\latest\announcements.json"
+    $Catalog = Join-Path $OutputRoot "story\latest\catalog.json"
+    foreach ($file in @($Announcements, $Catalog)) {
+        if (-not (Test-Path $file)) { throw "Missing story catalog file: $file" }
+    }
+
+    Write-Host ""
+    Write-Host "Publishing story catalogue and announcements to $($S3Uri.TrimEnd('/'))"
+
+    # Announcements first, catalogue last, so a client never sees a catalogue
+    # newer than the board it belongs to.
+    & $AwsCli s3 cp $Announcements (Join-S3Path $S3Uri "story/latest/announcements.json") `
+        --content-type "application/json; charset=utf-8" `
+        --cache-control $NoCacheControl
+    Assert-ExitCode "Upload story announcements.json"
+
+    & $AwsCli s3 cp $Catalog (Join-S3Path $S3Uri "story/latest/catalog.json") `
+        --content-type "application/json; charset=utf-8" `
+        --cache-control $NoCacheControl
+    Assert-ExitCode "Upload story catalog.json"
+
+    Update-StoryCdnInvalidation
+
+    if (-not $SkipVerify) {
+        $AnnouncementsUrl = "$($BaseUrl.TrimEnd('/'))/story/latest/announcements.json?verify=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
+        Write-Host "Verifying live announcements $AnnouncementsUrl"
+        $Live = Invoke-RestMethod -Uri $AnnouncementsUrl -Headers @{
+            "Cache-Control" = $NoCacheControl
+            "Pragma" = "no-cache"
+        }
+        if ($null -eq $Live.announcements) {
+            throw "Live announcements document has no announcements array"
+        }
+        Write-Host "Verified live announcements: $($Live.announcements.Count)"
+    }
 }
 
 function Publish-StoryRelease {
@@ -106,26 +182,7 @@ function Publish-StoryRelease {
         --cache-control $NoCacheControl
     Assert-ExitCode "Upload story catalog.json"
 
-    if ($CloudFrontDistributionId) {
-        Write-Host "Invalidating CloudFront path /story/*"
-        $InvalidationId = & $AwsCli cloudfront create-invalidation `
-            --distribution-id $CloudFrontDistributionId `
-            --paths "/story/*" `
-            --query "Invalidation.Id" `
-            --output text
-        Assert-ExitCode "Create CloudFront invalidation"
-
-        if ($InvalidationId) {
-            Write-Host "Waiting for CloudFront invalidation $InvalidationId"
-            & $AwsCli cloudfront wait invalidation-completed `
-                --distribution-id $CloudFrontDistributionId `
-                --id $InvalidationId
-            Assert-ExitCode "Wait for CloudFront invalidation"
-        }
-    }
-    else {
-        Write-Warning "No CloudFront distribution id was provided. Existing edge caches may keep serving old story files."
-    }
+    Update-StoryCdnInvalidation
 
     if (-not $SkipVerify) {
         $CatalogUrl = "$($BaseUrl.TrimEnd('/'))/story/latest/catalog.json?verify=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
@@ -147,6 +204,28 @@ function Publish-StoryRelease {
 
 Push-Location $RepoRoot
 try {
+    if ($CatalogOnly) {
+        Write-Host "Regenerating the story catalogue and announcement board"
+        $CatalogJson = & $NodeExe (Join-Path $RepoRoot "story_builder\package-story-release.mjs") `
+            --catalog-only --out $Output --base-url $BaseUrl --minimum-app-version $MinimumAppVersion
+        Assert-ExitCode "package-story-release --catalog-only"
+        $CatalogResult = ($CatalogJson | Out-String) | ConvertFrom-Json
+        Write-Host "Chapters: $($CatalogResult.chaptersInCatalog), announcements: $($CatalogResult.announcements)"
+        Write-Host "  $($CatalogResult.catalog)"
+        Write-Host "  $($CatalogResult.announcementsFile)"
+
+        if ($S3Uri) {
+            Publish-StoryCatalogOnly -OutputRoot $Output
+        }
+        else {
+            Write-Host ""
+            Write-Host "Upload these files (announcements first, catalogue last):"
+            Write-Host "  story/latest/announcements.json"
+            Write-Host "  story/latest/catalog.json"
+        }
+        return
+    }
+
     if (-not $SkipBuild) {
         Write-Host "Building chapter database for $ChapterId"
         & $NodeExe (Join-Path $RepoRoot "story_builder\build-story-db.mjs") $ChapterId
