@@ -59,11 +59,11 @@ function pushedFiles() {
     const fields = line.trim().split(/\s+/);
     if (fields.length < 4) continue;
     const localSha = fields[1];
-    const remoteSha = fields[3];
     if (/^0+$/.test(localSha)) continue;
-    const listArgs = /^0+$/.test(remoteSha)
-      ? ['rev-list', localSha, '--not', '--remotes']
-      : ['rev-list', `${remoteSha}..${localSha}`];
+    // Only commits that no remote ref already reaches. History that is already
+    // public on another branch (main) cannot leak anything new, and re-scanning
+    // it made every push of such a branch fail on an old, already-deleted path.
+    const listArgs = ['rev-list', localSha, '--not', '--remotes'];
     let commits = [localSha];
     try {
       commits = execFileSync('git', listArgs, { encoding: 'utf8' }).split('\n').filter(Boolean);
