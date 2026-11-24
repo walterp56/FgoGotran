@@ -68,4 +68,36 @@ class StoryAnnouncementTest {
         assertTrue(document.announcements.isEmpty())
         assertTrue(document.generatedAt.isEmpty())
     }
+
+    /**
+     * The board is a hand-editable CDN file. `story_builder/announcements.json` and
+     * the old native catalogue are bare arrays, and publishing one of those by hand
+     * must not blank the board.
+     */
+    @Test
+    fun `a bare announcement array decodes like the wrapped document`() {
+        val document = StoryAnnouncementsDocumentCodec.decode(
+            """
+            [
+              {"id":"a","title":"Bare array","body":"Body","date":"2026-11-25","level":"success"}
+            ]
+            """.trimIndent()
+        )
+        val item = document.announcements.single()
+        assertEquals("Bare array", item.title.forLanguage("en"))
+        assertEquals("success", item.level)
+        assertEquals(0, document.schemaVersion)
+    }
+
+    @Test
+    fun `the wrapped document still decodes through the codec`() {
+        val document = StoryAnnouncementsDocumentCodec.decode(
+            """
+            {"schemaVersion":1,"announcements":[{"id":"b","title":{"en":"Wrapped"},"body":"x","date":"2026-11-25"}]}
+            """.trimIndent()
+        )
+        assertEquals(1, document.schemaVersion)
+        assertEquals("Wrapped", document.announcements.single().title.forLanguage("en"))
+        assertEquals("info", document.announcements.single().level)
+    }
 }

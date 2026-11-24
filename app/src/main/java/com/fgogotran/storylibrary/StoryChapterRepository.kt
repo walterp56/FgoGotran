@@ -145,7 +145,7 @@ class StoryChapterRepository @Inject constructor(
                 }
                 response.bodyAsText()
             }
-            val document = json.decodeFromString(StoryAnnouncementsDocument.serializer(), body)
+            val document = StoryAnnouncementsDocumentCodec.decode(body)
             val announcements = document.announcements
                 .filter { it.id.isNotBlank() && !it.title.isBlank() }
             _announcementsState.value = StoryAnnouncementsUiState(

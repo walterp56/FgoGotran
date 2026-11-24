@@ -3,6 +3,8 @@ package com.fgogotran.storylibrary
 import com.fgogotran.data.SettingsRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonTransformingSerializer
@@ -26,6 +28,27 @@ data class StoryAnnouncementsDocument(
     val generatedAt: String = "",
     val announcements: List<StoryAnnouncement> = emptyList()
 )
+
+/**
+ * Decodes the announcement document.
+ *
+ * The published shape is the object above, but the board is a hand-editable CDN
+ * file: a bare array of announcements is accepted too, which is also the shape of
+ * `story_builder/announcements.json` and of the old native catalogue.
+ */
+object StoryAnnouncementsDocumentCodec {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun decode(text: String): StoryAnnouncementsDocument {
+        val element = json.parseToJsonElement(text)
+        val document = if (element is JsonArray) {
+            buildJsonObject { put("announcements", element) }
+        } else {
+            element
+        }
+        return json.decodeFromJsonElement(StoryAnnouncementsDocument.serializer(), document)
+    }
+}
 
 @Serializable
 data class StoryAnnouncement(

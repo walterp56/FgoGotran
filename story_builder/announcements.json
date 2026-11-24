@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "id": "2026-11-25-story-library",
+    "title": {
+      "en": "Story Library: event 80639 is fully translated",
+      "zh-Hans": "剧情库：80639 活动已全部翻译",
+      "zh-Hant": "劇情庫：80639 活動已全部翻譯"
+    },
+    "body": {
+      "en": "Midwinter Swimsuit Special — 4,521 lines in Simplified Chinese, Traditional Chinese and English. Open Story Library, download the pack, then enable chapter translation.",
+      "zh-Hans": "严冬泳装特别篇——简中、繁中、英文共 4,521 行。打开剧情库下载该章节，再开启“使用下载的剧情翻译”。",
+      "zh-Hant": "嚴冬泳裝特別篇——簡中、繁中、英文共 4,521 行。打開劇情庫下載該章節，再開啟「使用下載的劇情翻譯」。"
+    },
+    "date": "2026-11-25",
+    "level": "success"
+  }
+]
