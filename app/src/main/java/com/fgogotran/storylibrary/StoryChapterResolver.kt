@@ -134,6 +134,16 @@ class StoryChapterResolver @Inject constructor(
         val dialogueRow = input.dialogue?.let {
             matchRow(database, it, input.name.orEmpty(), storyLocale, playerName)
         }
+
+        // The frame carries both plates and the matched row carries both answers, so a
+        // line that resolved decides its speaker. A short plate is the weaker evidence:
+        // a damaged or unknown name must not leave Japanese (or another character) next
+        // to a line that came straight out of the pack.
+        val rowName = if (input.name.isNullOrBlank()) null else dialogueRow
+            ?.takeIf { !it.isChoice && it.jpName.isNotBlank() }
+            ?.let { row -> row.name(locale).takeIf { it.isNotBlank() } }
+            ?.let { name -> result(render(name, playerName, gender), locale) }
+
         val dialogueResult: TranslateResult? = when {
             dialogueRow != null -> {
                 resetMisses()
@@ -155,7 +165,7 @@ class StoryChapterResolver @Inject constructor(
         }
 
         return SceneTranslateResult(
-            name = nameResult,
+            name = rowName ?: nameResult,
             dialogue = dialogueResult,
             choices = choiceResults,
             voiceHint = null,
@@ -210,7 +220,7 @@ class StoryChapterResolver @Inject constructor(
             locale = locale,
             flowScriptId = lastScriptId,
             flowSeq = lastSeq,
-            speakerKey = StoryOcrNormalizer.normalizeName(speaker)
+            speakerKey = StoryOcrNormalizer.nameKey(speaker)
         ) ?: return null
         FgoLogger.debug(tag, "Story dialogue matched approximately: script=${row.scriptId} seq=${row.seq}")
         return row
@@ -227,7 +237,7 @@ class StoryChapterResolver @Inject constructor(
         if (window.isEmpty()) return null
         val query = StoryFuzzyMatcher.query(
             StoryOcrNormalizer.fuzzyKey(text),
-            StoryOcrNormalizer.normalizeName(speaker)
+            StoryOcrNormalizer.nameKey(speaker)
         )
         val match = StoryFuzzyMatcher.selectInWindow(query, window, locale) ?: return null
         return database.rowBySeq(match.entry.id)
@@ -310,7 +320,7 @@ class StoryChapterResolver @Inject constructor(
             locale = locale,
             flowScriptId = flowScriptId,
             flowSeq = flowSeq,
-            speakerKey = StoryOcrNormalizer.normalizeName(speaker),
+            speakerKey = StoryOcrNormalizer.nameKey(speaker),
             choice = choice
         ) ?: return null
         FgoLogger.debug(
@@ -325,9 +335,9 @@ class StoryChapterResolver @Inject constructor(
         speaker: String
     ): StoryChapterDatabase.Row {
         if (candidates.size == 1) return candidates.first()
-        val speakerKey = StoryOcrNormalizer.normalizeName(speaker)
+        val speakerKey = StoryOcrNormalizer.nameKey(speaker)
         val sameSpeaker = if (speakerKey.isEmpty()) emptyList()
-        else candidates.filter { StoryOcrNormalizer.normalizeName(it.jpName) == speakerKey }
+        else candidates.filter { StoryOcrNormalizer.nameKey(it.jpName) == speakerKey }
         val pool = sameSpeaker.ifEmpty { candidates }
         val continuing = lastScriptId?.let { script ->
             pool.filter { it.scriptId == script }
@@ -343,8 +353,14 @@ class StoryChapterResolver @Inject constructor(
         locale: StoryLocale
     ): StoryChapterDatabase.NameTargets? {
         database.nameTargets(speaker)?.let { return it }
+        val key = StoryOcrNormalizer.nameKey(speaker)
+        // A plate decoration glyph (`壱与A`) is common and a short name has too
+        // few bigrams for the approximate lookup, so the prefix rule runs first.
+        database.prefixNameTargets(key)?.let { targets ->
+            FgoLogger.debug(tag, "Story speaker matched with a plate suffix: $key")
+            return targets
+        }
         if (!fuzzyMatchingEnabled()) return null
-        val key = StoryOcrNormalizer.normalizeName(speaker)
         val targets = database.fuzzyNameTargets(key, locale, lastScriptId, lastSeq) ?: return null
         FgoLogger.debug(tag, "Story speaker matched approximately: $key")
         return targets

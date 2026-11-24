@@ -1,6 +1,7 @@
 package com.fgogotran.storylibrary
 
 import com.fgogotran.scriptmemory.ScriptMemory
+import com.fgogotran.text.KanaFold
 import java.security.MessageDigest
 import java.text.Normalizer
 
@@ -50,7 +51,8 @@ object StoryOcrNormalizer {
     }
 
     /**
-     * Lookup key for approximate matching: [normalize] with dash width folded.
+     * Lookup key for approximate matching: [normalize] with dash width and small
+     * katakana folded.
      *
      * The exact [hash] contract is unchanged so already-published databases keep
      * matching; this key is app-side only.
@@ -58,10 +60,12 @@ object StoryOcrNormalizer {
     fun fuzzyKey(text: String): String = foldKey(normalize(text))
 
     /** Folds a [normalize]d string; exposed so the builder/test side can mirror it. */
-    fun foldKey(normalized: String): String = normalized
-        .replace(waveDashes, "~")
-        .replace(horizontalBars, "ー")
-        .replace('一', 'ー')
+    fun foldKey(normalized: String): String = KanaFold.smallKatakana(
+        normalized
+            .replace(waveDashes, "~")
+            .replace(horizontalBars, "ー")
+            .replace('一', 'ー')
+    )
 
     /**
      * Key for a line whose `[%1]` slot the game filled with the player's name.
@@ -82,6 +86,17 @@ object StoryOcrNormalizer {
 
     /** Template side of [slotKey]: the stored `jp_norm` with its `%N` slots removed. */
     fun slotTemplateKey(storedNorm: String): String = foldKey(storedNorm.replace(masterNameToken, ""))
+
+    /**
+     * Speaker key for the pack, folded the same way as [fuzzyKey].
+     *
+     * A name plate is short and read by the same OCR, so it suffers the same small
+     * katakana promotion (`カッツ` captured as `カツツ`, `ノッブ` as `ノツブ`). Those
+     * names are three characters, below [StoryFuzzyMatcher]'s approximate minimum,
+     * so the fold is the only rule that can recover them; the name-box lookup in
+     * `Translator.normalizeNameLookup` folds the yōon kana for the same reason.
+     */
+    fun nameKey(name: String): String = foldKey(normalizeName(name))
 
     /** Speaker key; NFKC folds full-width punctuation before the exact name lookup. */
     fun normalizeName(name: String): String = Normalizer.normalize(name, Normalizer.Form.NFKC)

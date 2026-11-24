@@ -261,10 +261,21 @@ is one hash comparison, with scene/position as the fallback and
 back to the API while a chapter pack is applied; that switch is app-side.
 
 The app also folds the dash-width family (`～`, `〜`, `~`), the horizontal-bar
-family (`—`, `―`, `ー`), and the long-vowel mark OCR reads as `一` onto one
-approximate lookup key. That key is app-side only: stored `jp_hash` values are
-unchanged, so packs built before the rule keep matching exactly, and an
-approximate hit is rendered exactly like an exact one.
+family (`—`, `―`, `ー`), the long-vowel mark OCR reads as `一`, and a small
+katakana promoted to its full-size form (`スラニョっ` captured as `スラニヨっ`)
+onto one approximate lookup key. That key is app-side only: stored `jp_hash`
+values are unchanged, so packs built before the rule keep matching exactly, and
+an approximate hit is rendered exactly like an exact one. Hiragana is not
+folded; small katakana are the capture artifact that matters. Speaker plates
+use the same fold on `jp_name`, because the short names that need it most
+(`ノッブ`, `カッツ`, `マシュ`) are below the approximate lookup's minimum.
+
+The same small-katakana fold (`app/src/main/java/com/fgogotran/text/KanaFold.kt`)
+keys the character-name and term lookups, so a plate read as `ノツブ` still
+reaches the stored `ノッブ` on the dialogue, suffix, and glossary paths. The
+glossary repair restores the stored spelling inside a matched form as well
+(`ジヤンヌ・ダルク` → `ジャンヌ・ダルク`); a repair changes the request, so it
+carries its own cache policy (`ocr-glossary-v2`).
 
 ## Android flow
 
@@ -302,6 +313,11 @@ approximate hit is rendered exactly like an exact one.
   with the configured player name removed, the row with its `%N` tokens removed.
   Exact template first, then the normal approximate rule, and never across line
   types. No pack rebuild is involved; the template comes from `jp_norm`.
+- A frame carries both plates and a matched row carries both answers, so a line
+  that resolved also decides its speaker. A damaged or unknown short plate must
+  never leave Japanese, or another character, next to a line that came from the
+  pack; the plate decides only when the line itself misses. The OCR speaker is
+  already evidence inside the approximate lookup and the exact-duplicate rule.
 - Index `(scene_id, position)` for nearby entries. Wait for a complete box.
   Use the OCR speaker when reliable, recent confirmed dialogue, and the ordered
   choice group to resolve duplicates. A distinctive exact match can re-establish

@@ -62,7 +62,7 @@ class StoryChapterFuzzyLookupTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "2026.11.24.1")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "8")
+            meta(raw, "entry_count", "11")
             insert(
                 raw, seq = 1, type = "dialogue", name = "松永弾正", script = "s1",
                 jp = "は～い♪　ナウなヤングに大人気！",
@@ -104,6 +104,24 @@ class StoryChapterFuzzyLookupTest {
                 raw, seq = 8, type = "dialogue", name = "", script = "s2",
                 jp = "のう、[%1]。",
                 cn = "吶，[%1]。"
+            )
+            insert(
+                raw, seq = 9, type = "dialogue", name = "壱与", script = "s2",
+                jp = "あ、それなら、卑弥呼さんに払ってもらいましたんで大丈夫です。",
+                cn = "啊，那個的話，已經請卑彌呼桑幫我拍掉了，所以沒問題。",
+                cnName = "壹與"
+            )
+            insert(
+                raw, seq = 10, type = "dialogue", name = "スラノッブ", script = "s3",
+                jp = "スラニョっ！？",
+                cn = "史萊諾！？",
+                cnName = "史萊姆阿信"
+            )
+            insert(
+                raw, seq = 11, type = "dialogue", name = "ノッブ", script = "s3",
+                jp = "ノッブじゃぞ。",
+                cn = "是阿信喔。",
+                cnName = "阿信"
             )
         } finally {
             raw.close()
@@ -153,7 +171,7 @@ class StoryChapterFuzzyLookupTest {
 
     @Test
     fun `speaker name matches approximately`() {
-        val key = StoryOcrNormalizer.normalizeName("水着ノック")
+        val key = StoryOcrNormalizer.nameKey("水着ノック")
         val targets = database.fuzzyNameTargets(key, StoryLocale.CN, "s1", 2)
         assertEquals("泳装阿信", targets?.cn)
         assertTrue(database.nameTargets("水着ノッブ") != null)
@@ -193,6 +211,32 @@ class StoryChapterFuzzyLookupTest {
     }
 
     /**
+     * Real capture: the pack stores `スラニョっ！？` and the OCR read the small `ョ` as a
+     * full-size `ヨ`. At five characters the one-glyph miss scores 0.5, so only the
+     * scene window could absorb it — and once, because that hit advances the flow past
+     * the line; every later capture of the same line then fell to the 0.72 dialogue
+     * threshold and rendered the wrong-chapter warning. The folded key matches with no
+     * flow state at all, which is what makes a repeat capture answer the same way.
+     */
+    @Test
+    fun `small katakana read as full size matches without any flow state`() {
+        val ocr = "スラニヨっ！？"
+        assertTrue(database.rowsForHash(StoryOcrNormalizer.hash(ocr)).isEmpty())
+        // Once the line is confirmed, the window opens after it and never answers for it again.
+        val window = database.windowEntries("s3", 10, 6)
+        assertEquals(listOf(11), window.map { it.seq })
+        assertNull(
+            StoryFuzzyMatcher.selectInWindow(
+                StoryFuzzyMatcher.query(StoryOcrNormalizer.fuzzyKey(ocr)), window, StoryLocale.CN
+            )
+        )
+
+        val key = StoryOcrNormalizer.fuzzyKey(ocr)
+        assertEquals(10, database.fuzzyDialogue(key, StoryLocale.CN, null, -1)?.seq)
+        assertEquals(10, database.fuzzyDialogue(key, StoryLocale.CN, null, -1)?.seq)
+    }
+
+    /**
      * Real capture: the choice is stored with a `[%1]` slot, but OCR reads the
      * rendered player name, so the exact and approximate pack lookups both miss.
      * The template lookup is what recovers the row.
@@ -223,6 +267,39 @@ class StoryChapterFuzzyLookupTest {
         val key = StoryOcrNormalizer.slotKey("カルデア学院からきた九条京香でーす！", "九条京香")
         assertTrue(database.slotRows(key, choice = false).isEmpty())
         assertEquals(7, database.slotRows(key, choice = true).firstOrNull()?.seq)
+    }
+
+    /**
+     * Real capture: a three-character plate is below the approximate minimum, so the
+     * only rule that can recover a promoted small kana there is the name key fold.
+     * `ノッブ` and `カッツ` are both three characters in this event.
+     */
+    @Test
+    fun `short speaker name tolerates a promoted small kana`() {
+        assertEquals("阿信", database.nameTargets(StoryOcrNormalizer.normalizeName("ノッブ"))?.cn)
+        assertEquals("阿信", database.nameTargets(StoryOcrNormalizer.normalizeName("ノツブ"))?.cn)
+        assertEquals("阿信", database.prefixNameTargets(StoryOcrNormalizer.nameKey("ノツブA"))?.cn)
+        // The fold is not a free edit: a different glyph still misses.
+        assertNull(database.nameTargets(StoryOcrNormalizer.normalizeName("ノック")))
+    }
+
+    /**
+     * Real capture: the name plate read `壱与A` while the pack stores `壱与`.
+     * A two-character name is below the approximate lookup's minimum, so the
+     * plate suffix rule is what recovers it.
+     */
+    @Test
+    fun `short speaker name tolerates a plate suffix glyph`() {
+        val key = StoryOcrNormalizer.nameKey("壱与A")
+        assertNull(database.nameTargets(key))
+        assertNull(database.fuzzyNameTargets(key, StoryLocale.CN, "s2", 8))
+        assertEquals("壹與", database.prefixNameTargets(key)?.cn)
+    }
+
+    @Test
+    fun `plate suffix rule rejects a longer tail`() {
+        assertNull(database.prefixNameTargets(StoryOcrNormalizer.nameKey("壱与ABC")))
+        assertNull(database.prefixNameTargets(StoryOcrNormalizer.nameKey("水着")))
     }
 
     private fun meta(db: SQLiteDatabase, key: String, value: String) {

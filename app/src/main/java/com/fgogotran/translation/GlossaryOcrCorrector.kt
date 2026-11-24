@@ -119,10 +119,13 @@ internal class GlossaryOcrCorrector(characters: List<CharacterNameEntity>, terms
     }
 
     companion object {
-        const val CACHE_POLICY = "ocr-glossary-v1"
+        const val CACHE_POLICY = "ocr-glossary-v2"
         private const val MAX_LENGTH = 64
         private val CONFUSABLES = mapOf('ニ' to '二', 'ロ' to '口', 'エ' to '工', 'カ' to '力',
-            'タ' to '夕', 'ト' to '卜', 'ヘ' to 'へ')
+            'タ' to '夕', 'ト' to '卜', 'ヘ' to 'へ',
+            // OCR promotes a small kana to its full-size form (ジャンヌ read as ジヤンヌ),
+            // so a known form is repaired back the same way a katakana read as kanji is.
+            'ョ' to 'ヨ', 'ッ' to 'ツ', 'ャ' to 'ヤ', 'ュ' to 'ユ')
         private val RUBY = Regex("〈[^〉]*〉")
         fun mightNeedCorrection(text: String): Boolean = text.any { it in CONFUSABLES.values }
         private fun forms(source: String, aliases: String?): List<Form> {

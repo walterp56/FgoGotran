@@ -117,10 +117,16 @@ class StoryFuzzyMatcherTest {
 
     @Test
     fun `speaker name tolerates one wrong glyph`() {
-        val query = StoryFuzzyMatcher.query(StoryOcrNormalizer.normalizeName("水着ノック"))
+        val query = StoryFuzzyMatcher.query(StoryOcrNormalizer.nameKey("水着ノック"))
         val pool = listOf(
-            entry(1, "水着ノッブ", cn = "泳装阿信", tw = "泳裝阿信", speaker = "水着ノッブ"),
-            entry(2, "松永弾正", cn = "松永弹正", tw = "松永彈正", speaker = "松永弾正")
+            entry(
+                1, "水着ノッブ", cn = "泳装阿信", tw = "泳裝阿信",
+                speaker = "水着ノッブ", fold = false
+            ),
+            entry(
+                2, "松永弾正", cn = "松永弹正", tw = "松永彈正",
+                speaker = "松永弾正", fold = false
+            )
         )
         val match = StoryFuzzyMatcher.select(
             query, pool, StoryFuzzyMatcher.NAME_THRESHOLD, StoryLocale.CN, null, -1
@@ -215,10 +221,13 @@ class StoryFuzzyMatcherTest {
         tw: String = "譯文$id",
         en: String = "line $id",
         speaker: String = "",
-        script: String = "script"
+        script: String = "script",
+        fold: Boolean = true
     ): StoryFuzzyMatcher.Entry = StoryFuzzyMatcher.Entry(
         id = id,
-        key = StoryOcrNormalizer.fuzzyKey(jp),
+        // Dialogue and choices use the folded lookup key; speaker names use the name
+        // key, which folds the same kana after `normalizeName`.
+        key = if (fold) StoryOcrNormalizer.fuzzyKey(jp) else StoryOcrNormalizer.nameKey(jp),
         speakerKey = speaker,
         scriptId = script,
         seq = id,

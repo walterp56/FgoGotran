@@ -2,6 +2,7 @@ package com.fgogotran.translation
 
 import com.fgogotran.text.EmphasisText
 import com.fgogotran.text.EmphasisRange
+import com.fgogotran.text.KanaFold
 
 import android.icu.text.Transliterator
 import com.fgogotran.data.ApiSamplingSettings
@@ -3997,7 +3998,7 @@ class Translator @Inject constructor(
     }
 
     private fun normalizeNameLookup(text: String): String {
-        return Normalizer.normalize(text, Normalizer.Form.NFKC)
+        val folded = Normalizer.normalize(text, Normalizer.Form.NFKC)
             .replace(Regex("""[\s　]+"""), "")
             .filterNot { it.isNameLookupPunctuation() }
             .replace('一', 'ー')
@@ -4005,14 +4006,9 @@ class Translator @Inject constructor(
             .replace('工', 'エ')
             .replace('－', 'ー')
             .replace('-', 'ー')
-            .replace('ァ', 'ア')
-            .replace('ィ', 'イ')
-            .replace('ゥ', 'ウ')
-            .replace('ェ', 'エ')
-            .replace('ォ', 'オ')
-            .replace('ャ', 'ヤ')
-            .replace('ュ', 'ユ')
-            .replace('ョ', 'ヨ')
+        // A plate read as ノツブ, カツツ, or ジヤンヌ must reach the same row as the
+        // stored ノッブ, カッツ, ジャンヌ; a three-kana name skips the fuzzy stages.
+        return KanaFold.smallKatakana(folded)
     }
 
     private fun shouldPreserveFullNameBoxText(text: String): Boolean {

@@ -135,9 +135,36 @@ internal class StoryChapterDatabase private constructor(
     }
 
     fun nameTargets(speaker: String): NameTargets? {
-        val key = StoryOcrNormalizer.normalizeName(speaker)
+        val key = StoryOcrNormalizer.nameKey(speaker)
         if (key.isEmpty()) return null
         return names[key]
+    }
+
+    /**
+     * Name lookup for a capture with an extra plate glyph after the name.
+     *
+     * The name plate sometimes OCRs a decoration (`壱与A`). A two-character name
+     * carries too few bigrams for [fuzzyNameTargets], so the stored name that
+     * starts the capture wins when it is the longest such name and the capture
+     * adds at most [MAX_NAME_SUFFIX] characters.
+     */
+    fun prefixNameTargets(key: String): NameTargets? {
+        if (key.isEmpty()) return null
+        var bestKey: String? = null
+        var best: NameTargets? = null
+        for ((name, targets) in names) {
+            if (name.length >= key.length) continue
+            if (key.length - name.length > MAX_NAME_SUFFIX) continue
+            if (!key.startsWith(name)) continue
+            val current = bestKey
+            if (current == null || name.length > current.length) {
+                bestKey = name
+                best = targets
+            } else if (name.length == current.length && targets != best) {
+                return null
+            }
+        }
+        return best
     }
 
     /**
@@ -225,7 +252,7 @@ internal class StoryChapterDatabase private constructor(
                     StoryFuzzyMatcher.Entry(
                         id = cursor.getInt(0),
                         key = StoryOcrNormalizer.foldKey(cursor.getString(3) ?: ""),
-                        speakerKey = StoryOcrNormalizer.normalizeName(cursor.getString(2) ?: ""),
+                        speakerKey = StoryOcrNormalizer.nameKey(cursor.getString(2) ?: ""),
                         scriptId = cursor.getString(1) ?: "",
                         seq = cursor.getInt(0),
                         cn = cursor.getString(4) ?: "",
@@ -345,6 +372,9 @@ internal class StoryChapterDatabase private constructor(
         private const val MAX_CANDIDATES = 24
         private const val SCHEMA_VERSION = 1
 
+        /** Extra plate glyphs a name capture may carry and still match. */
+        private const val MAX_NAME_SUFFIX = 2
+
         /** Opens and validates [file]; throws [IllegalStateException] when unusable. */
         fun open(file: File, expectedChapterId: String?): StoryChapterDatabase {
             require(file.isFile && file.length() > 0L) { "Chapter database is missing or empty" }
@@ -401,7 +431,7 @@ internal class StoryChapterDatabase private constructor(
                 null
             ).use { cursor ->
                 while (cursor.moveToNext()) {
-                    val key = StoryOcrNormalizer.normalizeName(cursor.getString(0) ?: "")
+                    val key = StoryOcrNormalizer.nameKey(cursor.getString(0) ?: "")
                     if (key.isEmpty() || names.containsKey(key)) continue
                     names[key] = NameTargets(
                         cn = cursor.getString(1) ?: "",

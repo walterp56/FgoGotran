@@ -59,6 +59,18 @@ class GlossaryOcrCorrectorTest {
             corrector().correctText("二キチッチさんとニキチッチ。", "二キチッチ").text)
     }
 
+    @Test fun `promoted small kana is repaired back inside known forms`() {
+        val matcher = corrector()
+        assertEquals("ニキチッチ", matcher.correctName("ニキチツチ").text)
+        assertEquals("ロビンフッド", matcher.correctName("ロビンフツド").text)
+        assertEquals("ニキチッチとロビンフッド。", matcher.correctText("ニキチツチとロビンフツド。").text)
+
+        val term = TermEntity(jpTerm = "ジャンヌ・ダルク", cnTerm = "貞德", category = "character")
+        val withTerm = GlossaryOcrCorrector(emptyList(), listOf(term))
+        assertEquals("ジャンヌ・ダルク", withTerm.correctText("ジヤンヌ・ダルク").text)
+        assertEquals("ジャンヌ・ダルクとジヤンヌ。", withTerm.correctText("ジヤンヌ・ダルクとジヤンヌ。").text)
+    }
+
     @Test fun `ordinary kanji short labels and two mistakes remain unchanged`() {
         for (source in listOf("二人", "第二", "魔力", "工房", "入口", "二世", "二キチツチ", "工ミャ", "シツソン", "ー一")) {
             assertFalse(corrector().correctText(source).changed, source)
@@ -106,8 +118,8 @@ class GlossaryOcrCorrectorTest {
         val material = listOf("existing", "key", "")
         assertSame(material, extendGlossaryOcrCacheMaterial(material, glossaryOcrCachePolicy(corrector().correctName("ニキチッチ"))))
         val policy = glossaryOcrCachePolicy(null, corrector().correctName("二キチッチ"))
-        assertEquals("ocr-glossary-v1", policy)
-        assertEquals(material + "ocr=ocr-glossary-v1", extendGlossaryOcrCacheMaterial(material, policy))
+        assertEquals("ocr-glossary-v2", policy)
+        assertEquals(material + "ocr=ocr-glossary-v2", extendGlossaryOcrCacheMaterial(material, policy))
     }
 
     @Test fun `snapshot is reused and invalidation reloads local overrides`() = runBlocking {

@@ -56,6 +56,17 @@ class StoryOcrNormalizerTest {
     }
 
     /**
+     * The name plate goes through the same OCR, so a three-character name such as
+     * `ノッブ` is below the approximate minimum and is recovered only by the fold.
+     */
+    @Test
+    fun `name key folds a promoted small katakana`() {
+        assertEquals("ノッブ", StoryOcrNormalizer.normalizeName("ノッブ"))
+        assertEquals("ノツブ", StoryOcrNormalizer.nameKey("ノッブ"))
+        assertEquals(StoryOcrNormalizer.nameKey("ノッブ"), StoryOcrNormalizer.nameKey("ノツブ"))
+    }
+
+    /**
      * Real capture: the source line uses U+FF5E but OCR emitted U+301C. NFKC folds
      * the first to ASCII `~` and leaves the second alone, so the exact hash must stay
      * different while the approximate key lines them up.
@@ -85,6 +96,39 @@ class StoryOcrNormalizerTest {
         assertEquals("ほーん", StoryOcrNormalizer.fuzzyKey(source))
         assertEquals(StoryOcrNormalizer.fuzzyKey(source), StoryOcrNormalizer.fuzzyKey(ocr))
         assertNotEquals(StoryOcrNormalizer.hash(source), StoryOcrNormalizer.hash(ocr))
+    }
+
+    /**
+     * Real capture: the source line is `スラニョっ！？` but the OCR returned the small
+     * `ョ` as a full-size `ヨ`. The line is five characters, so the one-glyph miss
+     * scores 0.5 — under the dialogue threshold — and the fold is what keeps it
+     * matchable after the scene window has moved past it.
+     */
+    @Test
+    fun `fuzzy key folds a katakana small kana read as full size`() {
+        val source = "スラニョっ！？"
+        val ocr = "スラニヨっ！？"
+        assertEquals("スラニヨっ", StoryOcrNormalizer.fuzzyKey(source))
+        assertEquals(StoryOcrNormalizer.fuzzyKey(source), StoryOcrNormalizer.fuzzyKey(ocr))
+        assertNotEquals(StoryOcrNormalizer.hash(source), StoryOcrNormalizer.hash(ocr))
+    }
+
+    @Test
+    fun `fuzzy key folds a katakana sokuon`() {
+        assertEquals(
+            StoryOcrNormalizer.fuzzyKey("スラノッブ"),
+            StoryOcrNormalizer.fuzzyKey("スラノツブ")
+        )
+    }
+
+    /** Hiragana is dense text, not a katakana capture: its small kana stay as they are. */
+    @Test
+    fun `fuzzy key leaves hiragana small kana alone`() {
+        assertEquals("ちょっと", StoryOcrNormalizer.fuzzyKey("ちょっと"))
+        assertNotEquals(
+            StoryOcrNormalizer.fuzzyKey("ちょっと"),
+            StoryOcrNormalizer.fuzzyKey("ちよつと")
+        )
     }
 
     /**

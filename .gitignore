@@ -105,6 +105,19 @@ Thumbs.db
 *.log
 *.tmp
 
+# Local device and log evidence (screen dumps, adb captures) never leave the machine.
+logcat*.txt
+*logcat*.txt
+*.logcat
+
+# SQLite sidecars and packaged artifacts from local runs; the tracked schema is
+# SQL text, never a database binary.
+*.db-wal
+*.db-shm
+*.db-journal
+*.apk
+*.aab
+
 # Local research documents; product guides remain versioned.
 /docs/*
 

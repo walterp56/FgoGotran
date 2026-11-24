@@ -58,11 +58,12 @@ class GlossaryOcrTranslationIntegrationTest {
     private val rawAnswers = ArrayDeque<String>()
     private val sentRequests = mutableListOf<HttpRequestData>()
     private val nikitich = CharacterNameEntity(jpName = "ニキチッチ", cnName = "尼基季奇", enName = "Nikitich", gender = "女性")
+    private val nobbu = CharacterNameEntity(jpName = "ノッブ", cnName = "阿信", enName = "Nobu")
 
     @Before fun setup() = runBlocking {
         val app = RuntimeEnvironment.getApplication()
         val local = dao(LocalGlossaryDao::class.java, emptyList<Any>())
-        val terms = dao(TermDao::class.java, listOf(nikitich))
+        val terms = dao(TermDao::class.java, listOf(nikitich, nobbu))
         settings = SettingsRepository(app, local)
         settings.saveApiSettings(settings.recommendedApiProfile("deepseek").copy(
             apiKey = "offline-fixture-only", model = "deepseek-chat"
@@ -367,6 +368,29 @@ class GlossaryOcrTranslationIntegrationTest {
         assertEquals("character-db", fixed?.backend)
         assertEquals(1, requests.size, "repair must bypass the real poisoned cache without another API call")
     }
+
+    /**
+     * Real capture: the plate stores `ノッブ` but the OCR promoted the small `ッ` to
+     * `ツ`. A three-kana name is below every fuzzy stage and the visible-name lookup
+     * is exact by design, so the repair stage is what restores the stored form; the
+     * folded map key covers the dialogue, suffix, and glossary paths.
+     */
+    @Test(timeout = 30_000) fun promotedSmallKanaPlateResolvesFromTheCharacterDatabase() = runBlocking {
+        for ((target, expected) in listOf("zh-Hans" to "阿信", "zh-Hant" to "阿信", "en" to "Nobu")) {
+            settings.setTargetLanguage(target)
+            val scene = translator.translateScene(SceneTranslateInput("ノツブ", null, emptyList()))
+            assertEquals(expected, scene.name?.translatedText)
+            assertEquals("character-db", scene.name?.backend)
+        }
+        assertTrue(requests.isEmpty(), "the repaired plate must answer without the API")
+        // The map key behind dialogue suffixes and glossary lookups carries the same fold.
+        assertEquals(nameLookup("ノッブ"), nameLookup("ノツブ"))
+    }
+
+    private fun nameLookup(text: String): String =
+        Translator::class.java.getDeclaredMethod("normalizeNameLookup", String::class.java)
+            .apply { isAccessible = true }
+            .invoke(translator, text) as String
 
     private fun <T : Any> dao(type: Class<T>, names: List<Any>): T = requireNotNull(type.cast(Proxy.newProxyInstance(
         type.classLoader, arrayOf(type)

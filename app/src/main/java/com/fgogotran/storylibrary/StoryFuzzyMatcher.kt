@@ -10,7 +10,8 @@ import kotlin.math.max
  * The published `fgogotran-ocr-v2` contract is an exact one: normalized OCR text
  * either produces the stored hash or it does not. Real captures still differ from
  * the source in ways normalization cannot absorb — a wave dash read as `〜` while
- * the source uses `～`, `ー` recognized as `一`, one dropped or doubled character —
+ * the source uses `～`, `ー` recognized as `一`, a small katakana promoted to full
+ * size (`スラニョっ` captured as `スラニヨっ`), one dropped or doubled character —
  * so an exact-only lookup silently loses otherwise perfect lines.
  *
  * This matcher scores character-bigram sets with a Dice coefficient and accepts a
