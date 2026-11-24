@@ -104,6 +104,37 @@ class StoryChapterResolverTest {
         assertNull(scene.dialogue)
     }
 
+    /**
+     * `だって……、` and `だって……！` both normalize to `だって`, so they share a hash.
+     * A dialogue frame may only take the dialogue row; otherwise a button's wording
+     * could appear in the dialogue box.
+     */
+    @Test
+    fun `a dialogue frame only matches dialogue rows`() = runBlocking {
+        val hit = resolver.translateLine(
+            "だって……、", "村人", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Hit
+        assertEquals("因為……、", hit.text)
+    }
+
+    /** The same collision from the other side, with no confirmed flow to lean on. */
+    @Test
+    fun `a choice frame without flow state matches its own row`() = runBlocking {
+        val hit = resolver.translateLine(
+            "だって……！", "", StoryChapterResolver.LineKind.CHOICE
+        ) as StoryChapterResolver.LineResult.Hit
+        assertEquals("可是……！", hit.text)
+    }
+
+    @Test
+    fun `a scene keeps dialogue and choice rows apart`() = runBlocking {
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, "だって……、", listOf("だって……！"))
+        )!!
+        assertEquals("因為……、", scene.dialogue?.translatedText)
+        assertEquals("可是……！", scene.choices.single().translatedText)
+    }
+
     private fun buildDatabase(file: File) {
         file.parentFile?.mkdirs()
         file.delete()
@@ -143,9 +174,12 @@ class StoryChapterResolverTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "test")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "2")
+            meta(raw, "entry_count", "4")
             insert(raw, 1, "スラノッブ", "スラニョっ！？", "史萊姆阿信", "史萊諾！？")
             insert(raw, 2, "オルガマリー", "そうですね。", "奧爾嘉瑪麗", "說得也是。")
+            // Both normalize to `だって`, so only the frame kind can separate them.
+            insert(raw, 3, "村人", "だって……、", "村民", "因為……、")
+            insert(raw, 4, "", "だって……！", "", "可是……！", type = "choice")
         } finally {
             raw.close()
         }
@@ -161,7 +195,8 @@ class StoryChapterResolverTest {
         name: String,
         jp: String,
         nameTarget: String,
-        dialogTarget: String
+        dialogTarget: String,
+        type: String = "dialogue"
     ) {
         val norm = StoryOcrNormalizer.normalize(jp)
         db.execSQL(
@@ -169,7 +204,7 @@ class StoryChapterResolverTest {
                 "choice_group, choice_slot, jp_name, jp_dialog, jp_norm, jp_hash, cn_name, cn_dialog, " +
                 "tw_name, tw_dialog, en_name, en_dialog) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             arrayOf(
-                "e$seq", seq, "s1", "scene-1", seq, "dialogue", null, null, null,
+                "e$seq", seq, "s1", "scene-1", seq, type, null, null, null,
                 name, jp, norm, StoryOcrNormalizer.sha1(norm),
                 nameTarget, dialogTarget, nameTarget, dialogTarget, nameTarget, dialogTarget
             )

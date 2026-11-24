@@ -17,17 +17,23 @@ const defaultWork = join(scriptDir, 'work');
 
 const COLUMNS = [
   'jp_name', 'jp_dialog', 'cn_name', 'cn_dialog',
-  'tw_name', 'tw_dialog', 'en_name', 'en_dialog', 'type',
+  'tw_name', 'tw_dialog', 'en_name', 'en_dialog', 'type', 'script',
 ];
 const JP_NAME = 0;
 const JP_DIALOG = 1;
 const TYPE = 8;
+const SCRIPT = 9;
 const LOCALES = {
   cn: { label: 'Simplified Chinese', name: 2, dialog: 3, playbook: 'translation-agent-cn.md' },
   tw: { label: 'Traditional Chinese', name: 4, dialog: 5, playbook: 'translation-agent-tw.md' },
   en: { label: 'English', name: 6, dialog: 7, playbook: 'translation-agent-en.md' },
 };
-const BATCH_SIZE = 40;
+// A batch is one part of one subchapter: a scene is never split across two
+// workers, and `previous_context` never reaches into another scene. Splitting by
+// script alone would put a 377-row scene in one batch, so long scenes split into
+// equal parts of at most this many rows.
+const MAX_BATCH_SIZE = 60;
+const PREVIOUS_CONTEXT_ROWS = 6;
 const BATCH_FORMAT = 'compact-v1';
 const MAX_GLOSSARY_PER_ROW = 5;
 
@@ -114,6 +120,10 @@ async function readChapter(work, eventId) {
   for (let index = 0; index < entries.length; index++) {
     if (entries[index].tsv_row !== index + 1) {
       throw new Error('source-inventory entries are out of order at row ' + (index + 1));
+    }
+    if ((chapter.rows[index][SCRIPT] ?? '') !== entries[index].script_id) {
+      throw new Error('row ' + (index + 1) + ': script ' + JSON.stringify(chapter.rows[index][SCRIPT] ?? '') +
+        ' != source-inventory ' + entries[index].script_id);
     }
   }
   return { paths, chapter, entries, inventory };
@@ -261,6 +271,33 @@ function glossaryForRow(text, speaker, locale, glossary) {
 
 // ─── Export ──────────────────────────────────────────────────────────────────
 
+/**
+ * Splits the chapter into batch ranges that never straddle a subchapter.
+ *
+ * Each range is one part of one `script_id`: consecutive rows that share the id,
+ * split evenly when the scene is longer than [maxRows]. Returns
+ * `{start, end, script, scriptStart, part, parts}` with a zero-based `end`.
+ */
+function scriptBatchRanges(entries, maxRows) {
+  const ranges = [];
+  let scriptStart = 0;
+  while (scriptStart < entries.length) {
+    const script = entries[scriptStart].script_id;
+    let end = scriptStart;
+    while (end < entries.length && entries[end].script_id === script) end++;
+    const size = end - scriptStart;
+    const parts = Math.max(1, Math.ceil(size / maxRows));
+    const perPart = Math.ceil(size / parts);
+    for (let part = 1, at = scriptStart; at < end; part++) {
+      const stop = Math.min(end, at + perPart);
+      ranges.push({ start: at, end: stop, script, scriptStart, part, parts });
+      at = stop;
+    }
+    scriptStart = end;
+  }
+  return ranges;
+}
+
 async function exportBatches(eventId, locale, work, flags) {
   const config = LOCALES[locale];
   const book = await readChapter(work, eventId);
@@ -277,8 +314,11 @@ async function exportBatches(eventId, locale, work, flags) {
     !row[config.dialog].trim() || (!!row[JP_NAME].trim() && !row[config.name].trim());
   const pending = rows.filter(needsTranslation).length;
   const batches = [];
-  for (let start = 0; start < rows.length; start += BATCH_SIZE) {
-    const previousStart = Math.max(0, start - 6);
+  for (const range of scriptBatchRanges(book.entries, MAX_BATCH_SIZE)) {
+    const { start, end, script, scriptStart, part, parts } = range;
+    // Context never crosses a subchapter: a part that continues the same scene
+    // keeps its last six rows, a new scene starts empty.
+    const previousStart = Math.max(scriptStart, start - PREVIOUS_CONTEXT_ROWS);
     const glossaryEntries = [];
     const glossaryIndex = new Map();
     const entries = [];
@@ -286,7 +326,7 @@ async function exportBatches(eventId, locale, work, flags) {
     const existing = {};
     const scenes = [];
     const controls = new Map();
-    rows.slice(start, start + BATCH_SIZE).forEach((row, offset) => {
+    rows.slice(start, end).forEach((row, offset) => {
       const index = start + offset;
       const entry = book.entries[index];
       const text = [row[JP_NAME], row[JP_DIALOG], entry.scene_id].join('\n');
@@ -319,13 +359,15 @@ async function exportBatches(eventId, locale, work, flags) {
       entries.push([entry.entry_id, row[TYPE], row[JP_NAME], row[JP_DIALOG], refs]);
     });
     batches.push({
-      previous_context: start > 0 ? rows.slice(previousStart, start)
+      previous_context: start > previousStart ? rows.slice(previousStart, start)
         .map((row, offset) => contextItem(previousStart + offset)) : [],
       glossary: glossaryEntries,
       entries,
       pending: pendingIds.length === entries.length ? 'all' : pendingIds,
       existing,
       scenes,
+      scripts: [script],
+      ...(parts > 1 ? { script_part: [part, parts] } : {}),
       controls: Object.fromEntries(controls),
     });
   }
@@ -345,7 +387,8 @@ async function exportBatches(eventId, locale, work, flags) {
     dialogue_rows: rows.filter((row) => row[TYPE] === 'dialogue').length,
     choice_rows: rows.filter((row) => row[TYPE] === 'choice').length,
     pending_rows: pending,
-    batch_size: BATCH_SIZE,
+    batch_align: 'script',
+    batch_max_rows: MAX_BATCH_SIZE,
     batch_count: batches.length,
     glossary: {
       terms: glossary.terms.rows.length,
@@ -368,6 +411,8 @@ async function exportBatches(eventId, locale, work, flags) {
       source_tsv_sha256: manifest.source_tsv_sha256,
       format: BATCH_FORMAT,
       fields: ['entry_id', 'type', 'jp_name', 'jp_dialog', 'glossary_indexes'],
+      scripts: batch.scripts,
+      ...(batch.script_part ? { script_part: batch.script_part } : {}),
       scenes: batch.scenes,
       pending: batch.pending,
       ...(Object.keys(batch.controls).length ? { controls: batch.controls } : {}),

@@ -22,8 +22,8 @@ node story_builder/story-translation.mjs check <event> <locale> <response file>
 
 ```text
 {event_id, story_library_id, locale, batch, batch_count, source_tsv_sha256,
- format, fields, scenes, pending, controls?, glossary, previous_context,
- existing?, entries}
+ format, fields, scripts, script_part?, scenes, pending, controls?, glossary,
+ previous_context, existing?, entries}
 ```
 
 - `entries`: story-order rows, a 5-tuple in `fields` order —
@@ -34,11 +34,15 @@ node story_builder/story-translation.mjs check <event> <locale> <response file>
 - `pending`: `"all"` when every row needs both fields, else the `entry_id`s that
   need work. Never rewrite a filled field; on a resumed chapter `existing` shows
   what is already there.
+- `scripts`: the subchapter id this batch belongs to — always exactly one.
+- `script_part`: present only when the scene is longer than one batch, as
+  `[part, parts]`; the parts together are the complete scene.
 - `scenes`: `[scene_id, first_entry_number, last_entry_number]`, 1-based in the
   batch.
 - `controls`: present only when tokens exist, as counts — handle them with the
   markup contract below.
-- `previous_context`: last six rows of the previous batch, for continuity only.
+- `previous_context`: last six rows of the same scene, for continuity only. A
+  batch that opens a scene starts with an empty array.
 
 ## Response file
 

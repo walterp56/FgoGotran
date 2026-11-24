@@ -80,10 +80,18 @@ internal class StoryChapterDatabase private constructor(
         val isChoice: Boolean get() = type == "choice"
     }
 
-    fun rowsForHash(hash: String): List<Row> {
+    /**
+     * Dialogue rows for an exact hash.
+     *
+     * The frame carries its own kind, so a dialogue box never answers with a
+     * button's row. Punctuation is not part of the key, which makes short lines
+     * collide across kinds: the pilot pack normalizes `だって……、` (dialogue) and
+     * `だって……！` (choice) to the same hash.
+     */
+    fun dialogueRowsForHash(hash: String): List<Row> {
         if (hash.isEmpty()) return emptyList()
         return query(
-            "WHERE jp_hash = ? ORDER BY seq LIMIT $MAX_CANDIDATES",
+            "WHERE jp_hash = ? AND type <> 'choice' ORDER BY seq LIMIT $MAX_CANDIDATES",
             arrayOf(hash)
         )
     }

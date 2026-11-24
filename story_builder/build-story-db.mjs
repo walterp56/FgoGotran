@@ -36,7 +36,7 @@ const catalogPath = join(scriptDir, 'catalog.tsv');
 
 const COLUMNS = [
   'jp_name', 'jp_dialog', 'cn_name', 'cn_dialog',
-  'tw_name', 'tw_dialog', 'en_name', 'en_dialog', 'type',
+  'tw_name', 'tw_dialog', 'en_name', 'en_dialog', 'type', 'script',
 ];
 const JP_NAME = 0;
 const JP_DIALOG = 1;
@@ -47,6 +47,7 @@ const TW_DIALOG = 5;
 const EN_NAME = 6;
 const EN_DIALOG = 7;
 const TYPE = 8;
+const SCRIPT = 9;
 const LOCALES = {
   cn: { name: CN_NAME, dialog: CN_DIALOG },
   tw: { name: TW_NAME, dialog: TW_DIALOG },
@@ -115,6 +116,13 @@ function validate(rows, inventoryEntries, catalogRow, problems) {
     const type = row[TYPE];
     if (type !== 'dialogue' && type !== 'choice') {
       problems.push('row ' + (index + 1) + ': unknown type ' + JSON.stringify(type));
+      return;
+    }
+    // The inventory keys the script; the TSV mirrors it so a reordered or
+    // hand-edited table fails here instead of silently joining the wrong scene.
+    if ((row[SCRIPT] ?? '') !== inventory.script_id) {
+      problems.push('row ' + (index + 1) + ': script ' + JSON.stringify(row[SCRIPT] ?? '') +
+        ' != source-inventory ' + inventory.script_id);
       return;
     }
     if (ids.has(inventory.entry_id)) {

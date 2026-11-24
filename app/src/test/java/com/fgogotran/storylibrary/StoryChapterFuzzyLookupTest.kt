@@ -137,7 +137,7 @@ class StoryChapterFuzzyLookupTest {
 
     @Test
     fun `exact hash lookup is unchanged`() {
-        val rows = database.rowsForHash(StoryOcrNormalizer.hash("は～い♪　ナウなヤングに大人気！"))
+        val rows = database.dialogueRowsForHash(StoryOcrNormalizer.hash("は～い♪　ナウなヤングに大人気！"))
         assertEquals(1, rows.size)
         assertEquals(1, rows.first().seq)
     }
@@ -221,7 +221,7 @@ class StoryChapterFuzzyLookupTest {
     @Test
     fun `small katakana read as full size matches without any flow state`() {
         val ocr = "スラニヨっ！？"
-        assertTrue(database.rowsForHash(StoryOcrNormalizer.hash(ocr)).isEmpty())
+        assertTrue(database.dialogueRowsForHash(StoryOcrNormalizer.hash(ocr)).isEmpty())
         // Once the line is confirmed, the window opens after it and never answers for it again.
         val window = database.windowEntries("s3", 10, 6)
         assertEquals(listOf(11), window.map { it.seq })
@@ -255,7 +255,7 @@ class StoryChapterFuzzyLookupTest {
     @Test
     fun `dialogue with a rendered master name matches on the template`() {
         val ocr = "のう、九条京香。"
-        assertTrue(database.rowsForHash(StoryOcrNormalizer.hash(ocr)).isEmpty())
+        assertTrue(database.dialogueRowsForHash(StoryOcrNormalizer.hash(ocr)).isEmpty())
 
         val key = StoryOcrNormalizer.slotKey(ocr, "九条京香")
         assertEquals(listOf(8), database.slotRows(key, choice = false).map { it.seq })

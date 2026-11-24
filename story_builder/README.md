@@ -35,12 +35,18 @@ from the actual source inventory.
 Chapter TSV header, shown as tab-separated columns.
 
 ```tsv
-jp_name	jp_dialog	cn_name	cn_dialog	tw_name	tw_dialog	en_name	en_dialog	type
+jp_name	jp_dialog	cn_name	cn_dialog	tw_name	tw_dialog	en_name	en_dialog	type	script
 ```
 
 - The Japanese agent fills `jp_name`, `jp_dialog`, and `type` and leaves the
   six target-language fields empty. `type` is `dialogue` or `choice`. Narration
   uses `dialogue` with an empty name. Choices also use an empty name.
+- `script` identifies the subchapter (one Atlas 劇情文本 id, e.g. `9416400221`).
+  The inventory remains the authority: `build-story-db.mjs` and
+  `story-translation.mjs` fail when a row's `script` differs from its
+  `source-inventory.json` counterpart, so a reordered or hand-edited table can
+  never silently join another scene. The column is the last one so every
+  existing column index stays valid.
 - In `source-inventory.json`, map each logical data row, numbered from one
   after the header, to its stable `entry_id`, quest, phase, script and slot,
   scene and position, and any branch, choice group, and choice slot. Preserve
@@ -134,8 +140,14 @@ node story_builder/story-translation.mjs status 80639
 rows (`format: "compact-v1"`: `entry_id`, `type`, `jp_name`, `jp_dialog`, and
 indexes into a batch-level glossary — about 190 bytes/row instead of ~710 for
 the older object-per-row shape), plus scene ranges, the pending entry IDs, and
-the previous six rows for continuity. `--pretty` indents the same fields for
-human reading. The locale agents work offline and deep: translation
+the previous six rows for continuity. A batch never straddles a subchapter: it
+is one `script` (or one equal part of it when it exceeds `MAX_BATCH_SIZE = 60`
+rows), it lists that id in `scripts`, and a split scene adds
+`script_part: [part, parts]`. `previous_context` therefore only ever reaches
+back inside the same scene; a batch that opens a scene starts with none. The
+pilot pack (4,521 rows, 39 scripts) exports as 94 batches instead of 114 fixed
+40-row windows, none of which splits a scene across workers. `--pretty` indents
+the same fields for human reading. The locale agents work offline and deep: translation
 quality is the only budget, the app prompt (`PromptBuilder.kt`) is a style
 reference rather than a template, and the shipped glossary is advisory because
 newest chapters introduce terms the DB does not know yet. New terms are decided
@@ -318,6 +330,12 @@ carries its own cache policy (`ocr-glossary-v2`).
   never leave Japanese, or another character, next to a line that came from the
   pack; the plate decides only when the line itself misses. The OCR speaker is
   already evidence inside the approximate lookup and the exact-duplicate rule.
+- A frame only matches its own kind. Punctuation is not part of the key, so
+  `だって……、` (dialogue) and `だって……！` (choice) share one hash; the dialogue
+  lookup, the flow, the scene window, the `[%N]` template index, and the
+  approximate index all exclude `type = 'choice'`, and a choice frame is matched
+  as a choice before any dialogue fallback. Otherwise a button's wording could
+  appear in a dialogue box, or the reverse.
 - Index `(scene_id, position)` for nearby entries. Wait for a complete box.
   Use the OCR speaker when reliable, recent confirmed dialogue, and the ordered
   choice group to resolve duplicates. A distinctive exact match can re-establish

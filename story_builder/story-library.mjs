@@ -262,7 +262,9 @@ function chapterFiles(inventory, sources) {
     const scene = occurrenceSlot(occurrence) + ':' + occurrence.script_id;
     const parsed = scripts.get(occurrence.script_id);
     for (const [index, row] of parsed.entries()) {
-      rows.push(row);
+      // The subchapter id travels with the row so the TSV can show which scene a
+      // line belongs to; the inventory stays the authority and is cross-checked.
+      rows.push({ ...row, script: occurrence.script_id });
       entries.push({
         ...occurrence,
         tsv_row: rows.length,

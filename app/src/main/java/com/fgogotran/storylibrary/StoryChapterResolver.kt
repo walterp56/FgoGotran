@@ -79,14 +79,14 @@ class StoryChapterResolver @Inject constructor(
         }
 
         val storyLocale = StoryLocale.of(locale)
-        // A single-choice request reaches this entry point, so it needs the same
-        // choice-row matching (including master-name slots) as a whole scene.
-        val row = matchRow(database, text, speaker, storyLocale, playerName)
-            ?: if (kind == LineKind.CHOICE) {
-                matchChoice(database, text, dialogueRow = null, storyLocale, playerName)
-            } else {
-                null
-            }
+        // A button frame is matched as a button first; the dialogue path only reads
+        // dialogue rows, so a collision can never answer with the wrong kind.
+        val row = if (kind == LineKind.CHOICE) {
+            matchChoice(database, text, dialogueRow = null, storyLocale, playerName)
+                ?: matchDialogueRow(database, text, speaker, storyLocale, playerName)
+        } else {
+            matchDialogueRow(database, text, speaker, storyLocale, playerName)
+        }
         if (row == null) {
             val mismatch = registerMiss()
             return LineResult.Miss(
@@ -132,7 +132,7 @@ class StoryChapterResolver @Inject constructor(
         }
 
         val dialogueRow = input.dialogue?.let {
-            matchRow(database, it, input.name.orEmpty(), storyLocale, playerName)
+            matchDialogueRow(database, it, input.name.orEmpty(), storyLocale, playerName)
         }
 
         // The frame carries both plates and the matched row carries both answers, so a
@@ -173,7 +173,7 @@ class StoryChapterResolver @Inject constructor(
         )
     }
 
-    private suspend fun matchRow(
+    private suspend fun matchDialogueRow(
         database: StoryChapterDatabase,
         text: String,
         speaker: String,
@@ -183,10 +183,12 @@ class StoryChapterResolver @Inject constructor(
         val hash = StoryOcrNormalizer.hash(text)
         if (hash.isEmpty()) return null
 
+        // The flow and the exact lookup both stay inside dialogue rows, so a button
+        // whose text normalizes to the same line can never answer a dialogue frame.
         val expected = flowExpected(database)
         if (expected != null && expected.jpHash == hash) return expected
 
-        val candidates = database.rowsForHash(hash)
+        val candidates = database.dialogueRowsForHash(hash)
         if (candidates.isNotEmpty()) return disambiguate(candidates, speaker)
 
         // A `[%1]` line can only match once the rendered name is removed, and the
@@ -371,7 +373,8 @@ class StoryChapterResolver @Inject constructor(
 
     private fun flowExpected(database: StoryChapterDatabase): StoryChapterDatabase.Row? {
         val script = lastScriptId ?: return null
-        return database.nextAfter(script, lastPosition)
+        // A button is not the next dialogue box, so the flow never hands one over.
+        return database.nextAfter(script, lastPosition)?.takeIf { !it.isChoice }
     }
 
     private fun remember(row: StoryChapterDatabase.Row) {

@@ -74,6 +74,10 @@ event-*.tsv
 event-*.db
 story.db
 source-inventory.json
+# Every SQLite file is a generated pack or a scratch copy; the build script is
+# versioned instead. Chapter packs stay under work/, which the guard also checks.
+*.db
+*.db.tmp-*
 
 # GitHub Actions typo guard
 .github/workflow/
@@ -104,6 +108,9 @@ chapter/LANGUAGE_PACK_DEVICE_CHECK_*.md
 Thumbs.db
 *.log
 *.tmp
+*.bak
+*.orig
+*.rej
 
 # Local device and log evidence (screen dumps, adb captures) never leave the machine.
 logcat*.txt

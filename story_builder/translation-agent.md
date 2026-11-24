@@ -193,8 +193,8 @@ smaller than the old one-object-per-row shape, so reading a batch is cheap:
 
 ```text
 {event_id, story_library_id, locale, batch, batch_count, source_tsv_sha256,
- format, fields, scenes, pending, controls?, glossary, previous_context,
- existing?, entries}
+ format, fields, scripts, script_part?, scenes, pending, controls?, glossary,
+ previous_context, existing?, entries}
 ```
 
 - `entries` holds one row per box/button in story order, a 5-tuple in `fields`
@@ -206,13 +206,18 @@ smaller than the old one-object-per-row shape, so reading a batch is cheap:
   the list of `entry_id`s that need work. Do not rewrite a filled field.
 - `existing` appears only on a resumed or partially filled chapter and holds the
   already translated `{name, dialog}` per entry.
+- `scripts` is the subchapter id (one Atlas 劇情文本, e.g. `9416400221`) this
+  batch belongs to — a batch never mixes two, so the batch is one scene.
+- `script_part` appears only when the scene needed more than one batch, as
+  `[part, parts]`; translate it as part of that scene, not as a standalone scene.
 - `scenes` gives scene ranges as `[scene_id, first_entry_number,
   last_entry_number]`, 1-based inside the batch.
 - `controls` appears only when the batch contains control tokens, as counts such
   as `{"master_name": 2, "gender_control": 1, "ruby": 5}`; handle them with the
   hard markup rules below.
-- `previous_context` is the last six rows of the previous batch as
-  `[entry_id, jp_name, jp_dialog]`, for continuity only.
+- `previous_context` is the last six rows of the **same scene**, as
+  `[entry_id, jp_name, jp_dialog]`, for continuity only; it is empty when the
+  batch opens the scene.
 - Earlier and later entries in the batch are scene context. Do not import
   content from other batches.
 - `--pretty` re-emits the same fields indented for human reading; agents do not

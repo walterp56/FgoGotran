@@ -130,15 +130,15 @@ export function parseJapaneseScript(scriptId, source) {
 
 const columns = [
   'jp_name', 'jp_dialog', 'cn_name', 'cn_dialog',
-  'tw_name', 'tw_dialog', 'en_name', 'en_dialog', 'type',
+  'tw_name', 'tw_dialog', 'en_name', 'en_dialog', 'type', 'script',
 ];
 
 export function japaneseTsv(entries) {
   const field = (value) => /["\t\r\n]/.test(value)
     ? '"' + value.replaceAll('"', '""') + '"'
     : value;
-  const rows = entries.map(({ name, dialog, type }) => [
-    field(name), field(dialog), '', '', '', '', '', '', type,
+  const rows = entries.map(({ name, dialog, type, script }) => [
+    field(name), field(dialog), '', '', '', '', '', '', type, field(script ?? ''),
   ].join('\t'));
   return [columns.join('\t'), ...rows].join('\n') + '\n';
 }
