@@ -95,14 +95,6 @@ local-ai-studio/
 tmp/
 AWS/
 
-# Internal device/verification notes (local evidence only)
-chapter/*_DEVICE_CHECK_*.md
-chapter/NATIVE_*.md
-chapter/STORY_*.md
-chapter/PHASE_2_INSTALLER.md
-chapter/R2_ATLAS_PREPARATION_*.md
-chapter/LANGUAGE_PACK_DEVICE_CHECK_*.md
-
 # OS / editor noise
 .DS_Store
 Thumbs.db

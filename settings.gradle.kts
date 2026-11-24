@@ -20,4 +20,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "FgoGotran"
 include(":app")
-include(":chapter")

@@ -204,8 +204,8 @@ carry their review state. [Project glossary format](../term_builder/README.md)
 The translated TSV is packaged as one SQLite database per chapter and published
 for the app's Story Library page: a menu of chapters, one download per selected
 chapter, and offline rendering instead of API translation. This is separate from
-`story_assets/` and from the app's native-asset `story/` chapter folder, which
-replaces FGO game assets and is a different feature.
+`story_assets/`, which holds local Atlas sources and review material for the
+translation work itself.
 
 **`story_builder/catalog.tsv` is the menu mapping.** One row per chapter:
 

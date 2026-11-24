@@ -1,7 +1,6 @@
 package com.fgogotran
 
 import android.content.Context
-import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -193,11 +192,7 @@ fun MainScreen(
             diagnosticEventStore = diagnosticEventStore,
             onGuide = { currentScreen = Screen.GUIDE },
             onSettings = { currentScreen = Screen.SETTINGS },
-            onStoryLibrary = { currentScreen = Screen.STORY_LIBRARY },
-            onChapter = {
-                context.startActivity(Intent(context, ChapterHostActivity::class.java)
-                    .putExtra(ChapterHostActivity.EXTRA_THEME, themeMode.preferenceValue))
-            }
+            onStoryLibrary = { currentScreen = Screen.STORY_LIBRARY }
         )
 
         Screen.GUIDE -> GuideScreen(
