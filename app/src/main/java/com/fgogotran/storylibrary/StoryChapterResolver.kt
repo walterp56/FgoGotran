@@ -58,7 +58,16 @@ class StoryChapterResolver @Inject constructor(
     private var lastSeq = 0
     private var flowChapterId = ""
 
-    suspend fun translateLine(text: String, speaker: String, kind: LineKind): LineResult {
+    /**
+     * Single-line entry: resolves one confirmed story line and keeps the flow in step.
+     *
+     * Production story translation reaches the pack through [translateScene] only, so that
+     * crop, battle and subtitle surfaces cannot pick up chapter text. This entry stays
+     * module-visible for the resolver's own tests and for a future story surface that
+     * already holds one confirmed line; a caller from another surface would have to pass a
+     * confirmed line it does not have.
+     */
+    internal suspend fun translateLine(text: String, speaker: String, kind: LineKind): LineResult {
         if (!repository.isEnabled()) return LineResult.Inactive
         val database = repository.activeDatabase()
         val locale = settingsRepository.targetLanguage.first()
@@ -82,8 +91,12 @@ class StoryChapterResolver @Inject constructor(
         // A button frame is matched as a button first; the dialogue path only reads
         // dialogue rows, so a collision can never answer with the wrong kind.
         val row = if (kind == LineKind.CHOICE) {
+            // A button never takes the dialogue inference: it answers with a button, or
+            // with nothing. The dialogue fallback below is for wording, not for the flow.
             matchChoice(database, text, dialogueRow = null, storyLocale, playerName)
-                ?: matchDialogueRow(database, text, speaker, storyLocale, playerName)
+                ?: matchDialogueRow(
+                    database, text, speaker, storyLocale, playerName, allowFlowInference = false
+                )
         } else {
             matchDialogueRow(database, text, speaker, storyLocale, playerName)
         }
@@ -198,7 +211,8 @@ class StoryChapterResolver @Inject constructor(
         text: String,
         speaker: String,
         locale: StoryLocale,
-        playerName: String
+        playerName: String,
+        allowFlowInference: Boolean = true
     ): StoryChapterDatabase.Row? {
         val hash = StoryOcrNormalizer.hash(text)
         if (hash.isEmpty()) return punctuationRow(database, text, speaker, locale, choice = false)
@@ -243,7 +257,10 @@ class StoryChapterResolver @Inject constructor(
             flowScriptId = lastScriptId,
             flowSeq = lastSeq,
             speakerKey = StoryOcrNormalizer.nameKey(speaker)
-        ) ?: return null
+        )
+        if (row == null) {
+            return if (allowFlowInference) flowLengthRow(database, expected, text, speaker) else null
+        }
         if (!keepsOrEntersFlow(row)) {
             FgoLogger.debug(
                 tag,
@@ -254,6 +271,46 @@ class StoryChapterResolver @Inject constructor(
         }
         FgoLogger.debug(tag, "Story dialogue matched approximately: script=${row.scriptId} seq=${row.seq}")
         return row
+    }
+
+    /**
+     * Accepts the line the confirmed flow expects when the glyphs themselves defeated the
+     * recognizer.
+     *
+     * A stylized `オオオォ……。` reads as `才才才才……。` with high confidence: the two share
+     * no bigram, so no score threshold reaches them, and both crops return the same wrong
+     * characters. The pack still identifies the frame on independent axes, and the rule
+     * takes the expected row only when all of them agree: the previous line resolved, the
+     * read and the stored line have the same length after normalization, the speaker plate
+     * matches, and no row anywhere in the pack carries the mangled text — a line that the
+     * pack does contain would have matched exactly and never reached this point. Anything
+     * less stays a miss, which keeps the original text on screen instead of guessing.
+     */
+    private fun flowLengthRow(
+        database: StoryChapterDatabase,
+        expected: StoryChapterDatabase.Row?,
+        text: String,
+        speaker: String
+    ): StoryChapterDatabase.Row? {
+        if (expected == null || expected.isChoice) return null
+        // After a miss the reader may have skipped a line, so the flow no longer speaks
+        // for the frame on screen.
+        if (consecutiveMisses.get() > 0) return null
+        val read = StoryOcrNormalizer.normalize(text)
+        val readLength = read.codePointCount(0, read.length)
+        if (readLength < MIN_FLOW_LENGTH) return null
+        val stored = database.normalizedDialog(expected.seq) ?: return null
+        if (stored.codePointCount(0, stored.length) != readLength) return null
+        if (StoryOcrNormalizer.nameKey(speaker) != StoryOcrNormalizer.nameKey(expected.jpName)) {
+            return null
+        }
+        if (database.hasAnyRow(StoryOcrNormalizer.hash(text))) return null
+        FgoLogger.debug(
+            tag,
+            "Story line accepted from flow by length: script=${expected.scriptId} " +
+                "seq=${expected.seq} read=\"$text\""
+        )
+        return expected
     }
 
     /**
@@ -523,5 +580,8 @@ class StoryChapterResolver @Inject constructor(
         private const val tag = "StoryLibrary"
         private const val WARNING_THRESHOLD = 2
         private const val SCENE_WINDOW = 6
+
+        /** Shortest line the flow may substitute for a failed read; shorter lines collide too easily. */
+        private const val MIN_FLOW_LENGTH = 4
     }
 }

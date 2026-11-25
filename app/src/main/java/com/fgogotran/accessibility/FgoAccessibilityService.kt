@@ -1702,6 +1702,7 @@ class FgoAccessibilityService : AccessibilityService() {
                         currentScreenHeight = currentScreenHeight,
                         processStartedAt = processStartedAt,
                         processingVersion = processingVersion,
+                        dialogueComplete = dialogueComplete,
                         frame = frame
                     )
                     false
@@ -2351,6 +2352,7 @@ class FgoAccessibilityService : AccessibilityService() {
         currentScreenHeight: Int,
         processStartedAt: Long,
         processingVersion: Long,
+        dialogueComplete: Boolean,
         frame: StoryFramePixels
     ) {
         val scan = scanManualScene(source, screenRegions, frame)
@@ -2369,6 +2371,10 @@ class FgoAccessibilityService : AccessibilityService() {
             return
         }
 
+        // The manual path skips the story guard, so the chapter pack needs its own evidence
+        // that this is story UI: the dialogue-complete marker, or the fixed story choices.
+        // A summoned servant's line or another screen's box therefore keeps the API.
+        val storyFrame = dialogueComplete || sceneSource.hasChoices
         FgoLogger.debug(tag, "Manual translation: fresh OCR; requesting fresh dialogue/choice translation")
         translateAndRenderScene(
             mode = ProcessingMode.MANUAL_TAP,
@@ -2380,7 +2386,8 @@ class FgoAccessibilityService : AccessibilityService() {
             processingVersion = processingVersion,
             sceneSource = sceneSource,
             recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
-            frame = frame
+            frame = frame,
+            storyFrame = storyFrame
         )
     }
 
@@ -2482,7 +2489,9 @@ class FgoAccessibilityService : AccessibilityService() {
                 processingVersion = processingVersion,
                 sceneSource = sceneSource,
                 recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
-                frame = recognitionFrame
+                frame = recognitionFrame,
+                // The choice panels were accepted against the fixed story layout.
+                storyFrame = true
             )
             if (rendered) false else restoreHiddenOverlay
         } finally {
@@ -2588,7 +2597,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         processingVersion = processingVersion,
                         sceneSource = sceneSource,
                         recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
-                        frame = frame
+                        frame = frame,
+                        storyFrame = dialogueComplete || sceneSource.hasChoices
                     )
                     if (accepted) storyTapHandoff.finishPending()
                 } finally {
@@ -2772,7 +2782,8 @@ class FgoAccessibilityService : AccessibilityService() {
                         processingVersion = processingVersion,
                         sceneSource = sceneSource,
                         recognitionDuration = SystemClock.elapsedRealtime() - processStartedAt,
-                        frame = frame
+                        frame = frame,
+                        storyFrame = dialogueComplete || sceneSource.hasChoices
                     )
                     if (accepted) storyTapHandoff.finishPending()
                 } finally {
@@ -3074,7 +3085,8 @@ class FgoAccessibilityService : AccessibilityService() {
         processingVersion: Long,
         sceneSource: SceneSource,
         recognitionDuration: Long,
-        frame: StoryFramePixels
+        frame: StoryFramePixels,
+        storyFrame: Boolean
     ): Boolean {
         // Normal translated-story processing is JP-only; other servers use requestVoiceOnlyScene.
         val usageOrigin = AnalyticsUsageOrigin(SettingsRepository.GAME_SERVER_JP)
@@ -3112,6 +3124,7 @@ class FgoAccessibilityService : AccessibilityService() {
         val sceneTranslation = translateSceneSource(
             sceneSource,
             voiceTarget,
+            storyFrame = storyFrame,
             forceFreshTranslation = mode == ProcessingMode.MANUAL_TAP
         )
         if (processingVersion != stopVersion || !isProcessingModeEnabled(mode) ||
@@ -3596,6 +3609,7 @@ class FgoAccessibilityService : AccessibilityService() {
     private suspend fun translateSceneSource(
         sceneSource: SceneSource,
         voiceTarget: PreparedVoiceTarget?,
+        storyFrame: Boolean,
         forceFreshTranslation: Boolean
     ): SceneTranslateResult {
         // Snapshot once: a setting change must not alter an in-flight request or its retries.
@@ -3618,7 +3632,8 @@ class FgoAccessibilityService : AccessibilityService() {
             translator.translateScene(
                 input,
                 voiceTarget?.hintContext,
-                forceFreshTranslation = forceFreshTranslation
+                forceFreshTranslation = forceFreshTranslation,
+                storyChapter = storyFrame
             )
         }
     }

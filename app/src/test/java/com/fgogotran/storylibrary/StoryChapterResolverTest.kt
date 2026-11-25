@@ -206,6 +206,84 @@ class StoryChapterResolverTest {
         assertTrue(resolver.probe("……", "", StoryChapterResolver.LineKind.CHOICE))
     }
 
+    /**
+     * Real capture: the stylized `オオオォ……。` came back as `才才才才……。` from both
+     * crops, with high confidence, and the two readings share no bigram — no score
+     * threshold reaches them. The flow still identifies the frame, so the expected line
+     * is taken, and the fast-path probe agrees on the first attempt.
+     */
+    @Test
+    fun `a read the pack cannot explain resolves from the confirmed flow`() = runBlocking {
+        val first = resolver.translateScene(SceneTranslateInput("", "スラニョっ！？", emptyList()))!!
+        assertEquals("史萊諾！？", first.dialogue?.translatedText)
+        assertTrue(resolver.probe("才才才才才", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE))
+        val scene = resolver.translateScene(
+            SceneTranslateInput("オルガマリー", "才才才才才", emptyList())
+        )!!
+        assertEquals("說得也是。", scene.dialogue?.translatedText)
+        assertEquals("奧爾嘉瑪麗", scene.name?.translatedText)
+    }
+
+    /** The plate is the second axis: a different speaker means the frame is not that line. */
+    @Test
+    fun `the flow inference still needs the plate to agree`() = runBlocking {
+        resolver.translateLine("スラニョっ！？", "", StoryChapterResolver.LineKind.DIALOGUE)
+        val miss = resolver.translateLine(
+            "才才才才才", "村人", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+    }
+
+    /** The length is the third axis: a shorter read is a different line, not a substitute. */
+    @Test
+    fun `the flow inference still needs the length to agree`() = runBlocking {
+        resolver.translateLine("スラニョっ！？", "", StoryChapterResolver.LineKind.DIALOGUE)
+        val miss = resolver.translateLine(
+            "才才才才", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+    }
+
+    /**
+     * A read the pack does store is never replaced by the expected line, even when the
+     * frame kind kept it from matching: the pack explaining the text outranks the flow.
+     */
+    @Test
+    fun `the flow inference yields to a line the pack stores`() = runBlocking {
+        resolver.translateLine("スラニョっ！？", "", StoryChapterResolver.LineKind.DIALOGUE)
+        val miss = resolver.translateLine(
+            "うむむむむ", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+    }
+
+    /** A button never borrows the dialogue flow: it answers with a button, or with nothing. */
+    @Test
+    fun `a button does not take the dialogue inference`() = runBlocking {
+        resolver.translateLine("スラニョっ！？", "", StoryChapterResolver.LineKind.DIALOGUE)
+        val miss = resolver.translateLine(
+            "才才才才才", "オルガマリー", StoryChapterResolver.LineKind.CHOICE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+    }
+
+    /** Without a freshly confirmed line the flow says nothing about the frame on screen. */
+    @Test
+    fun `the flow inference needs a freshly confirmed line`() = runBlocking {
+        // No line has resolved yet.
+        assertFalse(resolver.probe("才才才才才", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE))
+        resolver.translateLine("スラニョっ！？", "", StoryChapterResolver.LineKind.DIALOGUE)
+        assertTrue(resolver.probe("才才才才才", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE))
+        // One miss means the reader may have skipped, so the flow no longer speaks for
+        // the frame. The probe answers the same lookup without registering a miss.
+        assertTrue(
+            resolver.translateLine(
+                "まったく別の文章です", "", StoryChapterResolver.LineKind.DIALOGUE
+            ) is StoryChapterResolver.LineResult.Miss
+        )
+        assertFalse(resolver.probe("才才才才才", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE))
+    }
+
     private fun buildDatabase(file: File) {
         file.parentFile?.mkdirs()
         file.delete()
@@ -245,7 +323,7 @@ class StoryChapterResolverTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "test")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "9")
+            meta(raw, "entry_count", "10")
             insert(raw, 1, "スラノッブ", "スラニョっ！？", "史萊姆阿信", "史萊諾！？")
             insert(raw, 2, "オルガマリー", "そうですね。", "奧爾嘉瑪麗", "說得也是。")
             // Both normalize to `だって`, so only the frame kind can separate them.
@@ -259,6 +337,9 @@ class StoryChapterResolverTest {
             // Same normalized key in two scripts with different renderings.
             insert(raw, 8, "", "はい。", "", "是。", script = "s2")
             insert(raw, 9, "", "はい！", "", "好的！", script = "s3")
+            // A button that no dialogue frame may take, even when the flow infers a line
+            // of the same length: the pack explaining the text outranks the inference.
+            insert(raw, 10, "", "うむむむむ。", "", "嗯嗯嗯嗯嗯。", type = "choice", script = "s3")
         } finally {
             raw.close()
         }

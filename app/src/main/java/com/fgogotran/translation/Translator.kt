@@ -1043,7 +1043,8 @@ class Translator @Inject constructor(
         forceFreshTranslation: Boolean = false,
         subtitleReferenceJapanese: List<String> = emptyList(),
         subtitleRowCount: Int = 0,
-        emphasisRanges: List<EmphasisRange> = emptyList()
+        emphasisRanges: List<EmphasisRange> = emptyList(),
+        storyChapter: Boolean = false
     ): TranslateResult {
         if (scriptMemoryEligible(japaneseText, choiceTexts, cropMode, translateAsChoices, translateAsName)) {
             val locale = settingsRepository.targetLanguage.first()
@@ -1060,38 +1061,40 @@ class Translator @Inject constructor(
                 ).withDecodedEmphasis()
             }
         }
-        // A downloaded chapter pack wins over every other backend. When it is
-        // active a miss never falls through to the API: the user gets the original
-        // text, or the "check the selected chapter" warning after repeated misses.
-        when (val chapter = storyChapterResolver.translateLine(
-            text = japaneseText,
-            speaker = currentSpeaker,
-            kind = when {
-                translateAsName -> StoryChapterResolver.LineKind.NAME
-                translateAsChoices -> StoryChapterResolver.LineKind.CHOICE
-                else -> StoryChapterResolver.LineKind.DIALOGUE
+        // A downloaded chapter pack answers only the story surfaces. Crop, battle subtitles
+        // and voice subtitles keep the API even while a chapter is installed: their geometry
+        // and wording are not story lines, and a miss must never swallow the request.
+        if (storyChapter) {
+            when (val chapter = storyChapterResolver.translateLine(
+                text = japaneseText,
+                speaker = currentSpeaker,
+                kind = when {
+                    translateAsName -> StoryChapterResolver.LineKind.NAME
+                    translateAsChoices -> StoryChapterResolver.LineKind.CHOICE
+                    else -> StoryChapterResolver.LineKind.DIALOGUE
+                }
+            )) {
+                is StoryChapterResolver.LineResult.Hit -> return TranslateResult(
+                    translatedText = chapter.text,
+                    backend = "chapter-db",
+                    cached = false,
+                    targetLocale = settingsRepository.targetLanguage.first(),
+                    trustedForContext = false,
+                    countsAsUsage = false
+                ).withDecodedEmphasis()
+
+                is StoryChapterResolver.LineResult.Miss -> return TranslateResult(
+                    translatedText = chapter.warningText ?: japaneseText,
+                    backend = "chapter-db",
+                    cached = false,
+                    targetLocale = settingsRepository.targetLanguage.first(),
+                    trustedForContext = false,
+                    isFailure = chapter.warningText != null,
+                    countsAsUsage = false
+                )
+
+                StoryChapterResolver.LineResult.Inactive -> Unit
             }
-        )) {
-            is StoryChapterResolver.LineResult.Hit -> return TranslateResult(
-                translatedText = chapter.text,
-                backend = "chapter-db",
-                cached = false,
-                targetLocale = settingsRepository.targetLanguage.first(),
-                trustedForContext = false,
-                countsAsUsage = false
-            ).withDecodedEmphasis()
-
-            is StoryChapterResolver.LineResult.Miss -> return TranslateResult(
-                translatedText = chapter.warningText ?: japaneseText,
-                backend = "chapter-db",
-                cached = false,
-                targetLocale = settingsRepository.targetLanguage.first(),
-                trustedForContext = false,
-                isFailure = chapter.warningText != null,
-                countsAsUsage = false
-            )
-
-            StoryChapterResolver.LineResult.Inactive -> Unit
         }
         val result = translateInternal(
             japaneseText = EmphasisText.encode(japaneseText, emphasisRanges),
@@ -2112,7 +2115,8 @@ class Translator @Inject constructor(
     suspend fun translateScene(
         input: SceneTranslateInput,
         voiceHintContext: VoiceHintContext? = null,
-        forceFreshTranslation: Boolean = false
+        forceFreshTranslation: Boolean = false,
+        storyChapter: Boolean = false
     ): SceneTranslateResult {
         val packed = input.copy(
             dialogue = input.dialogue?.let { EmphasisText.encode(it, input.dialogueEmphasisRanges) },
@@ -2120,7 +2124,7 @@ class Translator @Inject constructor(
                 EmphasisText.encode(text, input.choiceEmphasisRanges.getOrElse(i) { emptyList() })
             }, dialogueEmphasisRanges = emptyList(), choiceEmphasisRanges = emptyList()
         )
-        val result = translateSceneInternal(packed, voiceHintContext, forceFreshTranslation)
+        val result = translateSceneInternal(packed, voiceHintContext, forceFreshTranslation, storyChapter)
         return result.copy(name = result.name?.withDecodedEmphasis(),
             dialogue = result.dialogue?.withDecodedEmphasis(),
             choices = result.choices.map { it.withDecodedEmphasis() },
@@ -2130,9 +2134,13 @@ class Translator @Inject constructor(
     private suspend fun translateSceneInternal(
         input: SceneTranslateInput,
         voiceHintContext: VoiceHintContext? = null,
-        forceFreshTranslation: Boolean = false
+        forceFreshTranslation: Boolean = false,
+        storyChapter: Boolean = false
     ): SceneTranslateResult {
-        storyChapterResolver.translateScene(input)?.let { return it }
+        // A downloaded chapter pack wins over every other backend on a story frame: a miss
+        // keeps the original text (or the "check the selected chapter" warning) instead of
+        // reaching the API. Every other surface asks without this flag and stays on the API.
+        if (storyChapter) storyChapterResolver.translateScene(input)?.let { return it }
         val rawNormalizedName = input.name?.let(TextNormalizer::normalizeForTranslation)?.takeIf { it.isNotBlank() }
         val rawNormalizedDialogue = input.dialogue
             ?.let(TextNormalizer::normalizeForTranslation)

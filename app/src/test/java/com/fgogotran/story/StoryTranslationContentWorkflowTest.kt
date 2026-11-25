@@ -105,6 +105,30 @@ class StoryTranslationContentWorkflowTest {
         assertTrue(function("processSemiAutoStoryScreen").contains("accepted = accepted"))
     }
 
+    /**
+     * The chapter pack answers story frames only. Every story mode hands the confirmed
+     * frame down to the request, and the crop, battle and voice-subtitle surfaces never
+     * ask for it at all, so their API path cannot be replaced by chapter text.
+     */
+    @Test
+    fun `the chapter pack answers only the story surfaces`() {
+        assertTrue(function("translateSceneSource").contains("storyChapter = storyFrame"))
+        assertTrue(function("translateAndRenderScene").contains("storyFrame = storyFrame"))
+        val confirmed = "storyFrame = dialogueComplete || sceneSource.hasChoices"
+        for (method in listOf("processManualScreen", "processSemiAutoStoryScreen", "processAutoScreen")) {
+            assertTrue(function(method).contains(confirmed), method)
+        }
+        assertTrue(function("processSemiAutoChoiceScreen").contains("storyFrame = true"))
+        // The non-story surfaces call translate()/crop without the story flag.
+        for (path in listOf(
+            "accessibility/FgoAccessibilityService.kt",
+            "battle/BattleSubtitleController.kt",
+            "dialoguesubtitle/DialogueSubtitleController.kt"
+        )) {
+            assertFalse(source(path).contains("storyChapter = true"), path)
+        }
+    }
+
     private fun function(name: String): String =
         Regex("(?m)^    (?:private )?(?:suspend )?fun ").split(service).drop(1)
             .first { it.startsWith("$name(") }

@@ -376,6 +376,28 @@ internal class StoryChapterDatabase private constructor(
         ).firstOrNull()
     }
 
+    /**
+     * Normalized source text for one entry, used to weigh a failed read against the line
+     * the flow expected. Null when the pack holds no such seq.
+     */
+    fun normalizedDialog(seq: Int): String? {
+        db.rawQuery("SELECT jp_norm FROM entries WHERE seq = ?", arrayOf(seq.toString())).use { cursor ->
+            return if (cursor.moveToNext()) cursor.getString(0) ?: "" else null
+        }
+    }
+
+    /**
+     * True when any row of either kind hashes to [hash]. The flow inference in
+     * [StoryChapterResolver] may only stand in for a read the pack cannot explain anywhere,
+     * so a line that does exist always wins over it.
+     */
+    fun hasAnyRow(hash: String): Boolean {
+        if (hash.isEmpty()) return false
+        db.rawQuery("SELECT 1 FROM entries WHERE jp_hash = ? LIMIT 1", arrayOf(hash)).use { cursor ->
+            return cursor.moveToNext()
+        }
+    }
+
     fun openingHashes(): List<String> {
         val result = ArrayList<String>()
         db.rawQuery("SELECT jp_norm FROM script_openings", null).use { cursor ->
