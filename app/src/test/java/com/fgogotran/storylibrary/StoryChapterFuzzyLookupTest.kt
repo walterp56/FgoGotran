@@ -62,7 +62,7 @@ class StoryChapterFuzzyLookupTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "2026.11.24.1")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "11")
+            meta(raw, "entry_count", "12")
             insert(
                 raw, seq = 1, type = "dialogue", name = "松永弾正", script = "s1",
                 jp = "は～い♪　ナウなヤングに大人気！",
@@ -122,6 +122,12 @@ class StoryChapterFuzzyLookupTest {
                 jp = "ノッブじゃぞ。",
                 cn = "是阿信喔。",
                 cnName = "阿信"
+            )
+            insert(
+                raw, seq = 12, type = "dialogue", name = "雑賀孫一", script = "s3",
+                jp = "これーーー、たのーーー、しいーーー！！",
+                cn = "這個——，好——開心——！！",
+                cnName = "雜賀孫一"
             )
         } finally {
             raw.close()
@@ -211,6 +217,19 @@ class StoryChapterFuzzyLookupTest {
     }
 
     /**
+     * Real capture: the pack stores `これーーー、たのーーー、しいーーー！！` and the OCR
+     * read every long vowel mark as an ASCII hyphen. Folded, the key is identical, so
+     * the line resolves without any flow state.
+     */
+    @Test
+    fun `hyphens read for long vowel marks match approximately`() {
+        val ocr = "これ---、たの---、しい---！！"
+        val key = StoryOcrNormalizer.fuzzyKey(ocr)
+        assertEquals("これーーーたのーーーしいーーー", key)
+        assertEquals(12, database.fuzzyDialogue(key, StoryLocale.CN, null, -1)?.seq)
+    }
+
+    /**
      * Real capture: the pack stores `スラニョっ！？` and the OCR read the small `ョ` as a
      * full-size `ヨ`. At five characters the one-glyph miss scores 0.5, so only the
      * scene window could absorb it — and once, because that hit advances the flow past
@@ -224,7 +243,7 @@ class StoryChapterFuzzyLookupTest {
         assertTrue(database.dialogueRowsForHash(StoryOcrNormalizer.hash(ocr)).isEmpty())
         // Once the line is confirmed, the window opens after it and never answers for it again.
         val window = database.windowEntries("s3", 10, 6)
-        assertEquals(listOf(11), window.map { it.seq })
+        assertEquals(listOf(11, 12), window.map { it.seq })
         assertNull(
             StoryFuzzyMatcher.selectInWindow(
                 StoryFuzzyMatcher.query(StoryOcrNormalizer.fuzzyKey(ocr)), window, StoryLocale.CN

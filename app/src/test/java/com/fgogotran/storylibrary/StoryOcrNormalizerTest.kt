@@ -121,6 +121,30 @@ class StoryOcrNormalizerTest {
         )
     }
 
+    /**
+     * Real capture: the source draws `これーーー、たのーーー、しいーーー！！` with long
+     * vowel marks, and the OCR returned ASCII hyphens for every one of them. Three
+     * glyphs per run put the line far under the dialogue threshold, so the hyphen is
+     * folded onto the same mark as the bar family.
+     */
+    @Test
+    fun `fuzzy key folds hyphens read for long vowel marks`() {
+        val source = "これーーー、たのーーー、しいーーー！！"
+        val ocr = "これ---、たの---、しい---！！"
+        assertEquals("これーーーたのーーーしいーーー", StoryOcrNormalizer.fuzzyKey(source))
+        assertEquals(StoryOcrNormalizer.fuzzyKey(source), StoryOcrNormalizer.fuzzyKey(ocr))
+        assertNotEquals(StoryOcrNormalizer.hash(source), StoryOcrNormalizer.hash(ocr))
+    }
+
+    /** A real hyphen inside a word still folds, so both sides keep agreeing. */
+    @Test
+    fun `fuzzy key folds hyphens inside ordinary words`() {
+        assertEquals(
+            StoryOcrNormalizer.fuzzyKey("ヤタガラスMG-01"),
+            StoryOcrNormalizer.fuzzyKey("ヤタガラスMGー01")
+        )
+    }
+
     /** Hiragana is dense text, not a katakana capture: its small kana stay as they are. */
     @Test
     fun `fuzzy key leaves hiragana small kana alone`() {

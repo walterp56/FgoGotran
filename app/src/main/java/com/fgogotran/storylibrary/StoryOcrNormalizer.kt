@@ -31,9 +31,12 @@ object StoryOcrNormalizer {
     // other character class: NFKC folds `～` (U+FF5E) to ASCII `~` but leaves `〜`
     // (U+301C) untouched, so the exact hash silently misses otherwise identical
     // lines. The same pass folds the long-vowel mark onto the kanji OCR keeps
-    // reading it as (`ー` seen as `一`, e.g. `ほーん` captured as `ほ一ん`).
+    // reading it as (`ー` seen as `一`, e.g. `ほーん` captured as `ほ一ん`) and onto
+    // ASCII or typographic hyphens (the source `これーーー、` captured as
+    // `これ---、`), which is the same glyph with a different dash width.
     private val waveDashes = Regex("[\\u301C\\uFF5E\\u007E\\u223C]")
-    private val horizontalBars = Regex("[\\u2015\\u2014\\u2500\\u2501\\u2212\\uFF0D]")
+    private val horizontalBars =
+        Regex("[\\u2015\\u2014\\u2500\\u2501\\u2212\\uFF0D\\u002D\\u2010\\u2011\\u2012\\u2013]")
 
     fun normalize(text: String): String = text
         .replace(genderControl, "$1")
@@ -101,6 +104,20 @@ object StoryOcrNormalizer {
     /** Speaker key; NFKC folds full-width punctuation before the exact name lookup. */
     fun normalizeName(name: String): String = Normalizer.normalize(name, Normalizer.Form.NFKC)
         .replace(spaces, "")
+        .trim()
+
+    /**
+     * Key for a line that has no letters or digits left after [normalize].
+     *
+     * Ellipsis and shout-only lines (`……`, `！？`, `――`) are real story lines, but
+     * [normalize] removes their every character, so they have no hash and used to be
+     * unmatchable. The database keeps `jp_dialog`, so those rows are matched on the
+     * punctuation itself after the same width folding OCR needs.
+     */
+    fun visualKey(text: String): String = Normalizer.normalize(text, Normalizer.Form.NFKC)
+        .replace(spaces, "")
+        .replace(waveDashes, "~")
+        .replace(horizontalBars, "ー")
         .trim()
 
     fun sha1(value: String): String {

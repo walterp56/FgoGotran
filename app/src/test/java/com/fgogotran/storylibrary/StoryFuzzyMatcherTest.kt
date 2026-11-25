@@ -135,6 +135,18 @@ class StoryFuzzyMatcherTest {
     }
 
     @Test
+    fun `a mid-line fragment cannot skip ahead in the window`() {
+        val window = listOf(
+            entry(1, "全然関係ない文章です", cn = "完全无关的句子"),
+            entry(2, "今日はとてもいい天気ですね、お嬢様", cn = "今天天气非常好呢，大小姐")
+        )
+        // The capture sits inside a later line rather than at its head, which is not
+        // what a truncated OCR read looks like.
+        val query = StoryFuzzyMatcher.query(StoryOcrNormalizer.fuzzyKey("いい天気"))
+        assertNull(StoryFuzzyMatcher.selectInWindow(query, window, StoryLocale.CN))
+    }
+
+    @Test
     fun `a half read next line resolves inside the scene window`() {
         val window = listOf(
             entry(2, "あの弾正ちゃんの素敵なお店、ボンバーショップ『ヒラグモちゃん』にようこそ～☆"),

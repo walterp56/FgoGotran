@@ -135,6 +135,57 @@ class StoryChapterResolverTest {
         assertEquals("可是……！", scene.choices.single().translatedText)
     }
 
+    /**
+     * `……` keeps no characters after normalization, so it has no hash even though the
+     * pack stores it. The stored dialog is used instead, and the frame kind still
+     * separates the dialogue row from the button.
+     */
+    @Test
+    fun `a punctuation-only line resolves from the pack`() = runBlocking {
+        val hit = resolver.translateLine(
+            "……", "村人", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Hit
+        assertEquals("……", hit.text)
+    }
+
+    @Test
+    fun `a punctuation-only button resolves as a button`() = runBlocking {
+        val hit = resolver.translateLine(
+            "……", "", StoryChapterResolver.LineKind.CHOICE
+        ) as StoryChapterResolver.LineResult.Hit
+        assertEquals("……", hit.text)
+    }
+
+    /**
+     * Two scripts contain a line that normalizes to `はい` with different renderings.
+     * Without a speaker or a confirmed flow nothing separates them, and picking the
+     * first would put another scene's wording next to this frame.
+     */
+    @Test
+    fun `an ambiguous exact match stays a miss`() = runBlocking {
+        val miss = resolver.translateLine(
+            "はい。", "", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+    }
+
+    /**
+     * The approximate lookup searches the whole pack, so a damaged line can score best
+     * on another script. Taking it would move the flow there; a new scene already
+     * produces one miss, which is what unlocks the switch.
+     */
+    @Test
+    fun `the approximate lookup does not leave a confirmed script`() = runBlocking {
+        val first = resolver.translateLine(
+            "そうですね。", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Hit
+        assertEquals("說得也是。", first.text)
+        val miss = resolver.translateLine(
+            "おはようございます、マスタ。", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+    }
+
     private fun buildDatabase(file: File) {
         file.parentFile?.mkdirs()
         file.delete()
@@ -174,12 +225,20 @@ class StoryChapterResolverTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "test")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "4")
+            meta(raw, "entry_count", "9")
             insert(raw, 1, "スラノッブ", "スラニョっ！？", "史萊姆阿信", "史萊諾！？")
             insert(raw, 2, "オルガマリー", "そうですね。", "奧爾嘉瑪麗", "說得也是。")
             // Both normalize to `だって`, so only the frame kind can separate them.
             insert(raw, 3, "村人", "だって……、", "村民", "因為……、")
             insert(raw, 4, "", "だって……！", "", "可是……！", type = "choice")
+            // Punctuation only: normalization removes every character, so these rows
+            // have no hash and are matched on the stored dialog instead.
+            insert(raw, 5, "村人", "……", "村民", "……")
+            insert(raw, 6, "", "……", "", "……", type = "choice")
+            insert(raw, 7, "", "おはようございます、マスター。", "", "早安，御主。", script = "s2")
+            // Same normalized key in two scripts with different renderings.
+            insert(raw, 8, "", "はい。", "", "是。", script = "s2")
+            insert(raw, 9, "", "はい！", "", "好的！", script = "s3")
         } finally {
             raw.close()
         }
@@ -196,16 +255,20 @@ class StoryChapterResolverTest {
         jp: String,
         nameTarget: String,
         dialogTarget: String,
-        type: String = "dialogue"
+        type: String = "dialogue",
+        script: String = "s1"
     ) {
         val norm = StoryOcrNormalizer.normalize(jp)
+        // The builder stores an empty hash when normalization leaves nothing; sha1("")
+        // would be a real digest and would hide the row from the punctuation lookup.
+        val hash = if (norm.isEmpty()) "" else StoryOcrNormalizer.sha1(norm)
         db.execSQL(
             "INSERT INTO entries(entry_id, seq, script_id, scene_id, position, type, branch_id, " +
                 "choice_group, choice_slot, jp_name, jp_dialog, jp_norm, jp_hash, cn_name, cn_dialog, " +
                 "tw_name, tw_dialog, en_name, en_dialog) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             arrayOf(
-                "e$seq", seq, "s1", "scene-1", seq, type, null, null, null,
-                name, jp, norm, StoryOcrNormalizer.sha1(norm),
+                "e$seq", seq, script, "scene-1", seq, type, null, null, null,
+                name, jp, norm, hash,
                 nameTarget, dialogTarget, nameTarget, dialogTarget, nameTarget, dialogTarget
             )
         )

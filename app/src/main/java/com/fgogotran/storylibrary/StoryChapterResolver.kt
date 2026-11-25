@@ -181,7 +181,7 @@ class StoryChapterResolver @Inject constructor(
         playerName: String
     ): StoryChapterDatabase.Row? {
         val hash = StoryOcrNormalizer.hash(text)
-        if (hash.isEmpty()) return null
+        if (hash.isEmpty()) return punctuationRow(database, text, speaker, locale, choice = false)
 
         // The flow and the exact lookup both stay inside dialogue rows, so a button
         // whose text normalizes to the same line can never answer a dialogue frame.
@@ -189,7 +189,7 @@ class StoryChapterResolver @Inject constructor(
         if (expected != null && expected.jpHash == hash) return expected
 
         val candidates = database.dialogueRowsForHash(hash)
-        if (candidates.isNotEmpty()) return disambiguate(candidates, speaker)
+        if (candidates.isNotEmpty()) return disambiguate(candidates, speaker, locale)
 
         // A `[%1]` line can only match once the rendered name is removed, and the
         // template is exact, so it is tried before the coarser scene window.
@@ -224,7 +224,51 @@ class StoryChapterResolver @Inject constructor(
             flowSeq = lastSeq,
             speakerKey = StoryOcrNormalizer.nameKey(speaker)
         ) ?: return null
+        if (!keepsOrEntersFlow(row)) {
+            FgoLogger.debug(
+                tag,
+                "Story dialogue fuzzy hit rejected outside the confirmed script: " +
+                    "script=${row.scriptId} seq=${row.seq} flow=$lastScriptId"
+            )
+            return null
+        }
         FgoLogger.debug(tag, "Story dialogue matched approximately: script=${row.scriptId} seq=${row.seq}")
+        return row
+    }
+
+    /**
+     * A confirmed script is the strongest prior the reader has. The approximate lookup
+     * searches the whole pack, so it can prefer a similar line from another script; taking
+     * it would also move the flow there and make every following line look wrong. Leaving
+     * the script is allowed once a line has already missed, because a new scene starts
+     * exactly that way.
+     */
+    private fun keepsOrEntersFlow(row: StoryChapterDatabase.Row): Boolean {
+        val script = lastScriptId ?: return true
+        if (row.scriptId == script) return true
+        return consecutiveMisses.get() > 0
+    }
+
+    /**
+     * A punctuation-only line (`……`, `！？`) keeps no characters after normalization, so
+     * it has no hash to look up even though the pack stores it. The frame kind still
+     * separates a dialogue row from a button.
+     */
+    private fun punctuationRow(
+        database: StoryChapterDatabase,
+        text: String,
+        speaker: String,
+        locale: StoryLocale,
+        choice: Boolean
+    ): StoryChapterDatabase.Row? {
+        val key = StoryOcrNormalizer.visualKey(text)
+        val candidates = database.punctuationRows(key, choice)
+        if (candidates.isEmpty()) return null
+        val row = disambiguate(candidates, speaker, locale) ?: return null
+        FgoLogger.debug(
+            tag,
+            "Story line matched by punctuation key: script=${row.scriptId} seq=${row.seq}"
+        )
         return row
     }
 
@@ -253,16 +297,15 @@ class StoryChapterResolver @Inject constructor(
         playerName: String
     ): StoryChapterDatabase.Row? {
         val hash = StoryOcrNormalizer.hash(text)
-        if (hash.isNotEmpty()) {
-            val candidates = database.choiceRowsForHash(hash)
-            if (candidates.isNotEmpty()) {
-                val anchor = dialogueRow?.seq ?: lastSeq
-                val sameGroup = dialogueRow?.choiceGroup?.let { group ->
-                    candidates.filter { it.choiceGroup == group }
-                }.orEmpty()
-                val pool = sameGroup.ifEmpty { candidates }
-                return pool.minByOrNull { abs(it.seq - anchor) } ?: pool.first()
-            }
+        if (hash.isEmpty()) return punctuationRow(database, text, "", locale, choice = true)
+        val candidates = database.choiceRowsForHash(hash)
+        if (candidates.isNotEmpty()) {
+            val anchor = dialogueRow?.seq ?: lastSeq
+            val sameGroup = dialogueRow?.choiceGroup?.let { group ->
+                candidates.filter { it.choiceGroup == group }
+            }.orEmpty()
+            val pool = sameGroup.ifEmpty { candidates }
+            return pool.minByOrNull { abs(it.seq - anchor) } ?: pool.first()
         }
         matchSlot(
             database = database,
@@ -311,9 +354,11 @@ class StoryChapterResolver @Inject constructor(
 
         val candidates = database.slotRows(key, choice)
         if (candidates.isNotEmpty()) {
-            val row = disambiguate(candidates, speaker)
-            FgoLogger.debug(tag, "Story $kind matched by master-name slot: script=${row.scriptId} seq=${row.seq}")
-            return row
+            val row = disambiguate(candidates, speaker, locale)
+            if (row != null) {
+                FgoLogger.debug(tag, "Story $kind matched by master-name slot: script=${row.scriptId} seq=${row.seq}")
+                return row
+            }
         }
         if (!fuzzyMatchingEnabled()) return null
 
@@ -325,6 +370,7 @@ class StoryChapterResolver @Inject constructor(
             speakerKey = StoryOcrNormalizer.nameKey(speaker),
             choice = choice
         ) ?: return null
+        if (!choice && !keepsOrEntersFlow(row)) return null
         FgoLogger.debug(
             tag,
             "Story $kind matched approximately by master-name slot: script=${row.scriptId} seq=${row.seq}"
@@ -332,10 +378,19 @@ class StoryChapterResolver @Inject constructor(
         return row
     }
 
+    /**
+     * Narrows rows that share one lookup key.
+     *
+     * Selection order is evidence strength: the same speaker, then an identical
+     * rendering (every candidate would answer the same), then the confirmed flow.
+     * When nothing separates different renderings the line stays a miss, because
+     * borrowing another scene's translation is worse than leaving the original.
+     */
     private fun disambiguate(
         candidates: List<StoryChapterDatabase.Row>,
-        speaker: String
-    ): StoryChapterDatabase.Row {
+        speaker: String,
+        locale: StoryLocale
+    ): StoryChapterDatabase.Row? {
         if (candidates.size == 1) return candidates.first()
         val speakerKey = StoryOcrNormalizer.nameKey(speaker)
         val sameSpeaker = if (speakerKey.isEmpty()) emptyList()
@@ -345,7 +400,22 @@ class StoryChapterResolver @Inject constructor(
             pool.filter { it.scriptId == script }
                 .minByOrNull { abs(it.seq - lastSeq) }
         }
-        return continuing ?: pool.first()
+        if (continuing != null) return continuing
+        if (sameSpeaker.isNotEmpty()) return sameSpeaker.first()
+        if (candidates.map { it.dialogText(locale) }.toSet().size == 1) return candidates.first()
+        FgoLogger.debug(
+            tag,
+            "Story lookup stayed ambiguous across ${candidates.size} rows: seqs=" +
+                candidates.take(4).joinToString(",") { it.seq.toString() }
+        )
+        return null
+    }
+
+    /** The rendered line for [locale], used to tell an ambiguous hit from a real one. */
+    private fun StoryChapterDatabase.Row.dialogText(locale: StoryLocale): String = when (locale) {
+        StoryLocale.CN -> cnDialog
+        StoryLocale.TW -> twDialog
+        StoryLocale.EN -> enDialog
     }
 
     /** Exact speaker lookup first; the approximate lookup only runs on a miss. */

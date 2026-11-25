@@ -53,6 +53,9 @@ internal object StoryFuzzyMatcher {
     /** Keys shorter than this only match exactly; bigram scores are noise there. */
     private const val MIN_FUZZY_CHARS = 4
 
+    /** Coverage only counts from this capture length; shorter keys are ambiguous. */
+    private const val COVERAGE_MIN_CHARS = 4
+
     /** Below this length the window's single-glyph rule is unsafe. */
     private const val SHORT_EDIT_MIN_CHARS = 3
 
@@ -142,12 +145,22 @@ internal object StoryFuzzyMatcher {
     /**
      * Score used inside one confirmed script: the better of symmetric similarity
      * and OCR coverage, so a half-read line still matches its own next entry.
+     *
+     * Coverage only counts when the capture is a prefix of the stored line, because
+     * that is what a truncated read looks like: OCR loses the tail, never the head.
+     * Without that rule any short fragment scores 1.0 inside a long line that merely
+     * contains it, which lets the window jump onto the wrong line.
      */
-    fun windowScore(query: LongArray, candidate: LongArray): Double {
-        if (query.isEmpty() || candidate.isEmpty()) return 0.0
-        val shared = sharedCount(query, candidate)
-        val dice = (2.0 * shared) / (query.size + candidate.size)
-        val coverage = shared.toDouble() / query.size
+    fun windowScore(query: Entry, candidate: Entry): Double {
+        if (query.length == 0 || candidate.length == 0) return 0.0
+        if (query.bigrams.isEmpty() || candidate.bigrams.isEmpty()) return 0.0
+        val shared = sharedCount(query.bigrams, candidate.bigrams)
+        val dice = (2.0 * shared) / (query.bigrams.size + candidate.bigrams.size)
+        val coverage = if (query.length >= COVERAGE_MIN_CHARS && candidate.key.startsWith(query.key)) {
+            shared.toDouble() / query.bigrams.size
+        } else {
+            0.0
+        }
         return max(dice, coverage)
     }
 
@@ -172,20 +185,24 @@ internal object StoryFuzzyMatcher {
                 next.length >= SHORT_EDIT_MIN_CHARS &&
                 withinOneEdit(query.key, next.key)
             ) {
-                return Match(next, windowScore(query.bigrams, next.bigrams))
+                return Match(next, windowScore(query, next))
             }
             return null
         }
         val scored = ArrayList<Scored>(window.size)
         for (candidate in window) {
-            val value = windowScore(query.bigrams, candidate.bigrams)
+            val value = windowScore(query, candidate)
             if (value >= WINDOW_THRESHOLD) scored.add(Scored(candidate, value))
         }
         if (scored.isEmpty()) return null
         scored.sortWith(compareByDescending<Scored> { it.score }.thenBy { it.entry.seq })
         val best = scored.first()
         val next = window.first()
-        if (best.entry.seq != next.seq && best.score < WINDOW_THRESHOLD + WINDOW_SKIP_EXTRA) {
+        // Skipping the next line changes the flow, so it must rest on symmetric
+        // similarity; coverage alone only justifies taking the line immediately ahead.
+        if (best.entry.seq != next.seq &&
+            score(query.bigrams, best.entry.bigrams) < WINDOW_THRESHOLD + WINDOW_SKIP_EXTRA
+        ) {
             return null
         }
         val rival = scored.firstOrNull { it.entry.text(locale) != best.entry.text(locale) }

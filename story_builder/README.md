@@ -296,7 +296,9 @@ is one hash comparison, with scene/position as the fallback and
 back to the API while a chapter pack is applied; that switch is app-side.
 
 The app also folds the dash-width family (`～`, `〜`, `~`), the horizontal-bar
-family (`—`, `―`, `ー`), the long-vowel mark OCR reads as `一`, and a small
+family (`—`, `―`, `ー`, `-` — an ASCII or typographic hyphen is the same stroke
+as the long-vowel mark, and the capture `これ---、` must reach `これーーー、`),
+the long-vowel mark OCR reads as `一`, and a small
 katakana promoted to its full-size form (`スラニョっ` captured as `スラニヨっ`)
 onto one approximate lookup key. That key is app-side only: stored `jp_hash`
 values are unchanged, so packs built before the rule keep matching exactly, and

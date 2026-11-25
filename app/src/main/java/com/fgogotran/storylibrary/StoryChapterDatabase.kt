@@ -105,6 +105,49 @@ internal class StoryChapterDatabase private constructor(
     }
 
     /**
+     * Rows whose line is punctuation only (`……`, `！？`).
+     *
+     * `jp_hash` is empty exactly when normalization removed every character, which is
+     * the same set the builder stores, so the hash column alone finds the candidates.
+     * The capture keeps its punctuation, so the raw dialog decides after both sides
+     * fold their dash widths; see [StoryOcrNormalizer.visualKey].
+     */
+    fun punctuationRows(visualKey: String, choice: Boolean): List<Row> {
+        if (visualKey.isEmpty()) return emptyList()
+        val rows = ArrayList<Row>(4)
+        db.rawQuery(
+            "SELECT seq, script_id, position, type, jp_name, jp_hash, choice_group, jp_dialog, " +
+                "cn_name, cn_dialog, tw_name, tw_dialog, en_name, en_dialog FROM entries " +
+                "WHERE jp_hash = '' AND jp_dialog <> '' AND type " +
+                (if (choice) "= 'choice'" else "<> 'choice'"),
+            null
+        ).use { cursor ->
+            while (cursor.moveToNext() && rows.size < MAX_CANDIDATES) {
+                val dialog = cursor.getString(7) ?: ""
+                if (StoryOcrNormalizer.visualKey(dialog) != visualKey) continue
+                rows.add(
+                    Row(
+                        seq = cursor.getInt(0),
+                        scriptId = cursor.getString(1) ?: "",
+                        position = cursor.getInt(2),
+                        type = cursor.getString(3) ?: "",
+                        jpName = cursor.getString(4) ?: "",
+                        jpHash = cursor.getString(5) ?: "",
+                        choiceGroup = cursor.getString(6),
+                        cnName = cursor.getString(8) ?: "",
+                        cnDialog = cursor.getString(9) ?: "",
+                        twName = cursor.getString(10) ?: "",
+                        twDialog = cursor.getString(11) ?: "",
+                        enName = cursor.getString(12) ?: "",
+                        enDialog = cursor.getString(13) ?: ""
+                    )
+                )
+            }
+        }
+        return rows
+    }
+
+    /**
      * Exact template lookup for a line whose `[%1]` slot the game rendered as the
      * player's name; [key] must come from [StoryOcrNormalizer.slotKey].
      */
