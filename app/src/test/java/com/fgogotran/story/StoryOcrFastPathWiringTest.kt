@@ -52,6 +52,20 @@ class StoryOcrFastPathWiringTest {
     }
 
     @Test
+    fun `the name cover and clip warning follow the measured glyph box`() {
+        val render = function("storyRegionForRender")
+        assertTrue(
+            render.contains(
+                "val textBounds = namePlate?.let { plate -> measureNameTextBounds(source, region.lines, plate) }"
+            )
+        )
+        assertTrue(render.contains("sourceNameTextBounds = textBounds"))
+        assertTrue(render.contains("lines = lines"))
+        // The warning must see the tight box, so the measurement runs first.
+        assertTrue(render.indexOf("measureNameTextBounds(") < render.indexOf("warnIfNameClipped("))
+    }
+
+    @Test
     fun `the fast path needs the switch the active pack and the preference`() {
         val gate = function("storyFastOcrEnabled")
         for (required in listOf(

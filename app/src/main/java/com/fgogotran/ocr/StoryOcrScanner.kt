@@ -37,6 +37,20 @@ internal object StoryOcrGeometry {
     private const val NAME_INK_LUMA = 170
     private const val MIN_ROW_INK_PIXELS = 2
 
+    /**
+     * Bright-enough pixel for dialogue ink, measured on the strongest channel.
+     *
+     * Red shout text is dim in luma (~76) but bright in red, so a luma threshold would
+     * report those lines as empty.
+     */
+    private const val TEXT_INK_MAX_CHANNEL = 170
+
+    /** Tight ink boxes keep their margins, so a glyph's antialiased edge is not clipped. */
+    private const val INK_PADDING = 2
+
+    /** Below this share of the band height the box is a thin mark, not a line of text. */
+    private const val MIN_RECOGNITION_HEIGHT_RATIO = 0.6f
+
     private const val CHOICE_TEXT_INSET_LEFT = 0.10f
     private const val CHOICE_TEXT_INSET_RIGHT = 0.06f
     private const val CHOICE_TEXT_INSET_Y = 0.18f
@@ -54,6 +68,74 @@ internal object StoryOcrGeometry {
             ).takeIf { it.height() > 0 }
         }
     }
+
+    /**
+     * Tight box around the ink inside [band], or null when the band holds no text.
+     *
+     * A story line is left-anchored and usually far shorter than the band, while the
+     * overlay sizes its white cover panel from these bounds, so the reported box must
+     * follow the glyphs instead of the crop.
+     */
+    fun inkBounds(source: Bitmap, band: Rect): Rect? {
+        val clipped = Rect(band)
+        if (!clipped.intersect(0, 0, source.width, source.height) ||
+            clipped.width() <= 0 ||
+            clipped.height() <= 0
+        ) {
+            return null
+        }
+        val pixels = IntArray(clipped.width() * clipped.height())
+        source.getPixels(
+            pixels,
+            0,
+            clipped.width(),
+            clipped.left,
+            clipped.top,
+            clipped.width(),
+            clipped.height()
+        )
+        val columns = IntArray(clipped.width())
+        var top = -1
+        var bottom = -1
+        for (y in 0 until clipped.height()) {
+            var rowInk = 0
+            val offset = y * clipped.width()
+            for (x in 0 until clipped.width()) {
+                if (!isTextInk(pixels[offset + x])) continue
+                rowInk++
+                columns[x]++
+            }
+            if (rowInk >= MIN_ROW_INK_PIXELS) {
+                if (top < 0) top = y
+                bottom = y
+            }
+        }
+        if (top < 0) return null
+        var left = -1
+        var right = -1
+        for (x in columns.indices) {
+            if (columns[x] < MIN_ROW_INK_PIXELS) continue
+            if (left < 0) left = x
+            right = x
+        }
+        if (left < 0) return null
+        return Rect(
+            (clipped.left + left - INK_PADDING).coerceAtLeast(clipped.left),
+            (clipped.top + top - INK_PADDING).coerceAtLeast(clipped.top),
+            (clipped.left + right + 1 + INK_PADDING).coerceAtMost(clipped.right),
+            (clipped.top + bottom + 1 + INK_PADDING).coerceAtMost(clipped.bottom)
+        )
+    }
+
+    /**
+     * Crop used for recognition.
+     *
+     * The tight box stops a short line from being read as a sliver at the left of a
+     * full-width crop, but a thin mark (`……`) would be stretched by the resize, so it
+     * keeps the band.
+     */
+    fun recognitionBand(band: Rect, ink: Rect?): Rect =
+        if (ink != null && ink.height() >= band.height() * MIN_RECOGNITION_HEIGHT_RATIO) ink else band
 
     /**
      * The name plate is taller than one line of glyphs, so crop to the ink rows before
@@ -110,6 +192,13 @@ internal object StoryOcrGeometry {
         val green = (pixel shr 8) and 0xff
         val blue = pixel and 0xff
         return (red * 299 + green * 587 + blue * 114) / 1000
+    }
+
+    private fun isTextInk(pixel: Int): Boolean {
+        val red = (pixel shr 16) and 0xff
+        val green = (pixel shr 8) and 0xff
+        val blue = pixel and 0xff
+        return maxOf(red, green, blue) >= TEXT_INK_MAX_CHANNEL
     }
 }
 
@@ -195,13 +284,20 @@ class StoryOcrScanner @Inject constructor(
     ): StoryOcrFrame? {
         val rows = StoryOcrGeometry.dialogueBands(dialogueBounds)
         if (rows.size != DIALOGUE_ROW_COUNT) return null
+        val inks = rows.map { StoryOcrGeometry.inkBounds(source, it) }
+        val crops = rows.mapIndexed { index, band ->
+            StoryOcrGeometry.recognitionBand(band, inks[index])
+        }
         val nameBand = namePlate?.let { StoryOcrGeometry.inkBand(source, it) }
-        val bands = if (nameBand == null) rows else rows + nameBand
+        val bands = if (nameBand == null) crops else crops + nameBand
 
         val startedAt = System.currentTimeMillis()
         val results = ocrEngine.recognizeStoryBands(source, bands) ?: return null
         if (results.size != bands.size) return null
-        val dialogue = StoryOcrAssembler.dialogue(results.subList(0, rows.size), rows) ?: return null
+        // The reported box follows the glyphs, never the crop: the overlay sizes its white
+        // cover panel from these bounds, so a band-wide box would paint over the whole box.
+        val reported = rows.mapIndexed { index, band -> inks[index] ?: band }
+        val dialogue = StoryOcrAssembler.dialogue(results.subList(0, rows.size), reported) ?: return null
         val name = nameBand?.let { band ->
             StoryOcrAssembler.name(results.getOrNull(rows.size), band)
         }

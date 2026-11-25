@@ -6,6 +6,7 @@ import android.graphics.Rect
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -161,6 +162,56 @@ class StoryOcrScannerTest {
         assertNull(StoryOcrAssembler.name(StoryBandText("", 0.96f), band))
         assertNull(StoryOcrAssembler.name(StoryBandText("雑賀孫一", 0.2f), band))
         assertNull(StoryOcrAssembler.name(null, band))
+    }
+
+    @Test
+    fun `a short line reports a tight box inside its band`() {
+        val bitmap = Bitmap.createBitmap(400, 60, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.argb(255, 20, 24, 34))
+        // A full-height line that stops well before the band's right edge.
+        for (y in 8 until 52) {
+            for (x in 40 until 140) bitmap.setPixel(x, y, Color.WHITE)
+        }
+        val band = Rect(0, 0, 400, 60)
+        val ink = StoryOcrGeometry.inkBounds(bitmap, band)
+        // The overlay paints its white cover panel from this box, so it must not be the band.
+        assertEquals(Rect(38, 6, 142, 54), ink)
+        assertEquals(ink, StoryOcrGeometry.recognitionBand(band, ink))
+        bitmap.recycle()
+    }
+
+    @Test
+    fun `a thin mark keeps the full band for recognition`() {
+        val bitmap = Bitmap.createBitmap(400, 60, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.BLACK)
+        for (y in 28 until 32) {
+            for (x in 40 until 140) bitmap.setPixel(x, y, Color.WHITE)
+        }
+        val band = Rect(0, 0, 400, 60)
+        val ink = StoryOcrGeometry.inkBounds(bitmap, band)
+        assertEquals(Rect(38, 26, 142, 34), ink)
+        // A mark this thin would be stretched by the recognition resize.
+        assertSame(band, StoryOcrGeometry.recognitionBand(band, ink))
+        bitmap.recycle()
+    }
+
+    @Test
+    fun `red shout text still counts as ink`() {
+        val bitmap = Bitmap.createBitmap(200, 60, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.argb(255, 18, 22, 30))
+        for (y in 20 until 40) {
+            for (x in 20 until 60) bitmap.setPixel(x, y, Color.rgb(237, 28, 36))
+        }
+        assertEquals(Rect(18, 18, 62, 42), StoryOcrGeometry.inkBounds(bitmap, Rect(0, 0, 200, 60)))
+        bitmap.recycle()
+    }
+
+    @Test
+    fun `an empty band has no ink box`() {
+        val bitmap = Bitmap.createBitmap(200, 60, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.argb(255, 18, 22, 30))
+        assertNull(StoryOcrGeometry.inkBounds(bitmap, Rect(0, 0, 200, 60)))
+        bitmap.recycle()
     }
 
     private fun bands(): List<Rect> = StoryOcrGeometry.dialogueBands(referenceDialogue)

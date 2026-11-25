@@ -5589,15 +5589,18 @@ class FgoAccessibilityService : AccessibilityService() {
         nameOcrRegion: Rect?
     ): ClassifiedRegion = when (region.region) {
         TextRegion.NAME_LABEL -> {
+            // The name cover and the clip warning follow the glyphs, never the OCR crop.
+            val textBounds = namePlate?.let { plate -> measureNameTextBounds(source, region.lines, plate) }
+            val lines = textBounds?.let { tight -> region.lines.map { it.copy(boundingBox = tight) } }
+                ?: region.lines
             if (nameOcrRegion != null) {
-                warnIfNameClipped(region.lines, nameOcrRegion, namePlate)
+                warnIfNameClipped(lines, nameOcrRegion, namePlate)
             }
             region.copy(
                 boundingBox = screenRegions.nameRender,
                 sourcePlateBounds = namePlate,
-                sourceNameTextBounds = namePlate?.let { plate ->
-                    measureNameTextBounds(source, region.lines, plate)
-                }
+                sourceNameTextBounds = textBounds,
+                lines = lines
             )
         }
         TextRegion.DIALOGUE_BOX -> region.copy(boundingBox = screenRegions.dialogueRender)
