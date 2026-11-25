@@ -487,6 +487,8 @@
     <string name="story_chapter_text_not_found">未在所選章節（%1$s）中找到這句文本。請確認 FGO 已開啟該章節；若是新發布的子章節，請在劇情庫中點「更新」。</string>
     <string name="story_chapter_fuzzy_title">容錯比對 OCR 文字</string>
     <string name="story_chapter_fuzzy_summary">OCR 漏字或把「～」辨識成「〜」時也盡量對上劇情庫。比對不確定時保留原文，不會亂猜。</string>
+    <string name="story_library_fast_ocr_title">快速 Story OCR</string>
+    <string name="story_library_fast_ocr_summary">劇情庫改用專為查表設計的 OCR：只讀固定的對話、名字與選項區域，命中就結束。關閉後改回原本給 API 使用的辨識流程。</string>
 </resources>
 
 

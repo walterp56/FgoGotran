@@ -486,6 +486,8 @@
     <string name="story_chapter_text_not_found">This line was not found in the selected chapter (%1$s). Check that FGO is on that chapter; for a newly released sub-chapter, tap Update in Story Library.</string>
     <string name="story_chapter_fuzzy_title">Tolerant OCR matching</string>
     <string name="story_chapter_fuzzy_summary">Still match the chapter database when OCR drops a character or reads ～ as 〜. Ambiguous lines keep the original text instead of guessing.</string>
+    <string name="story_library_fast_ocr_title">Fast story OCR</string>
+    <string name="story_library_fast_ocr_summary">The story library reads the fixed dialogue, name, and choice areas with a lookup-oriented OCR and stops as soon as the pack matches. Turn this off to use the API pipeline instead.</string>
 </resources>
 
 

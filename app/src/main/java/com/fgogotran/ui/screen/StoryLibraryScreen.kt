@@ -77,6 +77,7 @@ fun StoryLibraryScreen(
     val install by repository.installState.collectAsStateWithLifecycle()
     val enabled by settingsRepository.storyChapterDbEnabled.collectAsStateWithLifecycle(initialValue = false)
     val fuzzyMatch by settingsRepository.storyChapterFuzzyMatch.collectAsStateWithLifecycle(initialValue = true)
+    val fastOcr by settingsRepository.storyChapterFastOcr.collectAsStateWithLifecycle(initialValue = true)
     val activeChapterId by settingsRepository.storyChapterId.collectAsStateWithLifecycle(initialValue = "")
     val activeVersion by settingsRepository.storyChapterVersion.collectAsStateWithLifecycle(initialValue = "")
     val targetLocale by settingsRepository.targetLanguage.collectAsStateWithLifecycle(
@@ -186,6 +187,27 @@ fun StoryLibraryScreen(
                             enabled = activeChapterId.isNotBlank(),
                             onCheckedChange = { checked ->
                                 scope.launch { settingsRepository.setStoryChapterFuzzyMatch(checked) }
+                            }
+                        )
+                    }
+                    HorizontalDivider()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = stringResource(R.string.story_library_fast_ocr_title),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                text = stringResource(R.string.story_library_fast_ocr_summary),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = fastOcr,
+                            enabled = activeChapterId.isNotBlank(),
+                            onCheckedChange = { checked ->
+                                scope.launch { settingsRepository.setStoryChapterFastOcr(checked) }
                             }
                         )
                     }

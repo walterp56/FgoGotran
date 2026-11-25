@@ -386,6 +386,18 @@ carries its own cache policy (`ocr-glossary-v2`).
   The **Tolerant OCR matching** switch in Story Library turns the approximate
   stages off; they are on by default.
 
+- Two OCR paths exist. The API path transcribes for a language model: it detects
+  text boxes, separates ruby, repairs edges, and retries weak crops. The Story
+  Library path (`StoryOcrScanner`) recognizes the fixed rows once — dialogue at
+  48–100 and 134–186 of the 219 px crop, plus the inked name band and one band per
+  choice panel — with no detection and no repair passes, because the pack, not the
+  transcription, decides whether the read was good enough. A read is accepted only
+  when the active pack already matches it (`StoryChapterResolver.probe`); otherwise
+  the same screenshot goes through the full API pipeline. The **Fast story OCR**
+  switch in Story Library turns the path off and runs exactly the pipeline that
+  predates it. It needs PaddleOCR; with ML Kit, in voice-only mode, and on
+  non-Japanese servers the full pipeline runs unchanged.
+
 Measured on the built `event-80639` pack (4,170 dialogue rows, 213 choices) on a
 JVM: the bigram index builds in ~50 ms, each whole-pack lookup scans in ~1 ms,
 and 137 single-character OCR corruptions resolved 96.4% with zero wrong

@@ -55,6 +55,8 @@ import com.fgogotran.ocr.OcrCharacterPosition
 import com.fgogotran.ocr.OcrInputScale
 import com.fgogotran.ocr.OcrTextCorrector
 import com.fgogotran.ocr.OcrTextLine
+import com.fgogotran.ocr.StoryOcrFrame
+import com.fgogotran.ocr.StoryOcrScanner
 import com.fgogotran.overlay.BackgroundDetector
 import com.fgogotran.overlay.DialogueMarkerReport
 import com.fgogotran.overlay.ClassifiedRegion
@@ -82,6 +84,7 @@ import com.fgogotran.story.StoryFramePixels
 import com.fgogotran.story.StoryDetector
 import com.fgogotran.story.StoryOcrVisualAction
 import com.fgogotran.story.StoryOcrVisualBounds
+import com.fgogotran.storylibrary.StoryChapterResolver
 import com.fgogotran.story.StoryOcrVisualDecision
 import com.fgogotran.story.StoryOcrVisualGate
 import com.fgogotran.story.StoryOcrVisualScope
@@ -150,6 +153,8 @@ class FgoAccessibilityService : AccessibilityService() {
     @Inject lateinit var battleSubtitles: BattleSubtitleController
     @Inject lateinit var dialogueSubtitles: DialogueSubtitleController
     @Inject lateinit var cropSelectionOverlay: CropSelectionOverlay
+    @Inject lateinit var storyOcrScanner: StoryOcrScanner
+    @Inject lateinit var storyChapterResolver: StoryChapterResolver
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     @Volatile private var runnerScope: CoroutineScope? = null
@@ -5277,6 +5282,8 @@ class FgoAccessibilityService : AccessibilityService() {
             return ChoiceRecognitionResult(choiceBounds, emptyList())
         }
 
+        storyFastChoiceRegions(source, choiceBounds)?.let { return it }
+
         val choiceRegions = recognizeScreenRegions(
             source = source,
             targets = choiceBounds.map { OcrRegionTarget(it, TextRegion.CHOICE_BUTTON) },
@@ -5314,6 +5321,48 @@ class FgoAccessibilityService : AccessibilityService() {
             emptyCooldown.reset()
         }
         return ChoiceRecognitionResult(choiceBounds, choiceRegions)
+    }
+
+    /**
+     * Story Library fast choices: one recognition batch over the fixed panels, then a pack
+     * lookup per button.
+     *
+     * A single weak or unmatched panel returns null, because the full path can recover one
+     * button without discarding the rest of the list.
+     */
+    private suspend fun storyFastChoiceRegions(
+        source: Bitmap,
+        choiceBounds: List<Rect>
+    ): ChoiceRecognitionResult? {
+        if (!storyFastOcrEnabled()) return null
+        val startedAt = SystemClock.elapsedRealtime()
+        val lines = storyOcrScanner.scanChoices(source, choiceBounds) ?: return null
+        if (lines.size != choiceBounds.size) return null
+        val regions = lines.mapIndexed { index, line ->
+            ClassifiedRegion(
+                region = TextRegion.CHOICE_BUTTON,
+                lines = listOf(OcrTextLine(line.text, line.bounds, line.confidence)),
+                boundingBox = choiceBounds[index],
+                ocrEngine = OcrEngineId.PADDLE_OCR
+            )
+        }
+        val matched = regions.all { region ->
+            storyChapterResolver.probe(
+                text = sourceTextFor(region, source),
+                speaker = "",
+                kind = StoryChapterResolver.LineKind.CHOICE
+            )
+        }
+        if (!matched) {
+            FgoLogger.debug(tag, "Story OCR fast choice path rejected: pack has no match")
+            return null
+        }
+        FgoLogger.debug(
+            tag,
+            "Story OCR fast choice hit: panels=${regions.size}, " +
+                "${SystemClock.elapsedRealtime() - startedAt}ms"
+        )
+        return ChoiceRecognitionResult(choiceBounds, regions)
     }
 
     private suspend fun recognizeEnhancedSingleChoiceRegion(
@@ -5503,6 +5552,13 @@ class FgoAccessibilityService : AccessibilityService() {
             )
         }
 
+        // Story Library frames read the fixed bands once and keep the full pipeline as their
+        // fallback: a read the pack cannot resolve is not a transcription worth repairing here.
+        if (!useVoiceOnlyNameCache) {
+            storyFastDialogueRegions(source, screenRegions, nameOcrRegion, namePlate)
+                ?.let { return it }
+        }
+
         // Dialogue is already a complete, separate fixed crop. Recovery may expand individual
         // detected lines inside it, but must not inspect the name, artwork or controls outside it.
         val dialogueRegion = recognizeExactScreenRegion(
@@ -5513,22 +5569,7 @@ class FgoAccessibilityService : AccessibilityService() {
             recognizeNameRegion(source, crop, useVoiceOnlyNameCache)
         }
         val regions = listOfNotNull(dialogueRegion, rawNameRegion).map { region ->
-            when (region.region) {
-                TextRegion.NAME_LABEL -> {
-                    if (nameOcrRegion != null) {
-                        warnIfNameClipped(region.lines, nameOcrRegion, namePlate)
-                    }
-                    region.copy(
-                        boundingBox = screenRegions.nameRender,
-                        sourcePlateBounds = namePlate,
-                        sourceNameTextBounds = namePlate?.let { plate ->
-                            measureNameTextBounds(source, region.lines, plate)
-                        }
-                    )
-                }
-                TextRegion.DIALOGUE_BOX -> region.copy(boundingBox = screenRegions.dialogueRender)
-                TextRegion.CHOICE_BUTTON -> region
-            }
+            storyRegionForRender(region, screenRegions, source, namePlate, nameOcrRegion)
         }
         if (!allowRedTextFallback) return regions
         return recoverRedDialogueRegionIfNeeded(
@@ -5538,6 +5579,117 @@ class FgoAccessibilityService : AccessibilityService() {
             regions = regions
         )
     }
+
+    /** Render bounds for one recognised region; both OCR paths share this mapping. */
+    private fun storyRegionForRender(
+        region: ClassifiedRegion,
+        screenRegions: FgoScreenRegions,
+        source: Bitmap,
+        namePlate: Rect?,
+        nameOcrRegion: Rect?
+    ): ClassifiedRegion = when (region.region) {
+        TextRegion.NAME_LABEL -> {
+            if (nameOcrRegion != null) {
+                warnIfNameClipped(region.lines, nameOcrRegion, namePlate)
+            }
+            region.copy(
+                boundingBox = screenRegions.nameRender,
+                sourcePlateBounds = namePlate,
+                sourceNameTextBounds = namePlate?.let { plate ->
+                    measureNameTextBounds(source, region.lines, plate)
+                }
+            )
+        }
+        TextRegion.DIALOGUE_BOX -> region.copy(boundingBox = screenRegions.dialogueRender)
+        TextRegion.CHOICE_BUTTON -> region
+    }
+
+    /**
+     * Story Library fast dialogue: fixed-band recognition, then a pack lookup.
+     *
+     * The pack decides whether the fast read is accepted; a miss returns null so the
+     * caller runs the full pipeline on the same screenshot. The fast path can therefore
+     * be slower than the normal one on a miss, and never cheaper in quality.
+     */
+    private suspend fun storyFastDialogueRegions(
+        source: Bitmap,
+        screenRegions: FgoScreenRegions,
+        nameOcrRegion: Rect?,
+        namePlate: Rect?
+    ): List<ClassifiedRegion>? {
+        if (!storyFastOcrEnabled()) return null
+        val startedAt = SystemClock.elapsedRealtime()
+        val frame = storyOcrScanner.scanDialogue(source, screenRegions.dialogue, nameOcrRegion)
+        if (frame == null) {
+            FgoLogger.debug(tag, "Story OCR fast path skipped: no usable band read")
+            return null
+        }
+        val regions = storyFrameRegions(frame, screenRegions, source, namePlate, nameOcrRegion)
+        val dialogueRegion = regions.firstOrNull { it.region == TextRegion.DIALOGUE_BOX }
+        if (dialogueRegion == null) return null
+        val dialogueText = sourceTextFor(dialogueRegion, source)
+        val speaker = regions.firstOrNull { it.region == TextRegion.NAME_LABEL }
+            ?.let { sourceTextFor(it, source) }
+            .orEmpty()
+        if (!storyChapterResolver.probe(
+                text = dialogueText,
+                speaker = speaker,
+                kind = StoryChapterResolver.LineKind.DIALOGUE
+            )
+        ) {
+            FgoLogger.debug(tag, "Story OCR fast path rejected: pack has no match for \"$dialogueText\"")
+            return null
+        }
+        FgoLogger.debug(
+            tag,
+            "Story OCR fast path hit: ${SystemClock.elapsedRealtime() - startedAt}ms"
+        )
+        return regions
+    }
+
+    /** Builds the recognised regions of one fast story frame in screen coordinates. */
+    private fun storyFrameRegions(
+        frame: StoryOcrFrame,
+        screenRegions: FgoScreenRegions,
+        source: Bitmap,
+        namePlate: Rect?,
+        nameOcrRegion: Rect?
+    ): List<ClassifiedRegion> {
+        val regions = ArrayList<ClassifiedRegion>(2)
+        if (frame.dialogue.isNotEmpty()) {
+            regions += ClassifiedRegion(
+                region = TextRegion.DIALOGUE_BOX,
+                lines = frame.dialogue.map { line ->
+                    OcrTextLine(
+                        text = line.text,
+                        boundingBox = line.bounds,
+                        confidence = line.confidence,
+                        dialogueRow = line.row
+                    )
+                },
+                boundingBox = screenRegions.dialogue,
+                ocrEngine = OcrEngineId.PADDLE_OCR
+            )
+        }
+        frame.name?.let { name ->
+            regions += ClassifiedRegion(
+                region = TextRegion.NAME_LABEL,
+                lines = listOf(OcrTextLine(name.text, name.bounds, name.confidence)),
+                boundingBox = screenRegions.name,
+                ocrEngine = OcrEngineId.PADDLE_OCR
+            )
+        }
+        return regions.map { region ->
+            storyRegionForRender(region, screenRegions, source, namePlate, nameOcrRegion)
+        }
+    }
+
+    /** The Story Library switch, the active pack, and the fast-path preference together. */
+    private suspend fun storyFastOcrEnabled(): Boolean =
+        isJapaneseServer() &&
+            settingsRepository.storyChapterFastOcr.first() &&
+            settingsRepository.storyChapterDbEnabled.first() &&
+            settingsRepository.storyChapterId.first().isNotBlank()
 
     /** Reuse unchanged speaker OCR; dialogue changes far more often than the name label. */
     private suspend fun recognizeNameRegion(

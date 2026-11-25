@@ -173,6 +173,26 @@ class StoryChapterResolver @Inject constructor(
         )
     }
 
+    /**
+     * Answers whether [text] resolves in the active pack, without changing the flow.
+     *
+     * The Story Library OCR accepts a fast read only when the pack agrees with it, so a
+     * miss still reaches the full pipeline. This must stay read-only: it runs before the
+     * real lookup and shares this resolver's flow state.
+     */
+    internal suspend fun probe(text: String, speaker: String, kind: LineKind): Boolean {
+        if (text.isBlank() || !repository.isEnabled()) return false
+        val database = repository.activeDatabase() ?: return false
+        val storyLocale = StoryLocale.of(settingsRepository.targetLanguage.first())
+        val playerName = settingsRepository.playerName.first()
+        return when (kind) {
+            LineKind.NAME -> resolveName(database, text, storyLocale) != null
+            LineKind.CHOICE -> matchChoice(database, text, null, storyLocale, playerName) != null
+            LineKind.DIALOGUE ->
+                matchDialogueRow(database, text, speaker, storyLocale, playerName) != null
+        }
+    }
+
     private suspend fun matchDialogueRow(
         database: StoryChapterDatabase,
         text: String,

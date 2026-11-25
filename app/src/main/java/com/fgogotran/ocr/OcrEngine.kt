@@ -9,10 +9,15 @@ import com.fgogotran.diagnostic.DiagnosticEventStore
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** One recognized line from a fixed story band, with the model's mean confidence. */
+data class StoryBandText(val text: String, val confidence: Float)
 
 /**
  * A single recognized text line with spatial position and confidence.
@@ -196,6 +201,37 @@ class OcrEngine @Inject constructor(
                 error = e
             )
             throw e
+        }
+    }
+
+    /**
+     * Story Library fast path: one recognition call over fixed bands, with no detection,
+     * repair passes, or retries.
+     *
+     * Returns null when the selected engine cannot do band recognition, when the model
+     * fails, or when the read is unusable; the caller then keeps the full pipeline.
+     */
+    suspend fun recognizeStoryBands(bitmap: Bitmap, bands: List<Rect>): List<StoryBandText?>? {
+        if (bands.isEmpty()) return null
+        return withContext(Dispatchers.Default) {
+            try {
+                providerMutex.withLock {
+                    require(!bitmap.isRecycled) { "OCR bitmap has been recycled" }
+                    val provider = selectedProviderLocked() as? PaddleOcrProvider ?: return@withLock null
+                    provider.recognizeStoryBands(bitmap, bands, coroutineContext)
+                        .map { result -> result?.let { StoryBandText(it.text, it.confidence) } }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                recordOcrFailure(
+                    level = DiagnosticEventStore.LEVEL_WARNING,
+                    eventId = "ocr_story_band_failed",
+                    title = "Story OCR 快速识别失败",
+                    error = e
+                )
+                null
+            }
         }
     }
 

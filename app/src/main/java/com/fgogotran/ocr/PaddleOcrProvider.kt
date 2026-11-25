@@ -57,6 +57,13 @@ internal class PaddleOcrProvider(context: Context) : OcrProvider {
             runtime.recognize(bitmap, OcrContentKind.CHOICE, currentCoroutineContext(), choices)
         }
 
+    /** See [PaddleOcrRuntime.recognizeStoryBands]; synchronous, callers own the dispatcher. */
+    fun recognizeStoryBands(
+        bitmap: Bitmap,
+        bands: List<Rect>,
+        requestContext: CoroutineContext
+    ): List<PaddleMaskMergeResult?> = runtime.recognizeStoryBands(bitmap, bands, requestContext)
+
     override fun close() {
         runtime.close()
     }
@@ -1587,20 +1594,83 @@ private class PaddleOcrRuntime(
         )
     }
 
+    /**
+     * Story Library fast path: recognizes one line per [bands] entry without detection,
+     * repair passes, or retries.
+     *
+     * The story layout already knows where each line sits, and a database lookup decides
+     * afterwards whether the read was good enough, so the passes that make text presentable
+     * for an API request would only add latency here.
+     */
+    fun recognizeStoryBands(
+        bitmap: Bitmap,
+        bands: List<Rect>,
+        requestContext: CoroutineContext
+    ): List<PaddleMaskMergeResult?> {
+        requestContext.ensureActive()
+        initialize()
+        requestContext.ensureActive()
+        require(!bitmap.isRecycled) { "Bitmap has been recycled" }
+
+        val startedAt = System.currentTimeMillis()
+        val prepared = bands.map { band ->
+            val clipped = Rect(band)
+            if (!clipped.intersect(0, 0, bitmap.width, bitmap.height) ||
+                clipped.width() <= 0 ||
+                clipped.height() <= 0
+            ) {
+                null
+            } else {
+                val crop = Bitmap.createBitmap(
+                    bitmap,
+                    clipped.left,
+                    clipped.top,
+                    clipped.width(),
+                    clipped.height()
+                )
+                try {
+                    prepareRecognitionCrop(crop)
+                } finally {
+                    crop.recycle()
+                }
+            }
+        }
+        val targets = prepared.mapIndexedNotNull { index, crop ->
+            crop?.let { PreparedRecognitionTarget(index, it) }
+        }
+        val results = if (targets.isEmpty()) {
+            emptyMap()
+        } else {
+            recognizePreparedCrops(targets, requestContext)
+        }
+        FgoLogger.debug(
+            tag,
+            "PaddleOCR story bands: bands=${bands.size}, recognized=${results.size}, " +
+                "elapsed=${System.currentTimeMillis() - startedAt}ms"
+        )
+        return bands.indices.map { results[it] }
+    }
+
     private fun recognizePreparedTargets(
         targets: List<PaddleRecognitionTarget>,
         requestContext: CoroutineContext,
         collectPositions: Boolean = false
+    ): Map<Int, PaddleMaskMergeResult> = recognizePreparedCrops(
+        targets.mapNotNull { target ->
+            target.prepared?.let { prepared -> PreparedRecognitionTarget(target.index, prepared) }
+        },
+        requestContext,
+        collectPositions
+    )
+
+    private fun recognizePreparedCrops(
+        targets: List<PreparedRecognitionTarget>,
+        requestContext: CoroutineContext,
+        collectPositions: Boolean = false
     ): Map<Int, PaddleMaskMergeResult> {
         requestContext.ensureActive()
-        val preparedTargets = targets
-            .mapNotNull { target ->
-                target.prepared?.let { prepared ->
-                    PreparedRecognitionTarget(target.index, prepared)
-                }
-            }
-            .sortedBy { it.prepared.resizedWidth }
-        if (preparedTargets.isEmpty()) return emptyMap()
+        if (targets.isEmpty()) return emptyMap()
+        val preparedTargets = targets.sortedBy { it.prepared.resizedWidth }
 
         val startedAt = System.currentTimeMillis()
         val recognitions = mutableMapOf<Int, PaddleMaskMergeResult>()

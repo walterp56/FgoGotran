@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -184,6 +186,24 @@ class StoryChapterResolverTest {
             "おはようございます、マスタ。", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE
         ) as StoryChapterResolver.LineResult.Miss
         assertEquals(false, miss.chapterMismatch)
+    }
+
+    /**
+     * The Story Library OCR accepts a fast read only when the pack agrees with it, and the
+     * probe must not move the flow: the real lookup runs a moment later.
+     */
+    @Test
+    fun `the fast-path probe answers without changing the flow`() = runBlocking {
+        assertTrue(resolver.probe("スラニョっ！？", "", StoryChapterResolver.LineKind.DIALOGUE))
+        assertFalse(resolver.probe("まったく別の文章です", "", StoryChapterResolver.LineKind.DIALOGUE))
+        // No flow was established, so the ambiguous line is still a miss, not a guess.
+        val miss = resolver.translateLine(
+            "はい。", "", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+        // Punctuation-only reads resolve through the stored dialog as well.
+        assertTrue(resolver.probe("……", "村人", StoryChapterResolver.LineKind.DIALOGUE))
+        assertTrue(resolver.probe("……", "", StoryChapterResolver.LineKind.CHOICE))
     }
 
     private fun buildDatabase(file: File) {

@@ -103,6 +103,7 @@ class SettingsRepository @Inject constructor(
         val KEY_STORY_CHAPTER_VERSION = stringPreferencesKey("story_chapter_version")
         val KEY_STORY_CHAPTER_SHA256 = stringPreferencesKey("story_chapter_sha256")
         val KEY_STORY_CHAPTER_FUZZY_MATCH = booleanPreferencesKey("story_chapter_fuzzy_match")
+        val KEY_STORY_CHAPTER_FAST_OCR = booleanPreferencesKey("story_chapter_fast_ocr")
         val KEY_FOREGROUND_TEST_OVERRIDE_ENABLED = booleanPreferencesKey("foreground_test_override_enabled")
         val KEY_OCR_ENGINE = stringPreferencesKey("ocr_engine")
         val KEY_TARGET_LANGUAGE = stringPreferencesKey("target_chinese_locale") // legacy key name kept for migration
@@ -1406,9 +1407,22 @@ class SettingsRepository @Inject constructor(
         prefs[KEY_STORY_CHAPTER_FUZZY_MATCH] ?: true
     }
 
+    /**
+     * Whether story frames use the Story Library OCR instead of the API pipeline. Default
+     * on; turning it off runs exactly the pipeline that predates the fast path.
+     */
+    val storyChapterFastOcr: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_STORY_CHAPTER_FAST_OCR] ?: true
+    }
+
     suspend fun setStoryChapterDbEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_STORY_CHAPTER_DB_ENABLED] = enabled }
         FgoLogger.debug(tag, "Setting updated: story_chapter_db_enabled=$enabled")
+    }
+
+    suspend fun setStoryChapterFastOcr(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_STORY_CHAPTER_FAST_OCR] = enabled }
+        FgoLogger.debug(tag, "Setting updated: story_chapter_fast_ocr=$enabled")
     }
 
     suspend fun setStoryChapterFuzzyMatch(enabled: Boolean) {
