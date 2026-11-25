@@ -20,6 +20,9 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.pyo
+# Tool caches from local static checks; never part of the repository.
+.mypy_cache/
+.ruff_cache/
 term_builder/venv
 term_builder/fgo_terms.db
 term_builder/fgo_terms.json
@@ -32,6 +35,7 @@ term_builder/atlas_voice_audio/
 
 # IDE
 .idea/
+.vscode/
 *.iml
 
 # Local machine-specific
@@ -103,6 +107,10 @@ Thumbs.db
 *.bak
 *.orig
 *.rej
+# Editor swap and backup files, including when the worktree is edited from WSL.
+*.swp
+*.swo
+*~
 
 # Local device and log evidence (screen dumps, adb captures) never leave the machine.
 logcat*.txt
@@ -116,6 +124,9 @@ logcat*.txt
 *.db-journal
 *.apk
 *.aab
+# Device captures and heap dumps written by local debug runs.
+captures/
+*.hprof
 
 # Local research documents; product guides remain versioned.
 /docs/*
