@@ -284,6 +284,55 @@ class StoryChapterResolverTest {
         assertFalse(resolver.probe("才才才才才", "オルガマリー", StoryChapterResolver.LineKind.DIALOGUE))
     }
 
+    /**
+     * Real capture from the event: the fast read lost the bar and read the variant kanji
+     * (`一「絶劔…`), so it must fall back; the pipeline read keeps the ruby and drops the
+     * kanji, and the scene opening still identifies the script.
+     */
+    @Test
+    fun `a damaged scene opening identifies the new scene`() = runBlocking {
+        resolver.translateLine("スラニョっ！？", "", StoryChapterResolver.LineKind.DIALOGUE)
+        assertFalse(resolver.probe("一「絶劔！！無穹一閃』！", "沖田オルタ", StoryChapterResolver.LineKind.DIALOGUE))
+        val hit = resolver.translateLine(
+            "───『絶〈ぜっけん〉！！無穹一〈むきゅういっせん〉閃』！",
+            "沖田オルタ",
+            StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Hit
+        assertEquals("絕劍·無穹一閃", hit.text)
+    }
+
+    /**
+     * One line can normalize to a hash shared by two rows with different renderings. The
+     * scene opening settles it: only one of those scripts starts with the line.
+     */
+    @Test
+    fun `an exact line resolves through the scene it opens`() = runBlocking {
+        val hit = resolver.translateLine(
+            "絶剱無穹一閃", "沖田オルタ", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Hit
+        assertEquals("絕劍·無穹一閃", hit.text)
+    }
+
+    /** The plate is checked before a scene is adopted; another speaker keeps the line. */
+    @Test
+    fun `a scene opening with another speaker stays a miss`() = runBlocking {
+        val miss = resolver.translateLine(
+            "───『絶〈ぜっけん〉！！無穹一〈むきゅういっせん〉閃』！",
+            "村人",
+            StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+    }
+
+    /** A damaged read that no opening explains still keeps the original line. */
+    @Test
+    fun `a read no opening explains stays a miss`() = runBlocking {
+        val miss = resolver.translateLine(
+            "まったく別の文章です", "", StoryChapterResolver.LineKind.DIALOGUE
+        ) as StoryChapterResolver.LineResult.Miss
+        assertEquals(false, miss.chapterMismatch)
+    }
+
     private fun buildDatabase(file: File) {
         file.parentFile?.mkdirs()
         file.delete()
@@ -323,7 +372,7 @@ class StoryChapterResolverTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "test")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "10")
+            meta(raw, "entry_count", "12")
             insert(raw, 1, "スラノッブ", "スラニョっ！？", "史萊姆阿信", "史萊諾！？")
             insert(raw, 2, "オルガマリー", "そうですね。", "奧爾嘉瑪麗", "說得也是。")
             // Both normalize to `だって`, so only the frame kind can separate them.
@@ -340,6 +389,20 @@ class StoryChapterResolverTest {
             // A button that no dialogue frame may take, even when the flow infers a line
             // of the same length: the pack explaining the text outranks the inference.
             insert(raw, 10, "", "うむむむむ。", "", "嗯嗯嗯嗯嗯。", type = "choice", script = "s3")
+            // The same line opens one scene and sits mid-scene in another, with different
+            // renderings: only the scene opening can separate them.
+            insert(raw, 11, "沖田オルタ", "絶剱無穹一閃", "沖田Alter", "絕劍·無穹一閃", script = "s4")
+            insert(raw, 12, "沖田オルタ", "絶剱無穹一閃", "沖田Alter", "絕劍！！無穹一閃", script = "s5")
+            for ((script, jp, seq) in listOf(
+                Triple("s1", "スラニョっ！？", 1),
+                Triple("s2", "おはようございます、マスター。", 7),
+                Triple("s4", "絶剱無穹一閃", 11)
+            )) {
+                raw.execSQL(
+                    "INSERT INTO script_openings(script_id, seq, jp_norm) VALUES(?, ?, ?)",
+                    arrayOf(script, seq, StoryOcrNormalizer.normalize(jp))
+                )
+            }
         } finally {
             raw.close()
         }

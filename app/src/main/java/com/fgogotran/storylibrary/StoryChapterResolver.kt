@@ -223,7 +223,10 @@ class StoryChapterResolver @Inject constructor(
         if (expected != null && expected.jpHash == hash) return expected
 
         val candidates = database.dialogueRowsForHash(hash)
-        if (candidates.isNotEmpty()) return disambiguate(candidates, speaker, locale)
+        if (candidates.isNotEmpty()) {
+            return disambiguate(candidates, speaker, locale)
+                ?: openingOfCandidates(database, candidates, speaker)
+        }
 
         // A `[%1]` line can only match once the rendered name is removed, and the
         // template is exact, so it is tried before the coarser scene window.
@@ -259,7 +262,14 @@ class StoryChapterResolver @Inject constructor(
             speakerKey = StoryOcrNormalizer.nameKey(speaker)
         )
         if (row == null) {
-            return if (allowFlowInference) flowLengthRow(database, expected, text, speaker) else null
+            return if (allowFlowInference) {
+                // A new scene starts with its own opening line, which identifies the script
+                // even when the previous scene is still the confirmed flow.
+                matchOpening(database, text, speaker)
+                    ?: flowLengthRow(database, expected, text, speaker)
+            } else {
+                null
+            }
         }
         if (!keepsOrEntersFlow(row)) {
             FgoLogger.debug(
@@ -271,6 +281,96 @@ class StoryChapterResolver @Inject constructor(
         }
         FgoLogger.debug(tag, "Story dialogue matched approximately: script=${row.scriptId} seq=${row.seq}")
         return row
+    }
+
+    /**
+     * Identifies a new scene by its opening line.
+     *
+     * A scene starts right after the previous line, so the confirmed flow still points at
+     * the old script and no window row explains the frame. The opening line is nearly
+     * unique to its script, and the pack stores it in `script_openings`, so comparing
+     * against those rows is the only place that can name the script on screen.
+     *
+     * The captured text is usually damaged, so the comparison is normalized edit distance
+     * rather than the exact hash: one missing or extra character still lands on the right
+     * opening. Anything short of one clear best stays a miss, which keeps the original
+     * line on screen instead of guessing.
+     */
+    private fun matchOpening(
+        database: StoryChapterDatabase,
+        text: String,
+        speaker: String
+    ): StoryChapterDatabase.Row? {
+        val query = StoryOcrNormalizer.fuzzyKey(text)
+        if (query.codePointCount(0, query.length) < MIN_OPENING_CHARS) return null
+        val openings = database.openingRows()
+        if (openings.isEmpty()) return null
+        var best: StoryChapterDatabase.Opening? = null
+        var bestScore = 0.0
+        var secondScore = 0.0
+        for (opening in openings) {
+            val score = editScore(query, opening.key)
+            if (score > bestScore) {
+                secondScore = bestScore
+                bestScore = score
+                best = opening
+            } else if (score > secondScore) {
+                secondScore = score
+            }
+        }
+        val opening = best ?: return null
+        if (bestScore < OPENING_MIN_SCORE) return null
+        if (bestScore - secondScore < OPENING_MARGIN) return null
+        val row = database.rowBySeq(opening.seq) ?: return null
+        if (StoryOcrNormalizer.nameKey(speaker) != StoryOcrNormalizer.nameKey(row.jpName)) return null
+        FgoLogger.debug(
+            tag,
+            "Story scene identified by its opening line: script=${row.scriptId} " +
+                "seq=${row.seq} score=$bestScore read=\"$text\""
+        )
+        return row
+    }
+
+    /**
+     * Separates two rows that normalize to the same line with different renderings.
+     *
+     * `絶剱無穹一閃` is both a scene's first line and a line hundreds of rows into another
+     * scene, so the speaker cannot tell them apart. Only one of those scripts starts with
+     * the line, which settles it when the opening belongs to exactly one candidate.
+     */
+    private fun openingOfCandidates(
+        database: StoryChapterDatabase,
+        candidates: List<StoryChapterDatabase.Row>,
+        speaker: String
+    ): StoryChapterDatabase.Row? {
+        val opening = candidates.filter { database.isScriptOpening(it) }
+        if (opening.size != 1) return null
+        val row = opening.single()
+        if (StoryOcrNormalizer.nameKey(speaker) != StoryOcrNormalizer.nameKey(row.jpName)) return null
+        FgoLogger.debug(
+            tag,
+            "Story line disambiguated by its scene opening: script=${row.scriptId} seq=${row.seq}"
+        )
+        return row
+    }
+
+    /** `1 - distance / longest`, so identical strings score 1.0 and one edit in six 0.83. */
+    private fun editScore(a: String, b: String): Double {
+        val longest = maxOf(a.length, b.length)
+        if (longest == 0) return 0.0
+        var previous = IntArray(b.length + 1) { it }
+        var current = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            current[0] = i
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                current[j] = minOf(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost)
+            }
+            val swap = previous
+            previous = current
+            current = swap
+        }
+        return 1.0 - previous[b.length].toDouble() / longest
     }
 
     /**
@@ -583,5 +683,14 @@ class StoryChapterResolver @Inject constructor(
 
         /** Shortest line the flow may substitute for a failed read; shorter lines collide too easily. */
         private const val MIN_FLOW_LENGTH = 4
+
+        /** Shortest read the opening lookup may use; a shorter line is too common to identify a scene. */
+        private const val MIN_OPENING_CHARS = 4
+
+        /** How close the read must be to a scene opening before the scene is adopted. */
+        private const val OPENING_MIN_SCORE = 0.80
+
+        /** How far the best opening must lead the runner-up; two similar scenes stay a miss. */
+        private const val OPENING_MARGIN = 0.10
     }
 }

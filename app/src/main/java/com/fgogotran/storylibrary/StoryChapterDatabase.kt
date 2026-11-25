@@ -34,6 +34,14 @@ internal class StoryChapterDatabase private constructor(
     /** Rows whose line carries a `[%1]` slot; see [StoryOcrNormalizer.slotKey]. */
     private val slotIndex: SlotIndex by lazy { buildSlotIndex() }
 
+    /**
+     * First line of every script, keyed like the fuzzy index.
+     *
+     * A scene opens with a line almost no other scene shares, so when no flow is
+     * confirmed this is the only place that can say which script is on screen.
+     */
+    private val openings: List<Opening> by lazy { buildOpenings() }
+
     private val nameEntries: List<StoryFuzzyMatcher.Entry> by lazy {
         names.entries.mapIndexed { index, (key, targets) ->
             StoryFuzzyMatcher.Entry(index, key, key, "", -1, targets.cn, targets.tw, targets.en)
@@ -49,6 +57,9 @@ internal class StoryChapterDatabase private constructor(
         val dialogue: List<StoryFuzzyMatcher.Entry>,
         val choices: List<StoryFuzzyMatcher.Entry>
     )
+
+    /** One `script_openings` row: the script's first line, already folded for matching. */
+    data class Opening(val scriptId: String, val seq: Int, val key: String)
 
     data class Row(
         val seq: Int,
@@ -369,12 +380,47 @@ internal class StoryChapterDatabase private constructor(
         return FuzzyIndex(dialogue, choices)
     }
 
+    private fun buildOpenings(): List<Opening> {
+        // Older packs predate the table; a missing one disables the opening lookup instead
+        // of failing every miss that reaches it.
+        val present = db.rawQuery(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'script_openings'",
+            null
+        ).use { it.moveToNext() }
+        if (!present) return emptyList()
+        val result = ArrayList<Opening>(64)
+        db.rawQuery(
+            "SELECT script_id, seq, jp_norm FROM script_openings ORDER BY seq",
+            null
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val normalized = cursor.getString(2) ?: ""
+                if (normalized.isEmpty()) continue
+                result.add(
+                    Opening(
+                        scriptId = cursor.getString(0) ?: "",
+                        seq = cursor.getInt(1),
+                        key = StoryOcrNormalizer.foldKey(normalized)
+                    )
+                )
+            }
+        }
+        return result
+    }
+
     fun nextAfter(scriptId: String, position: Int): Row? {
         return query(
             "WHERE script_id = ? AND position > ? ORDER BY position LIMIT 1",
             arrayOf(scriptId, position.toString())
         ).firstOrNull()
     }
+
+    /** Scene openings, in pack order; see [Opening]. */
+    fun openingRows(): List<Opening> = openings
+
+    /** True when [row] is the first line of its own script. */
+    fun isScriptOpening(row: Row): Boolean =
+        openings.any { it.seq == row.seq && it.scriptId == row.scriptId }
 
     /**
      * Normalized source text for one entry, used to weigh a failed read against the line
