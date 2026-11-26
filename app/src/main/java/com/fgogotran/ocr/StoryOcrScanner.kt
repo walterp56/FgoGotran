@@ -22,7 +22,22 @@ internal data class StoryOcrLine(
 internal data class StoryOcrFrame(
     val dialogue: List<StoryOcrLine>,
     val name: StoryOcrLine?
-)
+) {
+    /**
+     * A single story line is vertically centred by the game and can cross both fixed bands.
+     *
+     * The overlay sizes its white cover panel from the reported bounds, so a box clipped to
+     * the band that happened to read the line leaves the bottom of a large title uncovered
+     * (a real capture: band bottom 933, glyph bottom 975). [bounds] is the glyph box of the
+     * whole dialogue crop; null keeps the band box.
+     */
+    fun withSingleLineBounds(bounds: Rect?): StoryOcrFrame =
+        if (dialogue.size == 1 && bounds != null) {
+            copy(dialogue = listOf(dialogue.single().copy(bounds = bounds)))
+        } else {
+            this
+        }
+}
 
 /**
  * Story geometry, in the reference space `DialogueRubyLayout` already describes.
@@ -417,20 +432,28 @@ class StoryOcrScanner @Inject constructor(
         val startedAt = System.currentTimeMillis()
         val results = ocrEngine.recognizeStoryBands(source, bands) ?: return null
         if (results.size != bands.size) return null
-        // The reported box follows the glyphs, never the crop: the overlay sizes its white
-        // cover panel from these bounds, so a band-wide box would paint over the whole box.
+        // The reported box follows the glyphs, never the crop's full width: the overlay sizes
+        // its cover panel from these bounds, so a band-wide box would paint over the whole box.
         val reported = rows.mapIndexed { index, band -> inks[index] ?: band }
         val dialogue = StoryOcrAssembler.dialogue(results.subList(0, rows.size), reported) ?: return null
         val name = nameReported?.let { band ->
             StoryOcrAssembler.name(results.getOrNull(rows.size), band)
         }
+        // A frame with one line may be centred across both bands, so its box is measured
+        // over the whole crop instead of the band that read it.
+        val singleLineBounds = if (dialogue.size == 1) {
+            StoryOcrGeometry.inkBounds(source, dialogueBounds)
+        } else {
+            null
+        }
+        val frame = StoryOcrFrame(dialogue = dialogue, name = name).withSingleLineBounds(singleLineBounds)
         FgoLogger.debug(
             tag,
             "Story OCR fast dialogue: rows=${dialogue.size}, name=${name != null}, " +
                 "confidence=${dialogue.joinToString(",") { (it.confidence * 100).roundToInt().toString() }}, " +
                 "elapsed=${System.currentTimeMillis() - startedAt}ms"
         )
-        return StoryOcrFrame(dialogue = dialogue, name = name)
+        return frame
     }
 
     /**

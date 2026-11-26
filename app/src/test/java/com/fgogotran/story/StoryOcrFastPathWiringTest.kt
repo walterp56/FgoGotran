@@ -93,6 +93,15 @@ class StoryOcrFastPathWiringTest {
     }
 
     @Test
+    fun `a single fast story line is measured over the whole dialogue crop`() {
+        val scanner = source("src/main/java/com/fgogotran/ocr/StoryOcrScanner.kt")
+        // A big one-line title is centred across both fixed bands, so the band that read it
+        // reports a box that cuts the glyph. The overlay sizes its cover from this box.
+        assertTrue(scanner.contains("StoryOcrGeometry.inkBounds(source, dialogueBounds)"))
+        assertTrue(scanner.contains("withSingleLineBounds(singleLineBounds)"))
+    }
+
+    @Test
     fun `the fast path needs the switch the active pack and the preference`() {
         val gate = function("storyFastOcrEnabled")
         for (required in listOf(

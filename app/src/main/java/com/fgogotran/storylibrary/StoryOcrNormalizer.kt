@@ -25,7 +25,11 @@ object StoryOcrNormalizer {
     private val masterNameToken = Regex("%\\d+")
     private val ruby = Regex("〈[^〉]*〉")
     private val spaces = Regex("[\\s\\u3000]+")
-    private val punctuation = Regex("[。、，．,.！？!?…‥・：:；;「」『』（）()\\[\\]［］〈〉《》\\u2015\\u2014\\u2500\\u2501]")
+    // `・` is the source middle dot, but OCR reports the same glyph as the Latin `·` (U+00B7)
+    // or a bullet `•` (U+2022) on large spaced-out titles. Both are punctuation and must leave
+    // the key, or `蘭丸·X` keeps a fourth character against `蘭丸X` and the exact hash misses.
+    private val punctuation =
+        Regex("[。、，．,.！？!?…‥・：:；;「」『』（）()\\[\\]［］〈〉《》\\u2015\\u2014\\u2500\\u2501\\u00B7\\u2022]")
 
     // OCR and the JP source disagree about dash width far more often than about any
     // other character class: NFKC folds `～` (U+FF5E) to ASCII `~` but leaves `〜`

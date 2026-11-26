@@ -62,14 +62,16 @@ const usage = 'Usage: node story_builder/build-story-db.mjs <chapter-id> [work-d
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const sha1 = (value) => createHash('sha1').update(value).digest('hex');
 
-// Same normalization contract as app/src/main/java/com/fgogotran/scriptmemory/ScriptMemory.kt:
-// gender control keeps the male side, the player name keeps a token, ruby
-// readings are dropped, then NFKC, whitespace, and punctuation are removed.
+// Same normalization contract as
+// app/src/main/java/com/fgogotran/storylibrary/StoryOcrNormalizer.kt: gender control keeps the
+// male side, the player name keeps a token, ruby readings are dropped, then NFKC, whitespace,
+// and punctuation are removed. `\u00B7` / `\u2022` are the middle-dot forms OCR reports for `・`
+// on large spaced-out titles, so they are punctuation on both sides of the lookup.
 const genderControl = /\[&([^:\]]+):([^\]]+)\]/g;
 const masterName = /\[%(\d+)\]/g;
 const ruby = /〈[^〉]*〉/g;
 const spaces = /[\s\u3000]+/g;
-const punctuation = /[。、，．,.！？!?…‥・：:；;「」『』（）()\[\]［］〈〉《》\u2015\u2014\u2500\u2501]/g;
+const punctuation = /[。、，．,.！？!?…‥・：:；;「」『』（）()\[\]［］〈〉《》\u2015\u2014\u2500\u2501\u00B7\u2022]/g;
 function normalizeJp(text) {
   return text
     .replace(genderControl, '$1')

@@ -191,6 +191,23 @@ class StoryOcrNormalizerTest {
     }
 
     /**
+     * Real capture: the big title lines draw `・`, but Paddle reported the Latin `·` (U+00B7)
+     * on both. The dot survived the OCR key, so `蘭丸·X` kept a fourth character against
+     * `蘭丸X` (Dice 0.40) and `絶劔·無穹一閃` scored 0.55 against `絶剱無穹一閃`, below every
+     * threshold. Both dots are punctuation on both sides of the lookup.
+     */
+    @Test
+    fun `the middle dot OCR reports as a latin dot is punctuation`() {
+        assertEquals("蘭丸X", StoryOcrNormalizer.normalize("───『蘭丸·X』！！！"))
+        assertEquals(
+            StoryOcrNormalizer.hash("―――『蘭丸・Ｘ』！！！"),
+            StoryOcrNormalizer.hash("───『蘭丸·X』！！！")
+        )
+        assertEquals("絶劔無穹ー閃", StoryOcrNormalizer.fuzzyKey("───『絶劔·無穹一閃』！！！"))
+        assertEquals("", StoryOcrNormalizer.normalize("・·•"))
+    }
+
+    /**
      * Real capture: the choice is stored as `カルデア学院からきた[%1]でーす！` but the
      * game renders the player's name into the slot, so the exact hash can never
      * match. Both sides reduce to the same template instead.

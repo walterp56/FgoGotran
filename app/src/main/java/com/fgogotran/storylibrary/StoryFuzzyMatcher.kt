@@ -59,6 +59,15 @@ internal object StoryFuzzyMatcher {
     /** Below this length the window's single-glyph rule is unsafe. */
     private const val SHORT_EDIT_MIN_CHARS = 3
 
+    /**
+     * Shortest read the repeated-run rule may use: at six characters one wrong glyph is
+     * a sixth of the line, so the shape still says something on its own.
+     */
+    private const val RUN_HEAVY_MIN_CHARS = 6
+
+    /** A read repeats itself when it yields at most one distinct bigram per this many characters. */
+    private const val RUN_HEAVY_BIGRAMS_PER_CHAR = 2
+
     private const val LENGTH_SLACK = 2
     private const val LENGTH_RATIO = 0.3
 
@@ -178,6 +187,11 @@ internal object StoryFuzzyMatcher {
      */
     fun selectInWindow(query: Entry, window: List<Entry>, locale: StoryLocale): Match? {
         if (query.key.isEmpty() || window.isEmpty()) return null
+        return matchByScore(query, window, locale) ?: matchOneGlyphRun(query, window)
+    }
+
+    /** The ordinary rule: Dice score, story order, and the margin a skipped line needs. */
+    private fun matchByScore(query: Entry, window: List<Entry>, locale: StoryLocale): Match? {
         if (query.length < MIN_FUZZY_CHARS) {
             window.firstOrNull { it.key == query.key }?.let { return Match(it, 1.0) }
             val next = window.first()
@@ -208,6 +222,40 @@ internal object StoryFuzzyMatcher {
         val rival = scored.firstOrNull { it.entry.text(locale) != best.entry.text(locale) }
         if (rival != null && best.score - rival.score < WINDOW_MARGIN) return null
         return Match(best.entry, best.score)
+    }
+
+    /**
+     * Recovers a line that repeats one character and so loses most of its score.
+     *
+     * `ぬあああああああああ` keeps two distinct bigrams, one per glyph boundary of the
+     * head plus one for the whole run of `あ`. OCR reading `ぬ` as `め` then throws away
+     * half of them: the line scores 0.5 although only its first glyph is wrong, and
+     * neither the window threshold's skip margin nor the 0.72 dialogue threshold reaches
+     * it (real capture at `event-80639` seq 3479, 03:25:20).
+     *
+     * The score is not the evidence a line like this has; its shape is. Inside the
+     * confirmed script the window is ordered and the plate names the speaker, so a read
+     * that is the same length as a window row and one insertion, deletion, or
+     * substitution away from it can only be that row. Two such rows stay a miss: the
+     * point of the rule is to save a certain line, not to guess between two.
+     */
+    private fun matchOneGlyphRun(query: Entry, window: List<Entry>): Match? {
+        if (query.length < RUN_HEAVY_MIN_CHARS) return null
+        // Means "the line repeats itself": a normal line carries about one distinct
+        // bigram per character, and a single wrong glyph still scores far above the
+        // window threshold, so this rule must not touch it.
+        if (query.bigrams.size * RUN_HEAVY_BIGRAMS_PER_CHAR > query.length) return null
+        val sameShape = window.filter { candidate ->
+            candidate.length == query.length &&
+                // An identical key is the scorer's decision to make, including its
+                // ambiguity rule; this rule only fills the gap the score cannot reach.
+                candidate.key != query.key &&
+                (query.speakerKey.isEmpty() || candidate.speakerKey == query.speakerKey)
+        }
+        val near = sameShape.filter { withinOneEdit(query.key, it.key) }
+        if (near.size != 1) return null
+        val candidate = near.first()
+        return Match(candidate, 1.0 - 1.0 / query.length)
     }
 
     /** True when one insertion, deletion, or substitution turns [first] into [second]. */

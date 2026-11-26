@@ -270,6 +270,88 @@ class StoryFuzzyMatcherTest {
         )
     }
 
+    /**
+     * Real capture at `event-80639` seq 3479: the pack stores `ぬあああああああああ！？！？！`
+     * and the OCR read the head glyph as `め`. The run of `あ` keeps one bigram, so the
+     * read scores 0.5 against a line it is otherwise identical to, under both the 0.72
+     * dialogue threshold and the 0.60 margin a skipped window line needs. Length, plate,
+     * and story order identify the row instead.
+     */
+    @Test
+    fun `a run line absorbs one wrong glyph in the scene window`() {
+        val window = listOf(
+            entry(1, "―――っ！", cn = "―――唔！", speaker = "葵"),
+            entry(
+                2,
+                "ぬあああああああああ！？！？！",
+                cn = "呜啊啊啊啊啊啊啊啊啊！？！？！",
+                speaker = "水着ノッブ"
+            )
+        )
+        val query = StoryFuzzyMatcher.query(
+            StoryOcrNormalizer.fuzzyKey("めあああああああああ!?!?!"),
+            StoryOcrNormalizer.nameKey("水着ノッブ")
+        )
+        assertEquals(0.5, StoryFuzzyMatcher.score(query.bigrams, window[1].bigrams), 1e-9)
+        assertEquals(2, StoryFuzzyMatcher.selectInWindow(query, window, StoryLocale.CN)?.entry?.id)
+    }
+
+    @Test
+    fun `a run line needs the plate to name its speaker`() {
+        val window = listOf(
+            entry(1, "―――っ！", speaker = "葵"),
+            entry(2, "ぬあああああああああ！？！？！", speaker = "水着ノッブ")
+        )
+        assertNull(
+            StoryFuzzyMatcher.selectInWindow(
+                StoryFuzzyMatcher.query(
+                    StoryOcrNormalizer.fuzzyKey("めあああああああああ!?!?!"),
+                    StoryOcrNormalizer.nameKey("卑弥呼")
+                ),
+                window,
+                StoryLocale.CN
+            )
+        )
+    }
+
+    @Test
+    fun `a run line of another length stays a miss`() {
+        // One inserted `あ` is a single edit, but the row it points at is not this frame.
+        val window = listOf(
+            entry(1, "―――っ！", speaker = "葵"),
+            entry(2, "ぬああああああああああ", speaker = "水着ノッブ")
+        )
+        assertNull(
+            StoryFuzzyMatcher.selectInWindow(
+                StoryFuzzyMatcher.query(
+                    StoryOcrNormalizer.fuzzyKey("めあああああああああ!?!?!"),
+                    StoryOcrNormalizer.nameKey("水着ノッブ")
+                ),
+                window,
+                StoryLocale.CN
+            )
+        )
+    }
+
+    @Test
+    fun `two run lines one glyph away stay a miss`() {
+        val window = listOf(
+            entry(1, "―――っ！", speaker = "葵"),
+            entry(2, "ぬあああああああああ", speaker = "水着ノッブ"),
+            entry(3, "むあああああああああ", speaker = "水着ノッブ")
+        )
+        assertNull(
+            StoryFuzzyMatcher.selectInWindow(
+                StoryFuzzyMatcher.query(
+                    StoryOcrNormalizer.fuzzyKey("めあああああああああ"),
+                    StoryOcrNormalizer.nameKey("水着ノッブ")
+                ),
+                window,
+                StoryLocale.CN
+            )
+        )
+    }
+
     private fun entry(
         id: Int,
         jp: String,
@@ -282,9 +364,10 @@ class StoryFuzzyMatcherTest {
     ): StoryFuzzyMatcher.Entry = StoryFuzzyMatcher.Entry(
         id = id,
         // Dialogue and choices use the folded lookup key; speaker names use the name
-        // key, which folds the same kana after `normalizeName`.
+        // key, which folds the same kana after `normalizeName` — the same key the pack
+        // stores for a window entry.
         key = if (fold) StoryOcrNormalizer.fuzzyKey(jp) else StoryOcrNormalizer.nameKey(jp),
-        speakerKey = speaker,
+        speakerKey = StoryOcrNormalizer.nameKey(speaker),
         scriptId = script,
         seq = id,
         cn = cn,

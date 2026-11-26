@@ -189,6 +189,30 @@ class StoryOcrScannerTest {
         assertEquals(2, rows?.first()?.row)
     }
 
+    /**
+     * One line may be vertically centred across both bands, so the frame replaces its
+     * band box with the glyph box of the whole crop. Two lines keep their own bands.
+     */
+    @Test
+    fun `a single line frame takes the whole crop box`() {
+        val band = Rect(106, 881, 1805, 933)
+        val line = StoryOcrLine("『ヤタガラス・クラーッシュ』！！！", band, 0.9f, row = 1)
+        val glyph = Rect(150, 858, 1700, 977)
+        val single = StoryOcrFrame(listOf(line), null)
+        assertEquals(glyph, single.withSingleLineBounds(glyph).dialogue.single().bounds)
+        assertEquals(band, single.withSingleLineBounds(null).dialogue.single().bounds)
+
+        val secondBand = Rect(106, 967, 1805, 1019)
+        val two = StoryOcrFrame(
+            listOf(line, line.copy(text = "二行目", bounds = secondBand, row = 2)),
+            null
+        )
+        assertEquals(
+            listOf(band, secondBand),
+            two.withSingleLineBounds(glyph).dialogue.map { it.bounds }
+        )
+    }
+
     @Test
     fun `a weak read asks for the full pipeline`() {
         assertNull(
@@ -271,6 +295,28 @@ class StoryOcrScannerTest {
         // The overlay paints its white cover panel from this box, so it must not be the band.
         assertEquals(Rect(38, 6, 142, 54), ink)
         assertEquals(ink, StoryOcrGeometry.recognitionBand(band, ink))
+        bitmap.recycle()
+    }
+
+    /**
+     * A big one-line title is centred across both fixed bands: the screen capture has the
+     * glyph at 860–975 while row one ends at 933, so the band box loses the bottom 42 px.
+     * The overlay sizes its cover from the reported box, so the crop glyphs must win.
+     */
+    @Test
+    fun `a single line keeps the glyphs of the whole crop`() {
+        val bitmap = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.rgb(16, 22, 38))
+        for (y in 860 until 976) {
+            for (x in 200 until 1600) bitmap.setPixel(x, y, Color.WHITE)
+        }
+        val band = StoryOcrGeometry.dialogueBands(referenceDialogue).first()
+        val bandInk = StoryOcrGeometry.inkBounds(bitmap, band)
+        val cropInk = StoryOcrGeometry.inkBounds(bitmap, referenceDialogue)
+        // The band clips the title at its own bottom edge; the crop keeps the whole glyph.
+        assertEquals(933, bandInk?.bottom)
+        assertEquals(978, cropInk?.bottom)
+        assertTrue(cropInk!!.top < bandInk!!.top)
         bitmap.recycle()
     }
 

@@ -62,7 +62,7 @@ class StoryChapterFuzzyLookupTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "2026.11.24.1")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "14")
+            meta(raw, "entry_count", "16")
             insert(
                 raw, seq = 1, type = "dialogue", name = "松永弾正", script = "s1",
                 jp = "は～い♪　ナウなヤングに大人気！",
@@ -139,6 +139,19 @@ class StoryChapterFuzzyLookupTest {
                 raw, seq = 14, type = "dialogue", name = "", script = "s5",
                 jp = "はぁ、はぁ、はぁ……。",
                 cn = "哈啊、哈啊、哈啊……。"
+            )
+            // Real capture: the pack draws `―――っ！` and then a shout whose `あ` run the
+            // OCR miscounted at the head (`ぬ` read as `め`).
+            insert(
+                raw, seq = 15, type = "dialogue", name = "葵", script = "s6",
+                jp = "―――っ！",
+                cn = "―――唔！"
+            )
+            insert(
+                raw, seq = 16, type = "dialogue", name = "水着ノッブ", script = "s6",
+                jp = "ぬあああああああああ！？！？！",
+                cn = "呜啊啊啊啊啊啊啊啊啊！？！？！",
+                cnName = "泳装阿信"
             )
         } finally {
             raw.close()
@@ -247,6 +260,33 @@ class StoryChapterFuzzyLookupTest {
             StoryFuzzyMatcher.query(key), window, StoryLocale.CN
         )?.entry?.id)
         assertEquals(6, database.fuzzyDialogue(key, StoryLocale.CN, "s1", 5)?.seq)
+    }
+
+    /**
+     * Real capture: the pack stores `ぬあああああああああ！？！？！` and the OCR read the
+     * head glyph as `め`. The `あ` run leaves two distinct bigrams, so the read scores 0.5
+     * against a line it is otherwise identical to: the whole-pack lookup (0.72) cannot
+     * take it, and the window's skip margin (0.60) cannot either, because the row before
+     * it is the `―――っ！` line this frame follows. Length, plate, and story order recover
+     * it without widening any score threshold.
+     */
+    @Test
+    fun `a repeated run line absorbs one wrong glyph in the scene window`() {
+        val key = StoryOcrNormalizer.fuzzyKey("めあああああああああ!?!?!")
+        val window = database.windowEntries("s6", 14, 6)
+        assertEquals(listOf(15, 16), window.map { it.seq })
+        assertNull(database.fuzzyDialogue(key, StoryLocale.CN, "s6", 14))
+
+        val query = StoryFuzzyMatcher.query(key, StoryOcrNormalizer.nameKey("水着ノッブ"))
+        assertEquals(16, StoryFuzzyMatcher.selectInWindow(query, window, StoryLocale.CN)?.entry?.id)
+        // A different plate is a different speaker, so the shape rule stays out of it.
+        assertNull(
+            StoryFuzzyMatcher.selectInWindow(
+                StoryFuzzyMatcher.query(key, StoryOcrNormalizer.nameKey("卑弥呼")),
+                window,
+                StoryLocale.CN
+            )
+        )
     }
 
     /**
