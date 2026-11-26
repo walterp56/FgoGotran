@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 class FgoStoryTextPaletteTest {
     @Test
     fun `legacy exact colours and vote indices stay unchanged`() {
-        listOf(0xF5F5F0, 0xDC0000, 0x50EBEB, 0xC5E35E, 0xFF69B4, 0x8753D1, 0xB86349).forEachIndexed { index, rgb ->
+        listOf(0xDADADA, 0xDC0000, 0x50EBEB, 0xC5E35E, 0xFF69B4, 0x8753D1, 0xB86349).forEachIndexed { index, rgb ->
             assertEquals(index, nearest(rgb))
             assertEquals(rgb or (0xff shl 24), FgoStoryTextPalette.samples[index].renderColor)
         }
@@ -94,7 +94,7 @@ class FgoStoryTextPaletteTest {
     @Test
     fun `choices only vote and detect white or red ink`() {
         val scope = FgoStoryTextPalette.Scope.CHOICE
-        assertEquals(listOf(0xF5F5F0, 0xDC0000), FgoStoryTextPalette.samplesFor(scope).map { it.rgb })
+        assertEquals(listOf(0xDADADA, 0xDC0000), FgoStoryTextPalette.samplesFor(scope).map { it.rgb })
         assertEquals(0, nearest(0xFFFFFF, scope))
         assertEquals(1, nearest(0xFF0000, scope))
         assertTrue(FgoStoryTextPalette.isChoiceInk(245, 245, 240))

@@ -405,7 +405,7 @@ class FgoAccessibilityService : AccessibilityService() {
         private const val ACCESSIBILITY_SCREENSHOT_RETRY_DELAY_MS = 400L
         private const val ACCESSIBILITY_SCREENSHOT_MAX_RETRIES = 2
         private const val SCREENSHOT_TIMEOUT_MS = 3_000L
-        private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)
+        private val FGO_RENDER_WHITE = Color.rgb(218, 218, 218)
         private val FGO_RENDER_RED = Color.rgb(220, 0, 0)
 
         private val _serviceStarted = mutableStateOf(false)

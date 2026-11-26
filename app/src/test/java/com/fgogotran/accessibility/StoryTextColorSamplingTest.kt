@@ -82,7 +82,7 @@ class StoryTextColorSamplingTest {
             bitmap.eraseColor(0xff1b304e.toInt())
             repeat(11) { bitmap.setPixel(2 + it * 2, 2, blue) }
             repeat(8) { bitmap.setPixel(2 + it * 2, 4, purple) }
-            assertEquals(Color.rgb(245, 245, 240), sample(bitmap, TextRegion.NAME_LABEL))
+            assertEquals(Color.rgb(218, 218, 218), sample(bitmap, TextRegion.NAME_LABEL))
             bitmap.setPixel(24, 2, blue)
             assertEquals(blue, sample(bitmap, TextRegion.NAME_LABEL))
         } finally { bitmap.recycle() }
@@ -105,13 +105,28 @@ class StoryTextColorSamplingTest {
                 for (x in 300 until 330) bitmap.setPixel(x, y, Color.rgb(220, 20, 20))
             }
             assertEquals(
-                Color.rgb(245, 245, 240),
+                Color.rgb(218, 218, 218),
                 sample(bitmap, TextRegion.CHOICE_BUTTON, lineBounds = Rect(118, 48, 262, 92))
             )
             assertEquals(
                 Color.rgb(220, 0, 0),
                 sample(bitmap, TextRegion.CHOICE_BUTTON, lineBounds = Rect(0, 0, 400, 140))
             )
+        } finally { bitmap.recycle() }
+    }
+
+    /**
+     * FGO's story ink is a per-line 247 -> 188 gradient, and dialogue, names and choice plates
+     * all use it. The flat cover matches the gradient's mean (218) for every one of them.
+     */
+    @Test fun `neutral story ink renders one measured grey for dialogue names and choices`() {
+        val bitmap = Bitmap.createBitmap(64, 32, Bitmap.Config.ARGB_8888)
+        try {
+            bitmap.eraseColor(0xff101010.toInt())
+            for (y in 8 until 24) for (x in 8 until 56) bitmap.setPixel(x, y, Color.rgb(245, 245, 240))
+            for (region in listOf(TextRegion.DIALOGUE_BOX, TextRegion.NAME_LABEL, TextRegion.CHOICE_BUTTON)) {
+                assertEquals(Color.rgb(218, 218, 218), sample(bitmap, region), region.name)
+            }
         } finally { bitmap.recycle() }
     }
 

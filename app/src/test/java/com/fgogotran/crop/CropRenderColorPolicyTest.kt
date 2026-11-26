@@ -66,11 +66,11 @@ class CropRenderColorPolicyTest {
     }
 
     @Test
-    fun `shared non crop colour sampling and white fallback remain available`() {
+    fun `shared non crop colour sampling and neutral ink fallback remain available`() {
         assertTrue(service.contains("private fun sampleOriginalTextColor("))
         assertTrue(service.contains("TextRegion.CHOICE_BUTTON -> sampleOriginalTextColor(source, region)"))
         assertTrue(service.contains("rawNameRegion?.let { sampleOriginalTextColor(source, it.region) }"))
-        assertTrue(service.contains("private val FGO_RENDER_WHITE = Color.rgb(245, 245, 240)"))
+        assertTrue(service.contains("private val FGO_RENDER_WHITE = Color.rgb(218, 218, 218)"))
         assertTrue(service.contains("textColor = renderTextColorForRegion(source, regionAndText.region)"))
     }
 

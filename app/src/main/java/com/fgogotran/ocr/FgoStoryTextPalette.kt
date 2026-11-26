@@ -29,8 +29,11 @@ internal object FgoStoryTextPalette {
 
     // Append colours so all existing vote indices and render colours stay stable.
     // Blue is calibrated from screenshot glyph cores, not the blue UI background.
+    // Neutral is FGO's story ink: each line is a 247 -> 188 vertical gradient, mean 218, and
+    // dialogue, names and choice plates all use it. A flat cover matches that mean, not the
+    // gradient's top, so the rendered text keeps the game's ink weight.
     val samples = listOf(
-        Sample(0xF5F5F0, Family.NEUTRAL, 120 * 120),
+        Sample(0xDADADA, Family.NEUTRAL, 120 * 120),
         Sample(0xDC0000, Family.RED, 100 * 100),
         Sample(0x50EBEB, Family.CYAN, 115 * 115),
         Sample(0xC5E35E, Family.YELLOW_GREEN, 90 * 90),

@@ -78,7 +78,14 @@ class OverlayRenderer @Inject constructor(
         private val DIALOGUE_BACKGROUND = Color.rgb(27, 48, 78)
         private val NAME_BACKGROUND = Color.rgb(36, 84, 132)
         private val CHOICE_BACKGROUND = Color.rgb(0, 0, 0)
-        private val FGO_TEXT_COLOR = Color.rgb(245, 245, 240)
+
+        /**
+         * FGO's story ink, used when the colour sampler could not measure the line.
+         *
+         * Each story line is a 247 -> 188 vertical gradient in the game; dialogue, names and
+         * choice plates share it, so one flat fill at its mean (218) matches all three.
+         */
+        private val FGO_TEXT_COLOR = Color.rgb(218, 218, 218)
         private val ORIGINAL_TEXT_COLOR = Color.rgb(80, 235, 235)
         private const val CHOICE_REFERENCE_WIDTH = 1470f
         private const val CHOICE_REFERENCE_HEIGHT = 135f
