@@ -3142,7 +3142,11 @@ class FgoAccessibilityService : AccessibilityService() {
         logSceneTranslationDebug(mode, sceneSource, sceneTranslation, instructions)
         val renderedHasChoices = instructions.any { it.region.region == TextRegion.CHOICE_BUTTON }
 
-        missingRequiredRenderReason(sceneSource, instructions)?.let { reason ->
+        missingRequiredRenderReason(
+            sceneSource = sceneSource,
+            instructions = instructions,
+            chapterPack = sceneTranslation.chapterPack
+        )?.let { reason ->
             FgoLogger.warn(tag, "Translation result incomplete; not marking source as rendered: $reason")
             rememberFailedRenderAttempt(mode, sourceFingerprint)
             runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
@@ -3150,6 +3154,16 @@ class FgoAccessibilityService : AccessibilityService() {
             return false
         }
         if (instructions.isEmpty()) {
+            if (sceneTranslation.chapterPack) {
+                // Nothing in the pack for this frame: keep the game's own text, drop the
+                // overlay and mark the frame handled so it is not retried frame after frame.
+                FgoLogger.debug(tag, "Chapter pack has no answer for this frame; keeping the game text")
+                translationOverlay.hide()
+                storyTapHandoff.clear()
+                rememberRenderedSourceText(mode, sourceFingerprint, sceneSource.stabilityKey)
+                clearFailedRenderAttempt(sourceFingerprint)
+                return true
+            }
             addHistoryEntry(source, sceneSource, sceneTranslation, instructions)
             runnerOverlay.showTranslationFailureFeedback(fromUserTap = mode.userInitiated)
             translationOverlay.hide()
@@ -3784,8 +3798,13 @@ class FgoAccessibilityService : AccessibilityService() {
 
     private fun missingRequiredRenderReason(
         sceneSource: SceneSource,
-        instructions: List<RenderInstruction>
+        instructions: List<RenderInstruction>,
+        chapterPack: Boolean = false
     ): String? {
+        // The chapter pack paints only what it recognised. A miss there is the normal
+        // outcome (the game's own text stays), so it is not an incomplete render: no
+        // retry, no failure feedback and no warning notice.
+        if (chapterPack) return null
         val content = sceneSource.translationContent
         val renderedHasDialogue = instructions.any {
             it.region.region == TextRegion.DIALOGUE_BOX && it.translatedText.isNotBlank()

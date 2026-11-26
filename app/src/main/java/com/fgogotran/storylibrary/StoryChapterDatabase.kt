@@ -183,12 +183,16 @@ internal class StoryChapterDatabase private constructor(
         flowScriptId: String?,
         flowSeq: Int,
         speakerKey: String,
-        choice: Boolean
+        choice: Boolean,
+        scriptId: String? = null
     ): Row? {
         if (key.isEmpty()) return null
+        val pool = if (choice) slotIndex.choices else slotIndex.dialogue
+        val candidates = if (scriptId == null) pool else pool.filter { it.scriptId == scriptId }
+        if (candidates.isEmpty()) return null
         val match = StoryFuzzyMatcher.select(
             query = StoryFuzzyMatcher.query(key, speakerKey),
-            candidates = if (choice) slotIndex.choices else slotIndex.dialogue,
+            candidates = candidates,
             threshold = if (choice) StoryFuzzyMatcher.CHOICE_THRESHOLD
             else StoryFuzzyMatcher.DIALOGUE_THRESHOLD,
             locale = locale,
@@ -277,17 +281,28 @@ internal class StoryChapterDatabase private constructor(
         return rowBySeq(match.entry.id)
     }
 
-    /** Approximate choice lookup; null when nothing clears the ambiguity rule. */
+    /**
+     * Approximate choice lookup; null when nothing clears the ambiguity rule.
+     *
+     * [scriptId] restricts the candidates to one scene. A choice is short and has no
+     * speaker, so a hit outside the confirmed scene is another button's wording far
+     * more often than an OCR slip; callers pass the confirmed script and never search
+     * the whole pack for a button.
+     */
     fun fuzzyChoice(
         key: String,
         locale: StoryLocale,
         flowScriptId: String?,
-        flowSeq: Int
+        flowSeq: Int,
+        scriptId: String? = null
     ): Row? {
         if (key.isEmpty()) return null
+        val candidates = if (scriptId == null) fuzzyIndex.choices
+        else fuzzyIndex.choices.filter { it.scriptId == scriptId }
+        if (candidates.isEmpty()) return null
         val match = StoryFuzzyMatcher.select(
             query = StoryFuzzyMatcher.query(key),
-            candidates = fuzzyIndex.choices,
+            candidates = candidates,
             threshold = StoryFuzzyMatcher.CHOICE_THRESHOLD,
             locale = locale,
             flowScriptId = flowScriptId,

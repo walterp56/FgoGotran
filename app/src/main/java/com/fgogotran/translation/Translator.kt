@@ -228,7 +228,15 @@ data class SceneTranslateResult(
     val dialogue: TranslateResult?,
     val choices: List<TranslateResult>,
     val voiceHint: VoiceLineHint? = null,
-    val generalPreparedSourceDialogue: String? = null
+    val generalPreparedSourceDialogue: String? = null,
+    /**
+     * The downloaded chapter pack answered this frame.
+     *
+     * A pack miss is a normal outcome, not a failed render: the surface keeps the game's
+     * own text and never shows a warning, so the caller must not treat a blank line or a
+     * blank choice as a reason to retry or notify.
+     */
+    val chapterPack: Boolean = false
 )
 
 internal const val GENERAL_HANT_REFERENCE_POLICY_VERSION = "general-hant-reference-v1"
@@ -1093,12 +1101,14 @@ class Translator @Inject constructor(
                 ).withDecodedEmphasis()
 
                 is StoryChapterResolver.LineResult.Miss -> return TranslateResult(
-                    translatedText = chapter.warningText ?: japaneseText,
+                    // A miss paints nothing: the game's own text stays, and the reader
+                    // never sees the Japanese source restyled as a translation.
+                    translatedText = "",
                     backend = "chapter-db",
                     cached = false,
                     targetLocale = settingsRepository.targetLanguage.first(),
                     trustedForContext = false,
-                    isFailure = chapter.warningText != null,
+                    isFailure = false,
                     countsAsUsage = false
                 )
 

@@ -138,6 +138,65 @@ class StoryChapterResolverTest {
     }
 
     /**
+     * A choice frame is painted all-or-nothing: one plate the pack cannot answer leaves
+     * the whole frame untouched, so the game's own buttons stay readable instead of a
+     * mixed frame or a copy of the Japanese source.
+     */
+    @Test
+    fun `one missed choice leaves the whole frame unpainted`() = runBlocking {
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, null, listOf("だって……！", "まったく別の文章です"))
+        )!!
+        assertTrue(scene.chapterPack)
+        assertEquals(listOf("", ""), scene.choices.map { it.translatedText })
+    }
+
+    /** Every plate resolves: the frame paints all of them, source punctuation included. */
+    @Test
+    fun `a fully recognised choice frame paints every plate`() = runBlocking {
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, null, listOf("だって……！", "……"))
+        )!!
+        assertEquals(listOf("可是……！", "……"), scene.choices.map { it.translatedText })
+    }
+
+    /**
+     * A button is short and has no speaker, so without a confirmed scene an approximate
+     * hit is another scene's wording far more often than an OCR slip. Only exact rows
+     * may answer there.
+     */
+    @Test
+    fun `a choice without a confirmed scene only matches exactly`() = runBlocking {
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, null, listOf("うむむむむむ。"))
+        )!!
+        assertEquals(listOf(""), scene.choices.map { it.translatedText })
+    }
+
+    /** Once the scene is confirmed, one damaged glyph may resolve inside that scene. */
+    @Test
+    fun `a confirmed scene absorbs one damaged choice glyph`() = runBlocking {
+        resolver.translateLine("うむむむむ。", "", StoryChapterResolver.LineKind.CHOICE)
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, null, listOf("うむむむむむ。"))
+        )!!
+        assertEquals(listOf("嗯嗯嗯嗯嗯。"), scene.choices.map { it.translatedText })
+    }
+
+    /** A miss never paints the "check the selected chapter" text, however long it repeats. */
+    @Test
+    fun `repeated dialogue misses stay silent`() = runBlocking {
+        val first = resolver.translateScene(
+            SceneTranslateInput(null, "まったく別の文章です", emptyList())
+        )!!
+        val second = resolver.translateScene(
+            SceneTranslateInput(null, "まったく別の文章です", emptyList())
+        )!!
+        assertNull(first.dialogue)
+        assertNull(second.dialogue)
+    }
+
+    /**
      * `……` keeps no characters after normalization, so it has no hash even though the
      * pack stores it. The stored dialog is used instead, and the frame kind still
      * separates the dialogue row from the button.

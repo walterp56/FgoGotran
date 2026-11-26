@@ -1,9 +1,7 @@
 package com.fgogotran.storylibrary
 
 import android.content.Context
-import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
-import com.fgogotran.localization.AppLanguageManager
 import com.fgogotran.scriptmemory.ScriptMemory
 import com.fgogotran.translation.SceneTranslateInput
 import com.fgogotran.translation.SceneTranslateResult
@@ -20,10 +18,10 @@ import kotlin.math.abs
  * Matches OCR text against the downloaded chapter database and renders the result.
  *
  * Contract with `Translator`: while a chapter pack is active this resolver always
- * answers — a hit returns the translated text, a miss never falls through to the
- * API. A short grace window of one miss keeps ordinary OCR noise from flashing a
- * warning; two consecutive misses mean the opened FGO scene is almost certainly not
- * the selected chapter, and the user gets the "check the selected chapter" text.
+ * answers — a hit returns the translated text, a miss returns nothing at all and
+ * never falls through to the API. A miss is normal there: the game keeps painting its
+ * own line, and the overlay never repeats the Japanese source or shows a warning.
+ * Consecutive misses still steer the flow (the next frame may start a new scene).
  *
  * Exact normalized-hash lookup runs first. When it misses, the approximate matcher
  * absorbs OCR-only damage (dash width, one wrong or dropped glyph) and still only
@@ -44,8 +42,7 @@ class StoryChapterResolver @Inject constructor(
 
         /** The chapter pack is active but this text was not found. */
         data class Miss(
-            val chapterMismatch: Boolean,
-            val warningText: String? = null
+            val chapterMismatch: Boolean
         ) : LineResult
 
         /** The chapter pack is off or no chapter is applied. */
@@ -74,9 +71,9 @@ class StoryChapterResolver @Inject constructor(
         val playerName = settingsRepository.playerName.first()
         val gender = settingsRepository.playerGender.first()
         if (database == null) {
-            // Active but the installed file is gone or broken: warn, never call the API.
+            // Active but the installed file is gone or broken: stay silent, never call the API.
             consecutiveMisses.set(WARNING_THRESHOLD)
-            return LineResult.Miss(chapterMismatch = true, warningText = warningText())
+            return LineResult.Miss(chapterMismatch = true)
         }
         resetFlowIfChapterChanged(database.chapterId)
 
@@ -101,11 +98,7 @@ class StoryChapterResolver @Inject constructor(
             matchDialogueRow(database, text, speaker, storyLocale, playerName)
         }
         if (row == null) {
-            val mismatch = registerMiss()
-            return LineResult.Miss(
-                chapterMismatch = mismatch,
-                warningText = if (mismatch) warningText() else null
-            )
+            return LineResult.Miss(chapterMismatch = registerMiss())
         }
         resetMisses()
         remember(row)
@@ -115,8 +108,10 @@ class StoryChapterResolver @Inject constructor(
     /**
      * Translates a whole scene from the active chapter pack.
      *
-     * @return null when the chapter pack is inactive; otherwise a complete result in
-     * which misses keep the original text and repeated misses carry the warning.
+     * @return null when the chapter pack is inactive; otherwise a result in which every
+     * miss is blank, so the game's own text stays and no warning is painted. A choice
+     * frame is all-or-nothing: one plate the pack cannot answer leaves the whole frame
+     * unpainted instead of mixing translations with the original.
      */
     suspend fun translateScene(input: SceneTranslateInput): SceneTranslateResult? {
         if (!repository.isEnabled()) return null
@@ -125,13 +120,13 @@ class StoryChapterResolver @Inject constructor(
         val gender = settingsRepository.playerGender.first()
         val database = repository.activeDatabase()
         if (database == null) {
+            // Enabled but the installed pack is gone or broken: keep the game's text.
             consecutiveMisses.set(WARNING_THRESHOLD)
             return SceneTranslateResult(
                 name = null,
-                dialogue = warning(locale),
+                dialogue = null,
                 choices = emptyList(),
-                voiceHint = null,
-                generalPreparedSourceDialogue = null
+                chapterPack = true
             )
         }
         resetFlowIfChapterChanged(database.chapterId)
@@ -168,14 +163,26 @@ class StoryChapterResolver @Inject constructor(
                 )
             }
             input.dialogue.isNullOrBlank() -> null
-            registerMiss() -> warning(locale)
-            else -> null
+            else -> {
+                // A miss stays blank: the game's own line remains, with no warning text.
+                registerMiss()
+                null
+            }
         }
 
-        val choiceResults = input.choices.map { choice ->
-            val row = matchChoice(database, choice, dialogueRow, storyLocale, playerName)
-            if (row == null) {
-                result(choice, locale)
+        // All-or-nothing: a choice frame is painted only when every plate resolves, so a
+        // half-recognised frame never mixes translations with the game's source text and
+        // a pack miss never repaints the Japanese button.
+        val choiceRows = input.choices.map { choice ->
+            if (choice.isBlank()) null else matchChoice(database, choice, dialogueRow, storyLocale, playerName)
+        }
+        val everyChoiceResolved = input.choices.indices.none { index ->
+            input.choices[index].isNotBlank() && choiceRows[index] == null
+        }
+        val choiceResults = input.choices.mapIndexed { index, _ ->
+            val row = choiceRows[index]
+            if (!everyChoiceResolved || row == null) {
+                result("", locale)
             } else {
                 result(
                     render(row.dialog(locale), playerName, gender),
@@ -189,8 +196,7 @@ class StoryChapterResolver @Inject constructor(
             name = rowName ?: nameResult,
             dialogue = dialogueResult,
             choices = choiceResults,
-            voiceHint = null,
-            generalPreparedSourceDialogue = null
+            chapterPack = true
         )
     }
 
@@ -503,11 +509,16 @@ class StoryChapterResolver @Inject constructor(
             flowSeq = dialogueRow?.seq ?: lastSeq
         )?.let { return it }
         if (!fuzzyMatchingEnabled()) return null
+        // A choice has no speaker and only a few characters, so a whole-pack approximate
+        // hit is another scene's button far more often than an OCR slip. Only the script
+        // of the confirmed flow may answer; without one, only an exact row may.
+        val script = dialogueRow?.scriptId ?: lastScriptId ?: return null
         val row = database.fuzzyChoice(
             key = StoryOcrNormalizer.fuzzyKey(text),
             locale = locale,
-            flowScriptId = dialogueRow?.scriptId ?: lastScriptId,
-            flowSeq = dialogueRow?.seq ?: lastSeq
+            flowScriptId = script,
+            flowSeq = dialogueRow?.seq ?: lastSeq,
+            scriptId = script
         ) ?: return null
         FgoLogger.debug(tag, "Story choice matched approximately: script=${row.scriptId} seq=${row.seq}")
         return row
@@ -546,6 +557,8 @@ class StoryChapterResolver @Inject constructor(
             }
         }
         if (!fuzzyMatchingEnabled()) return null
+        // A choice slot obeys the same script-bound rule as an ordinary choice.
+        if (choice && flowScriptId == null) return null
 
         val row = database.fuzzySlot(
             key = key,
@@ -553,7 +566,8 @@ class StoryChapterResolver @Inject constructor(
             flowScriptId = flowScriptId,
             flowSeq = flowSeq,
             speakerKey = StoryOcrNormalizer.nameKey(speaker),
-            choice = choice
+            choice = choice,
+            scriptId = if (choice) flowScriptId else null
         ) ?: return null
         if (!choice && !keepsOrEntersFlow(row)) return null
         FgoLogger.debug(
@@ -663,20 +677,6 @@ class StoryChapterResolver @Inject constructor(
         apiUsage = null,
         countsAsUsage = false,
         sourceText = sourceText?.takeIf { it.isNotBlank() }
-    )
-
-    private suspend fun warningText(): String = AppLanguageManager.wrap(context)
-        .getString(R.string.story_chapter_text_not_found, repository.activeChapterId().ifBlank { "?" })
-
-    private suspend fun warning(locale: String): TranslateResult = TranslateResult(
-        translatedText = warningText(),
-        backend = "chapter-db",
-        cached = false,
-        targetLocale = locale,
-        trustedForContext = false,
-        isFailure = true,
-        apiUsage = null,
-        countsAsUsage = false
     )
 
     private fun render(text: String, playerName: String, gender: String): String =
