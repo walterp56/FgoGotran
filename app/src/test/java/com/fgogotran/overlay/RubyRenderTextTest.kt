@@ -245,6 +245,31 @@ class RubyRenderTextTest {
         assertTrue(inline.edits.isEmpty())
     }
 
+    @Test fun `a name ending with a wave dash owns its reading above the pun word`() {
+        val source = "『第六天魔王波旬～夏盛～〈信長·THE·搖滾樂〉』！！"
+        val parsed = RubyRenderText.parse(source)
+        assertEquals("『第六天魔王波旬～夏盛～』！！", parsed.body)
+        assertEquals("夏盛～", parsed.base())
+        assertEquals("信長·THE·搖滾樂", parsed.annotations.single().reading)
+        assertEquals(parsed.body, parsed.applyEdits(source))
+    }
+
+    @Test fun `an ASCII tilde closes an English ruby base`() {
+        val source = "\"Papiyas, the Demon King of the Sixth Heaven ~Summer~〈Nobunaga THE Rock 'n' Roll〉!!\""
+        val parsed = RubyRenderText.parse(source)
+        assertEquals("Summer~", parsed.base())
+        assertEquals("Nobunaga THE Rock 'n' Roll", parsed.annotations.single().reading)
+        assertEquals(parsed.body, parsed.applyEdits(source))
+    }
+
+    @Test fun `a bare wave dash owns no reading`() {
+        for (source in listOf("～〈讀音〉", "~~〈reading〉", "～ 〈讀音〉", "…～〈讀音〉")) {
+            val parsed = RubyRenderText.parse(source)
+            assertEquals(source, parsed.body, source)
+            assertTrue(parsed.annotations.isEmpty(), source)
+        }
+    }
+
     private fun RubyRenderText.Text.base() = annotations.single { !it.emphasis }.let { body.substring(it.start, it.end) }
     private fun RubyRenderText.Text.applyEdits(source: String) = StringBuilder(source).apply {
         edits.asReversed().forEach { replace(it.start, it.end, it.replacement) }

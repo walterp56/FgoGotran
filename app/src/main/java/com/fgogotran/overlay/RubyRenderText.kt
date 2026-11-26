@@ -106,10 +106,9 @@ internal object RubyRenderText {
             // Never cross a real line/paragraph boundary to find an orphan reading's owner.
             var end = body.length
             while (end > 0 && isHorizontalSpace(body[end - 1])) end--
-            val previous = if (end > 0) Character.codePointBefore(body, end) else -1
             val unmatchedOpening = body.lastIndexOf("〈") > body.lastIndexOf("〉")
             val floor = annotations.lastOrNull()?.end ?: 0
-            if (reading.isEmpty() || previous < 0 || !isWordPart(previous) || unmatchedOpening || end <= floor) {
+            if (reading.isEmpty() || !isRubyBaseEnd(body, end) || unmatchedOpening || end <= floor) {
                 body.append(match.value)
                 cursor = match.range.last + 1
             } else {
@@ -171,21 +170,29 @@ internal object RubyRenderText {
     }
 
     private fun inferBaseStart(text: String, end: Int, floor: Int): Int {
+        // A reading may close a name that ends with a wave dash (第六天魔王波旬～夏盛～〈…〉).
+        // The dash belongs to the annotation span, but it is not a base word: infer from the
+        // text before it so the reading sits over 夏盛 rather than over a bare dash.
+        var baseEnd = end
+        while (baseEnd > floor && isBaseConnector(Character.codePointBefore(text, baseEnd))) {
+            baseEnd -= Character.charCount(Character.codePointBefore(text, baseEnd))
+        }
+        if (baseEnd <= floor) return floor
         // A final Latin token has explicit word boundaries, including curly apostrophes,
         // compounds and combining accents. Do not let it consume an earlier word/CJK phrase.
-        latinWord.findAll(text.substring(floor, end)).lastOrNull()?.let { word ->
-            if (word.range.last + 1 == end - floor &&
+        latinWord.findAll(text.substring(floor, baseEnd)).lastOrNull()?.let { word ->
+            if (word.range.last + 1 == baseEnd - floor &&
                 word.value.codePoints().anyMatch { Character.UnicodeScript.of(it) == Character.UnicodeScript.LATIN }) {
                 return floor + word.range.first
             }
         }
-        var runStart = end
+        var runStart = baseEnd
         while (runStart > floor) {
             val cp = Character.codePointBefore(text, runStart)
             if (!isWordPart(cp) && cp != '-'.code && cp != '\''.code) break
             runStart -= Character.charCount(cp)
         }
-        val run = text.substring(runStart, end)
+        val run = text.substring(runStart, baseEnd)
         val japanese = run.any { it in '\u3040'..'\u30ff' }
         val cjk = run.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN }
         val locale = when { japanese -> Locale.JAPANESE; cjk -> Locale.CHINESE; else -> Locale.ENGLISH }
@@ -203,8 +210,21 @@ internal object RubyRenderText {
             if (separator != null) start = separator + 1
             if (run.length - start > 8) start = run.length - 4
         }
-        return (runStart + start).coerceIn(floor, end - 1)
+        return (runStart + start).coerceIn(floor, baseEnd - 1)
     }
+
+    /** A reading is owned by the letters/digits before it, not by a lone dash. */
+    private fun isRubyBaseEnd(text: CharSequence, end: Int): Boolean {
+        var index = end
+        while (index > 0 && isBaseConnector(Character.codePointBefore(text, index))) {
+            index -= Character.charCount(Character.codePointBefore(text, index))
+        }
+        return index > 0 && isWordPart(Character.codePointBefore(text, index))
+    }
+
+    /** Wave dashes join a name's halves and may close its ruby base (…波旬～夏盛～〈…〉). */
+    private fun isBaseConnector(cp: Int): Boolean =
+        cp == 0x301C || cp == 0xFF5E || cp == 0x007E
 
     private fun isWordPart(cp: Int): Boolean = Character.isLetterOrDigit(cp) ||
         Character.getType(cp) in setOf(Character.NON_SPACING_MARK.toInt(), Character.COMBINING_SPACING_MARK.toInt())

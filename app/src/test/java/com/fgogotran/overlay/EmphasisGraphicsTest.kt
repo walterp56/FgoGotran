@@ -41,6 +41,44 @@ class EmphasisGraphicsTest {
         }
     }
 
+    @Test fun `a name closing with a wave dash paints its reading above the body`() {
+        val image=Bitmap.createBitmap(1800,470,Bitmap.Config.ARGB_8888)
+        val canvas=Canvas(image).apply { drawColor(Color.rgb(27,48,78)) }
+        val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface=Typeface.createFromFile(File(root,"app/src/main/assets/fonts/FgoStory_td.otf"))
+            textSize=53f;color=Color.rgb(245,245,240)
+        }
+        val text="『第六天魔王波旬～夏盛～〈信長·THE·搖滾樂〉』！！"
+        // Upper row: the reading left inline, exactly what the old parse drew.
+        canvas.drawText(text,60f,200f,paint)
+        val parsed=RubyRenderText.parse(text)
+        assertEquals("『第六天魔王波旬～夏盛～』！！",parsed.body)
+        val annotation=parsed.annotations.single()
+        assertEquals("夏盛～",parsed.body.substring(annotation.start,annotation.end))
+        val bounds=RectF(20f,270f,1780f,460f)
+        val baseline=420f
+        val ruby=assertNotNull(RubyTextPainter.planExact(paint,parsed,60f,baseline,bounds,bounds.top,
+            paint.textSize*RubyTextPainter.GAP_RATIO)).single()
+        assertFalse(ruby.emphasis)
+        canvas.drawText(parsed.body,60f,baseline,paint)
+        RubyTextPainter.drawPlanned(canvas,paint,listOf(ruby),paint.color,0f)
+        val bodyInk=Rect().also { paint.getTextBounds(parsed.body,0,parsed.body.length,it) }
+        assertTrue(ruby.bottom<baseline+bodyInk.top,"The reading must sit above its base")
+        var painted=0
+        for (y in ruby.top.toInt()..ruby.bottom.toInt()) for (x in ruby.left.toInt()..ruby.right.toInt()) {
+            if (x in 0 until image.width && y in 0 until image.height &&
+                Color.red(image.getPixel(x,y))>200 && Color.green(image.getPixel(x,y))>200) painted++
+        }
+        assertTrue(painted>40,"No visible reading pixels: $painted")
+        // The reading left the body, so the drawn line is the 15-character base only.
+        assertTrue(paint.measureText(parsed.body)<paint.measureText(text.replace("〈","").replace("〉",""))*0.75f)
+        File(root,"tmp").mkdirs()
+        File(root,"tmp/ruby-wave-dash-preview.png").outputStream().use {
+            image.compress(Bitmap.CompressFormat.PNG,100,it)
+        }
+        image.recycle()
+    }
+
     @Test fun `FGO reference dot and ruby examples produce complete visible annotation bands`() {
         val image=Bitmap.createBitmap(1600,580,Bitmap.Config.ARGB_8888)
         val canvas=Canvas(image).apply { drawColor(Color.rgb(27,48,78)) }
