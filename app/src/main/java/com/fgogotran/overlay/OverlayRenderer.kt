@@ -4,6 +4,7 @@ import com.fgogotran.text.EmphasisRange
 import com.fgogotran.text.EmphasisText
 import android.content.Context
 import android.graphics.*
+import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ocr.OcrTextLine
 import com.fgogotran.translation.FgoDialogueSymbols
@@ -52,6 +53,11 @@ class OverlayRenderer @Inject constructor(
     private var typeface: Typeface? = null
     private var reusableBitmap: Bitmap? = null
     private val reusableCanvas = Canvas()
+
+    /** The plate's own field texture, so a cleared plate keeps the game's look. */
+    private val choicePlateField: Bitmap? by lazy {
+        BitmapFactory.decodeResource(context.resources, R.drawable.choice_plate_field)
+    }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.LEFT
     }
@@ -770,6 +776,7 @@ class OverlayRenderer @Inject constructor(
         val textInsetX = 70f * scale
 
         canvas.drawPath(clearPath, choiceClearPaint)
+        ChoicePlateBackground.draw(canvas, clearPath, clearBox, choicePlateField)
 
         val textArea = RectF(
             box.left + textInsetX,
@@ -879,6 +886,7 @@ class OverlayRenderer @Inject constructor(
         val textInsetX = 70f * scale
 
         canvas.drawPath(clearPath, choiceClearPaint)
+        ChoicePlateBackground.draw(canvas, clearPath, clearBox, choicePlateField)
 
         // ── 2. Render CN choice text (center-aligned) ──
         val textArea = RectF(
@@ -937,6 +945,7 @@ class OverlayRenderer @Inject constructor(
         val visual = ChoiceSelectionVisualPlan(frozenClearBox, CHOICE_CLEAR_RADIUS * scale,
             drawBackground = { target ->
                 target.drawPath(frozenPath, frozenClearPaint)
+                ChoicePlateBackground.draw(target, frozenPath, frozenClearBox, choicePlateField)
             },
             drawText = { target ->
                 val paint = Paint(frozenPaint)
