@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readFile, rename, rm, rmdir, stat, writeFile } from 'no
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { japaneseTsv, parseJapaneseScript } from './japanese-script.mjs';
+import { parseTsv } from './lib/story-catalog.mjs';
+import { dialogueSizeOf, stripDialogueMarker } from './lib/dialogue-size.mjs';
 
 const atlas = 'https://api.atlasacademy.io';
 const atlasEventIndex = atlas + '/export/JP/nice_event.json';
@@ -17,7 +19,8 @@ const usage = 'Usage: node story-library.mjs lookup "<JP chapter name>"\n' +
   '       node story-library.mjs prepare <event-id> [work-dir]\n' +
   '       node story-library.mjs stage <event-id> [work-dir]\n' +
   '       node story-library.mjs inventory <event-id> [work-dir]\n' +
-  '       node story-library.mjs build <event-id> <local-source-dir> [work-dir]';
+  '       node story-library.mjs build <event-id> <local-source-dir> [work-dir]\n' +
+  '       node story-library.mjs size-tokens <event-id> [work-dir]';
 
 function scriptUrl(scriptId, value) {
   if (typeof value !== 'string' || !value) {
@@ -294,6 +297,84 @@ function chapterFiles(inventory, sources) {
   return { files, validation };
 }
 
+const TSV_COLUMNS = [
+  'jp_name', 'jp_dialog', 'cn_name', 'cn_dialog',
+  'tw_name', 'tw_dialog', 'en_name', 'en_dialog', 'type', 'script',
+];
+
+const tsvField = (value) => /["\t\r\n]/.test(value ?? '')
+  ? '"' + value.replaceAll('"', '""') + '"'
+  : value;
+
+const tsvText = (rows) => rows
+  .map((row) => row.map((value) => tsvField(value ?? '')).join('\t'))
+  .join('\n') + '\n';
+
+/**
+ * Rewrites the leading size marker of an existing chapter TSV from the staged
+ * scripts.
+ *
+ * Translations are expensive and hand-reviewed, so only the marker may change:
+ * every other column, and the text after the marker, is compared with a fresh
+ * conversion of the same scripts, and any difference aborts before a write.
+ */
+async function patchSizeTokens(work, id) {
+  const folder = join(work, id);
+  const tsvPath = join(folder, id + '.tsv');
+  const inventory = JSON.parse(await readFile(join(folder, 'source-inventory.json'), 'utf8'));
+  const sources = await stageSources(work, inventory);
+  const { files } = chapterFiles(inventory, sources);
+  const rebuilt = parseTsv(files.get(id + '.tsv')).slice(1);
+  const current = parseTsv(await readFile(tsvPath, 'utf8'));
+  if (JSON.stringify(current[0]) !== JSON.stringify(TSV_COLUMNS)) {
+    throw new Error('Unexpected TSV header in ' + tsvPath);
+  }
+  const rows = current.slice(1);
+  if (rows.length !== rebuilt.length) {
+    throw new Error('TSV rows ' + rows.length + ' != converted rows ' + rebuilt.length);
+  }
+  const sizes = { large: 0, small: 0 };
+  let changed = 0;
+  for (let index = 0; index < rows.length; index++) {
+    const have = rows[index];
+    const want = rebuilt[index];
+    for (const column of [0, 8, 9]) {
+      if ((have[column] ?? '') !== (want[column] ?? '')) {
+        throw new Error('row ' + (index + 1) + ': ' + TSV_COLUMNS[column] +
+          ' differs from the source scripts');
+      }
+    }
+    const dialog = want[1] ?? '';
+    if (stripDialogueMarker(dialog) !== (have[1] ?? '')) {
+      throw new Error('row ' + (index + 1) + ': jp_dialog differs beyond the size marker');
+    }
+    const size = dialogueSizeOf(dialog);
+    if (size === 'normal') continue;
+    sizes[size]++;
+    if ((have[1] ?? '') === dialog) continue;
+    rows[index] = [...have];
+    rows[index][1] = dialog;
+    changed++;
+  }
+  if (changed) {
+    const temporary = tsvPath + '.tmp-' + process.pid;
+    await writeFile(temporary, tsvText([TSV_COLUMNS, ...rows]));
+    await rename(temporary, tsvPath);
+  }
+  const validationPath = join(folder, 'validation.json');
+  let validation = {};
+  try {
+    validation = JSON.parse(await readFile(validationPath, 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const report = { ...validation, dialogue_size: sizes, size_tokens_updated: changed };
+  const temporaryValidation = validationPath + '.tmp-' + process.pid;
+  await writeFile(temporaryValidation, json(report));
+  await rename(temporaryValidation, validationPath);
+  return { ...report, tsv_path: tsvPath };
+}
+
 async function publish(work, name, files) {
   // Build a complete set alongside the destination, then swap it in so a
   // failed run never leaves a partial chapter folder behind. An existing
@@ -363,7 +444,7 @@ async function main(argv) {
   const eventId = Number(id);
   const isBuild = action === 'build';
   if (!/^\d+$/.test(id ?? '') || !positiveInteger(eventId) ||
-    !['inventory', 'stage', 'build', 'prepare'].includes(action) ||
+    !['inventory', 'stage', 'build', 'prepare', 'size-tokens'].includes(action) ||
     (isBuild ? args.length < 1 || args.length > 2 : args.length > 1)) {
     throw new Error(usage);
   }
@@ -398,6 +479,10 @@ async function main(argv) {
       distinct_script_ids: scriptIds(inventory).size,
       inventory_path: join(work, inventoryFile),
     }));
+    return;
+  }
+  if (action === 'size-tokens') {
+    console.log(JSON.stringify({ ...(await patchSizeTokens(work, idName)), ...paths() }));
     return;
   }
   const sources = isBuild

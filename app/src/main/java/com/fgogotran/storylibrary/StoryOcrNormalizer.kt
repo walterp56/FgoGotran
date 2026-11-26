@@ -18,6 +18,10 @@ import java.text.Normalizer
  * A player-name slot (`[%1]`) survives normalization as a `%1` token, which the
  * rendered screen never shows, so those lines are matched through [slotKey] and
  * [slotTemplateKey] instead of the exact hash.
+ *
+ * A leading `⟬L⟭` / `⟬S⟭` is the row's render size ([DialogueSize]), not text:
+ * it is removed before every rule below so a marked row hashes like the plain
+ * line the OCR reads.
  */
 object StoryOcrNormalizer {
     private val genderControl = Regex("\\[&([^:\\]]+):([^\\]]+)\\]")
@@ -42,7 +46,7 @@ object StoryOcrNormalizer {
     private val horizontalBars =
         Regex("[\\u2015\\u2014\\u2500\\u2501\\u2212\\uFF0D\\u002D\\u2010\\u2011\\u2012\\u2013]")
 
-    fun normalize(text: String): String = text
+    fun normalize(text: String): String = DialogueSize.strip(text)
         .replace(genderControl, "$1")
         .replace(masterName, "%$1")
         .replace(ruby, "")

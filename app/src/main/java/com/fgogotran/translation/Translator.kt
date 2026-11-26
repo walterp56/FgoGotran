@@ -14,6 +14,7 @@ import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.scriptmemory.ScriptMemory
 import com.fgogotran.storylibrary.StoryChapterResolver
+import com.fgogotran.storylibrary.DialogueSize
 import com.fgogotran.localization.AppLanguageManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.fgogotran.data.UserProfile
@@ -229,6 +230,13 @@ data class SceneTranslateResult(
     val choices: List<TranslateResult>,
     val voiceHint: VoiceLineHint? = null,
     val generalPreparedSourceDialogue: String? = null,
+    /**
+     * Render size the chapter pack attached to the dialogue line that answered.
+     *
+     * Only the dialogue box follows it; the name plate, the bilingual original
+     * text, and history keep their fixed sizes.
+     */
+    val dialogueSize: DialogueSize = DialogueSize.NORMAL,
     /**
      * The downloaded chapter pack answered this frame.
      *

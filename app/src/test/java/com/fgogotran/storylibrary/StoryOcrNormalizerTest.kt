@@ -237,4 +237,24 @@ class StoryOcrNormalizerTest {
         assertEquals(StoryOcrNormalizer.hash(plain), StoryOcrNormalizer.hash(withRule))
         assertEquals(StoryOcrNormalizer.fuzzyKey(plain), StoryOcrNormalizer.fuzzyKey(withRule))
     }
+
+    /** The leading size marker is presentation: it must not change the key. */
+    @Test
+    fun `a dialogue size marker does not change the matching key`() {
+        val plain = "―――『ヤタガラス・クラーッシュ』！！！"
+        for (marker in listOf("⟬L⟭", "⟬S⟭")) {
+            assertEquals("ヤタガラスクラーッシュ", StoryOcrNormalizer.normalize(marker + plain))
+            assertEquals(StoryOcrNormalizer.hash(plain), StoryOcrNormalizer.hash(marker + plain))
+            assertEquals(StoryOcrNormalizer.fuzzyKey(plain), StoryOcrNormalizer.fuzzyKey(marker + plain))
+        }
+    }
+
+    /** Stripping is limited to the head: a marker pasted mid-line is a translation defect. */
+    @Test
+    fun `only the leading marker is stripped`() {
+        assertEquals("本文", DialogueSize.strip("⟬L⟭本文"))
+        assertEquals("本文⟬L⟭", DialogueSize.strip("本文⟬L⟭"))
+        assertEquals("本文", DialogueSize.strip("⟬S⟭本文"))
+        assertEquals("本文", DialogueSize.strip("本文"))
+    }
 }

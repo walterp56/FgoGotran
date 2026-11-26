@@ -85,6 +85,7 @@ import com.fgogotran.story.StoryDetector
 import com.fgogotran.story.StoryOcrVisualAction
 import com.fgogotran.story.StoryOcrVisualBounds
 import com.fgogotran.storylibrary.StoryChapterResolver
+import com.fgogotran.storylibrary.DialogueSize
 import com.fgogotran.story.StoryOcrVisualDecision
 import com.fgogotran.story.StoryOcrVisualGate
 import com.fgogotran.story.StoryOcrVisualScope
@@ -3728,7 +3729,14 @@ class FgoAccessibilityService : AccessibilityService() {
                 targetLocale = translatedResult.targetLocale,
                 showOriginalText = showOriginalForRegion,
                 emphasisRanges = EmphasisText.remap(translatedResult.translatedText, translatedText, translatedResult.emphasisRanges),
-                showAnnotations = regionAndText.region.region == TextRegion.NAME_LABEL || translationIncludeRuby
+                showAnnotations = regionAndText.region.region == TextRegion.NAME_LABEL || translationIncludeRuby,
+                // Only the dialogue box follows the pack's line size; the name
+                // plate, choices, and every other region keep their own size.
+                dialogueSize = if (regionAndText.region.region == TextRegion.DIALOGUE_BOX) {
+                    sceneTranslation.dialogueSize
+                } else {
+                    DialogueSize.NORMAL
+                }
             )
         }
     }

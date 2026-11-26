@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripDialogueMarker } from './lib/dialogue-size.mjs';
 
 // Translation handoff for the Story Library TSV.
 //
@@ -309,7 +310,10 @@ async function exportBatches(eventId, locale, work, flags) {
   // spelled out on every row made each batch ~713 bytes/row, of which the
   // Japanese text was only ~11%. The compact shape is ~3x smaller for the same
   // information, which is paid for on every worker that reads a batch.
-  const contextItem = (index) => [book.entries[index].entry_id, rows[index][JP_NAME], rows[index][JP_DIALOG]];
+  // The JP size marker is presentation metadata, not text: agents never see it,
+  // so it cannot be translated, copied, or moved into a target column.
+  const jpDialog = (row) => stripDialogueMarker(row[JP_DIALOG] ?? '');
+  const contextItem = (index) => [book.entries[index].entry_id, rows[index][JP_NAME], jpDialog(rows[index])];
   const needsTranslation = (row) =>
     !row[config.dialog].trim() || (!!row[JP_NAME].trim() && !row[config.name].trim());
   const pending = rows.filter(needsTranslation).length;
@@ -329,7 +333,7 @@ async function exportBatches(eventId, locale, work, flags) {
     rows.slice(start, end).forEach((row, offset) => {
       const index = start + offset;
       const entry = book.entries[index];
-      const text = [row[JP_NAME], row[JP_DIALOG], entry.scene_id].join('\n');
+      const text = [row[JP_NAME], jpDialog(row), entry.scene_id].join('\n');
       const refs = [];
       for (const match of glossaryForRow(text, row[JP_NAME], locale, glossary)) {
         const key = match.source + ' ' + match.target;
@@ -350,13 +354,13 @@ async function exportBatches(eventId, locale, work, flags) {
       const last = scenes[scenes.length - 1];
       if (last && last[0] === entry.scene_id) last[2] = offset + 1;
       else scenes.push([entry.scene_id, offset + 1, offset + 1]);
-      const source = row[JP_NAME] + '\n' + row[JP_DIALOG];
+      const source = row[JP_NAME] + '\n' + jpDialog(row);
       const bump = (label, count) => { if (count) controls.set(label, (controls.get(label) ?? 0) + count); };
       bump('master_name', countMatches(source, /\[%\d+\]/g));
       bump('gender_control', countMatches(source, /\[&/g));
       bump('ruby', countMatches(source, /〈/g));
       bump('emphasis', countMatches(source, /⟦/g));
-      entries.push([entry.entry_id, row[TYPE], row[JP_NAME], row[JP_DIALOG], refs]);
+      entries.push([entry.entry_id, row[TYPE], row[JP_NAME], jpDialog(row), refs]);
     });
     batches.push({
       previous_context: start > previousStart ? rows.slice(previousStart, start)
@@ -483,7 +487,7 @@ function visibleControlText(value) {
 function validateTranslation(row, config, translation, officialNames) {
   const errors = [];
   const warnings = [];
-  const source = { name: row[JP_NAME], dialog: row[JP_DIALOG] };
+  const source = { name: row[JP_NAME], dialog: stripDialogueMarker(row[JP_DIALOG] ?? '') };
   const target = { name: translation.name ?? '', dialog: translation.dialog ?? '' };
   const type = row[TYPE];
   const sourceText = source.name + '\n' + source.dialog;
@@ -825,14 +829,20 @@ async function applyResponses(eventId, locale, input, work, flags) {
   }
 
   const applied = [];
+  let sizeMarkersStripped = 0;
   for (const [entryId, { translation, index }] of chosen) {
     const row = rows[index];
     if (row[config.dialog].trim() && !flags.replace) {
       warnings.push({ entry_id: entryId, problems: ['already-translated-row-kept'] });
       continue;
     }
-    row[config.name] = (translation.name ?? '').trim();
-    row[config.dialog] = (translation.dialog ?? '').trim();
+    const name = (translation.name ?? '').trim();
+    const dialog = (translation.dialog ?? '').trim();
+    if (name !== stripDialogueMarker(name) || dialog !== stripDialogueMarker(dialog)) {
+      sizeMarkersStripped++;
+    }
+    row[config.name] = stripDialogueMarker(name);
+    row[config.dialog] = stripDialogueMarker(dialog);
     applied.push(entryId);
   }
   const nextTsv = formatTsv([COLUMNS, ...rows]);
@@ -905,6 +915,7 @@ async function applyResponses(eventId, locale, input, work, flags) {
     locale,
     event_id: Number(eventId),
     applied_rows: applied.length,
+    size_markers_stripped: sizeMarkersStripped,
     warnings: warnings.slice(0, 20),
     warning_count: warnings.length,
     pending,

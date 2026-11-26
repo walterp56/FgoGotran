@@ -1,3 +1,5 @@
+import { DIALOGUE_MARKERS } from './lib/dialogue-size.mjs';
+
 const choice = /^？([1-6])：(.*)$/;
 const boundary = /^\[(?:k|messageOff|end)\]$/;
 const standaloneCommand = /^(?:\[[a-z][a-z0-9]*(?: [^\[\]\r\n]*)?\])+$/i;
@@ -13,6 +15,9 @@ const speakerSpot = /=spot\[[^\[\]]*\]$/;
 // closed by the following [k]. Emphasis is written as [#word] (no colon).
 const narrationStart = '[backlogStart]';
 const emphasis = /^#([^:]+)$/;
+// A leading size command is part of the line's presentation, not a stage action:
+// the pack keeps it as a marker the app can turn into a render size.
+const sizeCommand = /^\[f (large|small)\]/;
 
 function displayText(text, fail) {
   if (/[\[\]]/.test(text.replace(bracketTag, ''))) fail('unclosed or nested bracket tag');
@@ -37,6 +42,19 @@ function displayText(text, fail) {
 // This parser handles the line grammar exercised by the Story Library fixtures.
 // Script commands that affect a visible box need evidence before conversion.
 export function parseJapaneseScript(scriptId, source) {
+  return parseJapaneseScriptDetailed(scriptId, source).entries;
+}
+
+/**
+ * Same conversion, plus the size commands the marker cannot carry.
+ *
+ * A row stores at most one size marker, so a command after the first line of a
+ * box (`text[f large]`) and every size the app does not render (`medium`,
+ * `x-large`, `x-small`, the alignment variants) are counted instead of being
+ * dropped silently.
+ */
+export function parseJapaneseScriptDetailed(scriptId, source) {
+  const sizes = { large: 0, small: 0, skippedMidLine: 0, skippedOther: {} };
   const lines = source.split(/\r\n?|\n/);
   const opening = lines.find((line) => line.trim());
   if (!opening?.startsWith('＄') && opening !== '[soundStopAll]') {
@@ -120,12 +138,29 @@ export function parseJapaneseScript(scriptId, source) {
       continue;
     }
     if (!box) fail('visible text outside a dialogue box');
-    const visible = displayText(line, fail);
-    if (visible) box.parts.push(visible);
+    let body = line;
+    let marker = '';
+    const leading = sizeCommand.exec(line);
+    if (leading && box.parts.length === 0) {
+      marker = DIALOGUE_MARKERS[leading[1]];
+      sizes[leading[1]]++;
+      body = line.slice(leading[0].length);
+    }
+    for (const tag of line.matchAll(/\[f ([^\[\]]+)\]/g)) {
+      const value = tag[1].trim();
+      if (leading && tag.index === 0 && value === leading[1]) continue;
+      if (value === 'large' || value === 'small') {
+        sizes.skippedMidLine++;
+      } else {
+        sizes.skippedOther[value] = (sizes.skippedOther[value] ?? 0) + 1;
+      }
+    }
+    const visible = displayText(body, fail);
+    if (visible) box.parts.push(marker + visible);
   }
   closeBox();
   if (selections.length) fail('choice group is still open');
-  return entries;
+  return { entries, sizes };
 }
 
 const columns = [

@@ -334,6 +334,10 @@ response file:
 - **Line rule bars** `――…` (U+2015): these render FGO's `[line N]` drawn rule,
   N bars long. Keep exactly the same number of bars at the same place in the
   sentence; do not translate, shorten, merge, or drop them.
+- **Size marker** `⟬L⟭` / `⟬S⟭`: if one ever shows up at the head of
+  `jp_dialog`, it is the source's font-size metadata (the game's `[f large]` /
+  `[f small]`). It is not text: never translate it, never copy it into a target
+  column, and never move it. Export normally removes it before you see the row.
 - Leave **no Japanese kana** in target fields, including inside gender variants.
 - Never merge or split rows, add speaker labels, or change `type`.
 

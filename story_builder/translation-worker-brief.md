@@ -86,6 +86,8 @@ node story_builder/story-translation.mjs check <event> <locale> <response file>
 - `⟦…⟧`: keep the emphasis pair around the emphasized word.
 - `――…` (U+2015): this is FGO's `[line N]` drawn rule; keep the exact bar
   count and position, and never translate it.
+- `⟬L⟭` / `⟬S⟭`: a leading font-size marker on the source line, not text;
+  never translate, copy, or move it.
 - No kana anywhere in the target, including inside gender variants.
 - Never merge or split rows, invent a speaker, or change `type` / `entry_id`.
 - Keep fragments and interrupted sentences unfinished; keep `……` and `───`;

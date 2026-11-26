@@ -87,6 +87,8 @@ glossary, and term proposals. Locale specifics:
 - **Emphasis** `⟦…⟧`: keep the pair around the emphasized target word.
 - **Line rule bars** `――…`: the source runs are FGO's `[line N]` drawn rule;
   keep the same number of bars at the same place and never translate them.
+- **Size marker** `⟬L⟭` / `⟬S⟭`: if present at the head of `jp_dialog` it is
+  font-size metadata, not text; do not translate, copy, or move it.
 - Do not leave Chinese characters or kana in the output; `apply` warns on Han.
 
 ## Glossary

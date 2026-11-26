@@ -28,6 +28,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { parseTsv, readCatalog } from './lib/story-catalog.mjs';
+import { dialogueSizeOf, stripDialogueMarker } from './lib/dialogue-size.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..');
@@ -73,7 +74,9 @@ const ruby = /〈[^〉]*〉/g;
 const spaces = /[\s\u3000]+/g;
 const punctuation = /[。、，．,.！？!?…‥・：:；;「」『』（）()\[\]［］〈〉《》\u2015\u2014\u2500\u2501\u00B7\u2022]/g;
 function normalizeJp(text) {
-  return text
+  // The leading size marker is presentation, not text: it must not reach the
+  // lookup key, or every marked row would stop matching its OCR reading.
+  return stripDialogueMarker(text)
     .replace(genderControl, '$1')
     .replace(masterName, '%$1')
     .replace(ruby, '')
@@ -205,12 +208,15 @@ async function main(argv) {
   const openings = [];
   const prepared = [];
   const hashCounts = new Map();
+  const sizeCounts = { large: 0, small: 0 };
   let emptyKeys = 0;
   for (let index = 0; index < dataRows.length; index++) {
     const row = dataRows[index];
     const entry = inventoryEntries[index];
     const seq = index + 1;
     const jpDialog = row[JP_DIALOG] ?? '';
+    const size = dialogueSizeOf(jpDialog);
+    if (size !== 'normal') sizeCounts[size]++;
     const norm = normalizeJp(jpDialog);
     const hash = norm ? sha1(norm) : '';
     hashCounts.set(hash, (hashCounts.get(hash) ?? 0) + 1);
@@ -368,6 +374,7 @@ const meta = {
     scripts: scripts.size,
     duplicateHashes: [...hashCounts.entries()].filter(([hash, count]) => hash && count > 1).length,
     emptyKeys,
+    dialogueSize: sizeCounts,
     category: catalogRow.category,
     latest: catalogRow.latest === 1,
     status: catalogRow.status,

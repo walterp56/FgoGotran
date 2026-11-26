@@ -77,6 +77,12 @@ internal class StoryChapterDatabase private constructor(
         val enName: String,
         val enDialog: String
     ) {
+        /** Render size the pack attached to this line; [DialogueSize.NORMAL] without a marker. */
+        val dialogueSize: DialogueSize = DialogueSize.of(jpDialog)
+
+        /** [jpDialog] without the leading size marker, for display and history. */
+        val jpText: String = DialogueSize.strip(jpDialog)
+
         fun name(targetLocale: String): String = when (StoryLocale.of(targetLocale)) {
             StoryLocale.CN -> cnName
             StoryLocale.TW -> twName

@@ -161,7 +161,7 @@ class StoryChapterResolver @Inject constructor(
                 result(
                     renderLine(dialogueRow.dialog(locale), playerName, gender),
                     locale,
-                    render(dialogueRow.jpDialog, playerName, gender)
+                    render(dialogueRow.jpText, playerName, gender)
                 )
             }
             input.dialogue.isNullOrBlank() -> null
@@ -189,7 +189,7 @@ class StoryChapterResolver @Inject constructor(
                 result(
                     renderLine(row.dialog(locale), playerName, gender),
                     locale,
-                    render(row.jpDialog, playerName, gender)
+                    render(row.jpText, playerName, gender)
                 )
             }
         }
@@ -198,6 +198,7 @@ class StoryChapterResolver @Inject constructor(
             name = rowName ?: nameResult,
             dialogue = dialogueResult,
             choices = choiceResults,
+            dialogueSize = dialogueRow?.dialogueSize ?: DialogueSize.NORMAL,
             chapterPack = true
         )
     }
@@ -722,7 +723,8 @@ class StoryChapterResolver @Inject constructor(
      * paints as dots over the translated characters.
      */
     private fun renderLine(text: String, playerName: String, gender: String): RenderedLine {
-        val official = ScriptMemory.renderOfficial(text, playerName, gender).trim()
+        // A stored row or a pasted translation can never show the size marker.
+        val official = ScriptMemory.renderOfficial(DialogueSize.strip(text), playerName, gender).trim()
         if (EmphasisText.WIRE_OPEN !in official && EmphasisText.WIRE_CLOSE !in official) {
             return RenderedLine(official, emptyList())
         }

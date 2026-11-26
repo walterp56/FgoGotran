@@ -7,6 +7,7 @@ import android.graphics.*
 import com.fgogotran.R
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.ocr.OcrTextLine
+import com.fgogotran.storylibrary.DialogueSize
 import com.fgogotran.translation.FgoDialogueSymbols
 import com.fgogotran.util.FgoLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -26,7 +27,9 @@ data class RenderInstruction(
     val targetLocale: String = SettingsRepository.TARGET_LANGUAGE_SIMPLIFIED,
     val showOriginalText: Boolean = false,
     val emphasisRanges: List<EmphasisRange> = emptyList(),
-    val showAnnotations: Boolean = true
+    val showAnnotations: Boolean = true,
+    /** Render size of the chapter-pack line; only the dialogue box follows it. */
+    val dialogueSize: DialogueSize = DialogueSize.NORMAL
 )
 
 /**
@@ -457,7 +460,10 @@ class OverlayRenderer @Inject constructor(
     ): DialogueTextLayout? {
         val panel = RectF(instruction.region.boundingBox)
         val area = DialogueRenderGeometry.textArea(panel.toDialogueRect(), scale).toRectF()
-        val preferred = dialogueTextSize(instruction) * scale
+        // A chapter-pack line can be the game's `[f large]` / `[f small]` line:
+        // the preferred size moves, and ruby (0.40x of the body) follows it. The
+        // bilingual layout and every other region keep their fixed sizes.
+        val preferred = dialogueTextSize(instruction) * instruction.dialogueSize.scale * scale
         paint.textSize = preferred
         val candidates = instruction.dialogueRenderCandidates(paint, area.width()).all
         val fit = ProportionalDialogueFit.largest(preferred, viewportScale = scale) { sizes ->
