@@ -2,6 +2,8 @@ package com.fgogotran.ocr
 
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.graphics.RectF
+import com.fgogotran.overlay.ChoicePlateGeometry
 import com.fgogotran.util.FgoLogger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -63,6 +65,9 @@ internal object StoryOcrGeometry {
 
     /** Keeps the plate outline out of the crop even when the glyphs reach the panel edge. */
     private const val CHOICE_CROP_EDGE = 2
+
+    /** Keeps the plate's antialiased fill edge out of the glyph window. */
+    private const val CHOICE_PLATE_EDGE_INSET = 4
 
     /** The two fixed dialogue rows, in screen coordinates. */
     fun dialogueBands(dialogue: Rect): List<Rect> {
@@ -197,16 +202,36 @@ internal object StoryOcrGeometry {
     }
 
     /**
-     * Columns that hold choice glyphs inside [button].
+     * Columns of [button] that the plate's own fill covers.
+     *
+     * The fixed slot is wider than the plate: measured on story screenshots the fill starts about
+     * 20 px inside the slot, so the slot's margins show the live scene. A lantern, a lit window or
+     * a red costume there is bright enough to pass [isChoiceGlyph], which stretched the glyph
+     * window to the whole slot even for a short line; the reported box that decides the cover and
+     * the text colour then covered scene pixels outside the plate, and a white choice on a
+     * lantern-lit street sampled the lanterns and rendered red.
+     */
+    fun choicePlateWindow(sourceWidth: Int, sourceHeight: Int, button: Rect): IntRange {
+        val fill = ChoicePlateGeometry.fill(RectF(button), sourceWidth, sourceHeight)
+        val left = (fill.left.roundToInt() + CHOICE_PLATE_EDGE_INSET).coerceAtLeast(button.left)
+        val right = (fill.right.roundToInt() - CHOICE_PLATE_EDGE_INSET).coerceAtMost(button.right)
+        if (right <= left) {
+            return (button.left + CHOICE_CROP_EDGE)..(button.right - CHOICE_CROP_EDGE)
+        }
+        return left..right
+    }
+
+    /**
+     * Columns that hold choice glyphs inside [window].
      *
      * FGO centres the choice text, so a long choice runs almost edge to edge: the fixed
      * horizontal insets of [choiceBand] cut its head and tail off, and Paddle then reads a
      * confident but truncated line. The plate border is a pale blue curve that never reaches
      * the glyph channel, so a bright-ink test finds the text and leaves the border out.
      */
-    fun choiceTextColumns(source: Bitmap, button: Rect): IntRange? {
+    fun choiceTextColumns(source: Bitmap, button: Rect, window: IntRange): IntRange? {
         val band = choiceBand(button)
-        val clipped = Rect(button.left, band.top, button.right, band.bottom)
+        val clipped = Rect(window.first, band.top, window.last + 1, band.bottom)
         if (!clipped.intersect(0, 0, source.width, source.height) ||
             clipped.width() <= 0 ||
             clipped.height() <= 0
@@ -239,13 +264,21 @@ internal object StoryOcrGeometry {
      * The recognition crop of one choice panel.
      *
      * The rows stay [choiceBand]'s so a short line is not stretched, while the columns follow
-     * [columns]. A panel without measurable ink keeps the full plate width, because reading a
-     * truncated line is worse than reading some border.
+     * [columns]. A panel without measurable ink keeps the whole [window] — the plate fill —
+     * because reading a truncated line is worse than reading some border.
      */
-    fun choiceCrop(button: Rect, columns: IntRange?): Rect {
+    fun choiceCrop(button: Rect, window: IntRange, columns: IntRange?): Rect {
         val band = choiceBand(button)
-        val leftmost = button.left + CHOICE_CROP_EDGE
-        val rightmost = button.right - CHOICE_CROP_EDGE
+        val leftmost = (button.left + CHOICE_CROP_EDGE).coerceAtLeast(window.first)
+        val rightmost = (button.right - CHOICE_CROP_EDGE).coerceAtMost(window.last + 1)
+        if (rightmost <= leftmost) {
+            return Rect(
+                button.left + CHOICE_CROP_EDGE,
+                band.top,
+                button.right - CHOICE_CROP_EDGE,
+                band.bottom
+            )
+        }
         if (columns == null) {
             return Rect(leftmost, band.top, rightmost, band.bottom)
         }
@@ -410,15 +443,25 @@ class StoryOcrScanner @Inject constructor(
         if (buttons.isEmpty() || buttons.size > MAX_CHOICE_COUNT) return null
         val bands = buttons.map { StoryOcrGeometry.choiceBand(it) }
         if (bands.any { it.width() <= 0 || it.height() <= 0 }) return null
+        // Both the glyph window and the crop stay inside the plate fill: the slot's margins show
+        // the live scene, and a bright pixel there would stretch the window to the whole slot.
+        val windows = buttons.map {
+            StoryOcrGeometry.choicePlateWindow(source.width, source.height, it)
+        }
         // Recognition keeps the band's rows but takes its columns from the glyphs: FGO centres
         // the choice text, so the fixed insets cut a long choice short and Paddle then reads a
         // confident but truncated line.
-        val crops = buttons.map { button ->
-            StoryOcrGeometry.choiceCrop(button, StoryOcrGeometry.choiceTextColumns(source, button))
+        val crops = buttons.mapIndexed { index, button ->
+            val window = windows[index]
+            StoryOcrGeometry.choiceCrop(
+                button,
+                window,
+                StoryOcrGeometry.choiceTextColumns(source, button, window)
+            )
         }
         // The reported box follows the glyphs. The service samples the text colour inside that
-        // box, so a box as wide as the panel lets artwork showing through the translucent bar
-        // outvote white glyphs and the line renders red.
+        // box, so a box as wide as the panel covers the scene beside the plate, and its lanterns
+        // outvote the white glyphs and the line renders red.
         val reported = crops.map { StoryOcrGeometry.inkBounds(source, it) ?: it }
 
         val startedAt = System.currentTimeMillis()

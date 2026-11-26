@@ -80,11 +80,15 @@ class StoryOcrFastPathWiringTest {
         assertTrue(scanner.contains("StoryOcrAssembler.name(results.getOrNull(rows.size), band)"))
         // Recognition takes the choice columns from the glyphs: the fixed insets cut a long
         // centred line, and the truncated read then still came back with full confidence.
+        // Both the window and the crop stay inside the plate fill, because the slot's margins
+        // show the live scene and a bright pixel there stretched the box over the lanterns.
         assertTrue(
             scanner.contains(
-                "StoryOcrGeometry.choiceCrop(button, StoryOcrGeometry.choiceTextColumns(source, button))"
+                "StoryOcrGeometry.choicePlateWindow(source.width, source.height, it)"
             )
         )
+        assertTrue(scanner.contains("StoryOcrGeometry.choiceTextColumns(source, button, window)"))
+        assertTrue(scanner.contains("StoryOcrGeometry.choiceCrop("))
         assertTrue(scanner.contains("ocrEngine.recognizeStoryBands(source, crops)"))
     }
 

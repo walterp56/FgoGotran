@@ -66,6 +66,7 @@ class StoryOcrScannerTest {
     @Test
     fun `a centred choice crop follows the glyphs instead of the fixed insets`() {
         val panel = Rect(430, 250, 1900, 385)
+        val window = StoryOcrGeometry.choicePlateWindow(2340, 1080, panel)
         val pixels = IntArray(2340 * 1080).apply { fill(Color.BLACK) }
         for (y in 275 until 360) {
             for (x in 443 until 460) pixels[y * 2340 + x] = Color.rgb(137, 170, 189)
@@ -77,21 +78,59 @@ class StoryOcrScannerTest {
         val bitmap = Bitmap.createBitmap(2340, 1080, Bitmap.Config.ARGB_8888)
         bitmap.setPixels(pixels, 0, 2340, 0, 0, 2340, 1080)
 
-        val columns = StoryOcrGeometry.choiceTextColumns(bitmap, panel)
+        val columns = StoryOcrGeometry.choiceTextColumns(bitmap, panel, window)
         assertEquals(IntRange(466, 1869), columns)
         // The fixed band would cut the head and the tail of a line this long.
         assertEquals(Rect(577, 274, 1812, 361), StoryOcrGeometry.choiceBand(panel))
-        assertEquals(Rect(460, 274, 1876, 361), StoryOcrGeometry.choiceCrop(panel, columns))
+        assertEquals(Rect(460, 274, 1876, 361), StoryOcrGeometry.choiceCrop(panel, window, columns))
+        bitmap.recycle()
+    }
+
+    /**
+     * The slot is wider than the plate, so its margins show the live scene. Measured on the
+     * festival screenshot: lanterns at 430–452 and 1888–1900 pass the glyph test, stretched the
+     * window to 430–1899, and the line box then covered the lanterns, which voted the white
+     * choice red. The plate fill is 451–1889, so those columns are outside the window.
+     */
+    @Test
+    fun `scene pixels beside the plate do not widen the glyph window`() {
+        val panel = Rect(430, 250, 1900, 385)
+        val window = StoryOcrGeometry.choicePlateWindow(2340, 1080, panel)
+        assertEquals(IntRange(455, 1885), window)
+        val pixels = IntArray(2340 * 1080).apply { fill(Color.BLACK) }
+        for (y in 275 until 360) {
+            for (x in 430 until 452) pixels[y * 2340 + x] = Color.rgb(247, 87, 59)
+            for (x in 1888 until 1900) pixels[y * 2340 + x] = Color.rgb(247, 87, 59)
+        }
+        for (y in 295 until 340) {
+            for (x in 900 until 1400) pixels[y * 2340 + x] = Color.WHITE
+        }
+        val bitmap = Bitmap.createBitmap(2340, 1080, Bitmap.Config.ARGB_8888)
+        bitmap.setPixels(pixels, 0, 2340, 0, 0, 2340, 1080)
+
+        val columns = StoryOcrGeometry.choiceTextColumns(bitmap, panel, window)
+        assertEquals(IntRange(900, 1399), columns)
+        assertEquals(Rect(894, 274, 1406, 361), StoryOcrGeometry.choiceCrop(panel, window, columns))
         bitmap.recycle()
     }
 
     @Test
-    fun `a choice without glyphs keeps the full plate width`() {
+    fun `the plate window follows the story scale`() {
+        // A 1280x720 screen maps the same slot to 147-1127 with the plate fill at 161-1119.
+        assertEquals(
+            IntRange(165, 1115),
+            StoryOcrGeometry.choicePlateWindow(1280, 720, Rect(147, 167, 1127, 257))
+        )
+    }
+
+    @Test
+    fun `a choice without glyphs keeps the whole plate fill`() {
         val panel = Rect(430, 250, 1900, 385)
+        val window = StoryOcrGeometry.choicePlateWindow(2340, 1080, panel)
         val bitmap = Bitmap.createBitmap(2340, 1080, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.BLACK)
-        assertNull(StoryOcrGeometry.choiceTextColumns(bitmap, panel))
-        assertEquals(Rect(432, 274, 1898, 361), StoryOcrGeometry.choiceCrop(panel, null))
+        assertNull(StoryOcrGeometry.choiceTextColumns(bitmap, panel, window))
+        assertEquals(Rect(455, 274, 1886, 361), StoryOcrGeometry.choiceCrop(panel, window, null))
         bitmap.recycle()
     }
 
