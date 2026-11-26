@@ -3,6 +3,8 @@ package com.fgogotran.storylibrary
 import android.content.Context
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.scriptmemory.ScriptMemory
+import com.fgogotran.text.EmphasisRange
+import com.fgogotran.text.EmphasisText
 import com.fgogotran.translation.SceneTranslateInput
 import com.fgogotran.translation.SceneTranslateResult
 import com.fgogotran.translation.TranslateResult
@@ -157,7 +159,7 @@ class StoryChapterResolver @Inject constructor(
                 resetMisses()
                 remember(dialogueRow)
                 result(
-                    render(dialogueRow.dialog(locale), playerName, gender),
+                    renderLine(dialogueRow.dialog(locale), playerName, gender),
                     locale,
                     render(dialogueRow.jpDialog, playerName, gender)
                 )
@@ -185,7 +187,7 @@ class StoryChapterResolver @Inject constructor(
                 result("", locale)
             } else {
                 result(
-                    render(row.dialog(locale), playerName, gender),
+                    renderLine(row.dialog(locale), playerName, gender),
                     locale,
                     render(row.jpDialog, playerName, gender)
                 )
@@ -692,8 +694,12 @@ class StoryChapterResolver @Inject constructor(
         consecutiveMisses.set(0)
     }
 
-    private fun result(text: String, locale: String, sourceText: String? = null): TranslateResult = TranslateResult(
-        translatedText = text,
+    private fun result(text: String, locale: String, sourceText: String? = null): TranslateResult =
+        result(RenderedLine(text, emptyList()), locale, sourceText)
+
+    private fun result(line: RenderedLine, locale: String, sourceText: String? = null): TranslateResult = TranslateResult(
+        translatedText = line.text,
+        emphasisRanges = line.emphasis,
         backend = "chapter-db",
         cached = false,
         targetLocale = locale,
@@ -704,11 +710,37 @@ class StoryChapterResolver @Inject constructor(
         sourceText = sourceText?.takeIf { it.isNotBlank() }
     )
 
+    /** A rendered pack line: the display text and the dot spans the pack marked with `⟦…⟧`. */
+    private data class RenderedLine(val text: String, val emphasis: List<EmphasisRange>)
+
     private fun render(text: String, playerName: String, gender: String): String =
-        ScriptMemory.renderOfficial(text, playerName, gender)
-            .replace("⟦", "")
-            .replace("⟧", "")
-            .trim()
+        renderLine(text, playerName, gender).text
+
+    /**
+     * The pack marks words the game draws emphasis dots above with `⟦…⟧`. Deleting the
+     * markers would also delete that emphasis, so they become ranges that the overlay
+     * paints as dots over the translated characters.
+     */
+    private fun renderLine(text: String, playerName: String, gender: String): RenderedLine {
+        val official = ScriptMemory.renderOfficial(text, playerName, gender).trim()
+        if (EmphasisText.WIRE_OPEN !in official && EmphasisText.WIRE_CLOSE !in official) {
+            return RenderedLine(official, emptyList())
+        }
+        val plain = StringBuilder(official.length)
+        val ranges = ArrayList<EmphasisRange>(2)
+        var start = -1
+        for (symbol in official) {
+            when (symbol) {
+                EmphasisText.WIRE_OPEN -> if (start < 0) start = plain.length
+                EmphasisText.WIRE_CLOSE -> {
+                    if (start in 0 until plain.length) ranges += EmphasisRange(start, plain.length)
+                    start = -1
+                }
+                else -> plain.append(symbol)
+            }
+        }
+        return RenderedLine(plain.toString(), ranges)
+    }
 
     companion object {
         private const val tag = "StoryLibrary"

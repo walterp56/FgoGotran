@@ -3,6 +3,7 @@ package com.fgogotran.storylibrary
 import android.database.sqlite.SQLiteDatabase
 import com.fgogotran.data.SettingsRepository
 import com.fgogotran.terminology.LocalGlossaryDao
+import com.fgogotran.text.EmphasisRange
 import com.fgogotran.translation.SceneTranslateInput
 import java.io.File
 import java.lang.reflect.Proxy
@@ -431,6 +432,19 @@ class StoryChapterResolverTest {
         assertNull(scene.dialogue)
     }
 
+    /**
+     * The pack marks the words the game draws emphasis dots above with `⟦…⟧`; the marks are
+     * metadata, so the rendered text is plain and the spans reach the overlay that paints them.
+     */
+    @Test
+    fun `a pack line keeps the emphasis dots the game shows`() = runBlocking {
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, "これは大切なことだ。", emptyList())
+        )!!
+        assertEquals("這是很重要的事。", scene.dialogue?.translatedText)
+        assertEquals(listOf(EmphasisRange(2, 3)), scene.dialogue?.emphasisRanges)
+    }
+
     /** A matched row carries the stored line, so bilingual display never shows OCR damage. */
     @Test
     fun `a matched line carries the stored japanese`() = runBlocking {
@@ -499,7 +513,7 @@ class StoryChapterResolverTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "test")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "14")
+            meta(raw, "entry_count", "15")
             insert(raw, 1, "スラノッブ", "スラニョっ！？", "史萊姆阿信", "史萊諾！？")
             insert(raw, 2, "オルガマリー", "そうですね。", "奧爾嘉瑪麗", "說得也是。")
             // Both normalize to `だって`, so only the frame kind can separate them.
@@ -525,6 +539,8 @@ class StoryChapterResolverTest {
             // A line that is not its scene's opening: a scene change is never taken on it,
             // however closely the read matches.
             insert(raw, 14, "", "わたくしは、サーヴァントです。", "", "我是從者。", script = "s2")
+            // The translation marks an emphasized word with the pack's ruby-style brackets.
+            insert(raw, 15, "", "これは大切なことだ。", "", "這是⟦很⟧重要的事。", script = "s2")
             for ((script, jp, seq) in listOf(
                 Triple("s1", "スラニョっ！？", 1),
                 Triple("s2", "おはようございます、マスター。", 7),
