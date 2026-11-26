@@ -155,13 +155,17 @@ class StoryChapterResolver @Inject constructor(
         val rowName = if (input.name.isNullOrBlank()) null else dialogueRow
             ?.takeIf { !it.isChoice && it.jpName.isNotBlank() }
             ?.let { row -> row.name(locale).takeIf { it.isNotBlank() } }
-            ?.let { name -> result(render(name, playerName, gender), locale) }
+            ?.let { name -> result(render(name, playerName, gender), locale, dialogueRow.jpName) }
 
         val dialogueResult: TranslateResult? = when {
             dialogueRow != null -> {
                 resetMisses()
                 remember(dialogueRow)
-                result(render(dialogueRow.dialog(locale), playerName, gender), locale)
+                result(
+                    render(dialogueRow.dialog(locale), playerName, gender),
+                    locale,
+                    render(dialogueRow.jpDialog, playerName, gender)
+                )
             }
             input.dialogue.isNullOrBlank() -> null
             registerMiss() -> warning(locale)
@@ -173,7 +177,11 @@ class StoryChapterResolver @Inject constructor(
             if (row == null) {
                 result(choice, locale)
             } else {
-                result(render(row.dialog(locale), playerName, gender), locale)
+                result(
+                    render(row.dialog(locale), playerName, gender),
+                    locale,
+                    render(row.jpDialog, playerName, gender)
+                )
             }
         }
 
@@ -645,7 +653,7 @@ class StoryChapterResolver @Inject constructor(
         consecutiveMisses.set(0)
     }
 
-    private fun result(text: String, locale: String): TranslateResult = TranslateResult(
+    private fun result(text: String, locale: String, sourceText: String? = null): TranslateResult = TranslateResult(
         translatedText = text,
         backend = "chapter-db",
         cached = false,
@@ -653,7 +661,8 @@ class StoryChapterResolver @Inject constructor(
         trustedForContext = false,
         isFailure = false,
         apiUsage = null,
-        countsAsUsage = false
+        countsAsUsage = false,
+        sourceText = sourceText?.takeIf { it.isNotBlank() }
     )
 
     private suspend fun warningText(): String = AppLanguageManager.wrap(context)

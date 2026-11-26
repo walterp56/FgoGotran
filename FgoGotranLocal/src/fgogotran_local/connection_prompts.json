@@ -6,7 +6,7 @@
         "app/src/main/java/com/fgogotran/translation/PromptBuilder.kt": "a788c0d5d6992bdb00f2e811234fe3a10e944fecfe3197973bb20d58c4998f11",
         "app/src/main/java/com/fgogotran/translation/GeneralPromptRequests.kt": "bd0ed2e95901f1c6445069369188ede5047cd9be44b16fa77b5c4c9fe061bb7f",
         "app/src/main/java/com/fgogotran/translation/TranslationGlossaryBuilder.kt": "1c03e07909d94b8f8e4491ff36406292cda4782c940b5d2f636f1c2c62bb9df7",
-        "app/src/main/java/com/fgogotran/translation/Translator.kt": "3c54b5ad7793cebfd36dbdab8a26d74d0025e590803fd9f635b191b887c111ad",
+        "app/src/main/java/com/fgogotran/translation/Translator.kt": "0c8f6a8e12bad99254db5bc07566f66c53f8e79dc848a46b65c5bf7f8f0d159a",
         "term_builder/term.tsv": "a85228ce70bc77b87ad027492489eb5262ee6248e2465421d023da61aa65b2c3"
     },
     "requests": {

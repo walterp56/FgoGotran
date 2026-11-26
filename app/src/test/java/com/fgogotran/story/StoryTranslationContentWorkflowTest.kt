@@ -129,6 +129,23 @@ class StoryTranslationContentWorkflowTest {
         }
     }
 
+    /**
+     * Story mode shows and records the chapter's own Japanese for the bilingual rows,
+     * history and scene context; the API mode answers without it, so every surface keeps
+     * the OCR reading there.
+     */
+    @Test
+    fun `the chapter japanese feeds bilingual display history and context`() {
+        val render = function("buildRenderInstructions")
+        assertTrue(render.contains("val storedSource = translatedResult.sourceText?.takeIf { it.isNotBlank() }"))
+        assertTrue(render.contains("sourceText = storedSource ?: regionAndText.text"))
+        assertFalse(render.contains("contextSourceText"))
+        val history = function("addHistoryEntry")
+        assertTrue(history.contains("val contextSourceDialogue = dialogueInstruction"))
+        assertTrue(history.contains("?.sourceText"))
+        assertFalse(history.contains("contextSourceText"))
+    }
+
     private fun function(name: String): String =
         Regex("(?m)^    (?:private )?(?:suspend )?fun ").split(service).drop(1)
             .first { it.startsWith("$name(") }

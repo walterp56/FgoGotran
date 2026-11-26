@@ -68,6 +68,7 @@ internal class StoryChapterDatabase private constructor(
         val type: String,
         val jpName: String,
         val jpHash: String,
+        val jpDialog: String,
         val choiceGroup: String?,
         val cnName: String,
         val cnDialog: String,
@@ -144,6 +145,7 @@ internal class StoryChapterDatabase private constructor(
                         type = cursor.getString(3) ?: "",
                         jpName = cursor.getString(4) ?: "",
                         jpHash = cursor.getString(5) ?: "",
+                        jpDialog = dialog,
                         choiceGroup = cursor.getString(6),
                         cnName = cursor.getString(8) ?: "",
                         cnDialog = cursor.getString(9) ?: "",
@@ -460,7 +462,7 @@ internal class StoryChapterDatabase private constructor(
     }
 
     private fun query(where: String, args: Array<String>): List<Row> {
-        val sql = "SELECT seq, script_id, position, type, jp_name, jp_hash, choice_group, " +
+        val sql = "SELECT seq, script_id, position, type, jp_name, jp_hash, jp_dialog, choice_group, " +
             "cn_name, cn_dialog, tw_name, tw_dialog, en_name, en_dialog FROM entries $where"
         val rows = ArrayList<Row>()
         db.rawQuery(sql, args).use { cursor ->
@@ -473,13 +475,14 @@ internal class StoryChapterDatabase private constructor(
                         type = cursor.getString(3) ?: "",
                         jpName = cursor.getString(4) ?: "",
                         jpHash = cursor.getString(5) ?: "",
-                        choiceGroup = cursor.getString(6),
-                        cnName = cursor.getString(7) ?: "",
-                        cnDialog = cursor.getString(8) ?: "",
-                        twName = cursor.getString(9) ?: "",
-                        twDialog = cursor.getString(10) ?: "",
-                        enName = cursor.getString(11) ?: "",
-                        enDialog = cursor.getString(12) ?: ""
+                        jpDialog = cursor.getString(6) ?: "",
+                        choiceGroup = cursor.getString(7),
+                        cnName = cursor.getString(8) ?: "",
+                        cnDialog = cursor.getString(9) ?: "",
+                        twName = cursor.getString(10) ?: "",
+                        twDialog = cursor.getString(11) ?: "",
+                        enName = cursor.getString(12) ?: "",
+                        enDialog = cursor.getString(13) ?: ""
                     )
                 )
             }

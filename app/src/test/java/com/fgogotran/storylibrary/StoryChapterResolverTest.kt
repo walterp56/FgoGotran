@@ -333,6 +333,35 @@ class StoryChapterResolverTest {
         assertEquals(false, miss.chapterMismatch)
     }
 
+    /** A matched row carries the stored line, so bilingual display never shows OCR damage. */
+    @Test
+    fun `a matched line carries the stored japanese`() = runBlocking {
+        val scene = resolver.translateScene(SceneTranslateInput("謎之声", "スラニョっ！？", emptyList()))!!
+        assertEquals("スラニョっ！？", scene.dialogue?.sourceText)
+    }
+
+    /** Real capture: the reading arrived with broken ruby, the stored line is intact. */
+    @Test
+    fun `the stored japanese replaces the damaged reading`() = runBlocking {
+        resolver.translateLine("スラニョっ！？", "", StoryChapterResolver.LineKind.DIALOGUE)
+        val scene = resolver.translateScene(
+            SceneTranslateInput(
+                "沖田オルタ", "───『絶〈ぜっけん〉！！無穹一〈むきゅういっせん〉閃』！", emptyList()
+            )
+        )!!
+        assertEquals("絕劍·無穹一閃", scene.dialogue?.translatedText)
+        assertEquals("絶剱無穹一閃", scene.dialogue?.sourceText)
+    }
+
+    /** The stored line keeps `%1`; the displayed original shows the rendered player name. */
+    @Test
+    fun `a player-name slot renders the name in the stored japanese`() = runBlocking {
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, "おかえりなさい、藤丸立香。", emptyList())
+        )!!
+        assertEquals("おかえりなさい、藤丸立香。", scene.dialogue?.sourceText)
+    }
+
     private fun buildDatabase(file: File) {
         file.parentFile?.mkdirs()
         file.delete()
@@ -372,7 +401,7 @@ class StoryChapterResolverTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "test")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "12")
+            meta(raw, "entry_count", "13")
             insert(raw, 1, "スラノッブ", "スラニョっ！？", "史萊姆阿信", "史萊諾！？")
             insert(raw, 2, "オルガマリー", "そうですね。", "奧爾嘉瑪麗", "說得也是。")
             // Both normalize to `だって`, so only the frame kind can separate them.
@@ -393,6 +422,8 @@ class StoryChapterResolverTest {
             // renderings: only the scene opening can separate them.
             insert(raw, 11, "沖田オルタ", "絶剱無穹一閃", "沖田Alter", "絕劍·無穹一閃", script = "s4")
             insert(raw, 12, "沖田オルタ", "絶剱無穹一閃", "沖田Alter", "絕劍！！無穹一閃", script = "s5")
+            // The stored line keeps the player-name slot; the answer renders the real name.
+            insert(raw, 13, "", "おかえりなさい、[%1]。", "", "歡迎回來，[%1]。", script = "s6")
             for ((script, jp, seq) in listOf(
                 Triple("s1", "スラニョっ！？", 1),
                 Triple("s2", "おはようございます、マスター。", 7),

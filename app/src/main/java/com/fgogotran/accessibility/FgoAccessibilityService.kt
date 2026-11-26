@@ -3699,10 +3699,13 @@ class FgoAccessibilityService : AccessibilityService() {
                 ?: return@mapNotNull null
             val showOriginalForRegion = showOriginalGameText &&
                 regionAndText.region.region in setOf(TextRegion.DIALOGUE_BOX, TextRegion.CHOICE_BUTTON)
+            // A chapter row stores the line exactly as the game draws it, so bilingual
+            // display, history and the scene context use it instead of the OCR reading.
+            val storedSource = translatedResult.sourceText?.takeIf { it.isNotBlank() }
             RenderInstruction(
                 region = regionAndText.region,
                 translatedText = translatedText,
-                sourceText = regionAndText.text,
+                sourceText = storedSource ?: regionAndText.text,
                 textColor = renderTextColorForRegion(source, regionAndText.region),
                 wideTextSpacing = shouldUseWideRenderSpacing(
                     sourceText = regionAndText.text,

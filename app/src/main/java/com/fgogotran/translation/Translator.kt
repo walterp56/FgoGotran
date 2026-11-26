@@ -108,6 +108,15 @@ data class TranslateResult(
     val countsAsUsage: Boolean = true,
     val dialogueSubtitleRows: List<String> = emptyList(),
     val emphasisRanges: List<EmphasisRange> = emptyList(),
+    /**
+     * Source line the answer came from, when a backend stores it verbatim.
+     *
+     * The chapter database stores the line exactly as the game renders it, so bilingual
+     * display, history and the scene context use that instead of a damaged OCR reading.
+     * Null for every backend that only has the OCR text, which keeps their behaviour
+     * unchanged.
+     */
+    val sourceText: String? = null,
     internal val hasReviewedTraditionalName: Boolean = false
 )
 
