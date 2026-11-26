@@ -265,11 +265,17 @@ internal object StoryFuzzyMatcher {
         scored.sortWith(
             compareByDescending<Scored> { it.score }.thenBy { abs(it.entry.seq - flowSeq) }
         )
-        val best = scored.first()
-        if (query.length < MIN_FUZZY_CHARS) {
-            // Short lines only ever match the same folded key.
-            return if (best.entry.key == query.key) Match(best.entry, best.score) else null
+        // An identical folded key is the strongest evidence available. A repeated-character
+        // line collapses to one bigram set (`はあはあ` and `はあはあはあ` both score 1.0 at
+        // a nearby length), so prefer exact keys; a short key without one stays a miss.
+        val exactKey = scored.filter { it.entry.key == query.key }
+        if (exactKey.isNotEmpty()) {
+            scored.clear()
+            scored.addAll(exactKey)
+        } else if (query.length < MIN_FUZZY_CHARS) {
+            return null
         }
+        val best = scored.first()
         val rivals = scored.filter { it.score >= best.score - AMBIGUITY_WINDOW }
         if (rivals.size == 1) return Match(best.entry, best.score)
         if (rivals.map { it.entry.text(locale) }.toSet().size == 1) {

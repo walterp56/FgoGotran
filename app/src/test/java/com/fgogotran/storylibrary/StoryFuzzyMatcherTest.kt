@@ -115,6 +115,50 @@ class StoryFuzzyMatcherTest {
         )
     }
 
+    /**
+     * A repeated-character line collapses to one bigram set, so `はあはあ` and
+     * `はあはあはあ` both score 1.0 at a nearby length. The identical folded key wins.
+     */
+    @Test
+    fun `an exact folded key beats a nearby repeated-character line`() {
+        val pool = listOf(
+            entry(1, "はあはあ", cn = "哈啊哈啊"),
+            entry(2, "はあはあはあ", cn = "哈啊哈啊哈啊")
+        )
+        val query = StoryFuzzyMatcher.query(StoryOcrNormalizer.fuzzyKey("はあはあはあ"))
+        assertEquals(
+            2,
+            StoryFuzzyMatcher.select(
+                query, pool, StoryFuzzyMatcher.DIALOGUE_THRESHOLD, StoryLocale.CN, null, -1
+            )?.entry?.id
+        )
+    }
+
+    /**
+     * The fold merges `えぇ` and `ええ` into one key. Without a confirmed scene the two
+     * renderings cannot be told apart, so the line stays a miss; the flow picks the
+     * row whose scene is on screen.
+     */
+    @Test
+    fun `a fold-merged short line needs the flow to pick a rendering`() {
+        val pool = listOf(
+            entry(1, "えぇ……。", cn = "欸……。", script = "script-a"),
+            entry(2, "ええ……、", cn = "嗯……、", script = "script-b")
+        )
+        val query = StoryFuzzyMatcher.query(StoryOcrNormalizer.fuzzyKey("ええ……、"))
+        assertNull(
+            StoryFuzzyMatcher.select(
+                query, pool, StoryFuzzyMatcher.DIALOGUE_THRESHOLD, StoryLocale.CN, null, -1
+            )
+        )
+        assertEquals(
+            2,
+            StoryFuzzyMatcher.select(
+                query, pool, StoryFuzzyMatcher.DIALOGUE_THRESHOLD, StoryLocale.CN, "script-b", 2
+            )?.entry?.id
+        )
+    }
+
     @Test
     fun `speaker name tolerates one wrong glyph`() {
         val query = StoryFuzzyMatcher.query(StoryOcrNormalizer.nameKey("水着ノック"))

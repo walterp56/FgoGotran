@@ -62,7 +62,7 @@ class StoryChapterFuzzyLookupTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "2026.11.24.1")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "13")
+            meta(raw, "entry_count", "14")
             insert(
                 raw, seq = 1, type = "dialogue", name = "松永弾正", script = "s1",
                 jp = "は～い♪　ナウなヤングに大人気！",
@@ -135,6 +135,11 @@ class StoryChapterFuzzyLookupTest {
                 cn = "唔………，",
                 cnName = "久坂玄瑞"
             )
+            insert(
+                raw, seq = 14, type = "dialogue", name = "", script = "s5",
+                jp = "はぁ、はぁ、はぁ……。",
+                cn = "哈啊、哈啊、哈啊……。"
+            )
         } finally {
             raw.close()
         }
@@ -177,6 +182,17 @@ class StoryChapterFuzzyLookupTest {
     fun `hiragana sokuon read as full size matches`() {
         val key = StoryOcrNormalizer.fuzzyKey("ぐつ……………")
         assertEquals(13, database.fuzzyDialogue(key, StoryLocale.CN, "s4", 12)?.seq)
+    }
+
+    /**
+     * Real capture: the game draws `はぁ、はぁ、はぁ……。` and the OCR returned
+     * `はあ、はあ、はあ……。`. Every bigram differs, so only the small-vowel fold can
+     * recover the line.
+     */
+    @Test
+    fun `hiragana small vowel read as full size matches`() {
+        val key = StoryOcrNormalizer.fuzzyKey("はあ、はあ、はあ……。")
+        assertEquals(14, database.fuzzyDialogue(key, StoryLocale.CN, null, -1)?.seq)
     }
 
     @Test

@@ -163,10 +163,28 @@ class StoryOcrNormalizerTest {
         )
     }
 
-    /** Small vowels still separate real lines (`えぇ` and `ええ`), so they stay as they are. */
+    /**
+     * Real capture: the game draws `はぁ、はぁ、はぁ……。` and the OCR returned
+     * `はあ、はあ、はあ……。`. Every bigram differs, so the approximate score is 0 and
+     * only the fold can recover the line.
+     */
     @Test
-    fun `fuzzy key leaves hiragana small vowels alone`() {
+    fun `fuzzy key folds a hiragana small vowel`() {
+        assertEquals("はあはあはあ", StoryOcrNormalizer.fuzzyKey("はぁ、はぁ、はぁ……。"))
+        assertEquals(
+            StoryOcrNormalizer.fuzzyKey("はぁ、はぁ、はぁ……。"),
+            StoryOcrNormalizer.fuzzyKey("はあ、はあ、はあ……。")
+        )
         assertNotEquals(
+            StoryOcrNormalizer.hash("はぁ、はぁ、はぁ……。"),
+            StoryOcrNormalizer.hash("はあ、はあ、はあ……。")
+        )
+    }
+
+    /** The fold merges real pairs; the matcher, not the key, has to refuse the guess. */
+    @Test
+    fun `fuzzy key merges a small vowel pair`() {
+        assertEquals(
             StoryOcrNormalizer.fuzzyKey("えぇ……。"),
             StoryOcrNormalizer.fuzzyKey("ええ……、")
         )
