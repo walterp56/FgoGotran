@@ -108,7 +108,7 @@ class StoryOcrNormalizerTest {
     fun `fuzzy key folds a katakana small kana read as full size`() {
         val source = "スラニョっ！？"
         val ocr = "スラニヨっ！？"
-        assertEquals("スラニヨっ", StoryOcrNormalizer.fuzzyKey(source))
+        assertEquals("スラニヨつ", StoryOcrNormalizer.fuzzyKey(source))
         assertEquals(StoryOcrNormalizer.fuzzyKey(source), StoryOcrNormalizer.fuzzyKey(ocr))
         assertNotEquals(StoryOcrNormalizer.hash(source), StoryOcrNormalizer.hash(ocr))
     }
@@ -145,13 +145,30 @@ class StoryOcrNormalizerTest {
         )
     }
 
-    /** Hiragana is dense text, not a katakana capture: its small kana stay as they are. */
+    /**
+     * Real capture: the source draws `ぐっ………、` and the OCR returned `ぐつ……………`.
+     * Two characters sit under the approximate minimum, so the lookup only accepts
+     * an identical folded key; the fold is what recovers the line.
+     */
     @Test
-    fun `fuzzy key leaves hiragana small kana alone`() {
-        assertEquals("ちょっと", StoryOcrNormalizer.fuzzyKey("ちょっと"))
+    fun `fuzzy key folds a hiragana sokuon`() {
+        assertEquals("ぐつ", StoryOcrNormalizer.fuzzyKey("ぐっ………、"))
+        assertEquals(
+            StoryOcrNormalizer.fuzzyKey("ぐっ………、"),
+            StoryOcrNormalizer.fuzzyKey("ぐつ……………")
+        )
         assertNotEquals(
-            StoryOcrNormalizer.fuzzyKey("ちょっと"),
-            StoryOcrNormalizer.fuzzyKey("ちよつと")
+            StoryOcrNormalizer.hash("ぐっ………、"),
+            StoryOcrNormalizer.hash("ぐつ……………")
+        )
+    }
+
+    /** Small vowels still separate real lines (`えぇ` and `ええ`), so they stay as they are. */
+    @Test
+    fun `fuzzy key leaves hiragana small vowels alone`() {
+        assertNotEquals(
+            StoryOcrNormalizer.fuzzyKey("えぇ……。"),
+            StoryOcrNormalizer.fuzzyKey("ええ……、")
         )
     }
 

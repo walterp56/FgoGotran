@@ -63,7 +63,7 @@ object StoryOcrNormalizer {
     fun fuzzyKey(text: String): String = foldKey(normalize(text))
 
     /** Folds a [normalize]d string; exposed so the builder/test side can mirror it. */
-    fun foldKey(normalized: String): String = KanaFold.smallKatakana(
+    fun foldKey(normalized: String): String = KanaFold.smallKana(
         normalized
             .replace(waveDashes, "~")
             .replace(horizontalBars, "ー")

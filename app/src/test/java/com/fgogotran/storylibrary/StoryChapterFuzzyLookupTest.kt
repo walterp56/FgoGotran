@@ -62,7 +62,7 @@ class StoryChapterFuzzyLookupTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "2026.11.24.1")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "12")
+            meta(raw, "entry_count", "13")
             insert(
                 raw, seq = 1, type = "dialogue", name = "松永弾正", script = "s1",
                 jp = "は～い♪　ナウなヤングに大人気！",
@@ -129,6 +129,12 @@ class StoryChapterFuzzyLookupTest {
                 cn = "這個——，好——開心——！！",
                 cnName = "雜賀孫一"
             )
+            insert(
+                raw, seq = 13, type = "dialogue", name = "久坂玄瑞", script = "s4",
+                jp = "ぐっ………、",
+                cn = "唔………，",
+                cnName = "久坂玄瑞"
+            )
         } finally {
             raw.close()
         }
@@ -160,6 +166,17 @@ class StoryChapterFuzzyLookupTest {
         val key = StoryOcrNormalizer.fuzzyKey("ってか、何やらせてくれてんだっつ一の！")
         val row = database.fuzzyDialogue(key, StoryLocale.CN, "s1", 2)
         assertEquals(3, row?.seq)
+    }
+
+    /**
+     * Real capture: the source draws `ぐっ………、` and the OCR returned `ぐつ……………`.
+     * Two kana are below the approximate minimum, so the fold is the only rule that
+     * can recover the line.
+     */
+    @Test
+    fun `hiragana sokuon read as full size matches`() {
+        val key = StoryOcrNormalizer.fuzzyKey("ぐつ……………")
+        assertEquals(13, database.fuzzyDialogue(key, StoryLocale.CN, "s4", 12)?.seq)
     }
 
     @Test

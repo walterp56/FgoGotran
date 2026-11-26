@@ -4025,7 +4025,7 @@ class Translator @Inject constructor(
             .replace('-', 'ー')
         // A plate read as ノツブ, カツツ, or ジヤンヌ must reach the same row as the
         // stored ノッブ, カッツ, ジャンヌ; a three-kana name skips the fuzzy stages.
-        return KanaFold.smallKatakana(folded)
+        return KanaFold.smallKana(folded)
     }
 
     private fun shouldPreserveFullNameBoxText(text: String): Boolean {
