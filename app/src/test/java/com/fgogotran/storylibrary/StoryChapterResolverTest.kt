@@ -392,6 +392,45 @@ class StoryChapterResolverTest {
         assertEquals(false, miss.chapterMismatch)
     }
 
+    /**
+     * A scene change is a stored fact, not a distance: every script carries its first line
+     * in `script_openings`, so a damaged read of that line enters the new scene even when
+     * the flow still belongs to the previous one. A jump into a later section reads
+     * exactly like the next section starting.
+     */
+    @Test
+    fun `a new scene is entered by its stored opening line`() = runBlocking {
+        resolver.translateLine("だって……、", "村人", StoryChapterResolver.LineKind.DIALOGUE)
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, "おはようございます、マスタ一。", emptyList())
+        )!!
+        assertEquals("早安，御主。", scene.dialogue?.translatedText)
+    }
+
+    /**
+     * Only the scene's first line opens it. A damaged line further inside another scene is
+     * still a miss, so the opening is a fact about the pack and not a general permission to
+     * change scenes on a similar read.
+     */
+    @Test
+    fun `a damaged line inside another scene stays a miss`() = runBlocking {
+        resolver.translateLine("だって……、", "村人", StoryChapterResolver.LineKind.DIALOGUE)
+        val scene = resolver.translateScene(
+            SceneTranslateInput(null, "わたくしは、サ一ヴァントです。", emptyList())
+        )!!
+        assertNull(scene.dialogue)
+    }
+
+    /** A readable plate that names another character keeps the scene change unproven. */
+    @Test
+    fun `a plate naming another character does not open the scene`() = runBlocking {
+        resolver.translateLine("だって……、", "村人", StoryChapterResolver.LineKind.DIALOGUE)
+        val scene = resolver.translateScene(
+            SceneTranslateInput("謎之声", "おはようございます、マスタ一。", emptyList())
+        )!!
+        assertNull(scene.dialogue)
+    }
+
     /** A matched row carries the stored line, so bilingual display never shows OCR damage. */
     @Test
     fun `a matched line carries the stored japanese`() = runBlocking {
@@ -460,7 +499,7 @@ class StoryChapterResolverTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "test")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "13")
+            meta(raw, "entry_count", "14")
             insert(raw, 1, "スラノッブ", "スラニョっ！？", "史萊姆阿信", "史萊諾！？")
             insert(raw, 2, "オルガマリー", "そうですね。", "奧爾嘉瑪麗", "說得也是。")
             // Both normalize to `だって`, so only the frame kind can separate them.
@@ -483,6 +522,9 @@ class StoryChapterResolverTest {
             insert(raw, 12, "沖田オルタ", "絶剱無穹一閃", "沖田Alter", "絕劍！！無穹一閃", script = "s5")
             // The stored line keeps the player-name slot; the answer renders the real name.
             insert(raw, 13, "", "おかえりなさい、[%1]。", "", "歡迎回來，[%1]。", script = "s6")
+            // A line that is not its scene's opening: a scene change is never taken on it,
+            // however closely the read matches.
+            insert(raw, 14, "", "わたくしは、サーヴァントです。", "", "我是從者。", script = "s2")
             for ((script, jp, seq) in listOf(
                 Triple("s1", "スラニョっ！？", 1),
                 Triple("s2", "おはようございます、マスター。", 7),

@@ -286,6 +286,20 @@ class StoryChapterResolver @Inject constructor(
             }
         }
         if (!keepsOrEntersFlow(row)) {
+            // A script starts with its opening line, and the pack stores that line for
+            // every script, so a scene change is a stored fact rather than a guess: the
+            // hit may enter the new scene at any distance, because a jump to another
+            // section looks exactly like the next section starting. The plate, when it is
+            // readable, must name the row's speaker, so a similar line cannot drag the
+            // flow into another scene.
+            if (database.isScriptOpening(row) && plateAgrees(row, speaker)) {
+                FgoLogger.debug(
+                    tag,
+                    "Story dialogue entered a new scene by its opening line: " +
+                        "script=${row.scriptId} seq=${row.seq} flow=$lastScriptId"
+                )
+                return row
+            }
             FgoLogger.debug(
                 tag,
                 "Story dialogue fuzzy hit rejected outside the confirmed script: " +
@@ -432,12 +446,23 @@ class StoryChapterResolver @Inject constructor(
      * searches the whole pack, so it can prefer a similar line from another script; taking
      * it would also move the flow there and make every following line look wrong. Leaving
      * the script is allowed once a line has already missed, because a new scene starts
-     * exactly that way.
+     * exactly that way; the scene's own opening line is a second way in, taken by the
+     * caller of this gate.
      */
     private fun keepsOrEntersFlow(row: StoryChapterDatabase.Row): Boolean {
         val script = lastScriptId ?: return true
         if (row.scriptId == script) return true
         return consecutiveMisses.get() > 0
+    }
+
+    /**
+     * A readable name plate must name the row's speaker; an unreadable plate leaves the
+     * line to the other evidence. [matchOpening] compares the same two keys, so a scene
+     * entered here and one identified by its opening never disagree about the speaker.
+     */
+    private fun plateAgrees(row: StoryChapterDatabase.Row, speaker: String): Boolean {
+        val plate = StoryOcrNormalizer.nameKey(speaker)
+        return plate.isEmpty() || plate == StoryOcrNormalizer.nameKey(row.jpName)
     }
 
     /**
