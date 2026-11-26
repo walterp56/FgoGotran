@@ -55,6 +55,15 @@ internal object StoryOcrGeometry {
     private const val CHOICE_TEXT_INSET_RIGHT = 0.06f
     private const val CHOICE_TEXT_INSET_Y = 0.18f
 
+    /** Bright enough for a choice glyph core; the pale plate border stays below this. */
+    private const val CHOICE_GLYPH_MIN_CHANNEL = 190
+
+    /** Keeps a glyph's antialiased edge and a little bar either side inside the crop. */
+    private const val CHOICE_CROP_PAD = 6
+
+    /** Keeps the plate outline out of the crop even when the glyphs reach the panel edge. */
+    private const val CHOICE_CROP_EDGE = 2
+
     /** The two fixed dialogue rows, in screen coordinates. */
     fun dialogueBands(dialogue: Rect): List<Rect> {
         if (dialogue.width() <= 0 || dialogue.height() <= 0) return emptyList()
@@ -179,12 +188,71 @@ internal object StoryOcrGeometry {
         return Rect(clipped.left, clipped.top + top, clipped.right, clipped.top + bottom + 1)
     }
 
-    /** The text area inside one choice panel, clear of its border and selection marker. */
+    /** The text rows inside one choice panel, clear of its border and selection marker. */
     fun choiceBand(button: Rect): Rect {
         val left = button.left + (button.width() * CHOICE_TEXT_INSET_LEFT).roundToInt()
         val right = button.right - (button.width() * CHOICE_TEXT_INSET_RIGHT).roundToInt()
         val insetY = (button.height() * CHOICE_TEXT_INSET_Y).roundToInt()
         return Rect(left, button.top + insetY, right, button.bottom - insetY)
+    }
+
+    /**
+     * Columns that hold choice glyphs inside [button].
+     *
+     * FGO centres the choice text, so a long choice runs almost edge to edge: the fixed
+     * horizontal insets of [choiceBand] cut its head and tail off, and Paddle then reads a
+     * confident but truncated line. The plate border is a pale blue curve that never reaches
+     * the glyph channel, so a bright-ink test finds the text and leaves the border out.
+     */
+    fun choiceTextColumns(source: Bitmap, button: Rect): IntRange? {
+        val band = choiceBand(button)
+        val clipped = Rect(button.left, band.top, button.right, band.bottom)
+        if (!clipped.intersect(0, 0, source.width, source.height) ||
+            clipped.width() <= 0 ||
+            clipped.height() <= 0
+        ) {
+            return null
+        }
+        val width = clipped.width()
+        val height = clipped.height()
+        val pixels = IntArray(width * height)
+        source.getPixels(pixels, 0, width, clipped.left, clipped.top, width, height)
+        var first = -1
+        var last = -1
+        for (x in 0 until width) {
+            var ink = 0
+            for (y in 0 until height) {
+                if (!isChoiceGlyph(pixels[y * width + x])) continue
+                ink++
+                if (ink >= MIN_ROW_INK_PIXELS) break
+            }
+            if (ink >= MIN_ROW_INK_PIXELS) {
+                if (first < 0) first = x
+                last = x
+            }
+        }
+        if (first < 0) return null
+        return IntRange(clipped.left + first, clipped.left + last)
+    }
+
+    /**
+     * The recognition crop of one choice panel.
+     *
+     * The rows stay [choiceBand]'s so a short line is not stretched, while the columns follow
+     * [columns]. A panel without measurable ink keeps the full plate width, because reading a
+     * truncated line is worse than reading some border.
+     */
+    fun choiceCrop(button: Rect, columns: IntRange?): Rect {
+        val band = choiceBand(button)
+        val leftmost = button.left + CHOICE_CROP_EDGE
+        val rightmost = button.right - CHOICE_CROP_EDGE
+        if (columns == null) {
+            return Rect(leftmost, band.top, rightmost, band.bottom)
+        }
+        val left = (columns.first - CHOICE_CROP_PAD).coerceAtLeast(leftmost)
+        val right = (columns.last + 1 + CHOICE_CROP_PAD).coerceAtMost(rightmost)
+        if (right <= left) return Rect(leftmost, band.top, rightmost, band.bottom)
+        return Rect(left, band.top, right, band.bottom)
     }
 
     private fun luma(pixel: Int): Int {
@@ -199,6 +267,15 @@ internal object StoryOcrGeometry {
         val green = (pixel shr 8) and 0xff
         val blue = pixel and 0xff
         return maxOf(red, green, blue) >= TEXT_INK_MAX_CHANNEL
+    }
+
+    /** A choice glyph core: bright neutral, or the vivid red of a shout choice. */
+    private fun isChoiceGlyph(pixel: Int): Boolean {
+        val red = (pixel shr 16) and 0xff
+        val green = (pixel shr 8) and 0xff
+        val blue = pixel and 0xff
+        if (minOf(red, green, blue) >= CHOICE_GLYPH_MIN_CHANNEL) return true
+        return red >= 150 && red - maxOf(green, blue) >= 60
     }
 }
 
@@ -234,15 +311,25 @@ internal object StoryOcrAssembler {
         return present
     }
 
-    /** One line per choice panel; null when any panel is unreadable. */
-    fun choices(results: List<StoryBandText?>, buttons: List<Rect>): List<StoryOcrLine>? {
-        if (results.size != buttons.size) return null
+    /**
+     * One line per choice panel; null when any panel is unreadable.
+     *
+     * [reported] is the box each line carries. The caller passes the glyph box inside the
+     * panel, because the service samples the text colour from that box; [buttons] only says
+     * which panel a line belongs to.
+     */
+    fun choices(
+        results: List<StoryBandText?>,
+        buttons: List<Rect>,
+        reported: List<Rect> = buttons
+    ): List<StoryOcrLine>? {
+        if (results.size != buttons.size || reported.size != buttons.size) return null
         val lines = ArrayList<StoryOcrLine>(buttons.size)
         for (index in buttons.indices) {
             val result = results[index] ?: return null
             val text = result.text.trim()
             if (text.isEmpty() || result.confidence < MIN_LINE_CONFIDENCE) return null
-            lines += StoryOcrLine(text, buttons[index], result.confidence, row = 0)
+            lines += StoryOcrLine(text, reported[index], result.confidence, row = 0)
         }
         return lines
     }
@@ -289,6 +376,9 @@ class StoryOcrScanner @Inject constructor(
             StoryOcrGeometry.recognitionBand(band, inks[index])
         }
         val nameBand = namePlate?.let { StoryOcrGeometry.inkBand(source, it) }
+        // Same rule as a choice: recognition keeps the measured band, while the reported box
+        // also follows the glyph columns, because the colour vote scans that box.
+        val nameReported = nameBand?.let { band -> StoryOcrGeometry.inkBounds(source, band) ?: band }
         val bands = if (nameBand == null) crops else crops + nameBand
 
         val startedAt = System.currentTimeMillis()
@@ -298,7 +388,7 @@ class StoryOcrScanner @Inject constructor(
         // cover panel from these bounds, so a band-wide box would paint over the whole box.
         val reported = rows.mapIndexed { index, band -> inks[index] ?: band }
         val dialogue = StoryOcrAssembler.dialogue(results.subList(0, rows.size), reported) ?: return null
-        val name = nameBand?.let { band ->
+        val name = nameReported?.let { band ->
             StoryOcrAssembler.name(results.getOrNull(rows.size), band)
         }
         FgoLogger.debug(
@@ -320,14 +410,25 @@ class StoryOcrScanner @Inject constructor(
         if (buttons.isEmpty() || buttons.size > MAX_CHOICE_COUNT) return null
         val bands = buttons.map { StoryOcrGeometry.choiceBand(it) }
         if (bands.any { it.width() <= 0 || it.height() <= 0 }) return null
+        // Recognition keeps the band's rows but takes its columns from the glyphs: FGO centres
+        // the choice text, so the fixed insets cut a long choice short and Paddle then reads a
+        // confident but truncated line.
+        val crops = buttons.map { button ->
+            StoryOcrGeometry.choiceCrop(button, StoryOcrGeometry.choiceTextColumns(source, button))
+        }
+        // The reported box follows the glyphs. The service samples the text colour inside that
+        // box, so a box as wide as the panel lets artwork showing through the translucent bar
+        // outvote white glyphs and the line renders red.
+        val reported = crops.map { StoryOcrGeometry.inkBounds(source, it) ?: it }
 
         val startedAt = System.currentTimeMillis()
-        val results = ocrEngine.recognizeStoryBands(source, bands) ?: return null
-        val lines = StoryOcrAssembler.choices(results, buttons) ?: return null
+        val results = ocrEngine.recognizeStoryBands(source, crops) ?: return null
+        val lines = StoryOcrAssembler.choices(results, buttons, reported) ?: return null
         FgoLogger.debug(
             tag,
             "Story OCR fast choices: count=${lines.size}, " +
                 "confidence=${lines.joinToString(",") { (it.confidence * 100).roundToInt().toString() }}, " +
+                "cropWidths=${crops.joinToString(",") { it.width().toString() }}, " +
                 "elapsed=${System.currentTimeMillis() - startedAt}ms"
         )
         return lines

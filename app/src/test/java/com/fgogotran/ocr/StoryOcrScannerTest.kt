@@ -58,6 +58,43 @@ class StoryOcrScannerTest {
         assertEquals(Rect(367, 274, 1602, 361), band)
     }
 
+    /**
+     * FGO centres the choice text, so the fixed horizontal insets of [choiceBand] cut a long
+     * line. Measured on the event screenshot: glyphs 466–1869 in a 430–1900 panel, with the
+     * pale blue plate border at 443–460 and 1880–1896.
+     */
+    @Test
+    fun `a centred choice crop follows the glyphs instead of the fixed insets`() {
+        val panel = Rect(430, 250, 1900, 385)
+        val pixels = IntArray(2340 * 1080).apply { fill(Color.BLACK) }
+        for (y in 275 until 360) {
+            for (x in 443 until 460) pixels[y * 2340 + x] = Color.rgb(137, 170, 189)
+            for (x in 1880 until 1896) pixels[y * 2340 + x] = Color.rgb(137, 170, 189)
+        }
+        for (y in 295 until 340) {
+            for (x in 466 until 1870) pixels[y * 2340 + x] = Color.WHITE
+        }
+        val bitmap = Bitmap.createBitmap(2340, 1080, Bitmap.Config.ARGB_8888)
+        bitmap.setPixels(pixels, 0, 2340, 0, 0, 2340, 1080)
+
+        val columns = StoryOcrGeometry.choiceTextColumns(bitmap, panel)
+        assertEquals(IntRange(466, 1869), columns)
+        // The fixed band would cut the head and the tail of a line this long.
+        assertEquals(Rect(577, 274, 1812, 361), StoryOcrGeometry.choiceBand(panel))
+        assertEquals(Rect(460, 274, 1876, 361), StoryOcrGeometry.choiceCrop(panel, columns))
+        bitmap.recycle()
+    }
+
+    @Test
+    fun `a choice without glyphs keeps the full plate width`() {
+        val panel = Rect(430, 250, 1900, 385)
+        val bitmap = Bitmap.createBitmap(2340, 1080, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.BLACK)
+        assertNull(StoryOcrGeometry.choiceTextColumns(bitmap, panel))
+        assertEquals(Rect(432, 274, 1898, 361), StoryOcrGeometry.choiceCrop(panel, null))
+        bitmap.recycle()
+    }
+
     @Test
     fun `the name band keeps only the ink rows`() {
         val bitmap = Bitmap.createBitmap(120, 60, Bitmap.Config.ARGB_8888)
@@ -132,12 +169,16 @@ class StoryOcrScannerTest {
     @Test
     fun `every choice panel must read`() {
         val buttons = listOf(Rect(220, 250, 1690, 385), Rect(220, 437, 1690, 572))
+        // The service samples the text colour inside the reported box, so a line carries the
+        // glyph box, never the panel.
+        val reported = listOf(Rect(367, 274, 1602, 330), Rect(420, 470, 1240, 520))
         val lines = StoryOcrAssembler.choices(
             listOf(StoryBandText("水着を買う", 0.97f), StoryBandText("焼きまんじゅうを食べる", 0.95f)),
-            buttons
+            buttons,
+            reported
         )
         assertEquals(2, lines?.size)
-        assertEquals(buttons[1], lines?.get(1)?.bounds)
+        assertEquals(reported[1], lines?.get(1)?.bounds)
         assertNull(
             StoryOcrAssembler.choices(
                 listOf(StoryBandText("水着を買う", 0.97f), StoryBandText("", 0.95f)),
@@ -150,6 +191,20 @@ class StoryOcrScannerTest {
                 buttons
             )
         )
+    }
+
+    @Test
+    fun `a name reports the glyph columns, not the plate width`() {
+        val bitmap = Bitmap.createBitmap(300, 60, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.BLACK)
+        for (y in 20 until 40) {
+            for (x in 40 until 140) bitmap.setPixel(x, y, Color.WHITE)
+        }
+        val rows = StoryOcrGeometry.inkBand(bitmap, Rect(0, 0, 300, 60))
+        assertEquals(Rect(0, 20, 300, 40), rows)
+        // The colour vote scans this box, so the name must not report the whole plate.
+        assertEquals(Rect(38, 20, 142, 40), StoryOcrGeometry.inkBounds(bitmap, rows!!))
+        bitmap.recycle()
     }
 
     @Test

@@ -16,6 +16,11 @@ class StoryOcrFastPathWiringTest {
         Regex("(?m)^    (?:private )?(?:suspend )?fun ").split(service).drop(1)
             .first { it.startsWith("$name(") }
 
+    private fun source(relative: String): String = listOf(
+        File(relative),
+        File("app/$relative")
+    ).first(File::isFile).readText().replace("\r\n", "\n")
+
     @Test
     fun `the story switch selects the fast dialogue OCR and keeps the full pipeline as fallback`() {
         val dialogue = function("recognizeDialogueRegions")
@@ -63,6 +68,24 @@ class StoryOcrFastPathWiringTest {
         assertTrue(render.contains("lines = lines"))
         // The warning must see the tight box, so the measurement runs first.
         assertTrue(render.indexOf("measureNameTextBounds(") < render.indexOf("warnIfNameClipped("))
+    }
+
+    @Test
+    fun `the fast choice and name boxes follow the glyphs`() {
+        val scanner = source("src/main/java/com/fgogotran/ocr/StoryOcrScanner.kt")
+        // The service samples the text colour inside the reported box, so it must not be the panel.
+        assertTrue(scanner.contains("val reported = crops.map { StoryOcrGeometry.inkBounds(source, it) ?: it }"))
+        assertTrue(scanner.contains("StoryOcrAssembler.choices(results, buttons, reported)"))
+        assertTrue(scanner.contains("StoryOcrGeometry.inkBounds(source, band) ?: band"))
+        assertTrue(scanner.contains("StoryOcrAssembler.name(results.getOrNull(rows.size), band)"))
+        // Recognition takes the choice columns from the glyphs: the fixed insets cut a long
+        // centred line, and the truncated read then still came back with full confidence.
+        assertTrue(
+            scanner.contains(
+                "StoryOcrGeometry.choiceCrop(button, StoryOcrGeometry.choiceTextColumns(source, button))"
+            )
+        )
+        assertTrue(scanner.contains("ocrEngine.recognizeStoryBands(source, crops)"))
     }
 
     @Test
