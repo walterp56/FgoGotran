@@ -10,11 +10,23 @@ import android.graphics.RectF
 /** Frozen, full-screen-coordinate drawing commands. No renderer bitmap is retained. */
 internal class ChoiceSelectionVisualPlan(
     clearBox: RectF,
-    private val cornerRadius: Float,
+    cornerRadius: Float,
     private val drawBackground: (Canvas) -> Unit,
-    private val drawText: (Canvas) -> Unit
+    private val drawText: (Canvas) -> Unit,
+    clearPath: Path? = null
 ) {
     private val clearBox = RectF(clearBox)
+
+    /** The cleared shape: the plate's own outline, or the legacy rounded rectangle. */
+    private val outline: Path = clearPath?.let { Path(it) }
+        ?: Path().apply {
+            addRoundRect(
+                this@ChoiceSelectionVisualPlan.clearBox,
+                cornerRadius,
+                cornerRadius,
+                Path.Direction.CW
+            )
+        }
 
     /** Background-only cover for either row; no text rasterization or annotation planning. */
     fun captureBackground(bounds: Rect): Bitmap = captureLayer(bounds, drawBackground)
@@ -58,7 +70,7 @@ internal class ChoiceSelectionVisualPlan(
                 }
             }
             check(right >= left && bottom >= top) { "Selected choice has no visible text" }
-            return ChoiceSelectionLayers(background, text, bounds, clearBox, cornerRadius,
+            return ChoiceSelectionLayers(background, text, bounds, outline,
                 bounds.left + (left + right + 1) / 2f, bounds.top + (top + bottom + 1) / 2f)
         } catch (error: Throwable) {
             allocated.forEach { it.recycle() }
@@ -72,13 +84,12 @@ internal class ChoiceSelectionLayers(
     private val background: Bitmap,
     private val text: Bitmap,
     bounds: Rect,
-    clearBox: RectF,
-    cornerRadius: Float,
+    outline: Path,
     private val pivotX: Float,
     private val pivotY: Float
 ) : AutoCloseable {
     private val destination = RectF(bounds)
-    private val ghostClip = Path().apply { addRoundRect(clearBox, cornerRadius, cornerRadius, Path.Direction.CW) }
+    private val ghostClip = Path(outline)
     private val ghostPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private var closed = false
 

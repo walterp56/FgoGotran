@@ -78,6 +78,7 @@ class OverlayRenderer @Inject constructor(
         private const val CHOICE_REFERENCE_HEIGHT = 135f
         private const val CHOICE_MIN_WIDTH_RATIO = 0.78f
         private const val CHOICE_MAX_WIDTH_RATIO = 1.08f
+        private const val CHOICE_CLEAR_RADIUS = 10f
         private const val DIALOGUE_MAX_LINES = 2
         private const val DIALOGUE_TEXT_LEFT_INSET = DialogueReferenceGeometry.TEXT_LEFT_INSET
         private const val DIALOGUE_TEXT_RIGHT_INSET = DialogueReferenceGeometry.TEXT_RIGHT_INSET
@@ -761,14 +762,14 @@ class OverlayRenderer @Inject constructor(
             )
             return
         }
-        val clearInsetX = 47f * scale
+        // Clear the plate's own fill: the slot is wider than the plate, and the plate cuts its
+        // top-left and bottom-right corners, so a plain rectangle covers artwork beside them
+        // and blocks the plate's shape.
+        val clearBox = ChoicePlateGeometry.fill(box, canvas.width, canvas.height)
+        val clearPath = ChoicePlateGeometry.fillPath(box, canvas.width, canvas.height)
         val textInsetX = 70f * scale
 
-        canvas.drawRoundRect(
-            box.left + clearInsetX, box.top + 8f * scale,
-            box.right - clearInsetX, box.bottom - 8f * scale,
-            10f * scale, 10f * scale, choiceClearPaint
-        )
+        canvas.drawPath(clearPath, choiceClearPaint)
 
         val textArea = RectF(
             box.left + textInsetX,
@@ -811,9 +812,7 @@ class OverlayRenderer @Inject constructor(
         )
 
         canvas.save()
-        clipTextAndRuby(canvas, textArea,
-            RectF(box.left + clearInsetX, box.top + 8f * scale, box.right - clearInsetX, box.bottom - 8f * scale),
-            listOf(layout.translationText))
+        clipTextAndRuby(canvas, textArea, clearBox, clearPath, listOf(layout.translationText))
         paint.textSize = layout.translationTextSize
         val translationX = textArea.centerX() - paint.measureRenderText(layout.translationText) / 2f
         drawShadowedText(
@@ -838,7 +837,7 @@ class OverlayRenderer @Inject constructor(
             rubyMode = RubyRenderText.Mode.INLINE
         )
         canvas.restore()
-        choices?.add(choiceRenderRegion(instruction.region.boundingBox, box, scale, paint, textArea,
+        choices?.add(choiceRenderRegion(instruction.region.boundingBox, scale, paint, textArea,
             listOf(
                 ChoiceTextRun(layout.translationText,
                     translationX,
@@ -847,7 +846,7 @@ class OverlayRenderer @Inject constructor(
                     originalX,
                     originalBaseline + downwardShift, layout.originalTextSize, ORIGINAL_TEXT_COLOR,
                     RubyRenderText.Mode.INLINE)
-            )))
+            ), clearBox, clearPath))
     }
 
     /**
@@ -872,14 +871,14 @@ class OverlayRenderer @Inject constructor(
             )
             return
         }
-        val clearInsetX = 47f * scale
+        // Clear the plate's own fill: the slot is wider than the plate, and the plate cuts its
+        // top-left and bottom-right corners, so a plain rectangle covers artwork beside them
+        // and blocks the plate's shape.
+        val clearBox = ChoicePlateGeometry.fill(box, canvas.width, canvas.height)
+        val clearPath = ChoicePlateGeometry.fillPath(box, canvas.width, canvas.height)
         val textInsetX = 70f * scale
 
-        canvas.drawRoundRect(
-            box.left + clearInsetX, box.top + 8f * scale,
-            box.right - clearInsetX, box.bottom - 8f * scale,
-            10f * scale, 10f * scale, choiceClearPaint
-        )
+        canvas.drawPath(clearPath, choiceClearPaint)
 
         // ── 2. Render CN choice text (center-aligned) ──
         val textArea = RectF(
@@ -907,13 +906,11 @@ class OverlayRenderer @Inject constructor(
         val y = box.centerY() + paint.textSize / 3f + 4f * scale
 
         canvas.save()
-        clipTextAndRuby(canvas, textArea,
-            RectF(box.left + clearInsetX, box.top + 8f * scale, box.right - clearInsetX, box.bottom - 8f * scale),
-            listOf(text))
+        clipTextAndRuby(canvas, textArea, clearBox, clearPath, listOf(text))
         drawShadowedText(canvas, paint, text, x, y, textColor, scale)
         canvas.restore()
-        choices?.add(choiceRenderRegion(instruction.region.boundingBox, box, scale, paint, textArea,
-            listOf(ChoiceTextRun(text, x, y, paint.textSize, textColor))))
+        choices?.add(choiceRenderRegion(instruction.region.boundingBox, scale, paint, textArea,
+            listOf(ChoiceTextRun(text, x, y, paint.textSize, textColor)), clearBox, clearPath))
     }
 
     private data class ChoiceTextRun(
@@ -922,34 +919,38 @@ class OverlayRenderer @Inject constructor(
     )
 
     private fun choiceRenderRegion(
-        hitBounds: Rect, box: RectF, scale: Float, sourcePaint: Paint, textArea: RectF,
-        runs: List<ChoiceTextRun>
+        hitBounds: Rect, scale: Float, sourcePaint: Paint, textArea: RectF,
+        runs: List<ChoiceTextRun>, clearBox: RectF, clearPath: Path
     ): ChoiceRenderRegion {
-        val paintBounds = Rect()
         // Includes antialiasing at the clear plane's edge, plus every clipped annotation and shadow.
-        RectF(box.left + 47f * scale - 1f, box.top + 8f * scale - 1f,
-            box.right - 47f * scale + 1f, box.bottom - 8f * scale + 1f).roundOut(paintBounds)
-        val clearBox = RectF(box.left + 47f * scale, box.top + 8f * scale,
-            box.right - 47f * scale, box.bottom - 8f * scale)
+        val outline = RectF()
+        clearPath.computeBounds(outline, true)
+        val paintBounds = Rect()
+        RectF(outline.left - 1f, outline.top - 1f, outline.right + 1f, outline.bottom + 1f)
+            .roundOut(paintBounds)
         val frozenPaint = Paint(sourcePaint)
         val frozenClearPaint = Paint(choiceClearPaint)
+        val frozenClearBox = RectF(clearBox)
+        val frozenPath = Path(clearPath)
         val frozenTextArea = RectF(textArea)
         val frozenRuns = runs.toList()
-        val visual = ChoiceSelectionVisualPlan(clearBox, 10f * scale,
+        val visual = ChoiceSelectionVisualPlan(frozenClearBox, CHOICE_CLEAR_RADIUS * scale,
             drawBackground = { target ->
-                target.drawRoundRect(clearBox, 10f * scale, 10f * scale, frozenClearPaint)
+                target.drawPath(frozenPath, frozenClearPaint)
             },
             drawText = { target ->
                 val paint = Paint(frozenPaint)
                 target.save()
-                clipTextAndRuby(target, frozenTextArea, clearBox, listOf(frozenRuns.first().text))
+                clipTextAndRuby(target, frozenTextArea, frozenClearBox, frozenPath,
+                    listOf(frozenRuns.first().text))
                 for (run in frozenRuns) {
                     paint.textSize = run.textSize
                     drawShadowedText(target, paint, run.text, run.x, run.baseline, run.color, scale,
                         rubyMode = run.rubyMode)
                 }
                 target.restore()
-            })
+            },
+            clearPath = frozenPath)
         return ChoiceRenderRegion(Rect(hitBounds), paintBounds, visual)
     }
 
@@ -1802,7 +1803,10 @@ class OverlayRenderer @Inject constructor(
         rubyMode: RubyRenderText.Mode = RubyRenderText.Mode.ABOVE_BASE
     ): Float = measureText(RubyRenderText.body(text, rubyMode))
 
-    private fun clipTextAndRuby(canvas: Canvas, textArea: RectF, clearBox: RectF, lines: List<String>) {
+    private fun clipTextAndRuby(
+        canvas: Canvas, textArea: RectF, clearBox: RectF, clearPath: Path, lines: List<String>
+    ) {
+        canvas.clipPath(clearPath)
         if (lines.none(RubyRenderText::hasRuby)) {
             canvas.clipRect(textArea)
         } else {
