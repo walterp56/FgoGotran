@@ -38,8 +38,8 @@ android {
         applicationId = "com.fgogotran"
         minSdk = 30
         targetSdk = 34
-        versionCode = 21
-        versionName = "5.0.0"
+        versionCode = 22
+        versionName = "5.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Run/Debug and release share the owner's local choice and both APK markers.

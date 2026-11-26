@@ -242,7 +242,7 @@ class StoryOcrNormalizerTest {
     @Test
     fun `a dialogue size marker does not change the matching key`() {
         val plain = "―――『ヤタガラス・クラーッシュ』！！！"
-        for (marker in listOf("⟬L⟭", "⟬S⟭")) {
+        for (marker in listOf("⟬L⟭", "⟬S⟭", "⟬XL⟭")) {
             assertEquals("ヤタガラスクラーッシュ", StoryOcrNormalizer.normalize(marker + plain))
             assertEquals(StoryOcrNormalizer.hash(plain), StoryOcrNormalizer.hash(marker + plain))
             assertEquals(StoryOcrNormalizer.fuzzyKey(plain), StoryOcrNormalizer.fuzzyKey(marker + plain))

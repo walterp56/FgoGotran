@@ -208,7 +208,7 @@ async function main(argv) {
   const openings = [];
   const prepared = [];
   const hashCounts = new Map();
-  const sizeCounts = { large: 0, small: 0 };
+  const sizeCounts = { large: 0, small: 0, xlarge: 0 };
   let emptyKeys = 0;
   for (let index = 0; index < dataRows.length; index++) {
     const row = dataRows[index];

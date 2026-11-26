@@ -333,7 +333,7 @@ async function patchSizeTokens(work, id) {
   if (rows.length !== rebuilt.length) {
     throw new Error('TSV rows ' + rows.length + ' != converted rows ' + rebuilt.length);
   }
-  const sizes = { large: 0, small: 0 };
+  const sizes = { large: 0, small: 0, xlarge: 0 };
   let changed = 0;
   for (let index = 0; index < rows.length; index++) {
     const have = rows[index];
@@ -345,8 +345,12 @@ async function patchSizeTokens(work, id) {
       }
     }
     const dialog = want[1] ?? '';
-    if (stripDialogueMarker(dialog) !== (have[1] ?? '')) {
-      throw new Error('row ' + (index + 1) + ': jp_dialog differs beyond the size marker');
+    // A previous run may already have written a marker into this cell, so compare
+    // the text with both markers removed; only a real text change aborts.
+    if (stripDialogueMarker(dialog) !== stripDialogueMarker(have[1] ?? '')) {
+      throw new Error('row ' + (index + 1) + ': jp_dialog differs beyond the size marker (' +
+        JSON.stringify(stripDialogueMarker(have[1] ?? '')) + ' != ' +
+        JSON.stringify(stripDialogueMarker(dialog)) + ')');
     }
     const size = dialogueSizeOf(dialog);
     if (size === 'normal') continue;

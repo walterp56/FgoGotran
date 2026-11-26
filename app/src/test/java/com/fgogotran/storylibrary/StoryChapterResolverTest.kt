@@ -493,6 +493,17 @@ class StoryChapterResolverTest {
         assertEquals("こそこそ話", scene.dialogue?.sourceText)
     }
 
+    /** The real capture of an `[f x-large]` line (2.32x the normal cell). */
+    @Test
+    fun `an x-large line reports its render size and hides the marker`() = runBlocking {
+        val scene = resolver.translateScene(
+            SceneTranslateInput("久坂玄瑞", "させるかああああっ！！！", emptyList())
+        )!!
+        assertEquals(DialogueSize.EXTRA_LARGE, scene.dialogueSize)
+        assertEquals("させるかああああっ！！！", scene.dialogue?.sourceText)
+        assertFalse(scene.dialogue?.translatedText.orEmpty().contains("⟬"))
+    }
+
     @Test
     fun `a line without a marker keeps the default size`() = runBlocking {
         val scene = resolver.translateScene(
@@ -540,7 +551,7 @@ class StoryChapterResolverTest {
             meta(raw, "chapter_id", CHAPTER)
             meta(raw, "content_version", "test")
             meta(raw, "status", "finished")
-            meta(raw, "entry_count", "17")
+            meta(raw, "entry_count", "18")
             insert(raw, 1, "スラノッブ", "スラニョっ！？", "史萊姆阿信", "史萊諾！？")
             insert(raw, 2, "オルガマリー", "そうですね。", "奧爾嘉瑪麗", "說得也是。")
             // Both normalize to `だって`, so only the frame kind can separate them.
@@ -575,6 +586,10 @@ class StoryChapterResolverTest {
                 "沖田Alter", "『黑鴉・粉碎』！！！", script = "s7"
             )
             insert(raw, 17, "", "⟬S⟭こそこそ話", "", "竊竊私語", script = "s7")
+            insert(
+                raw, 18, "久坂玄瑞", "⟬XL⟭させるかああああっ！！！",
+                "久坂玄瑞", "給我住手啊啊啊啊！！！", script = "s8"
+            )
             for ((script, jp, seq) in listOf(
                 Triple("s1", "スラニョっ！？", 1),
                 Triple("s2", "おはようございます、マスター。", 7),

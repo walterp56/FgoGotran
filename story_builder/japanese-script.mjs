@@ -17,7 +17,8 @@ const narrationStart = '[backlogStart]';
 const emphasis = /^#([^:]+)$/;
 // A leading size command is part of the line's presentation, not a stage action:
 // the pack keeps it as a marker the app can turn into a render size.
-const sizeCommand = /^\[f (large|small)\]/;
+const sizeCommand = /^\[f (large|small|x-large)\]/;
+const sizeKey = (value) => (value === 'x-large' ? 'xlarge' : value);
 
 function displayText(text, fail) {
   if (/[\[\]]/.test(text.replace(bracketTag, ''))) fail('unclosed or nested bracket tag');
@@ -50,11 +51,11 @@ export function parseJapaneseScript(scriptId, source) {
  *
  * A row stores at most one size marker, so a command after the first line of a
  * box (`text[f large]`) and every size the app does not render (`medium`,
- * `x-large`, `x-small`, the alignment variants) are counted instead of being
- * dropped silently.
+ * `x-small`, the alignment variants) are counted instead of being dropped
+ * silently.
  */
 export function parseJapaneseScriptDetailed(scriptId, source) {
-  const sizes = { large: 0, small: 0, skippedMidLine: 0, skippedOther: {} };
+  const sizes = { large: 0, small: 0, xlarge: 0, skippedMidLine: 0, skippedOther: {} };
   const lines = source.split(/\r\n?|\n/);
   const opening = lines.find((line) => line.trim());
   if (!opening?.startsWith('＄') && opening !== '[soundStopAll]') {
@@ -142,14 +143,15 @@ export function parseJapaneseScriptDetailed(scriptId, source) {
     let marker = '';
     const leading = sizeCommand.exec(line);
     if (leading && box.parts.length === 0) {
-      marker = DIALOGUE_MARKERS[leading[1]];
-      sizes[leading[1]]++;
+      const value = sizeKey(leading[1]);
+      marker = DIALOGUE_MARKERS[value];
+      sizes[value]++;
       body = line.slice(leading[0].length);
     }
     for (const tag of line.matchAll(/\[f ([^\[\]]+)\]/g)) {
       const value = tag[1].trim();
       if (leading && tag.index === 0 && value === leading[1]) continue;
-      if (value === 'large' || value === 'small') {
+      if (value === 'large' || value === 'small' || value === 'x-large') {
         sizes.skippedMidLine++;
       } else {
         sizes.skippedOther[value] = (sizes.skippedOther[value] ?? 0) + 1;
