@@ -1,0 +1,4 @@
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/fgogotran_mascot_backdrop" />
+    <foreground android:drawable="@drawable/fgogotran_mascot_foreground" />
+</adaptive-icon>
