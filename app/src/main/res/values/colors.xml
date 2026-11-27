@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sampled from the icon art's own background so the mask and the art edge match. -->
+    <color name="fgogotran_mascot_background">#163663</color>
+</resources>
